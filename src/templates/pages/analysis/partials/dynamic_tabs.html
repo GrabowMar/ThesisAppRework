@@ -1,0 +1,625 @@
+{# slug: pages/analysis/partials/dynamic_tabs (auto-migrated) #}
+{#
+    Dynamic Analysis Tab Components
+    Purpose: Specialized tab content for dynamic analysis results in analysis detail view
+    
+    Features:
+    - Runtime behavior analysis and patterns
+    - API endpoint testing and response validation
+    - Form submission handling and validation
+    - JavaScript execution analysis
+    - Dynamic content generation assessment
+    
+    Usage: Included in analysis detail view when analysis_type == 'dynamic'
+    Dependencies: Requires Chart.js for API response visualization
+#}
+
+<!-- API Testing Tab -->
+<div class="tab-pane fade" id="api-testing-tab" role="tabpanel">
+    <div class="row">
+        <div class="col-lg-8">
+            <h6 class="mb-3">API Endpoint Testing</h6>
+            
+            <!-- API Summary Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-primary">{{ analysis.results.api_testing.total_endpoints or 0 }}</h3>
+                            <p class="text-muted mb-0">Total Endpoints</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-success">{{ analysis.results.api_testing.successful_tests or 0 }}</h3>
+                            <p class="text-muted mb-0">Successful</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-danger">{{ analysis.results.api_testing.failed_tests or 0 }}</h3>
+                            <p class="text-muted mb-0">Failed</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-info">{{ ((analysis.results.api_testing.successful_tests or 0) / (analysis.results.api_testing.total_endpoints or 1) * 100)|round(1) }}%</h3>
+                            <p class="text-muted mb-0">Success Rate</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- API Endpoints Table -->
+            {% if analysis.results.api_testing.endpoints %}
+                <div class="table-responsive">
+                    <table class="table table-hover" id="api-endpoints-table">
+                        <thead>
+                            <tr>
+                                <th>Endpoint</th>
+                                <th>Method</th>
+                                <th>Status Code</th>
+                                <th>Response Time</th>
+                                <th>Response Size</th>
+                                <th>Content Type</th>
+                                <th>Test Result</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for endpoint in analysis.results.api_testing.endpoints %}
+                            <tr class="api-endpoint-row" data-endpoint-id="{{ endpoint.id }}">
+                                <td>
+                                    <code class="text-primary">{{ endpoint.path }}</code>
+                                    {% if endpoint.parameters %}
+                                        <br><small class="text-muted">Params: {{ endpoint.parameters|length }}</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'primary' if endpoint.method == 'GET' else 'success' if endpoint.method == 'POST' else 'warning' if endpoint.method == 'PUT' else 'danger' if endpoint.method == 'DELETE' else 'secondary' }}">
+                                        {{ endpoint.method }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if endpoint.status_code < 300 else 'warning' if endpoint.status_code < 400 else 'danger' }}">
+                                        {{ endpoint.status_code }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="text-{{ 'success' if endpoint.response_time_ms < 100 else 'warning' if endpoint.response_time_ms < 500 else 'danger' }}">
+                                        {{ endpoint.response_time_ms }}ms
+                                    </span>
+                                </td>
+                                <td>{{ endpoint.response_size_bytes|filesizeformat if endpoint.response_size_bytes else 'N/A' }}</td>
+                                <td>
+                                    <span class="small">{{ endpoint.content_type or 'Unknown' }}</span>
+                                </td>
+                                <td>
+                                    {% if endpoint.test_passed %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check me-1"></i>Passed
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-times me-1"></i>Failed
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="viewEndpointDetails('{{ endpoint.id }}')">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="retestEndpoint('{{ endpoint.id }}')">
+                                        <i class="fas fa-redo"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No API endpoints were discovered during the dynamic analysis.
+                </div>
+            {% endif %}
+        </div>
+        <div class="col-lg-4">
+            <h6 class="mb-3">API Analysis Summary</h6>
+            
+            <!-- Status Code Distribution -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">Status Code Distribution</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="status-code-chart" width="300" height="200"></canvas>
+                </div>
+            </div>
+            
+            <!-- API Health Insights -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">API Health Insights</h6>
+                </div>
+                <div class="card-body">
+                    {% if analysis.results.api_insights %}
+                        <div class="list-group list-group-flush">
+                            {% for insight in analysis.results.api_insights %}
+                            <div class="list-group-item px-0">
+                                <div class="d-flex align-items-start">
+                                    <i class="fas fa-{{ insight.icon or 'info-circle' }} text-{{ insight.type or 'info' }} me-2 mt-1"></i>
+                                    <div>
+                                        <h6 class="mb-1">{{ insight.title }}</h6>
+                                        <p class="mb-0 small">{{ insight.description }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted mb-0">No specific API insights available.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Form Analysis Tab -->
+<div class="tab-pane fade" id="form-analysis-tab" role="tabpanel">
+    <div class="row">
+        <div class="col-lg-8">
+            <h6 class="mb-3">Form Submission Analysis</h6>
+            
+            <!-- Forms Summary -->
+            {% if analysis.results.form_analysis.forms %}
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h3 class="text-primary">{{ analysis.results.form_analysis.forms|length }}</h3>
+                                <p class="text-muted mb-0">Forms Found</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h3 class="text-success">{{ analysis.results.form_analysis.successful_submissions or 0 }}</h3>
+                                <p class="text-muted mb-0">Successful Submissions</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h3 class="text-warning">{{ analysis.results.form_analysis.validation_issues or 0 }}</h3>
+                                <p class="text-muted mb-0">Validation Issues</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Forms Table -->
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Form</th>
+                                <th>Method</th>
+                                <th>Fields</th>
+                                <th>Validation</th>
+                                <th>Submission Test</th>
+                                <th>CSRF Protection</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for form in analysis.results.form_analysis.forms %}
+                            <tr>
+                                <td>
+                                    <strong>{{ form.name or 'Unnamed Form' }}</strong>
+                                    <br><small class="text-muted">{{ form.action or 'No action' }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if form.method == 'POST' else 'secondary' }}">
+                                        {{ form.method or 'GET' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="fw-bold">{{ form.fields|length if form.fields else 0 }}</span>
+                                    {% if form.fields %}
+                                        <br><small class="text-muted">
+                                            {% for field_type in form.field_types %}
+                                                <span class="badge badge-sm bg-light text-dark me-1">{{ field_type }}</span>
+                                            {% endfor %}
+                                        </small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if form.has_validation %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check me-1"></i>Present
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-warning">
+                                            <i class="fas fa-exclamation-triangle me-1"></i>Missing
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if form.submission_test_passed %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check me-1"></i>Passed
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-times me-1"></i>Failed
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if form.has_csrf_protection %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-shield-alt me-1"></i>Protected
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-shield-alt me-1"></i>Vulnerable
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if form.overall_status == 'healthy' else 'warning' if form.overall_status == 'issues' else 'danger' }}">
+                                        {{ form.overall_status|title }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="viewFormDetails('{{ form.id }}')">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-success" onclick="testFormSubmission('{{ form.id }}')">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No forms were found during the dynamic analysis.
+                </div>
+            {% endif %}
+        </div>
+        <div class="col-lg-4">
+            <h6 class="mb-3">Form Security Assessment</h6>
+            
+            <!-- Security Score -->
+            <div class="card mb-4">
+                <div class="card-body text-center">
+                    <h3 class="text-{{ 'success' if (analysis.results.form_analysis.security_score or 0) >= 8 else 'warning' if (analysis.results.form_analysis.security_score or 0) >= 6 else 'danger' }}">
+                        {{ analysis.results.form_analysis.security_score or 0 }}/10
+                    </h3>
+                    <p class="text-muted mb-2">Form Security Score</p>
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar bg-{{ 'success' if (analysis.results.form_analysis.security_score or 0) >= 8 else 'warning' if (analysis.results.form_analysis.security_score or 0) >= 6 else 'danger' }}" 
+                             style="width: {{ (analysis.results.form_analysis.security_score or 0) * 10 }}%"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Security Issues -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">Security Issues Found</h6>
+                </div>
+                <div class="card-body">
+                    {% if analysis.results.form_analysis.security_issues %}
+                        <div class="list-group list-group-flush">
+                            {% for issue in analysis.results.form_analysis.security_issues %}
+                            <div class="list-group-item px-0">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">{{ issue.title }}</h6>
+                                        <p class="mb-1 small">{{ issue.description }}</p>
+                                        <small class="text-muted">Affected forms: {{ issue.affected_forms_count or 1 }}</small>
+                                    </div>
+                                    <span class="badge bg-{{ 'danger' if issue.severity == 'high' else 'warning' if issue.severity == 'medium' else 'secondary' }}">
+                                        {{ issue.severity|title }}
+                                    </span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-success mb-0">No security issues detected in form handling.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript Analysis Tab -->
+<div class="tab-pane fade" id="javascript-analysis-tab" role="tabpanel">
+    <div class="row">
+        <div class="col-lg-8">
+            <h6 class="mb-3">JavaScript Execution Analysis</h6>
+            
+            <!-- JavaScript Summary -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-primary">{{ analysis.results.javascript_analysis.scripts_found or 0 }}</h3>
+                            <p class="text-muted mb-0">Scripts Found</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-success">{{ analysis.results.javascript_analysis.scripts_executed or 0 }}</h3>
+                            <p class="text-muted mb-0">Successfully Executed</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-danger">{{ analysis.results.javascript_analysis.execution_errors or 0 }}</h3>
+                            <p class="text-muted mb-0">Execution Errors</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-warning">{{ analysis.results.javascript_analysis.console_warnings or 0 }}</h3>
+                            <p class="text-muted mb-0">Console Warnings</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- JavaScript Files -->
+            {% if analysis.results.javascript_analysis.scripts %}
+                <h6 class="mb-3">Script Analysis</h6>
+                <div class="accordion" id="jsScriptsAccordion">
+                    {% for script in analysis.results.javascript_analysis.scripts %}
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="script{{ loop.index }}Heading">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                                    data-bs-target="#script{{ loop.index }}Collapse">
+                                <div class="d-flex justify-content-between align-items-center w-100 me-3">
+                                    <span>
+                                        <strong>{{ script.name or 'Inline Script ' + loop.index|string }}</strong>
+                                        <small class="text-muted ms-2">{{ script.type or 'text/javascript' }}</small>
+                                    </span>
+                                    <div>
+                                        {% if script.has_errors %}
+                                            <span class="badge bg-danger me-2">{{ script.error_count }} Errors</span>
+                                        {% endif %}
+                                        {% if script.has_warnings %}
+                                            <span class="badge bg-warning me-2">{{ script.warning_count }} Warnings</span>
+                                        {% endif %}
+                                        <span class="badge bg-{{ 'success' if script.status == 'executed' else 'danger' if script.status == 'failed' else 'secondary' }}">
+                                            {{ script.status|title }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </button>
+                        </h2>
+                        <div id="script{{ loop.index }}Collapse" class="accordion-collapse collapse" 
+                             data-bs-parent="#jsScriptsAccordion">
+                            <div class="accordion-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>Script Details</h6>
+                                        <dl class="row small">
+                                            <dt class="col-4">Source:</dt>
+                                            <dd class="col-8">{{ script.source or 'Inline' }}</dd>
+                                            
+                                            <dt class="col-4">Size:</dt>
+                                            <dd class="col-8">{{ script.size_bytes|filesizeformat if script.size_bytes else 'N/A' }}</dd>
+                                            
+                                            <dt class="col-4">Load Time:</dt>
+                                            <dd class="col-8">{{ script.load_time_ms }}ms</dd>
+                                            
+                                            <dt class="col-4">Execution Time:</dt>
+                                            <dd class="col-8">{{ script.execution_time_ms }}ms</dd>
+                                        </dl>
+                                    </div>
+                                    <div class="col-md-6">
+                                        {% if script.console_messages %}
+                                            <h6>Console Output</h6>
+                                            <div class="console-output bg-dark text-light p-2 rounded small" style="max-height: 200px; overflow-y: auto;">
+                                                {% for message in script.console_messages %}
+                                                <div class="console-line text-{{ 'danger' if message.level == 'error' else 'warning' if message.level == 'warn' else 'light' }}">
+                                                    <span class="text-muted">[{{ message.timestamp }}]</span>
+                                                    <span class="fw-bold">[{{ message.level|upper }}]</span>
+                                                    {{ message.text }}
+                                                </div>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                {% if script.functions_detected %}
+                                    <div class="mt-3">
+                                        <h6>Functions Detected</h6>
+                                        <div class="d-flex flex-wrap gap-1">
+                                            {% for func in script.functions_detected %}
+                                            <span class="badge bg-light text-dark">{{ func }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        <div class="col-lg-4">
+            <h6 class="mb-3">JavaScript Health</h6>
+            
+            <!-- Performance Metrics -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">Performance Metrics</h6>
+                </div>
+                <div class="card-body">
+                    <div class="metric-card mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>Total Load Time</span>
+                            <span class="fw-bold">{{ analysis.results.javascript_analysis.total_load_time_ms or 0 }}ms</span>
+                        </div>
+                    </div>
+                    <div class="metric-card mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>Total Execution Time</span>
+                            <span class="fw-bold">{{ analysis.results.javascript_analysis.total_execution_time_ms or 0 }}ms</span>
+                        </div>
+                    </div>
+                    <div class="metric-card mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>DOM Ready Time</span>
+                            <span class="fw-bold">{{ analysis.results.javascript_analysis.dom_ready_time_ms or 0 }}ms</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Browser Compatibility -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">Browser Compatibility</h6>
+                </div>
+                <div class="card-body">
+                    {% if analysis.results.javascript_analysis.browser_compatibility %}
+                        {% for browser, score in analysis.results.javascript_analysis.browser_compatibility.items() %}
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>{{ browser|title }}</span>
+                            <div class="d-flex align-items-center">
+                                <span class="fw-bold text-{{ 'success' if score >= 90 else 'warning' if score >= 70 else 'danger' }} me-2">
+                                    {{ score }}%
+                                </span>
+                                <div class="progress" style="width: 60px; height: 6px;">
+                                    <div class="progress-bar bg-{{ 'success' if score >= 90 else 'warning' if score >= 70 else 'danger' }}" 
+                                         style="width: {{ score }}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted mb-0">Browser compatibility data not available.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Initialize dynamic analysis charts
+function initializeDynamicCharts() {
+    // Status Code Distribution Chart
+    const statusCodeCtx = document.getElementById('status-code-chart');
+    if (statusCodeCtx) {
+        const statusCodes = {{ analysis.results.api_testing.status_code_distribution|tojsonpretty|safe if analysis.results.api_testing else "{}" }};
+        const labels = Object.keys(statusCodes);
+        const data = Object.values(statusCodes);
+        const colors = labels.map(code => {
+            if (code.startsWith('2')) return '#28a745';
+            if (code.startsWith('3')) return '#17a2b8';
+            if (code.startsWith('4')) return '#ffc107';
+            if (code.startsWith('5')) return '#dc3545';
+            return '#6c757d';
+        });
+
+        new Chart(statusCodeCtx.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: colors,
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+}
+
+// API endpoint details modal
+function viewEndpointDetails(endpointId) {
+    // Implementation would load endpoint details in a modal
+    console.log('Viewing details for endpoint:', endpointId);
+}
+
+// Retest endpoint functionality
+function retestEndpoint(endpointId) {
+    // Implementation would retest the specific endpoint
+    console.log('Retesting endpoint:', endpointId);
+}
+
+// Form details modal
+function viewFormDetails(formId) {
+    // Implementation would show form details in a modal
+    console.log('Viewing form details:', formId);
+}
+
+// Test form submission
+function testFormSubmission(formId) {
+    // Implementation would test form submission
+    console.log('Testing form submission:', formId);
+}
+
+// Initialize charts when dynamic tabs become active
+document.addEventListener('shown.bs.tab', function(e) {
+    if (e.target.getAttribute('href') === '#api-testing-tab' || 
+        e.target.getAttribute('href') === '#form-analysis-tab' ||
+        e.target.getAttribute('href') === '#javascript-analysis-tab') {
+        setTimeout(initializeDynamicCharts, 100);
+    }
+});
+
+// Enhanced table functionality for API endpoints
+document.addEventListener('DOMContentLoaded', function() {
+    const apiTable = document.getElementById('api-endpoints-table');
+    if (apiTable && typeof DataTable !== 'undefined') {
+        new DataTable(apiTable, {
+            pageLength: 10,
+            order: [[2, 'asc']], // Order by status code
+            columnDefs: [
+                { targets: [7], orderable: false } // Actions column not sortable
+            ]
+        });
+    }
+});
+</script>

@@ -15,11 +15,15 @@ class Config:
     # Basic Flask settings
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     
-    # Database settings
-    BASE_DIR = Path(__file__).parent.parent
+    # Database settings  
+    # Ensure we get the src directory regardless of where we run from
+    BASE_DIR = Path(__file__).resolve().parent.parent  # This should be /src
     DATABASE_PATH = BASE_DIR / 'data' / 'thesis_app.db'
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or f'sqlite:///{DATABASE_PATH}'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # Ensure database directory exists
+    DATABASE_PATH.parent.mkdir(exist_ok=True)
     
     # External service URLs
     ANALYZER_BASE_URL = os.environ.get('ANALYZER_BASE_URL', 'http://localhost:8080')

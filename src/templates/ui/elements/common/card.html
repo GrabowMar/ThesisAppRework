@@ -1,0 +1,295 @@
+{# slug: ui/elements/common/card (auto-migrated) #}
+{#
+  Common Card Component
+  
+  Purpose: Reusable card wrapper component with consistent styling
+  Features:
+  - Flexible header with title and actions
+  - Optional footer
+  - Loading states
+  - Error states
+  - Responsive design
+  
+  Parameters:
+  - title: Card title
+  - subtitle: Optional subtitle
+  - icon: Font Awesome icon class
+  - card_class: Additional CSS classes
+  - header_class: Header CSS classes
+  - body_class: Body CSS classes
+  - footer_content: Footer content
+  - show_header: Show/hide header (default: true)
+  - show_footer: Show/hide footer (default: false)
+  - collapsible: Make card collapsible (default: false)
+  
+  Usage:
+  {# removed self-include of ui/elements/common/card.html #}
+  
+  Or with block content:
+  {% set card_config = {
+      'title': 'My Card',
+      'icon': 'fas fa-info'
+  } %}
+  {# removed self-include of ui/elements/common/card.html #}
+  {% block card_content %}
+      <p>Card content goes here</p>
+  {% endblock %}
+#}
+
+{% set title = title|default('Card Title') %}
+{% set subtitle = subtitle|default('') %}
+{% set icon = icon|default('fas fa-square') %}
+{% set card_class = card_class|default('') %}
+{% set header_class = header_class|default('') %}
+{% set body_class = body_class|default('') %}
+{% set footer_content = footer_content|default('') %}
+{% set show_header = show_header|default(true) %}
+{% set show_footer = show_footer|default(false) %}
+{% set collapsible = collapsible|default(false) %}
+{% set card_id = card_id|default('card-' ~ range(1000, 9999)|random) %}
+
+<div class="card {{ card_class }}" id="{{ card_id }}">
+    {% if show_header %}
+    <div class="card-header {{ header_class }}">
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="card-title-wrapper">
+                {% if icon %}
+                <i class="{{ icon }} me-2"></i>
+                {% endif %}
+                <span class="card-title mb-0">{{ title }}</span>
+                {% if subtitle %}
+                <small class="text-muted d-block">{{ subtitle }}</small>
+                {% endif %}
+            </div>
+            
+            <div class="card-tools">
+                {% block card_actions %}
+                {# Custom actions can be added here #}
+                {% endblock %}
+                
+                {% if collapsible %}
+                <button type="button" 
+                        class="btn btn-tool btn-sm" 
+                        data-bs-toggle="collapse" 
+                        data-bs-target="#{{ card_id }}-body"
+                        aria-expanded="true"
+                        aria-controls="{{ card_id }}-body">
+                    <i class="fas fa-minus" data-collapse-icon></i>
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="card-body {{ body_class }} {% if collapsible %}collapse show{% endif %}" 
+         {% if collapsible %}id="{{ card_id }}-body"{% endif %}>
+        
+        {# Loading State #}
+        <div class="card-loading d-none" id="{{ card_id }}-loading">
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div class="mt-2 text-muted small">
+                    {{ loading_message|default('Loading content...') }}
+                </div>
+            </div>
+        </div>
+        
+        {# Error State #}
+        <div class="card-error d-none" id="{{ card_id }}-error">
+            <div class="alert alert-danger mb-0">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                    <div class="flex-grow-1">
+                        <h6 class="alert-heading mb-1">Error Loading Content</h6>
+                        <p class="mb-2 small error-message">
+                            {{ error_message|default('An error occurred while loading this content.') }}
+                        </p>
+                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="retryCardLoad('{{ card_id }}')">
+                            <i class="fas fa-redo me-1"></i>Retry
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {# Empty State #}
+        <div class="card-empty d-none" id="{{ card_id }}-empty">
+            <div class="text-center py-4 text-muted">
+                <i class="fas fa-inbox fa-3x mb-3 text-muted opacity-50"></i>
+                <h6>No Data Available</h6>
+                <p class="small mb-0">
+                    {{ empty_message|default('No content to display at this time.') }}
+                </p>
+            </div>
+        </div>
+        
+        {# Main Content #}
+        <div class="card-content" id="{{ card_id }}-content">
+            {% block card_content %}
+            <p class="text-muted mb-0">
+                <i class="fas fa-info-circle me-2"></i>
+                Card component loaded. Content should be provided via block or include parameters.
+            </p>
+            {% endblock %}
+        </div>
+    </div>
+    
+    {% if show_footer or footer_content %}
+    <div class="card-footer">
+        {% if footer_content %}
+            {{ footer_content|safe }}
+        {% else %}
+            {% block card_footer %}
+            <div class="text-muted small">
+                <i class="fas fa-clock me-1"></i>
+                Last updated: <span class="update-timestamp">{{ moment().format('MMM DD, YYYY HH:mm') }}</span>
+            </div>
+            {% endblock %}
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Card Component JavaScript
+(function() {
+    'use strict';
+    
+    // Card utility functions
+    window.cardUtils = window.cardUtils || {
+        
+        // Show loading state
+        showLoading: function(cardId) {
+            const card = document.getElementById(cardId);
+            if (card) {
+                card.querySelector('.card-content').classList.add('d-none');
+                card.querySelector('.card-error').classList.add('d-none');
+                card.querySelector('.card-empty').classList.add('d-none');
+                card.querySelector('.card-loading').classList.remove('d-none');
+            }
+        },
+        
+        // Show content state
+        showContent: function(cardId) {
+            const card = document.getElementById(cardId);
+            if (card) {
+                card.querySelector('.card-loading').classList.add('d-none');
+                card.querySelector('.card-error').classList.add('d-none');
+                card.querySelector('.card-empty').classList.add('d-none');
+                card.querySelector('.card-content').classList.remove('d-none');
+            }
+        },
+        
+        // Show error state
+        showError: function(cardId, errorMessage) {
+            const card = document.getElementById(cardId);
+            if (card) {
+                card.querySelector('.card-loading').classList.add('d-none');
+                card.querySelector('.card-content').classList.add('d-none');
+                card.querySelector('.card-empty').classList.add('d-none');
+                
+                const errorDiv = card.querySelector('.card-error');
+                if (errorMessage) {
+                    const errorMsg = errorDiv.querySelector('.error-message');
+                    if (errorMsg) errorMsg.textContent = errorMessage;
+                }
+                errorDiv.classList.remove('d-none');
+            }
+        },
+        
+        // Show empty state
+        showEmpty: function(cardId, emptyMessage) {
+            const card = document.getElementById(cardId);
+            if (card) {
+                card.querySelector('.card-loading').classList.add('d-none');
+                card.querySelector('.card-content').classList.add('d-none');
+                card.querySelector('.card-error').classList.add('d-none');
+                
+                const emptyDiv = card.querySelector('.card-empty');
+                if (emptyMessage) {
+                    const emptyMsg = emptyDiv.querySelector('p');
+                    if (emptyMsg) emptyMsg.textContent = emptyMessage;
+                }
+                emptyDiv.classList.remove('d-none');
+            }
+        },
+        
+        // Update card title
+        updateTitle: function(cardId, newTitle, newIcon) {
+            const card = document.getElementById(cardId);
+            if (card) {
+                const titleElement = card.querySelector('.card-title');
+                if (titleElement) titleElement.textContent = newTitle;
+                
+                if (newIcon) {
+                    const iconElement = card.querySelector('.card-title-wrapper i');
+                    if (iconElement) {
+                        iconElement.className = newIcon + ' me-2';
+                    }
+                }
+            }
+        },
+        
+        // Update timestamp
+        updateTimestamp: function(cardId) {
+            const card = document.getElementById(cardId);
+            if (card) {
+                const timestamp = card.querySelector('.update-timestamp');
+                if (timestamp) {
+                    timestamp.textContent = new Date().toLocaleString();
+                }
+            }
+        },
+        
+        // Refresh card content
+        refreshCard: function(cardId, url, target) {
+            this.showLoading(cardId);
+            
+            if (typeof htmx !== 'undefined' && url) {
+                htmx.ajax('GET', url, {
+                    target: target || `#${cardId}-content`,
+                    swap: 'innerHTML'
+                }).then(() => {
+                    this.showContent(cardId);
+                    this.updateTimestamp(cardId);
+                }).catch((error) => {
+                    this.showError(cardId, 'Failed to refresh content');
+                });
+            }
+        }
+    };
+    
+    // Global retry function
+    window.retryCardLoad = function(cardId) {
+        const card = document.getElementById(cardId);
+        if (card && card.dataset.refreshUrl) {
+            window.cardUtils.refreshCard(cardId, card.dataset.refreshUrl);
+        }
+    };
+    
+    // Initialize collapse icons
+    document.addEventListener('DOMContentLoaded', function() {
+        const collapseButtons = document.querySelectorAll('[data-collapse-icon]');
+        collapseButtons.forEach(button => {
+            const target = button.getAttribute('data-bs-target');
+            if (target) {
+                const collapseElement = document.querySelector(target);
+                if (collapseElement) {
+                    collapseElement.addEventListener('shown.bs.collapse', function() {
+                        button.innerHTML = '<i class="fas fa-minus"></i>';
+                    });
+                    
+                    collapseElement.addEventListener('hidden.bs.collapse', function() {
+                        button.innerHTML = '<i class="fas fa-plus"></i>';
+                    });
+                }
+            }
+        });
+    });
+})();
+</script>
+
+

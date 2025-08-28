@@ -16,6 +16,10 @@ class CeleryConfig:
     # Redis configuration
     broker_url = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
     result_backend = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+    
+    # Mitigate startup connection warnings
+    broker_connection_retry_on_startup = True
+
 
 
 # Legacy configuration variables for backward compatibility

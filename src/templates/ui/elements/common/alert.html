@@ -1,0 +1,332 @@
+{# slug: ui/elements/common/alert (auto-migrated) #}
+{# 
+Common Alert Component
+
+Purpose: Reusable alert/notification component with various styles and dismissal options
+Usage: {{ alert(type="success", message="Operation completed!", dismissible=true, icon="fas fa-check") }}
+Routes: Used throughout the application for feedback and notifications
+Features:
+- Multiple alert types (success, danger, warning, info, primary, secondary)
+- Dismissible alerts with animation
+- Icon support with automatic icon selection
+- Auto-dismiss functionality with timer
+- Toast-style positioning options
+- Progress bar for timed dismissal
+- Custom actions and buttons
+- Accessibility support with ARIA
+Technical: Bootstrap 5 alerts, JavaScript timers, CSS animations
+Dependencies: Bootstrap 5 alert JavaScript, FontAwesome icons
+#}
+
+{# Set default values for optional parameters #}
+{%- set type = type or 'info' -%} {# primary, secondary, success, danger, warning, info, light, dark #}
+{%- set message = message or 'Alert message' -%}
+{%- set title = title or None -%}
+{%- set dismissible = dismissible if dismissible is not none else false -%}
+{%- set auto_dismiss = auto_dismiss if auto_dismiss is not none else false -%}
+{%- set dismiss_delay = dismiss_delay or 5000 -%}
+{%- set show_progress = show_progress if show_progress is not none else false -%}
+{%- set icon = icon or None -%}
+{%- set auto_icon = auto_icon if auto_icon is not none else true -%}
+{%- set position = position or 'static' -%} {# static, fixed-top, fixed-bottom, toast-top-right, toast-top-left, etc. #}
+{%- set fade_in = fade_in if fade_in is not none else false -%}
+{%- set alert_id = id or ('alert-' ~ range(1000, 9999) | random) -%}
+{%- set actions = actions or [] -%}
+{%- set size = size or '' -%} {# sm, lg #}
+
+{# Auto-select icons based on alert type #}
+{% if auto_icon and not icon %}
+    {% if type == 'success' %}
+        {% set icon = 'fas fa-check-circle' %}
+    {% elif type == 'danger' %}
+        {% set icon = 'fas fa-exclamation-triangle' %}
+    {% elif type == 'warning' %}
+        {% set icon = 'fas fa-exclamation-circle' %}
+    {% elif type == 'info' %}
+        {% set icon = 'fas fa-info-circle' %}
+    {% elif type == 'primary' %}
+        {% set icon = 'fas fa-star' %}
+    {% elif type == 'secondary' %}
+        {% set icon = 'fas fa-circle' %}
+    {% endif %}
+{% endif %}
+
+<div class="alert alert-{{ type }}{{ 
+    ' alert-dismissible' if dismissible else '' 
+}}{{ 
+    ' fade' if fade_in else '' 
+}}{{ 
+    ' show' if fade_in else '' 
+}}{{ 
+    ' alert-' + size if size else '' 
+}}{{ 
+    ' alert-toast' if 'toast' in position else '' 
+}}{{ 
+    ' position-fixed' if 'fixed' in position or 'toast' in position else '' 
+}}" 
+     role="alert" 
+     id="{{ alert_id }}"
+     {% if 'toast' in position %}
+         style="z-index: 1060; {{ position | replace('toast-', '') | replace('-', ': 1rem; ') }}: 1rem;"
+     {% elif position == 'fixed-top' %}
+         style="top: 1rem; left: 50%; transform: translateX(-50%); z-index: 1060; max-width: 90%;"
+     {% elif position == 'fixed-bottom' %}
+         style="bottom: 1rem; left: 50%; transform: translateX(-50%); z-index: 1060; max-width: 90%;"
+     {% endif %}
+     data-auto-dismiss="{{ auto_dismiss | lower }}"
+     data-dismiss-delay="{{ dismiss_delay }}"
+     data-show-progress="{{ show_progress | lower }}">
+    
+    {# Progress bar for auto-dismiss #}
+    {% if auto_dismiss and show_progress %}
+        <div class="alert-progress">
+            <div class="alert-progress-bar" style="animation-duration: {{ dismiss_delay }}ms;"></div>
+        </div>
+    {% endif %}
+    
+    {# Alert content container #}
+    <div class="alert-content d-flex align-items-start">
+        {# Icon #}
+        {% if icon %}
+            <div class="alert-icon mr-3 mt-1">
+                <i class="{{ icon }}"></i>
+            </div>
+        {% endif %}
+        
+        {# Message content #}
+        <div class="alert-message flex-grow-1">
+            {% if title %}
+                <h6 class="alert-heading mb-1">{{ title }}</h6>
+            {% endif %}
+            
+            {% if message %}
+                <div class="alert-text">{{ message | safe }}</div>
+            {% endif %}
+            
+            {# Content slot for caller #}
+            {% if caller %}
+                <div class="alert-custom-content">
+                    {{ caller() }}
+                </div>
+            {% endif %}
+            
+            {# Custom actions #}
+            {% if actions %}
+                <div class="alert-actions mt-2">
+                    {% for action in actions %}
+                        {% if action.type == 'button' %}
+                            <button type="button" 
+                                    class="btn btn-outline-{{ type }} btn-sm mr-2"
+                                    {% if action.onclick %}onclick="{{ action.onclick }}"{% endif %}
+                                    {% if action.dismiss %}onclick="dismissAlert('{{ alert_id }}')"{% endif %}
+                                    {% if action.htmx_post %}hx-post="{{ action.htmx_post }}"{% endif %}
+                                    {% if action.htmx_get %}hx-get="{{ action.htmx_get }}"{% endif %}
+                                    {% if action.htmx_target %}hx-target="{{ action.htmx_target }}"{% endif %}>
+                                {% if action.icon %}
+                                    <i class="{{ action.icon }} mr-1"></i>
+                                {% endif %}
+                                {{ action.label }}
+                            </button>
+                        {% elif action.type == 'link' %}
+                            <a href="{{ action.url }}" 
+                               class="alert-link mr-2"
+                               {% if action.target %}target="{{ action.target }}"{% endif %}>
+                                {% if action.icon %}
+                                    <i class="{{ action.icon }} mr-1"></i>
+                                {% endif %}
+                                {{ action.label }}
+                            </a>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        
+        {# Dismiss button #}
+        {% if dismissible %}
+            <button type="button" 
+                    class="close ml-2" 
+                    data-dismiss="alert" 
+                    aria-label="Close"
+                    onclick="dismissAlert('{{ alert_id }}')">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        {% endif %}
+    </div>
+</div>
+
+{# JavaScript for Alert Management #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const alert = document.getElementById('{{ alert_id }}');
+    
+    if (alert) {
+        const autoDismiss = alert.getAttribute('data-auto-dismiss') === 'true';
+        const dismissDelay = parseInt(alert.getAttribute('data-dismiss-delay'));
+        const showProgress = alert.getAttribute('data-show-progress') === 'true';
+        
+        // Auto-dismiss functionality
+        if (autoDismiss) {
+            setTimeout(() => {
+                dismissAlert('{{ alert_id }}');
+            }, dismissDelay);
+        }
+        
+        // Fade in animation
+        if (alert.classList.contains('fade')) {
+            setTimeout(() => {
+                alert.classList.add('show');
+            }, 10);
+        }
+        
+        // Toast positioning
+        if (alert.classList.contains('alert-toast')) {
+            // Add to toast container or create one
+            let toastContainer = document.querySelector('.toast-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.className = 'toast-container';
+                document.body.appendChild(toastContainer);
+            }
+            
+            if (!alert.parentElement?.classList.contains('toast-container')) {
+                toastContainer.appendChild(alert);
+            }
+        }
+        
+        // Event listeners
+        alert.addEventListener('close.bs.alert', function() {
+            // Custom event before closing
+            alert.dispatchEvent(new CustomEvent('alert:closing', { 
+                detail: { alert: alert } 
+            }));
+        });
+        
+        alert.addEventListener('closed.bs.alert', function() {
+            // Custom event after closing
+            document.dispatchEvent(new CustomEvent('alert:closed', { 
+                detail: { alert: alert } 
+            }));
+            
+            // Remove from DOM
+            if (alert.parentElement) {
+                alert.parentElement.removeChild(alert);
+            }
+        });
+    }
+    
+    // Global alert functions
+    window.dismissAlert = function(alertId) {
+        const alertElement = document.getElementById(alertId);
+        if (alertElement) {
+            // Use Bootstrap's alert dismissal if available
+            if (window.bootstrap?.Alert) {
+                const bsAlert = new bootstrap.Alert(alertElement);
+                bsAlert.close();
+            } else {
+                // Fallback manual dismissal
+                alertElement.classList.remove('show');
+                alertElement.classList.add('fade-out');
+                
+                setTimeout(() => {
+                    if (alertElement.parentElement) {
+                        alertElement.parentElement.removeChild(alertElement);
+                    }
+                }, 300);
+            }
+        }
+    };
+    
+    // Function to create alerts dynamically
+    window.showAlert = function(options = {}) {
+        const alertId = 'alert-' + Math.random().toString(36).substr(2, 9);
+        const type = options.type || 'info';
+        const message = options.message || 'Alert message';
+        const title = options.title || '';
+        const dismissible = options.dismissible !== false;
+        const autoDismiss = options.autoDismiss || false;
+        const dismissDelay = options.dismissDelay || 5000;
+        const position = options.position || 'toast-top-right';
+        
+        const iconMap = {
+            success: 'fas fa-check-circle',
+            danger: 'fas fa-exclamation-triangle',
+            warning: 'fas fa-exclamation-circle',
+            info: 'fas fa-info-circle',
+            primary: 'fas fa-star',
+            secondary: 'fas fa-circle'
+        };
+        
+        const icon = options.icon || iconMap[type] || '';
+        
+        const alertHTML = `
+            <div class="alert alert-${type} alert-dismissible fade show alert-toast position-fixed"
+                 style="z-index: 1060; ${position.replace('toast-', '').replace('-', ': 1rem; ')}: 1rem;"
+                 role="alert" 
+                 id="${alertId}">
+                
+                ${autoDismiss ? `
+                <div class="alert-progress">
+                    <div class="alert-progress-bar" style="animation-duration: ${dismissDelay}ms;"></div>
+                </div>
+                ` : ''}
+                
+                <div class="alert-content d-flex align-items-start">
+                    ${icon ? `<div class="alert-icon mr-3 mt-1"><i class="${icon}"></i></div>` : ''}
+                    
+                    <div class="alert-message flex-grow-1">
+                        ${title ? `<h6 class="alert-heading mb-1">${title}</h6>` : ''}
+                        <div class="alert-text">${message}</div>
+                    </div>
+                    
+                    ${dismissible ? `
+                    <button type="button" class="close ml-2" onclick="dismissAlert('${alertId}')">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+        
+        // Add to toast container
+        let toastContainer = document.querySelector('.toast-container');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.className = 'toast-container';
+            toastContainer.style.cssText = 'position: fixed; top: 0; right: 0; z-index: 1060; padding: 1rem;';
+            document.body.appendChild(toastContainer);
+        }
+        
+        toastContainer.insertAdjacentHTML('beforeend', alertHTML);
+        
+        // Auto-dismiss if requested
+        if (autoDismiss) {
+            setTimeout(() => {
+                dismissAlert(alertId);
+            }, dismissDelay);
+        }
+        
+        return alertId;
+    };
+    
+    // Convenience functions for different alert types
+    window.showSuccess = function(message, options = {}) {
+        return showAlert({ ...options, type: 'success', message });
+    };
+    
+    window.showError = function(message, options = {}) {
+        return showAlert({ ...options, type: 'danger', message });
+    };
+    
+    window.showWarning = function(message, options = {}) {
+        return showAlert({ ...options, type: 'warning', message });
+    };
+    
+    window.showInfo = function(message, options = {}) {
+        return showAlert({ ...options, type: 'info', message });
+    };
+});
+</script>
+
+{# CSS for Alert Enhancements #}
+

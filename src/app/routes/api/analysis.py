@@ -301,7 +301,9 @@ def api_batch_status(batch_id):
 def api_analysis_configure_modal(app_id):
     """API endpoint to get analysis configuration modal."""
     try:
-        app = GeneratedApplication.query.get(app_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            app = _s.get(GeneratedApplication, app_id)
         if not app:
             return f'<div class="alert alert-warning">Application {app_id} not found</div>', 404
 
@@ -317,7 +319,9 @@ def api_analysis_start(app_id):
     try:
         from ...services.background_service import get_background_service
 
-        app = GeneratedApplication.query.get(app_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            app = _s.get(GeneratedApplication, app_id)
         if not app:
             return jsonify({'error': f'Application {app_id} not found'}), 404
 
@@ -482,3 +486,52 @@ def api_analysis_dynamic_results(analysis_id):
         return json_success(result, message="Dynamic analysis results fetched")
     except (AnalysisServiceError,) as exc:  # pragma: no cover - defensive
         return _map_service_error(exc)
+
+
+# ================================================================
+# BULK ANALYSIS START (used by Applications index page bulkAnalyze)
+# ================================================================
+
+@api_bp.route('/analysis/bulk/start', methods=['POST'])
+def api_analysis_bulk_start():
+    """Start analyses in bulk for selected applications.
+
+    Payload: { "app_ids": [1,2], "analysis_type": "security|performance|dynamic" }
+    Returns: { success, started_count, errors }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        app_ids = data.get('app_ids') or []
+        analysis_type = str(data.get('analysis_type') or '').strip().lower()
+        if not app_ids or analysis_type not in {'security','performance','dynamic'}:
+            return json_error('app_ids and a valid analysis_type are required', status=400, error_type='ValidationError')
+
+        started = 0
+        errors = []
+        for app_id in app_ids:
+            try:
+                from app.extensions import get_session
+                with get_session() as _s:
+                    app = _s.get(GeneratedApplication, int(app_id))
+                if not app:
+                    errors.append({'app_id': app_id, 'error': 'Not found'})
+                    continue
+                if analysis_type == 'security':
+                    created = create_comprehensive_security_analysis(app.id, {"application_id": app.id})
+                    start_security_analysis(created['id'])
+                    started += 1
+                elif analysis_type == 'dynamic':
+                    created = create_dynamic_analysis({"application_id": app.id})
+                    start_dynamic_analysis(created['id'])
+                    started += 1
+                elif analysis_type == 'performance':
+                    # Performance path only creates records; actual run is handled by TaskManager via UI elsewhere
+                    create_performance_test({"application_id": app.id})
+                    started += 1
+            except Exception as e:  # noqa: BLE001
+                errors.append({'app_id': app_id, 'error': str(e)})
+
+        return json_success({'started_count': started, 'errors': errors}, message='Bulk analysis start processed')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Bulk analysis start error: {e}")
+        return json_error(str(e), status=500, error_type='InternalError')

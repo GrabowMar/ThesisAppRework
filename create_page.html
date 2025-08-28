@@ -1,0 +1,2341 @@
+
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light" data-theme="light"> 
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Create Analysis - AI Model Analysis Platform</title>
+        
+        <script>
+            (function() {
+                try {
+                    var stored = localStorage.getItem('theme');
+                    if (stored) {
+                        var effective = stored === 'auto' ? (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : stored;
+                        document.documentElement.setAttribute('data-theme', stored);
+                        document.documentElement.setAttribute('data-bs-theme', effective);
+                    }
+                } catch(e) { /* ignore */ }
+            })();
+        </script>
+    
+    
+    <meta name="description" content="AI Model Analysis Platform for comprehensive analysis of AI-generated applications">
+    <meta name="author" content="AI Model Analysis Platform">
+    
+    
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    
+    
+    
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- AdminLTE (local vendor copy) -->
+    <link href="/static/vendor/adminlte/css/adminlte.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+    
+    <!-- Project theme -->
+    <link href="/static/css/theme.css" rel="stylesheet">
+    
+    
+    
+    
+</head>
+
+<body class="bg-body-tertiary with-sidebar">
+    
+    <div id="global-spinner" class="htmx-indicator position-fixed top-0 end-0 p-3" style="z-index: 9999;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+    
+    
+    
+    
+    
+
+
+<!-- Integrated Header Bar -->
+<nav class="integrated-header navbar navbar-expand-lg navbar-dark" 
+     id="integrated-header" 
+     role="navigation" 
+     aria-label="Main navigation">
+  
+  <div class="container-fluid">
+    <!-- Sidebar toggle (desktop) -->
+    <button class="sidebar-toggle btn btn-ghost btn-sm me-3" type="button" aria-label="Toggle sidebar" onclick="toggleSidebar()">
+      <i class="fas fa-bars"></i>
+    </button>
+    
+    <!-- Brand/Logo -->
+    <a class="navbar-brand d-flex align-items-center py-0" href="/" aria-label="Go to dashboard">
+      <i class="fas fa-robot text-primary me-2" aria-hidden="true"></i>
+      <span class="fw-bold">AI Analysis</span>
+    </a>
+
+  
+
+    <!-- Mobile hamburger menu toggle -->
+    <button class="navbar-toggler py-0 px-2 d-lg-none" 
+            type="button" 
+            data-bs-toggle="offcanvas" 
+            data-bs-target="#mobile-sidebar" 
+            aria-controls="mobile-sidebar" 
+            aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <!-- Header Actions & Status -->
+    <div class="navbar-actions d-flex align-items-center ms-auto">
+      <!-- File Menu -->
+      <div class="dropdown me-2">
+        <button class="btn btn-ghost btn-sm dropdown-toggle" 
+                type="button" 
+                id="file-menu" 
+                data-bs-toggle="dropdown" 
+                aria-expanded="false"
+                title="File operations">
+          <i class="fas fa-folder me-1"></i>File
+        </button>
+        <ul class="dropdown-menu" aria-labelledby="file-menu">
+          <li><a class="dropdown-item" href="/analysis/create">
+            <i class="fas fa-plus me-2"></i>New Analysis
+          </a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item" href="/models/applications">
+            <i class="fas fa-folder-open me-2"></i>Open Applications
+          </a></li>
+          <li><a class="dropdown-item disabled" href="#" tabindex="-1">
+            <i class="fas fa-save me-2"></i>Save (Not Available)
+          </a></li>
+        </ul>
+      </div>
+
+      <!-- Export Menu -->
+      <div class="dropdown me-2">
+        <button class="btn btn-ghost btn-sm dropdown-toggle" 
+                type="button" 
+                id="export-menu" 
+                data-bs-toggle="dropdown" 
+                aria-expanded="false"
+                title="Export options">
+          <i class="fas fa-download me-1"></i>Export
+        </button>
+        <ul class="dropdown-menu" aria-labelledby="export-menu">
+          <li><a class="dropdown-item" href="/statistics/">
+            <i class="fas fa-chart-bar me-2"></i>Statistics Report
+          </a></li>
+          <li><a class="dropdown-item disabled" href="#" tabindex="-1">
+            <i class="fas fa-file-csv me-2"></i>Export CSV (Not Available)
+          </a></li>
+          <li><a class="dropdown-item disabled" href="#" tabindex="-1">
+            <i class="fas fa-file-pdf me-2"></i>Export PDF (Not Available)
+          </a></li>
+        </ul>
+      </div>
+
+      <!-- Status Icons -->
+      <div class="status-indicators d-flex align-items-center me-3">
+        <!-- Analysis Status -->
+        <div class="status-icon me-2" title="Analysis Status">
+          <i class="fas fa-chart-line text-primary"></i>
+          <span class="status-badge bg-success" id="analysis-status">3</span>
+        </div>
+
+        <!-- System Health -->
+        <div class="status-icon me-2" title="System Health">
+          <a href="/system-status" class="text-decoration-none">
+            <i class="fas fa-server text-info"></i>
+            <span class="status-badge bg-success" id="system-status-badge">●</span>
+          </a>
+        </div>
+
+        <!-- Database Status -->
+        <div class="status-icon me-2" title="Database Status">
+          <i class="fas fa-database text-warning"></i>
+          <span class="status-badge bg-success" id="db-status">●</span>
+        </div>
+      </div>
+
+      <!-- Theme Toggle -->
+      <button class="btn btn-ghost btn-sm me-2" 
+              type="button"
+              id="theme-toggle"
+              aria-label="Toggle theme"
+              title="Toggle light/dark theme">
+        <i class="fas fa-sun" id="theme-icon" aria-hidden="true"></i>
+      </button>
+
+      <!-- Settings -->
+      <div class="dropdown">
+        <button class="btn btn-ghost btn-sm" 
+                type="button" 
+                id="settings-menu" 
+                data-bs-toggle="dropdown" 
+                aria-expanded="false"
+                title="Settings">
+          <i class="fas fa-cog"></i>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="settings-menu">
+          <li><h6 class="dropdown-header">Theme</h6></li>
+          <li><button class="dropdown-item theme-option" data-theme="light">
+            <i class="fas fa-sun me-2"></i>Light
+          </button></li>
+          <li><button class="dropdown-item theme-option" data-theme="dark">
+            <i class="fas fa-moon me-2"></i>Dark
+          </button></li>
+          <li><button class="dropdown-item theme-option" data-theme="auto">
+            <i class="fas fa-adjust me-2"></i>Auto
+          </button></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><a class="dropdown-item disabled" href="#" tabindex="-1">
+            <i class="fas fa-cog me-2"></i>Preferences (Not Available)
+          </a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- Desktop Sidebar -->
+<aside class="integrated-sidebar sidebar-dark  position-fixed d-none d-lg-flex flex-column" 
+       id="desktop-sidebar"
+       role="navigation" 
+       aria-label="Main sidebar navigation">
+  
+  <!-- User info section (simplified) -->
+  
+
+  <!-- Simplified navigation menu -->
+  <nav class="sidebar-nav flex-grow-1 py-2" role="navigation" aria-label="Sidebar navigation menu">
+    <ul class="nav nav-pills flex-column" id="sidebar-nav-list">
+      
+      <!-- Analysis Section -->
+      <li class="nav-item">
+        <a class="nav-link nav-link-collapse active" 
+           data-bs-toggle="collapse" 
+           data-bs-target="#analysis-menu"
+           aria-expanded="true"
+           aria-controls="analysis-menu"
+           href="#"
+           role="button">
+          <i class="nav-icon fas fa-chart-line" aria-hidden="true"></i>
+          <span class="nav-text">Analysis</span>
+          <i class="nav-arrow fas fa-chevron-right ms-auto" aria-hidden="true"></i>
+        </a>
+        <div class="collapse show" id="analysis-menu">
+          <ul class="nav nav-pills flex-column nav-sub">
+            <li class="nav-item">
+              <a class="nav-link " 
+                 href="/analysis/">
+                <i class="nav-icon fas fa-home" aria-hidden="true"></i>
+                <span class="nav-text">Hub</span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link " 
+                 href="/analysis/list">
+                <i class="nav-icon fas fa-list" aria-hidden="true"></i>
+                <span class="nav-text">Results</span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link " 
+                 href="/batch/"
+                 >
+                <i class="nav-icon fas fa-layer-group" aria-hidden="true"></i>
+                <span class="nav-text">Batch Dashboard</span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link " 
+                 href="/batch/create"
+                 >
+                <i class="nav-icon fas fa-plus-square" aria-hidden="true"></i>
+                <span class="nav-text">New Batch</span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link " 
+                 href="/batch/statistics"
+                 >
+                <i class="nav-icon fas fa-chart-line text-info" aria-hidden="true"></i>
+                <span class="nav-text">Batch Statistics</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </li>
+
+      <!-- Models Section -->
+      <li class="nav-item">
+        <a class="nav-link " 
+           href="/models/"
+           >
+          <i class="nav-icon fas fa-brain" aria-hidden="true"></i>
+          <span class="nav-text">Models</span>
+        </a>
+      </li>
+
+      <!-- Applications Section -->
+      <li class="nav-item">
+        <a class="nav-link nav-link-collapse " 
+           data-bs-toggle="collapse" 
+           data-bs-target="#applications-menu"
+           aria-expanded="false"
+           aria-controls="applications-menu"
+           href="#"
+           role="button">
+          <i class="nav-icon fas fa-boxes" aria-hidden="true"></i>
+          <span class="nav-text">Applications</span>
+          <i class="nav-arrow fas fa-chevron-right ms-auto" aria-hidden="true"></i>
+        </a>
+        <div class="collapse " id="applications-menu">
+          <ul class="nav nav-pills flex-column nav-sub">
+            <li class="nav-item">
+              <a class="nav-link " 
+                 href="/models/applications">
+                <i class="nav-icon fas fa-list" aria-hidden="true"></i>
+                <span class="nav-text">All Apps</span>
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" 
+                 href="/models/applications?filter=recent">
+                <i class="nav-icon fas fa-clock text-info" aria-hidden="true"></i>
+                <span class="nav-text">Recent</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </li>
+
+      <!-- Statistics -->
+      <li class="nav-item">
+        <a class="nav-link " 
+           href="/statistics/"
+           >
+          <i class="nav-icon fas fa-chart-bar" aria-hidden="true"></i>
+          <span class="nav-text">Statistics</span>
+        </a>
+      </li>
+
+      <!-- Divider -->
+      <li class="nav-divider my-2"></li>
+
+      <!-- System Section -->
+      <li class="nav-item">
+        <a class="nav-link " 
+           href="/system-status"
+           >
+          <i class="nav-icon fas fa-heartbeat" aria-hidden="true"></i>
+          <span class="nav-text">System</span>
+        </a>
+      </li>
+    </ul>
+  </nav>
+</aside>
+
+<!-- Mobile Sidebar (Offcanvas) -->
+<div class="offcanvas offcanvas-start bg-dark text-white d-lg-none" 
+     id="mobile-sidebar" 
+     tabindex="-1" 
+     aria-labelledby="mobile-sidebar-label">
+  <div class="offcanvas-header border-bottom border-secondary">
+    <h5 class="offcanvas-title" id="mobile-sidebar-label">
+      <i class="fas fa-robot me-2 text-primary" aria-hidden="true"></i>
+      AI Analysis
+    </h5>
+    <button type="button" 
+            class="btn-close btn-close-white" 
+            data-bs-dismiss="offcanvas" 
+            aria-label="Close sidebar"></button>
+  </div>
+  <div class="offcanvas-body p-0">
+    
+    <nav class="sidebar-nav" role="navigation" aria-label="Mobile sidebar navigation">
+      <ul class="nav nav-pills flex-column">
+        <li class="nav-item"><a class="nav-link" href="/"><i class="nav-icon fas fa-tachometer-alt"></i><span class="nav-text">Dashboard</span></a></li>
+        <li class="nav-item"><a class="nav-link" href="/analysis/"><i class="nav-icon fas fa-chart-line"></i><span class="nav-text">Analysis</span></a></li>
+        <li class="nav-item"><a class="nav-link" href="/models/"><i class="nav-icon fas fa-brain"></i><span class="nav-text">Models</span></a></li>
+        <li class="nav-item"><a class="nav-link" href="/models/applications"><i class="nav-icon fas fa-boxes"></i><span class="nav-text">Applications</span></a></li>
+        <li class="nav-item"><a class="nav-link" href="/statistics/"><i class="nav-icon fas fa-chart-bar"></i><span class="nav-text">Statistics</span></a></li>
+        <li class="nav-divider my-2"></li>
+        <li class="nav-item"><a class="nav-link" href="/system-status"><i class="nav-icon fas fa-heartbeat"></i><span class="nav-text">System</span></a></li>
+      </ul>
+    </nav>
+  </div>
+</div>
+
+<!-- Integrated Navigation JavaScript -->
+<script>
+class IntegratedNavManager {
+  constructor() {
+    this.sidebar = document.getElementById('desktop-sidebar');
+    this.navItems = document.querySelectorAll('.sidebar-nav .nav-link');
+    this.themeToggle = document.getElementById('theme-toggle');
+    this.themeIcon = document.getElementById('theme-icon');
+    this.systemStatusBadge = document.getElementById('system-status-badge');
+    this.analysisStatus = document.getElementById('analysis-status');
+    this.dbStatus = document.getElementById('db-status');
+    this.themeOptions = document.querySelectorAll('.theme-option');
+    
+    this.isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+    this.currentTheme = this.getStoredTheme() || this.getPreferredTheme();
+    
+    this.init();
+  }
+  
+  init() {
+    this.setupTooltips();
+    this.setupNavigation();
+    this.setupThemeToggle();
+    this.setupThemeOptions();
+    this.setupStatusPolling();
+    this.setupMobileMenu();
+    
+    // Apply initial states
+    this.setTheme(this.currentTheme);
+    this.loadSidebarState();
+    
+    // Set initial sidebar state
+    if (this.isCollapsed) {
+      this.collapseSidebar();
+    } else {
+      this.expandSidebar();
+    }
+    
+    // Listen for system theme changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if (this.getStoredTheme() === 'auto') {
+        this.setTheme('auto');
+      }
+    });
+  }
+  
+  collapseSidebar() {
+    if (!this.sidebar) return;
+    
+    this.sidebar.classList.add('collapsed');
+    document.body.classList.add('sidebar-collapsed');
+    document.body.classList.remove('with-sidebar');
+    this.isCollapsed = true;
+    localStorage.setItem('sidebarCollapsed', 'true');
+    
+    // Update main content classes
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+      mainContent.classList.remove('sidebar-expanded');
+      mainContent.classList.add('sidebar-collapsed');
+    }
+    
+    // Update toggle button
+    const toggleBtn = document.querySelector('.sidebar-toggle');
+    if (toggleBtn) {
+      toggleBtn.innerHTML = '<i class="fas fa-bars"></i>';
+      toggleBtn.title = 'Expand sidebar';
+    }
+    
+    // Enable tooltips for collapsed state
+    this.setupTooltips();
+  }
+  
+  expandSidebar() {
+    if (!this.sidebar) return;
+    
+    this.sidebar.classList.remove('collapsed');
+    document.body.classList.remove('sidebar-collapsed');
+    document.body.classList.add('with-sidebar');
+    this.isCollapsed = false;
+    localStorage.setItem('sidebarCollapsed', 'false');
+    
+    // Update main content classes
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+      mainContent.classList.add('sidebar-expanded');
+      mainContent.classList.remove('sidebar-collapsed');
+    }
+    
+    // Update toggle button
+    const toggleBtn = document.querySelector('.sidebar-toggle');
+    if (toggleBtn) {
+      toggleBtn.innerHTML = '<i class="fas fa-angle-double-left"></i>';
+      toggleBtn.title = 'Collapse sidebar';
+    }
+  }
+  
+  setupTooltips() {
+    if (this.isCollapsed && window.bootstrap) {
+      // Initialize tooltips for collapsed sidebar
+      const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+      tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+      });
+    }
+  }
+  
+  setupNavigation() {
+    // Handle collapsible menu arrows
+    document.querySelectorAll('.nav-link-collapse').forEach(link => {
+      const arrow = link.querySelector('.nav-arrow');
+      if (!arrow) return;
+      
+      const target = document.querySelector(link.getAttribute('data-bs-target'));
+      
+      if (target) {
+        target.addEventListener('show.bs.collapse', () => {
+          arrow.style.transform = 'rotate(90deg)';
+        });
+        
+        target.addEventListener('hide.bs.collapse', () => {
+          arrow.style.transform = 'rotate(0deg)';
+        });
+      }
+    });
+  }
+  
+  setupThemeToggle() {
+    if (!this.themeToggle) return;
+    
+    this.themeToggle.addEventListener('click', () => {
+      const newTheme = this.currentTheme === 'light' ? 'dark' : 'light';
+      this.setTheme(newTheme);
+      this.storeTheme(newTheme);
+    });
+  }
+
+  setupThemeOptions() {
+    this.themeOptions.forEach(option => {
+      option.addEventListener('click', () => {
+        const theme = option.dataset.theme;
+        this.setTheme(theme);
+        this.storeTheme(theme);
+      });
+    });
+  }
+  
+  getStoredTheme() {
+    return localStorage.getItem('theme');
+  }
+  
+  storeTheme(theme) {
+    localStorage.setItem('theme', theme);
+    this.currentTheme = theme;
+  }
+  
+  getPreferredTheme() {
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    return 'light';
+  }
+  
+  setTheme(theme) {
+    let actualTheme = theme;
+    if (theme === 'auto') {
+      actualTheme = this.getPreferredTheme();
+    }
+    
+    // Sync both custom data-theme and Bootstrap data-bs-theme
+    document.documentElement.setAttribute('data-theme', actualTheme);
+    document.documentElement.setAttribute('data-bs-theme', actualTheme);
+    
+    if (this.themeIcon) {
+      if (theme === 'auto') {
+        this.themeIcon.className = 'fas fa-adjust';
+      } else {
+        this.themeIcon.className = actualTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+      }
+    }
+    
+    // Update theme options active state
+    this.themeOptions.forEach(option => {
+      if (option.dataset.theme === theme) {
+        option.classList.add('active');
+      } else {
+        option.classList.remove('active');
+      }
+    });
+    
+    this.currentTheme = theme;
+  }
+
+  setupStatusPolling() {
+    // Poll status every 30 seconds
+    this.updateSystemStatus();
+    this.updateAnalysisStatus();
+    this.updateDatabaseStatus();
+    
+    setInterval(() => {
+      this.updateSystemStatus();
+      this.updateAnalysisStatus();
+      this.updateDatabaseStatus();
+    }, 30000);
+  }
+  
+  async updateSystemStatus() {
+    if (!this.systemStatusBadge) return;
+    
+    try {
+      const response = await fetch('/api/system/health');
+      const data = await response.json();
+      
+      if (data.status === 'healthy') {
+        this.systemStatusBadge.className = 'status-badge bg-success';
+        this.systemStatusBadge.innerHTML = '●';
+      } else if (data.status === 'warning') {
+        this.systemStatusBadge.className = 'status-badge bg-warning';
+        this.systemStatusBadge.innerHTML = '●';
+      } else {
+        this.systemStatusBadge.className = 'status-badge bg-danger';
+        this.systemStatusBadge.innerHTML = '●';
+      }
+    } catch (error) {
+      console.error('Failed to update system status:', error);
+      this.systemStatusBadge.className = 'status-badge bg-secondary';
+      this.systemStatusBadge.innerHTML = '●';
+    }
+  }
+
+  async updateAnalysisStatus() {
+    if (!this.analysisStatus) return;
+    
+    try {
+      const response = await fetch('/api/analysis/count');
+      const data = await response.json();
+      this.analysisStatus.textContent = data.running || 0;
+      
+      if (data.running > 0) {
+        this.analysisStatus.className = 'status-badge bg-primary';
+      } else {
+        this.analysisStatus.className = 'status-badge bg-secondary';
+      }
+    } catch (error) {
+      console.error('Failed to update analysis status:', error);
+      this.analysisStatus.textContent = '0';
+      this.analysisStatus.className = 'status-badge bg-secondary';
+    }
+  }
+
+  async updateDatabaseStatus() {
+    if (!this.dbStatus) return;
+    
+    try {
+      const response = await fetch('/api/system/db-health');
+      const data = await response.json();
+      
+      if (data.status === 'healthy') {
+        this.dbStatus.className = 'status-badge bg-success';
+      } else {
+        this.dbStatus.className = 'status-badge bg-danger';
+      }
+    } catch (error) {
+      console.error('Failed to update database status:', error);
+      this.dbStatus.className = 'status-badge bg-warning';
+    }
+  }
+  
+  setupMobileMenu() {
+    // Enhanced mobile menu behavior
+    const mobileSidebar = document.getElementById('mobile-sidebar');
+    if (!mobileSidebar) return;
+    
+    // Close mobile menu when clicking on nav links
+    mobileSidebar.addEventListener('click', (e) => {
+      if (e.target.classList.contains('nav-link') && window.innerWidth < 992) {
+        const offcanvas = bootstrap.Offcanvas.getInstance(mobileSidebar);
+        if (offcanvas) offcanvas.hide();
+      }
+    });
+  }
+  
+  toggleSidebar() {
+    if (this.isCollapsed) {
+      this.expandSidebar();
+    } else {
+      this.collapseSidebar();
+    }
+  }
+  
+  loadSidebarState() {
+    // Restore active item
+    const activeItem = localStorage.getItem('activeSidebarItem');
+    if (activeItem) {
+      const link = document.querySelector(`a[href="${activeItem}"]`);
+      if (link) {
+        // Remove active from all
+        document.querySelectorAll('.sidebar-nav .nav-link').forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
+      }
+    }
+  }
+}
+
+// Initialize integrated navigation when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  window.integratedNavManager = new IntegratedNavManager();
+});
+
+// Global sidebar toggle function
+function toggleSidebar() {
+  const manager = window.integratedNavManager;
+  if (manager) {
+    manager.toggleSidebar();
+  } else {
+    // Fallback if manager not available
+    const sidebar = document.getElementById('desktop-sidebar');
+    const mainContent = document.querySelector('.main-content');
+    
+    if (sidebar) {
+      const isCollapsed = sidebar.classList.contains('collapsed');
+      
+      if (isCollapsed) {
+        sidebar.classList.remove('collapsed');
+        document.body.classList.add('with-sidebar');
+        document.body.classList.remove('sidebar-collapsed');
+        
+        if (mainContent) {
+          mainContent.classList.add('sidebar-expanded');
+          mainContent.classList.remove('sidebar-collapsed');
+        }
+        
+        localStorage.setItem('sidebarCollapsed', 'false');
+      } else {
+        sidebar.classList.add('collapsed');
+        document.body.classList.remove('with-sidebar');
+        document.body.classList.add('sidebar-collapsed');
+        
+        if (mainContent) {
+          mainContent.classList.remove('sidebar-expanded');
+          mainContent.classList.add('sidebar-collapsed');
+        }
+        
+        localStorage.setItem('sidebarCollapsed', 'true');
+      }
+    }
+  }
+}
+
+// Initialize integrated navigation when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  window.integratedNavManager = new IntegratedNavManager();
+});
+
+// Global sidebar toggle function
+function toggleSidebar() {
+  if (window.integratedNavManager) {
+    window.integratedNavManager.toggleSidebar();
+  }
+}
+
+// HTMX event listeners
+document.body.addEventListener('htmx:afterRequest', (event) => {
+  // Update badge counts after HTMX requests
+  if (event.detail.elt.classList.contains('sidebar-badge')) {
+    const response = event.detail.xhr.response;
+    if (response && !isNaN(response)) {
+      event.detail.elt.textContent = response;
+    }
+  }
+});
+
+// Listen for sidebar toggle from navbar
+window.addEventListener('toggle:sidebar', () => {
+  if (window.integratedNavManager) {
+    window.integratedNavManager.toggleSidebar();
+  }
+});
+</script>
+    
+    
+    
+    <main class="main-content py-4">
+        
+        <div class="content-container container-fluid px-3">
+            
+            
+            
+            <nav aria-label="breadcrumb" class="mb-4">
+                <!-- Breadcrumb content will be implemented -->
+            </nav>
+            
+            
+
+            
+            
+            <div id="flash-messages">
+                <!-- Flash messages will be implemented -->
+            </div>
+            
+
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+                
+
+<section class="page-header ph-accent mb-4">
+  <div class="page-header-inner d-flex justify-content-between align-items-start align-items-md-center flex-column flex-md-row gap-3">
+    <div class="page-header-meta pe-md-3">
+      <h1 class="page-title h3 mb-1 d-flex align-items-center">
+        <i class="fas fa-plus-circle text-primary me-2"></i>
+        <span>Create New Analysis</span>
+      </h1>
+      <p class="page-subtitle text-muted mb-0 small">Set up a comprehensive analysis for your AI-generated application</p>
+    </div>
+    
+    <div class="page-header-actions d-flex flex-wrap gap-2 btn-group">
+      <a href="/analysis" class="btn btn-outline-secondary">
+    <i class="fas fa-arrow-left me-1"></i>Back to Analyses
+</a>
+    </div>
+    
+  </div>
+</section>
+
+            
+
+            
+            
+<!-- Error alerts container -->
+<div id="error-alerts" class="container-fluid mb-3"></div>
+
+<div class="container-fluid">
+
+    <!-- Wizard Progress -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body py-3">
+                    <div class="wizard-progress">
+                        <div class="progress mb-3 u-49c5d1">
+                            <div class="progress-bar bg-primary" 
+                                 role="progressbar" 
+                                 style="width: 25%" 
+                                 id="wizard-progress-bar">
+                            </div>
+                        </div>
+                        <div class="row text-center">
+                            <div class="col-3">
+                                <div class="wizard-step active" data-step="1">
+                                    <div class="wizard-step-icon">
+                                        <i class="fas fa-brain"></i>
+                                    </div>
+                                    <div class="wizard-step-label">Select Model</div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="wizard-step" data-step="2">
+                                    <div class="wizard-step-icon">
+                                        <i class="fas fa-rocket"></i>
+                                    </div>
+                                    <div class="wizard-step-label">Choose Application</div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="wizard-step" data-step="3">
+                                    <div class="wizard-step-icon">
+                                        <i class="fas fa-cogs"></i>
+                                    </div>
+                                    <div class="wizard-step-label">Configure Analysis</div>
+                                </div>
+                            </div>
+                            <div class="col-3">
+                                <div class="wizard-step" data-step="4">
+                                    <div class="wizard-step-icon">
+                                        <i class="fas fa-check-circle"></i>
+                                    </div>
+                                    <div class="wizard-step-label">Review & Launch</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wizard Content -->
+    <form id="analysis-wizard-form" method="POST" action="/analysis/create">
+        <!-- Hidden fields populated by wizard selections -->
+        <input type="hidden" name="model_slug" id="input-model-slug" />
+        <input type="hidden" name="app_number" id="input-app-number" />
+        <div class="row">
+            <div class="col-lg-8">
+                <!-- Step 1: Model Selection -->
+                <div class="wizard-panel active" data-panel="1">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-brain me-2"></i>Step 1: Select AI Model
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-4">
+                                <p class="text-muted">Choose the AI model you want to analyze. Each model has different capabilities and pricing.</p>
+                            </div>
+
+                            <!-- Model Filters -->
+                            <div class="row mb-4">
+                                <div class="col-md-4">
+                                    <label class="form-label">Provider</label>
+                                    <select class="form-select" id="provider-filter" onchange="debouncedFilterModels()">
+                                        <option value="">All Providers</option>
+                                        <option value="openai">OpenAI</option>
+                                        <option value="anthropic">Anthropic</option>
+                                        <option value="google">Google</option>
+                                        <option value="meta">Meta</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Capability</label>
+                                    <select class="form-select" id="capability-filter" onchange="debouncedFilterModels()">
+                                        <option value="">All Capabilities</option>
+                                        <option value="coding">Coding</option>
+                                        <option value="analysis">Analysis</option>
+                                        <option value="reasoning">Reasoning</option>
+                                        <option value="multimodal">Multimodal</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Price Range</label>
+                                    <select class="form-select" id="price-filter" onchange="debouncedFilterModels()">
+                                        <option value="">All Prices</option>
+                                        <option value="low">Low ($0-$0.01)</option>
+                                        <option value="medium">Medium ($0.01-$0.05)</option>
+                                        <option value="high">High ($0.05+)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <!-- Advanced Filter Options -->
+                            <div class="row mb-4">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="show-unknown-filter" onchange="debouncedFilterModels()">
+                                        <label class="form-check-label" for="show-unknown-filter">
+                                            <small class="text-muted">Show models with unknown providers</small>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="installed-only-filter" onchange="debouncedFilterModels()">
+                                        <label class="form-check-label" for="installed-only-filter">
+                                            <small class="text-muted">Show only installed models</small>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Model Grid -->
+                            <div id="model-selection-grid" 
+                                 hx-get="/api/models/grid?selectable=true" 
+                                 hx-trigger="load"
+                                 hx-indicator="#model-grid-skeleton">
+                                <!-- Loading skeleton shown initially -->
+                                <div id="model-grid-skeleton" class="model-grid-skeleton">
+                                    <div class="row g-2 g-md-3">
+                                        <!-- Adjusted to 3-column responsive layout -->
+                                        <div class="col-12 col-md-6 col-lg-4">
+                                            <div class="card skeleton-card">
+                                                <div class="card-body p-3">
+                                                    <div class="d-flex align-items-start mb-2">
+                                                        <div class="skeleton-avatar me-2"></div>
+                                                        <div class="flex-grow-1">
+                                                            <div class="skeleton-text skeleton-title"></div>
+                                                            <div class="skeleton-text skeleton-subtitle"></div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="skeleton-text skeleton-line mb-2"></div>
+                                                    <div class="skeleton-text skeleton-line-short mb-2"></div>
+                                                    <div class="d-flex gap-1 mb-2">
+                                                        <div class="skeleton-badge"></div>
+                                                        <div class="skeleton-badge"></div>
+                                                    </div>
+                                                </div>
+                                                <div class="card-footer p-3 pt-0">
+                                                    <div class="skeleton-button"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-12 col-md-6 col-lg-4">
+                                            <div class="card skeleton-card">
+                                                <div class="card-body p-3">
+                                                    <div class="d-flex align-items-start mb-2">
+                                                        <div class="skeleton-avatar me-2"></div>
+                                                        <div class="flex-grow-1">
+                                                            <div class="skeleton-text skeleton-title"></div>
+                                                            <div class="skeleton-text skeleton-subtitle"></div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="skeleton-text skeleton-line mb-2"></div>
+                                                    <div class="skeleton-text skeleton-line-short mb-2"></div>
+                                                    <div class="d-flex gap-1 mb-2">
+                                                        <div class="skeleton-badge"></div>
+                                                        <div class="skeleton-badge"></div>
+                                                    </div>
+                                                </div>
+                                                <div class="card-footer p-3 pt-0">
+                                                    <div class="skeleton-button"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-12 col-md-6 col-lg-4">
+                                            <div class="card skeleton-card">
+                                                <div class="card-body p-3">
+                                                    <div class="d-flex align-items-start mb-2">
+                                                        <div class="skeleton-avatar me-2"></div>
+                                                        <div class="flex-grow-1">
+                                                            <div class="skeleton-text skeleton-title"></div>
+                                                            <div class="skeleton-text skeleton-subtitle"></div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="skeleton-text skeleton-line mb-2"></div>
+                                                    <div class="skeleton-text skeleton-line-short mb-2"></div>
+                                                    <div class="d-flex gap-1 mb-2">
+                                                        <div class="skeleton-badge"></div>
+                                                        <div class="skeleton-badge"></div>
+                                                    </div>
+                                                </div>
+                                                <div class="card-footer p-3 pt-0">
+                                                    <div class="skeleton-button"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Selected Model Preview -->
+                            <div id="selected-model-preview" class="mt-4 u-5790ff">
+                                <div class="alert alert-info">
+                                    <h6 class="alert-heading">Selected Model</h6>
+                                    <div id="selected-model-details"></div>
+                                </div>
+                            </div>
+
+                            <!-- Inline validation -->
+                            <div id="step1-error" class="text-danger small d-none mt-2">
+                                Please select a model to continue.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Application Selection -->
+                <div class="wizard-panel" data-panel="2">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-rocket me-2"></i>Step 2: Choose Application
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-4">
+                                <p class="text-muted">Select which application generated by your chosen model you want to analyze.</p>
+                            </div>
+
+                            <!-- Application List -->
+                            <div id="application-selection-list" class="mb-4">
+                                <div class="text-center text-muted py-4">
+                                    <i class="fas fa-info-circle fa-2x mb-2"></i>
+                                    <p>Please select a model first to see available applications.</p>
+                                </div>
+                            </div>
+
+                            <!-- Selected Application Preview -->
+                            <div id="selected-app-preview" class="mt-4 u-5790ff">
+                                <div class="alert alert-success">
+                                    <h6 class="alert-heading">Selected Application</h6>
+                                    <div id="selected-app-details"></div>
+                                </div>
+                            </div>
+
+                            <!-- Inline validation -->
+                            <div id="step2-error" class="text-danger small d-none mt-2">
+                                Please select an application to continue.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Analysis Configuration -->
+                <div class="wizard-panel" data-panel="3">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-cogs me-2"></i>Step 3: Configure Analysis
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-4">
+                                <p class="text-muted">Choose the type of analysis and configure specific parameters.</p>
+                            </div>
+
+                            <!-- Analysis Type Selection -->
+                            <div class="mb-4">
+                                <label class="form-label">Analysis Type <span class="text-danger">*</span></label>
+                                <div class="row">
+                                    <div class="col-lg-6">
+                                        <div class="list-group">
+                                            <div class="list-group-item">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="analysis_type" id="security" value="security" onchange="updateAnalysisConfig()">
+                                                    <label class="form-check-label w-100" for="security">
+                                                        <div class="d-flex justify-content-between align-items-start">
+                                                            <div>
+                                                                <h6 class="mb-1">
+                                                                    <i class="fas fa-shield-alt text-danger me-2"></i>Security Analysis
+                                                                </h6>
+                                                                <p class="mb-1 text-muted small">
+                                                                    Comprehensive security scanning including vulnerability detection, 
+                                                                    dependency analysis, and security best practices validation.
+                                                                </p>
+                                                                <small class="text-muted">
+                                                                    <i class="fas fa-clock me-1"></i>~5-10 minutes
+                                                                    <i class="fas fa-dollar-sign ms-2 me-1"></i>$0.05-$0.15
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="list-group-item">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="analysis_type" id="performance" value="performance" onchange="updateAnalysisConfig()">
+                                                    <label class="form-check-label w-100" for="performance">
+                                                        <div class="d-flex justify-content-between align-items-start">
+                                                            <div>
+                                                                <h6 class="mb-1">
+                                                                    <i class="fas fa-tachometer-alt text-info me-2"></i>Performance Analysis
+                                                                </h6>
+                                                                <p class="mb-1 text-muted small">
+                                                                    Load testing, response time analysis, resource utilization, 
+                                                                    and scalability assessment.
+                                                                </p>
+                                                                <small class="text-muted">
+                                                                    <i class="fas fa-clock me-1"></i>~3-8 minutes
+                                                                    <i class="fas fa-dollar-sign ms-2 me-1"></i>$0.03-$0.12
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-6">
+                                        <div class="list-group">
+                                            <div class="list-group-item">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="analysis_type" id="dynamic" value="dynamic" onchange="updateAnalysisConfig()">
+                                                    <label class="form-check-label w-100" for="dynamic">
+                                                        <div class="d-flex justify-content-between align-items-start">
+                                                            <div>
+                                                                <h6 class="mb-1">
+                                                                    <i class="fas fa-play text-warning me-2"></i>Dynamic Analysis
+                                                                </h6>
+                                                                <p class="mb-1 text-muted small">
+                                                                    Runtime behavior analysis, API interaction testing, 
+                                                                    and functional verification.
+                                                                </p>
+                                                                <small class="text-muted">
+                                                                    <i class="fas fa-clock me-1"></i>~7-15 minutes
+                                                                    <i class="fas fa-dollar-sign ms-2 me-1"></i>$0.08-$0.25
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                            <div class="list-group-item">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="radio" name="analysis_type" id="comprehensive" value="comprehensive" onchange="updateAnalysisConfig()">
+                                                    <label class="form-check-label w-100" for="comprehensive">
+                                                        <div class="d-flex justify-content-between align-items-start">
+                                                            <div>
+                                                                <h6 class="mb-1">
+                                                                    <i class="fas fa-chart-line text-success me-2"></i>Comprehensive Analysis
+                                                                </h6>
+                                                                <p class="mb-1 text-muted small">
+                                                                    Full security, performance, and dynamic analysis combined 
+                                                                    with detailed reporting.
+                                                                </p>
+                                                                <small class="text-muted">
+                                                                    <i class="fas fa-clock me-1"></i>~15-30 minutes
+                                                                    <i class="fas fa-dollar-sign ms-2 me-1"></i>$0.15-$0.45
+                                                                </small>
+                                                            </div>
+                                                        </div>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Analysis Configuration Options -->
+                            <div id="analysis-config-options" class="u-5790ff" style="display:none;">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Priority Level</label>
+                                            <select class="form-select" name="priority">
+                                                <option value="normal">Normal</option>
+                                                <option value="high">High (faster execution)</option>
+                                                <option value="low">Low (cost optimized)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Email Notification</label>
+                                            <select class="form-select" name="notification">
+                                                <option value="completion">On completion</option>
+                                                <option value="failure">On failure only</option>
+                                                <option value="none">No notifications</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Advanced Options -->
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="advanced-options-toggle">
+                                        <label class="form-check-label" for="advanced-options-toggle">
+                                            Show advanced configuration options
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div id="advanced-options" class="collapse">
+                                    <div class="border rounded p-3 bg-light">
+                                        <h6 class="mb-3">Advanced Configuration</h6>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Timeout (minutes)</label>
+                                                    <input type="number" class="form-control" name="timeout" value="30" min="5" max="120">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label class="form-label">Concurrent Workers</label>
+                                                    <input type="number" class="form-control" name="workers" value="2" min="1" max="8">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Custom Parameters (JSON)</label>
+                                            <textarea class="form-control" name="custom_params" rows="3" placeholder="{}"></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Live estimate based on selection -->
+                            <div id="live-estimate" class="mt-3" style="display:none;">
+                                <div class="card bg-light">
+                                    <div class="card-body d-flex align-items-center">
+                                        <i class="fas fa-calculator me-3 text-primary"></i>
+                                        <div>
+                                            <div class="fw-bold">Estimated run</div>
+                                            <div class="text-muted small">
+                                                Time: <span id="estimate-time">-</span> · Cost: <span id="estimate-cost">-</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Inline validation -->
+                            <div id="step3-error" class="text-danger small d-none mt-2">
+                                Please select an analysis type to continue.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4: Review & Launch -->
+                <div class="wizard-panel" data-panel="4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-check-circle me-2"></i>Step 4: Review & Launch
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-4">
+                                <p class="text-muted">Review your analysis configuration before launching.</p>
+                            </div>
+
+                            <div id="analysis-summary">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <h6 class="mb-3">Analysis Summary</h6>
+                                        <dl class="row">
+                                            <dt class="col-sm-4">Model:</dt>
+                                            <dd class="col-sm-8" id="summary-model">-</dd>
+                                            
+                                            <dt class="col-sm-4">Application:</dt>
+                                            <dd class="col-sm-8" id="summary-app">-</dd>
+                                            
+                                            <dt class="col-sm-4">Analysis Type:</dt>
+                                            <dd class="col-sm-8" id="summary-type">-</dd>
+                                            
+                                            <dt class="col-sm-4">Priority:</dt>
+                                            <dd class="col-sm-8" id="summary-priority">-</dd>
+                                            
+                                            <dt class="col-sm-4">Estimated Time:</dt>
+                                            <dd class="col-sm-8" id="summary-time">-</dd>
+                                            
+                                            <dt class="col-sm-4">Estimated Cost:</dt>
+                                            <dd class="col-sm-8" id="summary-cost">-</dd>
+                                        </dl>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="card bg-light">
+                                            <div class="card-body text-center">
+                                                <h6 class="card-title">Ready to Launch</h6>
+                                                <p class="card-text small text-muted">
+                                                    Your analysis will be queued and executed automatically. 
+                                                    You'll receive notifications based on your preferences.
+                                                </p>
+                                                <div class="analysis-status-icon">
+                                                    <i class="fas fa-rocket fa-3x text-primary"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="col-lg-4">
+                <div class="card sticky-top" style="top: 100px;">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-info-circle me-2"></i>Analysis Guide
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div id="step-help" class="step-help">
+                            <!-- Step 1 Help -->
+                            <div class="help-content active" data-help="1">
+                                <h6>Choosing the Right Model</h6>
+                                <ul class="small">
+                                    <li><strong>Coding Focus:</strong> Choose models optimized for code generation</li>
+                                    <li><strong>Provider Reliability:</strong> Consider uptime and support</li>
+                                    <li><strong>Cost vs Quality:</strong> Balance analysis depth with budget</li>
+                                    <li><strong>Capabilities:</strong> Match model strengths to your needs</li>
+                                </ul>
+                                <div class="alert alert-info small">
+                                    <i class="fas fa-lightbulb me-1"></i>
+                                    <strong>Tip:</strong> Models with better coding capabilities typically generate more analyzable applications.
+                                </div>
+                            </div>
+
+                            <!-- Step 2 Help -->
+                            <div class="help-content" data-help="2">
+                                <h6>Application Selection</h6>
+                                <ul class="small">
+                                    <li><strong>Status:</strong> Only active applications can be analyzed</li>
+                                    <li><strong>Complexity:</strong> More complex apps provide richer analysis</li>
+                                    <li><strong>Age:</strong> Newer applications may have more recent patterns</li>
+                                    <li><strong>Size:</strong> Larger applications take longer to analyze</li>
+                                </ul>
+                                <div class="alert alert-warning small">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>
+                                    <strong>Note:</strong> Applications must be running for dynamic analysis.
+                                </div>
+                            </div>
+
+                            <!-- Step 3 Help -->
+                            <div class="help-content" data-help="3">
+                                <h6>Analysis Types</h6>
+                                <ul class="small">
+                                    <li><strong>Security:</strong> Best for production-bound applications</li>
+                                    <li><strong>Performance:</strong> Ideal for high-traffic applications</li>
+                                    <li><strong>Dynamic:</strong> Great for API-heavy applications</li>
+                                    <li><strong>Comprehensive:</strong> Complete analysis for critical apps</li>
+                                </ul>
+                                <div class="alert alert-success small">
+                                    <i class="fas fa-check me-1"></i>
+                                    <strong>Recommendation:</strong> Start with comprehensive for your most important applications.
+                                </div>
+                            </div>
+
+                            <!-- Step 4 Help -->
+                            <div class="help-content" data-help="4">
+                                <h6>Before You Launch</h6>
+                                <ul class="small">
+                                    <li><strong>Double-check:</strong> Verify model and app selection</li>
+                                    <li><strong>Resources:</strong> Ensure sufficient system resources</li>
+                                    <li><strong>Timing:</strong> Consider system load and peak hours</li>
+                                    <li><strong>Notifications:</strong> Set up appropriate alerts</li>
+                                </ul>
+                                <div class="alert alert-primary small">
+                                    <i class="fas fa-clock me-1"></i>
+                                    <strong>Scheduling:</strong> Analysis will start immediately upon launch.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Wizard Navigation -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-outline-secondary" id="prev-btn" onclick="previousStep()" disabled>
+                                <i class="fas fa-chevron-left me-1"></i>Previous
+                            </button>
+                            <div class="wizard-info text-muted small">
+                                Step <span id="current-step">1</span> of 4
+                            </div>
+                            <div>
+                                <button type="button" class="btn btn-primary" id="next-btn" onclick="nextStep()" disabled>
+                                    Next <i class="fas fa-chevron-right ms-1"></i>
+                                </button>
+                                <button type="submit" class="btn btn-success u-5790ff" id="launch-btn" style="display:none;">
+                                    <i class="fas fa-rocket me-1"></i>Launch Analysis
+                                </button>
+                                <button type="button" class="btn btn-success u-5790ff" id="launch-btn-loading" style="display:none;" disabled>
+                                    <i class="fas fa-spinner fa-spin me-1"></i>Launching...
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+        </div>
+    </main>
+    
+    
+    
+    
+    
+    
+    <!-- Bootstrap 5 JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- AdminLTE JavaScript -->
+    <script src="/static/vendor/adminlte/js/adminlte.min.js"></script>
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10/dist/htmx.min.js"></script>
+    <!-- Hyperscript (for lightweight client behaviors on htmx events) -->
+    <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
+    
+    <!-- Core Utility Shim (must load before other project scripts) -->
+    <script src="/static/js/utils-shim.js"></script>
+
+    <!-- Project JavaScript -->
+    <script src="/static/js/config.js"></script>
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/components.js"></script>
+    <script src="/static/js/features.js"></script>
+    <script src="/static/js/batch-dashboard.js"></script>
+    
+    <!-- Application-specific event handlers -->
+    <script>
+        // Enhanced HTMX event handlers
+        document.addEventListener('htmx:afterSwap', function(evt) {
+            // Gently highlight swapped comparison panel
+            const panel = document.getElementById('comparison-panel');
+            if (panel) {
+                panel.classList.add('border-primary');
+                setTimeout(() => panel.classList.remove('border-primary'), 500);
+            }
+            
+            // Re-initialize components in swapped content
+            const target = evt.target;
+            target.querySelectorAll('[data-table]').forEach(table => {
+                new window.Components.DataTable(table, JSON.parse(table.dataset.table || '{}'));
+            });
+            
+            target.querySelectorAll('[data-code-viewer]').forEach(element => {
+                new window.Components.CodeViewer(element, JSON.parse(element.dataset.codeViewer || '{}'));
+            });
+            
+            // Re-initialize tooltips
+            if (typeof bootstrap !== 'undefined') {
+                const tooltips = target.querySelectorAll('[data-bs-toggle="tooltip"]');
+                tooltips.forEach(el => new bootstrap.Tooltip(el));
+            }
+        });
+
+        // Global keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Ctrl/Cmd + / : Show keyboard shortcuts help
+            if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+                e.preventDefault();
+                window.App.showToast('Keyboard Shortcuts: Ctrl+K (Search), Ctrl+B (Sidebar), Ctrl+Shift+T (Theme)', 'info', 5000);
+            }
+        });
+
+        // Performance monitoring (avoid deprecated performance.timing & negative values)
+        window.addEventListener('load', function() {
+            try {
+                let loadTime = null;
+                if (performance.getEntriesByType) {
+                    const nav = performance.getEntriesByType('navigation')[0];
+                    if (nav) {
+                        loadTime = Math.round(nav.loadEventEnd);
+                    }
+                }
+                if (loadTime == null && performance.timing) {
+                    const t = performance.timing;
+                    if (t.loadEventEnd && t.navigationStart) {
+                        loadTime = Math.max(0, t.loadEventEnd - t.navigationStart);
+                    }
+                }
+                if (loadTime == null) {
+                    loadTime = Math.round(performance.now());
+                }
+                console.log(`🚀 Page loaded in ${loadTime}ms`);
+                if (loadTime > 3000) {
+                    console.warn('⚠️ Slow page load detected');
+                }
+            } catch(e) { /* ignore */ }
+        });
+    </script>
+    
+    
+    
+    
+<script>
+let currentStep = 1;
+let selectedModel = null;
+let selectedApp = null;
+let selectedAnalysisType = null;
+let filterTimeout = null;
+
+// Debounced filter function to prevent excessive API calls
+function debouncedFilterModels() {
+    clearTimeout(filterTimeout);
+    filterTimeout = setTimeout(() => {
+        showLoadingSkeleton();
+        filterModels();
+    }, 300);
+}
+
+function showLoadingSkeleton() {
+    const grid = document.getElementById('model-selection-grid');
+    if (grid) {
+        const skeleton = grid.querySelector('#model-grid-skeleton');
+        if (skeleton) {
+            skeleton.style.display = 'block';
+        }
+    }
+}
+
+function hideLoadingSkeleton() {
+    const skeleton = document.getElementById('model-grid-skeleton');
+    if (skeleton) {
+        skeleton.style.display = 'none';
+    }
+}
+
+function nextStep() {
+    if (validateCurrentStep()) {
+        if (currentStep < 4) {
+            currentStep++;
+            updateWizardStep();
+        }
+    }
+}
+
+function previousStep() {
+    if (currentStep > 1) {
+        currentStep--;
+        updateWizardStep();
+    }
+}
+
+function updateWizardStep() {
+    // Update progress bar
+    const progressPercent = (currentStep / 4) * 100;
+    document.getElementById('wizard-progress-bar').style.width = progressPercent + '%';
+    
+    // Update step indicators
+    document.querySelectorAll('.wizard-step').forEach((step, index) => {
+        step.classList.remove('active', 'completed');
+        if (index + 1 < currentStep) {
+            step.classList.add('completed');
+        } else if (index + 1 === currentStep) {
+            step.classList.add('active');
+        }
+    });
+    
+    // Update panels
+    document.querySelectorAll('.wizard-panel').forEach(panel => {
+        panel.classList.remove('active');
+    });
+    document.querySelector(`[data-panel="${currentStep}"]`).classList.add('active');
+    
+    // Update help content
+    document.querySelectorAll('.help-content').forEach(help => {
+        help.classList.remove('active');
+    });
+    document.querySelector(`[data-help="${currentStep}"]`).classList.add('active');
+    
+    // Update navigation buttons
+    document.getElementById('prev-btn').disabled = currentStep === 1;
+    document.getElementById('current-step').textContent = currentStep;
+
+    const nextBtn = document.getElementById('next-btn');
+    const launchBtn = document.getElementById('launch-btn');
+    nextBtn.style.display = currentStep === 4 ? 'none' : 'inline-block';
+    launchBtn.style.display = currentStep === 4 ? 'inline-block' : 'none';
+
+    // Enable/disable Next based on step validation state
+    nextBtn.disabled = !canProceedFromStep(currentStep);
+
+    if (currentStep === 4) {
+        updateAnalysisSummary();
+    }
+}
+
+function validateCurrentStep() {
+    try {
+        switch (currentStep) {
+            case 1:
+                const step1Err = document.getElementById('step1-error');
+                if (!selectedModel) {
+                    if (step1Err) step1Err.classList.remove('d-none');
+                    showError('Please select a model before proceeding.', 'warning');
+                    return false;
+                } else { 
+                    if (step1Err) step1Err.classList.add('d-none'); 
+                }
+                try {
+                    loadApplicationsForModel(selectedModel);
+                } catch (error) {
+                    console.error('Error loading applications:', error);
+                    showError('Failed to load applications for the selected model.');
+                    return false;
+                }
+                return true;
+                
+            case 2:
+                const step2Err = document.getElementById('step2-error');
+                if (!selectedApp) {
+                    if (step2Err) step2Err.classList.remove('d-none');
+                    showError('Please select an application before proceeding.', 'warning');
+                    return false;
+                } else { 
+                    if (step2Err) step2Err.classList.add('d-none'); 
+                }
+                return true;
+                
+            case 3:
+                const step3Err = document.getElementById('step3-error');
+                if (!selectedAnalysisType) {
+                    if (step3Err) step3Err.classList.remove('d-none');
+                    showError('Please select an analysis type before proceeding.', 'warning');
+                    return false;
+                } else { 
+                    if (step3Err) step3Err.classList.add('d-none'); 
+                }
+                return true;
+                
+            default:
+                return true;
+        }
+    } catch (error) {
+        console.error('Error in validateCurrentStep:', error);
+        showError('Validation error occurred. Please try again.');
+        return false;
+    }
+    return true; // fallback success when no errors thrown
+}
+
+function canProceedFromStep(step) {
+    if (step === 1) return !!selectedModel;
+    if (step === 2) return !!selectedApp;
+    if (step === 3) return !!selectedAnalysisType;
+    return true;
+}
+
+function selectModel(modelSlug, modelName) {
+    try {
+        if (!modelSlug || !modelName) {
+            showError('Invalid model selection. Please try again.');
+            return;
+        }
+        
+        selectedModel = { slug: modelSlug, name: modelName };
+        
+        // Persist to session storage with error handling
+        try { 
+            sessionStorage.setItem('analysis_selected_model', JSON.stringify(selectedModel)); 
+        } catch (e) {
+            console.warn('Failed to save model selection to session storage:', e);
+        }
+        
+        // Update hidden input
+        const modelInput = document.getElementById('input-model-slug');
+        if (modelInput) {
+            modelInput.value = modelSlug;
+        } else {
+            console.warn('Model input field not found');
+        }
+        
+        // Update UI to show selection
+        document.querySelectorAll('.model-card').forEach(card => {
+            card.classList.remove('border-primary', 'selected');
+        });
+        
+        // Match the attribute used by the grid fragment: data-model-slug
+        const selectedCard = document.querySelector(`.model-card[data-model-slug="${modelSlug}"]`);
+        if (selectedCard) {
+            selectedCard.classList.add('border-primary', 'selected');
+        } else {
+            console.warn('Selected model card not found in DOM');
+        }
+        
+    } catch (error) {
+        console.error('Error in selectModel:', error);
+        showError('Failed to select model. Please try again.');
+    }
+    
+    // Show preview
+    const preview = document.getElementById('selected-model-preview');
+    const details = document.getElementById('selected-model-details');
+    details.innerHTML = `<strong>${modelName}</strong> selected for analysis`;
+    preview.style.display = 'block';
+
+    // allow next
+    document.getElementById('next-btn').disabled = !canProceedFromStep(currentStep);
+}
+
+function loadApplicationsForModel(model) {
+    const appList = document.getElementById('application-selection-list');
+    appList.innerHTML = '<div class="text-center py-3"><div class="spinner-border" role="status"></div></div>';
+    
+    htmx.ajax('GET', `/api/models/${model.slug}/applications`, {
+        target: '#application-selection-list'
+    });
+}
+
+function selectApp(appNumber, appInfo) {
+    selectedApp = { number: appNumber, info: appInfo };
+    try { sessionStorage.setItem('analysis_selected_app', JSON.stringify(selectedApp)); } catch (e) {}
+    // update hidden input
+    const appInput = document.getElementById('input-app-number');
+    if (appInput) appInput.value = String(appNumber);
+    
+    // Update UI
+    document.querySelectorAll('.app-card').forEach(card => {
+        card.classList.remove('border-success', 'selected');
+    });
+    
+    const selectedCard = document.querySelector(`[data-app="${appNumber}"]`);
+    if (selectedCard) {
+        selectedCard.classList.add('border-success', 'selected');
+    }
+    
+    // Show preview
+    const preview = document.getElementById('selected-app-preview');
+    const details = document.getElementById('selected-app-details');
+    details.innerHTML = `<strong>Application #${appNumber}</strong> selected for analysis`;
+    preview.style.display = 'block';
+
+    document.getElementById('next-btn').disabled = !canProceedFromStep(currentStep);
+}
+
+function updateAnalysisConfig() {
+    const selected = document.querySelector('input[name="analysis_type"]:checked');
+    if (selected) {
+        selectedAnalysisType = selected.value;
+        document.getElementById('analysis-config-options').style.display = 'block';
+        document.getElementById('live-estimate').style.display = 'block';
+        // persist
+        try { sessionStorage.setItem('analysis_selected_type', selectedAnalysisType); } catch (e) {}
+        // show live estimate
+        const estimates = {
+            security: { time: '5-10 minutes', cost: '$0.05-$0.15' },
+            performance: { time: '3-8 minutes', cost: '$0.03-$0.12' },
+            dynamic: { time: '7-15 minutes', cost: '$0.08-$0.25' },
+            comprehensive: { time: '15-30 minutes', cost: '$0.15-$0.45' }
+        };
+        if (estimates[selectedAnalysisType]) {
+            document.getElementById('estimate-time').textContent = estimates[selectedAnalysisType].time;
+            document.getElementById('estimate-cost').textContent = estimates[selectedAnalysisType].cost;
+        }
+        document.getElementById('next-btn').disabled = !canProceedFromStep(currentStep);
+    }
+}
+
+function updateAnalysisSummary() {
+    if (selectedModel) {
+        document.getElementById('summary-model').textContent = selectedModel.name;
+    }
+    if (selectedApp) {
+        document.getElementById('summary-app').textContent = `Application #${selectedApp.number}`;
+    }
+    if (selectedAnalysisType) {
+        document.getElementById('summary-type').textContent = selectedAnalysisType.charAt(0).toUpperCase() + selectedAnalysisType.slice(1);
+    }
+    
+    const priority = document.querySelector('select[name="priority"]').value;
+    document.getElementById('summary-priority').textContent = priority.charAt(0).toUpperCase() + priority.slice(1);
+    
+    // Estimate time and cost based on analysis type
+    const estimates = {
+        security: { time: '5-10 minutes', cost: '$0.05-$0.15' },
+        performance: { time: '3-8 minutes', cost: '$0.03-$0.12' },
+        dynamic: { time: '7-15 minutes', cost: '$0.08-$0.25' },
+        comprehensive: { time: '15-30 minutes', cost: '$0.15-$0.45' }
+    };
+    
+    if (selectedAnalysisType && estimates[selectedAnalysisType]) {
+        document.getElementById('summary-time').textContent = estimates[selectedAnalysisType].time;
+        document.getElementById('summary-cost').textContent = estimates[selectedAnalysisType].cost;
+    }
+}
+
+// Global error handling functions
+function showError(message, type = 'danger') {
+    const alertContainer = document.getElementById('error-alerts');
+    if (!alertContainer) {
+        console.error('Error alert container not found:', message);
+        return;
+    }
+    
+    const alertId = 'alert-' + Date.now();
+    const alertHtml = `
+        <div id="${alertId}" class="alert alert-${type} alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    `;
+    
+    alertContainer.innerHTML = alertHtml;
+    
+    // Auto-dismiss after 10 seconds
+    setTimeout(() => {
+        const alert = document.getElementById(alertId);
+        if (alert) {
+            const bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
+            bsAlert.close();
+        }
+    }, 10000);
+}
+
+// Global HTMX error handlers
+document.addEventListener('htmx:responseError', function(event) {
+    console.error('HTMX Response Error:', event.detail);
+    hideLoadingSkeleton();
+    
+    let errorMessage = 'Failed to load data. Please try again.';
+    
+    if (event.detail.xhr) {
+        const status = event.detail.xhr.status;
+        if (status === 404) {
+            errorMessage = 'The requested resource was not found.';
+        } else if (status === 500) {
+            errorMessage = 'Server error occurred. Please try again later.';
+        } else if (status >= 400 && status < 500) {
+            errorMessage = 'Bad request. Please check your input and try again.';
+        }
+    }
+    
+    showError(errorMessage);
+});
+
+document.addEventListener('htmx:sendError', function(event) {
+    console.error('HTMX Send Error:', event.detail);
+    hideLoadingSkeleton();
+    showError('Network error occurred. Please check your connection and try again.');
+});
+
+document.addEventListener('htmx:timeout', function(event) {
+    console.error('HTMX Timeout:', event.detail);
+    hideLoadingSkeleton();
+    showError('Request timed out. Please try again.');
+});
+
+// Enhanced model loading with comprehensive error handling
+function loadModelsWithErrorHandling(endpoint, targetId) {
+    const target = document.getElementById(targetId);
+    if (!target) {
+        showError('Could not find target container for models.');
+        return;
+    }
+    
+    showLoadingSkeleton();
+    
+    // Use fetch with timeout for better error control
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+        controller.abort();
+        hideLoadingSkeleton();
+        showError('Request timed out while loading models.');
+    }, 30000);
+    
+    fetch(endpoint, {
+        method: 'GET',
+        headers: {
+            'HX-Request': 'true',
+            'Content-Type': 'application/json'
+        },
+        signal: controller.signal
+    })
+    .then(response => {
+        clearTimeout(timeoutId);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        return response.text();
+    })
+    .then(html => {
+        hideLoadingSkeleton();
+        target.innerHTML = html;
+        
+        // Restore keyboard focus if needed
+        const focusedCard = target.querySelector('.model-card.keyboard-focus');
+        if (focusedCard) {
+            focusedCard.focus();
+        }
+        
+        // Trigger HTMX processing for new content
+        if (typeof htmx !== 'undefined') {
+            htmx.process(target);
+        }
+    })
+    .catch(error => {
+        clearTimeout(timeoutId);
+        hideLoadingSkeleton();
+        console.error('Model loading error:', error);
+        
+        if (error.name === 'AbortError') {
+            return; // Timeout already handled
+        }
+        
+        let errorMessage = 'Failed to load models.';
+        if (error.message.includes('Failed to fetch')) {
+            errorMessage = 'Network error. Please check your connection.';
+        } else if (error.message.includes('HTTP')) {
+            errorMessage = `Server error: ${error.message}`;
+        }
+        
+        showError(errorMessage);
+        
+        // Show fallback content
+        target.innerHTML = `
+            <div class="col-12">
+                <div class="card border-danger">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-exclamation-triangle text-danger fa-3x mb-3"></i>
+                        <h5 class="card-title text-danger">Failed to Load Models</h5>
+                        <p class="card-text">${errorMessage}</p>
+                        <button class="btn btn-outline-primary" onclick="location.reload()">
+                            <i class="fas fa-redo me-2"></i>Reload Page
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+}
+
+function filterModels() {
+    try {
+        const provider = document.getElementById('provider-filter')?.value || '';
+        const capability = document.getElementById('capability-filter')?.value || '';
+        const price = document.getElementById('price-filter')?.value || '';
+        const showUnknown = document.getElementById('show-unknown-filter')?.checked || false;
+        const installedOnly = document.getElementById('installed-only-filter')?.checked || false;
+        
+        const params = new URLSearchParams();
+        if (provider) params.append('provider', provider);
+        if (capability) params.append('capability', capability);
+        if (price) params.append('price', price);
+        if (showUnknown) params.append('show_unknown', '1');
+        if (installedOnly) params.append('installed_only', '1');
+        params.append('selectable', 'true');
+        
+        const endpoint = `/api/models/grid?${params.toString()}`;
+        
+        // Use enhanced error handling
+        loadModelsWithErrorHandling(endpoint, 'model-selection-grid');
+        
+    } catch (error) {
+        console.error('Filter error:', error);
+        hideLoadingSkeleton();
+        showError('Error applying filters. Please try again.');
+    }
+}
+
+// Advanced options toggle
+document.addEventListener('DOMContentLoaded', function() {
+    const advancedToggle = document.getElementById('advanced-options-toggle');
+    const advancedOptions = document.getElementById('advanced-options');
+    
+    advancedToggle.addEventListener('change', function() {
+        const collapse = new bootstrap.Collapse(advancedOptions, {
+            toggle: false
+        });
+        
+        if (this.checked) {
+            collapse.show();
+        } else {
+            collapse.hide();
+        }
+    });
+
+    // Restore selections from sessionStorage
+    try {
+        const savedModel = sessionStorage.getItem('analysis_selected_model');
+        if (savedModel) {
+            const m = JSON.parse(savedModel);
+            if (m?.slug && m?.name) {
+                // Wait for grid to load then select
+                const ensureSelect = () => selectModel(m.slug, m.name);
+                if (!document.querySelector(`.model-card[data-model-slug="${m.slug}"]`)) {
+                    document.addEventListener('htmx:afterSwap', (evt) => {
+                        const tgt = evt.detail && evt.detail.target ? evt.detail.target : null;
+                        if (tgt && (tgt.id === 'model-selection-grid' || tgt.closest?.('#model-selection-grid'))) {
+                            ensureSelect();
+                        }
+                    }, { once: true });
+                } else { ensureSelect(); }
+            }
+        }
+        const savedApp = sessionStorage.getItem('analysis_selected_app');
+        if (savedApp) {
+            const a = JSON.parse(savedApp);
+            if (a?.number) {
+                // Will be visually selected when list loads; set hidden input now
+                const appInput = document.getElementById('input-app-number');
+                if (appInput) appInput.value = String(a.number);
+                selectedApp = a;
+            }
+        }
+        const savedType = sessionStorage.getItem('analysis_selected_type');
+        if (savedType) {
+            const radio = document.querySelector(`input[name="analysis_type"][value="${savedType}"]`);
+            if (radio) { radio.checked = true; updateAnalysisConfig(); }
+        }
+    } catch (e) { /* ignore */ }
+
+    // If a ?model=slug is present in the URL, preselect it and load applications
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const preSlug = params.get('model');
+        if (preSlug) {
+            // Attempt to find the card label text when grid loads; if not available, still set slug
+            const trySelect = () => {
+                const card = document.querySelector(`.model-card[data-model-slug="${preSlug}"]`);
+                const name = card ? (card.querySelector('h6')?.textContent?.trim() || preSlug) : preSlug;
+                selectModel(preSlug, name);
+                // Move to step 2 and load apps
+                if (currentStep === 1) {
+                    nextStep();
+                }
+                loadApplicationsForModel(selectedModel);
+            };
+            // If grid hasn't loaded yet, wait for HTMX swap
+            if (!document.querySelector(`.model-card[data-model-slug="${preSlug}"]`)) {
+                document.addEventListener('htmx:afterSwap', (evt) => {
+                    const tgt = evt.detail && evt.detail.target ? evt.detail.target : null;
+                    if (tgt && (tgt.id === 'model-selection-grid' || tgt.closest?.('#model-selection-grid'))) {
+                        trySelect();
+                    }
+                }, { once: true });
+            } else {
+                trySelect();
+            }
+        }
+    } catch (e) { /* ignore */ }
+
+    // Keyboard navigation: Enter to advance
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+            if (['input', 'select', 'textarea'].includes(tag)) return; // don't hijack form fields
+            if (currentStep < 4 && canProceedFromStep(currentStep)) {
+                e.preventDefault();
+                nextStep();
+            }
+        }
+        
+        // Arrow key navigation for model cards
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            const activeCard = document.querySelector('.model-card:focus, .model-card.keyboard-focus');
+            const allCards = Array.from(document.querySelectorAll('.model-card'));
+            
+            if (allCards.length > 0) {
+                e.preventDefault();
+                let currentIndex = activeCard ? allCards.indexOf(activeCard) : -1;
+                let newIndex = currentIndex;
+                
+                if (e.key === 'ArrowLeft' && currentIndex > 0) newIndex = currentIndex - 1;
+                else if (e.key === 'ArrowRight' && currentIndex < allCards.length - 1) newIndex = currentIndex + 1;
+                else if (e.key === 'ArrowUp' && currentIndex >= 6) newIndex = currentIndex - 6;
+                else if (e.key === 'ArrowDown' && currentIndex < allCards.length - 6) newIndex = currentIndex + 6;
+                else if (currentIndex === -1) newIndex = 0;
+                
+                if (newIndex !== currentIndex && newIndex >= 0 && newIndex < allCards.length) {
+                    allCards.forEach(card => card.classList.remove('keyboard-focus'));
+                    allCards[newIndex].classList.add('keyboard-focus');
+                    allCards[newIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    
+                    // Space to select focused card
+                    setTimeout(() => {
+                        const focusedCard = allCards[newIndex];
+                        focusedCard.addEventListener('keydown', function(evt) {
+                            if (evt.key === ' ') {
+                                evt.preventDefault();
+                                const btn = focusedCard.querySelector('.model-select-btn');
+                                if (btn) btn.click();
+                            }
+                        }, { once: true });
+                    }, 50);
+                }
+            }
+        }
+    });
+
+    // Enhanced HTMX event handlers
+    document.addEventListener('htmx:afterSwap', function(evt) {
+        hideLoadingSkeleton();
+        
+        // Restore selection highlighting after swap
+        if (selectedModel && evt.detail.target && evt.detail.target.closest('#model-selection-grid')) {
+            setTimeout(() => {
+                if (window.highlightSelectedModelCard) {
+                    highlightSelectedModelCard(selectedModel.slug);
+                }
+            }, 100);
+        }
+        
+        // Re-focus first card if using keyboard navigation
+        if (evt.detail.target && evt.detail.target.closest('#model-selection-grid')) {
+            const firstCard = evt.detail.target.querySelector('.model-card');
+            if (firstCard && document.querySelector('.keyboard-focus')) {
+                firstCard.classList.add('keyboard-focus');
+            }
+        }
+    });
+
+    document.addEventListener('htmx:beforeRequest', function(evt) {
+        if (evt.detail.target && evt.detail.target.closest('#model-selection-grid')) {
+            showLoadingSkeleton();
+        }
+    });
+
+    // Enhanced form submission with error handling
+    const form = document.getElementById('analysis-wizard-form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            try {
+                // Final validation before submission
+                if (!selectedModel || !selectedApp || !selectedAnalysisType) {
+                    e.preventDefault();
+                    showError('Please complete all wizard steps before submitting.', 'warning');
+                    return false;
+                }
+                
+                // Show loading state
+                const launchBtn = document.getElementById('launch-btn');
+                const launchBtnLoading = document.getElementById('launch-btn-loading');
+                
+                if (launchBtn) launchBtn.style.display = 'none';
+                if (launchBtnLoading) launchBtnLoading.style.display = 'inline-block';
+                
+                // Add timeout protection
+                const timeout = setTimeout(() => {
+                    if (launchBtn) launchBtn.style.display = 'inline-block';
+                    if (launchBtnLoading) launchBtnLoading.style.display = 'none';
+                    showError('Form submission timed out. Please try again.');
+                }, 30000);
+                
+                // Clear timeout on page unload
+                window.addEventListener('beforeunload', () => clearTimeout(timeout));
+                
+            } catch (error) {
+                e.preventDefault();
+                console.error('Form submission error:', error);
+                showError('Error submitting form. Please try again.');
+                
+                // Reset button state
+                const launchBtn = document.getElementById('launch-btn');
+                const launchBtnLoading = document.getElementById('launch-btn-loading');
+                if (launchBtn) launchBtn.style.display = 'inline-block';
+                if (launchBtnLoading) launchBtnLoading.style.display = 'none';
+            }
+        });
+        
+        // Handle form errors from server response
+        form.addEventListener('htmx:responseError', function(event) {
+            const launchBtn = document.getElementById('launch-btn');
+            const launchBtnLoading = document.getElementById('launch-btn-loading');
+            if (launchBtn) launchBtn.style.display = 'inline-block';
+            if (launchBtnLoading) launchBtnLoading.style.display = 'none';
+            
+            showError('Server error occurred while creating analysis. Please try again.');
+        });
+        
+    } else {
+        console.error('Analysis wizard form not found');
+    }
+});
+
+// Added: dynamic provider options population
+(function populateProviderFilter(){
+  try {
+    const sel = document.getElementById('provider-filter');
+    if(!sel) return;
+    // If already populated beyond default static options, skip
+    if(sel.dataset.dynamicLoaded === '1') return;
+    fetch('/api/models/providers').then(r=>r.ok?r.json():Promise.reject(r.status)).then(list=>{
+        if(!Array.isArray(list)) return;
+        const existing = new Set(Array.from(sel.options).map(o=>o.value.toLowerCase()));
+        list.sort((a,b)=>a.localeCompare(b));
+        list.forEach(p=>{ if(p && !existing.has(p.toLowerCase())) { const opt=document.createElement('option'); opt.value=p; opt.textContent=p.charAt(0).toUpperCase()+p.slice(1); sel.appendChild(opt);} });
+        sel.dataset.dynamicLoaded = '1';
+    }).catch(()=>{/* silent */});
+  } catch(e) {/* ignore */}
+})();
+</script>
+
+<!-- Custom styles for wizard enhancements -->
+<style>
+/* Loading Skeleton Styles */
+.model-grid-skeleton {
+    opacity: 0.7;
+}
+
+.skeleton-card {
+    border: 1px solid var(--bs-border-color);
+    background: var(--bs-body-bg);
+}
+
+.skeleton-avatar,
+.skeleton-text,
+.skeleton-badge,
+.skeleton-button {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+}
+
+.skeleton-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.skeleton-title {
+    height: 16px;
+    width: 70%;
+    margin-bottom: 4px;
+}
+
+.skeleton-subtitle {
+    height: 12px;
+    width: 50%;
+}
+
+.skeleton-line {
+    height: 12px;
+    width: 100%;
+}
+
+.skeleton-line-short {
+    height: 12px;
+    width: 60%;
+}
+
+.skeleton-badge {
+    height: 14px;
+    width: 40px;
+    border-radius: 12px;
+}
+
+.skeleton-button {
+    height: 32px;
+    width: 100%;
+    border-radius: 6px;
+}
+
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+
+/* Keyboard navigation */
+.model-card.keyboard-focus {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+/* Enhanced wizard transitions */
+.wizard-panel {
+    transition: all 0.3s ease-in-out;
+}
+
+.wizard-panel:not(.active) {
+    display: none;
+}
+
+/* Filter transition effects */
+#model-selection-grid {
+    min-height: 200px;
+    transition: opacity 0.2s ease;
+}
+
+#model-selection-grid.htmx-request {
+    opacity: 0.6;
+}
+
+/* Dark theme skeleton adjustments */
+[data-bs-theme="dark"] .skeleton-avatar,
+[data-bs-theme="dark"] .skeleton-text,
+[data-bs-theme="dark"] .skeleton-badge,
+[data-bs-theme="dark"] .skeleton-button {
+    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+    background-size: 200% 100%;
+}
+</style>
+
+</body>
+</html>

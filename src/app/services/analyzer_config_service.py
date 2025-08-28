@@ -26,26 +26,57 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BanditConfig:
-    """Configuration for Bandit security scanner."""
+    """Configuration for Bandit security scanner with comprehensive command-line options."""
     enabled: bool = True
+    # Core severity and confidence settings
     confidence_level: str = "HIGH"  # LOW, MEDIUM, HIGH
     severity_level: str = "LOW"     # LOW, MEDIUM, HIGH
+    
+    # Path and test filtering options
     exclude_paths: Optional[List[str]] = None
-    skipped_tests: Optional[List[str]] = None
-    formats: Optional[List[str]] = None
-    baseline_file: Optional[str] = None
+    skipped_tests: Optional[List[str]] = None  # -s B101,B601
+    tests: Optional[List[str]] = None          # -t B201,B301 (include specific tests)
+    
+    # Configuration file options
+    config_file: Optional[str] = None          # -c config.yaml
+    baseline_file: Optional[str] = None        # -b baseline.json
+    
+    # Output and reporting options
+    formats: Optional[List[str]] = None        # -f json,txt,csv,xml,html
+    output_file: Optional[str] = None          # -o output.json
+    verbose: bool = False                      # -v
+    quiet: bool = False                        # -q
+    
+    # Analysis behavior options
+    recursive: bool = True                     # -r
+    aggregate: str = "file"                    # aggregate by file, vuln, or test
+    context_lines: int = 3                     # -n 3 (context lines in output)
+    number_lines: bool = True                  # -l (show line numbers)
+    
+    # Advanced filtering and processing
+    ignore_nosec: bool = False                 # --ignore-nosec
+    exclude_dirs: Optional[List[str]] = None   # --exclude-dirs
+    ini_path: Optional[str] = None             # --ini path/to/setup.cfg
+    
+    # Performance and execution options
     timeout: int = 300
+    max_lines: Optional[int] = None            # max lines to process per file
     
     def __post_init__(self):
         if self.exclude_paths is None:
             self.exclude_paths = [
                 '*/tests/*', '*/test_*', '*/migrations/*', 
-                '*/venv/*', '*/node_modules/*'
+                '*/venv/*', '*/node_modules/*', '*/.venv/*',
+                '*/build/*', '*/dist/*'
             ]
         if self.skipped_tests is None:
-            self.skipped_tests = ['B101', 'B601']
+            self.skipped_tests = ['B101', 'B601']  # Skip assert and shell injection tests
         if self.formats is None:
             self.formats = ['json', 'txt']
+        if self.tests is None:
+            self.tests = []  # Empty means all tests (unless skipped)
+        if self.exclude_dirs is None:
+            self.exclude_dirs = ['.git', '__pycache__', '.pytest_cache']
 
 
 @dataclass
@@ -65,61 +96,262 @@ class SafetyConfig:
 
 @dataclass
 class PylintConfig:
-    """Configuration for Pylint code quality scanner."""
+    """Configuration for Pylint code quality scanner with complete .pylintrc support."""
     enabled: bool = True
-    rcfile: Optional[str] = None
-    disable: Optional[List[str]] = None
-    enable: Optional[List[str]] = None
-    output_format: str = "json"
-    confidence: str = "HIGH"
+    
+    # Configuration file options
+    rcfile: Optional[str] = None               # Path to .pylintrc or setup.cfg
+    
+    # [MAIN] section options
+    load_plugins: Optional[List[str]] = None   # Plugins to load
+    jobs: int = 1                              # Number of processes to use (0 = auto)
+    suggestion_mode: bool = True               # Suggestion mode for missing member checks
+    unsafe_load: bool = False                  # Allow loading of arbitrary C extensions
+    extension_pkg_allow_list: Optional[List[str]] = None  # Packages to allow C extensions
+    py_version: str = "3.8"                    # Python version for compatibility checks
+    
+    # Analysis behavior options
+    disable: Optional[List[str]] = None        # Messages to disable
+    enable: Optional[List[str]] = None         # Messages to enable
+    confidence: Optional[List[str]] = None     # Confidence levels: CONTROL_FLOW, INFERENCE, etc.
+    
+    # Output and reporting options
+    output_format: str = "json"                # Output format: text, parseable, colorized, json
+    reports: bool = False                      # Include reports section
+    score: bool = True                         # Display score
+    msg_template: Optional[str] = None         # Template for displaying messages
+    
+    # Code analysis thresholds
+    fail_under: float = 10.0                   # Minimum code rating to pass
+    evaluation: str = "max(0, 0 if fatal else 10.0 - ((float(5 * error + warning + refactor + convention) / statement) * 10))"
+    
+    # Code format and style options
+    max_line_length: int = 100                 # Maximum line length
+    max_module_lines: int = 1000               # Maximum lines in a module
+    indent_string: str = "    "                # String used for indenting
+    indent_after_paren: int = 4                # Indentation after parentheses
+    expected_line_ending_format: Optional[str] = None  # LF, CRLF, or mixed
+    
+    # Complexity and design options
+    max_args: int = 5                          # Maximum number of arguments
+    max_locals: int = 15                       # Maximum number of local variables
+    max_returns: int = 6                       # Maximum number of return statements
+    max_branches: int = 12                     # Maximum number of branches
+    max_statements: int = 50                   # Maximum number of statements
+    max_parents: int = 7                       # Maximum number of parents for a class
+    max_attributes: int = 7                    # Maximum number of attributes for a class
+    min_public_methods: int = 2                # Minimum number of public methods
+    max_public_methods: int = 20               # Maximum number of public methods
+    max_bool_expr: int = 5                     # Maximum number of boolean expressions
+    max_nested_blocks: int = 5                 # Maximum nested block depth
+    
+    # Import and dependency options
+    deprecated_modules: Optional[List[str]] = None      # Deprecated modules to flag
+    preferred_modules: Optional[Dict[str, str]] = None  # Module replacements
+    import_graph: Optional[str] = None                  # Import graph output file
+    int_import_graph: Optional[str] = None              # Internal import graph file
+    ext_import_graph: Optional[str] = None              # External import graph file
+    
+    # Naming convention options
+    good_names: Optional[List[str]] = None              # Good variable names
+    bad_names: Optional[List[str]] = None               # Bad variable names
+    name_group: Optional[Dict[str, str]] = None         # Name groups
+    include_naming_hint: bool = True                    # Include naming hints in messages
+    
+    # Performance and execution
     timeout: int = 300
+    ignore: Optional[List[str]] = None                  # Files/directories to ignore
+    ignore_patterns: Optional[List[str]] = None         # Ignore patterns (regex)
+    ignore_paths: Optional[List[str]] = None            # Paths to ignore
+    persistent: bool = True                             # Pickle collected data for later comparisons
     
     def __post_init__(self):
         if self.disable is None:
-            self.disable = ['C0103', 'R0903', 'W0613']
+            self.disable = [
+                'C0103',  # invalid-name
+                'R0903',  # too-few-public-methods
+                'W0613',  # unused-argument
+                'R0801',  # duplicate-code
+                'C0114',  # missing-module-docstring
+                'C0115',  # missing-class-docstring
+                'C0116'   # missing-function-docstring
+            ]
         if self.enable is None:
-            self.enable = ['W0622']
+            self.enable = ['W0622']  # redefined-builtin
+        if self.load_plugins is None:
+            self.load_plugins = []
+        if self.confidence is None:
+            self.confidence = ['HIGH', 'CONTROL_FLOW', 'INFERENCE', 'INFERENCE_FAILURE', 'UNDEFINED']
+        if self.extension_pkg_allow_list is None:
+            self.extension_pkg_allow_list = []
+        if self.deprecated_modules is None:
+            self.deprecated_modules = ['regsub', 'TERMIOS', 'Bastion', 'rexec']
+        if self.preferred_modules is None:
+            self.preferred_modules = {}
+        if self.good_names is None:
+            self.good_names = ['i', 'j', 'k', 'ex', 'Run', '_', 'id', 'pk']
+        if self.bad_names is None:
+            self.bad_names = ['foo', 'bar', 'baz', 'toto', 'tutu', 'tata']
+        if self.name_group is None:
+            self.name_group = {}
+        if self.ignore is None:
+            self.ignore = ['CVS', '.git', '__pycache__', '.pytest_cache']
+        if self.ignore_patterns is None:
+            self.ignore_patterns = []
+        if self.ignore_paths is None:
+            self.ignore_paths = []
 
 
 @dataclass
 class ESLintConfig:
-    """Configuration for ESLint JavaScript security scanner."""
+    """Configuration for ESLint JavaScript security scanner with modern flat config support."""
     enabled: bool = True
-    config_file: Optional[str] = None
-    rules: Optional[Dict[str, str]] = None
-    plugins: Optional[List[str]] = None
-    output_format: str = "json"
-    max_warnings: int = 50
+    
+    # Configuration file options (flat config system)
+    config_file: Optional[str] = None          # eslint.config.js or .eslintrc.json
+    use_flat_config: bool = True               # Use modern flat config system
+    
+    # Rules and plugins configuration
+    rules: Optional[Dict[str, Any]] = None     # Rule configurations with severity levels
+    plugins: Optional[List[str]] = None        # ESLint plugins to load
+    extends: Optional[List[str]] = None        # Configuration sets to extend
+    
+    # Environment and parser settings
+    environments: Optional[Dict[str, bool]] = None  # Environment globals (node, browser, es6)
+    parser: Optional[str] = None               # Custom parser (e.g., @babel/eslint-parser)
+    parser_options: Optional[Dict[str, Any]] = None  # Parser configuration options
+    
+    # Output and reporting options
+    output_format: str = "json"                # Output format: json, stylish, compact, etc.
+    output_file: Optional[str] = None          # Output file path
+    max_warnings: int = 50                     # Maximum warnings before error exit
+    quiet: bool = False                        # Report errors only, ignore warnings
+    
+    # File processing options
+    ignore_path: Optional[str] = None          # Path to .eslintignore file
+    ignore_pattern: Optional[List[str]] = None # Patterns to ignore
+    ext: Optional[List[str]] = None            # File extensions to process
+    
+    # Advanced options
+    cache: bool = True                         # Enable caching for faster subsequent runs
+    cache_location: Optional[str] = None       # Custom cache file location
+    fix: bool = False                          # Automatically fix problems
+    fix_dry_run: bool = False                  # Show fixes without applying them
+    fix_type: Optional[List[str]] = None       # Types of fixes to apply (problem, suggestion, layout)
+    
+    # Performance and execution
     timeout: int = 240
+    max_file_size: Optional[int] = None        # Skip files larger than this size (bytes)
     
     def __post_init__(self):
         if self.rules is None:
             self.rules = {
+                # Security rules
                 'security/detect-object-injection': 'error',
                 'security/detect-non-literal-fs-filename': 'error',
                 'security/detect-unsafe-regex': 'error',
                 'security/detect-buffer-noassert': 'error',
                 'security/detect-eval-with-expression': 'error',
                 'security/detect-no-csrf-before-method-override': 'error',
-                'security/detect-pseudoRandomBytes': 'error'
+                'security/detect-pseudoRandomBytes': 'error',
+                'security/detect-child-process': 'warn',
+                'security/detect-disable-mustache-escape': 'error',
+                'security/detect-new-buffer': 'error',
+                
+                # Code quality rules
+                'no-eval': 'error',
+                'no-implied-eval': 'error',
+                'no-new-func': 'error',
+                'no-script-url': 'error',
+                'prefer-const': 'warn',
+                'no-var': 'warn',
+                'no-unused-vars': 'warn',
+                'no-console': 'warn',
+                'complexity': ['warn', 15]
             }
         if self.plugins is None:
             self.plugins = ['security']
+        if self.extends is None:
+            self.extends = ['eslint:recommended']
+        if self.environments is None:
+            self.environments = {
+                'browser': True,
+                'node': True,
+                'es6': True,
+                'es2021': True
+            }
+        if self.parser_options is None:
+            self.parser_options = {
+                'ecmaVersion': 2021,
+                'sourceType': 'module',
+                'ecmaFeatures': {
+                    'jsx': True,
+                    'globalReturn': False,
+                    'impliedStrict': True
+                }
+            }
+        if self.ignore_pattern is None:
+            self.ignore_pattern = ['node_modules/**', 'dist/**', 'build/**', '*.min.js']
+        if self.ext is None:
+            self.ext = ['.js', '.jsx', '.ts', '.tsx', '.vue']
+        if self.fix_type is None:
+            self.fix_type = ['problem', 'suggestion']
 
 
 @dataclass
 class ZAPConfig:
-    """Configuration for OWASP ZAP web application scanner."""
+    """Configuration for OWASP ZAP web application scanner with comprehensive settings."""
     enabled: bool = True
-    api_key: Optional[str] = None
-    daemon_mode: bool = True
-    host: str = "localhost"
-    port: int = 8080
+    
+    # Core ZAP configuration
+    api_key: Optional[str] = None              # API key for remote access
+    daemon_mode: bool = True                   # Run in daemon/headless mode
+    host: str = "localhost"                    # ZAP host address
+    port: int = 8080                          # ZAP proxy port
+    config_file: Optional[str] = None          # Path to ZAP configuration file
+    
+    # Memory and performance settings
+    memory_allocation: str = "1G"              # Java heap size (-Xmx)
+    thread_count: Optional[int] = None         # Number of threads for active scanning
+    
+    # API and remote access configuration
+    api_addresses: Optional[List[str]] = None  # Allowed API addresses (default: localhost)
+    api_regex: bool = True                     # Enable regex for API addresses
+    disable_api_key: bool = False              # Disable API key requirement
+    
+    # Scan configuration
     scan_types: Optional[Dict[str, Any]] = None
+    scan_policies: Optional[Dict[str, Any]] = None
+    
+    # Authentication and session management
     authentication: Optional[Dict[str, Any]] = None
+    session_management: Optional[Dict[str, Any]] = None
+    
+    # Context and scope configuration
     context: Optional[Dict[str, Any]] = None
+    include_patterns: Optional[List[str]] = None    # URLs to include in scope
+    exclude_patterns: Optional[List[str]] = None    # URLs to exclude from scope
+    
+    # Reporting and output configuration
     reporting: Optional[Dict[str, Any]] = None
-    timeout: int = 3600
+    alert_filters: Optional[Dict[str, Any]] = None
+    
+    # Proxy and networking settings
+    proxy_chain: Optional[Dict[str, str]] = None    # Upstream proxy configuration
+    certificate_settings: Optional[Dict[str, Any]] = None
+    
+    # WebSocket and advanced protocol support
+    websocket_enabled: bool = True             # Enable WebSocket scanning
+    http2_enabled: bool = True                 # Enable HTTP/2 support
+    
+    # Script and extension configuration
+    scripts: Optional[Dict[str, Any]] = None   # Custom scripts configuration
+    extensions: Optional[List[str]] = None     # Extensions to load
+    
+    # Performance and timeout settings
+    timeout: int = 3600                        # Overall scan timeout
+    connection_timeout: int = 20               # Connection timeout for requests
+    read_timeout: int = 200                    # Read timeout for requests
     
     def __post_init__(self):
         if self.scan_types is None:
@@ -128,46 +360,236 @@ class ZAPConfig:
                     'enabled': True,
                     'max_depth': 5,
                     'max_duration': 600,
-                    'user_agent': 'ZAP/2.14.0'
+                    'max_children': 0,
+                    'user_agent': 'ZAP/2.14.0',
+                    'accept_cookies': True,
+                    'handle_odata_parameters': False,
+                    'parse_comments': True,
+                    'parse_robots_txt': True,
+                    'parse_sitemap_xml': True,
+                    'parse_svn_entries': False,
+                    'parse_git': False,
+                    'post_form': False,
+                    'process_form': True,
+                    'request_wait_time': 200
+                },
+                'ajax_spider': {
+                    'enabled': True,
+                    'max_duration': 600,
+                    'max_crawl_depth': 10,
+                    'number_of_browsers': 1,
+                    'event_wait': 1000,
+                    'reload_wait': 1000,
+                    'click_default_elems': True,
+                    'random_inputs': True
                 },
                 'active_scan': {
                     'enabled': True,
                     'policy': 'Default Policy',
                     'max_duration': 1800,
                     'max_rule_duration': 300,
-                    'delay_in_ms': 0
+                    'max_scan_duration_per_host': 0,
+                    'delay_in_ms': 0,
+                    'threads_per_host': 2,
+                    'host_per_scan': 2,
+                    'max_results_to_list': 10,
+                    'inject_plugin_id_in_header': False,
+                    'handle_anti_csrf_tokens': False,
+                    'prompt_in_attack_mode': False
                 },
                 'passive_scan': {
                     'enabled': True,
-                    'max_alerts_per_rule': 10
+                    'max_alerts_per_rule': 10,
+                    'scan_only_in_scope': True,
+                    'auto_tag_scanners': True
                 }
             }
+        
+        if self.scan_policies is None:
+            self.scan_policies = {
+                'default': {
+                    'name': 'Default Policy',
+                    'threshold': 'Default',
+                    'strength': 'Default',
+                    'attack_strength': 'MEDIUM'
+                },
+                'light': {
+                    'name': 'Light Policy',
+                    'threshold': 'HIGH',
+                    'strength': 'LOW',
+                    'attack_strength': 'LOW'
+                },
+                'full': {
+                    'name': 'Full Policy',
+                    'threshold': 'LOW',
+                    'strength': 'INSANE',
+                    'attack_strength': 'INSANE'
+                }
+            }
+        
         if self.authentication is None:
             self.authentication = {
-                'method': 'form',
+                'method': 'form',          # form, script, json, manual
                 'login_url': None,
+                'login_request_data': None,
                 'username_field': 'username',
                 'password_field': 'password',
                 'username': None,
                 'password': None,
+                'extra_post_data': None,
                 'logged_in_regex': None,
-                'logged_out_regex': None
+                'logged_out_regex': None,
+                'auto_detect': True,
+                'script_name': None,       # For script-based authentication
+                'script_parameters': {}
             }
+        
+        if self.session_management is None:
+            self.session_management = {
+                'method': 'cookie',        # cookie, http_auth, script
+                'script_name': None,
+                'script_parameters': {}
+            }
+        
         if self.context is None:
             self.context = {
                 'name': 'Default Context',
-                'include_urls': ['.*'],
-                'exclude_urls': ['.*logout.*', '.*signout.*', '.*admin.*']
+                'description': 'Default context for ZAP scanning',
+                'in_scope': True,
+                'include_regexs': ['.*'],
+                'exclude_regexs': [
+                    '.*logout.*', '.*signout.*', '.*sign-out.*',
+                    '.*admin.*', '.*delete.*', '.*remove.*',
+                    '.*\\.(css|js|gif|jpe?g|png|ico|woff|woff2|ttf|eot|svg)$'
+                ],
+                'include_technologies': [],
+                'exclude_technologies': [],
+                'data_driven_nodes': []
             }
+        
         if self.reporting is None:
             self.reporting = {
-                'formats': ['json', 'html', 'xml'],
+                'formats': ['json', 'html', 'xml', 'md'],
+                'template': 'traditional-html',
+                'theme': 'original',
                 'include_passed': False,
-                'confidence_threshold': 'Medium',
-                'risk_threshold': 'Low'
+                'include_response_body': False,
+                'risk_threshold': 'Low',      # Info, Low, Medium, High
+                'confidence_threshold': 'Medium',  # False Positive, Low, Medium, High, Confirmed
+                'sections': {
+                    'passed_rules': False,
+                    'instance_count': True,
+                    'alert_details': True,
+                    'chart_details': True,
+                    'statistics': True
+                }
+            }
+        
+        if self.alert_filters is None:
+            self.alert_filters = {
+                'enabled': True,
+                'global_alert_filter': True,
+                'context_alert_filter': False,
+                'filters': []  # List of alert filter rules
+            }
+        
+        if self.api_addresses is None:
+            self.api_addresses = ['127.0.0.1', 'localhost']
+        
+        if self.include_patterns is None:
+            self.include_patterns = ['.*']
+        
+        if self.exclude_patterns is None:
+            self.exclude_patterns = [
+                '.*logout.*', '.*signout.*', '.*admin.*',
+                '.*\\.(css|js|gif|jpe?g|png|ico|woff|woff2|ttf|eot|svg|pdf|doc|docx|xls|xlsx)$'
+            ]
+        
+        if self.scripts is None:
+            self.scripts = {
+                'authentication': [],
+                'httpsender': [],
+                'active_rules': [],
+                'passive_rules': [],
+                'proxy': [],
+                'standalone': [],
+                'targeted': []
+            }
+        
+        if self.extensions is None:
+            self.extensions = ['websockets', 'openapi', 'soap', 'graphql']
+        
+        if self.proxy_chain is None:
+            self.proxy_chain = {}
+        
+        if self.certificate_settings is None:
+            self.certificate_settings = {
+                'use_client_certificate': False,
+                'client_certificate_location': None,
+                'use_global_http_state': True
             }
 
 
+@dataclass
+class ApacheBenchConfig:
+    """Configuration for Apache Bench (ab) performance testing with comprehensive parameters."""
+    enabled: bool = True
+    
+    # Core testing parameters
+    requests: int = 100                        # -n Total number of requests to perform
+    concurrency: int = 10                      # -c Number of concurrent requests
+    timelimit: Optional[int] = None            # -t Seconds to max. to spend on benchmarking
+    
+    # Connection and timeout options
+    timeout: int = 30                          # -s Timeout for each request (seconds)
+    keep_alive: bool = False                   # -k Enable HTTP KeepAlive feature
+    
+    # HTTP method and data options
+    method: str = "GET"                        # HTTP method (GET, POST, PUT, etc.)
+    post_file: Optional[str] = None            # -p File with data to POST
+    put_file: Optional[str] = None             # -u File with data to PUT
+    content_type: str = "text/plain"           # -T Content-type header for POSTing
+    
+    # Headers and authentication
+    headers: Optional[Dict[str, str]] = None   # -H Additional headers to send
+    auth: Optional[Dict[str, str]] = None      # -A Basic authentication (username:password)
+    proxy_auth: Optional[Dict[str, str]] = None # -P Proxy authentication (username:password)
+    cookie: Optional[str] = None               # -C Cookie to send with requests
+    
+    # SSL/TLS options
+    cipher_suite: Optional[str] = None         # -Z Cipher suite for SSL connections
+    ssl_protocol: Optional[str] = None         # SSL/TLS protocol version (SSLv2, SSLv3, TLSv1, etc.)
+    
+    # Output and reporting options
+    output_format: str = "text"                # Output format: text, json, csv
+    verbose_level: int = 1                     # -v Verbosity level (1-4)
+    quiet: bool = False                        # -q Do not show progress meter
+    csv_output: bool = False                   # -e Generate CSV output
+    gnuplot_output: bool = False               # -g Generate gnuplot output
+    output_file: Optional[str] = None          # File to write results to
+    
+    # Advanced options
+    window_size: Optional[int] = None          # -b Size of TCP send/receive buffer
+    proxy: Optional[str] = None                # -X Proxy server and port
+    bind_address: Optional[str] = None         # -B Address to bind to when making connections
+    
+    # Performance tuning
+    ramp_up: Optional[int] = None              # Gradually increase load over time (seconds)
+    think_time: Optional[int] = None           # Think time between requests (milliseconds)
+    
+    def __post_init__(self):
+        if self.headers is None:
+            self.headers = {
+                'User-Agent': 'ApacheBench/2.3',
+                'Accept': '*/*'
+            }
+        if self.auth is None:
+            self.auth = {}
+        if self.proxy_auth is None:
+            self.proxy_auth = {}
+
+
+@dataclass
 @dataclass
 class SecurityAnalyzerConfig:
     """Complete security analyzer configuration."""
@@ -176,6 +598,7 @@ class SecurityAnalyzerConfig:
     pylint: Optional[PylintConfig] = None
     eslint: Optional[ESLintConfig] = None
     zap: Optional[ZAPConfig] = None
+    apache_bench: Optional[ApacheBenchConfig] = None
     
     def __post_init__(self):
         if self.bandit is None:
@@ -188,6 +611,8 @@ class SecurityAnalyzerConfig:
             self.eslint = ESLintConfig()
         if self.zap is None:
             self.zap = ZAPConfig()
+        if self.apache_bench is None:
+            self.apache_bench = ApacheBenchConfig()
 
 
 class AnalyzerConfigService:
@@ -707,7 +1132,9 @@ class AnalyzerConfigService:
     def get_security_config(self, config_id: Optional[int] = None) -> SecurityAnalyzerConfig:
         """Get security analyzer configuration."""
         if config_id:
-            config_record = AnalysisConfig.query.get(config_id)
+            from app.extensions import get_session
+            with get_session() as _s:
+                config_record = _s.get(AnalysisConfig, config_id)
             if config_record and config_record.config_type == 'security':
                 return self._deserialize_config(config_record.config_data, SecurityAnalyzerConfig)
         
@@ -814,6 +1241,7 @@ class AnalyzerConfigService:
         pylint_cfg = config.pylint or PylintConfig()
         eslint = config.eslint or ESLintConfig()
         zap = config.zap or ZAPConfig()
+        apache_bench = config.apache_bench or ApacheBenchConfig()
 
         if bandit.timeout < 30 or bandit.timeout > 3600:
             errors.append("Bandit timeout must be between 30 and 3600 seconds")
@@ -825,6 +1253,8 @@ class AnalyzerConfigService:
             errors.append("ESLint timeout must be between 30 and 1800 seconds")
         if zap.timeout < 300 or zap.timeout > 7200:
             errors.append("ZAP timeout must be between 300 and 7200 seconds")
+        if apache_bench.timeout < 5 or apache_bench.timeout > 300:
+            errors.append("Apache Bench timeout must be between 5 and 300 seconds")
         
         # Validate confidence levels
         valid_confidence = ['LOW', 'MEDIUM', 'HIGH']
@@ -832,6 +1262,16 @@ class AnalyzerConfigService:
             errors.append(f"Bandit confidence level must be one of: {valid_confidence}")
         if bandit.severity_level not in valid_confidence:
             errors.append(f"Bandit severity level must be one of: {valid_confidence}")
+        
+        # Validate Apache Bench parameters
+        if apache_bench.requests < 1 or apache_bench.requests > 10000:
+            errors.append("Apache Bench requests must be between 1 and 10000")
+        if apache_bench.concurrency < 1 or apache_bench.concurrency > 1000:
+            errors.append("Apache Bench concurrency must be between 1 and 1000")
+        if apache_bench.concurrency > apache_bench.requests:
+            errors.append("Apache Bench concurrency cannot exceed number of requests")
+        if apache_bench.timelimit and (apache_bench.timelimit < 10 or apache_bench.timelimit > 3600):
+            errors.append("Apache Bench time limit must be between 10 and 3600 seconds")
         
         # Validate ZAP port
         if zap.port < 1024 or zap.port > 65535:

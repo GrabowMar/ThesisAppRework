@@ -6,6 +6,7 @@ for development and testing when real-time features are not available.
 
 import logging
 from typing import Dict, Any, Optional, List
+import os
 from datetime import datetime
 from threading import Lock, Thread
 import time
@@ -38,7 +39,7 @@ class MockWebSocketService:
         
         logger.info("Mock WebSocket Service initialized")
     
-    def emit(self, event: str, data: Dict[str, Any], room: str = None):
+    def emit(self, event: str, data: Dict[str, Any], room: Optional[str] = None):
         """Mock emit that logs events instead of sending to clients."""
         event_entry = {
             'event': event,
@@ -273,7 +274,8 @@ class MockWebSocketService:
                 'active_analyses': len(self.active_analyses),
                 'analyzer_status': self.analyzer_status,
                 'service_health': 'healthy',
-                'mock_mode': True
+                'mock_mode': True,
+                'service': 'mock_websocket'
             }
     
     def get_active_analyses(self) -> List[Dict[str, Any]]:
@@ -286,12 +288,21 @@ class MockWebSocketService:
         with self._lock:
             return list(self.event_log)
 
+    def clear_event_log(self) -> None:
+        """Clear the in-memory event log (useful for smoke/E2E runs)."""
+        with self._lock:
+            self.event_log.clear()
+
 
 # Global service instance
 _mock_service: Optional[MockWebSocketService] = None
 
 def initialize_mock_websocket_service() -> MockWebSocketService:
     """Initialize the mock WebSocket service."""
+    # Enforce strict mode: do not allow mock service when explicitly disabled
+    if os.environ.get('WEBSOCKET_STRICT_CELERY', 'false').lower() == 'true':
+        raise RuntimeError("WEBSOCKET_STRICT_CELERY=true: Mock WebSocket service is disabled")
+
     global _mock_service
     _mock_service = MockWebSocketService()
     return _mock_service

@@ -1,0 +1,195 @@
+{# slug: ui/elements/dashboard/stat-card (auto-migrated) #}
+{# 
+Dashboard Statistics Card Component
+
+Purpose: Displays key metrics and statistics with animated counters and trend indicators
+Usage: {{ stat_card(title="Active Models", value=42, change="+5", change_type="increase", icon="fas fa-robot", color="primary") }}
+Routes: Used in dashboard views and HTMX updates for real-time statistics
+Features:
+- Animated counter on value changes
+- Trend indicators with color coding
+- Icon support with FontAwesome
+- Real-time updates via HTMX
+- Responsive design with card styling
+- Accessibility with ARIA labels
+Technical: Bootstrap 5 cards, HTMX polling, CSS animations, JavaScript counters
+Dependencies: FontAwesome icons, Chart.js for sparklines (optional)
+#}
+
+{# Set default values for optional parameters #}
+{%- set title = title or 'Statistic' -%}
+{%- set value = value or 0 -%}
+{%- set change = change or None -%}
+{%- set change_type = change_type or 'neutral' -%}
+{%- set icon = icon or 'fas fa-chart-line' -%}
+{%- set color = color or 'primary' -%}
+{%- set subtitle = subtitle or None -%}
+{%- set trend_data = trend_data or None -%}
+{%- set href = href or None -%}
+{%- set loading = loading or false -%}
+
+{# Generate unique ID for this stat card #}
+{%- set card_id = 'stat-card-' ~ (title | replace(' ', '-') | lower) -%}
+
+<div class="card border-left-{{ color }} shadow h-100 stat-card" 
+     id="{{ card_id }}" 
+     data-stat-value="{{ value }}"
+     {% if href %}style="cursor: pointer;" onclick="window.location.href='{{ href }}'"{% endif %}>
+    <div class="card-body">
+        <div class="row no-gutters align-items-center">
+            <div class="col mr-2">
+                {# Title with optional subtitle #}
+                <div class="text-xs font-weight-bold text-{{ color }} text-uppercase mb-1">
+                    {{ title }}
+                    {% if subtitle %}
+                        <small class="text-muted d-block">{{ subtitle }}</small>
+                    {% endif %}
+                </div>
+                
+                {# Main value with animated counter #}
+                <div class="h5 mb-0 font-weight-bold text-gray-800">
+                    {% if loading %}
+                        <div class="spinner-border spinner-border-sm text-{{ color }}" role="status" aria-hidden="true"></div>
+                        <span class="sr-only">Loading...</span>
+                    {% else %}
+                        <span class="stat-value" data-target="{{ value }}">{{ value }}</span>
+                        {% if change %}
+                            <small class="ml-2 text-{% if change_type == 'increase' %}success{% elif change_type == 'decrease' %}danger{% else %}muted{% endif %}">
+                                {% if change_type == 'increase' %}
+                                    <i class="fas fa-arrow-up"></i>
+                                {% elif change_type == 'decrease' %}
+                                    <i class="fas fa-arrow-down"></i>
+                                {% else %}
+                                    <i class="fas fa-minus"></i>
+                                {% endif %}
+                                {{ change }}
+                            </small>
+                        {% endif %}
+                    {% endif %}
+                </div>
+
+                {# Optional trend sparkline #}
+                {% if trend_data %}
+                    <div class="mt-2">
+                        <canvas class="sparkline" 
+                                data-sparkline="{{ trend_data | tojson }}" 
+                                data-color="{{ color }}"
+                                width="100" 
+                                height="30"></canvas>
+                    </div>
+                {% endif %}
+            </div>
+            
+            {# Icon section #}
+            <div class="col-auto">
+                <i class="{{ icon }} fa-2x text-gray-300"></i>
+            </div>
+        </div>
+    </div>
+    
+    {# Optional card footer for additional actions #}
+    {% if href or caller %}
+        <div class="card-footer bg-light border-top-0">
+            {% if href %}
+                <a href="{{ href }}" class="small text-{{ color }}">
+                    View Details <i class="fas fa-arrow-right ml-1"></i>
+                </a>
+            {% endif %}
+            {% if caller %}
+                {{ caller() }}
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+
+{# JavaScript for animated counters and real-time updates #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Animated counter for stat values
+    function animateValue(element, start, end, duration) {
+        if (start === end) return;
+        
+        const range = end - start;
+        const increment = end > start ? 1 : -1;
+        const stepTime = Math.abs(Math.floor(duration / range));
+        let current = start;
+        
+        const timer = setInterval(function() {
+            current += increment;
+            element.textContent = current.toLocaleString();
+            
+            if (current === end) {
+                clearInterval(timer);
+            }
+        }, stepTime);
+    }
+
+    // Initialize counters for stat cards
+    document.querySelectorAll('.stat-value').forEach(function(element) {
+        const target = parseInt(element.getAttribute('data-target'));
+        animateValue(element, 0, target, 2000);
+    });
+
+    // Initialize sparklines if Chart.js is available
+    if (typeof Chart !== 'undefined') {
+        document.querySelectorAll('.sparkline').forEach(function(canvas) {
+            const data = JSON.parse(canvas.getAttribute('data-sparkline'));
+            const color = canvas.getAttribute('data-color') || 'primary';
+            
+            const colorMap = {
+                'primary': '#4e73df',
+                'success': '#1cc88a',
+                'info': '#36b9cc',
+                'warning': '#f6c23e',
+                'danger': '#e74a3b',
+                'secondary': '#858796'
+            };
+
+            new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: data.map((_, i) => i),
+                    datasets: [{
+                        data: data,
+                        borderColor: colorMap[color] || colorMap['primary'],
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: false,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: { display: false },
+                        y: { display: false }
+                    },
+                    elements: {
+                        line: { tension: 0.3 }
+                    }
+                }
+            });
+        });
+    }
+
+    // Real-time updates via HTMX
+    document.addEventListener('htmx:afterRequest', function(event) {
+        if (event.detail.target && event.detail.target.classList.contains('stat-card')) {
+            // Re-animate counters after HTMX update
+            const statValue = event.detail.target.querySelector('.stat-value');
+            if (statValue) {
+                const target = parseInt(statValue.getAttribute('data-target'));
+                const current = parseInt(statValue.textContent.replace(/,/g, ''));
+                animateValue(statValue, current, target, 1000);
+            }
+        }
+    });
+});
+</script>
+
+{# CSS for hover effects and animations #}
+

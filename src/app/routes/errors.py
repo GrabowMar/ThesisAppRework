@@ -5,7 +5,8 @@ Error Handlers
 Global error handlers for the application.
 """
 
-from flask import render_template, jsonify, request
+from flask import jsonify, request
+from ..utils.template_paths import render_template_compat as render_template
 from werkzeug.routing.exceptions import WebsocketMismatch
 
 

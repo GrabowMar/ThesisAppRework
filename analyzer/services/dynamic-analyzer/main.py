@@ -24,8 +24,17 @@ from typing import Dict, List, Any
 import websockets
 from websockets.asyncio.server import serve
 
-logging.basicConfig(level=logging.INFO)
+level_str = os.getenv('LOG_LEVEL', 'INFO').upper()
+level = getattr(logging, level_str, logging.INFO)
+logging.basicConfig(level=level)
 logger = logging.getLogger(__name__)
+logger.setLevel(level)
+try:
+    logging.getLogger("websockets.server").setLevel(logging.CRITICAL)
+    logging.getLogger("websockets.http").setLevel(logging.CRITICAL)
+    logging.getLogger("websockets.http11").setLevel(logging.CRITICAL)
+except Exception:
+    pass
 
 class DynamicAnalyzer:
     """Dynamic web application security analyzer."""
@@ -46,9 +55,9 @@ class DynamicAnalyzer:
                                   capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 tools.append('curl')
-                logger.info("✅ curl available")
+                logger.debug("curl available")
         except Exception as e:
-            logger.warning(f"❌ curl not available: {e}")
+            logger.debug(f"curl not available: {e}")
         
         # Check for wget
         try:
@@ -56,9 +65,9 @@ class DynamicAnalyzer:
                                   capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 tools.append('wget')
-                logger.info("✅ wget available")
+                logger.debug("wget available")
         except Exception as e:
-            logger.warning(f"❌ wget not available: {e}")
+            logger.debug(f"wget not available: {e}")
         
         # Check for nmap
         try:
@@ -66,9 +75,16 @@ class DynamicAnalyzer:
                                   capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 tools.append('nmap')
-                logger.info("✅ nmap available")
+                logger.debug("nmap available")
         except Exception as e:
-            logger.warning(f"❌ nmap not available: {e}")
+            logger.debug(f"nmap not available: {e}")
+        # Check for OWASP ZAP (Python client import + optional running daemon)
+        try:
+            __import__('zapv2')  # type: ignore
+            tools.append('zap')
+            logger.debug("ZAP client library available")
+        except Exception as e:
+            logger.debug(f"ZAP client not available: {e}")
         
         return tools
     
@@ -322,6 +338,13 @@ class DynamicAnalyzer:
                     host = list(hosts_to_scan)[0]  # Scan first host
                     port_scan_result = await self.port_scan(host, list(ports_to_scan))
                     results['results']['port_scan'] = port_scan_result
+
+            # Optional OWASP ZAP scan (only if zap available & at least one reachable URL)
+            if 'zap' in self.available_tools and reachable_urls:
+                primary_url = reachable_urls[0]
+                logger.info(f"Attempting ZAP scan for {primary_url}")
+                zap_result = await self.zap_scan(primary_url)
+                results['results']['zap_scan'] = zap_result
             
             # Calculate summary
             total_vulnerabilities = 0
@@ -349,6 +372,76 @@ class DynamicAnalyzer:
                 'model_slug': model_slug,
                 'app_number': app_number
             }
+
+    async def zap_scan(self, target: str) -> Dict[str, Any]:
+        """Run a lightweight OWASP ZAP spider + passive (and maybe active) scan if daemon available.
+
+        The dynamic analyzer container does not start a ZAP daemon yet; this function attempts to connect
+        to a daemon if one is externally provided (e.g., separate ZAP container mapped to ZAP_PORT env var).
+        If connection fails, returns status indicating unavailability rather than raising.
+        """
+        if 'zap' not in self.available_tools:
+            return {'status': 'tool_unavailable', 'tool': 'zap'}
+        try:
+            from zapv2 import ZAPv2  # type: ignore
+        except Exception as e:
+            return {'status': 'error', 'tool': 'zap', 'error': f'Import failure: {e}'}
+        zap_port = os.getenv('ZAP_PORT', '8090')
+        zap_api = os.getenv('ZAP_API_KEY', '')
+        zap_url = f'http://localhost:{zap_port}'
+        try:
+            zap = ZAPv2(apikey=zap_api, proxies={'http': zap_url, 'https': zap_url})
+            # Quick version check to validate connectivity
+            try:
+                _ = zap.core.version
+            except Exception:
+                return {'status': 'unreachable', 'tool': 'zap', 'message': f'No ZAP daemon at {zap_url}'}
+            # Spider
+            spider_id = zap.spider.scan(target)
+            await self._await_condition(lambda: int(zap.spider.status(spider_id)) >= 100, timeout=120)
+            # Passive scan progress wait (brief)
+            await self._await_condition(lambda: int(zap.pscan.records_to_scan) == 0, timeout=60, sleep=2)
+            # Optional short active scan (capped)
+            active_result = {}
+            try:
+                ascan_id = zap.ascan.scan(target, recurse=True, inscopeonly=False)
+                await self._await_condition(lambda: int(zap.ascan.status(ascan_id)) >= 100, timeout=180, sleep=3)
+                active_result['status'] = 'completed'
+            except Exception as e:
+                active_result['status'] = 'skipped'
+                active_result['reason'] = str(e)
+            # Alerts
+            alerts = zap.core.alerts(baseurl=target)
+            severity_count = {'High': 0, 'Medium': 0, 'Low': 0, 'Informational': 0}
+            for a in alerts:
+                risk = a.get('risk', '')
+                if risk in severity_count:
+                    severity_count[risk] += 1
+            return {
+                'status': 'success',
+                'tool': 'zap',
+                'target': target,
+                'alert_counts': severity_count,
+                'total_alerts': len(alerts),
+                'active_scan': active_result,
+                'alerts_sample': alerts[:25]
+            }
+        except asyncio.TimeoutError:
+            return {'status': 'timeout', 'tool': 'zap', 'target': target}
+        except Exception as e:
+            return {'status': 'error', 'tool': 'zap', 'error': str(e)}
+
+    async def _await_condition(self, predicate, timeout: int = 60, sleep: int = 1):
+        """Utility: await predicate True or timeout."""
+        start = datetime.now()
+        while (datetime.now() - start).total_seconds() < timeout:
+            try:
+                if predicate():
+                    return True
+            except Exception:
+                pass
+            await asyncio.sleep(sleep)
+        raise asyncio.TimeoutError('Condition wait timed out')
     
     async def handle_message(self, websocket, message_data):
         """Handle incoming WebSocket messages."""
@@ -388,6 +481,9 @@ class DynamicAnalyzer:
                         f"http://localhost:{base_port}",
                         f"http://localhost:{base_port + 1}"
                     ]
+                    logger.info(f"No target_urls supplied; using default heuristic ports {target_urls}")
+                else:
+                    logger.info(f"Received explicit target_urls: {target_urls}")
                 
                 logger.info(f"Starting dynamic analysis for {model_slug} app {app_number}")
                 
@@ -428,7 +524,7 @@ async def handle_client(websocket):
     """Handle client connections."""
     analyzer = DynamicAnalyzer()
     client_addr = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
-    logger.info(f"New client connected: {client_addr}")
+    logger.debug(f"New client connected: {client_addr}")
     
     try:
         async for message in websocket:
@@ -439,7 +535,7 @@ async def handle_client(websocket):
                 logger.error("Invalid JSON message")
                 
     except websockets.exceptions.ConnectionClosed:
-        logger.info(f"Client disconnected: {client_addr}")
+        logger.debug(f"Client disconnected: {client_addr}")
     except Exception as e:
         logger.error(f"Error with client {client_addr}: {e}")
 

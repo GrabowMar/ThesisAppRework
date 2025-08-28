@@ -1,0 +1,599 @@
+{# slug: pages/statistics/overview (auto-migrated) #}
+{#
+  Statistics Overview View
+  
+  Purpose: Comprehensive statistics dashboard showing analysis trends and insights
+  Features:
+  - Interactive charts and visualizations
+  - Model performance metrics
+  - Time-based analysis trends
+  - Statistical summaries
+  - Export functionality
+  
+  Routes:
+  - GET /statistics/
+  - GET /statistics/overview
+  
+  Technical Details:
+  - Extends dashboard.html layout
+  - Chart.js integration for visualizations
+  - Real-time data updates via HTMX
+  - Responsive grid system
+  - Export functionality for reports
+  
+  Components Used:
+  - components/statistics/chart-container.html
+  - components/statistics/metric-card.html
+  - components/statistics/trend-indicator.html
+  
+  HTMX Endpoints:
+  - /api/statistics/overview (main stats)
+  - /api/statistics/charts (chart data)
+  - /api/statistics/trends (trend data)
+#}
+
+{% extends 'layouts/base.html' %}
+
+{% block title %}Statistics Overview - {{ super() }}{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.css">
+
+{% endblock %}
+
+{% block breadcrumbs %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Statistics</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{# Standardized page header blocks #}
+{% block page_icon %}fas fa-chart-bar{% endblock %}
+{% block page_title %}Statistics Overview{% endblock %}
+{% block page_subtitle %}Your AI analysis control center{% endblock %}
+{% block page_actions %}
+<div class="btn-group">
+    <button type="button" class="btn btn-outline-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="fas fa-download me-1"></i>Export
+    </button>
+    <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="/api/statistics/export/pdf"><i class="fas fa-file-pdf me-2"></i>PDF Report</a></li>
+        <li><a class="dropdown-item" href="/api/statistics/export/excel"><i class="fas fa-file-excel me-2"></i>Excel</a></li>
+        <li><a class="dropdown-item" href="/api/statistics/export/csv"><i class="fas fa-file-csv me-2"></i>CSV Data</a></li>
+    </ul>
+</div>
+<button type="button" class="btn btn-outline-secondary btn-sm ms-1"
+        hx-get="/api/statistics/refresh"
+        hx-target="#statistics-content"
+        hx-indicator="#global-spinner">
+    <i class="fas fa-sync-alt me-1"></i>Refresh
+</button>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" id="statistics-content">
+<div class="row mb-4">
+{% endblock %}
+
+{% block dashboard_stats %}{# preserved inner blocks temporarily; could be refactored later #}
+<div class="col-xl-3 col-lg-6 mb-4">
+    <div class="card metric-card bg-gradient-primary text-white">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-chart-line fa-2x opacity-75"></i>
+                </div>
+                <div class="flex-grow-1 ms-3">
+                    <div class="h3 mb-0" id="total-analyses-stat">{{ stats.total_analyses|default(0) }}</div>
+                    <div class="small opacity-75">Total Analyses</div>
+                    <div class="mt-1">
+                        <span class="trend-indicator trend-up">
+                            <i class="fas fa-arrow-up me-1"></i>+{{ stats.analyses_growth|default(0) }}%
+                        </span>
+                        <small class="opacity-75 ms-1">this month</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-xl-3 col-lg-6 mb-4">
+    <div class="card metric-card bg-gradient-success text-white">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-robot fa-2x opacity-75"></i>
+                </div>
+                <div class="flex-grow-1 ms-3">
+                    <div class="h3 mb-0" id="active-models-stat">{{ stats.active_models|default(0) }}</div>
+                    <div class="small opacity-75">Active Models</div>
+                    <div class="mt-1">
+                        <span class="trend-indicator trend-up">
+                            <i class="fas fa-arrow-up me-1"></i>{{ stats.models_added|default(0) }}
+                        </span>
+                        <small class="opacity-75 ms-1">new this week</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-xl-3 col-lg-6 mb-4">
+    <div class="card metric-card bg-gradient-warning text-white">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-clock fa-2x opacity-75"></i>
+                </div>
+                <div class="flex-grow-1 ms-3">
+                    <div class="h3 mb-0" id="avg-runtime-stat">{{ stats.avg_runtime|default('0m') }}</div>
+                    <div class="small opacity-75">Avg. Runtime</div>
+                    <div class="mt-1">
+                        <span class="trend-indicator trend-down">
+                            <i class="fas fa-arrow-down me-1"></i>-{{ stats.runtime_improvement|default(0) }}%
+                        </span>
+                        <small class="opacity-75 ms-1">improved</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-xl-3 col-lg-6 mb-4">
+    <div class="card metric-card bg-gradient-info text-white">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-percentage fa-2x opacity-75"></i>
+                </div>
+                <div class="flex-grow-1 ms-3">
+                    <div class="h3 mb-0" id="success-rate-stat">{{ stats.success_rate|default(0) }}%</div>
+                    <div class="small opacity-75">Success Rate</div>
+                    <div class="mt-1">
+                        <span class="trend-indicator trend-up">
+                            <i class="fas fa-arrow-up me-1"></i>+{{ stats.success_improvement|default(0) }}%
+                        </span>
+                        <small class="opacity-75 ms-1">this quarter</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block primary_content %}
+<div class="col-12 mb-4">
+    {# Analysis Activity Chart #}
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-chart-area me-2"></i>Analysis Activity Over Time
+            </h5>
+            <div class="btn-group btn-group-sm">
+                <input type="radio" class="btn-check" name="timeRange" id="range-7d" value="7d" checked>
+                <label class="btn btn-outline-primary" for="range-7d">7 Days</label>
+                
+                <input type="radio" class="btn-check" name="timeRange" id="range-30d" value="30d">
+                <label class="btn btn-outline-primary" for="range-30d">30 Days</label>
+                
+                <input type="radio" class="btn-check" name="timeRange" id="range-90d" value="90d">
+                <label class="btn btn-outline-primary" for="range-90d">90 Days</label>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="chart-container">
+                <canvas id="activity-chart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-lg-6 mb-4">
+    {# Model Performance Chart #}
+    <div class="card h-100">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-trophy me-2"></i>Model Performance Comparison
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="chart-container h-300px">
+                <canvas id="model-performance-chart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-lg-6 mb-4">
+    {# Analysis Type Distribution #}
+    <div class="card h-100">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-chart-pie me-2"></i>Analysis Type Distribution
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="chart-container h-300px">
+                <canvas id="analysis-type-chart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-12 mb-4">
+    {# Success Rate Trends #}
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-chart-line me-2"></i>Success Rate Trends by Model
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="chart-container">
+                <canvas id="success-trends-chart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block secondary_content %}
+<div class="col-12 mb-4">
+    {# Top Performing Models #}
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-medal me-2"></i>Top Performing Models
+            </h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive" id="top-models-table"
+                 hx-get="/api/statistics/top-models"
+                 hx-trigger="load"
+                 hx-target="#top-models-table"
+                 hx-swap="innerHTML">
+                <div class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Loading top models...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-12 mb-4">
+    {# Recent Insights #}
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-lightbulb me-2"></i>Recent Insights
+            </h5>
+        </div>
+        <div class="card-body" id="insights-content"
+             hx-get="/api/statistics/insights"
+             hx-trigger="load"
+             hx-target="#insights-content"
+             hx-swap="innerHTML">
+            <div class="text-center py-3">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Loading insights...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-12">
+    {# Statistical Summary #}
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-calculator me-2"></i>Statistical Summary
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row" id="statistical-summary"
+                 hx-get="/api/statistics/summary"
+                 hx-trigger="load"
+                 hx-target="#statistical-summary"
+                 hx-swap="innerHTML">
+                <div class="col-12 text-center py-3">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Loading summary...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+<script>
+    // Statistics Overview JavaScript
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        // Chart configurations
+        const chartDefaults = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top'
+                }
+            }
+        };
+        
+        // Initialize Activity Chart
+        const activityCtx = document.getElementById('activity-chart');
+        let activityChart = null;
+        
+        if (activityCtx) {
+            activityChart = new Chart(activityCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Security Analyses',
+                        data: [],
+                        borderColor: 'rgb(54, 162, 235)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Performance Tests',
+                        data: [],
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Dynamic Analyses',
+                        data: [],
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    ...chartDefaults,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true
+                        }
+                    },
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    }
+                }
+            });
+        }
+        
+        // Initialize Model Performance Chart
+        const modelPerfCtx = document.getElementById('model-performance-chart');
+        let modelPerfChart = null;
+        
+        if (modelPerfCtx) {
+            modelPerfChart = new Chart(modelPerfCtx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Success Rate (%)',
+                        data: [],
+                        backgroundColor: 'rgba(54, 162, 235, 0.8)',
+                        borderColor: 'rgb(54, 162, 235)',
+                        borderWidth: 1
+                    }, {
+                        label: 'Avg Runtime (min)',
+                        data: [],
+                        backgroundColor: 'rgba(255, 159, 64, 0.8)',
+                        borderColor: 'rgb(255, 159, 64)',
+                        borderWidth: 1,
+                        yAxisID: 'y1'
+                    }]
+                },
+                options: {
+                    ...chartDefaults,
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            beginAtZero: true,
+                            max: 100
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            beginAtZero: true,
+                            grid: {
+                                drawOnChartArea: false,
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Initialize Analysis Type Chart
+        const analysisTypeCtx = document.getElementById('analysis-type-chart');
+        let analysisTypeChart = null;
+        
+        if (analysisTypeCtx) {
+            analysisTypeChart = new Chart(analysisTypeCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Security', 'Performance', 'Dynamic', 'Comprehensive'],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.8)',
+                            'rgba(54, 162, 235, 0.8)',
+                            'rgba(255, 205, 86, 0.8)',
+                            'rgba(75, 192, 192, 0.8)'
+                        ],
+                        borderColor: [
+                            'rgb(255, 99, 132)',
+                            'rgb(54, 162, 235)',
+                            'rgb(255, 205, 86)',
+                            'rgb(75, 192, 192)'
+                        ],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    ...chartDefaults,
+                    cutout: '50%'
+                }
+            });
+        }
+        
+        // Initialize Success Trends Chart
+        const successTrendsCtx = document.getElementById('success-trends-chart');
+        let successTrendsChart = null;
+        
+        if (successTrendsCtx) {
+            successTrendsChart = new Chart(successTrendsCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: []
+                },
+                options: {
+                    ...chartDefaults,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'day'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Load chart data
+        function loadChartData() {
+            const timeRange = document.querySelector('input[name="timeRange"]:checked').value;
+            
+            fetch(`/api/statistics/chart-data?range=${timeRange}`)
+                .then(response => response.json())
+                .then(data => {
+                    updateCharts(data);
+                })
+                .catch(error => {
+                    console.error('Error loading chart data:', error);
+                });
+        }
+        
+        function updateCharts(data) {
+            // Update activity chart
+            if (activityChart && data.activity) {
+                activityChart.data.labels = data.activity.labels;
+                activityChart.data.datasets.forEach((dataset, index) => {
+                    dataset.data = data.activity.datasets[index]?.data || [];
+                });
+                activityChart.update('none');
+            }
+            
+            // Update model performance chart
+            if (modelPerfChart && data.modelPerformance) {
+                modelPerfChart.data.labels = data.modelPerformance.labels;
+                modelPerfChart.data.datasets[0].data = data.modelPerformance.successRates;
+                modelPerfChart.data.datasets[1].data = data.modelPerformance.avgRuntimes;
+                modelPerfChart.update('none');
+            }
+            
+            // Update analysis type chart
+            if (analysisTypeChart && data.analysisTypes) {
+                analysisTypeChart.data.datasets[0].data = data.analysisTypes;
+                analysisTypeChart.update('none');
+            }
+            
+            // Update success trends chart
+            if (successTrendsChart && data.successTrends) {
+                successTrendsChart.data.labels = data.successTrends.labels;
+                successTrendsChart.data.datasets = data.successTrends.datasets;
+                successTrendsChart.update('none');
+            }
+        }
+        
+        // Handle time range changes
+        document.addEventListener('change', function(e) {
+            if (e.target.name === 'timeRange') {
+                loadChartData();
+            }
+        });
+        
+        // Initial data load
+        loadChartData();
+        
+        // Auto-refresh data every 5 minutes
+        setInterval(loadChartData, 300000);
+        
+        // Handle export functionality
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('[href*="/api/statistics/export/"]')) {
+                e.preventDefault();
+                const url = e.target.closest('a').href;
+                
+                // Show loading indicator
+                const spinner = document.querySelector('#global-spinner');
+                if (spinner) spinner.classList.remove('d-none');
+                
+                // Trigger download
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = '';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Hide loading indicator after delay
+                setTimeout(() => {
+                    if (spinner) spinner.classList.add('d-none');
+                }, 2000);
+            }
+        });
+        
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
+{% endblock %}

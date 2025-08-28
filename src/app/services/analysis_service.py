@@ -29,6 +29,7 @@ from datetime import datetime, timezone
 from ..extensions import db
 from ..models import SecurityAnalysis, PerformanceTest, GeneratedApplication, ZAPAnalysis
 from ..constants import AnalysisStatus
+from .analysis_engines import get_engine
 
 # ---------------------------------------------------------------------------
 # Exceptions
@@ -231,7 +232,7 @@ def update_security_analysis(analysis_id: int, data: Dict[str, Any]) -> Dict[str
     db.session.commit()
     return analysis.to_dict()
 
-def start_security_analysis(analysis_id: int, *, enqueue: bool = True) -> Dict[str, Any]:
+def start_security_analysis(analysis_id: int, *, enqueue: bool = True, use_engine: bool = False) -> Dict[str, Any]:
     analysis = db.session.get(SecurityAnalysis, analysis_id)
     if not analysis:
         raise NotFoundError("Security analysis not found")
@@ -243,16 +244,30 @@ def start_security_analysis(analysis_id: int, *, enqueue: bool = True) -> Dict[s
     db.session.commit()
 
     task_id = None
-    if enqueue:
+    if enqueue and not use_engine:
+        # Legacy celery dispatch path retained for compatibility
         try:
-            # Lazy import to avoid circulars
             from ..tasks import run_security_analysis  # type: ignore
             celery_result = run_security_analysis.delay(analysis_id)  # type: ignore[attr-defined]
             task_id = getattr(celery_result, 'id', None)
         except Exception as e:  # noqa: BLE001
             raise TaskEnqueueError(f"Failed to enqueue security analysis task: {e}")
+    elif use_engine:
+        # Immediate engine invocation (synchronous) for simplified flows / tests
+        app = db.session.get(GeneratedApplication, analysis.application_id)
+        if app:
+            engine = get_engine('security')
+            engine_result = engine.run(app.model_slug, app.app_number)
+            # Optionally persist quick result metadata (tools run count) if provided
+            payload = engine_result.payload or {}
+            meta = analysis.get_metadata()
+            meta['engine_invocation'] = True
+            if 'tools' in payload:
+                meta['engine_tools'] = payload['tools']
+            analysis.set_metadata(meta)
+            db.session.commit()
 
-    return {"analysis_id": analysis_id, "status": analysis.status, "task_id": task_id}
+    return {"analysis_id": analysis_id, "status": analysis.status, "task_id": task_id, "engine": 'security' if use_engine else None}
 
 def create_comprehensive_security_analysis(application_id: int, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     payload = payload or {}
@@ -332,7 +347,7 @@ def create_performance_test(data: Dict[str, Any]) -> Dict[str, Any]:
     db.session.commit()
     return test.to_dict()
 
-def start_performance_test(test_id: int) -> Dict[str, Any]:
+def start_performance_test(test_id: int, *, use_engine: bool = False) -> Dict[str, Any]:
     test = db.session.get(PerformanceTest, test_id)
     if not test:
         raise NotFoundError("Performance test not found")
@@ -343,8 +358,23 @@ def start_performance_test(test_id: int) -> Dict[str, Any]:
     test.started_at = datetime.now(timezone.utc)
     db.session.commit()
 
-    # Placeholder for enqueue (future)
-    return {"test_id": test_id, "status": test.status}
+    engine_payload = None
+    if use_engine:
+        app = db.session.get(GeneratedApplication, test.application_id)
+        if app:
+            engine = get_engine('performance')
+            engine_result = engine.run(app.model_slug, app.app_number, test_config={
+                'users': test.users,
+                'duration': test.test_duration,
+            })
+            engine_payload = engine_result.payload
+            meta = test.get_metadata() if hasattr(test, 'get_metadata') else {}
+            if isinstance(meta, dict):
+                meta['engine_invocation'] = True
+                test.set_metadata(meta) if hasattr(test, 'set_metadata') else None  # type: ignore[attr-defined]
+            db.session.commit()
+
+    return {"test_id": test_id, "status": test.status, "engine": 'performance' if use_engine else None, "engine_payload": engine_payload}
 
 # ---------------------------------------------------------------------------
 # Activity Helpers
@@ -359,15 +389,10 @@ def get_recent_activity(limit: int = 5) -> Dict[str, Any]:
     }
 
 __all__ = [
-    # Exceptions
     'AnalysisServiceError', 'NotFoundError', 'ValidationError', 'InvalidStateError', 'TaskEnqueueError',
-    # Security operations
     'list_security_analyses', 'get_security_analysis', 'create_security_analysis', 'update_security_analysis',
     'start_security_analysis', 'create_comprehensive_security_analysis', 'start_comprehensive_analysis', 'get_analysis_results',
-    # Performance operations
     'list_performance_tests', 'get_performance_test', 'create_performance_test', 'start_performance_test',
-    # Helpers
     'get_recent_activity',
-    # Dynamic/ZAP
     'list_dynamic_analyses', 'create_dynamic_analysis', 'start_dynamic_analysis', 'get_dynamic_results'
 ]

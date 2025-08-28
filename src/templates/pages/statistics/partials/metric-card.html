@@ -1,0 +1,294 @@
+{# slug: pages/statistics/partials/metric-card (auto-migrated) #}
+{#
+    Metric Card Component
+    
+    Purpose: Displays key performance indicators and metrics with visual styling,
+             trend indicators, and comparison data for dashboard and analytics views.
+    
+    Used by:
+    - views/statistics/overview.html - Statistics dashboard metrics
+    - views/dashboard/index.html - Dashboard KPIs
+    - components/dashboard/stat-card.html - Dashboard metric displays
+    - views/analysis/hub.html - Analysis performance metrics
+    
+    Parameters:
+    - title: Metric title/label (required)
+    - value: Current metric value (required)
+    - unit: Unit of measurement (e.g., '%', 'min', 'GB') (optional)
+    - previous_value: Previous period value for comparison (optional)
+    - trend: Trend direction ('up', 'down', 'stable', 'neutral') (optional)
+    - trend_percentage: Percentage change from previous period (optional)
+    - icon: Font Awesome icon class (optional)
+    - color: Color theme ('primary', 'success', 'warning', 'danger', 'info') (optional)
+    - description: Additional context or description (optional)
+    - target_value: Target or goal value for progress tracking (optional)
+    - link: URL for clicking through to detailed view (optional)
+    - format: Number formatting ('integer', 'decimal', 'currency', 'percentage') (default: 'integer')
+    - size: Card size ('sm', 'md', 'lg') (default: 'md')
+    - animated: Boolean to enable counter animation (default: true)
+    
+    Features:
+    - Animated counters for engaging presentation
+    - Trend indicators with color coding
+    - Progress bars for goal tracking
+    - Responsive design with multiple sizes
+    - Click-through functionality
+    - Comparison with previous periods
+    - Icon and color theming
+    - Accessibility support with ARIA labels
+    
+    Dependencies:
+    - Bootstrap 5 for styling
+    - Font Awesome for icons
+    - Counter animation JavaScript
+    
+    Usage Example:
+    {# removed self-include of pages/statistics/partials/metric-card.html #}
+#}
+
+{% set unit = unit if unit is defined else '' %}
+{% set color = color if color is defined else 'primary' %}
+{% set format = format if format is defined else 'integer' %}
+{% set size = size if size is defined else 'md' %}
+{% set animated = animated if animated is defined else true %}
+
+<div class="metric-card metric-card-{{ size }} {% if link %}metric-card-clickable{% endif %}" 
+     {% if link %}onclick="window.location.href='{{ link }}'"{% endif %}
+     data-metric-value="{{ value }}"
+     data-animated="{{ animated | lower }}">
+    
+    <div class="card h-100 border-{{ color }}-subtle">
+        <div class="card-body text-center">
+            <!-- Metric Icon -->
+            {% if icon %}
+            <div class="metric-icon mb-3">
+                <div class="icon-container bg-{{ color }}-subtle text-{{ color }}">
+                    <i class="fas {{ icon }} fa-2x" aria-hidden="true"></i>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Metric Value -->
+            <div class="metric-value-container">
+                <div class="metric-value display-{{ '6' if size == 'sm' else '5' if size == 'md' else '4' }} text-{{ color }}"
+                     data-target="{{ value }}"
+                     data-format="{{ format }}">
+                    {% if format == 'currency' %}${% endif %}
+                    {% if animated %}
+                        0
+                    {% else %}
+                        {% if format == 'integer' %}
+                            {{ value | int }}
+                        {% elif format == 'decimal' %}
+                            {{ "%.1f" | format(value) }}
+                        {% elif format == 'percentage' %}
+                            {{ "%.1f" | format(value) }}%
+                        {% elif format == 'currency' %}
+                            {{ "%.2f" | format(value) }}
+                        {% else %}
+                            {{ value }}
+                        {% endif %}
+                    {% endif %}
+                    {% if unit and format not in ['currency', 'percentage'] %}<span class="metric-unit">{{ unit }}</span>{% endif %}
+                </div>
+                
+                <!-- Metric Title -->
+                <h6 class="metric-title text-muted mt-2 mb-3">{{ title }}</h6>
+            </div>
+            
+            <!-- Trend Indicator -->
+            {% if trend and previous_value is defined %}
+            <div class="metric-trend mb-3">
+                {% if trend == 'up' %}
+                    <span class="badge bg-success-subtle text-success">
+                        <i class="fas fa-arrow-up me-1" aria-hidden="true"></i>
+                        {% if trend_percentage %}{{ "%.1f" | format(trend_percentage) }}%{% endif %}
+                {% elif trend == 'down' %}
+                    <span class="badge bg-danger-subtle text-danger">
+                        <i class="fas fa-arrow-down me-1" aria-hidden="true"></i>
+                        {% if trend_percentage %}{{ "%.1f" | format(trend_percentage) }}%{% endif %}
+                {% elif trend == 'stable' %}
+                    <span class="badge bg-secondary-subtle text-secondary">
+                        <i class="fas fa-minus me-1" aria-hidden="true"></i>
+                        Stable
+                {% else %}
+                    <span class="badge bg-light text-muted">
+                        <i class="fas fa-minus me-1" aria-hidden="true"></i>
+                        No Change
+                {% endif %}
+                    </span>
+                
+                {% if previous_value %}
+                <small class="text-muted d-block mt-1">
+                    vs {{ previous_value }}{% if unit and format not in ['currency', 'percentage'] %} {{ unit }}{% endif %} last period
+                </small>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <!-- Progress Bar (if target_value is set) -->
+            {% if target_value %}
+            <div class="metric-progress mb-3">
+                {% set progress_percentage = (value / target_value * 100) if target_value > 0 else 0 %}
+                {% set progress_percentage = 100 if progress_percentage > 100 else progress_percentage %}
+                
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <small class="text-muted">Progress to Goal</small>
+                    <small class="text-muted">{{ "%.0f" | format(progress_percentage) }}%</small>
+                </div>
+                
+                <div class="progress u-2f623b">
+                    <div class="progress-bar bg-{{ color }}" 
+                         role="progressbar" 
+                         style="width: {{ progress_percentage }}%"
+                         aria-valuenow="{{ progress_percentage }}"
+                         aria-valuemin="0" 
+                         aria-valuemax="100"
+                         aria-label="Progress towards goal">
+                    </div>
+                </div>
+                
+                <small class="text-muted">
+                    Target: {{ target_value }}{% if unit %} {{ unit }}{% endif %}
+                </small>
+            </div>
+            {% endif %}
+            
+            <!-- Description -->
+            {% if description %}
+            <div class="metric-description">
+                <small class="text-muted">{{ description }}</small>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Card Footer for Additional Info -->
+        {% if link %}
+        <div class="card-footer bg-transparent text-center">
+            <small class="text-{{ color }}">
+                <i class="fas fa-arrow-right me-1" aria-hidden="true"></i>
+                View Details
+            </small>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Metric Card Styles -->
+
+
+<!-- Metric Card JavaScript -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initializeMetricCards();
+});
+
+function initializeMetricCards() {
+    const metricCards = document.querySelectorAll('.metric-card[data-animated="true"]');
+    
+    // Set up intersection observer for animation
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                animateCounter(entry.target);
+                observer.unobserve(entry.target);
+            }
+        });
+    }, {
+        threshold: 0.5
+    });
+    
+    metricCards.forEach(card => {
+        observer.observe(card);
+    });
+}
+
+function animateCounter(card) {
+    const valueElement = card.querySelector('.metric-value[data-target]');
+    if (!valueElement) return;
+    
+    const target = parseFloat(valueElement.dataset.target);
+    const format = valueElement.dataset.format || 'integer';
+    const duration = 2000; // 2 seconds
+    const steps = 60;
+    const increment = target / steps;
+    let current = 0;
+    let step = 0;
+    
+    const timer = setInterval(() => {
+        step++;
+        current += increment;
+        
+        if (step >= steps) {
+            current = target;
+            clearInterval(timer);
+        }
+        
+        // Format the current value
+        let displayValue = formatMetricValue(current, format);
+        
+        // Add currency symbol if needed
+        if (format === 'currency') {
+            displayValue = '$' + displayValue;
+        }
+        
+        // Add percentage symbol if needed
+        if (format === 'percentage') {
+            displayValue = displayValue + '%';
+        }
+        
+        // Update the display
+        const unitSpan = valueElement.querySelector('.metric-unit');
+        if (unitSpan) {
+            valueElement.innerHTML = displayValue + unitSpan.outerHTML;
+        } else {
+            valueElement.textContent = displayValue;
+        }
+        
+    }, duration / steps);
+}
+
+function formatMetricValue(value, format) {
+    switch (format) {
+        case 'integer':
+            return Math.floor(value).toLocaleString();
+        case 'decimal':
+            return value.toFixed(1);
+        case 'currency':
+            return value.toFixed(2);
+        case 'percentage':
+            return value.toFixed(1);
+        default:
+            return value.toString();
+    }
+}
+
+// Add click handlers for clickable cards
+document.addEventListener('click', function(e) {
+    const clickableCard = e.target.closest('.metric-card-clickable');
+    if (clickableCard && clickableCard.onclick) {
+        // Handle click through the onclick attribute
+        // This allows for proper link handling
+    }
+});
+
+// Add keyboard support for clickable cards
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+        const clickableCard = e.target.closest('.metric-card-clickable');
+        if (clickableCard && clickableCard.onclick) {
+            e.preventDefault();
+            clickableCard.click();
+        }
+    }
+});
+
+// Make clickable cards focusable for accessibility
+document.querySelectorAll('.metric-card-clickable').forEach(card => {
+    if (!card.hasAttribute('tabindex')) {
+        card.setAttribute('tabindex', '0');
+    }
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-label', 'Click to view details for ' + card.querySelector('.metric-title').textContent);
+});
+</script>

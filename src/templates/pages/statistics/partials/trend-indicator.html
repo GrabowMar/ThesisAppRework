@@ -1,0 +1,357 @@
+{# slug: pages/statistics/partials/trend-indicator (auto-migrated) #}
+{#
+    Trend Indicator Component
+    
+    Purpose: Visual indicator for data trends showing direction, magnitude, and context
+             for metrics and KPIs with color-coded styling and accessibility support.
+    
+    Used by:
+    - components/statistics/metric-card.html - Metric trend displays
+    - views/statistics/overview.html - Statistics trend indicators
+    - views/dashboard/index.html - Dashboard trend displays
+    - fragments/api/analysis-list.html - Analysis result trends
+    
+    Parameters:
+    - trend: Trend direction ('up', 'down', 'stable', 'neutral') (required)
+    - value: Numerical change value (optional)
+    - percentage: Percentage change (optional)
+    - period: Time period for comparison (e.g., 'vs last month') (optional)
+    - format: Value format ('integer', 'decimal', 'currency', 'percentage') (default: 'percentage')
+    - size: Indicator size ('sm', 'md', 'lg') (default: 'md')
+    - style: Display style ('badge', 'inline', 'compact') (default: 'badge')
+    - show_icon: Boolean to show/hide trend arrow icon (default: true)
+    - show_label: Boolean to show/hide trend label (default: false)
+    - color_mode: Color scheme ('auto', 'inverse', 'neutral') (default: 'auto')
+    - threshold: Threshold for neutral trend (e.g., changes less than 2%) (optional)
+    
+    Features:
+    - Color-coded trend indicators (green up, red down, gray stable)
+    - Multiple display styles (badge, inline, compact)
+    - Customizable sizing and formatting
+    - Accessibility support with ARIA labels
+    - Threshold-based neutral trends
+    - Icon and text customization
+    - Inverse color mode for different contexts
+    
+    Dependencies:
+    - Bootstrap 5 for styling and badges
+    - Font Awesome for trend icons
+    
+    Usage Examples:
+    
+    <!-- Basic percentage trend -->
+    {# removed self-include of pages/statistics/partials/trend-indicator.html #}
+    
+    <!-- Currency trend with custom styling -->
+    {# removed self-include of pages/statistics/partials/trend-indicator.html #}
+    
+    <!-- Neutral trend with threshold -->
+    {# removed self-include of pages/statistics/partials/trend-indicator.html #}
+#}
+
+{% set format = format if format is defined else 'percentage' %}
+{% set size = size if size is defined else 'md' %}
+{% set style = style if style is defined else 'badge' %}
+{% set show_icon = show_icon if show_icon is defined else true %}
+{% set show_label = show_label if show_label is defined else false %}
+{% set color_mode = color_mode if color_mode is defined else 'auto' %}
+
+{# Determine the actual trend based on threshold #}
+{% if threshold is defined and percentage is defined %}
+    {% if percentage|abs < threshold %}
+        {% set actual_trend = 'stable' %}
+    {% else %}
+        {% set actual_trend = trend %}
+    {% endif %}
+{% else %}
+    {% set actual_trend = trend %}
+{% endif %}
+
+{# Set trend colors based on mode #}
+{% if color_mode == 'inverse' %}
+    {% set up_color = 'danger' %}
+    {% set down_color = 'success' %}
+{% elif color_mode == 'neutral' %}
+    {% set up_color = 'primary' %}
+    {% set down_color = 'primary' %}
+{% else %}
+    {% set up_color = 'success' %}
+    {% set down_color = 'danger' %}
+{% endif %}
+
+{# Determine trend styling #}
+{% if actual_trend == 'up' %}
+    {% set trend_color = up_color %}
+    {% set trend_icon = 'fa-arrow-up' %}
+    {% set trend_label = 'Increasing' %}
+{% elif actual_trend == 'down' %}
+    {% set trend_color = down_color %}
+    {% set trend_icon = 'fa-arrow-down' %}
+    {% set trend_label = 'Decreasing' %}
+{% elif actual_trend == 'stable' %}
+    {% set trend_color = 'secondary' %}
+    {% set trend_icon = 'fa-minus' %}
+    {% set trend_label = 'Stable' %}
+{% else %}
+    {% set trend_color = 'muted' %}
+    {% set trend_icon = 'fa-equals' %}
+    {% set trend_label = 'No Change' %}
+{% endif %}
+
+{# Format the display value #}
+{% if percentage is defined %}
+    {% if format == 'percentage' %}
+        {% set display_value = "%.1f" | format(percentage|abs) + '%' %}
+    {% else %}
+        {% set display_value = percentage|abs %}
+    {% endif %}
+{% elif value is defined %}
+    {% if format == 'currency' %}
+        {% set display_value = '$' + "%.2f" | format(value|abs) %}
+    {% elif format == 'integer' %}
+        {% set display_value = value|abs|int %}
+    {% elif format == 'decimal' %}
+        {% set display_value = "%.1f" | format(value|abs) %}
+    {% else %}
+        {% set display_value = value|abs %}
+    {% endif %}
+{% else %}
+    {% set display_value = '' %}
+{% endif %}
+
+<span class="trend-indicator trend-indicator-{{ size }} trend-indicator-{{ style }}"
+      data-trend="{{ actual_trend }}"
+      data-value="{{ display_value }}"
+      role="status"
+      aria-label="Trend: {{ trend_label }}{% if display_value %} {{ display_value }}{% endif %}{% if period %} {{ period }}{% endif %}">
+    
+    {% if style == 'badge' %}
+    <span class="badge bg-{{ trend_color }}-subtle text-{{ trend_color }} trend-badge">
+        {% if show_icon %}
+        <i class="fas {{ trend_icon }} trend-icon" aria-hidden="true"></i>
+        {% endif %}
+        {% if display_value %}
+        <span class="trend-value">{{ display_value }}</span>
+        {% endif %}
+        {% if show_label %}
+        <span class="trend-label">{{ trend_label }}</span>
+        {% endif %}
+    </span>
+    
+    {% elif style == 'inline' %}
+    <span class="trend-inline text-{{ trend_color }}">
+        {% if show_icon %}
+        <i class="fas {{ trend_icon }} trend-icon me-1" aria-hidden="true"></i>
+        {% endif %}
+        {% if display_value %}
+        <span class="trend-value fw-medium">{{ display_value }}</span>
+        {% endif %}
+        {% if show_label %}
+        <span class="trend-label ms-1">{{ trend_label }}</span>
+        {% endif %}
+    </span>
+    
+    {% elif style == 'compact' %}
+    <span class="trend-compact d-inline-flex align-items-center text-{{ trend_color }}">
+        {% if show_icon %}
+        <i class="fas {{ trend_icon }} trend-icon" aria-hidden="true"></i>
+        {% endif %}
+        {% if display_value %}
+        <span class="trend-value ms-1">{{ display_value }}</span>
+        {% endif %}
+    </span>
+    
+    {% endif %}
+    
+    {% if period %}
+    <small class="trend-period text-muted d-block mt-1">{{ period }}</small>
+    {% endif %}
+</span>
+
+<!-- Trend Indicator Styles -->
+
+
+<!-- Trend Indicator JavaScript -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initializeTrendIndicators();
+});
+
+function initializeTrendIndicators() {
+    const trendIndicators = document.querySelectorAll('.trend-indicator');
+    
+    // Add intersection observer for animation triggers
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('trend-visible');
+                startTrendAnimation(entry.target);
+            }
+        });
+    }, {
+        threshold: 0.5
+    });
+    
+    trendIndicators.forEach(indicator => {
+        observer.observe(indicator);
+        
+        // Add tooltip for additional context
+        addTrendTooltip(indicator);
+        
+        // Add keyboard navigation support
+        addTrendKeyboardSupport(indicator);
+    });
+}
+
+function startTrendAnimation(indicator) {
+    const icon = indicator.querySelector('.trend-icon');
+    if (!icon) return;
+    
+    // Add a delayed start to the animation for visual impact
+    setTimeout(() => {
+        icon.style.animationDelay = '0s';
+        icon.classList.add('animate');
+    }, Math.random() * 500);
+}
+
+function addTrendTooltip(indicator) {
+    const trend = indicator.dataset.trend;
+    const value = indicator.dataset.value;
+    
+    let tooltipText = '';
+    
+    switch (trend) {
+        case 'up':
+            tooltipText = `Trending upward${value ? ` by ${value}` : ''}`;
+            break;
+        case 'down':
+            tooltipText = `Trending downward${value ? ` by ${value}` : ''}`;
+            break;
+        case 'stable':
+            tooltipText = 'Remaining stable';
+            break;
+        default:
+            tooltipText = 'No significant change';
+    }
+    
+    indicator.setAttribute('title', tooltipText);
+    
+    // Initialize Bootstrap tooltip if available
+    if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+        new bootstrap.Tooltip(indicator, {
+            placement: 'top',
+            trigger: 'hover focus'
+        });
+    }
+}
+
+function addTrendKeyboardSupport(indicator) {
+    // Make trend indicators focusable for screen readers
+    indicator.setAttribute('tabindex', '0');
+    
+    indicator.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            // Announce the trend information
+            announceTrend(this);
+        }
+    });
+}
+
+function announceTrend(indicator) {
+    const ariaLabel = indicator.getAttribute('aria-label');
+    
+    // Create a temporary element for screen reader announcement
+    const announcement = document.createElement('div');
+    announcement.setAttribute('aria-live', 'polite');
+    announcement.setAttribute('aria-atomic', 'true');
+    announcement.className = 'sr-only';
+    announcement.textContent = ariaLabel;
+    
+    document.body.appendChild(announcement);
+    
+    // Remove after announcement
+    setTimeout(() => {
+        document.body.removeChild(announcement);
+    }, 1000);
+}
+
+// Utility function to create trend indicators dynamically
+function createTrendIndicator(config) {
+    const {
+        trend,
+        value,
+        percentage,
+        format = 'percentage',
+        size = 'md',
+        style = 'badge',
+        showIcon = true,
+        showLabel = false
+    } = config;
+    
+    const container = document.createElement('span');
+    container.className = `trend-indicator trend-indicator-${size} trend-indicator-${style}`;
+    container.dataset.trend = trend;
+    
+    let displayValue = '';
+    if (percentage !== undefined) {
+        displayValue = format === 'percentage' ? `${Math.abs(percentage).toFixed(1)}%` : Math.abs(percentage);
+    } else if (value !== undefined) {
+        if (format === 'currency') {
+            displayValue = `$${Math.abs(value).toFixed(2)}`;
+        } else if (format === 'integer') {
+            displayValue = Math.abs(value).toString();
+        } else {
+            displayValue = Math.abs(value).toFixed(1);
+        }
+    }
+    
+    container.dataset.value = displayValue;
+    
+    // Set colors and icons based on trend
+    const colors = {
+        up: 'success',
+        down: 'danger',
+        stable: 'secondary',
+        neutral: 'muted'
+    };
+    
+    const icons = {
+        up: 'fa-arrow-up',
+        down: 'fa-arrow-down',
+        stable: 'fa-minus',
+        neutral: 'fa-equals'
+    };
+    
+    const labels = {
+        up: 'Increasing',
+        down: 'Decreasing',
+        stable: 'Stable',
+        neutral: 'No Change'
+    };
+    
+    const color = colors[trend] || 'muted';
+    const icon = icons[trend] || 'fa-equals';
+    const label = labels[trend] || 'No Change';
+    
+    let content = '';
+    
+    if (style === 'badge') {
+        content = `<span class="badge bg-${color}-subtle text-${color} trend-badge">`;
+        if (showIcon) content += `<i class="fas ${icon} trend-icon" aria-hidden="true"></i>`;
+        if (displayValue) content += `<span class="trend-value">${displayValue}</span>`;
+        if (showLabel) content += `<span class="trend-label">${label}</span>`;
+        content += '</span>';
+    }
+    
+    container.innerHTML = content;
+    container.setAttribute('aria-label', `Trend: ${label}${displayValue ? ` ${displayValue}` : ''}`);
+    
+    return container;
+}
+
+// Export utility function for use in other scripts
+window.TrendIndicator = {
+    create: createTrendIndicator
+};
+</script>

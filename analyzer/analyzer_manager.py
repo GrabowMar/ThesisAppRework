@@ -29,6 +29,7 @@ Date: August 2025
 """
 
 import asyncio
+import os
 import json
 import logging
 import socket
@@ -50,6 +51,29 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# JSON mode: when set, restrict stdout to machine-readable JSON only
+JSON_MODE = bool(int(os.environ.get('ANALYZER_JSON', '0'))) if 'ANALYZER_JSON' in os.environ else False
+if JSON_MODE:
+    # Redirect existing log handlers to stderr to keep stdout clean
+    try:
+        root_logger = logging.getLogger()
+        for h in list(root_logger.handlers):
+            try:
+                h.stream = sys.stderr  # type: ignore[attr-defined]
+            except Exception:
+                try:
+                    root_logger.removeHandler(h)
+                except Exception:
+                    pass
+        # Ensure at least one stderr handler
+        if not any(getattr(h, 'stream', None) is sys.stderr for h in root_logger.handlers):
+            sh = logging.StreamHandler(stream=sys.stderr)
+            sh.setLevel(logging.INFO)
+            sh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+            root_logger.addHandler(sh)
+    except Exception:
+        pass
 
 
 @dataclass
@@ -114,6 +138,75 @@ class AnalyzerManager:
         self.compose_file = Path("docker-compose.yml")
         self.results_dir = Path("results")
         self.results_dir.mkdir(exist_ok=True)
+
+        # Determine docker compose command (prefer modern 'docker compose')
+        self._compose_cmd = self._resolve_compose_cmd()
+        # Discover available model slugs under ../misc/models for convenience
+        try:
+            self._models_root = (Path(__file__).parent / ".." / "misc" / "models").resolve()
+        except Exception:
+            self._models_root = None
+        # Lazy-loaded port configuration cache
+        self._port_config_cache: Optional[List[Dict[str, Any]]] = None
+
+    # -----------------------------------------------------------------
+    # Port Configuration Helpers
+    # -----------------------------------------------------------------
+    def _load_port_config(self) -> List[Dict[str, Any]]:
+        """Load port_config.json once and cache it.
+
+        Returns empty list if file missing or invalid. The file can be large
+        (thousands of entries) so we avoid repeatedly reading it for every
+        analysis request.
+        """
+        if self._port_config_cache is not None:
+            return self._port_config_cache
+        try:
+            root = Path(__file__).parent.parent  # project root (analyzer/..)
+            cfg_path = (root / 'misc' / 'port_config.json').resolve()
+            with open(cfg_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                self._port_config_cache = data  # type: ignore[assignment]
+            else:  # unexpected shape
+                self._port_config_cache = []
+        except Exception as e:
+            logger.warning(f"Could not load port_config.json: {e}")
+            self._port_config_cache = []
+        return self._port_config_cache
+
+    def _resolve_app_ports(self, model_slug: str, app_number: int) -> Optional[Tuple[int, int]]:
+        """Resolve backend & frontend ports for a model/app.
+
+        Searches cached port config list for matching (model_name, app_number).
+        Falls back to None if not found so caller can choose defaults.
+        """
+        try:
+            for entry in self._load_port_config():
+                if (entry.get('model_name') == model_slug and
+                        int(entry.get('app_number', -1)) == int(app_number)):
+                    b = entry.get('backend_port')
+                    f = entry.get('frontend_port')
+                    if isinstance(b, int) and isinstance(f, int):
+                        return b, f
+        except Exception:
+            pass
+        return None
+
+    def _resolve_compose_cmd(self) -> List[str]:
+        """Detect the appropriate docker compose command.
+
+        Returns ['docker', 'compose'] when available, otherwise ['docker-compose'].
+        """
+        try:
+            # Check for 'docker compose' (Compose V2)
+            rc, _, _ = self.run_command(["docker", "compose", "version"], capture_output=True, timeout=10)
+            if rc == 0:
+                return ["docker", "compose"]
+        except Exception:
+            pass
+        # Fallback to legacy docker-compose
+        return ["docker-compose"]
     
     # =================================================================
     # DOCKER CONTAINER MANAGEMENT
@@ -148,9 +241,9 @@ class AnalyzerManager:
             return False
         
         # Build and start services
-        returncode, stdout, stderr = self.run_command([
-            'docker-compose', 'up', '--build', '-d'
-        ], timeout=300)  # 5 minutes for building
+        returncode, stdout, stderr = self.run_command(
+            self._compose_cmd + ['up', '--build', '-d'], timeout=300
+        )  # 5 minutes for building
         
         if returncode == 0:
             logger.info("✅ All services started successfully!")
@@ -170,9 +263,7 @@ class AnalyzerManager:
         """Stop all analyzer services."""
         logger.info("🛑 Stopping analyzer infrastructure...")
         
-        returncode, stdout, stderr = self.run_command([
-            'docker-compose', 'down'
-        ])
+        returncode, stdout, stderr = self.run_command(self._compose_cmd + ['down'])
         
         if returncode == 0:
             logger.info("✅ All services stopped successfully!")
@@ -190,9 +281,9 @@ class AnalyzerManager:
     
     def get_container_status(self) -> Dict[str, Dict[str, Any]]:
         """Get status of all containers."""
-        returncode, stdout, stderr = self.run_command([
-            'docker-compose', 'ps', '--format', 'json'
-        ], capture_output=True)
+        returncode, stdout, stderr = self.run_command(
+            self._compose_cmd + ['ps', '--format', 'json'], capture_output=True
+        )
         
         containers = {}
         if returncode == 0 and stdout:
@@ -301,10 +392,10 @@ class AnalyzerManager:
                 return
             
             logger.info(f"📋 Showing logs for {service} (last {lines} lines)...")
-            command = ['docker-compose', 'logs', '--tail', str(lines), service]
+            command = self._compose_cmd + ['logs', '--tail', str(lines), service]
         else:
             logger.info(f"📋 Showing logs from all services (last {lines} lines each)...")
-            command = ['docker-compose', 'logs', '--tail', str(lines)]
+            command = self._compose_cmd + ['logs', '--tail', str(lines)]
         
         returncode, stdout, stderr = self.run_command(command, capture_output=True)
         
@@ -423,19 +514,28 @@ class AnalyzerManager:
             "timestamp": datetime.now().isoformat(),
             "id": str(uuid.uuid4())
         }
-        
-        return await self.send_websocket_message('static-analyzer', message, timeout=180)
+        # Allow longer runtime for comprehensive static/security scans.
+        # Default to 480s and allow override via env.
+        security_timeout = int(os.environ.get('SECURITY_ANALYSIS_TIMEOUT', os.environ.get('STATIC_ANALYSIS_TIMEOUT', '480')))
+        return await self.send_websocket_message('static-analyzer', message, timeout=security_timeout)
 
     async def run_dynamic_analysis(self, model_slug: str, app_number: int,
                                   target_urls: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run dynamic (ZAP-like) analysis against running app endpoints."""
         logger.info(f"🕷️  Running dynamic (ZAP) analysis on {model_slug} app {app_number}")
-
+        resolved_urls: List[str] = []
+        if target_urls:
+            resolved_urls = list(target_urls)
+        else:
+            ports = self._resolve_app_ports(model_slug, app_number)
+            if ports:
+                backend_port, frontend_port = ports
+                resolved_urls = [f"http://localhost:{backend_port}", f"http://localhost:{frontend_port}"]
         message = {
             "type": "dynamic_analyze",
             "model_slug": model_slug,
             "app_number": app_number,
-            "target_urls": target_urls or [],
+            "target_urls": resolved_urls,  # empty list acceptable; service will fallback
             "timestamp": datetime.now().isoformat(),
             "id": str(uuid.uuid4())
         }
@@ -447,15 +547,23 @@ class AnalyzerManager:
                                  duration: int = 60) -> Dict[str, Any]:
         """Run performance test on an application."""
         logger.info(f"⚡ Running performance test on {model_slug} app {app_number}")
-        
-        if not target_url:
-            target_url = f"http://localhost:300{app_number}"  # Default port pattern
-        
+        # New behavior: send explicit target_urls list derived from port config when available.
+        urls: List[str] = []
+        if target_url:
+            urls.append(target_url)
+        else:
+            ports = self._resolve_app_ports(model_slug, app_number)
+            if ports:
+                backend_port, frontend_port = ports
+                urls = [f"http://localhost:{backend_port}", f"http://localhost:{frontend_port}"]
+        # Backwards compatible: we still include legacy 'target_url' key (first url or None)
+        legacy_single = urls[0] if urls else (target_url or f"http://localhost:300{app_number}")
         message = {
             "type": "performance_test",
             "model_slug": model_slug,
             "app_number": app_number,
-            "target_url": target_url,
+            "target_url": legacy_single,  # legacy field (service ignores if target_urls present)
+            "target_urls": urls,
             "users": users,
             "duration": duration,
             "timestamp": datetime.now().isoformat(),
@@ -512,8 +620,9 @@ class AnalyzerManager:
             "timestamp": datetime.now().isoformat(),
             "id": str(uuid.uuid4())
         }
-        
-        return await self.send_websocket_message('static-analyzer', message, timeout=180)
+        # Static analysis can take several minutes depending on project size; extend timeout.
+        static_timeout = int(os.environ.get('STATIC_ANALYSIS_TIMEOUT', '480'))
+        return await self.send_websocket_message('static-analyzer', message, timeout=static_timeout)
     
     async def run_comprehensive_analysis(self, model_slug: str, app_number: int) -> Dict[str, Dict[str, Any]]:
         """Run comprehensive analysis (security, static, performance, dynamic) without AI."""
@@ -733,9 +842,18 @@ class AnalyzerManager:
             if result.get('status') == 'healthy'
         ]
         
+        # Choose a real model slug that exists on disk to avoid path-not-found
+        sample_model = self._pick_available_model_slug(
+            preferred=[
+                'anthropic_claude-3.7-sonnet',
+                'openai_gpt_4',
+                'openai_gpt-4.1',
+            ]
+        ) or 'anthropic_claude-3.7-sonnet'
+
         if 'static-analyzer' in healthy_services:
             try:
-                security_result = await self.run_security_analysis('test_model', 1)
+                security_result = await self.run_security_analysis(sample_model, 1)
                 test_results['functional_tests']['static-analyzer'] = security_result
             except Exception as e:
                 test_results['functional_tests']['static-analyzer'] = {
@@ -744,7 +862,7 @@ class AnalyzerManager:
         
         if 'ai-analyzer' in healthy_services:
             try:
-                ai_result = await self.run_ai_analysis('test_model', 1)
+                ai_result = await self.run_ai_analysis(sample_model, 1)
                 test_results['functional_tests']['ai-analyzer'] = ai_result
             except Exception as e:
                 test_results['functional_tests']['ai-analyzer'] = {
@@ -769,6 +887,40 @@ class AnalyzerManager:
         }
         
         return test_results
+
+    def _pick_available_model_slug(self, preferred: Optional[List[str]] = None) -> Optional[str]:
+        """Pick a model slug that exists under misc/models and has an app1 folder.
+
+        Preference order:
+        - Any slug in the preferred list that exists and contains app1
+        - Otherwise, the first directory with an app1 child
+        Returns None if none are found.
+        """
+        try:
+            root = self._models_root
+            if not root or not root.exists():
+                return None
+
+            def has_app1(p: Path) -> bool:
+                return (p / 'app1').exists()
+
+            # Try preferred list first
+            if preferred:
+                for slug in preferred:
+                    candidate = root / slug
+                    if candidate.exists() and candidate.is_dir() and has_app1(candidate):
+                        return slug
+
+            # Fallback: scan all directories
+            for entry in sorted(root.iterdir()):
+                try:
+                    if entry.is_dir() and has_app1(entry):
+                        return entry.name
+                except Exception:
+                    continue
+        except Exception:
+            return None
+        return None
     
     async def _test_service_ping(self, service_name: str) -> Dict[str, Any]:
         """Test ping/pong for a service."""
@@ -850,21 +1002,27 @@ For detailed documentation, see the docstring at the top of this file.
 async def main():
     """Main entry point for the analyzer manager."""
     if len(sys.argv) < 2:
-        print_help()
+        if JSON_MODE:
+            # Emit a helpful JSON error without extra text
+            print(json.dumps({"status": "error", "error": "missing_command"}))
+        else:
+            print_help()
         return
     
     command = sys.argv[1].lower()
     manager = AnalyzerManager()
     
-    print("Unified Analyzer Manager v1.0")
-    print("=" * 60)
+    if not JSON_MODE:
+        print("Unified Analyzer Manager v1.0")
+        print("=" * 60)
     
     try:
         if command == 'start':
             success = manager.start_services()
             if success:
-                print("\n🎉 Analyzer infrastructure is ready!")
-                print("You can now run: python analyzer_manager.py test")
+                if not JSON_MODE:
+                    print("\n🎉 Analyzer infrastructure is ready!")
+                    print("You can now run: python analyzer_manager.py test")
         
         elif command == 'stop':
             manager.stop_services()
@@ -882,14 +1040,18 @@ async def main():
         
         elif command == 'analyze':
             if len(sys.argv) < 4:
-                print("❌ Usage: python analyzer_manager.py analyze <model> <app_number> [type]")
+                if JSON_MODE:
+                    print(json.dumps({"status": "error", "error": "usage: analyze <model> <app_number> [type]"}))
+                else:
+                    print("❌ Usage: python analyzer_manager.py analyze <model> <app_number> [type]")
                 return
             
             model_slug = sys.argv[2]
             app_number = int(sys.argv[3])
             analysis_type = sys.argv[4] if len(sys.argv) > 4 else 'comprehensive'
             
-            print(f"🎯 Analyzing {model_slug} app {app_number} ({analysis_type})")
+            if not JSON_MODE:
+                print(f"🎯 Analyzing {model_slug} app {app_number} ({analysis_type})")
             
             if analysis_type == 'comprehensive':
                 results = await manager.run_comprehensive_analysis(model_slug, app_number)
@@ -925,20 +1087,30 @@ async def main():
                 except Exception as e:
                     logger.warning(f"Could not save static analysis results: {e}")
             else:
-                print(f"❌ Unknown analysis type: {analysis_type}")
+                if JSON_MODE:
+                    print(json.dumps({"status": "error", "error": f"unknown_type:{analysis_type}"}))
+                else:
+                    print(f"❌ Unknown analysis type: {analysis_type}")
                 return
             
-            print("✅ Analysis completed. Results summary:")
-            if isinstance(results, dict):
-                # For comprehensive results (dict of dicts), print each section
-                if any(isinstance(v, dict) for v in results.values()):
-                    for key, result in results.items():
-                        if isinstance(result, dict):
-                            status = result.get('status', 'unknown')
-                            print(f"  {key}: {status}")
-                else:
-                    status = results.get('status', 'unknown')
-                    print(f"  type: {analysis_type}, status: {status}")
+            if JSON_MODE:
+                # Emit raw JSON for machine consumption
+                try:
+                    print(json.dumps(results, ensure_ascii=False))
+                except Exception as e:
+                    print(json.dumps({"status": "error", "error": f"json_dump_failed:{str(e)}"}))
+            else:
+                print("✅ Analysis completed. Results summary:")
+                if isinstance(results, dict):
+                    # For comprehensive results (dict of dicts), print each section
+                    if any(isinstance(v, dict) for v in results.values()):
+                        for key, result in results.items():
+                            if isinstance(result, dict):
+                                status = result.get('status', 'unknown')
+                                print(f"  {key}: {status}")
+                    else:
+                        status = results.get('status', 'unknown')
+                        print(f"  type: {analysis_type}, status: {status}")
         
         elif command == 'batch':
             if len(sys.argv) < 3:
@@ -991,21 +1163,28 @@ async def main():
         elif command == 'health':
             try:
                 health_results = await manager.check_all_services_health()
-                print("\nSERVICE HEALTH:")
-                all_healthy = True
-                for service_name, result in health_results.items():
-                    status = result.get('status', 'unknown')
-                    icon = "OK" if status == 'healthy' else "FAIL"
-                    print(f"  {icon} {service_name}: {status}")
-                    if status != 'healthy':
-                        all_healthy = False
-                
-                # Exit with code 0 only if all services are healthy
-                if not all_healthy:
-                    sys.exit(1)
+                if JSON_MODE:
+                    # Emit a condensed JSON map
+                    print(json.dumps({"services": health_results}))
+                else:
+                    print("\nSERVICE HEALTH:")
+                    all_healthy = True
+                    for service_name, result in health_results.items():
+                        status = result.get('status', 'unknown')
+                        icon = "OK" if status == 'healthy' else "FAIL"
+                        print(f"  {icon} {service_name}: {status}")
+                        if status != 'healthy':
+                            all_healthy = False
+                    
+                    # Exit with code 0 only if all services are healthy
+                    if not all_healthy:
+                        sys.exit(1)
                     
             except Exception as e:
-                print(f"HEALTH CHECK FAILED: {e}")
+                if JSON_MODE:
+                    print(json.dumps({"status": "error", "error": str(e)}))
+                else:
+                    print(f"HEALTH CHECK FAILED: {e}")
                 sys.exit(1)
         
         elif command == 'ping':
@@ -1057,7 +1236,10 @@ async def main():
                     print(f"{batch_indicator} {result['filename']:50} {size_kb:6.1f}KB {result['modified']}")
         
         elif command in ['help', '--help', '-h']:
-            print_help()
+            if JSON_MODE:
+                print(json.dumps({"status": "ok", "commands": ["start","stop","restart","status","logs","analyze","batch","batch-models","test","health","ping","results"]}))
+            else:
+                print_help()
         
         else:
             print(f"❌ Unknown command: {command}")

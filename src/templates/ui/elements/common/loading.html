@@ -1,0 +1,314 @@
+{# slug: ui/elements/common/loading (auto-migrated) #}
+{# 
+Common Loading Component
+
+Purpose: Reusable loading indicators for various states (spinner, skeleton, progress, etc.)
+Usage: {{ loading(type="spinner", size="md", message="Loading...", overlay=false) }}
+Routes: Used throughout the application for loading states
+Features:
+- Multiple loading types (spinner, dots, skeleton, progress, pulse)
+- Various sizes (sm, md, lg, xl)
+- Overlay functionality for blocking UI
+- Customizable messages and colors
+- Skeleton loaders for content placeholders
+- Progress bars with percentage
+- Auto-hide functionality
+- Accessibility support with screen reader text
+Technical: CSS animations, JavaScript timing, Bootstrap 5 spinners
+Dependencies: Bootstrap 5 utilities, CSS custom properties
+#}
+
+{# Set default values for optional parameters #}
+{%- set type = type or 'spinner' -%} {# spinner, dots, skeleton, progress, pulse, bars, ring, wave #}
+{%- set size = size or 'md' -%} {# sm, md, lg, xl #}
+{%- set color = color or 'primary' -%} {# primary, secondary, success, danger, warning, info, light, dark #}
+{%- set message = message or None -%}
+{%- set overlay = overlay if overlay is not none else false -%}
+{%- set center = center if center is not none else true -%}
+{%- set inline = inline if inline is not none else false -%}
+{%- set loading_id = id or ('loading-' ~ range(1000, 9999) | random) -%}
+{%- set auto_hide = auto_hide if auto_hide is not none else false -%}
+{%- set hide_delay = hide_delay or 3000 -%}
+{%- set progress_value = progress_value or 0 -%}
+{%- set show_percentage = show_percentage if show_percentage is not none else false -%}
+
+{# Size mappings for different loading types #}
+{% set size_classes = {
+    'sm': 'loading-sm',
+    'md': 'loading-md', 
+    'lg': 'loading-lg',
+    'xl': 'loading-xl'
+} %}
+
+<div class="loading-container {{ 
+    'loading-overlay' if overlay else '' 
+}}{{ 
+    ' loading-center' if center and not inline else '' 
+}}{{ 
+    ' loading-inline' if inline else '' 
+}}{{ 
+    ' ' + size_classes.get(size, 'loading-md') 
+}}" 
+     id="{{ loading_id }}"
+     role="status" 
+     aria-live="polite"
+     aria-label="{{ message or 'Loading' }}"
+     data-auto-hide="{{ auto_hide | lower }}"
+     data-hide-delay="{{ hide_delay }}">
+
+    {# Overlay background #}
+    {% if overlay %}
+        <div class="loading-backdrop"></div>
+    {% endif %}
+    
+    {# Loading content #}
+    <div class="loading-content">
+        {% if type == 'spinner' %}
+            {# Bootstrap Spinner #}
+            <div class="spinner-border text-{{ color }}" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        
+        {% elif type == 'dots' %}
+            {# Bouncing Dots #}
+            <div class="loading-dots">
+                <div class="dot bg-{{ color }}"></div>
+                <div class="dot bg-{{ color }}"></div>
+                <div class="dot bg-{{ color }}"></div>
+            </div>
+        
+        {% elif type == 'skeleton' %}
+            {# Skeleton Loading #}
+            <div class="loading-skeleton">
+                <div class="skeleton-line skeleton-title"></div>
+                <div class="skeleton-line skeleton-text"></div>
+                <div class="skeleton-line skeleton-text"></div>
+                <div class="skeleton-line skeleton-text skeleton-short"></div>
+            </div>
+        
+        {% elif type == 'progress' %}
+            {# Progress Bar #}
+            <div class="loading-progress">
+                <div class="progress" style="height: {{ '8px' if size == 'sm' else '12px' if size == 'md' else '16px' if size == 'lg' else '20px' }};">
+                    <div class="progress-bar bg-{{ color }}" 
+                         role="progressbar" 
+                         style="width: {{ progress_value }}%"
+                         aria-valuenow="{{ progress_value }}" 
+                         aria-valuemin="0" 
+                         aria-valuemax="100">
+                        {% if show_percentage and progress_value > 20 %}
+                            {{ progress_value }}%
+                        {% endif %}
+                    </div>
+                </div>
+                {% if show_percentage and progress_value <= 20 %}
+                    <small class="text-muted mt-1 d-block text-center">{{ progress_value }}%</small>
+                {% endif %}
+            </div>
+        
+        {% elif type == 'pulse' %}
+            {# Pulsing Circle #}
+            <div class="loading-pulse">
+                <div class="pulse-ring bg-{{ color }}"></div>
+                <div class="pulse-ring bg-{{ color }}"></div>
+                <div class="pulse-ring bg-{{ color }}"></div>
+            </div>
+        
+        {% elif type == 'bars' %}
+            {# Animated Bars #}
+            <div class="loading-bars">
+                <div class="bar bg-{{ color }}"></div>
+                <div class="bar bg-{{ color }}"></div>
+                <div class="bar bg-{{ color }}"></div>
+                <div class="bar bg-{{ color }}"></div>
+                <div class="bar bg-{{ color }}"></div>
+            </div>
+        
+        {% elif type == 'ring' %}
+            {# Spinning Ring #}
+            <div class="loading-ring">
+                <div class="ring text-{{ color }}"></div>
+            </div>
+        
+        {% elif type == 'wave' %}
+            {# Wave Animation #}
+            <div class="loading-wave">
+                <div class="wave-bar bg-{{ color }}"></div>
+                <div class="wave-bar bg-{{ color }}"></div>
+                <div class="wave-bar bg-{{ color }}"></div>
+                <div class="wave-bar bg-{{ color }}"></div>
+                <div class="wave-bar bg-{{ color }}"></div>
+            </div>
+        
+        {% else %}
+            {# Default fallback to spinner #}
+            <div class="spinner-border text-{{ color }}" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        {% endif %}
+        
+        {# Loading message #}
+        {% if message %}
+            <div class="loading-message text-{{ color }} mt-2">
+                {{ message }}
+            </div>
+        {% endif %}
+        
+        {# Custom content slot #}
+        {% if caller %}
+            <div class="loading-custom-content">
+                {{ caller() }}
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{# JavaScript for Loading Management #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const loadingElement = document.getElementById('{{ loading_id }}');
+    
+    if (loadingElement) {
+        const autoHide = loadingElement.getAttribute('data-auto-hide') === 'true';
+        const hideDelay = parseInt(loadingElement.getAttribute('data-hide-delay'));
+        
+        // Auto-hide functionality
+        if (autoHide) {
+            setTimeout(() => {
+                hideLoading('{{ loading_id }}');
+            }, hideDelay);
+        }
+        
+        // Custom events
+        loadingElement.addEventListener('loading:show', function() {
+            loadingElement.style.display = 'flex';
+            loadingElement.classList.add('loading-visible');
+        });
+        
+        loadingElement.addEventListener('loading:hide', function() {
+            loadingElement.classList.add('loading-hidden');
+            setTimeout(() => {
+                loadingElement.style.display = 'none';
+                loadingElement.classList.remove('loading-visible', 'loading-hidden');
+            }, 300);
+        });
+    }
+    
+    // Global loading functions
+    window.showLoading = function(loadingId, options = {}) {
+        const element = document.getElementById(loadingId);
+        if (element) {
+            // Update message if provided
+            if (options.message) {
+                const messageElement = element.querySelector('.loading-message');
+                if (messageElement) {
+                    messageElement.textContent = options.message;
+                }
+            }
+            
+            // Update progress if provided
+            if (options.progress !== undefined) {
+                const progressBar = element.querySelector('.progress-bar');
+                if (progressBar) {
+                    progressBar.style.width = options.progress + '%';
+                    progressBar.setAttribute('aria-valuenow', options.progress);
+                    
+                    const percentageText = progressBar.textContent.trim();
+                    if (percentageText.includes('%')) {
+                        progressBar.textContent = options.progress + '%';
+                    }
+                }
+            }
+            
+            element.dispatchEvent(new CustomEvent('loading:show'));
+        }
+    };
+    
+    window.hideLoading = function(loadingId) {
+        const element = document.getElementById(loadingId);
+        if (element) {
+            element.dispatchEvent(new CustomEvent('loading:hide'));
+        }
+    };
+    
+    window.updateLoadingProgress = function(loadingId, progress, message) {
+        const element = document.getElementById(loadingId);
+        if (element) {
+            const progressBar = element.querySelector('.progress-bar');
+            if (progressBar) {
+                progressBar.style.width = progress + '%';
+                progressBar.setAttribute('aria-valuenow', progress);
+                
+                // Update percentage text
+                const showPercentage = progressBar.textContent.includes('%') || element.querySelector('.text-muted');
+                if (showPercentage) {
+                    if (progress > 20) {
+                        progressBar.textContent = progress + '%';
+                        const externalPercentage = element.querySelector('.text-muted');
+                        if (externalPercentage) externalPercentage.textContent = '';
+                    } else {
+                        progressBar.textContent = '';
+                        const externalPercentage = element.querySelector('.text-muted');
+                        if (externalPercentage) externalPercentage.textContent = progress + '%';
+                    }
+                }
+            }
+            
+            // Update message
+            if (message) {
+                const messageElement = element.querySelector('.loading-message');
+                if (messageElement) {
+                    messageElement.textContent = message;
+                }
+            }
+        }
+    };
+    
+    // Create loading overlay dynamically
+    window.showLoadingOverlay = function(options = {}) {
+        const loadingId = 'loading-overlay-' + Math.random().toString(36).substr(2, 9);
+        const type = options.type || 'spinner';
+        const message = options.message || 'Loading...';
+        const color = options.color || 'primary';
+        
+        const overlayHTML = `
+            <div class="loading-container loading-overlay loading-center loading-md" 
+                 id="${loadingId}" 
+                 role="status" 
+                 aria-live="polite"
+                 aria-label="${message}">
+                <div class="loading-backdrop"></div>
+                <div class="loading-content">
+                    <div class="spinner-border text-${color}" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <div class="loading-message text-${color} mt-2">${message}</div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', overlayHTML);
+        
+        const overlayElement = document.getElementById(loadingId);
+        overlayElement.style.display = 'flex';
+        overlayElement.classList.add('loading-visible');
+        
+        return loadingId;
+    };
+    
+    window.hideLoadingOverlay = function(loadingId) {
+        const element = document.getElementById(loadingId);
+        if (element) {
+            element.classList.add('loading-hidden');
+            setTimeout(() => {
+                if (element.parentNode) {
+                    element.parentNode.removeChild(element);
+                }
+            }, 300);
+        }
+    };
+});
+</script>
+
+{# CSS for Loading Animations and Styling #}
+

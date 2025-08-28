@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 
 from ..extensions import db
-from ..models import ModelCapability, GeneratedApplication
+from ..models import ModelCapability, GeneratedApplication, PortConfiguration
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +65,45 @@ class DataInitializationService:
             results['success'] = False
             results['errors'].append(f"Critical error: {str(e)}")
             
+        return results
+
+    def reload_core_files(self) -> Dict[str, Any]:
+        """Reload core JSON files: model_capabilities.json, models_summary.json, port_config.json.
+
+        Returns a structured result with per-file stats and overall success flag.
+        """
+        results: Dict[str, Any] = {
+            'success': True,
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'model_capabilities': {},
+            'models_summary': {},
+            'port_config': {},
+            'errors': []
+        }
+
+        try:
+            cap_res = self.load_model_capabilities()
+            results['model_capabilities'] = cap_res
+            if cap_res.get('errors'):
+                results['errors'].extend(cap_res['errors'])
+
+            summary_res = self.load_models_summary()
+            results['models_summary'] = summary_res
+            if summary_res.get('errors'):
+                results['errors'].extend(summary_res['errors'])
+
+            port_res = self.load_port_config()
+            results['port_config'] = port_res
+            if port_res.get('errors'):
+                results['errors'].extend(port_res['errors'])
+
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"Core files reload failed: {e}")
+            db.session.rollback()
+            results['success'] = False
+            results['errors'].append(f"Critical error: {str(e)}")
+
         return results
     
     def load_model_capabilities(self) -> Dict[str, Any]:
@@ -175,6 +214,121 @@ class DataInitializationService:
             results['errors'].append(error_msg)
             logger.error(error_msg)
             
+        return results
+
+    def load_models_summary(self) -> Dict[str, Any]:
+        """Load models summary from models_summary.json and update metadata (e.g., color)."""
+        results: Dict[str, Any] = {'loaded': 0, 'updated': 0, 'errors': []}
+
+        try:
+            summary_file = self.misc_path / "models_summary.json"
+            if not summary_file.exists():
+                results['errors'].append("models_summary.json not found")
+                return results
+
+            with open(summary_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            models_list = data.get('models', []) or []
+            for entry in models_list:
+                name = entry.get('name')
+                if not name:
+                    continue
+
+                try:
+                    model = ModelCapability.query.filter_by(canonical_slug=name).first()
+                    if not model:
+                        # Try by model_id as a fallback
+                        model = ModelCapability.query.filter_by(model_id=name).first()
+
+                    if model:
+                        # Merge metadata: keep existing fields, update color/provider hints
+                        metadata = model.get_metadata() or {}
+                        # Only set color/provider if provided
+                        if 'color' in entry and entry['color']:
+                            metadata['color'] = entry['color']
+                        if 'provider' in entry and entry['provider']:
+                            metadata['summary_provider'] = entry['provider']
+                        metadata['summary_last_loaded'] = datetime.now(timezone.utc).isoformat()
+                        model.set_metadata(metadata)
+                        model.updated_at = datetime.now(timezone.utc)
+                        results['updated'] += 1
+                    # Count entries processed
+                    results['loaded'] += 1
+                except Exception as e:
+                    err = f"Error processing summary for {name}: {str(e)}"
+                    results['errors'].append(err)
+                    logger.warning(err)
+
+        except Exception as e:
+            err = f"Error loading models summary: {str(e)}"
+            results['errors'].append(err)
+            logger.error(err)
+
+        return results
+
+    def load_port_config(self) -> Dict[str, Any]:
+        """Load port configurations from port_config.json into PortConfiguration table (upsert)."""
+        results: Dict[str, Any] = {'loaded': 0, 'created': 0, 'updated': 0, 'errors': []}
+
+        try:
+            port_file = self.misc_path / "port_config.json"
+            if not port_file.exists():
+                results['errors'].append("port_config.json not found")
+                return results
+
+            with open(port_file, 'r', encoding='utf-8') as f:
+                entries = json.load(f)
+
+            if not isinstance(entries, list):
+                results['errors'].append("port_config.json must be a list of objects")
+                return results
+
+            for entry in entries:
+                try:
+                    model_name = entry.get('model_name') or entry.get('model')
+                    app_number = int(entry.get('app_number'))
+                    backend_port = int(entry.get('backend_port'))
+                    frontend_port = int(entry.get('frontend_port'))
+
+                    if not model_name:
+                        continue
+
+                    existing = PortConfiguration.query.filter_by(model=model_name, app_num=app_number).first()
+                    if existing:
+                        # Update ports if changed
+                        changed = False
+                        if existing.backend_port != backend_port:
+                            existing.backend_port = backend_port
+                            changed = True
+                        if existing.frontend_port != frontend_port:
+                            existing.frontend_port = frontend_port
+                            changed = True
+                        if changed:
+                            existing.updated_at = datetime.now(timezone.utc)
+                            results['updated'] += 1
+                    else:
+                        pc = PortConfiguration()
+                        pc.model = model_name
+                        pc.app_num = app_number
+                        pc.backend_port = backend_port
+                        pc.frontend_port = frontend_port
+                        pc.is_available = True
+                        pc.updated_at = datetime.now(timezone.utc)
+                        db.session.add(pc)
+                        results['created'] += 1
+
+                    results['loaded'] += 1
+                except Exception as e:
+                    err = f"Error processing port entry {entry}: {str(e)}"
+                    results['errors'].append(err)
+                    logger.warning(err)
+
+        except Exception as e:
+            err = f"Error loading port configurations: {str(e)}"
+            results['errors'].append(err)
+            logger.error(err)
+
         return results
     
     def _create_model_capability(self, model_info: Dict[str, Any]) -> None:
@@ -338,9 +492,12 @@ class DataInitializationService:
         return {
             'models_count': ModelCapability.query.count(),
             'applications_count': GeneratedApplication.query.count(),
+            'port_config_count': PortConfiguration.query.count(),
             'last_model_update': self._get_last_model_update(),
             'misc_folder_exists': self.models_path.exists(),
-            'model_capabilities_file_exists': (self.misc_path / "model_capabilities.json").exists()
+            'model_capabilities_file_exists': (self.misc_path / "model_capabilities.json").exists(),
+            'models_summary_file_exists': (self.misc_path / "models_summary.json").exists(),
+            'port_config_file_exists': (self.misc_path / "port_config.json").exists()
         }
     
     def _get_last_model_update(self) -> Optional[str]:
@@ -349,6 +506,50 @@ class DataInitializationService:
             ModelCapability.updated_at.desc()
         ).first()
         return latest.updated_at.isoformat() if latest and latest.updated_at else None
+
+    def mark_installed_models(self, reset_first: bool = True) -> Dict[str, Any]:
+        """Scan the misc/models folder and set ModelCapability.installed=True for matching slugs.
+
+        Returns a dict with success, updated count, and scanned_folders count or errors on failure.
+        """
+        results = {'success': True, 'updated': 0, 'scanned_folders': 0, 'errors': []}
+        try:
+            if not self.models_path.exists():
+                results.update({'success': False, 'errors': ['misc/models folder not found']})
+                return results
+
+            dirs = [d.name for d in self.models_path.iterdir() if d.is_dir()]
+            results['scanned_folders'] = len(dirs)
+
+            # Optionally reset existing flags
+            if reset_first:
+                try:
+                    db.session.query(ModelCapability).update({ModelCapability.installed: False})
+                    db.session.flush()
+                except Exception:
+                    # If flush fails, continue to try marking individual rows
+                    db.session.rollback()
+
+            updated = 0
+            for d in dirs:
+                try:
+                    m = ModelCapability.query.filter_by(canonical_slug=d).first()
+                    if m and not m.installed:
+                        m.installed = True
+                        updated += 1
+                except Exception as e:
+                    results['errors'].append(f"Error marking {d}: {str(e)}")
+
+            db.session.commit()
+            results['updated'] = updated
+            return results
+        except Exception as e:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            results.update({'success': False, 'errors': [str(e)]})
+            return results
 
 
 # Create global instance

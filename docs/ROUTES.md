@@ -6,6 +6,7 @@ This document enumerates the Flask routes defined under `src/app/routes/` and `s
 - API endpoints live under the `/api` prefix (plus a separate `/api/websocket` blueprint) and return JSON unless noted as template/HTMX.
  - WebSocket HTTP fallback: `/ws/analysis` (426 Upgrade Required)
  - Polling behavior (HTMX): Preview cards refresh every ~15–20s; Active tasks refresh every ~10s via `/analysis/api/active-tasks`.
+ - Rate limiting: High-frequency HTMX endpoints use a lightweight in-process limiter that returns 204 No Content with `Retry-After` hints when called too frequently. Clients can optionally honor the header to back off.
 
 ## UI Blueprints (server-rendered pages)
 
@@ -64,25 +65,22 @@ This document enumerates the Flask routes defined under `src/app/routes/` and `s
     - GET /analysis/security/<int:analysis_id>/results/view — Security results
     - GET /analysis/security/<int:analysis_id>/results/complete — Security results (complete)
 
-- batch (prefix: /batch)
-  - GET /batch/ — Batch dashboard
-  - GET|POST /batch/create — Create batch job
-  - GET /batch/<batch_id> — Batch detail page
-  - HTMX partials
-    - GET /batch/list — Recent batches list
-    - GET /batch/form — Batch form
-  - JSON utilities (under /batch/api/...)
-    - GET /batch/api/status/<batch_id>
-    - POST /batch/api/start/<batch_id>
-    - POST /batch/api/stop/<batch_id>
-    - DELETE /batch/api/delete/<batch_id>
-    - GET /batch/api/list — Paginated batches
-    - GET /batch/api/infrastructure/status
-    - POST /batch/api/infrastructure/start
-    - POST /batch/api/infrastructure/stop
+- batch (prefix: /batch) [LEGACY]
+  - GET /batch/ — Legacy batch dashboard (renders only in TESTING mode; redirects to /tasks otherwise)
+  - GET|POST /batch/create — Legacy create (redirects to unified analysis create wizard)
+  - GET /batch/<batch_id> — Batch detail page (still supported)
+  - HTMX partials (active, recent, queue, stats) still served for legacy tests
+  - JSON utilities retained for backward compatibility
+  - NOTE: Prefer the new Tasks hub (/tasks/) for active & queued work
+
+- tasks (prefix: /tasks)
+  - GET /tasks/ — Unified tasks & operations overview (supersedes legacy /batch)
+  - Planned: future granular task APIs (queue management, filtering)
 
 - statistics (prefix: /statistics)
-  - GET /statistics/ — Statistics dashboard
+  - GET /statistics/ — Unified statistics overview (legacy aggregate)
+  - GET /statistics/generation — Generation-focused metrics (apps/models produced)
+  - GET /statistics/analysis — Analysis-focused metrics (security/performance/dynamic)
 
   
 

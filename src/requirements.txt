@@ -3,6 +3,7 @@ Flask==3.0.0
 SQLAlchemy==2.0.25
 Flask-SQLAlchemy==3.1.1
 Jinja2==3.1.2
+Flask-SocketIO==5.3.6
 
 # Database Migrations
 Alembic==1.13.1
@@ -68,3 +69,10 @@ httpx==0.25.2
 # Background Task Management
 celery==5.3.4
 redis==5.0.1
+
+# Scheduling
+croniter==2.0.3
+
+# Export Generation
+reportlab==4.4.3
+openpyxl==3.1.5

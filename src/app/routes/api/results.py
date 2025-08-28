@@ -271,7 +271,9 @@ def get_api_result_detail(result_id):
     """Get detailed information for a specific result."""
     try:
         # Try to find the result in security analysis
-        result = SecurityAnalysis.query.get(result_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            result = _s.get(SecurityAnalysis, result_id)
         
         if not result:
             return jsonify({'success': False, 'error': 'Result not found'}), 404
@@ -311,7 +313,9 @@ def get_api_result_detail(result_id):
 def export_api_result(result_id):
     """Export a specific result."""
     try:
-        result = SecurityAnalysis.query.get(result_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            result = _s.get(SecurityAnalysis, result_id)
         if not result:
             return jsonify({'success': False, 'error': 'Result not found'}), 404
         

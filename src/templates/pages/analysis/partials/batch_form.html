@@ -1,0 +1,266 @@
+{# slug: pages/analysis/partials/batch_form (auto-migrated) #}
+{% set _ = models %}
+<form id="batchForm" hx-post="{{ url_for('analysis.start_batch_analysis') }}"
+      hx-target="#operation-status" hx-swap="outerHTML" hx-indicator="#global-spinner">
+  <div class="mb-3">
+    <label class="form-label">Models</label>
+    <select class="form-select" name="models" id="batch_models" multiple size="6" required>
+      {% for m in models %}
+        <option value="{{ m.canonical_slug or m.slug or m.model_slug }}">{{ m.display_name or m.model_name or m.canonical_slug }}</option>
+      {% endfor %}
+    </select>
+    <div class="form-text">Select one or more models. Selecting models loads their applications below for picking specific app numbers (optional).</div>
+  </div>
+
+  <!-- Interactive Application Picker -->
+  <div class="mb-3" id="app-picker-wrapper">
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <label class="form-label mb-0">Applications (optional)</label>
+      <div class="btn-group btn-group-sm" role="group" aria-label="App selection helpers">
+        <button class="btn btn-outline-secondary" type="button" id="btn-select-all-apps" disabled>Select All</button>
+        <button class="btn btn-outline-secondary" type="button" id="btn-clear-all-apps" disabled>Clear</button>
+      </div>
+    </div>
+    <div class="form-text mb-2">Pick per-model app numbers. Leave empty to include all apps for chosen models. Hover to see metadata.</div>
+    <div id="app-picker-panels" class="row g-3"></div>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Application numbers</label>
+    <input type="text" class="form-control" name="app_numbers" placeholder="e.g., 1,2,3">
+    <div class="form-text">Optional: comma-separated list. You may also specify a range below.</div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-sm-6">
+      <label class="form-label" for="app_range_start">Range start</label>
+      <input class="form-control" id="app_range_start" name="app_range_start" type="number" min="1" placeholder="1">
+    </div>
+    <div class="col-sm-6">
+      <label class="form-label" for="app_range_end">Range end</label>
+      <input class="form-control" id="app_range_end" name="app_range_end" type="number" min="1" placeholder="10">
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label">Analysis types</label>
+    <div class="row row-cols-2 row-cols-md-3 g-2">
+      <div class="form-check col"><input class="form-check-input" type="checkbox" name="analysis_types" value="security" id="atype_security" checked><label class="form-check-label" for="atype_security">Security</label></div>
+      <div class="form-check col"><input class="form-check-input" type="checkbox" name="analysis_types" value="static" id="atype_static"><label class="form-check-label" for="atype_static">Static</label></div>
+      <div class="form-check col"><input class="form-check-input" type="checkbox" name="analysis_types" value="performance" id="atype_performance"><label class="form-check-label" for="atype_performance">Performance</label></div>
+      <div class="form-check col"><input class="form-check-input" type="checkbox" name="analysis_types" value="dynamic" id="atype_dynamic"><label class="form-check-label" for="atype_dynamic">Dynamic</label></div>
+      <div class="form-check col"><input class="form-check-input" type="checkbox" name="analysis_types" value="ai" id="atype_ai"><label class="form-check-label" for="atype_ai">AI</label></div>
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label" for="priority">Priority</label>
+    <select class="form-select" id="priority" name="priority">
+      <option value="low">Low</option>
+      <option value="normal" selected>Normal</option>
+      <option value="high">High</option>
+    </select>
+  </div>
+
+  <fieldset class="border rounded p-3 mb-3">
+    <legend class="float-none w-auto px-2 small text-muted">Options</legend>
+    <div class="mb-2">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="continue_on_error" name="continue_on_error">
+        <label class="form-check-label" for="continue_on_error">Continue on error</label>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <label class="form-label" for="parallelism">Parallelism</label>
+        <input class="form-control" type="number" id="parallelism" name="parallelism" min="1" placeholder="Auto">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="timeout_minutes">Timeout (min)</label>
+        <input class="form-control" type="number" id="timeout_minutes" name="timeout_minutes" min="1" placeholder="60">
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <label class="form-label">Security tools</label>
+      <div class="row row-cols-2 row-cols-md-3 g-2">
+        <div class="form-check col"><input class="form-check-input" type="checkbox" name="security_tools" value="bandit" id="sec_bandit"><label class="form-check-label" for="sec_bandit">Bandit</label></div>
+        <div class="form-check col"><input class="form-check-input" type="checkbox" name="security_tools" value="pylint" id="sec_pylint"><label class="form-check-label" for="sec_pylint">Pylint</label></div>
+        <div class="form-check col"><input class="form-check-input" type="checkbox" name="security_tools" value="eslint" id="sec_eslint"><label class="form-check-label" for="sec_eslint">ESLint</label></div>
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <label class="form-label">Static tools</label>
+      <div class="row row-cols-2 row-cols-md-3 g-2">
+        <div class="form-check col"><input class="form-check-input" type="checkbox" name="static_tools" value="eslint" id="st_eslint"><label class="form-check-label" for="st_eslint">ESLint</label></div>
+        <div class="form-check col"><input class="form-check-input" type="checkbox" name="static_tools" value="pylint" id="st_pylint"><label class="form-check-label" for="st_pylint">Pylint</label></div>
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <label class="form-label">Performance config</label>
+      <div class="row g-3">
+        <div class="col-sm-4">
+          <label class="form-label" for="perf_users">Users</label>
+          <input type="number" class="form-control" id="perf_users" name="perf_users" min="1">
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label" for="perf_spawn_rate">Spawn rate</label>
+          <input type="number" class="form-control" id="perf_spawn_rate" step="0.1" name="perf_spawn_rate" min="0.1">
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label" for="perf_duration">Duration (sec)</label>
+          <input type="number" class="form-control" id="perf_duration" name="perf_duration" min="1">
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="perf_type">Test type</label>
+          <select class="form-select" id="perf_type" name="perf_type">
+            <option value="load" selected>Load</option>
+            <option value="stress">Stress</option>
+            <option value="soak">Soak</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <label class="form-label" for="dynamic_scan_type">Dynamic scan type</label>
+      <select class="form-select" id="dynamic_scan_type" name="dynamic_scan_type">
+        <option value="baseline" selected>Baseline</option>
+        <option value="full">Full</option>
+      </select>
+    </div>
+  </fieldset>
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary"><i class="fas fa-layer-group me-2"></i>Start batch</button>
+    <button type="reset" class="btn btn-outline-secondary">Reset</button>
+  </div>
+</form>
+
+<script>
+(function(){
+  const modelSelect = document.getElementById('batch_models');
+  const appPanels = document.getElementById('app-picker-panels');
+  const appNumbersInput = document.querySelector('input[name="app_numbers"]');
+  const selectAllBtn = document.getElementById('btn-select-all-apps');
+  const clearAllBtn = document.getElementById('btn-clear-all-apps');
+  const rangeStart = document.getElementById('app_range_start');
+  const rangeEnd = document.getElementById('app_range_end');
+
+  let modelAppCache = {}; // { modelSlug: [ {number, status, created_at} ] }
+
+  function enableHelperButtons(hasApps){
+    selectAllBtn.disabled = !hasApps;
+    clearAllBtn.disabled = !hasApps;
+  }
+
+  function buildPanel(modelSlug, apps){
+    const col = document.createElement('div');
+    col.className = 'col-12';
+    const card = document.createElement('div');
+    card.className = 'card';
+    const header = document.createElement('div');
+    header.className = 'card-header py-2 d-flex align-items-center justify-content-between';
+    header.innerHTML = `<span class="fw-semibold small"><i class="fas fa-box me-1 text-primary"></i>${modelSlug}</span>`;
+    const body = document.createElement('div');
+    body.className = 'card-body py-2';
+    if(!apps || !apps.length){
+      body.innerHTML = '<div class="text-muted small">No applications found.</div>';
+    } else {
+      const grid = document.createElement('div');
+      grid.className = 'd-flex flex-wrap gap-2';
+      apps.forEach(app=>{
+        const id = `chk_${modelSlug}_${app.app_number}`;
+        const wrapper = document.createElement('div');
+        wrapper.className = 'form-check form-check-inline app-chip';
+        wrapper.style.minWidth = '70px';
+        wrapper.innerHTML = `\n          <input class="form-check-input app-select" type="checkbox" data-model="${modelSlug}" data-app="${app.app_number}" id="${id}">\n          <label class="form-check-label small" for="${id}" title="Status: ${app.status || 'unknown'}">#${app.app_number}</label>\n        `;
+        grid.appendChild(wrapper);
+      });
+      body.appendChild(grid);
+    }
+    card.appendChild(header); card.appendChild(body); col.appendChild(card);
+    return col;
+  }
+
+  function updateAppNumbersField(){
+    const checked = Array.from(document.querySelectorAll('.app-select:checked')).map(cb=>cb.getAttribute('data-app'));
+    if(checked.length){
+      appNumbersInput.value = checked.join(',');
+      // Clear range fields if manual selection used
+      if(rangeStart) rangeStart.value = '';
+      if(rangeEnd) rangeEnd.value = '';
+    } else {
+      // Do not overwrite if user typed manually
+    }
+  }
+
+  function handleModelChange(){
+    const selected = Array.from(modelSelect.selectedOptions).map(o=>o.value);
+    appPanels.innerHTML = '';
+    if(!selected.length){
+      enableHelperButtons(false);
+      return;
+    }
+    // Load apps for each selected model (sequential to keep it simple)
+    let pending = selected.length;
+    enableHelperButtons(false);
+    selected.forEach(slug => {
+      if(modelAppCache[slug]){
+        appPanels.appendChild(buildPanel(slug, modelAppCache[slug]));
+        if(--pending===0) enableHelperButtons(document.querySelectorAll('.app-select').length>0);
+        return;
+      }
+      fetch(`/api/models/${slug}/applications`, { headers: { 'HX-Request': 'true' }} )
+        .then(r=> r.ok ? r.text() : Promise.reject(r.status))
+        .then(html => {
+          // Extract minimal data: assume server returns a fragment with elements having data-app-number attributes OR fallback parse numbers
+          const tmp = document.createElement('div'); tmp.innerHTML = html;
+          const appCards = tmp.querySelectorAll('[data-app-number]');
+          const apps = [];
+          if(appCards.length){
+            appCards.forEach(c=>{
+              const num = c.getAttribute('data-app-number');
+              if(num) apps.push({ app_number: num, status: c.getAttribute('data-status') });
+            });
+          } else {
+            // Fallback: find #app-<num> patterns (legacy) -- simple regex scan
+            const text = tmp.textContent || '';
+            const nums = Array.from(new Set((text.match(/Application\s+#(\d+)/gi)||[]).map(s=>s.replace(/\D+/g,''))));
+            nums.forEach(n=> apps.push({ app_number: n }));
+          }
+          modelAppCache[slug] = apps;
+          appPanels.appendChild(buildPanel(slug, apps));
+        })
+        .catch(err => {
+          console.warn('Failed to load apps for', slug, err);
+          appPanels.appendChild(buildPanel(slug, []));
+        })
+        .finally(()=>{ if(--pending===0) enableHelperButtons(document.querySelectorAll('.app-select').length>0); });
+    });
+  }
+
+  // Select all / clear all helpers
+  if(selectAllBtn) selectAllBtn.addEventListener('click', ()=>{
+    document.querySelectorAll('.app-select').forEach(cb=>{ cb.checked = true; });
+    updateAppNumbersField();
+  });
+  if(clearAllBtn) clearAllBtn.addEventListener('click', ()=>{
+    document.querySelectorAll('.app-select').forEach(cb=>{ cb.checked = false; });
+    updateAppNumbersField();
+  });
+
+  // Delegate checkbox change
+  document.addEventListener('change', (e)=>{
+    if(e.target.classList && e.target.classList.contains('app-select')){
+      updateAppNumbersField();
+    }
+  });
+
+  if(modelSelect){
+    modelSelect.addEventListener('change', handleModelChange);
+  }
+})();
+</script>

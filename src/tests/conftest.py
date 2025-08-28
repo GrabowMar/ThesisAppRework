@@ -4,6 +4,7 @@ Configuration for pytest
 
 import os
 import tempfile
+import warnings
 import pytest
 from app import create_app
 from app.models import db
@@ -14,6 +15,13 @@ def app():
     """Create application for testing."""
     # Create temporary database
     db_fd, db_path = tempfile.mkstemp()
+
+    # Suppress noisy Celery duplicate node name warnings in test output
+    warnings.filterwarnings(
+        "ignore",
+        category=Warning,
+        message=r"Received multiple replies from node name: worker@"
+    )
     
     app = create_app()
     app.config.update({

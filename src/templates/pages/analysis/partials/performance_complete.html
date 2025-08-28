@@ -1,0 +1,90 @@
+{# slug: pages/analysis/partials/performance_complete (auto-migrated) #}
+{#
+  Path: partials/analysis/performance_complete.html
+  Purpose: Render a completed performance test result.
+  Expected context from route:
+    test: PerformanceTest model instance
+    results: dict of summarized results
+    metadata: dict
+#}
+
+{% from 'ui/elements/common/_module_wrapper.html' import module_card %}
+
+<div class="container-fluid">
+  <div class="row g-3">
+    <div class="col-12 col-md-6">
+      {{ module_card(
+        'Performance Summary',
+        'fa-tachometer-alt',
+        """
+        <div class='row g-2'>
+          <div class='col-6'>
+            <div class='small text-muted'>Users</div>
+            <div class='h4 mb-0'>{{ (results.users if results and 'users' in results else (test.users if test else 'N/A')) }}</div>
+          </div>
+          <div class='col-6'>
+            <div class='small text-muted'>Duration</div>
+            <div class='h4 mb-0'>{{ (results.duration if results and 'duration' in results else (test.test_duration if test else 'N/A')) }}</div>
+          </div>
+          <div class='col-6 mt-2'>
+            <div class='small text-muted'>Avg response (ms)</div>
+            <div class='h4 mb-0'>{{ (results.avg_response_ms if results and 'avg_response_ms' in results else '—') }}</div>
+          </div>
+          <div class='col-6 mt-2'>
+            <div class='small text-muted'>P95 response (ms)</div>
+            <div class='h4 mb-0'>{{ (results.p95_ms if results and 'p95_ms' in results else '—') }}</div>
+          </div>
+          <div class='col-6 mt-2'>
+            <div class='small text-muted'>Requests/sec</div>
+            <div class='h4 mb-0'>{{ (results.rps if results and 'rps' in results else '—') }}</div>
+          </div>
+          <div class='col-6 mt-2'>
+            <div class='small text-muted'>Error rate</div>
+            <div class='h4 mb-0'>{{ (results.error_rate if results and 'error_rate' in results else '—') }}</div>
+          </div>
+        </div>
+        """
+      ) }}
+    </div>
+
+    <div class="col-12 col-md-6">
+      {{ module_card(
+        'Throughput & Latency',
+        'fa-chart-line',
+        """
+        <div class='small text-muted mb-2'>Key metrics</div>
+        <ul class='small mb-0'>
+          <li>Max RPS: {{ (results.max_rps if results and 'max_rps' in results else '—') }}</li>
+          <li>Min latency (ms): {{ (results.min_latency_ms if results and 'min_latency_ms' in results else '—') }}</li>
+          <li>Max latency (ms): {{ (results.max_latency_ms if results and 'max_latency_ms' in results else '—') }}</li>
+        </ul>
+        """
+      ) }}
+    </div>
+
+    <div class="col-12">
+      {{ module_card(
+        'Raw Results',
+        'fa-file-code',
+        """
+        <details>
+          <summary class='cursor-pointer'>Toggle JSON</summary>
+          <pre class='mt-2 small bg-light p-2 rounded border'>{{ results | tojson(indent=2) }}</pre>
+        </details>
+        """
+      ) }}
+    </div>
+
+    {% if metadata %}
+      <div class="col-12">
+        {{ module_card(
+          'Metadata',
+          'fa-info-circle',
+          """
+          <pre class='small bg-light p-2 rounded border'>{{ metadata | tojson(indent=2) }}</pre>
+          """
+        ) }}
+      </div>
+    {% endif %}
+  </div>
+</div>

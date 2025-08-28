@@ -7,7 +7,8 @@ Routes for managing AI models and their generated applications.
 
 import logging
 
-from flask import Blueprint, render_template, request, flash, Response
+from flask import Blueprint, request, flash, Response
+from ..utils.template_paths import render_template_compat as render_template
 
 from ..models import (
     ModelCapability, GeneratedApplication,
@@ -16,10 +17,12 @@ from ..models import (
 )
 from ..extensions import db
 from ..services.openrouter_service import OpenRouterService
-from ..utils.helpers import deep_merge_dicts, dicts_to_csv
+from ..utils.helpers import deep_merge_dicts, dicts_to_csv, get_app_directory, make_safe_dom_id
 from datetime import timedelta
 from pathlib import Path
 from ..models import PortConfiguration  # type: ignore[attr-defined]
+from ..services import application_service as app_service
+import os
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -55,6 +58,45 @@ def template_get_provider_color(provider):
     return get_provider_color(provider)
 
 
+@models_bp.app_template_global('make_safe_dom_id')
+def template_make_safe_dom_id(value, prefix=None):
+    """Expose helper to templates for creating safe DOM ids."""
+    try:
+        return make_safe_dom_id(value, prefix=prefix)
+    except Exception:
+        return (prefix or '') + 'invalid-id'
+
+
+@models_bp.app_template_filter('abbreviate_number')
+def abbreviate_number_filter(value):
+    """Format large integers as human-readable abbreviations (e.g., 1.2K, 3.4M).
+
+    Accepts int/float/str; returns the input unchanged if it can't be parsed as a number.
+    """
+    try:
+        num = float(value or 0)
+    except (ValueError, TypeError):
+        return value
+
+    sign = '-' if num < 0 else ''
+    n = abs(num)
+    for threshold, suffix in ((1_000_000_000_000, 'T'), (1_000_000_000, 'B'), (1_000_000, 'M'), (1_000, 'K')):
+        if n >= threshold:
+            val = n / threshold
+            # Trim trailing .0
+            s = f"{val:.1f}"
+            if s.endswith('.0'):
+                s = s[:-2]
+            return f"{sign}{s}{suffix}"
+    # For small numbers, keep as int if close to integer
+    if n.is_integer():
+        return f"{int(num)}"
+    return f"{num:.2f}"
+
+# Resolve project root (src/app/routes -> project root)
+def _project_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
 @models_bp.route('/')
 def models_overview():
     """Static models overview page showing table of AI models with OpenRouter data."""
@@ -77,34 +119,49 @@ def models_overview():
         # Get summary statistics
         providers = db.session.query(ModelCapability.provider.distinct()).all()
         providers = [p[0] for p in providers if p[0]]
+        available_providers = [
+            {'id': prov, 'name': (prov or '').title()}
+            for prov in providers
+        ]
         
         total_models = len(models)
         free_models = sum(1 for m in models if m.is_free)
         paid_models = total_models - free_models
         
-        # Page context
+        # Calculate average cost (simplified)
+        avg_cost = 0.001  # Default placeholder for now
+        
+        # Page context with models_stats structure expected by template
+        models_stats = {
+            'total_models': total_models,
+            'active_models': total_models,  # For now, assume all are active
+            'unique_providers': len(providers),
+            'avg_cost_per_1k': avg_cost
+        }
+        
         context = {
             'models': enriched_models,
-            'total_models': total_models,
+            'models_stats': models_stats,
             'providers': providers,
+            'available_providers': available_providers,
+            'total_models': total_models,
             'providers_count': len(providers),
             'free_models': free_models,
             'paid_models': paid_models,
             'page_title': 'AI Models Overview',
             'show_openrouter_data': bool(openrouter_service.api_key)
         }
-        return render_template('pages/models.html', **context)
+        return render_template('views/models/overview.html', **context)
             
     except Exception as e:
         logger.error(f"Error loading models overview: {e}")
         flash(f"Error loading models: {e}", "error")
+        # Use the proper error template structure
         return render_template(
-            'single_page.html',
-            page_title='Models Overview Error',
-            main_partial='partials/common/error.html',
+            'partials/common/error.html',
             error=str(e),
-            models=[], total_models=0, providers=[], providers_count=0
-        )
+            page_title='Models Overview Error'
+        ), 500
 
 
 @models_bp.route('/model/<model_slug>/details')
@@ -131,12 +188,19 @@ def model_details(model_slug):
             'analyses_count': analyses_count,
         })
         
+        # Disabled analysis gating info for UI indicator
+        disabled_env = os.getenv('DISABLED_ANALYSIS_MODELS', '')
+        disabled_models = {m.strip() for m in disabled_env.split(',') if m.strip()}
+        is_disabled = model_slug in disabled_models
+
         return render_template(
             'single_page.html',
             page_title=f"Model: {enriched_data.get('model_name', model_slug)}",
             page_icon='fas fa-robot',
             main_partial='partials/models/details.html',
-            model=enriched_data
+            model=enriched_data,
+            analysis_disabled=is_disabled,
+            disabled_models=disabled_models
         )
         
     except Exception as e:
@@ -214,6 +278,23 @@ def model_more_info(model_slug):
     except Exception as e:
         logger.error(f"Error loading more info for {model_slug}: {e}")
         return f'<div class="alert alert-danger">Error: {str(e)}</div>'
+
+
+@models_bp.route('/import')
+def models_import_page():
+    """Render a simple import page to upload JSON and call the API."""
+    try:
+        return render_template('views/models/import.html')
+    except Exception as e:
+        logger.error(f"Error rendering models import page: {e}")
+        return render_template(
+            'single_page.html',
+            page_title='Models Import Error',
+            main_partial='partials/common/error.html',
+            error_code=500,
+            error_title='Import Page Error',
+            error_message=str(e)
+        ), 500
 
 
 @models_bp.route('/export/models.csv')
@@ -351,7 +432,42 @@ def applications():
         # Get filter options
         providers = db.session.query(ModelCapability.provider.distinct()).all()
         providers = [p[0] for p in providers if p[0]]
-        
+
+        # Build additional context expected by template
+        # 1) Flatten applications list for simple counts and UI badges
+        applications_list = []
+        for entry in application_grid:
+            for app in entry['apps']:
+                if app.get('exists'):
+                    applications_list.append({
+                        'model_slug': entry['model'].canonical_slug,
+                        'app_number': app.get('app_number'),
+                        'status': app.get('status'),
+                        'id': app.get('id')
+                    })
+
+        # 2) Available models for filter dropdown (slug + display name)
+        available_models = [
+            {
+                'slug': m.canonical_slug,
+                'display_name': getattr(m, 'display_name', None) or m.model_name or m.canonical_slug
+            }
+            for m in models
+        ]
+
+        # 3) Stats block for header cards
+        try:
+            analyzed_count = db.session.query(SecurityAnalysis).count()
+        except Exception:
+            analyzed_count = 0
+
+        stats = {
+            'total_applications': total_apps,
+            'running_applications': running_containers,
+            'analyzed_applications': analyzed_count,
+            'unique_models': len(models)
+        }
+
         context = {
             'application_grid': application_grid,
             'total_apps': total_apps,
@@ -359,13 +475,18 @@ def applications():
             'stopped_containers': stopped_containers,
             'total_models': len(models),
             'providers': providers,
+            # New/normalized keys expected by the template
+            'applications': applications_list,
+            'total_count': total_apps,
+            'available_models': available_models,
+            'stats': stats,
             'current_filters': {
                 'model': model_filter,
                 'provider': provider_filter,
                 'search': search_filter
             }
         }
-        return render_template('pages/applications.html', **context)
+        return render_template('views/applications/index.html', **context)
             
     except Exception as e:
         logger.error(f"Error loading applications: {e}")
@@ -426,7 +547,7 @@ def application_detail(model_slug, app_number):
                 'metadata': app.get_metadata() if hasattr(app, 'get_metadata') else {}
             }
         
-        app_path = Path('misc/models') / model_slug / f'app{app_number}'
+        app_path = get_app_directory(model_slug, app_number)
         files_info = {
             'app_exists': app_path.exists(),
             'docker_compose': (app_path / 'docker-compose.yml').exists(),
@@ -520,8 +641,8 @@ def application_detail(model_slug, app_number):
         prompts = {'backend': '', 'frontend': ''}
         # Initialize with empty strings to satisfy static typing (later populated with filenames)
         template_files = {'backend_file': '', 'frontend_file': ''}
+        tmpl_dir = _project_root() / 'misc' / 'app_templates'
         try:
-            tmpl_dir = Path('misc/app_templates')
             backend_md = sorted(tmpl_dir.glob(f'app_{app_number}_backend_*.md'))
             frontend_md = sorted(tmpl_dir.glob(f'app_{app_number}_frontend_*.md'))
             if backend_md:
@@ -532,9 +653,81 @@ def application_detail(model_slug, app_number):
                 prompts['frontend'] = frontend_md[0].read_text(encoding='utf-8', errors='ignore')
         except Exception as e:
             logger.warning(f"Failed to load prompts for app {app_number}: {e}")
-        
+
+        # Build 'application' object expected by the template
+        # Map statuses to the simplified set used in UI
+        def _map_status(app_obj) -> str:
+            if not app_obj:
+                return 'not_created'
+            c = getattr(app_obj, 'container_status', None) or ''
+            g = str(getattr(app_obj, 'generation_status', '') or '').lower()
+            if c == 'running':
+                return 'running'
+            if g in {'completed', 'success', 'generated'}:
+                return 'completed'
+            if c == 'error' or g == 'failed':
+                return 'failed'
+            return 'pending'
+
+        # Flatten analyses into a simple list for the template (optional)
+        flat_analyses = []
+        try:
+            for a in analyses.get('security', []) or []:
+                flat_analyses.append({
+                    'id': getattr(a, 'id', None),
+                    'analysis_type': 'security',
+                    'status': getattr(a, 'status', 'completed') or 'completed',
+                    'created_at': getattr(a, 'created_at', None),
+                    'overall_score': getattr(a, 'overall_score', None)
+                })
+            for a in analyses.get('performance', []) or []:
+                flat_analyses.append({
+                    'id': getattr(a, 'id', None),
+                    'analysis_type': 'performance',
+                    'status': getattr(a, 'status', 'completed') or 'completed',
+                    'created_at': getattr(a, 'created_at', None),
+                    'overall_score': getattr(a, 'overall_score', None)
+                })
+            for a in analyses.get('zap', []) or []:
+                flat_analyses.append({
+                    'id': getattr(a, 'id', None),
+                    'analysis_type': 'dynamic',
+                    'status': getattr(a, 'status', 'completed') or 'completed',
+                    'created_at': getattr(a, 'created_at', None),
+                    'overall_score': getattr(a, 'overall_score', None)
+                })
+            for a in analyses.get('openrouter', []) or []:
+                flat_analyses.append({
+                    'id': getattr(a, 'id', None),
+                    'analysis_type': 'openrouter',
+                    'status': getattr(a, 'status', 'completed') or 'completed',
+                    'created_at': getattr(a, 'created_at', None),
+                    'overall_score': getattr(a, 'overall_score', None)
+                })
+        except Exception:
+            flat_analyses = []
+
+        application = {
+            'id': getattr(app, 'id', None) if app else None,
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'status': _map_status(app),
+            'created_at': getattr(app, 'created_at', None) if app else None,
+            'backend_port': (ports or {}).get('backend') if isinstance(ports, dict) else None,
+            'frontend_port': (ports or {}).get('frontend') if isinstance(ports, dict) else None,
+            'is_running': (getattr(app, 'container_status', None) == 'running') if app else False,
+            'last_started': None,
+            'file_count': code_stats.get('total_files', 0),
+            'total_size': None,
+            'environment_variables': {},
+            'analyses': flat_analyses,
+            'generation_log': None,
+            'versions': [],
+        }
+
         return render_template(
-            'pages/application_detail.html',
+            'views/applications/detail.html',
+            application=application,
             app_data=app_data,
             files_info=files_info,
             analyses=analyses,
@@ -544,7 +737,9 @@ def application_detail(model_slug, app_number):
             code_stats=code_stats,
             prompts=prompts,
             template_files=template_files,
-            artifacts=artifacts
+            artifacts=artifacts,
+            templates_dir=str(tmpl_dir),
+            app_base_dir=str(app_path)
         )
     except Exception as e:
         logger.error(f"Error loading application details for {model_slug}/app{app_number}: {e}")
@@ -581,7 +776,7 @@ def _collect_app_context(model_slug: str, app_number: int):
         'metadata': app.get_metadata() if app and hasattr(app, 'get_metadata') else {}
     }
 
-    app_path = Path('misc/models') / model_slug / f'app{app_number}'
+    app_path = get_app_directory(model_slug, app_number)
     ignore_dirs = {'.mypy_cache', '.pytest_cache', '__pycache__', 'node_modules', '.venv', '.git'}
     files_info = {'app_exists': app_path.exists(), 'docker_compose': (app_path / 'docker-compose.yml').exists(), 'backend_files': [], 'frontend_files': [], 'other_files': []}
     code_stats = {'total_files': 0, 'total_loc': 0, 'by_language': {}}
@@ -661,8 +856,8 @@ def _collect_app_context(model_slug: str, app_number: int):
     prompts = {'backend': '', 'frontend': ''}
     # Initialize with empty strings to satisfy static typing (later populated with filenames)
     template_files = {'backend_file': '', 'frontend_file': ''}
+    tmpl_dir = _project_root() / 'misc' / 'app_templates'
     try:
-        tmpl_dir = Path('misc/app_templates')
         backend_md = sorted(tmpl_dir.glob(f'app_{app_number}_backend_*.md'))
         frontend_md = sorted(tmpl_dir.glob(f'app_{app_number}_frontend_*.md'))
         if backend_md:
@@ -685,6 +880,8 @@ def _collect_app_context(model_slug: str, app_number: int):
         'prompts': prompts,
         'template_files': template_files,
         'artifacts': artifacts,
+    'templates_dir': str(tmpl_dir),
+    'app_base_dir': str(app_path),
     }
 
 
@@ -737,7 +934,7 @@ def export_application_csv(model_slug, app_number):
             logger.warning(f"PortConfiguration lookup failed for {model_slug}/app{app_number}: {e}")
 
         # Scan filesystem files under misc/models
-        app_path = Path('misc/models') / model_slug / f'app{app_number}'
+        app_path = get_app_directory(model_slug, app_number)
         rows = []
         def add_row(kind: str, info: dict):
             rows.append({
@@ -793,7 +990,7 @@ def application_file_preview(model_slug, app_number):
         if not rel_path:
             return '<div class="alert alert-warning">Missing path</div>', 400
 
-        base = Path('misc/models') / model_slug / f'app{app_number}'
+        base = get_app_directory(model_slug, app_number)
         # Normalize and ensure the target is inside base
         target = (base / rel_path).resolve()
         if not str(target).startswith(str(base.resolve())):
@@ -830,6 +1027,90 @@ def application_file_preview(model_slug, app_number):
     except Exception as e:
         logger.error(f"Error previewing file for {model_slug}/app{app_number}: {e}")
         return f'<div class="alert alert-danger">Error: {str(e)}</div>', 500
+
+
+@models_bp.route('/applications/generate', methods=['POST'])
+def generate_application():
+    """HTMX endpoint: Generate a new application record for a given model/app number.
+
+    Accepts form-encoded fields:
+      - model_slug (required)
+      - app_number (required, int)
+      - app_type (optional; defaults to 'web_app')
+      - generation_prompt (optional; ignored for now)
+      - auto_start (optional; 'on' -> attempt to mark running)
+
+    Returns a small HTML alert snippet suitable for hx-target swap.
+    """
+    try:
+        model_slug = (request.form.get('model_slug') or '').strip()
+        app_number_raw = request.form.get('app_number')
+        app_type = (request.form.get('app_type') or 'web_app').strip() or 'web_app'
+        auto_start = request.form.get('auto_start') == 'on'
+        # generation_prompt and auto_analyze not used in this minimal handler
+
+        if not model_slug or not app_number_raw:
+            return (
+                '<div class="alert alert-danger">Model and app number are required.</div>',
+                400,
+            )
+        try:
+            app_number = int(app_number_raw)
+        except Exception:
+            return (
+                '<div class="alert alert-danger">Invalid app number.</div>',
+                400,
+            )
+
+        # Look up provider from the selected model
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        if not model:
+            return (
+                f'<div class="alert alert-danger">Unknown model: {model_slug}</div>',
+                404,
+            )
+
+        payload = {
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'app_type': app_type,
+            'provider': model.provider,
+        }
+
+        # Create application via service
+        created = app_service.create_application(payload)
+
+        # Optionally mark as running (best-effort; no docker integration here)
+        if auto_start and created.get('id'):
+            try:
+                app_service.start_application(created['id'])
+            except Exception:
+                pass
+
+        detail_url = f"{request.url_root.rstrip('/')}/models/application/{model_slug}/{app_number}"
+        # Return success alert and trigger a lightweight grid refresh for the Applications page
+        resp = Response(
+            '<div class="alert alert-success">'
+            f'Successfully created application for <strong>{model_slug}</strong> '
+            f'(<a href="{detail_url}" target="_blank">open details</a>).</div>'
+        )
+        resp.headers['HX-Trigger'] = 'refresh-grid'
+        return resp
+    except app_service.ValidationError as ve:
+        return (f'<div class="alert alert-danger">{str(ve)}</div>', 400)
+    except Exception as e:  # noqa: BLE001
+        # Handle common unique constraint errors gracefully
+        msg = str(e)
+        if 'unique' in msg.lower() and 'model' in msg.lower():
+            return (
+                '<div class="alert alert-warning">An application for this model and number already exists.</div>',
+                409,
+            )
+        logger.error(f"Error generating application: {e}")
+        return (
+            f'<div class="alert alert-danger">Error generating application: {str(e)}</div>',
+            500,
+        )
 
 
 @models_bp.route('/model_actions/<model_slug>')

@@ -1,0 +1,353 @@
+{# slug: ui/elements/dashboard/activity-timeline (auto-migrated) #}
+{# 
+Dashboard Activity Timeline Component
+
+Purpose: Displays chronological activity feed with user actions, timestamps, and status indicators
+Usage: {{ activity_timeline(activities=recent_activities, max_items=10, show_pagination=true) }}
+Routes: Used in dashboard and activity monitoring views
+Features:
+- Chronological activity display with timestamps
+- User avatars and action descriptions
+- Status indicators and priority levels
+- Real-time updates via HTMX polling
+- Infinite scroll pagination
+- Filtering by activity type
+- Responsive timeline design
+Technical: Bootstrap 5 timeline, moment.js for time formatting, HTMX for updates
+Dependencies: Moment.js for time formatting, user avatar system
+#}
+
+{# Set default values for optional parameters #}
+{%- set activities = activities or [] -%}
+{%- set max_items = max_items or 20 -%}
+{%- set show_pagination = show_pagination or false -%}
+{%- set show_filters = show_filters or false -%}
+{%- set show_timestamps = show_timestamps or true -%}
+{%- set show_avatars = show_avatars or true -%}
+{%- set auto_refresh = auto_refresh or false -%}
+{%- set refresh_interval = refresh_interval or 30000 -%}
+{%- set timeline_id = timeline_id or 'activity-timeline' -%}
+{%- set loading = loading or false -%}
+
+<div class="activity-timeline" id="{{ timeline_id }}">
+    {# Timeline Header with Filters #}
+    {% if show_filters %}
+        <div class="timeline-filters mb-3">
+            <div class="row">
+                <div class="col-md-6">
+                    <select class="form-control form-control-sm" id="activity-type-filter">
+                        <option value="">All Activities</option>
+                        <option value="analysis">Analysis</option>
+                        <option value="model">Model</option>
+                        <option value="application">Application</option>
+                        <option value="system">System</option>
+                        <option value="user">User</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <select class="form-control form-control-sm" id="activity-time-filter">
+                        <option value="">All Time</option>
+                        <option value="1h">Last Hour</option>
+                        <option value="24h">Last 24 Hours</option>
+                        <option value="7d">Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    {# Timeline Container #}
+    <div class="timeline-container" 
+         {% if auto_refresh %}
+         hx-get="{{ url_for('api.get_recent_activities') }}" 
+         hx-trigger="every {{ refresh_interval }}ms"
+         hx-target="#timeline-items"
+         hx-swap="innerHTML"
+         {% endif %}>
+        
+        {% if loading %}
+            {# Loading State #}
+            <div class="text-center py-4" id="timeline-loading">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="sr-only">Loading activities...</span>
+                </div>
+                <p class="text-muted mt-2">Loading recent activities...</p>
+            </div>
+        {% else %}
+            {# Timeline Items #}
+            <div class="timeline-items" id="timeline-items">
+                {% if activities %}
+                    {% for activity in activities[:max_items] %}
+                        <div class="timeline-item" data-activity-type="{{ activity.type or 'general' }}" data-timestamp="{{ activity.timestamp.isoformat() }}">
+                            <div class="timeline-marker bg-{{ activity.status_color or 'primary' }}">
+                                {% if activity.icon %}
+                                    <i class="{{ activity.icon }}"></i>
+                                {% else %}
+                                    <i class="fas fa-circle"></i>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="timeline-content">
+                                <div class="timeline-header d-flex justify-content-between align-items-start">
+                                    <div class="d-flex align-items-center">
+                                        {% if show_avatars and activity.user %}
+                                            <img src="{{ activity.user.avatar_url or url_for('static', filename='images/default-avatar.png') }}" 
+                                                 alt="{{ activity.user.username }}" 
+                                                 class="timeline-avatar rounded-circle mr-2">
+                                        {% endif %}
+                                        
+                                        <div>
+                                            <h6 class="timeline-title mb-0">{{ activity.title }}</h6>
+                                            {% if activity.user %}
+                                                <small class="text-muted">by {{ activity.user.username }}</small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    
+                                    {% if show_timestamps %}
+                                        <small class="text-muted timeline-timestamp" data-timestamp="{{ activity.timestamp.isoformat() }}">
+                                            {% if moment is defined %}
+                                                {{ moment(activity.timestamp).fromNow() }}
+                                            {% else %}
+                                                {{ activity.timestamp.strftime('%Y-%m-%d %H:%M') }}
+                                            {% endif %}
+                                        </small>
+                                    {% endif %}
+                                </div>
+                                
+                                {% if activity.description %}
+                                    <p class="timeline-description mb-2">{{ activity.description }}</p>
+                                {% endif %}
+                                
+                                {# Activity-specific content #}
+                                {% if activity.type == 'analysis' %}
+                                    <div class="timeline-analysis-info">
+                                        <div class="row">
+                                            <div class="col-sm-6">
+                                                <small class="text-muted">Model:</small>
+                                                <span class="badge badge-secondary">{{ activity.model_name or 'N/A' }}</span>
+                                            </div>
+                                            <div class="col-sm-6">
+                                                <small class="text-muted">Status:</small>
+                                                <span class="badge badge-{{ activity.analysis_status_color or 'primary' }}">
+                                                    {{ activity.analysis_status or 'Unknown' }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {% if activity.analysis_id %}
+                                            {% if activity.analysis_type == 'security' %}
+                                                <a href="{{ url_for('analysis.security_analysis_results_view', analysis_id=activity.analysis_id) }}" 
+                                                   class="btn btn-outline-primary btn-sm mt-2">
+                                                    <i class="fas fa-eye mr-1"></i> View Analysis
+                                                </a>
+                                            {% elif activity.analysis_type == 'performance' %}
+                                                <a href="{{ url_for('analysis.performance_test_results_view', analysis_id=activity.analysis_id) }}" 
+                                                   class="btn btn-outline-primary btn-sm mt-2">
+                                                    <i class="fas fa-eye mr-1"></i> View Analysis
+                                                </a>
+                                            {% elif activity.analysis_type == 'dynamic' %}
+                                                <a href="{{ url_for('analysis.dynamic_analysis_results_view', analysis_id=activity.analysis_id) }}" 
+                                                   class="btn btn-outline-primary btn-sm mt-2">
+                                                    <i class="fas fa-eye mr-1"></i> View Analysis
+                                                </a>
+                                            {% else %}
+                                                <a href="{{ url_for('analysis.analysis_list') }}" 
+                                                   class="btn btn-outline-primary btn-sm mt-2">
+                                                    <i class="fas fa-list mr-1"></i> All Results
+                                                </a>
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+                                {% elif activity.type == 'model' %}
+                                    <div class="timeline-model-info">
+                                        {% if activity.model_slug %}
+                                            <span class="badge badge-info">{{ activity.model_slug.replace('_', ' ').title() }}</span>
+                                        {% endif %}
+                                        {% if activity.model_id %}
+                                            <a href="{{ url_for('models.model_details', model_slug=activity.model_slug) }}" 
+                                               class="btn btn-outline-info btn-sm mt-2">
+                                                <i class="fas fa-robot mr-1"></i> View Model
+                                            </a>
+                                        {% endif %}
+                                    </div>
+                                {% elif activity.type == 'application' %}
+                                    <div class="timeline-app-info">
+                                        {% if activity.app_number %}
+                                            <small class="text-muted">App #{{ activity.app_number }}</small>
+                                        {% endif %}
+                                        {% if activity.port_info %}
+                                            <div class="mt-1">
+                                                <small class="text-muted">Ports:</small>
+                                                <code>{{ activity.port_info }}</code>
+                                            </div>
+                                        {% endif %}
+                                        {% if activity.app_id %}
+                                            <a href="{{ url_for('models.application_detail', model_slug=activity.model_slug, app_number=activity.app_number) }}" 
+                                               class="btn btn-outline-success btn-sm mt-2">
+                                                <i class="fas fa-code mr-1"></i> View Application
+                                            </a>
+                                        {% endif %}
+                                    </div>
+                                {% elif activity.type == 'system' %}
+                                    <div class="timeline-system-info">
+                                        {% if activity.system_component %}
+                                            <span class="badge badge-warning">{{ activity.system_component }}</span>
+                                        {% endif %}
+                                        {% if activity.log_level %}
+                                            <span class="badge badge-{{ 'danger' if activity.log_level == 'error' else 'warning' if activity.log_level == 'warning' else 'info' }}">
+                                                {{ activity.log_level.upper() }}
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                                
+                                {# Additional metadata #}
+                                {% if activity.metadata %}
+                                    <div class="timeline-metadata mt-2">
+                                        {% for key, value in activity.metadata.items() %}
+                                            <small class="text-muted mr-3">
+                                                <strong>{{ key.title() }}:</strong> {{ value }}
+                                            </small>
+                                        {% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    {# Empty State #}
+                    <div class="timeline-empty text-center py-5">
+                        <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No Recent Activity</h5>
+                        <p class="text-muted">When activities occur, they'll appear here.</p>
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
+    </div>
+
+    {# Pagination Controls #}
+    {% if show_pagination and activities|length >= max_items %}
+        <div class="timeline-pagination text-center mt-4">
+            <button class="btn btn-outline-primary" 
+                    hx-get="{{ url_for('api.get_recent_activities') }}" 
+                    hx-vals='{"offset": {{ max_items }}, "limit": {{ max_items }}}'
+                    hx-target="#timeline-items"
+                    hx-swap="beforeend"
+                    hx-indicator="#pagination-spinner">
+                <span id="pagination-spinner" class="spinner-border spinner-border-sm htmx-indicator" role="status"></span>
+                Load More Activities
+            </button>
+        </div>
+    {% endif %}
+</div>
+
+{# JavaScript for Timeline Management #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize moment.js for timestamp formatting
+    if (typeof moment !== 'undefined') {
+        // Update timestamps every minute
+        setInterval(updateTimestamps, 60000);
+        updateTimestamps(); // Initial update
+    }
+
+    // Activity type filter
+    const typeFilter = document.getElementById('activity-type-filter');
+    if (typeFilter) {
+        typeFilter.addEventListener('change', function() {
+            filterActivities();
+        });
+    }
+
+    // Activity time filter
+    const timeFilter = document.getElementById('activity-time-filter');
+    if (timeFilter) {
+        timeFilter.addEventListener('change', function() {
+            filterActivities();
+        });
+    }
+
+    function updateTimestamps() {
+        document.querySelectorAll('.timeline-timestamp[data-timestamp]').forEach(function(element) {
+            const timestamp = element.getAttribute('data-timestamp');
+            if (timestamp && typeof moment !== 'undefined') {
+                element.textContent = moment(timestamp).fromNow();
+            }
+        });
+    }
+
+    function filterActivities() {
+        const typeFilter = document.getElementById('activity-type-filter');
+        const timeFilter = document.getElementById('activity-time-filter');
+        
+        const selectedType = typeFilter ? typeFilter.value : '';
+        const selectedTime = timeFilter ? timeFilter.value : '';
+        
+        const items = document.querySelectorAll('.timeline-item');
+        
+        items.forEach(function(item) {
+            let showItem = true;
+            
+            // Filter by type
+            if (selectedType && item.getAttribute('data-activity-type') !== selectedType) {
+                showItem = false;
+            }
+            
+            // Filter by time
+            if (selectedTime && showItem) {
+                const itemTime = new Date(item.getAttribute('data-timestamp'));
+                const now = new Date();
+                const cutoffTime = new Date();
+                
+                switch (selectedTime) {
+                    case '1h':
+                        cutoffTime.setHours(now.getHours() - 1);
+                        break;
+                    case '24h':
+                        cutoffTime.setDate(now.getDate() - 1);
+                        break;
+                    case '7d':
+                        cutoffTime.setDate(now.getDate() - 7);
+                        break;
+                    case '30d':
+                        cutoffTime.setDate(now.getDate() - 30);
+                        break;
+                }
+                
+                if (itemTime < cutoffTime) {
+                    showItem = false;
+                }
+            }
+            
+            // Show/hide item with animation
+            if (showItem) {
+                item.style.display = 'block';
+                setTimeout(() => item.style.opacity = '1', 10);
+            } else {
+                item.style.opacity = '0';
+                setTimeout(() => item.style.display = 'none', 300);
+            }
+        });
+    }
+
+    // Highlight new activities when they're added via HTMX
+    document.addEventListener('htmx:afterSwap', function(event) {
+        if (event.target.id === 'timeline-items') {
+            // Add highlight animation to new items
+            const newItems = event.target.querySelectorAll('.timeline-item:not(.timeline-processed)');
+            newItems.forEach(function(item) {
+                item.classList.add('timeline-new', 'timeline-processed');
+                setTimeout(() => item.classList.remove('timeline-new'), 2000);
+            });
+            
+            // Update timestamps for new items
+            updateTimestamps();
+        }
+    });
+});
+</script>
+
+{# CSS for Timeline Styling #}
+

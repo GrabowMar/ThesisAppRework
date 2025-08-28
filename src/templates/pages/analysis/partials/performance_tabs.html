@@ -1,0 +1,597 @@
+{# slug: pages/analysis/partials/performance_tabs (auto-migrated) #}
+{#
+    Performance Analysis Tab Components
+    Purpose: Specialized tab content for performance analysis results in analysis detail view
+    
+    Features:
+    - Response time analysis with percentile breakdowns
+    - Load testing results and throughput metrics
+    - Resource utilization charts and trends
+    - Performance bottleneck identification
+    - Scalability analysis and recommendations
+    
+    Usage: Included in analysis detail view when analysis_type == 'performance'
+    Dependencies: Requires Chart.js for performance visualization
+#}
+
+<!-- Response Times Tab -->
+<div class="tab-pane fade" id="response-times-tab" role="tabpanel">
+    <div class="row">
+        <div class="col-lg-8">
+            <h6 class="mb-3">Response Time Analysis</h6>
+            
+            <!-- Response Time Chart -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <canvas id="response-time-chart" width="400" height="250"></canvas>
+                </div>
+            </div>
+            
+            <!-- Endpoint Performance -->
+            {% if analysis.results.performance_details.endpoint_metrics %}
+                <h6 class="mb-3">Endpoint Performance</h6>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Endpoint</th>
+                                <th>Method</th>
+                                <th>Avg Response</th>
+                                <th>P95</th>
+                                <th>P99</th>
+                                <th>Requests</th>
+                                <th>Error Rate</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for endpoint in analysis.results.performance_details.endpoint_metrics %}
+                            <tr class="endpoint-row">
+                                <td>
+                                    <code>{{ endpoint.path }}</code>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'primary' if endpoint.method == 'GET' else 'success' if endpoint.method == 'POST' else 'warning' if endpoint.method == 'PUT' else 'danger' if endpoint.method == 'DELETE' else 'secondary' }}">
+                                        {{ endpoint.method }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="fw-bold text-{{ 'success' if endpoint.avg_response_time < 200 else 'warning' if endpoint.avg_response_time < 500 else 'danger' }}">
+                                        {{ endpoint.avg_response_time }}ms
+                                    </span>
+                                </td>
+                                <td>{{ endpoint.p95_response_time }}ms</td>
+                                <td>{{ endpoint.p99_response_time }}ms</td>
+                                <td>{{ endpoint.total_requests }}</td>
+                                <td>
+                                    <span class="text-{{ 'success' if endpoint.error_rate < 1 else 'warning' if endpoint.error_rate < 5 else 'danger' }}">
+                                        {{ endpoint.error_rate|round(2) }}%
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if endpoint.status == 'healthy' else 'warning' if endpoint.status == 'slow' else 'danger' }}">
+                                        {{ endpoint.status|title }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        </div>
+        <div class="col-lg-4">
+            <h6 class="mb-3">Response Time Percentiles</h6>
+            <div class="response-percentiles">
+                <div class="metric-card mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>P50 (Median)</span>
+                        <span class="fw-bold">{{ analysis.results.performance_summary.p50_response_time or 0 }}ms</span>
+                    </div>
+                    <div class="progress mt-1 u-30f9f3">
+                        <div class="progress-bar bg-success" style="width: {{ ((analysis.results.performance_summary.p50_response_time or 0) / 1000 * 100)|round(1) }}%"></div>
+                    </div>
+                </div>
+                
+                <div class="metric-card mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>P75</span>
+                        <span class="fw-bold">{{ analysis.results.performance_summary.p75_response_time or 0 }}ms</span>
+                    </div>
+                    <div class="progress mt-1 u-30f9f3">
+                        <div class="progress-bar bg-info" style="width: {{ ((analysis.results.performance_summary.p75_response_time or 0) / 1000 * 100)|round(1) }}%"></div>
+                    </div>
+                </div>
+                
+                <div class="metric-card mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>P95</span>
+                        <span class="fw-bold">{{ analysis.results.performance_summary.p95_response_time or 0 }}ms</span>
+                    </div>
+                    <div class="progress mt-1 u-30f9f3">
+                        <div class="progress-bar bg-warning" style="width: {{ ((analysis.results.performance_summary.p95_response_time or 0) / 1000 * 100)|round(1) }}%"></div>
+                    </div>
+                </div>
+                
+                <div class="metric-card mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>P99</span>
+                        <span class="fw-bold">{{ analysis.results.performance_summary.p99_response_time or 0 }}ms</span>
+                    </div>
+                    <div class="progress mt-1 u-30f9f3">
+                        <div class="progress-bar bg-danger" style="width: {{ ((analysis.results.performance_summary.p99_response_time or 0) / 1000 * 100)|round(1) }}%"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Performance Insights -->
+            <div class="mt-4">
+                <h6 class="mb-3">Performance Insights</h6>
+                {% if analysis.results.performance_insights %}
+                    <div class="list-group list-group-flush">
+                        {% for insight in analysis.results.performance_insights %}
+                        <div class="list-group-item">
+                            <div class="d-flex align-items-start">
+                                <i class="fas fa-{{ insight.icon or 'info-circle' }} text-{{ insight.type or 'info' }} me-2 mt-1"></i>
+                                <div>
+                                    <h6 class="mb-1">{{ insight.title }}</h6>
+                                    <p class="mb-0 small">{{ insight.description }}</p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">No specific performance insights available.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Load Testing Tab -->
+<div class="tab-pane fade" id="load-testing-tab" role="tabpanel">
+    <div class="row">
+        <div class="col-lg-8">
+            <h6 class="mb-3">Load Testing Results</h6>
+            
+            <!-- Load Test Summary -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-primary">{{ analysis.results.load_testing.max_users or 0 }}</h3>
+                            <p class="text-muted mb-0">Max Concurrent Users</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-success">{{ analysis.results.load_testing.requests_per_second or 0 }}</h3>
+                            <p class="text-muted mb-0">Requests/Second</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-info">{{ analysis.results.load_testing.total_requests or 0 }}</h3>
+                            <p class="text-muted mb-0">Total Requests</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h3 class="text-{{ 'success' if (analysis.results.load_testing.error_rate or 0) < 1 else 'warning' if (analysis.results.load_testing.error_rate or 0) < 5 else 'danger' }}">
+                                {{ analysis.results.load_testing.error_rate|round(2) or 0 }}%
+                            </h3>
+                            <p class="text-muted mb-0">Error Rate</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Load Testing Chart -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">Load Test Progression</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="load-test-chart" width="400" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <h6 class="mb-3">Load Test Configuration</h6>
+            <div class="card">
+                <div class="card-body">
+                    <dl class="row mb-0 small">
+                        <dt class="col-6">Test Duration:</dt>
+                        <dd class="col-6">{{ analysis.results.load_testing.duration_seconds or 'N/A' }}s</dd>
+                        
+                        <dt class="col-6">Ramp-up Time:</dt>
+                        <dd class="col-6">{{ analysis.results.load_testing.ramp_up_time or 'N/A' }}s</dd>
+                        
+                        <dt class="col-6">Target RPS:</dt>
+                        <dd class="col-6">{{ analysis.results.load_testing.target_rps or 'N/A' }}</dd>
+                        
+                        <dt class="col-6">Load Pattern:</dt>
+                        <dd class="col-6">{{ analysis.results.load_testing.load_pattern or 'Constant' }}</dd>
+                        
+                        <dt class="col-6">User Agents:</dt>
+                        <dd class="col-6">{{ analysis.results.load_testing.user_agents_count or 1 }}</dd>
+                        
+                        <dt class="col-6">Regions:</dt>
+                        <dd class="col-6">{{ analysis.results.load_testing.test_regions|length if analysis.results.load_testing.test_regions else 1 }}</dd>
+                    </dl>
+                </div>
+            </div>
+            
+            <!-- Bottlenecks -->
+            <div class="mt-4">
+                <h6 class="mb-3">Identified Bottlenecks</h6>
+                {% if analysis.results.performance_bottlenecks %}
+                    <div class="list-group list-group-flush">
+                        {% for bottleneck in analysis.results.performance_bottlenecks %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h6 class="mb-1">{{ bottleneck.component }}</h6>
+                                    <p class="mb-1 small">{{ bottleneck.description }}</p>
+                                    <small class="text-muted">Impact: {{ bottleneck.impact_level|title }}</small>
+                                </div>
+                                <span class="badge bg-{{ 'danger' if bottleneck.severity == 'high' else 'warning' if bottleneck.severity == 'medium' else 'secondary' }}">
+                                    {{ bottleneck.severity|title }}
+                                </span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-success">No significant bottlenecks identified.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resource Usage Tab -->
+<div class="tab-pane fade" id="resource-usage-tab" role="tabpanel">
+    <div class="row">
+        <div class="col-lg-8">
+            <h6 class="mb-3">Resource Utilization</h6>
+            
+            <!-- Resource Charts -->
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">CPU Usage</h6>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="cpu-usage-chart" width="300" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">Memory Usage</h6>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="memory-usage-chart" width="300" height="200"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Resource Timeline -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h6 class="mb-0">Resource Usage Timeline</h6>
+                </div>
+                <div class="card-body">
+                    <canvas id="resource-timeline-chart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <h6 class="mb-3">Resource Summary</h6>
+            <div class="resource-metrics">
+                <div class="metric-card mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Peak CPU Usage</span>
+                        <span class="fw-bold text-{{ 'success' if (analysis.results.resource_usage.peak_cpu_percent or 0) < 70 else 'warning' if (analysis.results.resource_usage.peak_cpu_percent or 0) < 90 else 'danger' }}">
+                            {{ analysis.results.resource_usage.peak_cpu_percent|round(1) or 0 }}%
+                        </span>
+                    </div>
+                    <div class="progress mt-1 u-2f623b">
+                        <div class="progress-bar bg-{{ 'success' if (analysis.results.resource_usage.peak_cpu_percent or 0) < 70 else 'warning' if (analysis.results.resource_usage.peak_cpu_percent or 0) < 90 else 'danger' }}" 
+                             style="width: {{ analysis.results.resource_usage.peak_cpu_percent or 0 }}%"></div>
+                    </div>
+                </div>
+                
+                <div class="metric-card mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Peak Memory Usage</span>
+                        <span class="fw-bold text-info">{{ analysis.results.resource_usage.peak_memory_mb or 0 }}MB</span>
+                    </div>
+                    <div class="progress mt-1 u-2f623b">
+                        <div class="progress-bar bg-info" style="width: {{ ((analysis.results.resource_usage.peak_memory_mb or 0) / (analysis.results.resource_usage.total_memory_mb or 1000) * 100)|round(1) }}%"></div>
+                    </div>
+                </div>
+                
+                <div class="metric-card mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Disk I/O (Peak)</span>
+                        <span class="fw-bold">{{ analysis.results.resource_usage.peak_disk_io_mbps or 0 }}MB/s</span>
+                    </div>
+                </div>
+                
+                <div class="metric-card mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>Network I/O (Peak)</span>
+                        <span class="fw-bold">{{ analysis.results.resource_usage.peak_network_mbps or 0 }}MB/s</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Scalability Assessment -->
+            <div class="mt-4">
+                <h6 class="mb-3">Scalability Assessment</h6>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span>Scalability Score</span>
+                            <span class="fw-bold text-{{ 'success' if (analysis.results.scalability.overall_score or 0) >= 8 else 'warning' if (analysis.results.scalability.overall_score or 0) >= 6 else 'danger' }}">
+                                {{ analysis.results.scalability.overall_score or 0 }}/10
+                            </span>
+                        </div>
+                        <div class="progress mb-3 u-49c5d1">
+                            <div class="progress-bar bg-{{ 'success' if (analysis.results.scalability.overall_score or 0) >= 8 else 'warning' if (analysis.results.scalability.overall_score or 0) >= 6 else 'danger' }}" 
+                                 style="width: {{ (analysis.results.scalability.overall_score or 0) * 10 }}%"></div>
+                        </div>
+                        
+                        {% if analysis.results.scalability.recommendations %}
+                            <h6 class="mb-2">Recommendations:</h6>
+                            <ul class="list-unstyled mb-0 small">
+                                {% for rec in analysis.results.scalability.recommendations[:3] %}
+                                <li class="mb-1">
+                                    <i class="fas fa-arrow-right text-primary me-1"></i>
+                                    {{ rec }}
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Initialize performance analysis charts
+function initializePerformanceCharts() {
+    // Response Time Chart
+    const responseTimeCtx = document.getElementById('response-time-chart');
+    if (responseTimeCtx) {
+        new Chart(responseTimeCtx.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: {{ analysis.results.performance_timeline.timestamps|tojsonpretty|safe if analysis.results.performance_timeline else "[]" }},
+                datasets: [
+                    {
+                        label: 'Average Response Time',
+                        data: {{ analysis.results.performance_timeline.avg_response_times|tojsonpretty|safe if analysis.results.performance_timeline else "[]" }},
+                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                        borderColor: '#007bff',
+                        borderWidth: 2,
+                        fill: true
+                    },
+                    {
+                        label: 'P95 Response Time',
+                        data: {{ analysis.results.performance_timeline.p95_response_times|tojsonpretty|safe if analysis.results.performance_timeline else "[]" }},
+                        backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                        borderColor: '#ffc107',
+                        borderWidth: 1,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Response Time (ms)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Load Test Chart
+    const loadTestCtx = document.getElementById('load-test-chart');
+    if (loadTestCtx) {
+        new Chart(loadTestCtx.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: {{ analysis.results.load_testing.timeline.timestamps|tojsonpretty|safe if analysis.results.load_testing.timeline else "[]" }},
+                datasets: [
+                    {
+                        label: 'Active Users',
+                        data: {{ analysis.results.load_testing.timeline.active_users|tojsonpretty|safe if analysis.results.load_testing.timeline else "[]" }},
+                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                        borderColor: '#28a745',
+                        borderWidth: 2,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Response Time (ms)',
+                        data: {{ analysis.results.load_testing.timeline.response_times|tojsonpretty|safe if analysis.results.load_testing.timeline else "[]" }},
+                        backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                        borderColor: '#ffc107',
+                        borderWidth: 2,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Active Users'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Response Time (ms)'
+                        },
+                        grid: {
+                            drawOnChartArea: false,
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // CPU Usage Chart
+    const cpuCtx = document.getElementById('cpu-usage-chart');
+    if (cpuCtx) {
+        new Chart(cpuCtx.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: {{ analysis.results.resource_usage.timeline.timestamps|tojsonpretty|safe if analysis.results.resource_usage.timeline else "[]" }},
+                datasets: [{
+                    label: 'CPU Usage (%)',
+                    data: {{ analysis.results.resource_usage.timeline.cpu_usage|tojsonpretty|safe if analysis.results.resource_usage.timeline else "[]" }},
+                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    borderColor: '#dc3545',
+                    borderWidth: 2,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: 'CPU Usage (%)'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Memory Usage Chart
+    const memoryCtx = document.getElementById('memory-usage-chart');
+    if (memoryCtx) {
+        new Chart(memoryCtx.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: {{ analysis.results.resource_usage.timeline.timestamps|tojsonpretty|safe if analysis.results.resource_usage.timeline else "[]" }},
+                datasets: [{
+                    label: 'Memory Usage (MB)',
+                    data: {{ analysis.results.resource_usage.timeline.memory_usage|tojsonpretty|safe if analysis.results.resource_usage.timeline else "[]" }},
+                    backgroundColor: 'rgba(23, 162, 184, 0.1)',
+                    borderColor: '#17a2b8',
+                    borderWidth: 2,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Memory Usage (MB)'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Resource Timeline Chart
+    const resourceTimelineCtx = document.getElementById('resource-timeline-chart');
+    if (resourceTimelineCtx) {
+        new Chart(resourceTimelineCtx.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: {{ analysis.results.resource_usage.timeline.timestamps|tojsonpretty|safe if analysis.results.resource_usage.timeline else "[]" }},
+                datasets: [
+                    {
+                        label: 'CPU Usage (%)',
+                        data: {{ analysis.results.resource_usage.timeline.cpu_usage|tojsonpretty|safe if analysis.results.resource_usage.timeline else "[]" }},
+                        borderColor: '#dc3545',
+                        borderWidth: 1,
+                        fill: false
+                    },
+                    {
+                        label: 'Memory Usage (%)',
+                        data: {{ analysis.results.resource_usage.timeline.memory_usage_percent|tojsonpretty|safe if analysis.results.resource_usage.timeline else "[]" }},
+                        borderColor: '#17a2b8',
+                        borderWidth: 1,
+                        fill: false
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        title: {
+                            display: true,
+                            text: 'Usage (%)'
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
+// Initialize charts when performance tabs become active
+document.addEventListener('shown.bs.tab', function(e) {
+    if (e.target.getAttribute('href') === '#response-times-tab' || 
+        e.target.getAttribute('href') === '#load-testing-tab' ||
+        e.target.getAttribute('href') === '#resource-usage-tab') {
+        setTimeout(initializePerformanceCharts, 100);
+    }
+});
+</script>

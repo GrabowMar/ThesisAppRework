@@ -1,0 +1,199 @@
+{# slug: layouts/full-width (auto-migrated) #}
+{#
+  Full-Width Layout Template
+  
+  Purpose: Layout for content that needs maximum screen space
+  Features:
+  - No sidebar navigation
+  - Full-width content area
+  - Minimal header
+  - Optimized for data visualization and reports
+  
+  Routes:
+  - /analysis/results/detail/*
+  - /reports/*
+  - /statistics/charts/*
+  - /models/comparison/*
+  
+  Technical Details:
+  - Extends base.html but removes sidebar
+  - Maximized content area for charts and tables
+  - Print-friendly styling
+  - Responsive breakpoints for mobile viewing
+  
+  Use Cases:
+  - Large data tables
+  - Complex visualizations
+  - Analysis result details
+  - Report generation
+  - Model comparison views
+#}
+
+{% extends 'layouts/base.html' %}
+
+{% block title %}{% block page_title %}Full Width View{% endblock %} - {{ super() }}{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+
+{% endblock %}
+
+{% block body_class %}{{ super() }} full-width-layout{% endblock %}
+
+{% block sidebar %}
+{# No sidebar in full-width layout #}
+{% endblock %}
+
+{% block header %}
+<header class="navbar navbar-expand-lg navbar-light bg-white border-bottom full-width-header">
+    <div class="container-fluid">
+        {# Minimal navigation #}
+        <div class="d-flex justify-content-between align-items-center w-100">
+            <div class="d-flex align-items-center">
+                {# Back button #}
+                <button type="button" class="btn btn-outline-secondary btn-sm me-3" onclick="history.back()">
+                    <i class="fas fa-arrow-left me-1"></i>Back
+                </button>
+                
+                {# Page title #}
+                <h1 class="h5 mb-0">
+                    {% block header_title %}Full Width View{% endblock %}
+                </h1>
+            </div>
+            
+            {# Header actions #}
+            <div class="d-flex align-items-center gap-2">
+                {% block header_actions %}
+                <button type="button" class="btn btn-outline-primary btn-sm no-print">
+                    <i class="fas fa-download me-1"></i>Export
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm no-print" onclick="window.print()">
+                    <i class="fas fa-print me-1"></i>Print
+                </button>
+                {% endblock %}
+            </div>
+        </div>
+    </div>
+</header>
+{% endblock %}
+
+{% block breadcrumbs %}
+{# Simplified breadcrumbs for full-width layout #}
+{% if show_breadcrumbs|default(false) %}
+<nav aria-label="breadcrumb" class="bg-light py-2 no-print">
+    <div class="container-fluid">
+        <ol class="breadcrumb mb-0">
+            {% block breadcrumb_items %}
+            <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{% block breadcrumb_current %}Current Page{% endblock %}</li>
+            {% endblock %}
+        </ol>
+    </div>
+</nav>
+{% endif %}
+{% endblock %}
+
+{% block main_class %}full-width-content{% endblock %}
+
+{% block content %}
+{# Full-width content area #}
+<div class="full-width-container">
+    {% block full_width_content %}
+    <div class="alert alert-info">
+        <i class="fas fa-info-circle me-2"></i>
+        Full-width layout loaded. Content should be implemented in child templates.
+        <br>
+        <small class="text-muted">This layout is optimized for data visualization, reports, and detailed analysis views.</small>
+    </div>
+    {% endblock %}
+</div>
+
+{# Full-width footer #}
+{% block full_width_footer %}
+<div class="row mt-4 no-print">
+    <div class="col-12">
+        <hr class="my-3">
+        <div class="text-center text-muted small">
+            <i class="fas fa-expand-alt me-1"></i>
+            Full-width view optimized for detailed analysis
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% endblock %}
+
+{% block footer %}
+{# Minimal footer for full-width layout #}
+<footer class="footer bg-light py-2 no-print">
+    <div class="container-fluid">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <small class="text-muted">
+                    {% block footer_left %}AI Model Analysis Platform{% endblock %}
+                </small>
+            </div>
+            <div class="col-md-6 text-end">
+                <small class="text-muted">
+                    {% block footer_right %}Generated {{ moment().format('YYYY-MM-DD HH:mm') }}{% endblock %}
+                </small>
+            </div>
+        </div>
+    </div>
+</footer>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script>
+    // Full-width layout specific JavaScript
+    class FullWidthManager {
+        constructor() {
+            this.initializeLayout();
+            this.setupPrintHandling();
+            this.setupExportHandling();
+        }
+        
+        initializeLayout() {
+            // Layout initialization
+            this.adjustViewport();
+            this.setupResponsiveness();
+        }
+        
+        adjustViewport() {
+            // Optimize viewport for full-width content
+        }
+        
+        setupResponsiveness() {
+            // Handle responsive behavior
+        }
+        
+        setupPrintHandling() {
+            // Optimize content for printing
+            window.addEventListener('beforeprint', () => {
+                this.preparePrintView();
+            });
+            
+            window.addEventListener('afterprint', () => {
+                this.restoreNormalView();
+            });
+        }
+        
+        setupExportHandling() {
+            // Setup export functionality
+        }
+        
+        preparePrintView() {
+            // Prepare content for printing
+        }
+        
+        restoreNormalView() {
+            // Restore normal view after printing
+        }
+    }
+    
+    // Initialize full-width manager
+    document.addEventListener('DOMContentLoaded', function() {
+        window.fullWidthManager = new FullWidthManager();
+    });
+</script>
+{% endblock %}

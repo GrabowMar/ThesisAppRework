@@ -9,7 +9,7 @@ import logging
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, asdict
 
 logger = logging.getLogger(__name__)
@@ -31,14 +31,20 @@ class BackgroundTask:
 
 
 class BackgroundTaskService:
-    """Service for managing background tasks and real-time updates."""
+    """Service for managing background tasks.
+
+    Deliberately lean: persistence, advanced scheduling, and websocket
+    broadcasting are handled elsewhere. This service keeps only in-memory
+    state for short-lived tasks used by UI progress components.
+    """
     
     def __init__(self):
-        self.tasks: Dict[str, BackgroundTask] = {}
-        self.subscribers: Dict[str, List[callable]] = {}
-        self._lock = threading.Lock()
-        self._running = False
-        self._update_thread = None
+            # In-memory task registry and subscriber callbacks
+            self.tasks: Dict[str, BackgroundTask] = {}
+            self.subscribers: Dict[str, List[Callable[[Any], None]]] = {}
+            self._lock = threading.Lock()
+            self._running = False
+            self._update_thread = None
         
     def start(self):
         """Start the background service."""
@@ -144,16 +150,23 @@ class BackgroundTaskService:
     
     def get_active_tasks(self) -> List[BackgroundTask]:
         """Get all active (running or pending) tasks."""
-        return self.get_tasks(status="running") + self.get_tasks(status="pending")
+        return [
+            *self.get_tasks(status="running"),
+            *self.get_tasks(status="pending"),
+        ]
+
+    def list_tasks_dict(self, task_type: Optional[str] = None, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Return tasks as list of dictionaries (already JSON-safe)."""
+        return [self.to_dict(t) for t in self.get_tasks(task_type=task_type, status=status)]
     
-    def subscribe(self, task_id: str, callback: callable) -> None:
+    def subscribe(self, task_id: str, callback: Callable[[Any], None]) -> None:
         """Subscribe to task updates."""
         with self._lock:
             if task_id not in self.subscribers:
                 self.subscribers[task_id] = []
             self.subscribers[task_id].append(callback)
     
-    def unsubscribe(self, task_id: str, callback: callable) -> None:
+    def unsubscribe(self, task_id: str, callback: Callable[[Any], None]) -> None:
         """Unsubscribe from task updates."""
         with self._lock:
             if task_id in self.subscribers:
@@ -243,3 +256,8 @@ def init_background_service():
 def shutdown_background_service():
     """Shutdown the background service."""
     background_service.stop()
+
+__all__ = [
+    'BackgroundTask', 'BackgroundTaskService', 'background_service',
+    'get_background_service', 'init_background_service', 'shutdown_background_service'
+]

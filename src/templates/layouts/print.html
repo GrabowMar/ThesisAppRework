@@ -1,0 +1,14 @@
+{# slug: layouts/print (auto-migrated) #}
+{#
+  Print Layout Template
+  
+  Purpose: Optimized layout for print media and PDF generation
+  Features:
+  - Print-friendly styling
+  - Removes navigation elements
+    
+    <!-- Project theme (contains print styles extracted from this layout) -->
+    <link href="{{ url_for('static', filename='css/theme.css') }}" rel="stylesheet">
+    
+    {# Print-optimized CSS moved into theme.css under @media print #}
+  - /reports/*/print

@@ -58,13 +58,20 @@ class AnalyzerIntegration:
             # Construct full command
             full_command = [sys.executable, str(self.analyzer_manager_path)] + command
             
-            logger.info(f"Running analyzer command: {' '.join(command)}")
+            # Reduce noise: only log health checks at DEBUG level
+            cmd_str = ' '.join(command)
+            if command and command[0].lower() == 'health':
+                logger.debug(f"Running analyzer command: {cmd_str}")
+            else:
+                logger.info(f"Running analyzer command: {cmd_str}")
             
             # Run command with proper encoding handling for Windows
             # Ensure UTF-8 mode in the child process so Windows consoles don't choke on emojis
             env = os.environ.copy()
             env.setdefault('PYTHONUTF8', '1')
             env.setdefault('PYTHONIOENCODING', 'utf-8')
+            # Signal to analyzer_manager.py to emit machine-parseable JSON for analyze/health
+            env.setdefault('ANALYZER_JSON', '1')
 
             result = subprocess.run(
                 full_command,
@@ -337,7 +344,8 @@ class AnalyzerIntegration:
             command = ['analyze', model_slug, str(app_number), 'security']
             
             # Run analysis
-            result = self.run_analyzer_command(command, timeout=options.get('timeout', 600) if options else 600)
+            default_timeout = int(os.environ.get('SECURITY_ANALYSIS_TIMEOUT', os.environ.get('STATIC_ANALYSIS_TIMEOUT', '600')))
+            result = self.run_analyzer_command(command, timeout=options.get('timeout', default_timeout) if options else default_timeout)
             
             if result['success']:
                 # Parse results from stdout
@@ -432,7 +440,8 @@ class AnalyzerIntegration:
             command = ['analyze', model_slug, str(app_number), 'static']
             
             # Run analysis
-            result = self.run_analyzer_command(command, timeout=options.get('timeout', 300) if options else 300)
+            default_timeout = int(os.environ.get('STATIC_ANALYSIS_TIMEOUT', '600'))
+            result = self.run_analyzer_command(command, timeout=options.get('timeout', default_timeout) if options else default_timeout)
             
             if result['success']:
                 try:

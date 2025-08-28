@@ -39,31 +39,37 @@ def register_api_routes(app):
         1. Import route modules first so their decorators attach endpoints.
         2. Register the blueprint only once afterwards.
         3. Guard against accidental double-registration across multiple factory calls.
+        4. Always ensure the WebSocket API blueprint is registered, even if the
+           main 'api' blueprint already exists.
     """
 
-    # If already registered (e.g., create_app called twice in same process), skip
-    if 'api' in app.blueprints:
-        return
+    # Register main API blueprint (once)
+    if 'api' not in app.blueprints:
+        # Import route modules so @api_bp.route decorators execute before registration
+        from . import core  # noqa: F401
+        from . import models  # noqa: F401
+        from . import statistics  # noqa: F401
+        from . import dashboard  # noqa: F401
+        from . import applications  # noqa: F401
+        from . import analysis  # noqa: F401
+        from . import system  # noqa: F401
+        from . import misc  # noqa: F401
+        from . import results  # noqa: F401
 
-    # Import route modules so @api_bp.route decorators execute before registration
-    from . import core  # noqa: F401
-    from . import models  # noqa: F401
-    from . import statistics  # noqa: F401
-    from . import dashboard  # noqa: F401
-    from . import applications  # noqa: F401
-    from . import analysis  # noqa: F401
-    from . import system  # noqa: F401
-    from . import misc  # noqa: F401
-    from . import results  # noqa: F401
+        # Now safe to register blueprint with all routes bound
+        app.register_blueprint(api_bp, url_prefix='/api')
+        logger.info("API blueprint registered successfully")
+    else:
+        logger.debug("API blueprint already registered; skipping re-registration")
 
-    # Now safe to register blueprint with all routes bound
-    app.register_blueprint(api_bp, url_prefix='/api')
-
-    # Register WebSocket API blueprint separately
+    # Register WebSocket API blueprint separately (ensure it's present)
     try:
         from .websocket import websocket_api
-        app.register_blueprint(websocket_api)
-        logger.info("WebSocket API registered successfully")
+        if 'websocket_api' not in app.blueprints:
+            app.register_blueprint(websocket_api)
+            logger.info("WebSocket API registered successfully")
+        else:
+            logger.debug("WebSocket API already registered; skipping re-registration")
     except Exception as e:
         logger.warning(f"Failed to register WebSocket API: {e}")
 

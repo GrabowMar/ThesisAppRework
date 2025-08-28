@@ -1,23 +1,34 @@
 version: '3.8'
+
 services:
     backend:
-        build: ./backend
-        container_name: anthropic_claude_3_7_sonnet_app1_backend_6051
+        container_name: anthropic_claude_3_7_sonnet_app1_backend
+        build:
+            context: ./backend
+            dockerfile: Dockerfile
         ports:
-            - "6051:6051"
-        restart: always
+            - "6051:6051"  # external:internal
         environment:
-            - PYTHONUNBUFFERED=1 
+            - FLASK_ENV=production
+            - APP_PORT=6051
+        networks:
+            - app_net
 
     frontend:
-        build: ./frontend
-        container_name: anthropic_claude_3_7_sonnet_app1_frontend_9051
+        container_name: anthropic_claude_3_7_sonnet_app1_frontend
+        build:
+            context: ./frontend
+            dockerfile: Dockerfile
         ports:
             - "9051:9051"
         environment:
-            - PORT=9051
             - VITE_BACKEND_API_TARGET=http://backend:6051
-            - VITE_FRONTEND_PORT=9051
-        restart: always
+            - VITE_PORT=9051
         depends_on:
             - backend
+        networks:
+            - app_net
+
+networks:
+    app_net:
+        driver: bridge

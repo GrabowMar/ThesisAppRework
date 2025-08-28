@@ -1,0 +1,46 @@
+{# slug: pages/analysis/partials/dynamic_test_form (auto-migrated) #}
+{% set _ = models %}
+<form id="dynamicTestForm" hx-boost="false" hx-post="{{ url_for('analysis.start_dynamic_analysis') }}"
+      hx-target="#operation-status" hx-swap="outerHTML" hx-indicator="#global-spinner">
+  <div class="mb-3">
+    <label for="dynamic_model_select" class="form-label">Model</label>
+    <select class="form-select" id="dynamic_model_select" name="model_slug" required
+            hx-get="{{ url_for('analysis.get_model_apps') }}"
+            hx-target="#dynamic_app_select"
+            hx-trigger="change"
+            hx-include="#dynamic_model_select"
+            hx-params="*"
+            hx-on="htmx:config-request: event.detail.parameters.model_slug = this.value; event.detail.parameters.select_id = 'dynamic_app_select'">
+      <option value="" selected disabled>Choose a model…</option>
+      {% for m in models %}
+        <option value="{{ m.canonical_slug or m.slug or m.model_slug }}">{{ m.display_name or m.model_name or m.canonical_slug }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="mb-3">
+    <label for="dynamic_app_select" class="form-label">Application</label>
+    <select class="form-select" id="dynamic_app_select" name="app_number" required>
+      <option value="" selected disabled>Select a model first…</option>
+    </select>
+  </div>
+
+  <div class="mb-3">
+    <label for="dynamic_target_url" class="form-label">Target URL (optional)</label>
+    <input type="url" class="form-control" id="dynamic_target_url" name="target_url" placeholder="http://localhost:9051">
+    <div class="form-text">Leave blank to infer from known ports.</div>
+  </div>
+
+  <div class="mb-3">
+    <label for="dynamic_scan_type" class="form-label">Scan type</label>
+    <select class="form-select" id="dynamic_scan_type" name="scan_type">
+      <option value="baseline" selected>Baseline</option>
+      <option value="full">Full</option>
+    </select>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-primary"><i class="fas fa-bolt me-2"></i>Start dynamic scan</button>
+    <button type="reset" class="btn btn-outline-secondary">Reset</button>
+  </div>
+</form>

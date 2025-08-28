@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Import the service
 from app.services.celery_websocket_service import CeleryWebSocketService
@@ -76,7 +76,7 @@ def test_cancel_analysis(monkeypatch):
 
     # Add a fake active analysis
     svc.active_analyses['task-123'] = {
-        'id': 'task-123', 'status': 'started', 'created_at': datetime.utcnow().isoformat()
+        'id': 'task-123', 'status': 'started', 'created_at': datetime.now(timezone.utc).isoformat()
     }
 
     class DummyControl:

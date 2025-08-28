@@ -1,0 +1,262 @@
+{# slug: ui/elements/common/breadcrumb (auto-migrated) #}
+{# 
+Common Breadcrumb Component
+
+Purpose: Navigation breadcrumb trail for hierarchical navigation
+Usage: {{ breadcrumb(items=[{'label': 'Home', 'url': '/'}, {'label': 'Analysis', 'active': true}]) }}
+Routes: Used across all views for navigation context
+Features:
+- Hierarchical navigation trail
+- Active/inactive item states
+- Icon support for breadcrumb items
+- Schema.org microdata for SEO
+- ARIA accessibility support
+- Responsive design with overflow handling
+- Customizable separators and styling
+- HTMX integration for dynamic updates
+Technical: Bootstrap 5 breadcrumb, JSON-LD structured data, responsive truncation
+Dependencies: Bootstrap 5 breadcrumb classes, FontAwesome icons
+#}
+
+{# Set default values for optional parameters #}
+{%- set items = items or [] -%}
+{%- set separator = separator or None -%}
+{%- set show_icons = show_icons if show_icons is not none else true -%}
+{%- set show_home = show_home if show_home is not none else true -%}
+{%- set max_items = max_items or 4 -%}
+{%- set component_id = id or 'breadcrumb-' ~ range(1000, 9999) | random -%}
+{%- set schema_markup = schema_markup if schema_markup is not none else true -%}
+{%- set htmx_target = htmx_target or None -%}
+
+{# Generate default home item if not present and show_home is true #}
+{%- set final_items = [] -%}
+{%- if show_home and (not items or items[0].url != '/') -%}
+    {%- set home_item = {'label': 'Home', 'url': '/', 'icon': 'fas fa-home'} -%}
+    {%- set final_items = [home_item] + items -%}
+{%- else -%}
+    {%- set final_items = items -%}
+{%- endif -%}
+
+{# Handle breadcrumb truncation for long paths #}
+{%- set display_items = final_items -%}
+{%- if final_items|length > max_items -%}
+    {%- set first_item = final_items[0] -%}
+    {%- set last_items = final_items[-(max_items-2):] -%}
+    {%- set ellipsis_item = {'label': '...', 'ellipsis': true} -%}
+    {%- set display_items = [first_item, ellipsis_item] + last_items -%}
+{%- endif -%}
+
+<nav aria-label="Breadcrumb navigation" class="breadcrumb-nav" id="{{ component_id }}">
+    {# Schema.org structured data for SEO #}
+    {% if schema_markup and final_items %}
+        <script type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                {% for item in final_items %}
+                    {% if not item.ellipsis %}
+                        {
+                            "@type": "ListItem",
+                            "position": {{ loop.index }},
+                            "name": "{{ item.label }}",
+                            {% if item.url and not item.active %}
+                                "item": "{{ url_for(item.url) if item.url.startswith('.') else item.url }}"
+                            {% endif %}
+                        }{% if not loop.last %},{% endif %}
+                    {% endif %}
+                {% endfor %}
+            ]
+        }
+        </script>
+    {% endif %}
+    
+    {# Bootstrap breadcrumb #}
+    {% if display_items %}
+        <ol class="breadcrumb mb-0" {% if separator %}data-separator="{{ separator }}"{% endif %}>
+            {% for item in display_items %}
+                <li class="breadcrumb-item {{ 'active' if item.active else '' }} {{ 'ellipsis' if item.ellipsis else '' }}"
+                    {% if item.active %}aria-current="page"{% endif %}
+                    {% if item.ellipsis %}title="More items in path"{% endif %}>
+                    
+                    {# Handle ellipsis item #}
+                    {% if item.ellipsis %}
+                        <span class="breadcrumb-ellipsis" aria-label="More items">
+                            <i class="fas fa-ellipsis-h"></i>
+                        </span>
+                    
+                    {# Handle active (current) item #}
+                    {% elif item.active %}
+                        <span class="breadcrumb-text">
+                            {% if show_icons and item.icon %}
+                                <i class="{{ item.icon }} me-1" aria-hidden="true"></i>
+                            {% endif %}
+                            {{ item.label }}
+                        </span>
+                    
+                    {# Handle linked items #}
+                    {% elif item.url %}
+                        {% if htmx_target %}
+                            <a href="{{ url_for(item.url) if item.url.startswith('.') else item.url }}" 
+                               class="breadcrumb-link"
+                               hx-get="{{ url_for(item.url) if item.url.startswith('.') else item.url }}"
+                               hx-target="{{ htmx_target }}"
+                               hx-push-url="true"
+                               title="Navigate to {{ item.label }}"
+                               aria-label="Navigate to {{ item.label }}">
+                                {% if show_icons and item.icon %}
+                                    <i class="{{ item.icon }} me-1" aria-hidden="true"></i>
+                                {% endif %}
+                                {{ item.label }}
+                            </a>
+                        {% else %}
+                            <a href="{{ url_for(item.url) if item.url.startswith('.') else item.url }}" 
+                               class="breadcrumb-link"
+                               title="Navigate to {{ item.label }}"
+                               aria-label="Navigate to {{ item.label }}">
+                                {% if show_icons and item.icon %}
+                                    <i class="{{ item.icon }} me-1" aria-hidden="true"></i>
+                                {% endif %}
+                                {{ item.label }}
+                            </a>
+                        {% endif %}
+                    
+                    {# Handle plain text items #}
+                    {% else %}
+                        <span class="breadcrumb-text">
+                            {% if show_icons and item.icon %}
+                                <i class="{{ item.icon }} me-1" aria-hidden="true"></i>
+                            {% endif %}
+                            {{ item.label }}
+                        </span>
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ol>
+    {% endif %}
+</nav>
+
+{# JavaScript for breadcrumb functionality #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const breadcrumb = document.getElementById('{{ component_id }}');
+    if (!breadcrumb) return;
+    
+    // Handle responsive breadcrumb on window resize
+    function handleResponsiveBreadcrumb() {
+        const breadcrumbList = breadcrumb.querySelector('.breadcrumb');
+        if (!breadcrumbList) return;
+        
+        const containerWidth = breadcrumbList.offsetWidth;
+        const items = breadcrumbList.querySelectorAll('.breadcrumb-item');
+        
+        // Simple responsive logic - hide middle items on small screens
+        if (window.innerWidth < 768 && items.length > 3) {
+            items.forEach((item, index) => {
+                // Keep first, last, and active items visible
+                const isFirst = index === 0;
+                const isLast = index === items.length - 1;
+                const isActive = item.classList.contains('active');
+                const isEllipsis = item.classList.contains('ellipsis');
+                
+                if (!isFirst && !isLast && !isActive && !isEllipsis) {
+                    item.style.display = 'none';
+                }
+            });
+            
+            // Show ellipsis if we have hidden items
+            const ellipsisItem = breadcrumbList.querySelector('.ellipsis');
+            if (ellipsisItem) {
+                ellipsisItem.style.display = 'flex';
+            }
+        } else {
+            // Show all items on larger screens
+            items.forEach(item => {
+                if (!item.classList.contains('ellipsis')) {
+                    item.style.display = 'flex';
+                }
+            });
+        }
+    }
+    
+    // Handle window resize
+    window.addEventListener('resize', debounce(handleResponsiveBreadcrumb, 150));
+    
+    // Initial responsive check
+    handleResponsiveBreadcrumb();
+    
+    // Handle HTMX loading states
+    document.addEventListener('htmx:beforeRequest', function(event) {
+        if (breadcrumb.contains(event.target)) {
+            breadcrumb.style.opacity = '0.7';
+        }
+    });
+    
+    document.addEventListener('htmx:afterRequest', function(event) {
+        if (breadcrumb.contains(event.target)) {
+            breadcrumb.style.opacity = '1';
+        }
+    });
+    
+    // Handle keyboard navigation
+    breadcrumb.addEventListener('keydown', function(e) {
+        const links = breadcrumb.querySelectorAll('.breadcrumb-link');
+        const currentIndex = Array.from(links).indexOf(document.activeElement);
+        
+        switch(e.key) {
+            case 'ArrowLeft':
+                e.preventDefault();
+                if (currentIndex > 0) {
+                    links[currentIndex - 1].focus();
+                }
+                break;
+            case 'ArrowRight':
+                e.preventDefault();
+                if (currentIndex < links.length - 1) {
+                    links[currentIndex + 1].focus();
+                }
+                break;
+            case 'Home':
+                e.preventDefault();
+                if (links.length > 0) {
+                    links[0].focus();
+                }
+                break;
+            case 'End':
+                e.preventDefault();
+                if (links.length > 0) {
+                    links[links.length - 1].focus();
+                }
+                break;
+        }
+    });
+    
+    // Utility function for debouncing
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+    
+    // Add click analytics if available
+    breadcrumb.addEventListener('click', function(e) {
+        const link = e.target.closest('.breadcrumb-link');
+        if (link && window.analytics && typeof window.analytics.track === 'function') {
+            window.analytics.track('Breadcrumb Navigation', {
+                'destination': link.textContent.trim(),
+                'url': link.href,
+                'position': Array.from(breadcrumb.querySelectorAll('.breadcrumb-link')).indexOf(link) + 1
+            });
+        }
+    });
+});
+</script>
+
+{# CSS for breadcrumb styling #}
+

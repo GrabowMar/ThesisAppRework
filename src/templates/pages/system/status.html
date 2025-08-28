@@ -1,0 +1,744 @@
+{# slug: pages/system/status (auto-migrated) #}
+{#
+  System Status View
+  
+  Purpose: Comprehensive system health monitoring and status overview
+  Features:
+  - Real-time system metrics (CPU, memory, disk, network)
+  - Service status monitoring
+  - Container health checks
+  - Alert management
+  - Performance graphs
+  
+  Routes:
+  - GET /system/status
+  - GET /system/
+  
+  Technical Details:
+  - Extends dashboard.html for real-time monitoring
+  - WebSocket integration for live updates
+  - System metrics visualization
+  - Alert management interface
+  
+  Components Used:
+  - components/dashboard/system-health.html
+  - components/dashboard/service-status.html
+  - components/common/alert.html
+  
+  HTMX Endpoints:
+  - /api/system/metrics (system metrics)
+  - /api/system/services (service status)
+  - /api/system/alerts (alert management)
+#}
+
+{% extends 'layouts/dashboard.html' %}
+
+{% block title %}System Status - {{ super() }}{% endblock %}
+
+{% block extra_head %}
+{{ super() }}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.css">
+
+{% endblock %}
+
+{% block breadcrumbs %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/">Dashboard</a></li>
+        <li class="breadcrumb-item active" aria-current="page">System Status</li>
+    </ol>
+</nav>
+{% endblock %}
+
+{% block dashboard_title %}System Status{% endblock %}
+
+{% block quick_actions %}
+<div class="btn-group">
+    <button type="button" class="btn btn-outline-primary btn-sm" id="refresh-all"
+            hx-get="/api/system/refresh-all" 
+            hx-target="#system-content"
+            hx-indicator="#refresh-spinner">
+        <i class="fas fa-sync-alt me-1"></i>Refresh All
+    </button>
+    <button type="button" class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+        <i class="fas fa-cog me-1"></i>Settings
+    </button>
+    <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="/system/settings"><i class="fas fa-sliders-h me-2"></i>System Settings</a></li>
+        <li><a class="dropdown-item" href="/system/logs"><i class="fas fa-file-alt me-2"></i>View Logs</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#alert-config-modal">
+            <i class="fas fa-bell me-2"></i>Alert Settings</a></li>
+    </ul>
+</div>
+<div class="refresh-indicator" id="refresh-spinner">
+    <div class="spinner-border spinner-border-sm text-primary" role="status">
+        <span class="visually-hidden">Refreshing...</span>
+    </div>
+</div>
+{% endblock %}
+
+{% block dashboard_stats %}
+<div class="col-xl-3 col-lg-6 mb-4">
+    <div class="card metric-card healthy">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0">
+                    <svg class="progress-ring" viewBox="0 0 60 60">
+                        <circle cx="30" cy="30" r="25" stroke="#e9ecef" stroke-width="4" fill="transparent"/>
+                        <circle class="progress-ring-circle" cx="30" cy="30" r="25" 
+                                stroke="var(--bs-success)" stroke-width="4" fill="transparent"
+                                stroke-dasharray="{{ (system_metrics.cpu_usage / 100 * 157)|round(2) }}, 157"/>
+                    </svg>
+                    <div class="position-absolute u-3a0e69">
+                        <small class="fw-bold">{{ system_metrics.cpu_usage|default(0)|round(1) }}%</small>
+                    </div>
+                </div>
+                <div class="flex-grow-1 ms-3">
+                    <h6 class="mb-1">CPU Usage</h6>
+                    <p class="mb-0 small text-muted">{{ system_metrics.cpu_cores|default(0) }} cores</p>
+                    <div class="small">
+                        <span class="text-{{ 'success' if system_metrics.cpu_usage < 70 else 'warning' if system_metrics.cpu_usage < 90 else 'danger' }}">
+                            {{ 'Normal' if system_metrics.cpu_usage < 70 else 'High' if system_metrics.cpu_usage < 90 else 'Critical' }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-xl-3 col-lg-6 mb-4">
+    <div class="card metric-card {{ 'healthy' if system_metrics.memory_usage < 70 else 'warning' if system_metrics.memory_usage < 90 else 'critical' }}">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0">
+                    <svg class="progress-ring" viewBox="0 0 60 60">
+                        <circle cx="30" cy="30" r="25" stroke="#e9ecef" stroke-width="4" fill="transparent"/>
+                        <circle class="progress-ring-circle" cx="30" cy="30" r="25" 
+                                stroke="var(--bs-info)" stroke-width="4" fill="transparent"
+                                stroke-dasharray="{{ (system_metrics.memory_usage / 100 * 157)|round(2) }}, 157"/>
+                    </svg>
+                    <div class="position-absolute u-3a0e69">
+                        <small class="fw-bold">{{ system_metrics.memory_usage|default(0)|round(1) }}%</small>
+                    </div>
+                </div>
+                <div class="flex-grow-1 ms-3">
+                    <h6 class="mb-1">Memory Usage</h6>
+                    <p class="mb-0 small text-muted">{{ system_metrics.memory_total|default('0 GB') }}</p>
+                    <div class="small">
+                        <span class="text-{{ 'success' if system_metrics.memory_usage < 70 else 'warning' if system_metrics.memory_usage < 90 else 'danger' }}">
+                            {{ system_metrics.memory_used|default('0 GB') }} used
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-xl-3 col-lg-6 mb-4">
+    <div class="card metric-card {{ 'healthy' if system_metrics.disk_usage < 80 else 'warning' if system_metrics.disk_usage < 95 else 'critical' }}">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0">
+                    <svg class="progress-ring" viewBox="0 0 60 60">
+                        <circle cx="30" cy="30" r="25" stroke="#e9ecef" stroke-width="4" fill="transparent"/>
+                        <circle class="progress-ring-circle" cx="30" cy="30" r="25" 
+                                stroke="var(--bs-warning)" stroke-width="4" fill="transparent"
+                                stroke-dasharray="{{ (system_metrics.disk_usage / 100 * 157)|round(2) }}, 157"/>
+                    </svg>
+                    <div class="position-absolute u-3a0e69">
+                        <small class="fw-bold">{{ system_metrics.disk_usage|default(0)|round(1) }}%</small>
+                    </div>
+                </div>
+                <div class="flex-grow-1 ms-3">
+                    <h6 class="mb-1">Disk Usage</h6>
+                    <p class="mb-0 small text-muted">{{ system_metrics.disk_total|default('0 GB') }}</p>
+                    <div class="small">
+                        <span class="text-{{ 'success' if system_metrics.disk_usage < 80 else 'warning' if system_metrics.disk_usage < 95 else 'danger' }}">
+                            {{ system_metrics.disk_free|default('0 GB') }} free
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-xl-3 col-lg-6 mb-4">
+    <div class="card metric-card healthy">
+        <div class="card-body">
+            <div class="d-flex align-items-center">
+                <div class="flex-shrink-0">
+                    <i class="fas fa-network-wired fa-2x text-primary"></i>
+                </div>
+                <div class="flex-grow-1 ms-3">
+                    <h6 class="mb-1">Network</h6>
+                    <p class="mb-0 small text-muted">
+                        <i class="fas fa-arrow-up text-success me-1"></i>{{ system_metrics.network_up|default('0 MB/s') }}
+                        <i class="fas fa-arrow-down text-info me-1 ms-2"></i>{{ system_metrics.network_down|default('0 MB/s') }}
+                    </p>
+                    <div class="small">
+                        <span class="text-success">Connected</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block primary_content %}
+<div class="col-lg-8 mb-4">
+    {# System Performance Charts #}
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-chart-area me-2"></i>System Performance (Last Hour)
+            </h5>
+            <div class="btn-group btn-group-sm">
+                <input type="radio" class="btn-check" name="timeframe" id="time-1h" value="1h" checked>
+                <label class="btn btn-outline-primary" for="time-1h">1H</label>
+                
+                <input type="radio" class="btn-check" name="timeframe" id="time-6h" value="6h">
+                <label class="btn btn-outline-primary" for="time-6h">6H</label>
+                
+                <input type="radio" class="btn-check" name="timeframe" id="time-24h" value="24h">
+                <label class="btn btn-outline-primary" for="time-24h">24H</label>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="chart-container-sm">
+                <canvas id="performance-chart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-lg-4 mb-4">
+    {# Active Alerts #}
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-exclamation-triangle me-2"></i>Active Alerts
+            </h5>
+            <span class="badge bg-danger" id="alert-count">{{ active_alerts|length|default(0) }}</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="list-group list-group-flush" id="alerts-list"
+                 hx-get="/api/system/alerts"
+                 hx-trigger="load, every 30s"
+                 hx-target="#alerts-list"
+                 hx-swap="innerHTML">
+                {% if active_alerts %}
+                    {% for alert in active_alerts %}
+                    <div class="alert-item alert-{{ alert.severity }}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">{{ alert.title }}</h6>
+                                <p class="mb-1 small">{{ alert.message }}</p>
+                                <small class="text-muted">
+                                    <i class="fas fa-clock me-1"></i>{{ alert.timestamp }}
+                                </small>
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary" 
+                                    onclick="acknowledgeAlert('{{ alert.id }}')">
+                                <i class="fas fa-check"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-3">
+                        <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                        <p class="mb-0 text-muted">No active alerts</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="col-12 mb-4">
+    {# Services Status #}
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-server me-2"></i>Services Status
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row" id="services-status"
+                 hx-get="/api/system/services"
+                 hx-trigger="load, every 15s"
+                 hx-target="#services-status"
+                 hx-swap="innerHTML">
+                
+                {# Flask Application #}
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="service-card service-online p-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="d-flex align-items-center mb-1">
+                                    <span class="status-indicator status-online"></span>
+                                    <h6 class="mb-0">Flask App</h6>
+                                </div>
+                                <small class="text-muted">Web Application</small>
+                            </div>
+                            <div class="text-end">
+                                <div class="uptime-badge badge bg-success">Online</div>
+                                <div class="small text-muted mt-1">{{ services_status.flask.uptime|default('0d 0h') }}</div>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-memory me-1"></i>{{ services_status.flask.memory|default('0 MB') }}
+                                <i class="fas fa-microchip me-1 ms-2"></i>{{ services_status.flask.cpu|default('0%') }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
+                {# Celery Worker #}
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="service-card service-{{ 'online' if services_status.celery.status == 'running' else 'offline' }} p-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="d-flex align-items-center mb-1">
+                                    <span class="status-indicator status-{{ 'online' if services_status.celery.status == 'running' else 'offline' }}"></span>
+                                    <h6 class="mb-0">Celery Worker</h6>
+                                </div>
+                                <small class="text-muted">Task Queue</small>
+                            </div>
+                            <div class="text-end">
+                                <div class="uptime-badge badge bg-{{ 'success' if services_status.celery.status == 'running' else 'danger' }}">
+                                    {{ services_status.celery.status|default('Unknown')|title }}
+                                </div>
+                                <div class="small text-muted mt-1">{{ services_status.celery.uptime|default('0d 0h') }}</div>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-tasks me-1"></i>{{ services_status.celery.active_tasks|default(0) }} active
+                                <i class="fas fa-clock me-1 ms-2"></i>{{ services_status.celery.pending_tasks|default(0) }} pending
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
+                {# Redis #}
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="service-card service-{{ 'online' if services_status.redis.status == 'running' else 'offline' }} p-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="d-flex align-items-center mb-1">
+                                    <span class="status-indicator status-{{ 'online' if services_status.redis.status == 'running' else 'offline' }}"></span>
+                                    <h6 class="mb-0">Redis</h6>
+                                </div>
+                                <small class="text-muted">Message Broker</small>
+                            </div>
+                            <div class="text-end">
+                                <div class="uptime-badge badge bg-{{ 'success' if services_status.redis.status == 'running' else 'danger' }}">
+                                    {{ services_status.redis.status|default('Unknown')|title }}
+                                </div>
+                                <div class="small text-muted mt-1">{{ services_status.redis.uptime|default('0d 0h') }}</div>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-memory me-1"></i>{{ services_status.redis.memory|default('0 MB') }}
+                                <i class="fas fa-database me-1 ms-2"></i>{{ services_status.redis.keys|default(0) }} keys
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
+                {# Database #}
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="service-card service-{{ 'online' if services_status.database.status == 'running' else 'offline' }} p-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="d-flex align-items-center mb-1">
+                                    <span class="status-indicator status-{{ 'online' if services_status.database.status == 'running' else 'offline' }}"></span>
+                                    <h6 class="mb-0">Database</h6>
+                                </div>
+                                <small class="text-muted">PostgreSQL</small>
+                            </div>
+                            <div class="text-end">
+                                <div class="uptime-badge badge bg-{{ 'success' if services_status.database.status == 'running' else 'danger' }}">
+                                    {{ services_status.database.status|default('Unknown')|title }}
+                                </div>
+                                <div class="small text-muted mt-1">{{ services_status.database.uptime|default('0d 0h') }}</div>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-table me-1"></i>{{ services_status.database.tables|default(0) }} tables
+                                <i class="fas fa-hdd me-1 ms-2"></i>{{ services_status.database.size|default('0 MB') }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
+                {# Docker #}
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="service-card service-{{ 'online' if services_status.docker.status == 'running' else 'offline' }} p-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="d-flex align-items-center mb-1">
+                                    <span class="status-indicator status-{{ 'online' if services_status.docker.status == 'running' else 'offline' }}"></span>
+                                    <h6 class="mb-0">Docker</h6>
+                                </div>
+                                <small class="text-muted">Container Runtime</small>
+                            </div>
+                            <div class="text-end">
+                                <div class="uptime-badge badge bg-{{ 'success' if services_status.docker.status == 'running' else 'danger' }}">
+                                    {{ services_status.docker.status|default('Unknown')|title }}
+                                </div>
+                                <div class="small text-muted mt-1">{{ services_status.docker.version|default('N/A') }}</div>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-cube me-1"></i>{{ services_status.docker.containers|default(0) }} containers
+                                <i class="fas fa-image me-1 ms-2"></i>{{ services_status.docker.images|default(0) }} images
+                            </small>
+                        </div>
+                    </div>
+                </div>
+                
+                {# Analyzer Services #}
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="service-card service-{{ 'online' if services_status.analyzers.running > 0 else 'offline' }} p-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="d-flex align-items-center mb-1">
+                                    <span class="status-indicator status-{{ 'online' if services_status.analyzers.running > 0 else 'offline' }}"></span>
+                                    <h6 class="mb-0">Analyzers</h6>
+                                </div>
+                                <small class="text-muted">Analysis Services</small>
+                            </div>
+                            <div class="text-end">
+                                <div class="uptime-badge badge bg-{{ 'success' if services_status.analyzers.running > 0 else 'secondary' }}">
+                                    {{ services_status.analyzers.running|default(0) }}/{{ services_status.analyzers.total|default(0) }}
+                                </div>
+                                <div class="small text-muted mt-1">Active Services</div>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-shield-alt me-1"></i>Security: {{ 'Online' if services_status.analyzers.security else 'Offline' }}
+                                <i class="fas fa-tachometer-alt me-1 ms-2"></i>Perf: {{ 'Online' if services_status.analyzers.performance else 'Offline' }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block secondary_content %}
+<div class="col-12">
+    {# System Information #}
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-info-circle me-2"></i>System Information
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <table class="table table-borderless table-sm">
+                        <tr>
+                            <td class="text-muted">Operating System:</td>
+                            <td>{{ system_info.os|default('Unknown') }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Architecture:</td>
+                            <td>{{ system_info.architecture|default('Unknown') }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Python Version:</td>
+                            <td>{{ system_info.python_version|default('Unknown') }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Application Version:</td>
+                            <td>{{ system_info.app_version|default('1.0.0') }}</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <table class="table table-borderless table-sm">
+                        <tr>
+                            <td class="text-muted">System Uptime:</td>
+                            <td>{{ system_info.uptime|default('Unknown') }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Load Average:</td>
+                            <td>{{ system_info.load_avg|default('0.00, 0.00, 0.00') }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Total Processes:</td>
+                            <td>{{ system_info.processes|default(0) }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Last Boot:</td>
+                            <td>{{ system_info.boot_time|default('Unknown') }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+<script>
+    // System Status JavaScript
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        // Initialize performance chart
+        const perfCtx = document.getElementById('performance-chart');
+        let performanceChart = null;
+        
+        if (perfCtx) {
+            performanceChart = new Chart(perfCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'CPU %',
+                        data: [],
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y'
+                    }, {
+                        label: 'Memory %',
+                        data: [],
+                        borderColor: 'rgb(54, 162, 235)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        yAxisID: 'y'
+                    }, {
+                        label: 'Network MB/s',
+                        data: [],
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.4,
+                        fill: false,
+                        yAxisID: 'y1'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'minute'
+                            }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
+                            }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            beginAtZero: true,
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value + ' MB/s';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Load performance data
+        function loadPerformanceData() {
+            const timeframe = document.querySelector('input[name="timeframe"]:checked').value;
+            
+            fetch(`/api/system/performance-data?timeframe=${timeframe}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (performanceChart) {
+                        performanceChart.data.labels = data.labels;
+                        performanceChart.data.datasets[0].data = data.cpu;
+                        performanceChart.data.datasets[1].data = data.memory;
+                        performanceChart.data.datasets[2].data = data.network;
+                        performanceChart.update('none');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading performance data:', error);
+                });
+        }
+        
+        // Handle timeframe changes
+        document.addEventListener('change', function(e) {
+            if (e.target.name === 'timeframe') {
+                loadPerformanceData();
+            }
+        });
+        
+        // Initial data load
+        loadPerformanceData();
+        
+        // Auto-refresh performance data every 30 seconds
+        setInterval(loadPerformanceData, 30000);
+        
+        // Auto-refresh system metrics every 10 seconds
+        setInterval(function() {
+            htmx.ajax('GET', '/api/system/metrics-update', '#dashboard-stats');
+        }, 10000);
+        
+        // Handle refresh all button
+        document.getElementById('refresh-all').addEventListener('click', function() {
+            const spinner = document.getElementById('refresh-spinner');
+            spinner.classList.add('active');
+            
+            setTimeout(() => {
+                spinner.classList.remove('active');
+            }, 2000);
+        });
+        
+        // Global function for acknowledging alerts
+        window.acknowledgeAlert = function(alertId) {
+            fetch(`/api/system/alerts/${alertId}/acknowledge`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Remove the alert from the list
+                        htmx.ajax('GET', '/api/system/alerts', '#alerts-list');
+                        
+                        // Update alert count
+                        const countElement = document.getElementById('alert-count');
+                        const currentCount = parseInt(countElement.textContent);
+                        countElement.textContent = Math.max(0, currentCount - 1);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error acknowledging alert:', error);
+                });
+        };
+        
+        // WebSocket connection for real-time updates (if available)
+        if (window.WebSocket) {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws/system-status`;
+            
+            try {
+                const ws = new WebSocket(wsUrl);
+                
+                ws.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.type === 'system_metrics') {
+                        updateSystemMetrics(data.metrics);
+                    } else if (data.type === 'alert') {
+                        handleNewAlert(data.alert);
+                    } else if (data.type === 'service_status') {
+                        updateServiceStatus(data.services);
+                    }
+                };
+                
+                ws.onclose = function() {
+                    console.log('WebSocket connection closed');
+                    // Fallback to polling if WebSocket fails
+                };
+                
+                ws.onerror = function(error) {
+                    console.error('WebSocket error:', error);
+                };
+            } catch (error) {
+                console.error('Failed to establish WebSocket connection:', error);
+            }
+        }
+        
+        function updateSystemMetrics(metrics) {
+            // Update progress rings
+            const cpuRing = document.querySelector('.progress-ring-circle');
+            if (cpuRing) {
+                const circumference = 2 * Math.PI * 25;
+                const progress = (metrics.cpu / 100) * circumference;
+                cpuRing.style.strokeDasharray = `${progress}, ${circumference}`;
+            }
+            
+            // Update metric values
+            Object.keys(metrics).forEach(key => {
+                const element = document.querySelector(`[data-metric="${key}"]`);
+                if (element) {
+                    element.textContent = metrics[key];
+                }
+            });
+        }
+        
+        function handleNewAlert(alert) {
+            // Add new alert to the list
+            htmx.ajax('GET', '/api/system/alerts', '#alerts-list');
+            
+            // Update alert count
+            const countElement = document.getElementById('alert-count');
+            const currentCount = parseInt(countElement.textContent);
+            countElement.textContent = currentCount + 1;
+            
+            // Show browser notification if permitted
+            if (Notification.permission === 'granted') {
+                new Notification(`System Alert: ${alert.title}`, {
+                    body: alert.message,
+                    icon: '/static/favicon.ico'
+                });
+            }
+        }
+        
+        function updateServiceStatus(services) {
+            // Update service status cards
+            htmx.ajax('GET', '/api/system/services', '#services-status');
+        }
+        
+        // Request notification permission
+        if (Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+        
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
+{% endblock %}

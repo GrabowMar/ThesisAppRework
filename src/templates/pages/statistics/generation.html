@@ -1,0 +1,139 @@
+<div class="container-fluid py-3" id="generation-stats-page">
+  <div class="d-flex align-items-center mb-3">
+    <h1 class="h3 mb-0"><i class="fas fa-chart-bar me-2"></i>Generation Statistics</h1>
+    <a href="{{ url_for('statistics.statistics_analysis') }}" class="btn btn-outline-secondary btn-sm ms-3"><i class="fas fa-chart-line me-1"></i>Analysis Stats</a>
+    <a href="{{ url_for('statistics.statistics_overview') }}" class="btn btn-outline-info btn-sm ms-2"><i class="fas fa-layer-group me-1"></i>Unified</a>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body py-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="fw-semibold small text-uppercase text-muted">Models</div>
+              <div class="h4 mb-0">{{ stats.total_models }}</div>
+            </div>
+            <i class="fas fa-brain text-primary fa-lg"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body py-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="fw-semibold small text-uppercase text-muted">Applications</div>
+              <div class="h4 mb-0">{{ stats.total_applications }}</div>
+            </div>
+            <i class="fas fa-boxes text-info fa-lg"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body py-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="fw-semibold small text-uppercase text-muted">Success Rate</div>
+              <div class="h4 mb-0">{{ '%.1f' % stats.success_rate }}%</div>
+            </div>
+            <i class="fas fa-check-circle text-success fa-lg"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card shadow-sm h-100">
+        <div class="card-body py-3">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="fw-semibold small text-uppercase text-muted">Avg Apps/Model</div>
+              <div class="h4 mb-0">{{ '%.2f' % stats.avg_apps_per_model }}</div>
+            </div>
+            <i class="fas fa-divide text-warning fa-lg"></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mt-1">
+    <div class="col-lg-8">
+      <div class="card shadow-sm h-100">
+        <div class="card-header py-2 bg-light d-flex align-items-center">
+          <strong class="small text-uppercase">Model Capability Breakdown</strong>
+        </div>
+        <div class="card-body small">
+          <div class="row">
+            <div class="col-md-6">
+              <ul class="list-unstyled mb-0">
+                <li class="mb-1"><span class="text-muted">Function Calling:</span> {{ capability_stats.function_calling }} ({{ capability_stats.function_calling_percentage }}%)</li>
+                <li class="mb-1"><span class="text-muted">Vision:</span> {{ capability_stats.vision }} ({{ capability_stats.vision_percentage }}%)</li>
+                <li class="mb-1"><span class="text-muted">Streaming:</span> {{ capability_stats.streaming }} ({{ capability_stats.streaming_percentage }}%)</li>
+                <li class="mb-1"><span class="text-muted">JSON Mode:</span> {{ capability_stats.json_mode }} ({{ capability_stats.json_mode_percentage }}%)</li>
+              </ul>
+            </div>
+            <div class="col-md-6">
+              <ul class="list-unstyled mb-0">
+                <li class="mb-1"><span class="text-muted">Free Models:</span> {{ model_stats.free_models }}</li>
+                <li class="mb-1"><span class="text-muted">Avg Context:</span> {{ model_stats.avg_context_window }}</li>
+                <li class="mb-1"><span class="text-muted">Max Context:</span> {{ model_stats.max_context_window }}</li>
+                <li class="mb-1"><span class="text-muted">Providers:</span> {{ stats.total_providers }}</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card shadow-sm h-100">
+        <div class="card-header py-2 bg-light d-flex align-items-center">
+          <strong class="small text-uppercase">Cost Overview</strong>
+        </div>
+        <div class="card-body small">
+          <ul class="list-unstyled mb-0">
+            <li class="mb-1"><span class="text-muted">Free:</span> {{ cost_analysis.free_models }}</li>
+            <li class="mb-1"><span class="text-muted">Low Cost:</span> {{ cost_analysis.low_cost_models }}</li>
+            <li class="mb-1"><span class="text-muted">Medium:</span> {{ cost_analysis.medium_cost_models }}</li>
+            <li class="mb-1"><span class="text-muted">High:</span> {{ cost_analysis.high_cost_models }}</li>
+            <li class="mb-1"><span class="text-muted">Avg Input:</span> {{ '%.4f' % cost_analysis.avg_input_cost }}</li>
+            <li class="mb-1"><span class="text-muted">Avg Output:</span> {{ '%.4f' % cost_analysis.avg_output_cost }}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mt-3">
+    <div class="card-header py-2 bg-light d-flex align-items-center">
+      <strong class="small text-uppercase">Framework Distribution</strong>
+    </div>
+    <div class="card-body small">
+      {% if framework_stats.backend_frameworks or framework_stats.frontend_frameworks %}
+      <div class="row">
+        <div class="col-md-6">
+          <h6 class="text-muted text-uppercase small">Backend</h6>
+          <ul class="list-unstyled">
+            {% for fw, count in framework_stats.backend_frameworks.items() %}
+              <li class="mb-1"><span class="text-muted">{{ fw }}:</span> {{ count }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        <div class="col-md-6">
+          <h6 class="text-muted text-uppercase small">Frontend</h6>
+          <ul class="list-unstyled">
+            {% for fw, count in framework_stats.frontend_frameworks.items() %}
+              <li class="mb-1"><span class="text-muted">{{ fw }}:</span> {{ count }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+      {% else %}
+        <div class="text-muted">No framework data available.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>

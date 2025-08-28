@@ -27,8 +27,24 @@ from typing import Dict, List, Any, Optional
 import websockets
 from websockets.asyncio.server import serve
 
-logging.basicConfig(level=logging.INFO)
+level_str = os.getenv('LOG_LEVEL', 'INFO').upper()
+level = getattr(logging, level_str, logging.INFO)
+logging.basicConfig(level=level)
 logger = logging.getLogger(__name__)
+logger.setLevel(level)
+
+# Tame noisy handshake errors from stray TCP connects that close immediately.
+# These show up as "opening handshake failed" in websockets.server/http11 when
+# a client connects and disconnects without sending any HTTP request line.
+# Raise log threshold to CRITICAL to avoid polluting container logs.
+try:
+    # Suppress noisy connection open/close logs from websockets internals
+    logging.getLogger("websockets.server").setLevel(logging.CRITICAL)
+    logging.getLogger("websockets.http").setLevel(logging.CRITICAL)
+    logging.getLogger("websockets.http11").setLevel(logging.CRITICAL)
+except Exception:
+    pass
+
 
 class StaticAnalyzer:
     """Comprehensive static analyzer for multiple languages."""
@@ -38,6 +54,12 @@ class StaticAnalyzer:
         self.version = "1.0.0"
         self.start_time = datetime.now()
         self.available_tools = self._check_available_tools()
+        # Default ignore patterns for heavy/noisy directories
+        self.default_ignores = [
+            'node_modules', 'dist', 'build', '.next', '.nuxt', '.cache',
+            '.venv', 'venv', '__pycache__', '.git', '.tox', '.mypy_cache',
+            'coverage', 'site-packages'
+        ]
     
     def _check_available_tools(self) -> List[str]:
         """Check which static analysis tools are available."""
@@ -50,9 +72,9 @@ class StaticAnalyzer:
                                       capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
                     tools.append(tool)
-                    logger.info(f"✅ {tool} available")
+                    logger.debug(f"{tool} available")
             except Exception as e:
-                logger.warning(f"❌ {tool} not available: {e}")
+                logger.debug(f"{tool} not available: {e}")
         
         # JavaScript tools
         for tool in ['eslint']:
@@ -61,9 +83,9 @@ class StaticAnalyzer:
                                       capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
                     tools.append(tool)
-                    logger.info(f"✅ {tool} available")
+                    logger.debug(f"{tool} available")
             except Exception as e:
-                logger.warning(f"❌ {tool} not available: {e}")
+                logger.debug(f"{tool} not available: {e}")
         
         # CSS tools
         for tool in ['stylelint']:
@@ -72,9 +94,9 @@ class StaticAnalyzer:
                                       capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
                     tools.append(tool)
-                    logger.info(f"✅ {tool} available")
+                    logger.debug(f"{tool} available")
             except Exception as e:
-                logger.warning(f"❌ {tool} not available: {e}")
+                logger.debug(f"{tool} not available: {e}")
         
         return tools
     
@@ -120,7 +142,15 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
     
     async def analyze_python_files(self, source_path: Path, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Run Python static analysis tools with custom configuration."""
-        python_files = list(source_path.rglob('*.py'))
+        # Avoid traversing huge directories
+        def _iter_py_files(base: Path):
+            for p in base.rglob('*.py'):
+                # Skip if any ignore directory is in its parents
+                if any(part in self.default_ignores for part in p.parts):
+                    continue
+                yield p
+
+        python_files = list(_iter_py_files(source_path))
         if not python_files:
             return {'status': 'no_files', 'message': 'No Python files found'}
         
@@ -133,7 +163,10 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         # Bandit security analysis
         if 'bandit' in self.available_tools and bandit_config.get('enabled', True):
             try:
-                cmd = ['bandit', '-r', str(source_path)]
+                # Build exclude list
+                exclude_dirs = bandit_config.get('exclude_dirs') or self.default_ignores
+                exclude_arg = ','.join(str(source_path / d) for d in exclude_dirs)
+                cmd = ['bandit', '-r', str(source_path), '-x', exclude_arg]
                 
                 # Apply configuration
                 if bandit_config.get('format'):
@@ -284,7 +317,10 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         """Run JavaScript/TypeScript static analysis with custom configuration."""
         js_files = []
         for pattern in ['*.js', '*.jsx', '*.ts', '*.tsx', '*.vue']:
-            js_files.extend(list(source_path.rglob(pattern)))
+            for p in source_path.rglob(pattern):
+                if any(part in self.default_ignores for part in p.parts):
+                    continue
+                js_files.append(p)
         
         if not js_files:
             return {'status': 'no_files', 'message': 'No JavaScript/TypeScript files found'}
@@ -319,16 +355,28 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     "settings": eslint_config.get('settings', {})
                 }
                 
-                # Add ignore patterns if specified
-                if eslint_config.get('ignore_patterns'):
-                    eslint_config_data['ignorePatterns'] = eslint_config['ignore_patterns']
+                # Add ignore patterns (defaults + user-provided)
+                ignore_patterns = set(eslint_config.get('ignore_patterns', []))
+                ignore_patterns.update(self.default_ignores)
+                if ignore_patterns:
+                    eslint_config_data['ignorePatterns'] = sorted(ignore_patterns)
                 
-                config_file = source_path / '.eslintrc.json'
-                with open(config_file, 'w') as f:
-                    json.dump(eslint_config_data, f, indent=2)
+                # Create temporary ESLint config file to avoid writing into read-only source mounts
+                import tempfile
+                config_file = None
+                try:
+                    tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.eslintrc.json', delete=False)
+                    with tmp as f:
+                        json.dump(eslint_config_data, f, indent=2)
+                        config_file = f.name
+                except Exception as e:
+                    logger.error(f"Failed to create temporary ESLint config: {e}")
+                    config_file = None
                 
                 # Build ESLint command
                 cmd = ['eslint', '--format', eslint_config.get('format', 'json')]
+                if config_file:
+                    cmd.extend(['--config', config_file])
                 
                 if eslint_config.get('fix'):
                     cmd.append('--fix')
@@ -385,9 +433,10 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                         'config_used': eslint_config
                     }
                 
-                # Cleanup
+                # Cleanup temporary config
                 try:
-                    config_file.unlink()
+                    if config_file:
+                        os.unlink(config_file)
                 except Exception:
                     pass
                     
@@ -401,7 +450,10 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         """Run CSS static analysis."""
         css_files = []
         for pattern in ['*.css', '*.scss', '*.sass', '*.less']:
-            css_files.extend(list(source_path.rglob(pattern)))
+            for p in source_path.rglob(pattern):
+                if any(part in self.default_ignores for part in p.parts):
+                    continue
+                css_files.append(p)
         
         if not css_files:
             return {'status': 'no_files', 'message': 'No CSS files found'}
@@ -411,7 +463,12 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         # Stylelint analysis
         if 'stylelint' in self.available_tools:
             try:
-                cmd = ['stylelint', '--formatter', 'json', str(source_path / '**/*.css')]
+                # stylelint supports ignore patterns through .stylelintignore; here we pass globs limited to non-ignored dirs
+                cmd = ['stylelint', '--formatter', 'json']
+                if css_files:
+                    cmd.extend([str(p) for p in css_files])
+                else:
+                    cmd.append(str(source_path / '**/*.css'))
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
                 
                 if result.stdout:
@@ -605,7 +662,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     "service": self.service_name
                 }
                 await websocket.send(json.dumps(response))
-                logger.info("Responded to ping")
+                logger.debug("Responded to ping")
                 
             elif msg_type == "health_check":
                 uptime = (datetime.now() - self.start_time).total_seconds()
@@ -619,7 +676,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     "timestamp": datetime.now().isoformat()
                 }
                 await websocket.send(json.dumps(response))
-                logger.info(f"Health check - Tools: {self.available_tools}")
+                logger.debug(f"Health check - Tools: {self.available_tools}")
                 
             elif msg_type == "static_analyze":
                 model_slug = message_data.get("model_slug", "unknown")
@@ -668,7 +725,7 @@ async def handle_client(websocket):
     """Handle client connections."""
     analyzer = StaticAnalyzer()
     client_addr = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
-    logger.info(f"New client connected: {client_addr}")
+    logger.debug(f"New client connected: {client_addr}")
     
     try:
         async for message in websocket:
@@ -685,7 +742,7 @@ async def handle_client(websocket):
                 await websocket.send(json.dumps(error_response))
                 
     except websockets.exceptions.ConnectionClosed:
-        logger.info(f"Client disconnected: {client_addr}")
+        logger.debug(f"Client disconnected: {client_addr}")
     except Exception as e:
         logger.error(f"Error with client {client_addr}: {e}")
 

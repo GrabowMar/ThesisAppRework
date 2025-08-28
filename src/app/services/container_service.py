@@ -1,47 +1,40 @@
-"""
-Container Service
-================
+"""Container Service (Deprecated)
+================================
 
-Service for managing Docker containers for AI-generated applications.
-This service provides high-level container management operations.
+This module is retained only as a compatibility shim. A future
+implementation will live in a dedicated orchestration component outside the
+Flask web process (e.g. a lightweight controller or separate worker) to
+avoid coupling lifecycle management with request handling.
 
-TODO: This service needs full implementation
-- See TODO.md for detailed implementation requirements
-- Currently returns stub responses for all operations
-- Priority: HIGH - Required for core application testing functionality
+Current State:
+    * All methods raise NotImplementedError after emitting a DeprecationWarning
+    * Callers should migrate to using DockerManager (if present) or upcoming
+      orchestration services.
 
-Dependencies:
-- Docker API integration
-- docker-compose.yml files in misc/models/{model}/app{num}/
-- Port management service for dynamic allocation
+Rationale:
+    Container lifecycle concerns (build / run / logs / cleanup) introduce
+    blocking I/O and external process management that does not belong in
+    synchronous Flask service objects. Centralizing these concerns elsewhere
+    simplifies the service layer and reduces bloat.
 """
 
 import logging
-from flask import Flask
-from typing import Dict, Any
+from .service_base import deprecation_warning
 
 logger = logging.getLogger(__name__)
 
 
-class ContainerService:
-    """
-    Service for managing container operations for AI-generated applications.
-    
-    This service provides high-level abstractions for:
-    - Starting/stopping containerized applications
-    - Health monitoring and status checks  
-    - Container lifecycle management
-    - Resource allocation and cleanup
-    
-    TODO: Full implementation required
-    """
-    
-    def __init__(self, app: Flask):
-        self.app = app
-        self.config = app.config
+DEPRECATED = True
+
+
+class ContainerService:  # pragma: no cover - deprecated shim
+    def __init__(self, *_, **__):  # accept flexible args to avoid breakage
+        deprecation_warning(
+            "ContainerService is deprecated. Use DockerManager (if available) "
+            "or new orchestration services instead.")
         self.logger = logger
     
-    def start_containers(self, model_slug: str, app_number: int) -> Dict[str, Any]:
+    def start_containers(self, model_slug: str, app_number: int) -> None:
         """
         Start containers for an AI-generated application.
         
@@ -59,15 +52,10 @@ class ContainerService:
         - Monitor startup health
         - Update database with container status
         """
-        self.logger.warning(f"Container start requested for {model_slug}/app{app_number} - NOT IMPLEMENTED")
-        return {
-            'status': 'not_implemented',
-            'message': 'Container service requires implementation',
-            'model_slug': model_slug,
-            'app_number': app_number
-        }
+    deprecation_warning("start_containers deprecated – no inline implementation.")
+    raise NotImplementedError("ContainerService deprecated. Use DockerManager or external orchestrator.")
     
-    def stop_containers(self, model_slug: str, app_number: int) -> Dict[str, Any]:
+    def stop_containers(self, model_slug: str, app_number: int) -> None:
         """
         Stop containers for an AI-generated application.
         
@@ -84,15 +72,10 @@ class ContainerService:
         - Release allocated ports
         - Update database status
         """
-        self.logger.warning(f"Container stop requested for {model_slug}/app{app_number} - NOT IMPLEMENTED")
-        return {
-            'status': 'not_implemented',
-            'message': 'Container service requires implementation',
-            'model_slug': model_slug,
-            'app_number': app_number
-        }
+    deprecation_warning("stop_containers deprecated – no inline implementation.")
+    raise NotImplementedError("ContainerService deprecated. Use DockerManager or external orchestrator.")
     
-    def get_container_status(self, model_slug: str, app_number: int) -> Dict[str, Any]:
+    def get_container_status(self, model_slug: str, app_number: int) -> None:
         """
         Get status of containers for an AI-generated application.
         
@@ -109,33 +92,26 @@ class ContainerService:
         - Return detailed status info
         - Include resource usage metrics
         """
-        self.logger.warning(f"Container status requested for {model_slug}/app{app_number} - NOT IMPLEMENTED")
-        return {
-            'status': 'not_implemented',
-            'message': 'Container service requires implementation',
-            'model_slug': model_slug,
-            'app_number': app_number,
-            'containers': []
-        }
+    deprecation_warning("get_container_status deprecated – no inline implementation.")
+    raise NotImplementedError("ContainerService deprecated. Use DockerManager or external orchestrator.")
     
-    def restart_containers(self, model_slug: str, app_number: int) -> Dict[str, Any]:
+    def restart_containers(self, model_slug: str, app_number: int) -> None:
         """
         Restart containers for an AI-generated application.
         
         TODO: Implement restart logic
         """
-        self.logger.warning(f"Container restart requested for {model_slug}/app{app_number} - NOT IMPLEMENTED")
-        return {
-            'status': 'not_implemented',
-            'message': 'Container service requires implementation'
-        }
+    deprecation_warning("restart_containers deprecated – no inline implementation.")
+    raise NotImplementedError("ContainerService deprecated. Use DockerManager or external orchestrator.")
     
     def get_container_logs(self, model_slug: str, app_number: int, 
-                          container_type: str = 'backend') -> str:
+                          container_type: str = 'backend') -> None:
         """
         Get logs from specific container.
         
         TODO: Implement log retrieval
         """
-        self.logger.warning(f"Container logs requested for {model_slug}/app{app_number}/{container_type} - NOT IMPLEMENTED")
-        return "Container service not implemented - no logs available"
+    deprecation_warning("get_container_logs deprecated – no inline implementation.")
+    raise NotImplementedError("ContainerService deprecated. Use DockerManager or external orchestrator.")
+
+__all__ = ["ContainerService", "DEPRECATED"]

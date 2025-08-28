@@ -1,0 +1,61 @@
+{# slug: ui/elements/misc/shell (auto-migrated) #}
+{#
+  Tasks Shell
+  - Hosts Active Tasks (auto-refresh)
+  - Hosts Completed Tasks and History (auto-refresh)
+  Conventions: Use module_card macro and HTMX polling
+#}
+
+{% from 'ui/elements/common/_module_wrapper.html' import module_card %}
+
+<div class="container-fluid" data-page-title="Tasks">
+  <div class="row g-3">
+    <div class="col-12 col-xl-6">
+      {% call module_card(title='Active Tasks', icon='fa-tasks') %}
+        <div id="active-tasks"
+             hx-get="/analysis/api/active-tasks"
+             hx-trigger="load, every 10s"
+             hx-target="this"
+             hx-swap="innerHTML">
+          <div class="text-center py-4" id="active-tasks-spinner">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading active tasks...</span>
+            </div>
+          </div>
+        </div>
+      {% endcall %}
+    </div>
+
+    <div class="col-12 col-xl-6">
+      {% call module_card(title='Completed Tasks', icon='fa-check-circle') %}
+        <div id="completed-tasks"
+             hx-get="/analysis/api/completed-tasks"
+             hx-trigger="load, every 15s"
+             hx-target="this"
+             hx-swap="innerHTML">
+          <div class="text-center py-4">
+            <div class="spinner-border text-secondary" role="status">
+              <span class="visually-hidden">Loading completed tasks...</span>
+            </div>
+          </div>
+        </div>
+      {% endcall %}
+    </div>
+
+    <div class="col-12">
+      {% call module_card(title='Task History', icon='fa-history') %}
+        <div id="task-history"
+             hx-get="/analysis/api/list/task-history"
+             hx-trigger="load, every 30s"
+             hx-target="this"
+             hx-swap="innerHTML">
+          <div class="text-center py-4">
+            <div class="spinner-border text-secondary" role="status">
+              <span class="visually-hidden">Loading task history...</span>
+            </div>
+          </div>
+        </div>
+      {% endcall %}
+    </div>
+  </div>
+</div>

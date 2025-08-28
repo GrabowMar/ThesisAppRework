@@ -1,0 +1,394 @@
+{# slug: pages/analysis/partials/analysis-detail (auto-migrated) #}
+{#
+    Modal Fragment: Analysis Detail Modal Content
+    Route: /api/analysis/{analysis_id}/modal
+    Purpose: Detailed analysis information in modal dialog
+    
+    Usage:
+    - Loaded via HTMX when user clicks on analysis details
+    - Shows comprehensive analysis information without leaving current page
+    - Includes charts, metrics, and action buttons
+    
+    HTMX Integration:
+    - hx-get="/api/analysis/{{ analysis_id }}/modal"
+    - hx-target="#analysis-detail-modal .modal-content"
+    - hx-swap="innerHTML"
+    
+    Data Expected:
+    - analysis: Complete analysis object with results
+    - charts_data: Chart data for visualizations
+    - related_analyses: Related analysis results for comparison
+#}
+
+<!-- Analysis Detail Modal Content -->
+<div class="modal-header">
+    <div class="d-flex align-items-center">
+        <div class="me-3">
+            <div class="analysis-icon bg-{{ analysis.type_color or 'primary' }} bg-opacity-20 rounded p-2">
+                {% if analysis.analysis_type == 'security' %}
+                    <i class="fas fa-shield-alt text-{{ analysis.type_color or 'primary' }} fa-lg"></i>
+                {% elif analysis.analysis_type == 'performance' %}
+                    <i class="fas fa-tachometer-alt text-{{ analysis.type_color or 'primary' }} fa-lg"></i>
+                {% elif analysis.analysis_type == 'dynamic' %}
+                    <i class="fas fa-play text-{{ analysis.type_color or 'primary' }} fa-lg"></i>
+                {% elif analysis.analysis_type == 'comprehensive' %}
+                    <i class="fas fa-chart-line text-{{ analysis.type_color or 'primary' }} fa-lg"></i>
+                {% else %}
+                    <i class="fas fa-chart-bar text-{{ analysis.type_color or 'primary' }} fa-lg"></i>
+                {% endif %}
+            </div>
+        </div>
+        <div>
+            <h5 class="modal-title mb-1">{{ analysis.analysis_type|title }} Analysis #{{ analysis.id }}</h5>
+            <div class="text-muted">
+                {{ analysis.model_display_name or analysis.model_slug }} - App #{{ analysis.app_number }}
+            </div>
+        </div>
+    </div>
+    <div class="d-flex align-items-center ms-auto">
+        <span class="badge bg-{{ 'success' if analysis.status == 'completed' else 'primary' if analysis.status == 'running' else 'warning' if analysis.status == 'queued' else 'danger' }} me-3">
+            {{ analysis.status|title }}
+        </span>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+</div>
+
+<div class="modal-body">
+    <!-- Analysis Overview -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h6 class="fw-bold mb-3">
+                <i class="fas fa-info-circle me-2"></i>Analysis Overview
+            </h6>
+            <dl class="row">
+                <dt class="col-sm-5">Created:</dt>
+                <dd class="col-sm-7">{{ analysis.created_at|datetime }}</dd>
+                
+                <dt class="col-sm-5">Duration:</dt>
+                <dd class="col-sm-7">
+                    {% if analysis.duration %}
+                        {{ analysis.duration|duration }}
+                    {% elif analysis.status == 'running' and analysis.started_at %}
+                        {{ (now() - analysis.started_at)|duration }} (running)
+                    {% else %}
+                        -
+                    {% endif %}
+                </dd>
+                
+                <dt class="col-sm-5">Model:</dt>
+                <dd class="col-sm-7">
+                    <span class="badge bg-info">{{ analysis.model_display_name or analysis.model_slug }}</span>
+                </dd>
+                
+                <dt class="col-sm-5">Application:</dt>
+                <dd class="col-sm-7">
+                    <a href="/applications/{{ analysis.model_slug }}/{{ analysis.app_number }}" class="text-decoration-none">
+                        App #{{ analysis.app_number }}
+                        <i class="fas fa-external-link-alt fa-sm ms-1"></i>
+                    </a>
+                </dd>
+                
+                {% if analysis.configuration %}
+                <dt class="col-sm-5">Configuration:</dt>
+                <dd class="col-sm-7">
+                    <button class="btn btn-sm btn-outline-secondary" 
+                            type="button" 
+                            data-bs-toggle="collapse" 
+                            data-bs-target="#config-collapse">
+                        <i class="fas fa-cog me-1"></i>View Config
+                    </button>
+                </dd>
+                {% endif %}
+            </dl>
+        </div>
+        
+        <div class="col-md-6">
+            {% if analysis.status == 'running' %}
+            <!-- Real-time Progress -->
+            <h6 class="fw-bold mb-3">
+                <i class="fas fa-chart-line me-2"></i>Progress
+                <span class="spinner-border spinner-border-sm ms-2" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </span>
+            </h6>
+            <div hx-get="/api/analysis/{{ analysis.id }}/progress" 
+                 hx-trigger="every 5s" 
+                 hx-swap="outerHTML">
+                <div class="progress mb-2">
+                    <div class="progress-bar" 
+                         role="progressbar" 
+                         style="width: {{ analysis.progress or 0 }}%" 
+                         aria-valuenow="{{ analysis.progress or 0 }}" 
+                         aria-valuemin="0" 
+                         aria-valuemax="100">
+                        {{ analysis.progress|round(1) if analysis.progress else 0 }}%
+                    </div>
+                </div>
+                {% if analysis.current_step %}
+                <small class="text-muted">
+                    Current: {{ analysis.current_step }}
+                </small>
+                {% endif %}
+            </div>
+            {% elif analysis.status == 'completed' and analysis.results_summary %}
+            <!-- Results Summary -->
+            <h6 class="fw-bold mb-3">
+                <i class="fas fa-chart-bar me-2"></i>Results Summary
+            </h6>
+            <div class="results-summary-cards">
+                {% if analysis.analysis_type == 'security' %}
+                <div class="row g-2">
+                    <div class="col-6">
+                        <div class="card border-{{ 'danger' if analysis.results_summary.vulnerabilities > 0 else 'success' }}">
+                            <div class="card-body text-center py-2">
+                                <h5 class="mb-0 text-{{ 'danger' if analysis.results_summary.vulnerabilities > 0 else 'success' }}">
+                                    {{ analysis.results_summary.vulnerabilities or 0 }}
+                                </h5>
+                                <small class="text-muted">Vulnerabilities</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="card border-{{ 'success' if analysis.results_summary.security_score >= 80 else 'warning' if analysis.results_summary.security_score >= 60 else 'danger' }}">
+                            <div class="card-body text-center py-2">
+                                <h5 class="mb-0 text-{{ 'success' if analysis.results_summary.security_score >= 80 else 'warning' if analysis.results_summary.security_score >= 60 else 'danger' }}">
+                                    {{ analysis.results_summary.security_score or 'N/A' }}
+                                </h5>
+                                <small class="text-muted">Security Score</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% elif analysis.analysis_type == 'performance' %}
+                <div class="row g-2">
+                    <div class="col-4">
+                        <div class="card border-info">
+                            <div class="card-body text-center py-2">
+                                <h6 class="mb-0 text-info">{{ analysis.results_summary.avg_response_time or 'N/A' }}</h6>
+                                <small class="text-muted">Avg Response (ms)</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="card border-warning">
+                            <div class="card-body text-center py-2">
+                                <h6 class="mb-0 text-warning">{{ analysis.results_summary.throughput or 'N/A' }}</h6>
+                                <small class="text-muted">Throughput</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="card border-{{ 'success' if analysis.results_summary.performance_score >= 80 else 'warning' if analysis.results_summary.performance_score >= 60 else 'danger' }}">
+                            <div class="card-body text-center py-2">
+                                <h6 class="mb-0 text-{{ 'success' if analysis.results_summary.performance_score >= 80 else 'warning' if analysis.results_summary.performance_score >= 60 else 'danger' }}">
+                                    {{ analysis.results_summary.performance_score or 'N/A' }}
+                                </h6>
+                                <small class="text-muted">Score</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Configuration Collapse -->
+    {% if analysis.configuration %}
+    <div class="collapse mb-4" id="config-collapse">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">Analysis Configuration</h6>
+            </div>
+            <div class="card-body">
+                <pre class="mb-0"><code>{{ analysis.configuration|tojson_pretty }}</code></pre>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Charts and Visualizations -->
+    {% if analysis.status == 'completed' and charts_data %}
+    <div class="mb-4">
+        <h6 class="fw-bold mb-3">
+            <i class="fas fa-chart-area me-2"></i>Visualizations
+        </h6>
+        <div class="row">
+            {% for chart in charts_data %}
+            <div class="col-lg-6 mb-3">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0">{{ chart.title }}</h6>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="chart-{{ chart.id }}" data-chart="{{ chart.data|tojson }}"></canvas>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Detailed Results -->
+    {% if analysis.status == 'completed' and analysis.detailed_results %}
+    <div class="mb-4">
+        <h6 class="fw-bold mb-3">
+            <i class="fas fa-list-ul me-2"></i>Detailed Results
+        </h6>
+        <div class="accordion" id="results-accordion">
+            {% for section_name, section_data in analysis.detailed_results.items() %}
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="heading-{{ loop.index }}">
+                    <button class="accordion-button collapsed" 
+                            type="button" 
+                            data-bs-toggle="collapse" 
+                            data-bs-target="#collapse-{{ loop.index }}" 
+                            aria-expanded="false" 
+                            aria-controls="collapse-{{ loop.index }}">
+                        {{ section_name|title|replace('_', ' ') }}
+                        {% if section_data.count %}
+                        <span class="badge bg-primary ms-2">{{ section_data.count }}</span>
+                        {% endif %}
+                    </button>
+                </h2>
+                <div id="collapse-{{ loop.index }}" 
+                     class="accordion-collapse collapse" 
+                     aria-labelledby="heading-{{ loop.index }}" 
+                     data-bs-parent="#results-accordion">
+                    <div class="accordion-body">
+                        {% if section_data.items %}
+                        <ul class="list-group list-group-flush">
+                            {% for item in section_data.items %}
+                            <li class="list-group-item d-flex justify-content-between align-items-start">
+                                <div class="ms-2 me-auto">
+                                    <div class="fw-bold">{{ item.title or item.name }}</div>
+                                    {% if item.description %}
+                                    <p class="mb-1 text-muted">{{ item.description }}</p>
+                                    {% endif %}
+                                    {% if item.severity %}
+                                    <span class="badge bg-{{ 'danger' if item.severity == 'high' else 'warning' if item.severity == 'medium' else 'info' }}">
+                                        {{ item.severity|title }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                                {% if item.value %}
+                                <span class="badge bg-secondary rounded-pill">{{ item.value }}</span>
+                                {% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <pre><code>{{ section_data|tojson_pretty }}</code></pre>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Related Analyses -->
+    {% if related_analyses %}
+    <div class="mb-4">
+        <h6 class="fw-bold mb-3">
+            <i class="fas fa-project-diagram me-2"></i>Related Analyses
+        </h6>
+        <div class="row">
+            {% for related in related_analyses %}
+            <div class="col-md-6 mb-2">
+                <div class="card card-body py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="fw-medium">{{ related.analysis_type|title }} #{{ related.id }}</span>
+                            <small class="text-muted d-block">{{ related.created_at|timeago }}</small>
+                        </div>
+                        <div>
+                            <span class="badge bg-{{ 'success' if related.status == 'completed' else 'primary' if related.status == 'running' else 'danger' }}">
+                                {{ related.status|title }}
+                            </span>
+                            <a href="/analysis/{{ related.id }}/results" class="btn btn-sm btn-outline-primary ms-2">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="modal-footer">
+    <div class="d-flex justify-content-between w-100">
+        <div>
+            {% if analysis.status == 'running' %}
+            <button class="btn btn-outline-danger" 
+                    hx-post="/api/analysis/{{ analysis.id }}/cancel" 
+                    hx-confirm="Are you sure you want to cancel this analysis?"
+                    hx-target="#analysis-table tbody">
+                <i class="fas fa-stop me-1"></i>Cancel Analysis
+            </button>
+            {% elif analysis.status == 'failed' %}
+            <button class="btn btn-outline-warning" 
+                    hx-post="/api/analysis/{{ analysis.id }}/retry" 
+                    hx-target="#analysis-table tbody">
+                <i class="fas fa-redo me-1"></i>Retry Analysis
+            </button>
+            {% endif %}
+        </div>
+        
+        <div class="d-flex gap-2">
+            {% if analysis.status == 'completed' %}
+            <a href="/analysis/{{ analysis.id }}/results" class="btn btn-primary">
+                <i class="fas fa-eye me-1"></i>View Full Results
+            </a>
+            <button class="btn btn-outline-secondary" 
+                    hx-get="/api/analysis/{{ analysis.id }}/download" 
+                    hx-trigger="click">
+                <i class="fas fa-download me-1"></i>Download Report
+            </button>
+            {% endif %}
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for Modal Content -->
+<script>
+document.addEventListener('htmx:afterSwap', function(event) {
+    if (event.detail.target.closest('#analysis-detail-modal')) {
+        // Initialize charts if chart data is present
+        const chartElements = event.detail.target.querySelectorAll('canvas[data-chart]');
+        chartElements.forEach(canvas => {
+            const chartData = JSON.parse(canvas.dataset.chart);
+            initializeChart(canvas.id, chartData);
+        });
+        
+        // Initialize syntax highlighting for code blocks
+        if (typeof Prism !== 'undefined') {
+            Prism.highlightAllUnder(event.detail.target);
+        }
+        
+        // Initialize tooltips
+        const tooltips = event.detail.target.querySelectorAll('[title]');
+        tooltips.forEach(tooltip => new bootstrap.Tooltip(tooltip));
+    }
+});
+
+function initializeChart(canvasId, chartData) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    new Chart(ctx, chartData);
+}
+
+// Auto-refresh progress for running analyses
+document.addEventListener('DOMContentLoaded', function() {
+    const progressElements = document.querySelectorAll('[hx-trigger*="every"]');
+    progressElements.forEach(element => {
+        // Progress elements will auto-refresh via HTMX
+    });
+});
+</script>

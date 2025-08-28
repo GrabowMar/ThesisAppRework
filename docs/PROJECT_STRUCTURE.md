@@ -26,8 +26,9 @@ src/
 │   │   ├── main.py               # ✅ Dashboard & landing views
 │   │   ├── models.py             # ✅ Model catalog & app listing views
 │   │   ├── analysis.py           # ✅ Analysis hub views
-│   │   ├── batch.py              # ✅ Batch operations UI
-│   │   ├── statistics.py         # ✅ Metrics & statistics views
+│   │   ├── batch.py              # ✅ Legacy batch operations UI (redirects to tasks in prod)
+│   │   ├── tasks.py              # ✅ Unified tasks/operations hub (supersedes batch)
+│   │   ├── statistics.py         # ✅ Metrics & statistics views (split generation vs analysis pages)
 │   │   ├── testing.py            # ❌ Removed (consolidated into analysis)
 │   │   ├── advanced.py           # ✅ Advanced / experimental views
 │   │   ├── errors.py             # ✅ Error handlers
@@ -75,10 +76,11 @@ src/
 │   ├── single_page.html          # ✅ Lightweight single-page base
 │   ├── pages/                    # Page-level views
 │   │   ├── dashboard.html        # ✅ Interactive dashboard UI
-│   │   ├── analysis.html         # ✅ Analysis hub screen
+│   │   ├── analysis.html         # ✅ Analysis hub screen (modern unified dashboard)
 │   │   ├── applications.html     # ✅ Generated apps explorer
 │   │   ├── models.html           # ✅ Model registry overview
-│   │   ├── statistics.html       # ✅ Metrics & trends page
+│   │   ├── statistics.html       # ✅ Legacy unified metrics (kept for compatibility)
+│   │   ├── statistics/           # ✅ Split statistics pages (generation.html, analysis.html)
 │   │   ├── system_status.html    # ✅ System/container status page
 │   │   └── about.html            # ✅ About / info
 │   └── partials/                 # HTMX-fragment & component templates
@@ -164,6 +166,29 @@ Removed (legacy/unused):
 Pattern:
 - Service Locator centralizes lazy instantiation & reuse
 
+#### NEW: Analysis Engines Layer (2025-08 Refactor)
+
+To reduce duplication and standardize execution flows a lightweight
+`analysis_engines.py` module introduces small, focused engine classes
+(`SecurityAnalyzerEngine`, `PerformanceAnalyzerEngine`, `StaticAnalyzerEngine`,
+`DynamicAnalyzerEngine`). Each exposes a uniform:
+
+```
+engine.run(model_slug, app_number, **kwargs) -> EngineResult
+```
+
+They delegate to `AnalyzerIntegration` and normalize the response shape.
+`analysis_service.py` gained optional `use_engine` flags on start methods
+to permit synchronous invocation without Celery for fast paths / tests.
+
+Legacy `AnalyzerService` was converted into a thin deprecated shim that
+simply forwards to engines (and raises a `DeprecationWarning`).
+
+Configuration convergence began with `analysis_config_models.py` which
+contains lean dataclasses (`SecurityToolsConfig`, `PerformanceTestConfig`,
+etc.) providing a single, simplified shape for callers while preserving
+the richer legacy configs for future advanced use.
+
 ### Route Layer (Web Interface)
 - Modular Blueprints: UI pages separated by domain (dashboard, analysis, models, batch, statistics, advanced)
 - Fine-Grained API Subpackage: The `routes/api/` folder decomposes endpoints for maintainability & discoverability
@@ -176,6 +201,52 @@ See also: `docs/ROUTES.md` for a comprehensive, blueprint-grouped route inventor
 
 ### Data Layer
 - SQLAlchemy ORM models (analysis, applications, port config, security results, etc.)
+
+## Service Layer Standardization (2025-08 Update)
+
+To reduce boilerplate and clarify responsibilities the service layer adopted
+lightweight shared utilities and a clear deprecation strategy:
+
+### service_base.py
+Located at `app/services/service_base.py`, this module provides:
+
+- Exception hierarchy: `ServiceError`, `NotFoundError`, `ValidationError`, `ConflictError`, `OperationError`
+- Helper: `ensure_dataclass_dict` (safe dataclass → dict)
+- Helper: `deprecation_warning` (consistent `DeprecationWarning` emission)
+
+All new/updated services raise these exceptions so route & API layers can map
+them uniformly to HTTP responses.
+
+### Deprecated Shims
+
+Previously bloated or placeholder services are now minimal compatibility shims:
+
+| Service | Status | Replacement / Direction |
+|---------|--------|--------------------------|
+| AnalyzerService | Deprecated shim | Analysis Engines (`analysis_engines.py`) + Celery tasks |
+| ContainerService | Deprecated shim | `DockerManager` (low-level) or future external orchestrator |
+| HuggingFaceService | Deprecated shim | Direct API utilities during batch ingest |
+| PortService | Legacy (partial) | Opportunistic load via `ServiceLocator` + future refactor |
+
+Each deprecated module exposes `DEPRECATED = True`. Public methods emit a
+`DeprecationWarning` then raise `NotImplementedError` to make migration explicit
+while avoiding sudden import failures.
+
+### Guidelines for New Services
+1. Keep synchronous services side‑effect free (no long-lived threads if avoidable).
+2. Prefer Celery tasks or dedicated managers for external process orchestration.
+3. Represent simple payloads with dataclasses; convert via `asdict` or helper.
+4. Raise standardized exceptions only—avoid ad hoc custom exception classes.
+5. Provide concise docstrings describing scope and explicit non‑responsibilities.
+
+### Benefits
+- Smaller, more readable service modules
+- Consistent error handling path
+- Easier unit testing (deterministic exceptions, pure functions)
+- Clear migration story for legacy placeholders
+
+These changes accompany the Analysis Engines refactor to continue the overall
+goal of de‑bloating core logic and improving maintainability.
 - SQLite (development) stored in `app/data/` with migration readiness (Alembic present at project root outside src)
 - JSON fields for flexible analyzer result storage
 - Future: switchable to Postgres (already abstracted by SQLAlchemy)

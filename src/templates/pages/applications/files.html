@@ -1,0 +1,997 @@
+{# slug: pages/applications/files (auto-migrated) #}
+{#
+    Application Files Page
+    Purpose: Detailed file browser for a specific application with advanced code viewing
+    
+    Features:
+    - Interactive file tree with search and filtering
+    - Syntax-highlighted code viewer with line numbers
+    - File comparison and diff viewing
+    - File upload and editing capabilities
+    - Download individual files or entire directories
+    
+    Dependencies: Prism.js for syntax highlighting, Monaco Editor for editing, File Tree component
+#}
+
+{% extends 'layouts/base.html' %}
+{% set page_title = "Files - " + application.model_slug|replace('_', ' ')|title + " #" + application.app_number|string %}
+{% set active_page = "applications" %}
+
+{# Standardized page header blocks #}
+{% block page_icon %}fas fa-folder-open{% endblock %}
+{% block page_title %}Application Files{% endblock %}
+{% block page_subtitle %}{{ application.model_slug|replace('_', ' ')|title }} - Application #{{ application.app_number }}{% endblock %}
+{% block page_actions %}
+<div class="btn-group">
+    <button class="btn btn-outline-primary" onclick="refreshFileTree()">
+        <i class="fas fa-sync-alt me-1"></i>Refresh
+    </button>
+    <button class="btn btn-outline-success" onclick="uploadFiles()">
+        <i class="fas fa-upload me-1"></i>Upload
+    </button>
+    <button class="btn btn-outline-info" onclick="downloadAll()">
+        <i class="fas fa-download me-1"></i>Download All
+    </button>
+    <div class="btn-group" role="group">
+        <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+            <i class="fas fa-cog"></i>
+        </button>
+        <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="#" onclick="createNewFile()">
+                <i class="fas fa-file-plus me-2"></i>New File
+            </a></li>
+            <li><a class="dropdown-item" href="#" onclick="createNewFolder()">
+                <i class="fas fa-folder-plus me-2"></i>New Folder
+            </a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="#" onclick="compareFiles()">
+                <i class="fas fa-exchange-alt me-2"></i>Compare Files
+            </a></li>
+            <li><a class="dropdown-item" href="#" onclick="findInFiles()">
+                <i class="fas fa-search me-2"></i>Find in Files
+            </a></li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block head_extra %}
+<link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/line-numbers/prism-line-numbers.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/line-highlight/prism-line-highlight.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/toolbar/prism-toolbar.css" rel="stylesheet">
+
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page header now provided by standardized macro via base template -->
+
+    <!-- File Browser -->
+    <div class="file-browser">
+        <div class="row g-0 h-100">
+            <!-- File Tree Panel -->
+            <div class="col-md-3 file-tree-panel">
+                <!-- Search Box -->
+                <div class="search-box">
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control" id="file-search" 
+                               placeholder="Search files..." onkeyup="filterFiles()">
+                        <button class="btn btn-outline-secondary" type="button" onclick="clearSearch()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- File Tree -->
+                <div class="file-tree" id="file-tree">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2 small text-muted">Loading files...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Content Panel -->
+            <div class="col-md-9 file-content-panel">
+                <!-- File Header -->
+                <div class="file-header u-5790ff" id="file-header">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-file me-2" id="file-icon"></i>
+                        <span id="file-name">No file selected</span>
+                        <span class="size-indicator" id="file-size"></span>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" onclick="copyToClipboard()" title="Copy content">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="downloadCurrentFile()" title="Download file">
+                            <i class="fas fa-download"></i>
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="editCurrentFile()" title="Edit file">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="More actions">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" onclick="renameCurrentFile()">
+                                    <i class="fas fa-edit me-2"></i>Rename
+                                </a></li>
+                                <li><a class="dropdown-item" href="#" onclick="duplicateCurrentFile()">
+                                    <i class="fas fa-copy me-2"></i>Duplicate
+                                </a></li>
+                                <li><a class="dropdown-item" href="#" onclick="moveCurrentFile()">
+                                    <i class="fas fa-cut me-2"></i>Move
+                                </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-danger" href="#" onclick="deleteCurrentFile()">
+                                    <i class="fas fa-trash me-2"></i>Delete
+                                </a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- File Tabs -->
+                <div class="file-tabs" id="file-tabs">
+                    <!-- Dynamic file tabs will be inserted here -->
+                </div>
+
+                <!-- Code Editor -->
+                <div class="code-editor">
+                    <div class="code-placeholder" id="code-placeholder">
+                        <i class="fas fa-file-code fa-3x mb-3"></i>
+                        <h5>Select a file to view its contents</h5>
+                        <p class="text-muted">Use the file tree on the left to browse and open files</p>
+                    </div>
+                    <div class="code-viewer u-5790ff" id="code-viewer">
+                        <!-- File content will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- File Info Panel -->
+                <div class="file-info-panel u-5790ff" id="file-info">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <strong>Size:</strong> <span id="info-size">-</span>
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Modified:</strong> <span id="info-modified">-</span>
+                        </div>
+                        <div class="col-md-4">
+                            <strong>Lines:</strong> <span id="info-lines">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Upload Files Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Upload Files</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="file-upload-zone" id="upload-zone">
+                    <i class="fas fa-cloud-upload-alt fa-3x mb-3"></i>
+                    <h5>Drop files here or click to browse</h5>
+                    <p class="text-muted">Support for multiple files and folders</p>
+                    <input type="file" id="file-input" multiple class="u-5790ff">
+                </div>
+                
+                <div class="mt-3 u-5790ff" id="upload-progress">
+                    <div class="progress">
+                        <div class="progress-bar u-034359" role="progressbar"></div>
+                    </div>
+                    <div class="mt-2">
+                        <small id="upload-status" class="text-muted">Preparing upload...</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="startUpload()" disabled id="upload-btn">
+                    <i class="fas fa-upload me-1"></i>Upload Files
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Compare Files Modal -->
+<div class="modal fade" id="compareModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Compare Files</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label for="compare-file-1" class="form-label">File 1</label>
+                        <select class="form-select" id="compare-file-1">
+                            <option value="">Select first file...</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="compare-file-2" class="form-label">File 2</label>
+                        <select class="form-select" id="compare-file-2">
+                            <option value="">Select second file...</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div id="diff-viewer" style="height: 500px; border: 1px solid #dee2e6; border-radius: 0.375rem;">
+                    <div class="d-flex align-items-center justify-content-center h-100 text-muted">
+                        <div class="text-center">
+                            <i class="fas fa-exchange-alt fa-3x mb-3"></i>
+                            <p>Select two files to compare their differences</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="performComparison()">
+                    <i class="fas fa-search me-1"></i>Compare
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/line-numbers/prism-line-numbers.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/line-highlight/prism-line-highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/toolbar/prism-toolbar.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/copy-to-clipboard/prism-copy-to-clipboard.min.js"></script>
+
+<script>
+let currentApplication = {
+    id: '{{ application.id }}',
+    modelSlug: '{{ application.model_slug }}',
+    appNumber: {{ application.app_number }}
+};
+
+let fileTree = null;
+let currentFile = null;
+let openTabs = new Map();
+let selectedFiles = [];
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadFileTree();
+    setupUploadZone();
+});
+
+// Load file tree structure
+function loadFileTree() {
+    fetch(`/api/applications/${currentApplication.id}/files/tree`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                fileTree = data.files;
+                renderFileTree(data.files);
+            } else {
+                showError('Failed to load file structure: ' + data.error);
+            }
+        })
+        .catch(error => {
+            showError('Failed to load file structure: ' + error.message);
+        });
+}
+
+// Render file tree HTML
+function renderFileTree(files, filteredFiles = null) {
+    const container = document.getElementById('file-tree');
+    const tree = buildTreeHTML(files, '', filteredFiles);
+    container.innerHTML = tree;
+    
+    // Setup event handlers
+    setupTreeEventHandlers();
+}
+
+// Build tree HTML recursively
+function buildTreeHTML(items, parentPath = '', filteredFiles = null) {
+    let html = '<ul>';
+    
+    items.forEach(item => {
+        const fullPath = parentPath ? `${parentPath}/${item.name}` : item.name;
+        const isVisible = !filteredFiles || filteredFiles.has(fullPath);
+        
+        if (!isVisible && item.type === 'file') return;
+        
+        html += `<li class="${item.type}" data-path="${fullPath}">`;
+        
+        if (item.type === 'folder') {
+            html += `<button class="folder-toggle" onclick="toggleFolder(this)">
+                        <i class="fas fa-chevron-right"></i>
+                     </button>`;
+            html += `<i class="fas fa-folder me-2"></i>${item.name}`;
+            html += `<div class="file-actions btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary btn-sm" onclick="createFileInFolder('${fullPath}')">
+                            <i class="fas fa-file-plus"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="downloadFolder('${fullPath}')">
+                            <i class="fas fa-download"></i>
+                        </button>
+                     </div>`;
+            
+            if (item.children && item.children.length > 0) {
+                html += `<div class="folder-content u-5790ff">`;
+                html += buildTreeHTML(item.children, fullPath, filteredFiles);
+                html += '</div>';
+            }
+        } else {
+            const extension = item.name.split('.').pop().toLowerCase();
+            const iconClass = getFileIcon(extension);
+            const sizeStr = formatFileSize(item.size || 0);
+            
+            html += `<i class="${iconClass} me-2"></i>${item.name}`;
+            html += `<span class="size-indicator">${sizeStr}</span>`;
+            html += `<div class="file-actions btn-group btn-group-sm">
+                        <button class="btn btn-outline-primary btn-sm" onclick="openFile('${fullPath}')">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="downloadFile('${fullPath}')">
+                            <i class="fas fa-download"></i>
+                        </button>
+                     </div>`;
+        }
+        
+        html += '</li>';
+    });
+    
+    html += '</ul>';
+    return html;
+}
+
+// Setup tree event handlers
+function setupTreeEventHandlers() {
+    document.querySelectorAll('.file-tree .file').forEach(fileEl => {
+        fileEl.addEventListener('click', function(e) {
+            if (e.target.closest('.file-actions')) return;
+            
+            const filePath = this.dataset.path;
+            openFile(filePath);
+        });
+    });
+}
+
+// Toggle folder open/closed
+function toggleFolder(button) {
+    const icon = button.querySelector('i');
+    const folderContent = button.parentElement.querySelector('.folder-content');
+    
+    if (folderContent) {
+        const isOpen = folderContent.style.display !== 'none';
+        folderContent.style.display = isOpen ? 'none' : 'block';
+        icon.className = isOpen ? 'fas fa-chevron-right' : 'fas fa-chevron-down';
+    }
+}
+
+// Open file in viewer
+function openFile(filePath) {
+    // Update selection
+    document.querySelectorAll('.file-tree .file').forEach(f => f.classList.remove('selected'));
+    document.querySelector(`[data-path="${filePath}"]`).classList.add('selected');
+    
+    currentFile = filePath;
+    loadFileContent(filePath);
+    
+    // Show file header and info
+    document.getElementById('file-header').style.display = 'flex';
+    document.getElementById('file-info').style.display = 'block';
+    document.getElementById('code-placeholder').style.display = 'none';
+    
+    // Update header
+    updateFileHeader(filePath);
+}
+
+// Load and display file content
+function loadFileContent(filePath) {
+    const viewer = document.getElementById('code-viewer');
+    viewer.style.display = 'block';
+    viewer.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100"><div class="spinner-border text-primary" role="status"></div></div>';
+    
+    fetch(`/api/applications/${currentApplication.id}/files/content?path=${encodeURIComponent(filePath)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderFileContent(data.content, data.language, data.file_info);
+            } else {
+                showError('Failed to load file: ' + data.error);
+                viewer.innerHTML = '<div class="alert alert-danger m-3">Failed to load file content</div>';
+            }
+        })
+        .catch(error => {
+            showError('Failed to load file: ' + error.message);
+            viewer.innerHTML = '<div class="alert alert-danger m-3">Error loading file</div>';
+        });
+}
+
+// Render file content with syntax highlighting
+function renderFileContent(content, language, fileInfo) {
+    const viewer = document.getElementById('code-viewer');
+    
+    // Check if file is binary
+    if (fileInfo.is_binary) {
+        viewer.innerHTML = `
+            <div class="d-flex align-items-center justify-content-center h-100 text-muted">
+                <div class="text-center">
+                    <i class="fas fa-file-archive fa-3x mb-3"></i>
+                    <h5>Binary File</h5>
+                    <p>This file cannot be displayed in the text viewer.</p>
+                    <button class="btn btn-primary" onclick="downloadCurrentFile()">
+                        <i class="fas fa-download me-1"></i>Download File
+                    </button>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    // Check if file is too large
+    if (content.length > 1000000) { // 1MB
+        viewer.innerHTML = `
+            <div class="d-flex align-items-center justify-content-center h-100 text-muted">
+                <div class="text-center">
+                    <i class="fas fa-exclamation-triangle fa-3x mb-3 text-warning"></i>
+                    <h5>File Too Large</h5>
+                    <p>This file is too large to display in the browser (${formatFileSize(content.length)}).</p>
+                    <button class="btn btn-primary" onclick="downloadCurrentFile()">
+                        <i class="fas fa-download me-1"></i>Download File
+                    </button>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    // Render code with syntax highlighting
+    const html = `
+        <pre class="line-numbers"><code class="language-${language}">${escapeHtml(content)}</code></pre>
+    `;
+    
+    viewer.innerHTML = html;
+    
+    // Re-highlight syntax
+    Prism.highlightAll();
+    
+    // Update file info
+    updateFileInfo(fileInfo);
+}
+
+// Update file header
+function updateFileHeader(filePath) {
+    const fileName = filePath.split('/').pop();
+    const extension = fileName.split('.').pop().toLowerCase();
+    
+    document.getElementById('file-name').textContent = fileName;
+    document.getElementById('file-icon').className = getFileIcon(extension);
+}
+
+// Update file info panel
+function updateFileInfo(fileInfo) {
+    document.getElementById('info-size').textContent = formatFileSize(fileInfo.size);
+    document.getElementById('info-modified').textContent = new Date(fileInfo.modified).toLocaleString();
+    document.getElementById('info-lines').textContent = fileInfo.lines || '-';
+    document.getElementById('file-size').textContent = `(${formatFileSize(fileInfo.size)})`;
+}
+
+// File operations
+function copyToClipboard() {
+    if (!currentFile) return;
+    
+    const codeElement = document.querySelector('#code-viewer code');
+    if (codeElement) {
+        navigator.clipboard.writeText(codeElement.textContent)
+            .then(() => showSuccess('File content copied to clipboard'))
+            .catch(() => showError('Failed to copy file content'));
+    }
+}
+
+function downloadCurrentFile() {
+    if (!currentFile) return;
+    window.open(`/api/applications/${currentApplication.id}/files/download?path=${encodeURIComponent(currentFile)}`, '_blank');
+}
+
+function downloadFile(filePath) {
+    window.open(`/api/applications/${currentApplication.id}/files/download?path=${encodeURIComponent(filePath)}`, '_blank');
+}
+
+function downloadFolder(folderPath) {
+    window.open(`/api/applications/${currentApplication.id}/files/download-folder?path=${encodeURIComponent(folderPath)}`, '_blank');
+}
+
+function downloadAll() {
+    window.open(`/api/applications/${currentApplication.id}/download`, '_blank');
+}
+
+function editCurrentFile() {
+    if (!currentFile) return;
+    
+    // This would open a code editor (Monaco Editor)
+    showInfo('File editing functionality coming soon...');
+}
+
+function renameCurrentFile() {
+    if (!currentFile) return;
+    
+    const currentName = currentFile.split('/').pop();
+    const newName = prompt('Enter new file name:', currentName);
+    
+    if (newName && newName !== currentName) {
+        fetch(`/api/applications/${currentApplication.id}/files/rename`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                old_path: currentFile,
+                new_name: newName
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess('File renamed successfully');
+                refreshFileTree();
+            } else {
+                showError('Failed to rename file: ' + data.error);
+            }
+        })
+        .catch(error => showError('Failed to rename file: ' + error.message));
+    }
+}
+
+function duplicateCurrentFile() {
+    if (!currentFile) return;
+    
+    const currentName = currentFile.split('/').pop();
+    const baseName = currentName.substring(0, currentName.lastIndexOf('.') || currentName.length);
+    const extension = currentName.substring(currentName.lastIndexOf('.'));
+    const newName = prompt('Enter name for duplicate:', `${baseName}_copy${extension}`);
+    
+    if (newName) {
+        fetch(`/api/applications/${currentApplication.id}/files/duplicate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                source_path: currentFile,
+                new_name: newName
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess('File duplicated successfully');
+                refreshFileTree();
+            } else {
+                showError('Failed to duplicate file: ' + data.error);
+            }
+        })
+        .catch(error => showError('Failed to duplicate file: ' + error.message));
+    }
+}
+
+function moveCurrentFile() {
+    if (!currentFile) return;
+    
+    const newPath = prompt('Enter new path for file:', currentFile);
+    
+    if (newPath && newPath !== currentFile) {
+        fetch(`/api/applications/${currentApplication.id}/files/move`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                old_path: currentFile,
+                new_path: newPath
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess('File moved successfully');
+                refreshFileTree();
+                currentFile = newPath;
+            } else {
+                showError('Failed to move file: ' + data.error);
+            }
+        })
+        .catch(error => showError('Failed to move file: ' + error.message));
+    }
+}
+
+function deleteCurrentFile() {
+    if (!currentFile) return;
+    
+    if (confirm(`Are you sure you want to delete "${currentFile}"? This action cannot be undone.`)) {
+        fetch(`/api/applications/${currentApplication.id}/files/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: currentFile })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess('File deleted successfully');
+                refreshFileTree();
+                currentFile = null;
+                document.getElementById('file-header').style.display = 'none';
+                document.getElementById('file-info').style.display = 'none';
+                document.getElementById('code-viewer').style.display = 'none';
+                document.getElementById('code-placeholder').style.display = 'flex';
+            } else {
+                showError('Failed to delete file: ' + data.error);
+            }
+        })
+        .catch(error => showError('Failed to delete file: ' + error.message));
+    }
+}
+
+// File creation
+function createNewFile() {
+    const fileName = prompt('Enter file name:');
+    if (fileName) {
+        fetch(`/api/applications/${currentApplication.id}/files/create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                path: fileName,
+                content: '',
+                type: 'file'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess('File created successfully');
+                refreshFileTree();
+                setTimeout(() => openFile(fileName), 500);
+            } else {
+                showError('Failed to create file: ' + data.error);
+            }
+        })
+        .catch(error => showError('Failed to create file: ' + error.message));
+    }
+}
+
+function createNewFolder() {
+    const folderName = prompt('Enter folder name:');
+    if (folderName) {
+        fetch(`/api/applications/${currentApplication.id}/files/create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                path: folderName,
+                type: 'folder'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess('Folder created successfully');
+                refreshFileTree();
+            } else {
+                showError('Failed to create folder: ' + data.error);
+            }
+        })
+        .catch(error => showError('Failed to create folder: ' + error.message));
+    }
+}
+
+function createFileInFolder(folderPath) {
+    const fileName = prompt('Enter file name:');
+    if (fileName) {
+        const fullPath = `${folderPath}/${fileName}`;
+        fetch(`/api/applications/${currentApplication.id}/files/create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                path: fullPath,
+                content: '',
+                type: 'file'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess('File created successfully');
+                refreshFileTree();
+                setTimeout(() => openFile(fullPath), 500);
+            } else {
+                showError('Failed to create file: ' + data.error);
+            }
+        })
+        .catch(error => showError('Failed to create file: ' + error.message));
+    }
+}
+
+// Search and filter
+function filterFiles() {
+    const searchTerm = document.getElementById('file-search').value.toLowerCase();
+    
+    if (!searchTerm) {
+        renderFileTree(fileTree);
+        return;
+    }
+    
+    const filteredFiles = new Set();
+    
+    function searchInTree(items, parentPath = '') {
+        items.forEach(item => {
+            const fullPath = parentPath ? `${parentPath}/${item.name}` : item.name;
+            
+            if (item.name.toLowerCase().includes(searchTerm)) {
+                filteredFiles.add(fullPath);
+                // Add parent paths
+                let parent = parentPath;
+                while (parent) {
+                    filteredFiles.add(parent);
+                    parent = parent.substring(0, parent.lastIndexOf('/'));
+                }
+            }
+            
+            if (item.type === 'folder' && item.children) {
+                searchInTree(item.children, fullPath);
+            }
+        });
+    }
+    
+    searchInTree(fileTree);
+    renderFileTree(fileTree, filteredFiles);
+}
+
+function clearSearch() {
+    document.getElementById('file-search').value = '';
+    renderFileTree(fileTree);
+}
+
+// Upload functionality
+function setupUploadZone() {
+    const uploadZone = document.getElementById('upload-zone');
+    const fileInput = document.getElementById('file-input');
+    
+    uploadZone.addEventListener('click', () => fileInput.click());
+    
+    uploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadZone.classList.add('dragover');
+    });
+    
+    uploadZone.addEventListener('dragleave', () => {
+        uploadZone.classList.remove('dragover');
+    });
+    
+    uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadZone.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+    });
+    
+    fileInput.addEventListener('change', (e) => {
+        handleFiles(e.target.files);
+    });
+}
+
+function handleFiles(files) {
+    selectedFiles = Array.from(files);
+    const uploadBtn = document.getElementById('upload-btn');
+    
+    if (selectedFiles.length > 0) {
+        uploadBtn.disabled = false;
+        document.querySelector('#upload-zone h5').textContent = `${selectedFiles.length} file(s) selected`;
+    }
+}
+
+function uploadFiles() {
+    const modal = new bootstrap.Modal(document.getElementById('uploadModal'));
+    modal.show();
+}
+
+function startUpload() {
+    if (selectedFiles.length === 0) return;
+    
+    const formData = new FormData();
+    selectedFiles.forEach(file => {
+        formData.append('files', file);
+    });
+    
+    const progressBar = document.querySelector('.progress-bar');
+    const statusText = document.getElementById('upload-status');
+    
+    document.getElementById('upload-progress').style.display = 'block';
+    
+    fetch(`/api/applications/${currentApplication.id}/files/upload`, {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showSuccess(`Uploaded ${data.uploaded_count} files successfully`);
+            bootstrap.Modal.getInstance(document.getElementById('uploadModal')).hide();
+            refreshFileTree();
+        } else {
+            showError('Failed to upload files: ' + data.error);
+        }
+    })
+    .catch(error => {
+        showError('Failed to upload files: ' + error.message);
+    });
+}
+
+// Compare files
+function compareFiles() {
+    // Populate file selects
+    const select1 = document.getElementById('compare-file-1');
+    const select2 = document.getElementById('compare-file-2');
+    
+    const files = getAllFilePaths(fileTree);
+    
+    [select1, select2].forEach(select => {
+        select.innerHTML = '<option value="">Select file...</option>';
+        files.forEach(filePath => {
+            const option = document.createElement('option');
+            option.value = filePath;
+            option.textContent = filePath;
+            select.appendChild(option);
+        });
+    });
+    
+    const modal = new bootstrap.Modal(document.getElementById('compareModal'));
+    modal.show();
+}
+
+function getAllFilePaths(items, parentPath = '') {
+    let paths = [];
+    
+    items.forEach(item => {
+        const fullPath = parentPath ? `${parentPath}/${item.name}` : item.name;
+        
+        if (item.type === 'file') {
+            paths.push(fullPath);
+        } else if (item.children) {
+            paths = paths.concat(getAllFilePaths(item.children, fullPath));
+        }
+    });
+    
+    return paths;
+}
+
+function performComparison() {
+    const file1 = document.getElementById('compare-file-1').value;
+    const file2 = document.getElementById('compare-file-2').value;
+    
+    if (!file1 || !file2) {
+        showError('Please select two files to compare');
+        return;
+    }
+    
+    if (file1 === file2) {
+        showError('Please select two different files');
+        return;
+    }
+    
+    fetch(`/api/applications/${currentApplication.id}/files/compare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file1, file2 })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            renderDiff(data.diff);
+        } else {
+            showError('Failed to compare files: ' + data.error);
+        }
+    })
+    .catch(error => showError('Failed to compare files: ' + error.message));
+}
+
+function renderDiff(diffData) {
+    const viewer = document.getElementById('diff-viewer');
+    // Implementation would render the diff using a library like Monaco Editor or diff2html
+    viewer.innerHTML = '<pre>' + escapeHtml(diffData.unified_diff || 'No differences found') + '</pre>';
+}
+
+// Find in files
+function findInFiles() {
+    const searchTerm = prompt('Enter text to search for:');
+    if (searchTerm) {
+        fetch(`/api/applications/${currentApplication.id}/files/search`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: searchTerm })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displaySearchResults(data.results);
+            } else {
+                showError('Search failed: ' + data.error);
+            }
+        })
+        .catch(error => showError('Search failed: ' + error.message));
+    }
+}
+
+function displaySearchResults(results) {
+    // Implementation would show search results in a modal or sidebar
+    console.log('Search results:', results);
+    showInfo(`Found ${results.length} matches`);
+}
+
+// Utility functions
+function refreshFileTree() {
+    loadFileTree();
+}
+
+function getFileIcon(extension) {
+    const iconMap = {
+        'js': 'fab fa-js-square text-warning',
+        'ts': 'fab fa-js-square text-primary',
+        'py': 'fab fa-python text-info',
+        'html': 'fab fa-html5 text-danger',
+        'css': 'fab fa-css3-alt text-primary',
+        'json': 'fas fa-brackets-curly text-success',
+        'md': 'fab fa-markdown text-secondary',
+        'txt': 'fas fa-file-alt text-muted',
+        'yml': 'fas fa-file-code text-warning',
+        'yaml': 'fas fa-file-code text-warning',
+        'xml': 'fas fa-file-code text-success',
+        'sql': 'fas fa-database text-info',
+        'sh': 'fas fa-terminal text-dark',
+        'ps1': 'fas fa-terminal text-blue',
+        'dockerfile': 'fab fa-docker text-primary',
+        'gitignore': 'fab fa-git-alt text-secondary'
+    };
+    
+    return iconMap[extension] || 'fas fa-file text-muted';
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
+
+function showSuccess(message) {
+    console.log('Success:', message);
+}
+
+function showError(message) {
+    console.error('Error:', message);
+}
+
+function showInfo(message) {
+    console.info('Info:', message);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,475 @@
+{# slug: ui/elements/common/confirmation (auto-migrated) #}
+{# 
+Common Confirmation Component
+
+Purpose: Confirmation dialogs and prompts for destructive or important actions
+Usage: {{ confirmation(title='Delete Analysis?', message='This action cannot be undone', confirm_text='Delete') }}
+Routes: Used across all views for confirming user actions
+Features:
+- Modal and inline confirmation variants
+- Customizable confirmation messages
+- Danger, warning, and info confirmation types
+- Keyboard shortcuts (Enter/Escape)
+- HTMX integration for form submissions
+- Auto-focus on confirmation buttons
+- Accessibility support with proper ARIA attributes
+- Custom action handlers and form integration
+Technical: Bootstrap 5 modals, JavaScript event handling, HTMX form submission
+Dependencies: Bootstrap 5 modal JavaScript, HTMX for dynamic actions
+#}
+
+{# Set default values for optional parameters #}
+{%- set title = title or 'Confirm Action' -%}
+{%- set message = message or 'Are you sure you want to proceed?' -%}
+{%- set confirm_text = confirm_text or 'Confirm' -%}
+{%- set cancel_text = cancel_text or 'Cancel' -%}
+{%- set type = type or 'warning' -%}
+{%- set variant = variant or 'modal' -%}
+{%- set icon = icon or None -%}
+{%- set size = size or 'normal' -%}
+{%- set component_id = id or 'confirmation-' ~ range(1000, 9999) | random -%}
+{%- set form_action = form_action or None -%}
+{%- set form_method = form_method or 'POST' -%}
+{%- set htmx_action = htmx_action or None -%}
+{%- set htmx_target = htmx_target or None -%}
+{%- set auto_focus = auto_focus if auto_focus is not none else true -%}
+{%- set show_close = show_close if show_close is not none else true -%}
+{%- set backdrop = backdrop if backdrop is not none else true -%}
+{%- set keyboard = keyboard if keyboard is not none else true -%}
+
+{# Type-specific styling #}
+{%- set type_config = {
+    'danger': {
+        'icon': 'fas fa-exclamation-triangle',
+        'confirm_class': 'btn-danger',
+        'icon_color': 'text-danger',
+        'border_color': 'border-danger'
+    },
+    'warning': {
+        'icon': 'fas fa-exclamation-circle', 
+        'confirm_class': 'btn-warning',
+        'icon_color': 'text-warning',
+        'border_color': 'border-warning'
+    },
+    'info': {
+        'icon': 'fas fa-info-circle',
+        'confirm_class': 'btn-primary',
+        'icon_color': 'text-info',
+        'border_color': 'border-info'
+    },
+    'success': {
+        'icon': 'fas fa-check-circle',
+        'confirm_class': 'btn-success',
+        'icon_color': 'text-success',
+        'border_color': 'border-success'
+    }
+} -%}
+{%- set config = type_config[type] -%}
+{%- set icon = icon or config.icon -%}
+
+{# Size mappings #}
+{%- set size_classes = {
+    'sm': 'modal-sm',
+    'normal': '',
+    'lg': 'modal-lg',
+    'xl': 'modal-xl'
+} -%}
+
+{% if variant == 'modal' %}
+    {# Modal Confirmation Dialog #}
+    <div class="modal fade" 
+         id="{{ component_id }}" 
+         tabindex="-1" 
+         aria-labelledby="{{ component_id }}-title"
+         aria-hidden="true"
+         data-bs-backdrop="{{ 'static' if not backdrop else 'true' }}"
+         data-bs-keyboard="{{ 'true' if keyboard else 'false' }}"
+         data-type="{{ type }}">
+        <div class="modal-dialog {{ size_classes[size] }} modal-dialog-centered">
+            <div class="modal-content {{ config.border_color }}" style="border-width: 2px;">
+                {# Modal Header #}
+                <div class="modal-header border-0 pb-0">
+                    <div class="d-flex align-items-center">
+                        {% if icon %}
+                            <div class="confirmation-icon {{ config.icon_color }} me-3">
+                                <i class="{{ icon }}" aria-hidden="true"></i>
+                            </div>
+                        {% endif %}
+                        <h5 class="modal-title mb-0" id="{{ component_id }}-title">{{ title }}</h5>
+                    </div>
+                    {% if show_close %}
+                        <button type="button" 
+                                class="btn-close" 
+                                data-bs-dismiss="modal" 
+                                aria-label="Close"></button>
+                    {% endif %}
+                </div>
+                
+                {# Modal Body #}
+                <div class="modal-body pt-2">
+                    <p class="confirmation-message mb-0">{{ message }}</p>
+                    
+                    {# Additional details or form fields can be added here #}
+                    {% if caller %}
+                        <div class="confirmation-details mt-3">
+                            {{ caller() }}
+                        </div>
+                    {% endif %}
+                </div>
+                
+                {# Modal Footer with Actions #}
+                <div class="modal-footer border-0 pt-1">
+                    <button type="button" 
+                            class="btn btn-outline-secondary" 
+                            data-bs-dismiss="modal">
+                        {{ cancel_text }}
+                    </button>
+                    
+                    {% if form_action %}
+                        <form method="{{ form_method }}" action="{{ form_action }}" class="d-inline">
+                            {% if htmx_action %}
+                                <button type="submit"
+                                        class="btn {{ config.confirm_class }}"
+                                        hx-post="{{ htmx_action }}"
+                                        {% if htmx_target %}hx-target="{{ htmx_target }}"{% endif %}
+                                        hx-indicator="#{{ component_id }} .confirmation-loading"
+                                        {% if auto_focus %}autofocus{% endif %}>
+                                    {{ confirm_text }}
+                                </button>
+                            {% else %}
+                                <button type="submit" 
+                                        class="btn {{ config.confirm_class }}"
+                                        {% if auto_focus %}autofocus{% endif %}>
+                                    {{ confirm_text }}
+                                </button>
+                            {% endif %}
+                        </form>
+                    {% else %}
+                        <button type="button" 
+                                class="btn {{ config.confirm_class }}"
+                                data-action="confirm"
+                                {% if auto_focus %}autofocus{% endif %}>
+                            {{ confirm_text }}
+                        </button>
+                    {% endif %}
+                    
+                    {# Loading indicator #}
+                    <div class="confirmation-loading ms-2 u-5790ff">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">Processing...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% elif variant == 'inline' %}
+    {# Inline Confirmation Component #}
+    <div class="confirmation-inline {{ config.border_color }}" 
+         id="{{ component_id }}" 
+         data-type="{{ type }}"
+         role="dialog"
+         aria-labelledby="{{ component_id }}-title"
+         aria-describedby="{{ component_id }}-message">
+        <div class="confirmation-content p-4 border rounded">
+            {# Header #}
+            <div class="d-flex align-items-start mb-3">
+                {% if icon %}
+                    <div class="confirmation-icon {{ config.icon_color }} me-3 mt-1">
+                        <i class="{{ icon }}" aria-hidden="true"></i>
+                    </div>
+                {% endif %}
+                <div class="flex-grow-1">
+                    <h6 class="confirmation-title mb-1" id="{{ component_id }}-title">{{ title }}</h6>
+                    <p class="confirmation-message text-muted mb-0 small" id="{{ component_id }}-message">{{ message }}</p>
+                </div>
+                {% if show_close %}
+                    <button type="button" 
+                            class="btn-close btn-close-sm" 
+                            data-action="cancel"
+                            aria-label="Close"></button>
+                {% endif %}
+            </div>
+            
+            {# Additional content #}
+            {% if caller %}
+                <div class="confirmation-details mb-3">
+                    {{ caller() }}
+                </div>
+            {% endif %}
+            
+            {# Actions #}
+            <div class="confirmation-actions d-flex gap-2">
+                <button type="button" 
+                        class="btn btn-outline-secondary btn-sm" 
+                        data-action="cancel">
+                    {{ cancel_text }}
+                </button>
+                
+                {% if form_action %}
+                    <form method="{{ form_method }}" action="{{ form_action }}" class="d-inline">
+                        {% if htmx_action %}
+                            <button type="submit"
+                                    class="btn {{ config.confirm_class }} btn-sm"
+                                    hx-post="{{ htmx_action }}"
+                                    {% if htmx_target %}hx-target="{{ htmx_target }}"{% endif %}
+                                    hx-indicator="#{{ component_id }} .confirmation-loading">
+                                {{ confirm_text }}
+                            </button>
+                        {% else %}
+                            <button type="submit" 
+                                    class="btn {{ config.confirm_class }} btn-sm">
+                                {{ confirm_text }}
+                            </button>
+                        {% endif %}
+                    </form>
+                {% else %}
+                    <button type="button" 
+                            class="btn {{ config.confirm_class }} btn-sm"
+                            data-action="confirm">
+                        {{ confirm_text }}
+                    </button>
+                {% endif %}
+                
+                {# Loading indicator #}
+                <div class="confirmation-loading u-5790ff">
+                    <div class="spinner-border spinner-border-sm" role="status">
+                        <span class="visually-hidden">Processing...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+{% elif variant == 'popover' %}
+    {# Popover Confirmation #}
+    <div class="confirmation-popover" 
+         id="{{ component_id }}"
+         data-type="{{ type }}"
+         role="dialog"
+         aria-labelledby="{{ component_id }}-title">
+        <div class="popover bs-popover-top">
+            <div class="popover-arrow"></div>
+            <div class="popover-header">
+                <div class="d-flex align-items-center">
+                    {% if icon %}
+                        <i class="{{ icon }} {{ config.icon_color }} me-2" aria-hidden="true"></i>
+                    {% endif %}
+                    <span class="popover-title" id="{{ component_id }}-title">{{ title }}</span>
+                    {% if show_close %}
+                        <button type="button" 
+                                class="btn-close btn-close-sm ms-auto" 
+                                data-action="cancel"
+                                aria-label="Close"></button>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="popover-body">
+                <p class="mb-3 small">{{ message }}</p>
+                
+                {# Actions #}
+                <div class="d-flex gap-2">
+                    <button type="button" 
+                            class="btn btn-outline-secondary btn-sm flex-fill" 
+                            data-action="cancel">
+                        {{ cancel_text }}
+                    </button>
+                    
+                    {% if form_action %}
+                        <form method="{{ form_method }}" action="{{ form_action }}" class="flex-fill">
+                            {% if htmx_action %}
+                                <button type="submit"
+                                        class="btn {{ config.confirm_class }} btn-sm w-100"
+                                        hx-post="{{ htmx_action }}"
+                                        {% if htmx_target %}hx-target="{{ htmx_target }}"{% endif %}>
+                                    {{ confirm_text }}
+                                </button>
+                            {% else %}
+                                <button type="submit" 
+                                        class="btn {{ config.confirm_class }} btn-sm w-100">
+                                    {{ confirm_text }}
+                                </button>
+                            {% endif %}
+                        </form>
+                    {% else %}
+                        <button type="button" 
+                                class="btn {{ config.confirm_class }} btn-sm flex-fill"
+                                data-action="confirm">
+                            {{ confirm_text }}
+                        </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+
+{# JavaScript for confirmation functionality #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const confirmation = document.getElementById('{{ component_id }}');
+    if (!confirmation) return;
+    
+    const variant = '{{ variant }}';
+    const type = '{{ type }}';
+    
+    // Handle confirmation actions
+    confirmation.addEventListener('click', function(e) {
+        const action = e.target.dataset.action;
+        
+        if (action === 'confirm') {
+            handleConfirm(e.target);
+        } else if (action === 'cancel') {
+            handleCancel();
+        }
+    });
+    
+    function handleConfirm(button) {
+        // Emit custom event
+        const event = new CustomEvent('confirmationConfirm', {
+            detail: {
+                type: type,
+                componentId: '{{ component_id }}',
+                element: confirmation
+            }
+        });
+        
+        document.dispatchEvent(event);
+        
+        // Track analytics
+        if (window.analytics && typeof window.analytics.track === 'function') {
+            window.analytics.track('Confirmation Action', {
+                'action': 'confirm',
+                'type': type,
+                'component_id': '{{ component_id }}'
+            });
+        }
+        
+        // If no form action, close the confirmation
+        if (!{{ 'true' if form_action else 'false' }}) {
+            closeConfirmation();
+        }
+    }
+    
+    function handleCancel() {
+        // Emit custom event
+        const event = new CustomEvent('confirmationCancel', {
+            detail: {
+                type: type,
+                componentId: '{{ component_id }}',
+                element: confirmation
+            }
+        });
+        
+        document.dispatchEvent(event);
+        
+        // Track analytics
+        if (window.analytics && typeof window.analytics.track === 'function') {
+            window.analytics.track('Confirmation Action', {
+                'action': 'cancel',
+                'type': type,
+                'component_id': '{{ component_id }}'
+            });
+        }
+        
+        closeConfirmation();
+    }
+    
+    function closeConfirmation() {
+        if (variant === 'modal') {
+            const modal = bootstrap.Modal.getInstance(confirmation);
+            if (modal) {
+                modal.hide();
+            }
+        } else {
+            confirmation.style.display = 'none';
+        }
+    }
+    
+    // Handle keyboard shortcuts
+    if ({{ 'true' if keyboard else 'false' }}) {
+        confirmation.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && (e.target.tagName !== 'BUTTON' || e.target.classList.contains('{{ config.confirm_class.replace("btn-", "") }}'))) {
+                e.preventDefault();
+                const confirmButton = confirmation.querySelector('[data-action="confirm"], [type="submit"]');
+                if (confirmButton) {
+                    confirmButton.click();
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                handleCancel();
+            }
+        });
+    }
+    
+    // Handle HTMX loading states
+    document.addEventListener('htmx:beforeRequest', function(event) {
+        if (confirmation.contains(event.target)) {
+            const loadingIndicator = confirmation.querySelector('.confirmation-loading');
+            const buttons = confirmation.querySelectorAll('button[type="submit"], [data-action="confirm"]');
+            
+            if (loadingIndicator) {
+                loadingIndicator.style.display = 'inline-flex';
+            }
+            
+            buttons.forEach(button => {
+                button.disabled = true;
+                button.style.opacity = '0.7';
+            });
+        }
+    });
+    
+    document.addEventListener('htmx:afterRequest', function(event) {
+        if (confirmation.contains(event.target)) {
+            const loadingIndicator = confirmation.querySelector('.confirmation-loading');
+            const buttons = confirmation.querySelectorAll('button[type="submit"], [data-action="confirm"]');
+            
+            if (loadingIndicator) {
+                loadingIndicator.style.display = 'none';
+            }
+            
+            buttons.forEach(button => {
+                button.disabled = false;
+                button.style.opacity = '1';
+            });
+            
+            // Close modal on successful submission
+            if (event.detail.xhr.status >= 200 && event.detail.xhr.status < 300) {
+                setTimeout(() => closeConfirmation(), 500);
+            }
+        }
+    });
+    
+    // Auto-focus for modal
+    if (variant === 'modal' && {{ 'true' if auto_focus else 'false' }}) {
+        confirmation.addEventListener('shown.bs.modal', function() {
+            const focusTarget = confirmation.querySelector('[autofocus], [data-action="confirm"], [type="submit"]');
+            if (focusTarget) {
+                focusTarget.focus();
+            }
+        });
+    }
+    
+    // Utility functions for external use
+    window.showConfirmation = function(componentId) {
+        if (componentId === '{{ component_id }}') {
+            if (variant === 'modal') {
+                const modal = new bootstrap.Modal(confirmation);
+                modal.show();
+            } else {
+                confirmation.style.display = 'block';
+            }
+        }
+    };
+    
+    window.hideConfirmation = function(componentId) {
+        if (componentId === '{{ component_id }}') {
+            closeConfirmation();
+        }
+    };
+});
+</script>
+
+{# CSS for confirmation styling #}
+

@@ -67,6 +67,11 @@ class CeleryWebSocketService:
         with self._lock:
             return list(self.event_log)
 
+    def clear_event_log(self) -> None:
+        """Clear the in-memory event log (useful for smoke/E2E runs)."""
+        with self._lock:
+            self.event_log.clear()
+
     def start_analysis(self, data: Dict[str, Any]) -> Optional[str]:
         """Start a Celery task based on analysis_type and return the task id."""
         try:

@@ -6,7 +6,8 @@ API endpoints for application management and CRUD operations.
 """
 
 import logging
-from flask import request, render_template
+from flask import request
+from app.utils.template_paths import render_template_compat as render_template
 
 from ..response_utils import (
     json_success, json_error, handle_exceptions,
@@ -21,6 +22,9 @@ from ...services import application_service as app_service
 from ...services.service_locator import ServiceLocator
 from ...utils.helpers import get_app_directory
 from pathlib import Path
+import json
+import requests
+from flask import Response
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -119,7 +123,9 @@ def api_get_application_types():
 @handle_exceptions(logger_override=logger)
 def api_get_application_code(app_id):
     """API endpoint: Get application code/metadata (standardized)."""
-    app = GeneratedApplication.query.get(app_id)
+    from app.extensions import get_session
+    with get_session() as _s:
+        app = _s.get(GeneratedApplication, app_id)
     if not app:
         return json_error('Application not found', status=404, error_type='NotFound')
     return json_success({
@@ -138,7 +144,9 @@ def api_get_application_code(app_id):
 @handle_exceptions(logger_override=logger)
 def api_update_application_status(app_id):
     """API endpoint: Update application status (standardized)."""
-    app = GeneratedApplication.query.get(app_id)
+    from app.extensions import get_session
+    with get_session() as _s:
+        app = _s.get(GeneratedApplication, app_id)
     if not app:
         return json_error('Application not found', status=404, error_type='NotFound')
     data = request.get_json() or {}
@@ -239,11 +247,122 @@ def api_application_restart(app_id):
         return json_error(f'Application {app_id} not found', status=404, error_type='NotFound')
 
 
+# ================================================================
+# BULK APPLICATION OPERATIONS (used by Applications index page)
+# ================================================================
+
+@api_bp.route('/applications/bulk/start', methods=['POST'])
+def api_applications_bulk_start():
+    """Start multiple applications by ID.
+
+    Payload: { "app_ids": [1,2,3] }
+    Returns: { success, started_count, errors }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        ids = data.get('app_ids') or []
+        if not isinstance(ids, list) or not ids:
+            return json_error('app_ids must be a non-empty array', status=400, error_type='ValidationError')
+        started = 0
+        errors = []
+        for app_id in ids:
+            try:
+                res = app_service.start_application(int(app_id))
+                if res.get('success'):
+                    started += 1
+                else:
+                    errors.append({'app_id': app_id, 'error': res})
+            except Exception as e:  # noqa: BLE001
+                errors.append({'app_id': app_id, 'error': str(e)})
+        return json_success({'started_count': started, 'errors': errors}, message='Bulk start triggered')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Bulk start error: {e}")
+        return json_error(str(e), status=500, error_type='InternalError')
+
+
+@api_bp.route('/applications/bulk/stop', methods=['POST'])
+def api_applications_bulk_stop():
+    """Stop multiple applications by ID.
+
+    Payload: { "app_ids": [1,2,3] }
+    Returns: { success, stopped_count, errors }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        ids = data.get('app_ids') or []
+        if not isinstance(ids, list) or not ids:
+            return json_error('app_ids must be a non-empty array', status=400, error_type='ValidationError')
+        stopped = 0
+        errors = []
+        for app_id in ids:
+            try:
+                res = app_service.stop_application(int(app_id))
+                if res.get('success'):
+                    stopped += 1
+                else:
+                    errors.append({'app_id': app_id, 'error': res})
+            except Exception as e:  # noqa: BLE001
+                errors.append({'app_id': app_id, 'error': str(e)})
+        return json_success({'stopped_count': stopped, 'errors': errors}, message='Bulk stop triggered')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Bulk stop error: {e}")
+        return json_error(str(e), status=500, error_type='InternalError')
+
+
+@api_bp.route('/applications/bulk/delete', methods=['POST'])
+def api_applications_bulk_delete():
+    """Delete multiple applications by ID.
+
+    Payload: { "app_ids": [1,2,3] }
+    Returns: { success, deleted_count, errors }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        ids = data.get('app_ids') or []
+        if not isinstance(ids, list) or not ids:
+            return json_error('app_ids must be a non-empty array', status=400, error_type='ValidationError')
+        deleted = 0
+        errors = []
+        for app_id in ids:
+            try:
+                app_service.delete_application(int(app_id))
+                deleted += 1
+            except app_service.NotFoundError:
+                errors.append({'app_id': app_id, 'error': 'Not found'})
+            except Exception as e:  # noqa: BLE001
+                errors.append({'app_id': app_id, 'error': str(e)})
+        return json_success({'deleted_count': deleted, 'errors': errors}, message='Bulk delete completed')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Bulk delete error: {e}")
+        return json_error(str(e), status=500, error_type='InternalError')
+
+
+@api_bp.route('/applications/bulk/download')
+def api_applications_bulk_download():
+    """Download bundle for selected applications.
+
+    Currently returns a JSON message placeholder to avoid 404 in UI.
+    Consider implementing a ZIP stream of app metadata and logs.
+    """
+    try:
+        ids_param = request.args.get('app_ids', '')
+        ids = [int(x) for x in ids_param.split(',') if x.strip().isdigit()]
+        if not ids:
+            return json_error('app_ids query param required', status=400, error_type='ValidationError')
+        # Placeholder response to keep UI functional; implement ZIP streaming later
+        return json_success({'app_ids': ids}, message='Download packaging not implemented yet')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Bulk download error: {e}")
+        return json_error(str(e), status=500, error_type='InternalError')
+
+
 @api_bp.route('/applications/<int:app_id>/details')
 @handle_exceptions(logger_override=logger)
 def api_application_details(app_id):
     """API endpoint to get application details (standardized)."""
-    app = GeneratedApplication.query.get(app_id)
+    from app.extensions import get_session
+    with get_session() as _s:
+        app = _s.get(GeneratedApplication, app_id)
     if not app:
         return json_error(f'Application {app_id} not found', status=404, error_type='NotFound')
     return json_success({
@@ -261,11 +380,43 @@ def api_application_details(app_id):
     }, message='Application details fetched')
 
 
+@api_bp.route('/applications/export')
+def api_applications_export():
+    """Placeholder endpoint for exporting applications list.
+
+    In a future iteration this can stream a CSV/XLSX. For now, return a small HTML page
+    indicating export is not yet implemented to avoid broken link.
+    """
+    try:
+        return render_template('partials/common/info.html',
+                               title='Export not implemented',
+                               message='Export will be available in a future update.')
+    except Exception:
+        return json_success({'message': 'Export not implemented yet'})
+
+
+@api_bp.route('/applications/cleanup', methods=['POST'])
+def api_applications_cleanup():
+    """Placeholder cleanup endpoint to keep UI action functional.
+
+    Performs a no-op and returns success; real cleanup logic can be implemented
+    in application_service later.
+    """
+    try:
+        # Potentially call a service to prune unused rows/files in the future
+        return json_success({'removed_count': 0}, message='Cleanup completed (no-op)')
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Cleanup error: {e}")
+        return json_error(str(e), status=500, error_type='InternalError')
+
+
 @api_bp.route('/applications/<int:app_id>/logs')
 def api_application_logs_modal(app_id):
     """API endpoint to get application logs modal."""
     try:
-        app = GeneratedApplication.query.get(app_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            app = _s.get(GeneratedApplication, app_id)
         if not app:
             return f'<div class="alert alert-warning">Application {app_id} not found</div>', 404
         
@@ -315,6 +466,54 @@ def api_application_logs_modal_by_slug(model_slug, app_num):
         except Exception as e:
             logger.debug(f"Port lookup failed for {model_slug}/app{app_num}: {e}")
 
+        # If ports still unknown, try to read misc/port_config.json directly
+        if backend_port is None or frontend_port is None:
+            try:
+                # project root: src/app/routes/api -> src -> project
+                proj_root = Path(__file__).resolve().parents[4]
+                port_file = proj_root / 'misc' / 'port_config.json'
+                if port_file.exists():
+                    entries = json.loads(port_file.read_text(encoding='utf-8'))
+                    for entry in entries:
+                        if (entry.get('model_name') == model_slug and int(entry.get('app_number')) == int(app_num)):
+                            backend_port = backend_port or int(entry.get('backend_port'))
+                            frontend_port = frontend_port or int(entry.get('frontend_port'))
+                            break
+            except Exception as _json_port_err:
+                logger.debug(f"JSON port config lookup failed: {_json_port_err}")
+
+        # Fallback to filesystem logs under misc/models/<slug>/appN/_logs
+        try:
+            proj_root = Path(__file__).resolve().parents[4]
+            app_dir = proj_root / 'misc' / 'models' / model_slug / f'app{app_num}'
+            logs_dir = app_dir / '_logs'
+            if logs_dir.exists():
+                backend_log_path = None
+                frontend_log_path = None
+                # common names
+                for name in ['backend.log', 'api.log', 'server.log']:
+                    p = logs_dir / name
+                    if p.exists():
+                        backend_log_path = p
+                        break
+                for name in ['frontend.log', 'web.log', 'ui.log']:
+                    p = logs_dir / name
+                    if p.exists():
+                        frontend_log_path = p
+                        break
+                try:
+                    if backend_log_path:
+                        backend_logs = backend_log_path.read_text(encoding='utf-8', errors='replace')[-10000:]
+                except Exception:
+                    pass
+                try:
+                    if frontend_log_path:
+                        frontend_logs = frontend_log_path.read_text(encoding='utf-8', errors='replace')[-10000:]
+                except Exception:
+                    pass
+        except Exception as _fs_err:
+            logger.debug(f"Filesystem logs fallback failed: {_fs_err}")
+
         # Render rich modal with split backend/frontend panes
         return render_template(
             'partials/app_logs_modal.html',
@@ -334,7 +533,9 @@ def api_application_logs_modal_by_slug(model_slug, app_num):
 def api_application_logs(app_id):
     """API endpoint for application logs."""
     try:
-        app = GeneratedApplication.query.get(app_id)
+        from app.extensions import get_session
+        with get_session() as _s:
+            app = _s.get(GeneratedApplication, app_id)
         if not app:
             return f'<div class="alert alert-warning">Application {app_id} not found</div>', 404
         
@@ -579,3 +780,49 @@ def sync_model_status(model_slug):
     except Exception as e:
         logger.error(f"Error syncing model status for {model_slug}: {e}")
         return f'<div class="alert alert-danger">Error loading status: {str(e)}</div>', 500
+
+
+# -----------------------------------------------------------------
+# Simple GET proxy to frontend root (basic, non-streaming)
+# -----------------------------------------------------------------
+@api_bp.route('/app/<model_slug>/<int:app_num>/proxy/frontend')
+def proxy_frontend_root(model_slug, app_num):
+    """Basic GET proxy that fetches the frontend root from the server's bound port.
+
+    Security: Minimal; this only proxies the root ('/') and returns the content-type
+    provided by the proxied response. Do not expand this to arbitrary proxying without
+    adding authentication and access controls.
+    """
+    try:
+        # 1) Try DB lookup for port
+        try:
+            from ...models import PortConfiguration
+            pc = db.session.query(PortConfiguration).filter_by(model=model_slug, app_num=app_num).first()
+            port = pc.frontend_port if pc else None
+        except Exception:
+            port = None
+
+        # 2) Fallback to misc/port_config.json
+        if not port:
+            try:
+                proj_root = Path(__file__).resolve().parents[4]
+                port_file = proj_root / 'misc' / 'port_config.json'
+                if port_file.exists():
+                    entries = json.loads(port_file.read_text(encoding='utf-8'))
+                    for entry in entries:
+                        if entry.get('model_name') == model_slug and int(entry.get('app_number')) == int(app_num):
+                            port = int(entry.get('frontend_port'))
+                            break
+            except Exception:
+                port = None
+
+        if not port:
+            return json_error('Frontend port not available', status=404, error_type='NotFound')
+
+        url = f'http://localhost:{port}/'
+        resp = requests.get(url, timeout=10)
+        content_type = resp.headers.get('Content-Type', 'text/html; charset=utf-8')
+        return Response(resp.content, status=resp.status_code, content_type=content_type)
+    except Exception as e:
+        logger.error(f"Proxy error for {model_slug}/app{app_num}: {e}")
+        return json_error(str(e), status=500, error_type='InternalError')

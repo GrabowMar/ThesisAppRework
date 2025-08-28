@@ -1,0 +1,277 @@
+{# slug: ui/elements/common/status-badge (auto-migrated) #}
+{# 
+Common Status Badge Component
+
+Purpose: Status indicator badges for various states and conditions
+Usage: {{ status_badge(status='active', label='Online', size='normal') }}
+Routes: Used across all views for status indication
+Features:
+- Multiple status types (success, warning, danger, info, etc.)
+- Animated pulse and breathing effects
+- Icon support with status indicators
+- Size variations (xs, sm, normal, lg)
+- Pill and rounded badge styles
+- Count badges for notifications
+- Real-time status updates via HTMX
+- Accessibility support with proper ARIA attributes
+- Color-blind friendly status indicators
+Technical: CSS animations, Bootstrap badge classes, custom status colors
+Dependencies: Bootstrap 5 badge classes, FontAwesome icons, CSS keyframes
+#}
+
+{# Set default values for optional parameters #}
+{%- set status = status or 'default' -%}
+{%- set label = label or None -%}
+{%- set count = count or None -%}
+{%- set icon = icon or None -%}
+{%- set size = size or 'normal' -%}
+{%- set style = style or 'badge' -%}
+{%- set animated = animated if animated is not none else false -%}
+{%- set component_id = id or 'status-badge-' ~ range(1000, 9999) | random -%}
+{%- set tooltip = tooltip or None -%}
+{%- set show_icon = show_icon if show_icon is not none else true -%}
+{%- set show_text = show_text if show_text is not none else true -%}
+{%- set htmx_poll = htmx_poll or None -%}
+{%- set custom_class = custom_class or '' -%}
+
+{# Status configuration mapping #}
+{%- set status_config = {
+    'active': {'color': 'success', 'icon': 'fas fa-circle', 'label': 'Active', 'pulse': true},
+    'inactive': {'color': 'secondary', 'icon': 'fas fa-circle', 'label': 'Inactive', 'pulse': false},
+    'online': {'color': 'success', 'icon': 'fas fa-signal', 'label': 'Online', 'pulse': true},
+    'offline': {'color': 'danger', 'icon': 'fas fa-times-circle', 'label': 'Offline', 'pulse': false},
+    'pending': {'color': 'warning', 'icon': 'fas fa-clock', 'label': 'Pending', 'pulse': true},
+    'processing': {'color': 'info', 'icon': 'fas fa-spinner', 'label': 'Processing', 'pulse': true},
+    'completed': {'color': 'success', 'icon': 'fas fa-check-circle', 'label': 'Completed', 'pulse': false},
+    'failed': {'color': 'danger', 'icon': 'fas fa-exclamation-circle', 'label': 'Failed', 'pulse': false},
+    'cancelled': {'color': 'secondary', 'icon': 'fas fa-ban', 'label': 'Cancelled', 'pulse': false},
+    'running': {'color': 'primary', 'icon': 'fas fa-play-circle', 'label': 'Running', 'pulse': true},
+    'stopped': {'color': 'danger', 'icon': 'fas fa-stop-circle', 'label': 'Stopped', 'pulse': false},
+    'paused': {'color': 'warning', 'icon': 'fas fa-pause-circle', 'label': 'Paused', 'pulse': false},
+    'queued': {'color': 'info', 'icon': 'fas fa-list', 'label': 'Queued', 'pulse': false},
+    'error': {'color': 'danger', 'icon': 'fas fa-exclamation-triangle', 'label': 'Error', 'pulse': true},
+    'warning': {'color': 'warning', 'icon': 'fas fa-exclamation-circle', 'label': 'Warning', 'pulse': false},
+    'info': {'color': 'info', 'icon': 'fas fa-info-circle', 'label': 'Info', 'pulse': false},
+    'new': {'color': 'primary', 'icon': 'fas fa-star', 'label': 'New', 'pulse': true},
+    'updated': {'color': 'success', 'icon': 'fas fa-sync', 'label': 'Updated', 'pulse': false},
+    'draft': {'color': 'secondary', 'icon': 'fas fa-edit', 'label': 'Draft', 'pulse': false},
+    'published': {'color': 'success', 'icon': 'fas fa-globe', 'label': 'Published', 'pulse': false},
+    'archived': {'color': 'secondary', 'icon': 'fas fa-archive', 'label': 'Archived', 'pulse': false},
+    'beta': {'color': 'warning', 'icon': 'fas fa-flask', 'label': 'Beta', 'pulse': false},
+    'experimental': {'color': 'warning', 'icon': 'fas fa-vial', 'label': 'Experimental', 'pulse': true},
+    'maintenance': {'color': 'warning', 'icon': 'fas fa-tools', 'label': 'Maintenance', 'pulse': true},
+    'healthy': {'color': 'success', 'icon': 'fas fa-heart', 'label': 'Healthy', 'pulse': false},
+    'unhealthy': {'color': 'danger', 'icon': 'fas fa-heartbeat', 'label': 'Unhealthy', 'pulse': true},
+    'default': {'color': 'secondary', 'icon': 'fas fa-circle', 'label': 'Status', 'pulse': false}
+} -%}
+
+{%- set config = status_config.get(status, status_config['default']) -%}
+{%- set final_icon = icon or config.icon -%}
+{%- set final_label = label or config.label -%}
+{%- set final_animated = animated or config.pulse -%}
+
+{# Size mappings #}
+{%- set size_classes = {
+    'xs': 'badge-xs',
+    'sm': 'badge-sm',
+    'normal': '',
+    'lg': 'badge-lg'
+} -%}
+
+{# Style mappings #}
+{%- set style_classes = {
+    'badge': 'badge',
+    'pill': 'badge rounded-pill',
+    'dot': 'status-dot',
+    'indicator': 'status-indicator',
+    'outline': 'badge badge-outline'
+} -%}
+
+<span class="{{ style_classes[style] }} bg-{{ config.color }} {{ size_classes[size] }} {{ 'status-animated' if final_animated else '' }} {{ 'status-pulse' if config.pulse and final_animated else '' }} {{ custom_class }}"
+      id="{{ component_id }}"
+      data-status="{{ status }}"
+      {% if tooltip %}
+          data-bs-toggle="tooltip"
+          data-bs-placement="top"
+          title="{{ tooltip }}"
+      {% endif %}
+      {% if htmx_poll %}
+          hx-get="{{ htmx_poll }}"
+          hx-trigger="every {{ htmx_poll_interval or '5s' }}"
+          hx-target="#{{ component_id }}"
+          hx-swap="outerHTML"
+      {% endif %}
+      role="status"
+      aria-label="{{ final_label }}{% if count %}: {{ count }}{% endif %}">
+      
+    {# Icon #}
+    {% if show_icon and final_icon and style != 'dot' %}
+        <i class="{{ final_icon }} {% if final_icon == 'fas fa-spinner' %}fa-spin{% endif %}" 
+           aria-hidden="true"></i>
+        {% if show_text and final_label %}
+            <span class="ms-1">{{ final_label }}</span>
+        {% endif %}
+    {% endif %}
+    
+    {# Text only (no icon) #}
+    {% if show_text and final_label and (not show_icon or not final_icon or style == 'dot') %}
+        {{ final_label }}
+    {% endif %}
+    
+    {# Count badge #}
+    {% if count is not none %}
+        {% if show_text or show_icon %}
+            <span class="badge-count ms-1">{{ count }}</span>
+        {% else %}
+            {{ count }}
+        {% endif %}
+    {% endif %}
+    
+    {# Screen reader text #}
+    <span class="visually-hidden">{{ final_label }}{% if count %}, {{ count }} items{% endif %}</span>
+</span>
+
+{# JavaScript for status badge functionality #}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const statusBadge = document.getElementById('{{ component_id }}');
+    if (!statusBadge) return;
+    
+    // Initialize tooltip if present
+    {% if tooltip %}
+        if (window.bootstrap && bootstrap.Tooltip) {
+            new bootstrap.Tooltip(statusBadge);
+        }
+    {% endif %}
+    
+    // Handle HTMX updates
+    document.addEventListener('htmx:afterSwap', function(event) {
+        if (event.target.id === '{{ component_id }}') {
+            // Re-initialize tooltip after HTMX update
+            {% if tooltip %}
+                if (window.bootstrap && bootstrap.Tooltip) {
+                    const tooltip = bootstrap.Tooltip.getInstance(event.target);
+                    if (tooltip) {
+                        tooltip.dispose();
+                    }
+                    new bootstrap.Tooltip(event.target);
+                }
+            {% endif %}
+        }
+    });
+    
+    // Status update function for external use
+    window.updateStatusBadge = function(componentId, newStatus, newLabel, newCount) {
+        if (componentId !== '{{ component_id }}') return;
+        
+        const statusConfig = {
+            'active': {color: 'success', icon: 'fas fa-circle', pulse: true},
+            'inactive': {color: 'secondary', icon: 'fas fa-circle', pulse: false},
+            'online': {color: 'success', icon: 'fas fa-signal', pulse: true},
+            'offline': {color: 'danger', icon: 'fas fa-times-circle', pulse: false},
+            'pending': {color: 'warning', icon: 'fas fa-clock', pulse: true},
+            'processing': {color: 'info', icon: 'fas fa-spinner', pulse: true},
+            'completed': {color: 'success', icon: 'fas fa-check-circle', pulse: false},
+            'failed': {color: 'danger', icon: 'fas fa-exclamation-circle', pulse: false},
+            'error': {color: 'danger', icon: 'fas fa-exclamation-triangle', pulse: true},
+            'default': {color: 'secondary', icon: 'fas fa-circle', pulse: false}
+        };
+        
+        const config = statusConfig[newStatus] || statusConfig['default'];
+        
+        // Update classes
+        statusBadge.className = statusBadge.className.replace(/bg-\w+/g, `bg-${config.color}`);
+        statusBadge.dataset.status = newStatus;
+        
+        // Update animation
+        if (config.pulse) {
+            statusBadge.classList.add('status-pulse');
+        } else {
+            statusBadge.classList.remove('status-pulse');
+        }
+        
+        // Update icon
+        const icon = statusBadge.querySelector('i');
+        if (icon && {{ 'true' if show_icon else 'false' }}) {
+            icon.className = config.icon;
+            if (config.icon === 'fas fa-spinner') {
+                icon.classList.add('fa-spin');
+            }
+        }
+        
+        // Update label
+        if (newLabel && {{ 'true' if show_text else 'false' }}) {
+            const textSpan = statusBadge.querySelector('span:not(.badge-count):not(.visually-hidden)');
+            if (textSpan) {
+                textSpan.textContent = newLabel;
+            }
+        }
+        
+        // Update count
+        if (newCount !== undefined) {
+            const countSpan = statusBadge.querySelector('.badge-count');
+            if (countSpan) {
+                countSpan.textContent = newCount;
+            } else if (newCount > 0) {
+                const countElement = document.createElement('span');
+                countElement.className = 'badge-count ms-1';
+                countElement.textContent = newCount;
+                statusBadge.appendChild(countElement);
+            }
+        }
+        
+        // Update screen reader text
+        const screenReader = statusBadge.querySelector('.visually-hidden');
+        if (screenReader) {
+            let srText = newLabel || statusBadge.dataset.status;
+            if (newCount) {
+                srText += `, ${newCount} items`;
+            }
+            screenReader.textContent = srText;
+        }
+        
+        // Update tooltip
+        {% if tooltip %}
+            const tooltip = bootstrap.Tooltip.getInstance(statusBadge);
+            if (tooltip) {
+                tooltip.setContent({'.tooltip-inner': newLabel || statusBadge.dataset.status});
+            }
+        {% endif %}
+        
+        // Emit update event
+        const event = new CustomEvent('statusBadgeUpdate', {
+            detail: {
+                componentId: componentId,
+                status: newStatus,
+                label: newLabel,
+                count: newCount
+            }
+        });
+        document.dispatchEvent(event);
+    };
+    
+    // Click handler for interactive badges
+    statusBadge.addEventListener('click', function(e) {
+        // Emit click event
+        const event = new CustomEvent('statusBadgeClick', {
+            detail: {
+                status: '{{ status }}',
+                componentId: '{{ component_id }}',
+                element: statusBadge
+            }
+        });
+        document.dispatchEvent(event);
+        
+        // Track analytics
+        if (window.analytics && typeof window.analytics.track === 'function') {
+            window.analytics.track('Status Badge Interaction', {
+                'status': '{{ status }}',
+                'component_id': '{{ component_id }}'
+            });
+        }
+    });
+});
+</script>
+
+{# CSS for status badge styling #}
+

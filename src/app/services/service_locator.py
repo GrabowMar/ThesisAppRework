@@ -1,12 +1,18 @@
-"""
-Service Locator Pattern
-======================
+"""Service Locator Pattern
+=========================
 
 Centralized service registry for dependency injection.
-Provides clean separation between service definitions and usage.
+Now intentionally minimal: deprecated services (AnalyzerService,
+ContainerService, HuggingFaceService, PortService) are no longer
+registered here. Shims remain only to prevent import errors.
+
+All new services should reuse standardized exceptions from
+`service_base` and keep side-effects (threads, external processes)
+outside of the Flask request path when possible.
 """
 
 from typing import Dict, Optional, TypeVar
+import logging
 from flask import Flask
 
 T = TypeVar('T')
@@ -33,10 +39,8 @@ class ServiceLocator:
     @classmethod
     def _register_core_services(cls, app: Flask):
         """Register all core application services."""
-        # Import services here to avoid circular imports
+        # Import services here to avoid circular imports. Keep the list short.
         from .model_service import ModelService
-
-        # Legacy services removed: AnalyzerService, ContainerService, PortService
 
         try:
             from .docker_manager import DockerManager
@@ -63,6 +67,31 @@ class ServiceLocator:
             cls.register('batch_service', BatchAnalysisService())
         if SecurityService:
             cls.register('security_service', SecurityService())
+
+        # Best-effort: ensure PortConfiguration is populated from misc/port_config.json
+        # Only done outside tests to avoid slowing the suite.
+        try:
+            import os as _os
+            is_testing = bool(app.config.get('TESTING')) or bool(_os.environ.get('PYTEST_CURRENT_TEST'))
+            if not is_testing:
+                from app.models import PortConfiguration  # type: ignore
+                from app.extensions import db as _db  # lazy import to avoid cycles
+                # Only populate if table appears empty
+                if _db.session.query(PortConfiguration).count() == 0:
+                    logger = logging.getLogger(__name__)
+                    logger.info("PortConfiguration empty; attempting to load from misc/port_config.json ...")
+                    try:
+                        from .data_initialization import DataInitializationService
+                        svc = DataInitializationService()
+                        res = svc.load_port_config()
+                        # Commit changes
+                        _db.session.commit()
+                        logger.info("Loaded %s port entries (created: %s, updated: %s)", res.get('loaded', 0), res.get('created', 0), res.get('updated', 0))
+                    except Exception as _port_err:
+                        logger.warning("Failed to auto-load port configuration: %s", _port_err)
+        except Exception:
+            # Non-fatal; continue startup
+            pass
     
     @classmethod
     def register(cls, name: str, service: object):

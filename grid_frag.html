@@ -1,0 +1,2309 @@
+
+
+<!-- Model Grid Fragment -->
+<div class="model-grid" 
+    hx-swap-oob="outerHTML"
+    data-context-selectable="true"
+    data-context-installed-only="false">
+    
+    
+    <div class="row g-2 g-md-3">
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="anthropic_claude-3.7-sonnet"
+                 data-model-name="claude-3.7-sonnet"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="claude-3.7-sonnet - Anthropic">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-info text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-brain fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                claude-3.7-sonnet
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Anthropic</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>200K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8.2K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Reasoning</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+7</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('anthropic_claude-3.7-sonnet', 'claude-3.7-sonnet'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('anthropic_claude-3.7-sonnet');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="anthropic_claude-sonnet-4"
+                 data-model-name="claude-sonnet-4"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="claude-sonnet-4 - Anthropic">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-info text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-brain fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                claude-sonnet-4
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Anthropic</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>200K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8.2K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Reasoning</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+7</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('anthropic_claude-sonnet-4', 'claude-sonnet-4'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('anthropic_claude-sonnet-4');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="cognitivecomputations_dolphin-mistral-24b-venice-edition"
+                 data-model-name="dolphin-mistral-24b-venice-edition"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="dolphin-mistral-24b-venice-edition - Cognitivecomputations">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                dolphin-mistral-24b-venice-edition
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Cognitivecomputations</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>32K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Math</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+3</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('cognitivecomputations_dolphin-mistral-24b-venice-edition', 'dolphin-mistral-24b-venice-edition'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('cognitivecomputations_dolphin-mistral-24b-venice-edition');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="deepseek_deepseek-chat-v3-0324"
+                 data-model-name="deepseek-chat-v3-0324"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="deepseek-chat-v3-0324 - Deepseek">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                deepseek-chat-v3-0324
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Deepseek</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>128K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>16K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Math</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+5</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('deepseek_deepseek-chat-v3-0324', 'deepseek-chat-v3-0324'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('deepseek_deepseek-chat-v3-0324');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="deepseek_deepseek-r1-0528"
+                 data-model-name="deepseek-r1-0528"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="deepseek-r1-0528 - Deepseek">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                deepseek-r1-0528
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Deepseek</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>128K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>16K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Reasoning</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+6</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('deepseek_deepseek-r1-0528', 'deepseek-r1-0528'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('deepseek_deepseek-r1-0528');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="deepseek_deepseek-r1-0528-qwen3-8b"
+                 data-model-name="deepseek-r1-0528-qwen3-8b"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="deepseek-r1-0528-qwen3-8b - Deepseek">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                deepseek-r1-0528-qwen3-8b
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Deepseek</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>128K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>16K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Reasoning</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+6</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('deepseek_deepseek-r1-0528-qwen3-8b', 'deepseek-r1-0528-qwen3-8b'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('deepseek_deepseek-r1-0528-qwen3-8b');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="featherless_qwerky-72b"
+                 data-model-name="qwerky-72b"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="qwerky-72b - Featherless">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                qwerky-72b
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Featherless</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>32K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Math</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+3</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('featherless_qwerky-72b', 'qwerky-72b'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('featherless_qwerky-72b');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="google_gemini-2.5-flash"
+                 data-model-name="gemini-2.5-flash"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="gemini-2.5-flash - Google">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fab fa-google fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                gemini-2.5-flash
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Google</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>128K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8.2K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Reasoning</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+7</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('google_gemini-2.5-flash', 'gemini-2.5-flash'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('google_gemini-2.5-flash');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="google_gemini-2.5-pro"
+                 data-model-name="gemini-2.5-pro"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="gemini-2.5-pro - Google">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-warning text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fab fa-google fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                gemini-2.5-pro
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Google</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>1M ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8.2K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Reasoning</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+8</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('google_gemini-2.5-pro', 'gemini-2.5-pro'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('google_gemini-2.5-pro');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="minimax_minimax-m1"
+                 data-model-name="minimax-m1"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="minimax-m1 - Minimax">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                minimax-m1
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Minimax</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>32K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Math</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+3</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('minimax_minimax-m1', 'minimax-m1'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('minimax_minimax-m1');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="mistralai_devstral-medium"
+                 data-model-name="devstral-medium"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="devstral-medium - Mistralai">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                devstral-medium
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Mistralai</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>32K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Math</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+3</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('mistralai_devstral-medium', 'devstral-medium'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('mistralai_devstral-medium');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="mistralai_mistral-small-3.2-24b-instruct"
+                 data-model-name="mistral-small-3.2-24b-instruct"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="mistral-small-3.2-24b-instruct - Mistralai">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                mistral-small-3.2-24b-instruct
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Mistralai</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>32K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Math</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+3</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('mistralai_mistral-small-3.2-24b-instruct', 'mistral-small-3.2-24b-instruct'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('mistralai_mistral-small-3.2-24b-instruct');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="moonshotai_kimi-dev-72b"
+                 data-model-name="kimi-dev-72b"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="kimi-dev-72b - Moonshotai">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                kimi-dev-72b
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Moonshotai</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>32K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Math</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+3</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('moonshotai_kimi-dev-72b', 'kimi-dev-72b'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('moonshotai_kimi-dev-72b');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="nousresearch_deephermes-3-llama-3-8b-preview"
+                 data-model-name="deephermes-3-llama-3-8b-preview"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="deephermes-3-llama-3-8b-preview - Nousresearch">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                deephermes-3-llama-3-8b-preview
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Nousresearch</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>131.1K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8.2K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Reasoning</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+6</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('nousresearch_deephermes-3-llama-3-8b-preview', 'deephermes-3-llama-3-8b-preview'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('nousresearch_deephermes-3-llama-3-8b-preview');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="nvidia_llama-3.1-nemotron-ultra-253b-v1"
+                 data-model-name="llama-3.1-nemotron-ultra-253b-v1"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="llama-3.1-nemotron-ultra-253b-v1 - Nvidia">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                llama-3.1-nemotron-ultra-253b-v1
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Nvidia</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>131.1K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8.2K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Reasoning</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+7</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('nvidia_llama-3.1-nemotron-ultra-253b-v1', 'llama-3.1-nemotron-ultra-253b-v1'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('nvidia_llama-3.1-nemotron-ultra-253b-v1');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="openai_gpt-4.1"
+                 data-model-name="gpt-4.1"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="gpt-4.1 - Openai">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-robot fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                gpt-4.1
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Openai</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>128K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>16.4K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Reasoning</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+7</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('openai_gpt-4.1', 'gpt-4.1'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('openai_gpt-4.1');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="openai_o3"
+                 data-model-name="o3"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="o3 - Openai">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-robot fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                o3
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Openai</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>32K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Math</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+3</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('openai_o3', 'o3'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('openai_o3');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="qwen_qwen3-14b"
+                 data-model-name="qwen3-14b"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="qwen3-14b - Qwen">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                qwen3-14b
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Qwen</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>32K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Math</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+3</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('qwen_qwen3-14b', 'qwen3-14b'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('qwen_qwen3-14b');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="qwen_qwen3-235b-a22b-2507"
+                 data-model-name="qwen3-235b-a22b-2507"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="qwen3-235b-a22b-2507 - Qwen">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                qwen3-235b-a22b-2507
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Qwen</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>32K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Math</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+3</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('qwen_qwen3-235b-a22b-2507', 'qwen3-235b-a22b-2507'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('qwen_qwen3-235b-a22b-2507');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="qwen_qwen3-8b"
+                 data-model-name="qwen3-8b"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="qwen3-8b - Qwen">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                qwen3-8b
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Qwen</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>32K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Math</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+3</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('qwen_qwen3-8b', 'qwen3-8b'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('qwen_qwen3-8b');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="qwen_qwen3-coder"
+                 data-model-name="qwen3-coder"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="qwen3-coder - Qwen">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                qwen3-coder
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Qwen</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>32K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Math</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+3</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('qwen_qwen3-coder', 'qwen3-coder'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('qwen_qwen3-coder');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="tencent_hunyuan-a13b-instruct"
+                 data-model-name="hunyuan-a13b-instruct"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="hunyuan-a13b-instruct - Tencent">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                hunyuan-a13b-instruct
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Tencent</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>32K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Math</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+3</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('tencent_hunyuan-a13b-instruct', 'hunyuan-a13b-instruct'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('tencent_hunyuan-a13b-instruct');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="thudm_glm-4-32b"
+                 data-model-name="glm-4-32b"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="glm-4-32b - Thudm">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                glm-4-32b
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Thudm</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>32K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Math</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+3</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('thudm_glm-4-32b', 'glm-4-32b'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('thudm_glm-4-32b');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="tngtech_deepseek-r1t2-chimera"
+                 data-model-name="deepseek-r1t2-chimera"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="deepseek-r1t2-chimera - Tngtech">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                deepseek-r1t2-chimera
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">Tngtech</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>128K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>16K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Reasoning</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+6</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('tngtech_deepseek-r1t2-chimera', 'deepseek-r1t2-chimera'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('tngtech_deepseek-r1t2-chimera');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-12 col-md-6 col-lg-4">
+            <div class="card model-card app-card h-100" 
+                 data-model-slug="x-ai_grok-4"
+                 data-model-name="grok-4"
+                 data-bs-toggle="tooltip"
+                 data-bs-placement="top"
+                 title="grok-4 - X-Ai">
+                
+                <!-- Status badges positioned absolutely -->
+                <div class="position-absolute top-0 start-0 p-2 d-flex flex-column align-items-start gap-1 z-2">
+                  
+                  
+                  <span class="badge bg-primary">30 apps</span>
+                  
+                </div>
+                
+                <!-- Selection indicator (hidden by default, shown when selected) -->
+                <div class="selection-indicator position-absolute top-0 start-0 p-2 d-none">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:24px;height:24px;">
+                        <i class="fas fa-check fa-xs"></i>
+                    </div>
+                </div>
+                
+                <div class="card-body p-3">
+                    <!-- Provider icon and name -->
+                    <div class="d-flex align-items-start mb-2 provider-row">
+                        <div class="provider-icon me-2 flex-shrink-0">
+                            
+                                <div class="bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:28px;height:28px;">
+                                    <i class="fas fa-microchip fa-xs"></i>
+                                </div>
+                            
+                        </div>
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="card-title mb-0 fw-semibold text-truncate lh-sm model-name">
+                                grok-4
+                            </h6>
+                            <div class="d-flex align-items-center gap-1 small text-muted">
+                                <span class="text-provider">X-Ai</span>
+                                
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Key metrics row -->
+                                        <div class="small text-muted mb-2 model-stats">
+                                            <div class="d-flex flex-wrap gap-2">
+                                                
+                                                <span><i class="fas fa-database me-1"></i>32K ctx</span>
+                                                
+                                                
+                                                <span><i class="fas fa-arrow-up-short-wide me-1"></i>8K out</span>
+                                                
+                                                
+                                            </div>
+                                        </div>
+                    
+                    <!-- Capabilities badges -->
+                    
+                                        <div class="mb-3">
+                                            <div class="d-flex flex-wrap gap-1">
+                                                
+                                                
+                                                <span class="badge bg-light text-dark border">Coding</span>
+                                                
+                                                <span class="badge bg-light text-dark border">Math</span>
+                                                
+                                                
+                                                <span class="badge bg-light text-muted border">+3</span>
+                                                
+                                            </div>
+                                        </div>
+                    
+                    
+                    <!-- Pricing (simplified) -->
+                    
+                </div>
+                
+                <!-- Card Footer -->
+                <div class="card-footer bg-light d-flex justify-content-center p-2 mt-auto">
+                  
+                  <button class="btn btn-sm btn-primary model-select-btn" type="button" hx-swap="none"
+                          onclick="selectModel('x-ai_grok-4', 'grok-4'); if(window.highlightSelectedModelCard) highlightSelectedModelCard('x-ai_grok-4');">Select</button>
+                  
+                </div>
+            </div>
+        </div>
+        
+    </div>
+    
+    
+</div>
+
+<style>
+/* Typography scaling */
+.fs-7 { font-size: 0.875rem !important; }
+.fs-8 { font-size: 0.75rem !important; }
+
+/* Align with application card aesthetics */
+.model-card { transition: all .18s ease; border:1px solid var(--bs-border-color) !important; }
+.model-card:hover { transform:translateY(-2px); box-shadow:0 6px 18px -4px rgba(0,0,0,.35); }
+.model-card.selected { border-color: var(--bs-primary) !important; box-shadow:0 0 0 2px rgba(var(--bs-primary-rgb),.35); }
+.model-card.selected .model-select-btn { background: var(--bs-primary); }
+
+/* Provider / branding */
+.provider-row .provider-icon > div { box-shadow: 0 2px 4px rgba(0,0,0,.25); }
+.model-name { letter-spacing: .2px; }
+.text-price { color: var(--bs-primary); font-weight: 500; }
+.badge-soft-primary { background: rgba(var(--bs-primary-rgb), .15); color: var(--bs-primary); font-weight: 600; }
+.badge-soft-success { background: rgba(var(--bs-success-rgb), .18); color: var(--bs-success); font-weight: 600; }
+.badge-soft-primary, .badge-soft-success { font-size: .65rem; padding: .30rem .5rem; border-radius: .5rem; backdrop-filter: blur(2px); }
+
+/* Simplified capability & stat styling to match app cards */
+.model-stats i { opacity:.8; }
+.model-select-btn { font-weight:600; }
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .metrics-row { gap:.35rem; }
+    .metric { padding:.15rem .35rem; }
+    .cap-pill { font-size:.55rem; }
+}
+
+/* Animation for HTMX swaps */
+.model-grid [hx-swap-oob] {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Loading state */
+.htmx-request .model-card {
+    opacity: 0.7;
+    pointer-events: none;
+}
+</style>
+
+<script>
+// Enhanced model card selection and HTMX integration
+document.addEventListener('htmx:afterSwap', function(evt) {
+    const target = evt.detail.target;
+    
+    // Re-initialize tooltips in swapped content
+    if (target && target.closest && target.closest('.model-grid')) {
+        const tooltips = target.querySelectorAll('[data-bs-toggle="tooltip"]');
+        tooltips.forEach(el => {
+            if (typeof bootstrap !== 'undefined') {
+                new bootstrap.Tooltip(el);
+            }
+        });
+        
+        // Restore selection state if it exists
+        const selectedSlug = window.selectedModel?.slug;
+        if (selectedSlug && window.highlightSelectedModelCard) {
+            setTimeout(() => highlightSelectedModelCard(selectedSlug), 100);
+        }
+    }
+});
+
+// Selection highlighting function
+window.highlightSelectedModelCard = function(slug) {
+    // Remove previous selections
+    document.querySelectorAll('.model-card').forEach(card => {
+        card.classList.remove('selected');
+        card.querySelector('.selection-indicator')?.classList.add('d-none');
+    });
+    
+    // Highlight selected card
+    const selectedCard = document.querySelector(`.model-card[data-model-slug="${slug}"]`);
+    if (selectedCard) {
+        selectedCard.classList.add('selected');
+        const indicator = selectedCard.querySelector('.selection-indicator');
+        if (indicator) indicator.classList.remove('d-none');
+    }
+};
+
+// Keyboard navigation support
+document.addEventListener('keydown', function(e) {
+    if (e.target.classList.contains('model-select-btn')) {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.target.click();
+        }
+    }
+});
+
+// Error handling for failed HTMX requests
+document.addEventListener('htmx:responseError', function(evt) {
+    if (evt.detail.target && evt.detail.target.closest('.model-grid')) {
+        console.error('Failed to load models:', evt.detail.error);
+        if (window.App && window.App.showToast) {
+            window.App.showToast('Failed to load models. Please try again.', 'error');
+        } else {
+            alert('Failed to load models. Please refresh the page.');
+        }
+    }
+});
+
+// Performance monitoring
+document.addEventListener('htmx:afterRequest', function(evt) {
+    if (evt.detail.target && evt.detail.target.closest('.model-grid')) {
+        const duration = Date.now() - evt.detail.requestConfig.startTime;
+        if (duration > 2000) {
+            console.warn(`Slow model grid load: ${duration}ms`);
+        }
+    }
+});
+</script>

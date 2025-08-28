@@ -1,0 +1,25 @@
+{# Queue Monitor Partial - shows priority depths and allows refresh via HTMX #}
+<div id="batch-queue-monitor" hx-get="/batch/api/batch/queue/status" hx-trigger="load, every 5s" hx-target="#batch-queue-monitor" hx-swap="outerHTML">
+  <h5 class="mb-2">Batch Queue</h5>
+  {% if depths %}
+  <div class="d-flex flex-wrap gap-3">
+    {% for prio, depth in depths.items() %}
+      <div class="queue-pill priority-{{ prio }}">
+        <span class="label text-uppercase small fw-bold">{{ prio }}</span>
+        <span class="value fs-5">{{ depth }}</span>
+      </div>
+    {% endfor %}
+  </div>
+  <div class="mt-2 text-muted small">Total queued: {{ total }}</div>
+  {% else %}
+    <div class="text-muted small">No queued batches</div>
+  {% endif %}
+</div>
+<style>
+  .queue-pill { background:#1e1e2f; padding:.5rem .75rem; border-radius:.5rem; min-width:80px; text-align:center; }
+  .queue-pill .label { display:block; letter-spacing:.5px; opacity:.7; }
+  .priority-urgent { outline:2px solid #e55353; }
+  .priority-high { outline:2px solid #ff9800; }
+  .priority-normal { outline:2px solid #2196f3; }
+  .priority-low { outline:2px solid #607d8b; }
+</style>

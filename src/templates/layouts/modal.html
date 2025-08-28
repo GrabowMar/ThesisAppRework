@@ -1,0 +1,257 @@
+{# slug: layouts/modal (auto-migrated) #}
+{#
+  Modal Layout Template
+  
+  Purpose: Layout template for modal dialog content
+  Features:
+  - Bootstrap 5 modal structure
+  - HTMX-ready modal content
+  - Responsive modal sizing
+  - Form handling support
+  - Loading states
+  
+  Routes:
+  - /api/modals/*
+  - HTMX modal endpoints
+  
+  Technical Details:
+  - Self-contained modal HTML
+  - Auto-focus handling
+  - Keyboard navigation support
+  - Form validation integration
+  - ARIA accessibility
+  
+  Usage:
+  - Analysis detail modals
+  - Model information modals
+  - Configuration dialogs
+  - Confirmation dialogs
+  - Form modals
+#}
+
+{#
+  Modal Dialog Template
+  
+  Parameters:
+  - modal_id: Unique identifier for the modal
+  - modal_size: 'sm', 'lg', 'xl', or default
+  - modal_title: Title text for the modal header
+  - show_close: Whether to show close button (default: true)
+  - backdrop: 'static' or 'true' (default: 'true')
+  - keyboard: Enable keyboard navigation (default: true)
+#}
+
+{% set modal_id = modal_id|default('modal-' ~ range(1000, 9999) | random) %}
+{% set modal_size = modal_size|default('') %}
+{% set modal_title = modal_title|default('Modal Dialog') %}
+{% set show_close = show_close|default(true) %}
+{% set backdrop = backdrop|default('true') %}
+{% set keyboard = keyboard|default(true) %}
+
+<div class="modal fade" 
+     id="{{ modal_id }}" 
+     tabindex="-1" 
+     aria-labelledby="{{ modal_id }}-title" 
+     aria-hidden="true"
+     data-bs-backdrop="{{ backdrop }}"
+     data-bs-keyboard="{{ 'true' if keyboard else 'false' }}">
+    <div class="modal-dialog{{ ' modal-' + modal_size if modal_size }} modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            {# Modal Header #}
+            {% block modal_header %}
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="{{ modal_id }}-title">
+                    {% block modal_title_content %}
+                    <i class="{% block modal_icon %}fas fa-info-circle{% endblock %} me-2"></i>
+                    {{ modal_title }}
+                    {% endblock %}
+                </h1>
+                
+                {% if show_close %}
+                <button type="button" 
+                        class="btn-close" 
+                        data-bs-dismiss="modal" 
+                        aria-label="Close"></button>
+                {% endif %}
+            </div>
+            {% endblock %}
+            
+            {# Modal Body #}
+            <div class="modal-body">
+                {% block modal_loading %}
+                <div class="htmx-indicator text-center py-4" id="{{ modal_id }}-loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div class="mt-2 text-muted">Loading content...</div>
+                </div>
+                {% endblock %}
+                
+                {% block modal_content %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Modal template loaded. Content should be implemented in child templates or HTMX responses.
+                </div>
+                {% endblock %}
+                
+                {% block modal_error %}
+                <div class="alert alert-danger d-none" id="{{ modal_id }}-error">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <strong>Error:</strong> <span class="error-message">An error occurred while loading content.</span>
+                </div>
+                {% endblock %}
+            </div>
+            
+            {# Modal Footer #}
+            {% block modal_footer %}
+            <div class="modal-footer">
+                {% block modal_actions %}
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i>Close
+                </button>
+                {% block modal_primary_action %}
+                {# Primary action button will be implemented by child templates #}
+                {% endblock %}
+                {% endblock %}
+            </div>
+            {% endblock %}
+        </div>
+    </div>
+</div>
+
+{# Modal-specific JavaScript #}
+<script>
+(function() {
+    'use strict';
+    
+    // Modal management class
+    class ModalManager {
+        constructor(modalId) {
+            this.modalId = modalId;
+            this.modal = document.getElementById(modalId);
+            this.bsModal = null;
+            
+            if (this.modal) {
+                this.initialize();
+            }
+        }
+        
+        initialize() {
+            // Initialize Bootstrap modal
+            this.bsModal = new bootstrap.Modal(this.modal, {
+                backdrop: this.modal.dataset.bsBackdrop || true,
+                keyboard: this.modal.dataset.bsKeyboard !== 'false'
+            });
+            
+            this.bindEvents();
+            this.setupHTMXEvents();
+            this.show();
+        }
+        
+        bindEvents() {
+            // Handle modal events
+            this.modal.addEventListener('shown.bs.modal', () => {
+                this.onModalShown();
+            });
+            
+            this.modal.addEventListener('hidden.bs.modal', () => {
+                this.onModalHidden();
+            });
+            
+            this.modal.addEventListener('hide.bs.modal', (e) => {
+                return this.onModalHide(e);
+            });
+        }
+        
+        setupHTMXEvents() {
+            // Handle HTMX events within modal
+            this.modal.addEventListener('htmx:beforeRequest', (e) => {
+                this.showLoading();
+            });
+            
+            this.modal.addEventListener('htmx:afterRequest', (e) => {
+                this.hideLoading();
+                
+                if (!e.detail.successful) {
+                    this.showError(e.detail.xhr.responseText || 'Request failed');
+                }
+            });
+            
+            this.modal.addEventListener('htmx:responseError', (e) => {
+                this.showError('Network error occurred');
+            });
+        }
+        
+        show() {
+            if (this.bsModal) {
+                this.bsModal.show();
+            }
+        }
+        
+        hide() {
+            if (this.bsModal) {
+                this.bsModal.hide();
+            }
+        }
+        
+        showLoading() {
+            const loading = this.modal.querySelector('.htmx-indicator');
+            if (loading) {
+                loading.classList.remove('d-none');
+            }
+        }
+        
+        hideLoading() {
+            const loading = this.modal.querySelector('.htmx-indicator');
+            if (loading) {
+                loading.classList.add('d-none');
+            }
+        }
+        
+        showError(message) {
+            const errorDiv = this.modal.querySelector('[id$="-error"]');
+            if (errorDiv) {
+                const messageSpan = errorDiv.querySelector('.error-message');
+                if (messageSpan) {
+                    messageSpan.textContent = message;
+                }
+                errorDiv.classList.remove('d-none');
+            }
+        }
+        
+        hideError() {
+            const errorDiv = this.modal.querySelector('[id$="-error"]');
+            if (errorDiv) {
+                errorDiv.classList.add('d-none');
+            }
+        }
+        
+        onModalShown() {
+            // Focus first focusable element
+            const firstInput = this.modal.querySelector('input, select, textarea, button');
+            if (firstInput && firstInput.focus) {
+                firstInput.focus();
+            }
+        }
+        
+        onModalHidden() {
+            // Cleanup when modal is hidden
+            this.modal.remove();
+        }
+        
+        onModalHide(event) {
+            // Allow preventing modal close
+            return true;
+        }
+    }
+    
+    // Auto-initialize modal
+    const modalElement = document.getElementById('{{ modal_id }}');
+    if (modalElement) {
+        new ModalManager('{{ modal_id }}');
+    }
+})();
+</script>
+
+{# Modal-specific styles #}
+

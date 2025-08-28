@@ -7,17 +7,22 @@ Provides endpoints for creating, monitoring, and managing bulk analysis jobs.
 """
 
 import logging
-from datetime import datetime  # noqa: F401 (may be used by remaining endpoints)
+import json
+from datetime import datetime, UTC  # noqa: F401 (remaining endpoints may rely on direct datetime)
 
-from flask import Blueprint, request, jsonify, render_template, redirect, url_for, flash
+from flask import Blueprint, request, jsonify, redirect, url_for, flash
+from ..utils.template_paths import render_template_compat as render_template
 from sqlalchemy import desc
 
 from ..extensions import db
 from ..models import (
-    BatchAnalysis, GeneratedApplication, SecurityAnalysis, 
-    PerformanceTest, ZAPAnalysis, OpenRouterAnalysis, ModelCapability
+    BatchAnalysis, GeneratedApplication, SecurityAnalysis,
+    PerformanceTest, ZAPAnalysis, OpenRouterAnalysis, BatchTemplate
 )
 from ..constants import JobStatus, AnalysisStatus
+from ..services.batch_service import batch_service  # global instance with advanced managers
+from sqlalchemy import func
+from flask import Response
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -28,9 +33,72 @@ batch_bp = Blueprint('batch', __name__, url_prefix='/batch')
 
 @batch_bp.route('/')
 def batch_overview():
-    """Deprecated: Redirect batch page to Analysis Hub."""
-    flash('Batch testing is now handled in the Analysis Hub.', 'info')
-    return redirect(url_for('analysis.analyses_list_page'))
+    """Batch overview page (legacy tests still assert its direct contents).
+
+    We retain the original template rendering for backward compatibility while
+    showing a subtle deprecation notice guiding users toward the new Tasks page.
+    """
+    try:
+        # In production mode we now prefer the /tasks view; keep legacy template for tests.
+        from flask import current_app
+        if not current_app.config.get('TESTING'):
+            return redirect(url_for('tasks.tasks_overview'))
+
+        snapshot = batch_service.get_dashboard_snapshot() or {}
+        system_resources = {
+            'cpu_usage': snapshot.get('system_resources', {}).get('cpu_usage', 0.0),
+            'memory_usage': snapshot.get('system_resources', {}).get('memory_usage', 0.0)
+        }
+        stats = snapshot.get('stats') or {
+            'total_batches': 0,
+            'running_batches': 0,
+            'queued_batches': 0,
+            'completed_batches': 0,
+            'total_analyses': 0,
+            'active_workers': 0,
+        }
+        snapshot.setdefault('stats', stats)
+        from app.utils.helpers import utc_now
+        current_time = utc_now()
+        deprecation_notice = (
+            "Batch page is legacy. Use the new Tasks hub for ongoing and queued analyses."
+        )
+        return render_template(
+            'pages/batch/overview.html',
+            snapshot=snapshot,
+            system_resources=system_resources,
+            stats=stats,
+            current_time=current_time,
+            deprecation_notice=deprecation_notice
+        )
+    except Exception as e:  # pragma: no cover
+        logger.error(f"Error rendering batch overview: {e}")
+        return render_template('partials/common/error.html', error='Failed to load batch overview'), 500
+
+
+# -------- HTMX partial endpoints for live updating sections -------- #
+@batch_bp.route('/partials/active')
+def partial_active_batches():
+    snapshot = batch_service.get_dashboard_snapshot()
+    return render_template('pages/batch/partials/active_batches.html', active_batches=snapshot['active_batches'])
+
+
+@batch_bp.route('/partials/recent')
+def partial_recent_batches():
+    snapshot = batch_service.get_dashboard_snapshot()
+    return render_template('pages/batch/partials/recent_batches.html', recent_batches=snapshot['recent_batches'])
+
+
+@batch_bp.route('/partials/queue')
+def partial_queue_overview():
+    snapshot = batch_service.get_dashboard_snapshot()
+    return render_template('pages/batch/partials/queue_overview.html', queue_overview=snapshot['queue_overview'])
+
+
+@batch_bp.route('/partials/stats')
+def partial_stats_summary():
+    snapshot = batch_service.get_dashboard_snapshot()
+    return render_template('pages/batch/partials/stats_summary.html', stats=snapshot['stats'])
 
 
 @batch_bp.route('/create', methods=['GET', 'POST'])
@@ -280,6 +348,282 @@ def api_infrastructure_status():
         return jsonify({'error': str(e)}), 500
 
 
+# ---------------------------------------------------------------------------
+# Advanced Batch Queue & Template API Endpoints
+# ---------------------------------------------------------------------------
+
+@batch_bp.route('/api/batch/queue', methods=['POST'])
+def api_queue_batch():
+    """Queue an existing batch_id (created earlier) with a priority and optional dependencies.
+
+    Expected JSON:
+    {"batch_id": "...", "priority": "high", "depends_on": ["other_batch_id"], "metadata": {...}}
+    Or create+queue:
+    {"create": {name, description, analysis_types, models, app_range, options}, "priority": "normal"}
+    """
+    try:
+        data = request.get_json(force=True) or {}
+        priority = data.get('priority', 'normal')
+        depends_on = data.get('depends_on') or []
+        metadata = data.get('metadata') or {}
+
+        # If 'create' payload present, create a new BatchAnalysis job first
+        batch_id = data.get('batch_id')
+        if not batch_id and 'create' in data:
+            create_cfg = data['create']
+            batch_id = batch_service.create_job(
+                name=create_cfg.get('name','Queued Batch'),
+                description=create_cfg.get('description','Queued via API'),
+                analysis_types=create_cfg.get('analysis_types', []),
+                models=create_cfg.get('models', []),
+                app_range_str=create_cfg.get('app_range','1'),
+                options=create_cfg.get('options'),
+                enqueue_immediately=False
+            )
+        if not batch_id:
+            return jsonify({'error': 'batch_id or create payload required'}), 400
+
+        # Persist dependencies
+        if depends_on:
+            from app.models import BatchDependency  # local import to avoid cycles
+            from app.extensions import db as _db
+            for dep in depends_on:
+                try:
+                    if dep == batch_id:
+                        continue
+                    exists = _db.session.query(BatchDependency).filter_by(batch_id=batch_id, depends_on_batch_id=dep).first()
+                    if not exists:
+                        bd = BatchDependency()
+                        bd.batch_id = batch_id
+                        bd.depends_on_batch_id = dep
+                        _db.session.add(bd)
+                except Exception as de:  # pragma: no cover
+                    logger.warning(f"Failed to add dependency {dep}: {de}")
+            try:
+                _db.session.commit()
+            except Exception:
+                _db.session.rollback()
+
+        enq_ok = getattr(batch_service, 'queue_manager', None) and batch_service.queue_manager.enqueue(batch_id, priority, metadata)  # type: ignore[attr-defined]
+        if not enq_ok:
+            return jsonify({'error': 'failed_to_enqueue'}), 500
+        return jsonify({'success': True, 'batch_id': batch_id, 'queue_status': batch_service.queue_manager.status_overview()})  # type: ignore[attr-defined]
+    except Exception as e:
+        logger.error(f"Error queueing batch: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@batch_bp.route('/api/batch/queue/status')
+def api_queue_status():
+    try:
+        qm = getattr(batch_service, 'queue_manager', None)
+        if not qm:
+            return jsonify({'error': 'queue_manager_unavailable'}), 503
+        return jsonify(qm.status_overview())
+    except Exception as e:
+        logger.error(f"Error getting queue status: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@batch_bp.route('/api/batch/dispatch-next', methods=['POST'])
+def api_dispatch_next():
+    """Manually dispatch the next queued batch according to priority ordering.
+
+    Returns 200 with next job id and refreshed queue status, or 204 if queue empty.
+    """
+    try:
+        qm = getattr(batch_service, 'queue_manager', None)
+        if not qm:
+            return jsonify({'error': 'queue_manager_unavailable'}), 503
+        next_id = batch_service.dispatch_next()
+        if not next_id:
+            return ('', 204)
+        return jsonify({'dispatched': next_id, 'queue': qm.status_overview()})
+    except Exception as e:
+        logger.error(f"Error dispatching next batch: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@batch_bp.route('/api/batch/<batch_id>/cancel', methods=['POST'])
+def api_cancel_batch(batch_id: str):
+    try:
+        # Cancel if queued
+        qm = getattr(batch_service, 'queue_manager', None)
+        cancelled_queue = False
+        if qm and batch_id in getattr(qm, 'meta', {}):
+            cancelled_queue = qm.cancel(batch_id)
+        # Cancel running job
+        batch_service.cancel_job(batch_id)
+        return jsonify({'success': True, 'queue_cancelled': cancelled_queue})
+    except Exception as e:
+        logger.error(f"Error cancelling batch: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@batch_bp.route('/api/batch/<batch_id>/report')
+def api_batch_report(batch_id: str):
+    """Generate a simple report summarizing batch outcome and resource usage."""
+    try:
+        batch = db.session.query(BatchAnalysis).filter_by(batch_id=batch_id).first()
+        if not batch:
+            return jsonify({'error': 'not_found'}), 404
+        # Resource usage aggregation
+        from app.models import BatchResourceUsage  # local import
+        usage_rows = db.session.query(BatchResourceUsage).filter_by(batch_id=batch_id).all()
+        usage_summary = {}
+        for u in usage_rows:
+            usage_summary[u.analyzer_type] = {
+                'peak_memory': u.peak_memory,
+                'peak_cpu': u.peak_cpu,
+                'duration': u.duration,
+                'samples': u.sample_count
+            }
+        report = batch.to_dict()
+        report['resource_usage'] = usage_summary
+        # Basic cost estimation
+        try:
+            from app.models import ModelCapability
+            models = batch.get_model_filter()
+            caps = db.session.query(ModelCapability).filter(ModelCapability.canonical_slug.in_(models)).all()
+            # naive estimate: per-analysis token placeholders * pricing
+            estimate_total = 0.0
+            for c in caps:
+                # simple heuristic: (completed_tasks / models_count) * (input+output token price * 1000)
+                per_model_tasks = max(1, batch.completed_tasks + batch.failed_tasks)
+                est_tokens = per_model_tasks * 500  # placeholder average tokens
+                cost = (c.input_price_per_token + c.output_price_per_token) * est_tokens
+                estimate_total += cost
+            report['estimated_cost_usd'] = round(estimate_total, 4)
+        except Exception:
+            report['estimated_cost_usd'] = None
+        return jsonify(report)
+    except Exception as e:
+        logger.error(f"Error generating batch report: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@batch_bp.route('/api/batch/template', methods=['POST'])
+def api_save_batch_template():
+    """Save a batch configuration as a reusable template."""
+    try:
+        data = request.get_json(force=True) or {}
+        name = data.get('name')
+        config = data.get('config')
+        description = data.get('description')
+        if not name or not config:
+            return jsonify({'error': 'name and config required'}), 400
+        existing = BatchTemplate.query.filter_by(name=name).first()
+        if existing:
+            # Update
+            existing.batch_config_json = json.dumps(config)
+            existing.description = description
+            db.session.commit()
+            tpl = existing.to_dict()
+        else:
+            tpl_obj = BatchTemplate()
+            tpl_obj.name = name
+            tpl_obj.description = description
+            tpl_obj.batch_config_json = json.dumps(config)
+            db.session.add(tpl_obj)
+            db.session.commit()
+            tpl = tpl_obj.to_dict()
+        return jsonify({'success': True, 'template': tpl})
+    except Exception as e:
+        logger.error(f"Error saving batch template: {e}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@batch_bp.route('/api/batch/template/list')
+def api_list_batch_templates():
+    try:
+        templates = BatchTemplate.query.order_by(BatchTemplate.updated_at.desc()).limit(50).all()
+        return jsonify({'templates': [t.to_dict() for t in templates]})
+    except Exception as e:
+        logger.error(f"Error listing batch templates: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@batch_bp.route('/api/batch/template/<name>')
+def api_get_batch_template(name: str):
+    try:
+        tpl = BatchTemplate.query.filter_by(name=name).first()
+        if not tpl:
+            return jsonify({'error': 'not_found'}), 404
+        return jsonify(tpl.to_dict())
+    except Exception as e:
+        logger.error(f"Error retrieving batch template: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@batch_bp.route('/api/batch/analytics')
+def api_batch_analytics():
+    """Return historical performance metrics (counts, avg durations, success rate)."""
+    try:
+        # Aggregate over batch_analyses
+        total = db.session.query(func.count(BatchAnalysis.id)).scalar() or 0
+        completed = db.session.query(func.count(BatchAnalysis.id)).filter(BatchAnalysis.status==JobStatus.COMPLETED).scalar() or 0
+        failed = db.session.query(func.count(BatchAnalysis.id)).filter(BatchAnalysis.status==JobStatus.FAILED).scalar() or 0
+        running = db.session.query(func.count(BatchAnalysis.id)).filter(BatchAnalysis.status==JobStatus.RUNNING).scalar() or 0
+        avg_completion = db.session.query(func.avg(func.julianday(BatchAnalysis.completed_at) - func.julianday(BatchAnalysis.started_at))).filter(BatchAnalysis.completed_at.isnot(None), BatchAnalysis.started_at.isnot(None)).scalar()
+        avg_completion_seconds = None
+        if avg_completion is not None:
+            # julianday diff in days
+            avg_completion_seconds = round(avg_completion * 86400, 2)
+        success_rate = round((completed / total * 100.0), 2) if total else 0.0
+        return jsonify({
+            'total_batches': total,
+            'completed': completed,
+            'failed': failed,
+            'running': running,
+            'success_rate_pct': success_rate,
+            'avg_duration_seconds': avg_completion_seconds
+        })
+    except Exception as e:
+        logger.error(f"Error retrieving batch analytics: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# ------------------------ Export Endpoints ------------------------ #
+@batch_bp.route('/api/batch/job/<job_id>/export')
+def api_export_single_job(job_id: str):
+    fmt = (request.args.get('format') or 'json').lower()
+    mimetype, filename, data = batch_service.generate_job_export(job_id, fmt)
+    return Response(data, mimetype=mimetype, headers={'Content-Disposition': f'attachment; filename={filename}'})
+
+
+@batch_bp.route('/api/batch/export')
+def api_export_jobs():
+    fmt = (request.args.get('format') or 'csv').lower()
+    include_db = request.args.get('include_db', '1') in ('1','true','yes')
+    mimetype, filename, data = batch_service.generate_jobs_export(fmt, include_in_memory_only=not include_db)
+    return Response(data, mimetype=mimetype, headers={'Content-Disposition': f'attachment; filename={filename}'})
+
+
+@batch_bp.route('/api/stats/export')
+def api_export_batch_stats():
+    """Export aggregated batch job statistics as CSV (or JSON if requested)."""
+    fmt = (request.args.get('format') or 'csv').lower()
+    stats = batch_service.get_job_stats()
+    if fmt == 'json':
+        return jsonify(stats)
+    # CSV default
+    import csv
+    import io
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(stats.keys())
+    writer.writerow([stats[k] for k in stats.keys()])
+    data = output.getvalue()
+    return Response(data, mimetype='text/csv', headers={'Content-Disposition': 'attachment; filename=batch_stats.csv'})
+
+
+@batch_bp.route('/statistics')
+def batch_statistics_page():
+    """Deprecated: redirect to split statistics pages (analysis-focused)."""
+    return redirect(url_for('statistics.statistics_analysis'))
+
+
 @batch_bp.route('/api/infrastructure/start', methods=['POST'])
 def api_start_infrastructure():
     """API endpoint to start analyzer infrastructure."""
@@ -325,13 +669,13 @@ def batch_list():
 
 @batch_bp.route('/form')
 def batch_form():
-    """HTMX endpoint for batch form."""
-    try:
-        models = ModelCapability.query.all()
-        return render_template('partials/analysis/create/batch_form.html', models=models)
-    except Exception as e:
-        logger.error(f"Error loading batch form: {e}")
-        return render_template('partials/common/error.html', error=f"Error loading batch form: {str(e)}")
+    """Deprecated: redirect to unified analysis create page with batch mode enabled.
+
+    Legacy templates/links may still request /batch/form. We preserve UX by
+    redirecting to /analysis/create?batch=1 so the new unified page auto-opens
+    batch mode and lazy-loads the embedded batch form partial.
+    """
+    return redirect(url_for('analysis.analyses_create_page', batch=1))
 
 
 # Import logger

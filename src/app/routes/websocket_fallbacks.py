@@ -1,7 +1,3 @@
-"""
-Basic WebSocket endpoint for /ws/analysis
-"""
-
 from flask import jsonify
 import logging
 

@@ -1,0 +1,406 @@
+{# slug: pages/analysis/partials/analysis-rows (auto-migrated) #}
+{#
+    Table Fragment: Analysis Table Rows
+    Route: /api/analysis/table-rows
+    Purpose: Table rows for analysis results in tabular view
+    
+    Usage:
+    - Loaded via HTMX for analysis table updates
+    - Supports sorting, filtering, and pagination
+    - Updates table rows without full table reload
+    
+    HTMX Integration:
+    - hx-get="/api/analysis/table-rows?sort={{ sort }}&filter={{ filter }}"
+    - hx-target="#analysis-table tbody"
+    - hx-swap="innerHTML"
+    
+    Data Expected:
+    - analyses: List of analysis objects for table rows
+    - sort_field: Current sorting field
+    - sort_direction: Current sorting direction (asc/desc)
+#}
+
+<!-- Analysis Table Rows Fragment -->
+{% if analyses %}
+{% for analysis in analyses %}
+<tr class="analysis-row" data-analysis-id="{{ analysis.id }}">
+    <!-- Selection Checkbox -->
+    <td>
+        <div class="form-check">
+            <input class="form-check-input" type="checkbox" value="{{ analysis.id }}" name="selected_analyses">
+        </div>
+    </td>
+    
+    <!-- Analysis ID and Type -->
+    <td>
+        <div class="d-flex align-items-center">
+            <div class="me-2">
+                <div class="analysis-type-icon bg-{{ analysis.type_color or 'primary' }} bg-opacity-10 rounded p-1">
+                    {% if analysis.analysis_type == 'security' %}
+                        <i class="fas fa-shield-alt text-{{ analysis.type_color or 'primary' }} fa-sm"></i>
+                    {% elif analysis.analysis_type == 'performance' %}
+                        <i class="fas fa-tachometer-alt text-{{ analysis.type_color or 'primary' }} fa-sm"></i>
+                    {% elif analysis.analysis_type == 'dynamic' %}
+                        <i class="fas fa-play text-{{ analysis.type_color or 'primary' }} fa-sm"></i>
+                    {% elif analysis.analysis_type == 'comprehensive' %}
+                        <i class="fas fa-chart-line text-{{ analysis.type_color or 'primary' }} fa-sm"></i>
+                    {% else %}
+                        <i class="fas fa-chart-bar text-{{ analysis.type_color or 'primary' }} fa-sm"></i>
+                    {% endif %}
+                </div>
+            </div>
+            <div>
+                <div class="fw-medium">{{ analysis.analysis_type|title }}</div>
+                <small class="text-muted">#{{ analysis.id }}</small>
+            </div>
+        </div>
+    </td>
+    
+    <!-- Model and Application -->
+    <td>
+        <div>
+            <div class="fw-medium">{{ analysis.model_display_name or analysis.model_slug }}</div>
+            <small class="text-muted">App #{{ analysis.app_number }}</small>
+        </div>
+    </td>
+    
+    <!-- Status with Progress -->
+    <td>
+        <div class="status-cell">
+            <span class="badge bg-{{ 'success' if analysis.status == 'completed' else 'primary' if analysis.status == 'running' else 'warning' if analysis.status == 'queued' else 'danger' }}">
+                {{ analysis.status|title }}
+            </span>
+            
+            {% if analysis.status == 'running' and analysis.progress %}
+            <div class="progress mt-1" style="height: 3px;">
+                <div class="progress-bar bg-primary" 
+                     role="progressbar" 
+                     style="width: {{ analysis.progress }}%" 
+                     aria-valuenow="{{ analysis.progress }}" 
+                     aria-valuemin="0" 
+                     aria-valuemax="100">
+                </div>
+            </div>
+            <small class="text-muted">{{ analysis.progress|round(1) }}%</small>
+            {% elif analysis.status == 'failed' and analysis.error_message %}
+            <div class="mt-1">
+                <small class="text-danger" title="{{ analysis.error_message }}">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    {{ analysis.error_message[:30] }}{% if analysis.error_message|length > 30 %}...{% endif %}
+                </small>
+            </div>
+            {% endif %}
+        </div>
+    </td>
+    
+    <!-- Created Date -->
+    <td>
+        <div title="{{ analysis.created_at|datetime }}">
+            {{ analysis.created_at|timeago }}
+        </div>
+        <small class="text-muted">
+            {{ analysis.created_at|datetime('%m/%d %H:%M') }}
+        </small>
+    </td>
+    
+    <!-- Duration/Completion Time -->
+    <td>
+        {% if analysis.status == 'completed' and analysis.duration %}
+        <div class="text-success">
+            <i class="fas fa-check-circle me-1"></i>
+            {{ analysis.duration|duration }}
+        </div>
+        {% elif analysis.status == 'running' and analysis.started_at %}
+        <div class="text-primary">
+            <i class="fas fa-spinner fa-spin me-1"></i>
+            {{ (now() - analysis.started_at)|duration }}
+        </div>
+        {% elif analysis.status == 'failed' and analysis.failed_at %}
+        <div class="text-danger">
+            <i class="fas fa-times-circle me-1"></i>
+            Failed after {{ analysis.failed_at|duration }}
+        </div>
+        {% else %}
+        <span class="text-muted">-</span>
+        {% endif %}
+    </td>
+    
+    <!-- Results Summary -->
+    <td>
+        {% if analysis.status == 'completed' and analysis.results_summary %}
+        <div class="results-summary">
+            {% if analysis.analysis_type == 'security' %}
+                <div class="d-flex align-items-center gap-2">
+                    {% if analysis.results_summary.vulnerabilities %}
+                    <span class="badge bg-danger bg-opacity-75">
+                        {{ analysis.results_summary.vulnerabilities }} Issues
+                    </span>
+                    {% endif %}
+                    {% if analysis.results_summary.security_score %}
+                    <span class="text-{{ 'success' if analysis.results_summary.security_score >= 80 else 'warning' if analysis.results_summary.security_score >= 60 else 'danger' }}">
+                        {{ analysis.results_summary.security_score }}/100
+                    </span>
+                    {% endif %}
+                </div>
+            {% elif analysis.analysis_type == 'performance' %}
+                <div class="d-flex align-items-center gap-2">
+                    {% if analysis.results_summary.avg_response_time %}
+                    <span class="badge bg-info bg-opacity-75">
+                        {{ analysis.results_summary.avg_response_time }}ms
+                    </span>
+                    {% endif %}
+                    {% if analysis.results_summary.performance_score %}
+                    <span class="text-{{ 'success' if analysis.results_summary.performance_score >= 80 else 'warning' if analysis.results_summary.performance_score >= 60 else 'danger' }}">
+                        {{ analysis.results_summary.performance_score }}/100
+                    </span>
+                    {% endif %}
+                </div>
+            {% elif analysis.analysis_type == 'comprehensive' %}
+                <div class="d-flex flex-column">
+                    {% if analysis.results_summary.overall_score %}
+                    <span class="fw-medium text-{{ 'success' if analysis.results_summary.overall_score >= 80 else 'warning' if analysis.results_summary.overall_score >= 60 else 'danger' }}">
+                        Score: {{ analysis.results_summary.overall_score }}/100
+                    </span>
+                    {% endif %}
+                    {% if analysis.results_summary.issues_found %}
+                    <small class="text-muted">{{ analysis.results_summary.issues_found }} issues found</small>
+                    {% endif %}
+                </div>
+            {% else %}
+                <span class="badge bg-success bg-opacity-75">
+                    <i class="fas fa-check me-1"></i>Completed
+                </span>
+            {% endif %}
+        </div>
+        {% else %}
+        <span class="text-muted">-</span>
+        {% endif %}
+    </td>
+    
+    <!-- Actions -->
+    <td>
+        <div class="btn-group" role="group">
+            {% if analysis.status == 'completed' %}
+            <a href="/analysis/{{ analysis.id }}/results" 
+               class="btn btn-sm btn-outline-primary" 
+               title="View Results">
+                <i class="fas fa-eye"></i>
+            </a>
+            <button class="btn btn-sm btn-outline-secondary" 
+                    hx-get="/api/analysis/{{ analysis.id }}/download" 
+                    hx-trigger="click"
+                    title="Download Report">
+                <i class="fas fa-download"></i>
+            </button>
+            {% elif analysis.status == 'running' %}
+            <button class="btn btn-sm btn-outline-info" 
+                    hx-get="/api/analysis/{{ analysis.id }}/progress" 
+                    hx-target="#progress-modal-content" 
+                    data-bs-toggle="modal" 
+                    data-bs-target="#progressModal"
+                    title="View Progress">
+                <i class="fas fa-chart-line"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger" 
+                    hx-post="/api/analysis/{{ analysis.id }}/cancel" 
+                    hx-confirm="Are you sure you want to cancel this analysis?"
+                    hx-target="#analysis-table tbody"
+                    title="Cancel Analysis">
+                <i class="fas fa-stop"></i>
+            </button>
+            {% elif analysis.status == 'failed' %}
+            <button class="btn btn-sm btn-outline-warning" 
+                    hx-post="/api/analysis/{{ analysis.id }}/retry" 
+                    hx-target="#analysis-table tbody"
+                    title="Retry Analysis">
+                <i class="fas fa-redo"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-info" 
+                    hx-get="/api/analysis/{{ analysis.id }}/logs" 
+                    hx-target="#logs-modal-content" 
+                    data-bs-toggle="modal" 
+                    data-bs-target="#logsModal"
+                    title="View Error Logs">
+                <i class="fas fa-bug"></i>
+            </button>
+            {% else %}
+            <button class="btn btn-sm btn-outline-secondary" disabled title="Pending">
+                <i class="fas fa-hourglass"></i>
+            </button>
+            {% endif %}
+            
+            <!-- More Actions Dropdown -->
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                    <span class="visually-hidden">More actions</span>
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="/analysis/{{ analysis.id }}/details">
+                        <i class="fas fa-info-circle me-2"></i>View Details
+                    </a></li>
+                    {% if analysis.status == 'completed' %}
+                    <li><a class="dropdown-item" 
+                           hx-post="/api/analysis/{{ analysis.id }}/clone" 
+                           hx-target="#analysis-table tbody">
+                        <i class="fas fa-copy me-2"></i>Clone Analysis
+                    </a></li>
+                    <li><a class="dropdown-item" href="/analysis/compare?base={{ analysis.id }}">
+                        <i class="fas fa-balance-scale me-2"></i>Compare Results
+                    </a></li>
+                    {% endif %}
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item text-danger" 
+                           hx-delete="/api/analysis/{{ analysis.id }}" 
+                           hx-confirm="Are you sure you want to delete this analysis? This action cannot be undone."
+                           hx-target="#analysis-table tbody">
+                        <i class="fas fa-trash me-2"></i>Delete Analysis
+                    </a></li>
+                </ul>
+            </div>
+        </div>
+    </td>
+</tr>
+{% endfor %}
+
+{% else %}
+<!-- Empty State Row -->
+<tr>
+    <td colspan="8" class="text-center py-5">
+        <div class="text-muted">
+            <i class="fas fa-search fa-3x mb-3"></i>
+            <h6>No analyses found</h6>
+            <p class="mb-0">No analyses match your current criteria</p>
+        </div>
+    </td>
+</tr>
+{% endif %}
+
+<!-- JavaScript for Table Row Interactions -->
+<script>
+document.addEventListener('htmx:afterSwap', function(event) {
+    if (event.detail.target.matches('#analysis-table tbody')) {
+        // Initialize tooltips on new rows
+        const tooltips = event.detail.target.querySelectorAll('[title]');
+        tooltips.forEach(tooltip => new bootstrap.Tooltip(tooltip));
+        
+        // Animate new rows
+        const rows = event.detail.target.querySelectorAll('.analysis-row');
+        rows.forEach((row, index) => {
+            row.style.opacity = '0';
+            row.style.transform = 'translateX(-10px)';
+            setTimeout(() => {
+                row.style.transition = 'all 0.3s ease-out';
+                row.style.opacity = '1';
+                row.style.transform = 'translateX(0)';
+            }, index * 50);
+        });
+        
+        // Update selection controls
+        updateSelectionControls();
+    }
+});
+
+// Handle row selection
+document.addEventListener('change', function(event) {
+    if (event.target.matches('input[name="selected_analyses"]')) {
+        updateSelectionControls();
+    }
+});
+
+// Handle select all functionality
+document.addEventListener('change', function(event) {
+    if (event.target.matches('#select-all-analyses')) {
+        const checkboxes = document.querySelectorAll('input[name="selected_analyses"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = event.target.checked;
+        });
+        updateSelectionControls();
+    }
+});
+
+function updateSelectionControls() {
+    const checkboxes = document.querySelectorAll('input[name="selected_analyses"]');
+    const checkedBoxes = document.querySelectorAll('input[name="selected_analyses"]:checked');
+    const selectAllCheckbox = document.querySelector('#select-all-analyses');
+    const bulkActionsBar = document.querySelector('#bulk-actions-bar');
+    const selectedCount = document.querySelector('#selected-count');
+    
+    // Update select all checkbox state
+    if (selectAllCheckbox) {
+        selectAllCheckbox.indeterminate = checkedBoxes.length > 0 && checkedBoxes.length < checkboxes.length;
+        selectAllCheckbox.checked = checkedBoxes.length === checkboxes.length && checkboxes.length > 0;
+    }
+    
+    // Show/hide bulk actions
+    if (bulkActionsBar) {
+        bulkActionsBar.style.display = checkedBoxes.length > 0 ? 'block' : 'none';
+    }
+    
+    // Update selected count
+    if (selectedCount) {
+        selectedCount.textContent = checkedBoxes.length;
+    }
+}
+
+// Bulk actions
+function performBulkAction(action) {
+    const selectedIds = Array.from(document.querySelectorAll('input[name="selected_analyses"]:checked')).map(cb => cb.value);
+    
+    if (selectedIds.length === 0) {
+        alert('Please select at least one analysis.');
+        return;
+    }
+    
+    let confirmMessage = '';
+    let endpoint = '';
+    let method = 'POST';
+    
+    switch (action) {
+        case 'delete':
+            confirmMessage = `Are you sure you want to delete ${selectedIds.length} selected analyses? This action cannot be undone.`;
+            endpoint = '/api/analysis/bulk-delete';
+            method = 'DELETE';
+            break;
+        case 'retry':
+            confirmMessage = `Retry ${selectedIds.length} selected failed analyses?`;
+            endpoint = '/api/analysis/bulk-retry';
+            break;
+        case 'cancel':
+            confirmMessage = `Cancel ${selectedIds.length} selected running analyses?`;
+            endpoint = '/api/analysis/bulk-cancel';
+            break;
+        case 'export':
+            endpoint = '/api/analysis/bulk-export';
+            break;
+        default:
+            return;
+    }
+    
+    if (confirmMessage && !confirm(confirmMessage)) {
+        return;
+    }
+    
+    // Perform bulk action via HTMX
+    htmx.ajax(method, endpoint, {
+        values: { analysis_ids: selectedIds },
+        target: '#analysis-table tbody',
+        swap: 'innerHTML'
+    });
+}
+
+// Row hover effects for better UX
+document.addEventListener('mouseenter', function(event) {
+    if (event.target.closest('.analysis-row')) {
+        event.target.closest('.analysis-row').classList.add('table-hover');
+    }
+}, true);
+
+document.addEventListener('mouseleave', function(event) {
+    if (event.target.closest('.analysis-row')) {
+        event.target.closest('.analysis-row').classList.remove('table-hover');
+    }
+}, true);
+</script>
+
+<!-- Custom CSS for Table Rows -->
+

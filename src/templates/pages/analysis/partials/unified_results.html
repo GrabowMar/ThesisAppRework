@@ -1,0 +1,341 @@
+{# slug: pages/analysis/partials/unified_results (NEW) #}
+{#
+  Unified Analysis Results View (Partial)
+  Path: pages/analysis/partials/unified_results.html
+
+  Used by:
+    - analysis.unified_results_view
+
+  Context provided by route:
+    - model_slug: string - The model identifier
+    - app_number: int - The application number
+    - security_data: dict containing security analysis results and metrics
+    - performance_data: dict containing performance test results and metadata
+    - dynamic_data: dict containing dynamic analysis results and counts
+
+  Purpose: 
+  Single comprehensive view showing all analysis types (security, performance, dynamic)
+  in one unified interface instead of separate pages.
+#}
+
+{% from 'ui/elements/common/_module_wrapper.html' import module_card %}
+
+<div class="container-fluid" data-page-title="Unified Analysis Results">
+  
+  {# Overview Summary Section #}
+  <div class="row g-3 mb-4">
+    <div class="col-12">
+      {% call module_card(title='Analysis Overview', icon='fa-chart-bar', variant='primary') %}
+        <div class="row text-center">
+          <div class="col-md-4">
+            <div class="card bg-light border-0 h-100">
+              <div class="card-body">
+                <i class="fas fa-shield-alt fa-2x text-primary mb-2"></i>
+                <h5 class="card-title">Security Analysis</h5>
+                {% if security_data %}
+                  <div class="display-6 {% if security_data.critical_high_count > 0 %}text-danger{% else %}text-success{% endif %}">
+                    {{ security_data.total_vulnerabilities }}
+                  </div>
+                  <p class="text-muted small mb-0">Total Issues</p>
+                  <p class="text-muted small">{{ security_data.critical_high_count }} Critical/High</p>
+                {% else %}
+                  <div class="text-muted">No security analysis found</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <div class="card bg-light border-0 h-100">
+              <div class="card-body">
+                <i class="fas fa-tachometer-alt fa-2x text-success mb-2"></i>
+                <h5 class="card-title">Performance Test</h5>
+                {% if performance_data %}
+                  <div class="display-6 text-info">
+                    {{ performance_data.results.avg_response_ms or '—' }}ms
+                  </div>
+                  <p class="text-muted small mb-0">Avg Response</p>
+                  <p class="text-muted small">{{ performance_data.results.rps or '—' }} RPS</p>
+                {% else %}
+                  <div class="text-muted">No performance test found</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-4">
+            <div class="card bg-light border-0 h-100">
+              <div class="card-body">
+                <i class="fas fa-bolt fa-2x text-warning mb-2"></i>
+                <h5 class="card-title">Dynamic Analysis</h5>
+                {% if dynamic_data %}
+                  <div class="display-6 {% if dynamic_data.counts.high > 0 %}text-danger{% else %}text-success{% endif %}">
+                    {{ dynamic_data.counts.high + dynamic_data.counts.medium + dynamic_data.counts.low + dynamic_data.counts.info }}
+                  </div>
+                  <p class="text-muted small mb-0">Total Alerts</p>
+                  <p class="text-muted small">{{ dynamic_data.counts.high }} High Risk</p>
+                {% else %}
+                  <div class="text-muted">No dynamic analysis found</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endcall %}
+    </div>
+  </div>
+
+  {# Security Analysis Section #}
+  {% if security_data %}
+  <div class="row g-3 mb-4">
+    <div class="col-12">
+      <h3 class="mb-3"><i class="fas fa-shield-alt text-primary"></i> Security Analysis Results</h3>
+    </div>
+    
+    <div class="col-12 col-lg-6">
+      {% call module_card(title='Security Summary', icon='fa-shield-alt') %}
+        <div class="row text-center">
+          <div class="col-4">
+            <div class="fw-semibold">Total Findings</div>
+            <div class="display-6">{{ security_data.total_vulnerabilities }}</div>
+          </div>
+          <div class="col-4">
+            <div class="fw-semibold">Critical/High</div>
+            <div class="display-6 text-danger">{{ security_data.critical_high_count }}</div>
+          </div>
+          <div class="col-4">
+            <div class="fw-semibold">Tools Run</div>
+            <div class="display-6">{{ security_data.tools_executed }}</div>
+          </div>
+        </div>
+      {% endcall %}
+    </div>
+    
+    <div class="col-12 col-lg-6">
+      {% call module_card(title='Tool Results', icon='fa-tools') %}
+        <div class="list-group list-group-flush">
+          {% if security_data.results.bandit %}
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <span><i class="fas fa-lock me-2"></i>Bandit</span>
+              <span class="badge bg-primary">{{ security_data.results.bandit.results|length if security_data.results.bandit.results else 0 }}</span>
+            </div>
+          {% endif %}
+          {% if security_data.results.safety %}
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <span><i class="fas fa-cube me-2"></i>Safety</span>
+              <span class="badge bg-primary">{{ security_data.results.safety.vulnerabilities|length if security_data.results.safety.vulnerabilities else 0 }}</span>
+            </div>
+          {% endif %}
+          {% if security_data.results.zap %}
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <span><i class="fas fa-bolt me-2"></i>OWASP ZAP</span>
+              <span class="badge bg-primary">
+                {% if security_data.results.zap.site and security_data.results.zap.site[0] and security_data.results.zap.site[0].alerts %}
+                  {{ security_data.results.zap.site[0].alerts|length }}
+                {% else %}
+                  0
+                {% endif %}
+              </span>
+            </div>
+          {% endif %}
+          {% if security_data.results.pylint %}
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <span><i class="fas fa-code me-2"></i>Pylint</span>
+              <span class="badge bg-primary">{{ security_data.results.pylint|length }}</span>
+            </div>
+          {% endif %}
+          {% if security_data.results.eslint %}
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <span><i class="fab fa-js me-2"></i>ESLint</span>
+              <span class="badge bg-primary">
+                {% set eslint_count = namespace(value=0) %}
+                {% for file_result in security_data.results.eslint %}
+                  {% if file_result.messages %}
+                    {% set eslint_count.value = eslint_count.value + file_result.messages|length %}
+                  {% endif %}
+                {% endfor %}
+                {{ eslint_count.value }}
+              </span>
+            </div>
+          {% endif %}
+        </div>
+      {% endcall %}
+    </div>
+
+    {# Security Tool Details #}
+    {% if security_data.results.bandit %}
+    <div class="col-12">
+      {% call module_card(title='Bandit Results', icon='fa-lock') %}
+        <p class="text-muted small mb-2">Static security analysis for Python code</p>
+        <details class="mb-2">
+          <summary class="btn btn-outline-secondary btn-sm">View Bandit Details</summary>
+          <div class="mt-3">
+            {% if security_data.results.bandit.results %}
+              <div class="table-responsive">
+                <table class="table table-sm">
+                  <thead>
+                    <tr>
+                      <th>File</th>
+                      <th>Line</th>
+                      <th>Severity</th>
+                      <th>Test</th>
+                      <th>Issue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for result in security_data.results.bandit.results[:10] %}
+                    <tr>
+                      <td class="small">{{ result.filename|default('N/A') }}</td>
+                      <td class="small">{{ result.line_number|default('—') }}</td>
+                      <td>
+                        <span class="badge {% if result.issue_severity == 'HIGH' %}bg-danger{% elif result.issue_severity == 'MEDIUM' %}bg-warning{% else %}bg-info{% endif %}">
+                          {{ result.issue_severity|default('UNKNOWN') }}
+                        </span>
+                      </td>
+                      <td class="small">{{ result.test_name|default('N/A') }}</td>
+                      <td class="small">{{ result.issue_text|default('N/A')|truncate(50) }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <p class="text-muted">No Bandit results found.</p>
+            {% endif %}
+          </div>
+        </details>
+      {% endcall %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# Performance Analysis Section #}
+  {% if performance_data %}
+  <div class="row g-3 mb-4">
+    <div class="col-12">
+      <h3 class="mb-3"><i class="fas fa-tachometer-alt text-success"></i> Performance Test Results</h3>
+    </div>
+    
+    <div class="col-12 col-md-6">
+      {% call module_card(title='Performance Metrics', icon='fa-tachometer-alt') %}
+        <div class="row g-2">
+          <div class="col-6">
+            <div class="small text-muted">Users</div>
+            <div class="h4 mb-0">{{ performance_data.results.users or performance_data.test.users or 'N/A' }}</div>
+          </div>
+          <div class="col-6">
+            <div class="small text-muted">Duration</div>
+            <div class="h4 mb-0">{{ performance_data.results.duration or performance_data.test.test_duration or 'N/A' }}</div>
+          </div>
+          <div class="col-6 mt-2">
+            <div class="small text-muted">Avg Response (ms)</div>
+            <div class="h4 mb-0">{{ performance_data.results.avg_response_ms or '—' }}</div>
+          </div>
+          <div class="col-6 mt-2">
+            <div class="small text-muted">P95 Response (ms)</div>
+            <div class="h4 mb-0">{{ performance_data.results.p95_ms or '—' }}</div>
+          </div>
+          <div class="col-6 mt-2">
+            <div class="small text-muted">Requests/sec</div>
+            <div class="h4 mb-0">{{ performance_data.results.rps or '—' }}</div>
+          </div>
+          <div class="col-6 mt-2">
+            <div class="small text-muted">Error Rate</div>
+            <div class="h4 mb-0">{{ performance_data.results.error_rate or '—' }}</div>
+          </div>
+        </div>
+      {% endcall %}
+    </div>
+
+    <div class="col-12 col-md-6">
+      {% call module_card(title='Throughput & Latency', icon='fa-chart-line') %}
+        <div class="small text-muted mb-2">Extended metrics</div>
+        <ul class="small mb-0">
+          <li>Max RPS: {{ performance_data.results.max_rps or '—' }}</li>
+          <li>Min Latency (ms): {{ performance_data.results.min_latency_ms or '—' }}</li>
+          <li>Max Latency (ms): {{ performance_data.results.max_latency_ms or '—' }}</li>
+        </ul>
+      {% endcall %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# Dynamic Analysis Section #}
+  {% if dynamic_data %}
+  <div class="row g-3 mb-4">
+    <div class="col-12">
+      <h3 class="mb-3"><i class="fas fa-bolt text-warning"></i> Dynamic Analysis Results</h3>
+    </div>
+    
+    <div class="col-12">
+      {% call module_card(title='ZAP Scan Summary', icon='fa-bolt') %}
+        <div class="row text-center">
+          <div class="col-6 col-md-3">
+            <div class="fw-semibold small text-muted">High Risk</div>
+            <div class="display-6 text-danger">{{ dynamic_data.counts.high }}</div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="fw-semibold small text-muted">Medium Risk</div>
+            <div class="display-6 text-warning">{{ dynamic_data.counts.medium }}</div>
+          </div>
+          <div class="col-6 col-md-3 mt-3 mt-md-0">
+            <div class="fw-semibold small text-muted">Low Risk</div>
+            <div class="display-6 text-info">{{ dynamic_data.counts.low }}</div>
+          </div>
+          <div class="col-6 col-md-3 mt-3 mt-md-0">
+            <div class="fw-semibold small text-muted">Informational</div>
+            <div class="display-6 text-secondary">{{ dynamic_data.counts.info }}</div>
+          </div>
+        </div>
+        <div class="mt-3 small text-muted">
+          Scan ID: {{ dynamic_data.analysis.id }}
+          {% if dynamic_data.analysis.started_at and dynamic_data.analysis.completed_at %}
+            • Duration: {{ ((dynamic_data.analysis.completed_at - dynamic_data.analysis.started_at).total_seconds() // 60)|int }}m {{ ((dynamic_data.analysis.completed_at - dynamic_data.analysis.started_at).total_seconds() % 60)|int }}s
+          {% endif %}
+        </div>
+      {% endcall %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# Raw Data Section - Collapsed by Default #}
+  <div class="row g-3">
+    <div class="col-12">
+      <h4 class="mb-3"><i class="fas fa-file-code"></i> Raw Analysis Data</h4>
+    </div>
+    
+    {% if security_data %}
+    <div class="col-12">
+      {% call module_card(title='Raw Security Results', icon='fa-file-code') %}
+        <details>
+          <summary class="btn btn-outline-primary btn-sm">Toggle Security JSON Data</summary>
+          <pre class="mt-3 small bg-light p-3 rounded" style="max-height: 400px; overflow:auto;">{{ security_data.results|tojson(indent=2) }}</pre>
+        </details>
+      {% endcall %}
+    </div>
+    {% endif %}
+    
+    {% if performance_data %}
+    <div class="col-12">
+      {% call module_card(title='Raw Performance Results', icon='fa-file-code') %}
+        <details>
+          <summary class="btn btn-outline-success btn-sm">Toggle Performance JSON Data</summary>
+          <pre class="mt-3 small bg-light p-3 rounded" style="max-height: 400px; overflow:auto;">{{ performance_data.results|tojson(indent=2) }}</pre>
+        </details>
+      {% endcall %}
+    </div>
+    {% endif %}
+    
+    {% if dynamic_data %}
+    <div class="col-12">
+      {% call module_card(title='Raw Dynamic Analysis Results', icon='fa-file-code') %}
+        <details>
+          <summary class="btn btn-outline-warning btn-sm">Toggle Dynamic JSON Data</summary>
+          <pre class="mt-3 small bg-light p-3 rounded" style="max-height: 400px; overflow:auto;">{{ dynamic_data.zap_report|tojson(indent=2) }}</pre>
+        </details>
+      {% endcall %}
+    </div>
+    {% endif %}
+  </div>
+</div>
