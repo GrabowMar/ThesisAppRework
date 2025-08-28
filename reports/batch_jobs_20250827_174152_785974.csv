@@ -1,4 +1,0 @@
-id,name,status,analysis_types,models,apps,total_tasks,completed,failed,cached,progress_pct
-job_1756316485722_650500,Test Batch,cancelled,security_backend,m1,1,1,0,0,0,0.00
-job_1756316486163_64799f,SJob,running,security_backend,m1,1,1,0,0,0,0.00
-job_1756316486200_f23c5c,CJob,running,security_backend,m1,1,1,0,0,0,0.00

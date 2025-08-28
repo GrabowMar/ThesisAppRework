@@ -39,7 +39,7 @@ from shared.protocol import (
 level_str = os.getenv('LOG_LEVEL', 'INFO').upper()
 level = getattr(logging, level_str, logging.INFO)
 logging.basicConfig(level=level)
-logger = logging.getLogger("gateway")
+logger = logging.getLogger("analyzer.websocket_gateway")
 logger.setLevel(level)
 try:
     # Suppress noisy connection/opening handshake logs across websockets internals
@@ -134,13 +134,17 @@ async def broadcast_event(stage: str, message: str = "", *,
     if details:
         payload['details'] = details
 
-    # Log and keep a short in-memory buffer (less noisy by default)
+    # Log with reduced verbosity to prevent spam
     if stage in {"error", "failed"}:
-        logger.warning(f"[{stage}] {message} service={service} corr={correlation_id}")
-    elif stage in {"completed"}:
-        logger.info(f"[{stage}] {message} service={service} corr={correlation_id}")
+        logger.warning(f"[{stage}] {message} service={service}")
+    elif stage in {"completed"} and "health" not in message.lower():
+        # Skip logging routine health check completions
+        logger.info(f"[{stage}] {message} service={service}")
+    elif stage in {"started", "running"} and any(keyword in message.lower() for keyword in ["health", "monitor", "ping"]):
+        # Reduce monitoring/health check log level to debug
+        logger.debug(f"[{stage}] {message} service={service}")
     else:
-        logger.debug(f"[{stage}] {message} service={service} corr={correlation_id}")
+        logger.debug(f"[{stage}] {message} service={service}")
     _record_event({'stage': stage, 'message': message, 'service': service, 'correlation_id': correlation_id, 'timestamp': payload['timestamp']})
 
     # Wrap using the shared protocol helper with sanitized kwargs

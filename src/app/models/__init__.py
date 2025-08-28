@@ -19,12 +19,14 @@ import json
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List
 
-# Import centralized constants and enums
+# Import centralized constants and enums  
 from ..constants import AnalysisStatus, JobStatus, ContainerState
 from ..extensions import db
 
 # Import analysis configuration models
 from .analysis import AnalysisConfig, ConfigPreset
+
+# Cleanup models for file replacement are defined below
 
 def utc_now() -> datetime:
     """Get current UTC time - replacement for deprecated datetime.utcnow()"""
@@ -1512,6 +1514,348 @@ class BatchTemplate(db.Model):
         return f'<BatchTemplate {self.name}>'
 
 
+class ProcessTracking(db.Model):
+    """Track running processes to replace PID files."""
+    __tablename__ = 'process_tracking'
+    
+    # Primary identification
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Process information
+    service_name = db.Column(db.String(100), nullable=False, index=True)  # celery_beat, celery_worker, flask_app
+    service_type = db.Column(db.String(50), nullable=False, index=True)   # main, analyzer
+    process_id = db.Column(db.Integer, nullable=False)
+    
+    # Status and health
+    status = db.Column(db.String(20), default='running', index=True)  # running, stopped, crashed
+    host = db.Column(db.String(100), default='localhost')
+    port = db.Column(db.Integer)
+    
+    # Process metadata
+    command_line = db.Column(db.Text)
+    working_directory = db.Column(db.String(500))
+    environment_info_json = db.Column(db.Text)
+    
+    # Monitoring
+    last_heartbeat = db.Column(db.DateTime(timezone=True), default=utc_now)
+    resource_usage_json = db.Column(db.Text)  # CPU, memory, etc.
+    
+    # Timestamps
+    started_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    stopped_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    
+    def get_environment_info(self) -> Dict[str, Any]:
+        """Get environment info as dictionary."""
+        if self.environment_info_json:
+            try:
+                return json.loads(self.environment_info_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_environment_info(self, info: Dict[str, Any]) -> None:
+        """Set environment info."""
+        self.environment_info_json = json.dumps(info)
+    
+    def get_resource_usage(self) -> Dict[str, Any]:
+        """Get resource usage as dictionary."""
+        if self.resource_usage_json:
+            try:
+                return json.loads(self.resource_usage_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_resource_usage(self, usage: Dict[str, Any]) -> None:
+        """Set resource usage."""
+        self.resource_usage_json = json.dumps(usage)
+    
+    def mark_stopped(self) -> None:
+        """Mark process as stopped."""
+        self.status = 'stopped'
+        self.stopped_at = utc_now()
+    
+    def update_heartbeat(self, resource_usage: Dict[str, Any] = None) -> None:
+        """Update last heartbeat and optionally resource usage."""
+        self.last_heartbeat = utc_now()
+        if resource_usage:
+            self.set_resource_usage(resource_usage)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary representation."""
+        return {
+            'id': self.id,
+            'service_name': self.service_name,
+            'service_type': self.service_type,
+            'process_id': self.process_id,
+            'status': self.status,
+            'host': self.host,
+            'port': self.port,
+            'command_line': self.command_line,
+            'working_directory': self.working_directory,
+            'environment_info': self.get_environment_info(),
+            'resource_usage': self.get_resource_usage(),
+            'last_heartbeat': self.last_heartbeat.isoformat() if self.last_heartbeat else None,
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'stopped_at': self.stopped_at.isoformat() if self.stopped_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+    
+    def __repr__(self) -> str:
+        return f'<ProcessTracking {self.service_name}:{self.process_id}>'
+
+
+class TestResults(db.Model):
+    """Store test results to replace JSON result files."""
+    __tablename__ = 'test_results'
+    
+    # Primary identification
+    id = db.Column(db.Integer, primary_key=True)
+    result_id = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    
+    # Test information
+    test_type = db.Column(db.String(50), nullable=False, index=True)  # smoke_test, api_test, integration_test
+    test_name = db.Column(db.String(200), nullable=False)
+    test_suite = db.Column(db.String(100), index=True)
+    
+    # Target information
+    target_url = db.Column(db.String(500))
+    target_service = db.Column(db.String(100))
+    model_slug = db.Column(db.String(200), index=True)
+    app_number = db.Column(db.Integer, index=True)
+    
+    # Results
+    status = db.Column(db.String(20), nullable=False, index=True)  # passed, failed, error, skipped
+    response_time_ms = db.Column(db.Float)
+    status_code = db.Column(db.Integer)
+    
+    # Detailed results
+    request_data_json = db.Column(db.Text)
+    response_data_json = db.Column(db.Text)
+    error_message = db.Column(db.Text)
+    assertions_json = db.Column(db.Text)  # List of assertion results
+    
+    # Test metadata
+    test_environment_json = db.Column(db.Text)
+    test_config_json = db.Column(db.Text)
+    tags_json = db.Column(db.Text)
+    
+    # Timestamps
+    started_at = db.Column(db.DateTime(timezone=True))
+    completed_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    
+    def get_request_data(self) -> Dict[str, Any]:
+        """Get request data as dictionary."""
+        if self.request_data_json:
+            try:
+                return json.loads(self.request_data_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_request_data(self, data: Dict[str, Any]) -> None:
+        """Set request data."""
+        self.request_data_json = json.dumps(data)
+    
+    def get_response_data(self) -> Dict[str, Any]:
+        """Get response data as dictionary."""
+        if self.response_data_json:
+            try:
+                return json.loads(self.response_data_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_response_data(self, data: Dict[str, Any]) -> None:
+        """Set response data."""
+        self.response_data_json = json.dumps(data)
+    
+    def get_assertions(self) -> List[Dict[str, Any]]:
+        """Get assertions as list."""
+        if self.assertions_json:
+            try:
+                return json.loads(self.assertions_json)
+            except json.JSONDecodeError:
+                return []
+        return []
+    
+    def set_assertions(self, assertions: List[Dict[str, Any]]) -> None:
+        """Set assertions."""
+        self.assertions_json = json.dumps(assertions)
+    
+    def get_test_environment(self) -> Dict[str, Any]:
+        """Get test environment as dictionary."""
+        if self.test_environment_json:
+            try:
+                return json.loads(self.test_environment_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_test_environment(self, env: Dict[str, Any]) -> None:
+        """Set test environment."""
+        self.test_environment_json = json.dumps(env)
+    
+    def get_test_config(self) -> Dict[str, Any]:
+        """Get test config as dictionary."""
+        if self.test_config_json:
+            try:
+                return json.loads(self.test_config_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_test_config(self, config: Dict[str, Any]) -> None:
+        """Set test config."""
+        self.test_config_json = json.dumps(config)
+    
+    def get_tags(self) -> List[str]:
+        """Get tags as list."""
+        if self.tags_json:
+            try:
+                return json.loads(self.tags_json)
+            except json.JSONDecodeError:
+                return []
+        return []
+    
+    def set_tags(self, tags: List[str]) -> None:
+        """Set tags."""
+        self.tags_json = json.dumps(tags)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary representation."""
+        return {
+            'id': self.id,
+            'result_id': self.result_id,
+            'test_type': self.test_type,
+            'test_name': self.test_name,
+            'test_suite': self.test_suite,
+            'target_url': self.target_url,
+            'target_service': self.target_service,
+            'model_slug': self.model_slug,
+            'app_number': self.app_number,
+            'status': self.status,
+            'response_time_ms': self.response_time_ms,
+            'status_code': self.status_code,
+            'request_data': self.get_request_data(),
+            'response_data': self.get_response_data(),
+            'error_message': self.error_message,
+            'assertions': self.get_assertions(),
+            'test_environment': self.get_test_environment(),
+            'test_config': self.get_test_config(),
+            'tags': self.get_tags(),
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+    
+    def __repr__(self) -> str:
+        return f'<TestResults {self.test_name}:{self.status}>'
+
+
+class EventLog(db.Model):
+    """Store system events to replace gateway_events.jsonl."""
+    __tablename__ = 'event_logs'
+    
+    # Primary identification
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    
+    # Event information
+    event_type = db.Column(db.String(50), nullable=False, index=True)  # gateway, analysis, system, user
+    event_name = db.Column(db.String(100), nullable=False, index=True)
+    source = db.Column(db.String(100), nullable=False, index=True)  # gateway, analyzer, web_ui, api
+    
+    # Event context
+    user_id = db.Column(db.String(100))
+    session_id = db.Column(db.String(100))
+    request_id = db.Column(db.String(100))
+    correlation_id = db.Column(db.String(100))
+    
+    # Event data
+    message = db.Column(db.Text)
+    event_data_json = db.Column(db.Text)
+    event_metadata_json = db.Column(db.Text)
+    
+    # Severity and categorization
+    severity = db.Column(db.String(20), default='info', index=True)  # debug, info, warning, error, critical
+    category = db.Column(db.String(50), index=True)  # auth, analysis, system, performance, security
+    
+    # Context information
+    ip_address = db.Column(db.String(45))  # IPv6 compatible
+    user_agent = db.Column(db.String(500))
+    request_method = db.Column(db.String(10))
+    request_path = db.Column(db.String(500))
+    
+    # Performance data
+    duration_ms = db.Column(db.Float)
+    memory_usage_mb = db.Column(db.Float)
+    
+    # Timestamps
+    timestamp = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    
+    def get_event_data(self) -> Dict[str, Any]:
+        """Get event data as dictionary."""
+        if self.event_data_json:
+            try:
+                return json.loads(self.event_data_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_event_data(self, data: Dict[str, Any]) -> None:
+        """Set event data."""
+        self.event_data_json = json.dumps(data)
+    
+    def get_event_metadata(self) -> Dict[str, Any]:
+        """Get event metadata as dictionary."""
+        if self.event_metadata_json:
+            try:
+                return json.loads(self.event_metadata_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_event_metadata(self, metadata: Dict[str, Any]) -> None:
+        """Set event metadata."""
+        self.event_metadata_json = json.dumps(metadata)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary representation."""
+        return {
+            'id': self.id,
+            'event_id': self.event_id,
+            'event_type': self.event_type,
+            'event_name': self.event_name,
+            'source': self.source,
+            'user_id': self.user_id,
+            'session_id': self.session_id,
+            'request_id': self.request_id,
+            'correlation_id': self.correlation_id,
+            'message': self.message,
+            'event_data': self.get_event_data(),
+            'metadata': self.get_event_metadata(),
+            'severity': self.severity,
+            'category': self.category,
+            'ip_address': self.ip_address,
+            'user_agent': self.user_agent,
+            'request_method': self.request_method,
+            'request_path': self.request_path,
+            'duration_ms': self.duration_ms,
+            'memory_usage_mb': self.memory_usage_mb,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+    
+    def __repr__(self) -> str:
+        return f'<EventLog {self.event_type}:{self.event_name}>'
+
+
 # Initialize database function
 def init_db():
     """Create all database tables."""
@@ -1544,5 +1888,8 @@ __all__ = [
     'BatchDependency',
     'BatchSchedule',
     'BatchResourceUsage',
-    'BatchTemplate'
+    'BatchTemplate',
+    'ProcessTracking',
+    'TestResults',
+    'EventLog'
 ]

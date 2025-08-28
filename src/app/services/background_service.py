@@ -5,14 +5,14 @@ Background Task Service
 Service for managing background tasks and real-time updates.
 """
 
-import logging
+from app.utils.logging_config import get_logger
 import threading
 import time
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, asdict
 
-logger = logging.getLogger(__name__)
+logger = get_logger('background_service')
 
 
 @dataclass

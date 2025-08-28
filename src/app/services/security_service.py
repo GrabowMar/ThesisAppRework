@@ -5,7 +5,7 @@ Provides security analysis functionality for AI-generated applications.
 Integrates with containerized security scanners and provides fallback analysis.
 """
 
-import logging
+from app.utils.logging_config import get_logger
 import uuid
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
@@ -15,7 +15,7 @@ from ..models import SecurityAnalysis, GeneratedApplication
 from ..constants import AnalysisStatus
 from ..extensions import get_session
 
-logger = logging.getLogger(__name__)
+logger = get_logger('security_service')
 
 
 class SecurityService:

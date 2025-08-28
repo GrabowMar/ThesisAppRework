@@ -6,7 +6,7 @@ Service for loading initial data from JSON files and misc folder into the databa
 """
 
 import json
-import logging
+from app.utils.logging_config import get_logger
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
@@ -14,7 +14,7 @@ from typing import Dict, Any, Optional
 from ..extensions import db
 from ..models import ModelCapability, GeneratedApplication, PortConfiguration
 
-logger = logging.getLogger(__name__)
+logger = get_logger('data_init')
 
 
 class DataInitializationService:

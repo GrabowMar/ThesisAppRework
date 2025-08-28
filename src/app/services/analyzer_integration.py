@@ -1,649 +1,540 @@
 """
-Analyzer Integration Service
-===========================
+Analyzer Integration Layer
+=========================
 
-Bridges the task manager with the analyzer_manager.py to provide
-seamless integration between Celery tasks and containerized analyzers.
+Integration layer for communicating with containerized analyzer services.
+Handles WebSocket connections, task execution, and result processing.
 """
 
+from app.utils.logging_config import get_logger
+import asyncio
 import json
-import logging
-import os
-import subprocess
-import sys
-from pathlib import Path
-from typing import Dict, List, Optional, Any
+import uuid
+from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime, timezone
+from enum import Enum
+import websockets
+from websockets.exceptions import ConnectionClosed, InvalidStatusCode
 
-logger = logging.getLogger(__name__)
+from ..extensions import db
+# Temporarily commented out due to missing models
+# from ..models import (
+#     Any,  # AnalysisTask AnalysisResult, AnalysisStatus, AnalysisType
+# )
 
-class AnalyzerIntegration:
-    """
-    Integration layer between task manager and analyzer infrastructure.
-    """
+
+logger = get_logger('analyzer_integration')
+
+
+class AnalyzerServiceType(Enum):
+    """Types of analyzer services."""
+    SECURITY = "security"
+    STATIC = "static"
+    DYNAMIC = "dynamic"
+    PERFORMANCE = "performance"
+    AI_REVIEW = "ai_review"
+
+
+class ConnectionManager:
+    """Manages WebSocket connections to analyzer services."""
     
     def __init__(self):
-        self.analyzer_manager_path = self._get_analyzer_manager_path()
-        self.services_status = {}
-        self.last_health_check = None
-        
-    def _get_analyzer_manager_path(self) -> Path:
-        """Get the path to analyzer_manager.py."""
-        # Navigate from src2/app/services to analyzer/
-        current_dir = Path(__file__).parent
-        project_root = current_dir.parent.parent.parent
-        analyzer_path = project_root / 'analyzer' / 'analyzer_manager.py'
-        
-        if not analyzer_path.exists():
-            logger.warning(f"Analyzer manager not found at {analyzer_path}")
-        
-        return analyzer_path
+        self.connections: Dict[str, websockets.WebSocketServerProtocol] = {}
+        self.service_urls = {
+            AnalyzerServiceType.SECURITY: "ws://localhost:2001",
+            AnalyzerServiceType.STATIC: "ws://localhost:2001",
+            AnalyzerServiceType.DYNAMIC: "ws://localhost:2002", 
+            AnalyzerServiceType.PERFORMANCE: "ws://localhost:2003",
+            AnalyzerServiceType.AI_REVIEW: "ws://localhost:2004"
+        }
+        self.connection_timeouts = {
+            'connect': 10,  # seconds
+            'analysis': 1800,  # 30 minutes
+            'heartbeat': 30  # seconds
+        }
     
-    def run_analyzer_command(self, command: List[str], timeout: int = 300) -> Dict[str, Any]:
-        """
-        Run a command through analyzer_manager.py.
+    async def get_connection(self, service_type: AnalyzerServiceType) -> Optional[websockets.WebSocketServerProtocol]:
+        """Get or create WebSocket connection to analyzer service."""
+        service_key = service_type.value
         
-        Args:
-            command: Command arguments to pass to analyzer_manager.py
-            timeout: Command timeout in seconds
-            
-        Returns:
-            Command result
-        """
+        # Check if existing connection is still valid
+        if service_key in self.connections:
+            connection = self.connections[service_key]
+            if not connection.closed:
+                try:
+                    # Test connection with ping
+                    await asyncio.wait_for(connection.ping(), timeout=5)
+                    return connection
+                except Exception as e:
+                    logger.debug(f"Connection test failed for {service_key}: {e}")
+                    # Remove invalid connection
+                    del self.connections[service_key]
+        
+        # Create new connection
+        return await self._create_connection(service_type)
+    
+    async def _create_connection(self, service_type: AnalyzerServiceType) -> Optional[websockets.WebSocketServerProtocol]:
+        """Create new WebSocket connection."""
+        service_key = service_type.value
+        service_url = self.service_urls[service_type]
         
         try:
-            if not self.analyzer_manager_path.exists():
-                raise FileNotFoundError(f"Analyzer manager not found at {self.analyzer_manager_path}")
+            logger.info(f"Connecting to {service_key} analyzer at {service_url}")
             
-            # Construct full command
-            full_command = [sys.executable, str(self.analyzer_manager_path)] + command
-            
-            # Reduce noise: only log health checks at DEBUG level
-            cmd_str = ' '.join(command)
-            if command and command[0].lower() == 'health':
-                logger.debug(f"Running analyzer command: {cmd_str}")
-            else:
-                logger.info(f"Running analyzer command: {cmd_str}")
-            
-            # Run command with proper encoding handling for Windows
-            # Ensure UTF-8 mode in the child process so Windows consoles don't choke on emojis
-            env = os.environ.copy()
-            env.setdefault('PYTHONUTF8', '1')
-            env.setdefault('PYTHONIOENCODING', 'utf-8')
-            # Signal to analyzer_manager.py to emit machine-parseable JSON for analyze/health
-            env.setdefault('ANALYZER_JSON', '1')
-
-            result = subprocess.run(
-                full_command,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                cwd=self.analyzer_manager_path.parent,
-                encoding='utf-8',
-                errors='replace',  # Replace problematic characters instead of failing
-                env=env
+            connection = await asyncio.wait_for(
+                websockets.connect(
+                    service_url,
+                    ping_interval=self.connection_timeouts['heartbeat'],
+                    ping_timeout=10,
+                    close_timeout=10
+                ),
+                timeout=self.connection_timeouts['connect']
             )
             
-            return {
-                'success': result.returncode == 0,
-                'returncode': result.returncode,
-                'stdout': result.stdout,
-                'stderr': result.stderr,
-                'command': command,
-                'timestamp': datetime.now(timezone.utc).isoformat()
-            }
+            self.connections[service_key] = connection
+            logger.info(f"Connected to {service_key} analyzer")
             
-        except subprocess.TimeoutExpired:
-            logger.error(f"Analyzer command timed out: {' '.join(command)}")
-            return {
-                'success': False,
-                'error': 'Command timed out',
-                'command': command,
-                'timestamp': datetime.now(timezone.utc).isoformat()
-            }
+            return connection
+            
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout connecting to {service_key} analyzer")
+            return None
+        except (ConnectionError, InvalidStatusCode) as e:
+            logger.error(f"Failed to connect to {service_key} analyzer: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Failed to run analyzer command: {e}")
-            return {
-                'success': False,
-                'error': str(e),
-                'command': command,
-                'timestamp': datetime.now(timezone.utc).isoformat()
-            }
+            logger.error(f"Unexpected error connecting to {service_key}: {e}")
+            return None
     
-    def start_analyzer_services(self) -> bool:
-        """
-        Start all analyzer services.
-        
-        Returns:
-            True if services started successfully
-        """
-        
-        try:
-            result = self.run_analyzer_command(['start'])
-            
-            if result['success']:
-                logger.info("Analyzer services started successfully")
-                self._update_services_status()
-                return True
-            else:
-                logger.error(f"Failed to start analyzer services: {result.get('stderr', 'Unknown error')}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error starting analyzer services: {e}")
-            return False
-    
-    def stop_analyzer_services(self) -> bool:
-        """
-        Stop all analyzer services.
-        
-        Returns:
-            True if services stopped successfully
-        """
-        
-        try:
-            result = self.run_analyzer_command(['stop'])
-            
-            if result['success']:
-                logger.info("Analyzer services stopped successfully")
-                self._update_services_status()
-                return True
-            else:
-                logger.error(f"Failed to stop analyzer services: {result.get('stderr', 'Unknown error')}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error stopping analyzer services: {e}")
-            return False
-
-    # Compatibility wrappers used by some API routes
-    def start_all_services(self) -> Dict[str, Any]:
-        """Start services and return command result payload."""
-        result = self.run_analyzer_command(['start'])
-        if result.get('success'):
+    async def close_connection(self, service_type: AnalyzerServiceType):
+        """Close connection to analyzer service."""
+        service_key = service_type.value
+        if service_key in self.connections:
+            connection = self.connections[service_key]
             try:
-                self._update_services_status()
-            except Exception:
-                pass
-        return result
-
-    def stop_all_services(self) -> Dict[str, Any]:
-        """Stop services and return command result payload."""
-        result = self.run_analyzer_command(['stop'])
-        if result.get('success'):
-            try:
-                self._update_services_status()
-            except Exception:
-                pass
-        return result
-    
-    def restart_analyzer_services(self) -> bool:
-        """
-        Restart all analyzer services.
-        
-        Returns:
-            True if services restarted successfully
-        """
-        
-        try:
-            # Stop first
-            stop_result = self.run_analyzer_command(['stop'])
-            if not stop_result['success']:
-                logger.warning("Stop command failed, continuing with start")
-            
-            # Then start
-            start_result = self.run_analyzer_command(['start'])
-            
-            if start_result['success']:
-                logger.info("Analyzer services restarted successfully")
-                self._update_services_status()
-                return True
-            else:
-                logger.error(f"Failed to restart analyzer services: {start_result.get('stderr', 'Unknown error')}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Error restarting analyzer services: {e}")
-            return False
-    
-    def get_services_status(self) -> Dict[str, Any]:
-        """
-        Get status of all analyzer services.
-        
-        Returns:
-            Services status information
-        """
-        
-        try:
-            # Check if analyzer manager exists
-            if not self.analyzer_manager_path.exists():
-                return {
-                    'error': 'Analyzer manager not found',
-                    'timestamp': datetime.now(timezone.utc).isoformat()
-                }
-            
-            # Try to get real status from analyzer manager
-            try:
-                result = self.run_analyzer_command(['health'], timeout=10)
-
-                if result.get('returncode') == 0:
-                    output = (result.get('stdout') or '').strip()
-                    services_status: Dict[str, Any] = {}
-
-                    # Prefer JSON if available
-                    if output.startswith('{'):
-                        try:
-                            parsed = json.loads(output)
-                            # Expect shape: { "services": { name: {status:..} } }
-                            if isinstance(parsed, dict) and isinstance(parsed.get('services'), dict):
-                                services_status = parsed['services']  # type: ignore[index]
-                        except Exception:
-                            pass
-
-                    if not services_status and output:
-                        # Parse plain text variants (robust against various formats)
-                        lines = output.split('\n')
-                        for raw_line in lines:
-                            try:
-                                line = raw_line.strip()
-                                if not line:
-                                    continue
-                                # Skip headers
-                                if 'SERVICE HEALTH' in line.upper():
-                                    continue
-                                if ':' not in line:
-                                    continue
-                                # Examples handled:
-                                #   ✅ static-analyzer: healthy
-                                #   OK static-analyzer: healthy
-                                #   FAIL dynamic-analyzer: unhealthy
-                                #   static-analyzer ... healthy
-                                #   service: static-analyzer status: healthy
-                                left, right = line.replace('✅', '').replace('❌', '').split(':', 1)
-                                left = left.strip()
-                                right = right.strip()
-
-                                # Remove leading indicator like OK/FAIL if present
-                                tokens = left.split()
-                                if tokens and tokens[0].upper() in ("OK", "FAIL"):
-                                    tokens = tokens[1:]
-                                service_name = ' '.join(tokens).strip()
-                                # In cases like "service static-analyzer status"
-                                if not service_name and 'service' in left.lower():
-                                    # try last token as name
-                                    service_name = left.split()[-1]
-
-                                status = (right.split()[0] if right else 'unknown').strip()
-                                # Normalize common words
-                                if status.lower() in ('healthy', 'reachable', 'running'):
-                                    norm_status = 'running'
-                                elif status.lower() in ('unhealthy', 'unreachable', 'stopped', 'down', 'error'):
-                                    norm_status = 'stopped'
-                                else:
-                                    norm_status = status
-
-                                if service_name:
-                                    services_status[service_name] = {'status': norm_status}
-                            except Exception:
-                                # Ignore individual line parse errors
-                                continue
-
-                    if services_status:
-                        status_info = {
-                            'services': services_status,
-                            'timestamp': datetime.now(timezone.utc).isoformat(),
-                            'health_check_mode': 'real'
-                        }
-                        self.services_status = status_info
-                        self.last_health_check = datetime.now(timezone.utc)
-                        return status_info
-
-                # Fallback to simplified status only if no output or parse failed
-                if not result.get('stdout'):
-                    logger.warning("Analyzer health returned no output; using simplified status")
-                
+                await connection.close()
             except Exception as e:
-                logger.warning(f"Failed to get real analyzer status: {e}, using simplified status")
-            
-            # Simplified fallback status
-            status_info = {
-                'services': {
-                    'analyzer_manager': {'status': 'available'},
-                    'docker_services': {'status': 'unknown'}
-                },
-                'timestamp': datetime.now(timezone.utc).isoformat(),
-                'health_check_mode': 'simplified'
-            }
-            self.services_status = status_info
-            self.last_health_check = datetime.now(timezone.utc)
-            return status_info
-                
-        except Exception as e:
-            logger.error(f"Error getting services status: {e}")
-            return {'error': str(e)}
+                logger.debug(f"Error closing connection to {service_key}: {e}")
+            finally:
+                del self.connections[service_key]
     
-    def run_security_analysis(self, model_slug: str, app_number: int, 
-                            tools: Optional[List[str]] = None, 
-                            options: Optional[Dict] = None) -> Dict[str, Any]:
-        """
-        Run security analysis through analyzer infrastructure.
-        
-        Args:
-            model_slug: Model identifier
-            app_number: Application number
-            tools: Security tools to run
-            options: Additional options
-            
-        Returns:
-            Analysis results
-        """
-        
-        try:
-            # Construct command using analyzer_manager.py positional CLI
-            # Format: analyze <model> <app_number> [type]
-            command = ['analyze', model_slug, str(app_number), 'security']
-            
-            # Run analysis
-            default_timeout = int(os.environ.get('SECURITY_ANALYSIS_TIMEOUT', os.environ.get('STATIC_ANALYSIS_TIMEOUT', '600')))
-            result = self.run_analyzer_command(command, timeout=options.get('timeout', default_timeout) if options else default_timeout)
-            
-            if result['success']:
-                # Parse results from stdout
-                try:
-                    analysis_results = json.loads(result['stdout'])
-                    return analysis_results
-                except json.JSONDecodeError:
-                    # If JSON parsing fails, return raw output
-                    return {
-                        'status': 'completed',
-                        'raw_output': result['stdout'],
-                        'command': command
-                    }
-            else:
-                return {
-                    'status': 'failed',
-                    'error': result.get('stderr', 'Unknown error'),
-                    'command': command
-                }
-                
-        except Exception as e:
-            logger.error(f"Error running security analysis: {e}")
-            return {
-                'status': 'failed',
-                'error': str(e)
-            }
-    
-    def run_performance_test(self, model_slug: str, app_number: int,
-                           test_config: Optional[Dict] = None) -> Dict[str, Any]:
-        """
-        Run performance test through analyzer infrastructure.
-        
-        Args:
-            model_slug: Model identifier
-            app_number: Application number
-            test_config: Performance test configuration
-            
-        Returns:
-            Test results
-        """
-        
-        try:
-            # Construct command using analyzer_manager.py positional CLI
-            # Note: Current CLI does not accept passing config; defaults will be used by the manager.
-            command = ['analyze', model_slug, str(app_number), 'performance']
-            
-            # Run test
-            result = self.run_analyzer_command(command, timeout=test_config.get('timeout', 900) if test_config else 900)
-            
-            if result['success']:
-                try:
-                    test_results = json.loads(result['stdout'])
-                    return test_results
-                except json.JSONDecodeError:
-                    return {
-                        'status': 'completed',
-                        'raw_output': result['stdout'],
-                        'command': command
-                    }
-            else:
-                return {
-                    'status': 'failed',
-                    'error': result.get('stderr', 'Unknown error'),
-                    'command': command
-                }
-                
-        except Exception as e:
-            logger.error(f"Error running performance test: {e}")
-            return {
-                'status': 'failed',
-                'error': str(e)
-            }
-    
-    def run_static_analysis(self, model_slug: str, app_number: int,
-                          tools: Optional[List[str]] = None,
-                          options: Optional[Dict] = None) -> Dict[str, Any]:
-        """
-        Run static analysis through analyzer infrastructure.
-        
-        Args:
-            model_slug: Model identifier
-            app_number: Application number
-            tools: Static analysis tools to run
-            options: Additional options
-            
-        Returns:
-            Analysis results
-        """
-        
-        try:
-            # Construct command using analyzer_manager.py positional CLI
-            command = ['analyze', model_slug, str(app_number), 'static']
-            
-            # Run analysis
-            default_timeout = int(os.environ.get('STATIC_ANALYSIS_TIMEOUT', '600'))
-            result = self.run_analyzer_command(command, timeout=options.get('timeout', default_timeout) if options else default_timeout)
-            
-            if result['success']:
-                try:
-                    analysis_results = json.loads(result['stdout'])
-                    return analysis_results
-                except json.JSONDecodeError:
-                    return {
-                        'status': 'completed',
-                        'raw_output': result['stdout'],
-                        'command': command
-                    }
-            else:
-                return {
-                    'status': 'failed',
-                    'error': result.get('stderr', 'Unknown error'),
-                    'command': command
-                }
-                
-        except Exception as e:
-            logger.error(f"Error running static analysis: {e}")
-            return {
-                'status': 'failed',
-                'error': str(e)
-            }
-    
-    def run_ai_analysis(self, model_slug: str, app_number: int,
-                       analysis_types: Optional[List[str]] = None,
-                       options: Optional[Dict] = None) -> Dict[str, Any]:
-        """
-        Run AI-powered analysis through analyzer infrastructure.
-        
-        Args:
-            model_slug: Model identifier
-            app_number: Application number
-            analysis_types: Types of AI analysis to perform
-            options: Additional options
-            
-        Returns:
-            Analysis results
-        """
-        
-        try:
-            # Construct command using analyzer_manager.py positional CLI
-            command = ['analyze', model_slug, str(app_number), 'ai']
-            
-            # Run analysis
-            result = self.run_analyzer_command(command, timeout=options.get('timeout', 1200) if options else 1200)
-            
-            if result['success']:
-                try:
-                    analysis_results = json.loads(result['stdout'])
-                    return analysis_results
-                except json.JSONDecodeError:
-                    return {
-                        'status': 'completed',
-                        'raw_output': result['stdout'],
-                        'command': command
-                    }
-            else:
-                return {
-                    'status': 'failed',
-                    'error': result.get('stderr', 'Unknown error'),
-                    'command': command
-                }
-                
-        except Exception as e:
-            logger.error(f"Error running AI analysis: {e}")
-            return {
-                'status': 'failed',
-                'error': str(e)
-            }
+    async def close_all_connections(self):
+        """Close all analyzer connections."""
+        for service_type in AnalyzerServiceType:
+            await self.close_connection(service_type)
 
-    def run_dynamic_analysis(self, model_slug: str, app_number: int,
-                            options: Optional[Dict] = None) -> Dict[str, Any]:
-        """Run dynamic (ZAP-like) analysis through analyzer infrastructure."""
-        try:
-            # Construct command using the analyzer manager CLI
-            command = ['analyze', model_slug, str(app_number), 'dynamic']
 
-            result = self.run_analyzer_command(command, timeout=options.get('timeout', 600) if options else 600)
-
-            if result['success']:
-                try:
-                    analysis_results = json.loads(result['stdout'])
-                    return analysis_results
-                except json.JSONDecodeError:
-                    return {
-                        'status': 'completed',
-                        'raw_output': result['stdout'],
-                        'command': command
-                    }
-            else:
-                return {
-                    'status': 'failed',
-                    'error': result.get('stderr', 'Unknown error'),
-                    'command': command
-                }
-
-        except Exception as e:
-            logger.error(f"Error running dynamic analysis: {e}")
-            return {
-                'status': 'failed',
-                'error': str(e)
-            }
+class AnalysisExecutor:
+    """Executes analysis tasks on analyzer services."""
     
-    def _parse_status_output(self, status_output: str) -> Dict[str, Any]:
-        """
-        Parse status output from analyzer_manager.py.
-        
-        Args:
-            status_output: Raw status output
-            
-        Returns:
-            Parsed status information
-        """
-        
+    def __init__(self, connection_manager: ConnectionManager):
+        self.connection_manager = connection_manager
+        self.active_analyses: Dict[str, Dict[str, Any]] = {}
+    
+    async def execute_analysis(
+        self,
+        task: Any,  # AnalysisTask
+        progress_callback: Optional[Callable] = None
+    ) -> Dict[str, Any]:
+        """Execute analysis task on appropriate analyzer service."""
         try:
-            # Try to parse as JSON first
-            status_data = json.loads(status_output)
-            return status_data
-        except json.JSONDecodeError:
-            # If not JSON, parse line by line
-            lines = status_output.strip().split('\n')
-            services = {}
+            # Determine service type
+            service_type = self._get_service_type(task.analysis_type)
+            if not service_type:
+                raise ValueError(f"Unknown analysis type: {task.analysis_type}")
             
-            for line in lines:
-                if 'Service:' in line and 'Status:' in line:
-                    parts = line.split()
-                    service_name = None
-                    status = None
+            logger.info(f"Executing {task.analysis_type} analysis for task {task.task_id}")
+            
+            # Mark task as started
+            task.mark_started()
+            db.session.commit()
+            
+            # Register active analysis
+            self.active_analyses[task.task_id] = {
+                'task': task,
+                'service_type': service_type,
+                'started_at': datetime.now(timezone.utc),
+                'progress_callback': progress_callback
+            }
+            
+            # Get connection
+            connection = await self.connection_manager.get_connection(service_type)
+            if not connection:
+                raise ConnectionError(f"Could not connect to {service_type.value} analyzer")
+            
+            # Prepare analysis request
+            request = self._prepare_analysis_request(task)
+            
+            # Send request and handle response
+            result = await self._send_analysis_request(connection, request, task, progress_callback)
+            
+            # Process results
+            if result['status'] == 'completed':
+                await self._process_successful_result(task, result)
+            else:
+                await self._process_failed_result(task, result)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Analysis execution failed for task {task.task_id}: {e}")
+            await self._process_failed_result(task, {'error': str(e), 'status': 'failed'})
+            raise
+        finally:
+            # Clean up
+            if task.task_id in self.active_analyses:
+                del self.active_analyses[task.task_id]
+    
+    def _get_service_type(self, analysis_type: str) -> Optional[AnalyzerServiceType]:
+        """Map analysis type to service type."""
+        mapping = {
+            AnalysisType.SECURITY.value: AnalyzerServiceType.SECURITY,
+            AnalysisType.STATIC.value: AnalyzerServiceType.STATIC,
+            AnalysisType.DYNAMIC.value: AnalyzerServiceType.DYNAMIC,
+            AnalysisType.PERFORMANCE.value: AnalyzerServiceType.PERFORMANCE,
+            AnalysisType.AI_REVIEW.value: AnalyzerServiceType.AI_REVIEW
+        }
+        return mapping.get(analysis_type)
+    
+    def _prepare_analysis_request(self, task: Any) -> Dict[str, Any]:  # AnalysisTask
+        """Prepare analysis request for analyzer service."""
+        config = task.get_config()
+        
+        request = {
+            'request_id': str(uuid.uuid4()),
+            'task_id': task.task_id,
+            'action': f'run_{task.analysis_type}',
+            'target': {
+                'model_slug': task.model_slug,
+                'app_number': task.app_number,
+                'source_path': f'/app/sources/{task.model_slug}/app{task.app_number}'
+            },
+            'config': {
+                'tools_config': config.get('tools_config', {}),
+                'execution_config': config.get('execution_config', {}),
+                'output_config': config.get('output_config', {})
+            },
+            'options': {
+                'timeout': task.estimated_duration or 600,
+                'priority': task.priority,
+                'return_detailed_results': True
+            },
+            'metadata': {
+                'created_at': task.created_at.isoformat() if task.created_at else None,
+                'started_at': datetime.now(timezone.utc).isoformat()
+            }
+        }
+        
+        return request
+    
+    async def _send_analysis_request(
+        self,
+        connection: websockets.WebSocketServerProtocol,
+        request: Dict[str, Any],
+        task: Any,  # AnalysisTask
+        progress_callback: Optional[Callable] = None
+    ) -> Dict[str, Any]:
+        """Send analysis request and handle response."""
+        try:
+            # Send request
+            await connection.send(json.dumps(request))
+            logger.debug(f"Sent analysis request for task {task.task_id}")
+            
+            # Handle response messages
+            result = None
+            timeout = request['options']['timeout']
+            
+            async for message in asyncio.wait_for(connection, timeout=timeout):
+                try:
+                    data = json.loads(message)
+                    message_type = data.get('type', 'unknown')
                     
-                    for i, part in enumerate(parts):
-                        if part == 'Service:' and i + 1 < len(parts):
-                            service_name = parts[i + 1]
-                        if part == 'Status:' and i + 1 < len(parts):
-                            status = parts[i + 1]
+                    if message_type == 'progress':
+                        await self._handle_progress_message(data, task, progress_callback)
+                    elif message_type == 'result':
+                        result = data
+                        break
+                    elif message_type == 'error':
+                        result = data
+                        break
+                    elif message_type == 'log':
+                        await self._handle_log_message(data, task)
                     
-                    if service_name and status:
-                        services[service_name] = {'status': status}
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Invalid JSON message from analyzer: {e}")
+                    continue
             
+            if result is None:
+                raise TimeoutError("No result received from analyzer")
+            
+            return result
+            
+        except asyncio.TimeoutError:
+            logger.error(f"Analysis timeout for task {task.task_id}")
             return {
-                'services': services,
-                'timestamp': datetime.now(timezone.utc).isoformat(),
-                'raw_output': status_output
+                'status': 'failed',
+                'error': 'Analysis timeout',
+                'error_type': 'timeout'
+            }
+        except ConnectionClosed:
+            logger.error(f"Connection closed during analysis for task {task.task_id}")
+            return {
+                'status': 'failed',
+                'error': 'Connection lost during analysis',
+                'error_type': 'connection_error'
             }
     
-    def _update_services_status(self):
-        """Update cached services status."""
+    async def _handle_progress_message(
+        self,
+        data: Dict[str, Any],
+        task: Any,  # AnalysisTask
+        progress_callback: Optional[Callable] = None
+    ):
+        """Handle progress update from analyzer."""
         try:
-            self.get_services_status()
+            percentage = data.get('percentage', 0)
+            message = data.get('message', '')
+            
+            # Update task progress
+            task.update_progress(percentage, message)
+            db.session.commit()
+            
+            # Call progress callback
+            if progress_callback:
+                await progress_callback(task.task_id, percentage, message)
+            
+            logger.debug(f"Task {task.task_id} progress: {percentage}% - {message}")
+            
         except Exception as e:
-            logger.error(f"Failed to update services status: {e}")
+            logger.error(f"Error handling progress message: {e}")
     
-    def health_check(self) -> Dict[str, Any]:
-        """
-        Perform comprehensive health check of analyzer infrastructure.
-        
-        Returns:
-            Health check results
-        """
-        
+    async def _handle_log_message(self, data: Dict[str, Any], task: Any):
+        """Handle log message from analyzer."""
         try:
-            # Check if analyzer_manager.py exists
-            if not self.analyzer_manager_path.exists():
-                return {
-                    'status': 'critical',
-                    'message': 'Analyzer manager not found',
-                    'timestamp': datetime.now(timezone.utc).isoformat()
-                }
+            log_level = data.get('level', 'info')
+            log_message = data.get('message', '')
+            timestamp = data.get('timestamp', datetime.now(timezone.utc).isoformat())
             
-            # Get services status (simplified version)
-            status_info = self.get_services_status()
+            # Append to task logs
+            current_logs = task.logs or ""
+            new_log = f"[{timestamp}] {log_level.upper()}: {log_message}\n"
+            task.logs = current_logs + new_log
             
-            if 'error' in status_info:
-                return {
-                    'status': 'degraded',
-                    'message': 'Failed to get services status',
-                    'details': status_info,
-                    'timestamp': datetime.now(timezone.utc).isoformat()
-                }
+            # Limit log size (keep last 10KB)
+            if len(task.logs) > 10240:
+                task.logs = task.logs[-10240:]
             
-            # For simplified status, just return that the manager is available
-            return {
-                'status': 'available',
-                'message': 'Analyzer manager is available',
-                'timestamp': datetime.now(timezone.utc).isoformat()
-            }
+            db.session.commit()
             
         except Exception as e:
-            logger.error(f"Health check failed: {e}")
-            return {
-                'status': 'critical',
-                'message': str(e),
-                'timestamp': datetime.now(timezone.utc).isoformat()
+            logger.error(f"Error handling log message: {e}")
+    
+    async def _process_successful_result(self, task: Any, result: Dict[str, Any]):
+        """Process successful analysis result."""
+        try:
+            # Extract result data
+            analysis_data = result.get('data', {})
+            findings = result.get('findings', [])
+            metrics = result.get('metrics', {})
+            
+            # Update task with results
+            task.mark_completed(analysis_data)
+            
+            # Store detailed findings
+            if findings:
+                await self._store_findings(task, findings)
+            
+            # Store metrics
+            if metrics:
+                metadata = task.get_metadata()
+                metadata['metrics'] = metrics
+                task.set_metadata(metadata)
+            
+            db.session.commit()
+            logger.info(f"Successfully processed results for task {task.task_id}")
+            
+        except Exception as e:
+            logger.error(f"Error processing successful result for task {task.task_id}: {e}")
+            # Mark as failed if we can't process the results
+            task.mark_failed(f"Result processing error: {str(e)}")
+            db.session.commit()
+    
+    async def _process_failed_result(self, task: Any, result: Dict[str, Any]):
+        """Process failed analysis result."""
+        try:
+            error_message = result.get('error', 'Unknown error')
+            error_type = result.get('error_type', 'unknown')
+            
+            # Update task status
+            task.mark_failed(error_message)
+            
+            # Store error details in metadata
+            metadata = task.get_metadata()
+            metadata['error_details'] = {
+                'error_type': error_type,
+                'error_message': error_message,
+                'failed_at': datetime.now(timezone.utc).isoformat()
             }
+            task.set_metadata(metadata)
+            
+            db.session.commit()
+            logger.warning(f"Analysis failed for task {task.task_id}: {error_message}")
+            
+        except Exception as e:
+            logger.error(f"Error processing failed result for task {task.task_id}: {e}")
+    
+    async def _store_findings(self, task: Any, findings: List[Dict[str, Any]]):
+        """Store detailed analysis findings."""
+        try:
+            for finding_data in findings:
+                finding = AnalysisResult(
+                    task_id=task.id,
+                    result_type=finding_data.get('type', 'finding'),
+                    severity=finding_data.get('severity', 'low'),
+                    category=finding_data.get('category', 'general'),
+                    title=finding_data.get('title', ''),
+                    description=finding_data.get('description', ''),
+                    file_path=finding_data.get('file_path'),
+                    line_number=finding_data.get('line_number'),
+                    code_snippet=finding_data.get('code_snippet'),
+                    score=finding_data.get('score'),
+                    confidence=finding_data.get('confidence'),
+                    impact=finding_data.get('impact'),
+                    recommendation=finding_data.get('recommendation'),
+                    tool_name=finding_data.get('tool_name'),
+                    rule_id=finding_data.get('rule_id')
+                )
+                
+                # Store additional details
+                if 'details' in finding_data:
+                    finding.set_details(finding_data['details'])
+                
+                if 'external_references' in finding_data:
+                    finding.set_external_references(finding_data['external_references'])
+                
+                db.session.add(finding)
+            
+            logger.debug(f"Stored {len(findings)} findings for task {task.task_id}")
+            
+        except Exception as e:
+            logger.error(f"Error storing findings for task {task.task_id}: {e}")
+            raise
+    
+    async def cancel_analysis(self, task_id: str) -> bool:
+        """Cancel running analysis."""
+        try:
+            if task_id not in self.active_analyses:
+                return False
+            
+            analysis_info = self.active_analyses[task_id]
+            service_type = analysis_info['service_type']
+            
+            # Get connection
+            connection = await self.connection_manager.get_connection(service_type)
+            if connection:
+                # Send cancel request
+                cancel_request = {
+                    'request_id': str(uuid.uuid4()),
+                    'action': 'cancel_analysis',
+                    'task_id': task_id
+                }
+                
+                await connection.send(json.dumps(cancel_request))
+                logger.info(f"Sent cancel request for task {task_id}")
+            
+            # Clean up
+            del self.active_analyses[task_id]
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error cancelling analysis for task {task_id}: {e}")
+            return False
 
-# Global analyzer integration instance
-_analyzer_integration = None
 
-def get_analyzer_integration() -> AnalyzerIntegration:
-    """Get the global analyzer integration instance."""
-    global _analyzer_integration
-    if _analyzer_integration is None:
-        _analyzer_integration = AnalyzerIntegration()
-    return _analyzer_integration
+class AnalyzerHealthMonitor:
+    """Monitors health of analyzer services."""
+    
+    def __init__(self, connection_manager: ConnectionManager):
+        self.connection_manager = connection_manager
+        self.health_status: Dict[str, Dict[str, Any]] = {}
+    
+    async def check_service_health(self, service_type: AnalyzerServiceType) -> Dict[str, Any]:
+        """Check health of specific analyzer service."""
+        try:
+            connection = await self.connection_manager.get_connection(service_type)
+            if not connection:
+                return {
+                    'status': 'unhealthy',
+                    'error': 'Cannot connect to service',
+                    'last_check': datetime.now(timezone.utc).isoformat()
+                }
+            
+            # Send health check request
+            health_request = {
+                'request_id': str(uuid.uuid4()),
+                'action': 'health_check'
+            }
+            
+            await connection.send(json.dumps(health_request))
+            
+            # Wait for response with timeout
+            try:
+                response_message = await asyncio.wait_for(connection.recv(), timeout=10)
+                response = json.loads(response_message)
+                
+                if response.get('status') == 'healthy':
+                    health_data = {
+                        'status': 'healthy',
+                        'version': response.get('version', 'unknown'),
+                        'uptime': response.get('uptime', 0),
+                        'resource_usage': response.get('resource_usage', {}),
+                        'last_check': datetime.now(timezone.utc).isoformat()
+                    }
+                else:
+                    health_data = {
+                        'status': 'unhealthy',
+                        'error': response.get('error', 'Unknown error'),
+                        'last_check': datetime.now(timezone.utc).isoformat()
+                    }
+                
+                self.health_status[service_type.value] = health_data
+                return health_data
+                
+            except asyncio.TimeoutError:
+                return {
+                    'status': 'unhealthy',
+                    'error': 'Health check timeout',
+                    'last_check': datetime.now(timezone.utc).isoformat()
+                }
+            
+        except Exception as e:
+            logger.error(f"Health check failed for {service_type.value}: {e}")
+            return {
+                'status': 'unhealthy',
+                'error': str(e),
+                'last_check': datetime.now(timezone.utc).isoformat()
+            }
+    
+    async def check_all_services(self) -> Dict[str, Dict[str, Any]]:
+        """Check health of all analyzer services."""
+        health_results = {}
+        
+        for service_type in AnalyzerServiceType:
+            health_results[service_type.value] = await self.check_service_health(service_type)
+        
+        return health_results
+    
+    def get_cached_health_status(self) -> Dict[str, Dict[str, Any]]:
+        """Get cached health status."""
+        return self.health_status.copy()
+
+
+# Initialize global instances
+connection_manager = ConnectionManager()
+analysis_executor = AnalysisExecutor(connection_manager)
+health_monitor = AnalyzerHealthMonitor(connection_manager)
+
+
+def get_analyzer_integration():
+    """Get the analyzer integration instance."""
+    return analysis_executor

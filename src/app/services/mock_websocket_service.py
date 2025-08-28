@@ -4,7 +4,7 @@ Provides WebSocket-like functionality without requiring flask-socketio
 for development and testing when real-time features are not available.
 """
 
-import logging
+from app.utils.logging_config import get_logger
 from typing import Dict, Any, Optional, List
 import os
 from datetime import datetime
@@ -12,7 +12,7 @@ from threading import Lock, Thread
 import time
 import json
 
-logger = logging.getLogger(__name__)
+logger = get_logger('mock_websocket')
 
 class MockWebSocketService:
     """

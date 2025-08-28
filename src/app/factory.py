@@ -24,13 +24,9 @@ except Exception:  # pragma: no cover - optional
     def create_analyzer_integration():
         return None  # fallback noop
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
-logger = logging.getLogger(__name__)
+# Import logging from utils
+from app.utils.logging_config import get_logger
+logger = get_logger('factory')
 
 def create_celery(app: Optional[Flask] = None) -> Celery:
     """

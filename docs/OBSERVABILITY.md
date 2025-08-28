@@ -11,7 +11,7 @@ How to inspect health, performance, and correctness of the platform during devel
 | `logs/app.log` | General Flask & service logs |
 | `logs/errors.log` | Filtered error-level (if configured) |
 | `logs/requests.log` | Access / request diagnostics (middleware) |
-| `src/celery_worker.log` | Celery worker execution & task lifecycle |
+| `logs/celery_worker.log` | Celery worker execution & task lifecycle |
 | `logs/analyzer-build.log` | Analyzer container build output |
 
 Recommendations (future): adopt structured logging (JSON lines) for machine parsing and correlation IDs per request/task.
@@ -69,7 +69,7 @@ Introduce OpenTelemetry:
 ## 8. Debugging Playbook
 | Symptom | Step 1 | Step 2 | Step 3 |
 |---------|-------|--------|--------|
-| Task stuck queued | Check `celery_worker.log` | Confirm Redis broker | Restart worker via script |
+| Task stuck queued | Check `logs/celery_worker.log` | Confirm Redis broker | Restart worker via script |
 | No progress updates | Inspect analyzer gateway logs | Check WebSocket connectivity | Retry task with debug flag |
 | Container build failure | View `analyzer-build.log` | Rebuild specific service | Clear build cache & rebuild |
 | Missing ports | Verify DB `port_configuration` rows | Fallback JSON file | Re-run population script |

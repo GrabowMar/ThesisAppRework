@@ -14,7 +14,7 @@ from .docker_manager import DockerManager
 from .batch_service import BatchAnalysisService, batch_service
 from .security_service import SecurityService, security_service
 from .task_manager import TaskManager
-from .analyzer_integration import AnalyzerIntegration
+# from .analyzer_integration import AnalyzerIntegration  # Temporarily disabled
 from .model_service import ModelService
 
 # Legacy services removed:
