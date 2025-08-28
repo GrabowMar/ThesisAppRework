@@ -1,0 +1,33 @@
+{#
+  Page: Reports Index
+  Template: pages/reports/index_main.html
+  Layout: layouts/dashboard.html
+  Purpose: Entry point to select and view generated analysis reports.
+  Context:
+    - reports: list[ReportRecord]
+#}
+{% extends 'layouts/dashboard.html' %}
+{% block page_title %}Reports{% endblock %}
+{% block dashboard_header %}
+  <div class="d-flex align-items-center gap-2 flex-wrap" data-component="reports-header">
+    <h1 class="h3 mb-0">Reports</h1>
+  </div>
+{% endblock %}
+{% block dashboard_body %}
+  <div class="d-grid gap-3" data-component="reports-index">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead class="table-light"><tr><th>ID</th><th>Type</th><th>Created</th><th class="text-end">Actions</th></tr></thead>
+        <tbody>
+          {% if reports %}
+            {% for r in reports %}
+              <tr><td>{{ r.id }}</td><td>{{ r.type }}</td><td>--</td><td class="text-end"><button class="btn btn-sm btn-outline-primary">View</button></td></tr>
+            {% endfor %}
+          {% else %}
+            <tr><td colspan="4" class="text-center small text-muted py-4">No reports yet.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}

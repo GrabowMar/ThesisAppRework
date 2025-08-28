@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Print - ThesisApp{% endblock %}</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" 
+          rel="stylesheet" 
+          integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" 
+          crossorigin="anonymous">
+    
+    <!-- Print-specific styles -->
+    <style>
+        @media print {
+            /* Remove unnecessary elements */
+            .no-print {
+                display: none !important;
+            }
+            
+            /* Optimize for print */
+            body {
+                font-size: 12pt;
+                line-height: 1.4;
+                color: #000;
+                background: #fff;
+            }
+            
+            /* Ensure good contrast */
+            .text-muted {
+                color: #666 !important;
+            }
+            
+            /* Handle page breaks */
+            .page-break-before {
+                page-break-before: always;
+            }
+            
+            .page-break-after {
+                page-break-after: always;
+            }
+            
+            .page-break-inside-avoid {
+                page-break-inside: avoid;
+            }
+            
+            /* Table handling */
+            table {
+                page-break-inside: auto;
+            }
+            
+            tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }
+            
+            thead {
+                display: table-header-group;
+            }
+            
+            tfoot {
+                display: table-footer-group;
+            }
+            
+            /* Hide Bootstrap responsive classes for print */
+            .d-print-none {
+                display: none !important;
+            }
+            
+            .d-print-block {
+                display: block !important;
+            }
+            
+            .d-print-inline {
+                display: inline !important;
+            }
+            
+            .d-print-inline-block {
+                display: inline-block !important;
+            }
+            
+            /* Ensure charts and images scale properly */
+            img, canvas, svg {
+                max-width: 100% !important;
+                height: auto !important;
+            }
+            
+            /* Remove shadows and rounded corners for better print quality */
+            .shadow, .shadow-sm, .shadow-lg {
+                box-shadow: none !important;
+            }
+            
+            .rounded, .rounded-1, .rounded-2, .rounded-3 {
+                border-radius: 0 !important;
+            }
+        }
+        
+        /* Screen styles for print preview */
+        @media screen {
+            body {
+                background-color: #f8f9fa;
+                padding: 2rem;
+            }
+            
+            .print-container {
+                background: white;
+                box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+                max-width: 8.5in;
+                margin: 0 auto;
+                padding: 1in;
+                min-height: 11in;
+            }
+        }
+    </style>
+    
+    {% block print_head %}{% endblock %}
+</head>
+<body>
+    <div class="print-container">
+        <!-- Print header -->
+        {% block print_header %}
+        <div class="print-header mb-4 pb-3 border-bottom">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h1 class="h4 mb-1">
+                        <i class="bi bi-cpu-fill me-2"></i>ThesisApp
+                    </h1>
+                    <p class="text-muted mb-0 small">AI Model Analysis Platform</p>
+                </div>
+                <div class="text-end">
+                    <p class="mb-1 small">Generated: {{ moment().format('MMMM Do YYYY, h:mm A') }}</p>
+                    <p class="mb-0 small text-muted">{% block print_subtitle %}Report{% endblock %}</p>
+                </div>
+            </div>
+        </div>
+        {% endblock %}
+        
+        <!-- Print content -->
+        <div class="print-content">
+            {% block content %}{% endblock %}
+        </div>
+        
+        <!-- Print footer -->
+        {% block print_footer %}
+        <div class="print-footer mt-5 pt-3 border-top">
+            <div class="d-flex justify-content-between align-items-center">
+                <small class="text-muted">
+                    ThesisApp Analysis Report
+                </small>
+                <small class="text-muted">
+                    Page <span class="page-number"></span>
+                </small>
+            </div>
+        </div>
+        {% endblock %}
+        
+        <!-- Print controls (visible only on screen) -->
+        <div class="no-print mt-4 text-center">
+            <button type="button" 
+                    class="btn btn-primary me-2" 
+                    onclick="window.print()">
+                <i class="bi bi-printer me-1"></i>Print Report
+            </button>
+            <button type="button" 
+                    class="btn btn-outline-secondary" 
+                    onclick="window.close()">
+                <i class="bi bi-x me-1"></i>Close
+            </button>
+        </div>
+    </div>
+    
+    {% block print_scripts %}
+    <script>
+        // Auto-print on load (optional)
+        {% if auto_print %}
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                window.print();
+            }, 1000);
+        });
+        {% endif %}
+        
+        // Handle print dialog
+        window.addEventListener('beforeprint', function() {
+            document.body.classList.add('printing');
+        });
+        
+        window.addEventListener('afterprint', function() {
+            document.body.classList.remove('printing');
+        });
+    </script>
+    {% endblock %}
+</body>
+</html>

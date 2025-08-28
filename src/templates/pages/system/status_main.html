@@ -1,0 +1,35 @@
+{#
+  Page: System Status
+  Template: pages/system/status_main.html
+  Layout: layouts/single-page.html
+  Purpose: Display health & runtime metrics for Celery, analyzer services, ports, and queues.
+  Context:
+    - system_health: dict
+#}
+{% extends 'layouts/single-page.html' %}
+{% block page_title %}System Status{% endblock %}
+{% block main %}
+  <div class="container py-3" data-component="system-status">
+    <h1 class="h3 mb-3">System Status</h1>
+    <div class="row g-4">
+      <div class="col-md-4">
+        <section aria-labelledby="celery-heading" class="card h-100">
+          <div class="card-header py-2"><h2 id="celery-heading" class="h6 mb-0">Celery</h2></div>
+          <div class="card-body small">--</div>
+        </section>
+      </div>
+      <div class="col-md-4">
+        <section aria-labelledby="analyzers-heading" class="card h-100">
+          <div class="card-header py-2"><h2 id="analyzers-heading" class="h6 mb-0">Analyzers</h2></div>
+          <div class="card-body small">--</div>
+        </section>
+      </div>
+      <div class="col-md-4">
+        <section aria-labelledby="ports-heading" class="card h-100">
+          <div class="card-header py-2"><h2 id="ports-heading" class="h6 mb-0">Ports</h2></div>
+          <div class="card-body small">--</div>
+        </section>
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -1,8 +1,16 @@
-"""
-Main Routes
-==========
+"""Main Routes
+================
 
-Core application routes including dashboard and basic pages.
+Core application routes including root dashboard and basic pages.
+
+Template Mapping (Migrated):
+    /                -> pages/index/index_main.html (extends layouts/dashboard.html)
+    /about           -> pages/about/about_main.html
+    /system-status   -> pages/system/status.html (post-migration target)
+
+During migration we still rely on `render_template_compat` for legacy paths
+not yet moved. As each route is migrated, update this docstring and replace
+compat wrapper import with direct `flask.render_template` import.
 """
 
 import logging
@@ -58,7 +66,7 @@ def dashboard():
         
         # Use new dashboard template structure
         return render_template(
-            'views/dashboard/index.html',
+            'pages/index/index_main.html',
             stats=stats,
             recent_apps=recent_apps,
             recent_analyses=recent_analyses,
@@ -78,7 +86,7 @@ def dashboard():
 @main_bp.route('/about')
 def about():
     """About page with project information."""
-    return render_template('views/about.html')
+    return render_template('pages/about/about_main.html')
 
 
 # =================================================================

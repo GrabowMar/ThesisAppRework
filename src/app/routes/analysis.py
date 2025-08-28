@@ -7,6 +7,7 @@ Handles tasks, batches, configurations, and results.
 """
 
 import logging
+import io  # for in-memory result exports (bytes IO)
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 
@@ -61,7 +62,24 @@ def internal_error(error):
 
 @new_analysis_api.route('/dashboard')
 def analysis_dashboard():
-    """Render the analysis dashboard page."""
+    """Render the analysis dashboard page.
+
+    Template: `pages/analysis/dashboard_main.html`
+    Layout:   `layouts/dashboard.html`
+    Context Keys Provided:
+        dashboard_data (dict): summary metrics & recent activity. Keys:
+            active_tasks (int)
+            completed_tasks (int)
+            failed_tasks (int)
+            total_analyses (int)
+            recent_activity (list[dict])
+            system_health (dict)
+            queue_status (dict)
+    HTMX: Standard GET (no HX-specific branch yet). Future: could return fragment
+          when `HX-Request` header present by rendering only the dashboard_content
+          block or a dedicated partial.
+    Accessibility: Landmark & aria-live regions defined in template.
+    """
     # Provide basic dashboard data to avoid template errors
     dashboard_data = {
         'active_tasks': 0,
@@ -90,17 +108,25 @@ def analysis_dashboard():
     except Exception as e:
         logger.warning(f"Could not load dashboard data: {e}")
     
-    return render_template('pages/analysis/dashboard.html', dashboard_data=dashboard_data)
+    return render_template('pages/analysis/dashboard_main.html', dashboard_data=dashboard_data)
 
 @new_analysis_api.route('/list')
 def analysis_list():
-    """Render the analysis list page."""
-    return render_template('pages/analysis/hub.html')
+    """Render analysis hub/list page.
+
+    TODO: Implement template `pages/analysis/hub_main.html` (currently placeholder or
+    pending migration). Once created, supply context containing analysis task
+    filters & pagination data via service layer.
+    """
+    return render_template('pages/analysis/hub_main.html')
 
 @new_analysis_api.route('/')
 def analysis_index():
-    """Render the analysis index page (redirects to dashboard).""" 
-    return render_template('pages/analysis/hub.html')
+    """Alias of /analysis/list during migration.
+
+    Consider redirecting (302) to canonical path after all links updated.
+    """
+    return render_template('pages/analysis/hub_main.html')
 
 @new_analysis_api.route('/dashboard-data')
 def get_dashboard_data():
@@ -155,7 +181,8 @@ def list_tasks():
         analysis_type = request.args.get('analysis_type')
         model_slug = request.args.get('model_slug')
         batch_id = request.args.get('batch_id')
-        search = request.args.get('search')
+    # NOTE: future filter parameter (search) captured but unused currently.
+    # search = request.args.get('search')  # reserved for future filtering
         
         # Build filters
         filters = FilterCriteria()

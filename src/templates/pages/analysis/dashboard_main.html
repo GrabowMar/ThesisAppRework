@@ -1,0 +1,229 @@
+{#
+  Template: pages/analysis/dashboard_main.html
+  Layout: layouts/dashboard.html
+  Purpose: High-level operational overview for analysis system (tasks, batches, system health, recent activity)
+  Context:
+    - dashboard_data: dict with keys (active_tasks, completed_tasks, failed_tasks, total_analyses, recent_activity[], system_health{}, queue_status{})
+  Principles:
+    - Server-first rendering; dynamic refresh handled by minimal JS + progressive enhancement
+    - Accessible landmarks & aria-live for dynamic sections
+  Observability:
+    - data-component attributes on major regions
+#}
+{% extends "layouts/dashboard.html" %}
+
+{% block title %}Analysis Dashboard{% endblock %}
+{% block nav_dashboard_active %}active{% endblock %}
+
+{% block dashboard_content %}
+<div class="container-fluid py-4" data-component="analysis-dashboard">
+  <header class="mb-4" data-component="dashboard-header">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+      <div>
+        <h1 class="h3 mb-1">Analysis Dashboard</h1>
+        <p class="text-muted mb-0">Monitor and manage analysis operations</p>
+      </div>
+      <div class="d-flex flex-wrap gap-2" data-component="dashboard-actions">
+        <button class="btn btn-outline-primary" hx-get="/analysis/dashboard" hx-target="[data-component=analysis-dashboard]" hx-swap="outerHTML" aria-label="Refresh dashboard" data-bs-toggle="tooltip" title="Refresh dashboard">
+          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+        <a href="/analysis/create" class="btn btn-primary">
+          <i class="bi bi-plus-circle me-1"></i>New Analysis
+        </a>
+        <a href="/analysis/batch/create" class="btn btn-success">
+          <i class="bi bi-stack me-1"></i>Batch Analysis
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Metrics Row -->
+  <section class="row g-3 mb-4" aria-label="Key metrics" data-component="metrics-cards">
+    {% set metrics = [
+      ('Active Tasks', dashboard_data.active_tasks, 'play-circle', 'primary'),
+      ('Completed Tasks', dashboard_data.completed_tasks, 'check-circle', 'success'),
+      ('Failed Tasks', dashboard_data.failed_tasks, 'x-circle', 'danger'),
+      ('Total Analyses', dashboard_data.total_analyses, 'collection', 'info')
+    ] %}
+    {% for label, value, icon, variant in metrics %}
+    <div class="col-6 col-xl-3">
+      {% include 'pages/shared/components/_metric_card.html' with context %}
+    </div>
+    {% endfor %}
+  </section>
+
+  <div class="row g-4">
+    <!-- Left Column -->
+    <div class="col-xl-8 d-flex flex-column gap-4">
+      <!-- Activity Chart -->
+      <section class="card c-analysis-card" data-component="activity-chart" aria-labelledby="activity-chart-title">
+        <div class="card-header d-flex justify-content-between align-items-center bg-transparent">
+          <h3 id="activity-chart-title" class="h6 mb-0">Analysis Activity</h3>
+          <div class="btn-group btn-group-sm" role="group" aria-label="Select chart period">
+            {% for period,label in [('day','24H'),('week','7D'),('month','30D')] %}
+            <input type="radio" class="btn-check" name="chart-period" id="period-{{ period }}" {% if loop.first %}checked{% endif %}>
+            <label class="btn btn-outline-primary" for="period-{{ period }}">{{ label }}</label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="c-chart-container" data-chart-container>
+            <canvas id="activity-chart" aria-label="Analysis activity over time" role="img"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Recent Activity -->
+      <section class="card c-analysis-card" data-component="recent-activity" aria-labelledby="recent-activity-title">
+        <div class="card-header d-flex justify-content-between align-items-center bg-transparent">
+          <h3 id="recent-activity-title" class="h6 mb-0">Recent Activity</h3>
+          <a href="/analysis/tasks" class="btn btn-outline-primary btn-sm">View All</a>
+        </div>
+        <div class="card-body" id="recent-activity-list" aria-live="polite">
+          {% if dashboard_data.recent_activity %}
+            {% for activity in dashboard_data.recent_activity %}
+              {% include 'pages/shared/components/_activity_item.html' %}
+            {% endfor %}
+          {% else %}
+            <div class="text-center text-muted py-3">No recent activity</div>
+          {% endif %}
+        </div>
+      </section>
+    </div>
+
+    <!-- Right Column -->
+    <div class="col-xl-4 d-flex flex-column gap-4">
+      <!-- System Health -->
+      <section class="card c-analysis-card" data-component="system-health" aria-labelledby="system-health-title">
+        <div class="card-header bg-transparent">
+          <h3 id="system-health-title" class="h6 mb-0">System Health</h3>
+        </div>
+        <div class="card-body">
+          <div class="d-flex flex-column gap-3" aria-live="polite">
+            {% if dashboard_data.system_health and dashboard_data.system_health.status %}
+              <div class="d-flex align-items-center justify-content-between">
+                <div>
+                  <div class="fw-medium">Analyzer Services</div>
+                  <div class="small text-muted">Composite status</div>
+                </div>
+                <span class="c-analyzer-status is-{{ dashboard_data.system_health.status }}">{{ dashboard_data.system_health.status|title }}</span>
+              </div>
+            {% else %}
+              <div class="text-center text-muted py-3">
+                <div class="spinner-border spinner-border-sm text-primary mb-2" role="status" aria-hidden="true"></div>
+                <div>Loading system status…</div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </section>
+
+      <!-- Queue Status -->
+      {% set queue_status = dashboard_data.queue_status %}
+      {% include 'pages/shared/components/_queue_status.html' %}
+
+      <!-- Quick Actions -->
+      <nav class="card c-analysis-card" data-component="quick-actions" aria-labelledby="quick-actions-title">
+        <div class="card-header bg-transparent">
+          <h3 id="quick-actions-title" class="h6 mb-0">Quick Actions</h3>
+        </div>
+        <div class="card-body">
+          <div class="d-grid gap-2">
+            <a href="/analysis/create" class="btn btn-primary"><i class="bi bi-plus-circle me-2"></i>Start New Analysis</a>
+            <a href="/analysis/batch/create" class="btn btn-success"><i class="bi bi-stack me-2"></i>Create Batch</a>
+            <a href="/analysis/results" class="btn btn-outline-secondary"><i class="bi bi-bar-chart me-2"></i>View Results</a>
+            <a href="/tasks" class="btn btn-outline-info"><i class="bi bi-clock-history me-2"></i>Task History</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </div>
+</div>
+
+<!-- Toast for refresh notice -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:1000;" aria-live="polite" aria-atomic="true" data-component="refresh-toast-wrapper">
+  <div class="toast" id="refresh-toast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-body">
+      <i class="bi bi-arrow-clockwise me-2"></i>Dashboard updated
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+(function(){
+  class AnalysisDashboard {
+    constructor(){
+      this.refreshInterval = 30000;
+      this.chart = null;
+      this.init();
+    }
+    init(){
+      this.initChart();
+      this.startAutoRefresh();
+      this.bindEvents();
+      this.refreshData();
+    }
+    initChart(){
+      const ctx = document.getElementById('activity-chart');
+      if(!ctx) return;
+      this.chart = new Chart(ctx, {
+        type: 'line',
+        data: { labels: [], datasets: [
+          { label: 'Completed', data: [], borderColor: '#198754', backgroundColor: 'rgba(25,135,84,0.15)', fill:true, tension:0.3 },
+          { label: 'Failed', data: [], borderColor: '#dc3545', backgroundColor: 'rgba(220,53,69,0.15)', fill:true, tension:0.3 }
+        ]},
+        options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'top' } }, scales:{ y:{ beginAtZero:true } } }
+      });
+    }
+    bindEvents(){
+      document.querySelectorAll('input[name="chart-period"]').forEach(r=>{
+        r.addEventListener('change', ()=> this.updateChart(r.id.replace('period-','')));
+      });
+    }
+    startAutoRefresh(){
+      setInterval(()=> this.refreshData(), this.refreshInterval);
+    }
+    async refreshData(){
+      try {
+        const res = await fetch('/analysis/dashboard-data');
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        const payload = await res.json();
+        const dd = payload.dashboard_data || {};
+        this.updateMetric('active-tasks', dd.active_tasks);
+        this.updateMetric('completed-tasks', dd.completed_tasks);
+        this.updateMetric('failed-tasks', dd.failed_tasks);
+        this.updateMetric('total-analyses', dd.total_analyses);
+        this.showToast();
+      } catch(e){ console.warn('Dashboard refresh failed', e); }
+    }
+    updateMetric(slug, value){
+      const el = document.querySelector(`[data-metric="${slug}"] p[aria-label]`);
+      if(el && typeof value !== 'undefined') el.textContent = value;
+    }
+    async updateChart(period){
+      try {
+        const res = await fetch(`/analysis/chart-data?period=${period}`);
+        if(!res.ok) return;
+        const data = await res.json();
+        if(this.chart && data.labels && data.datasets){
+          this.chart.data.labels = data.labels;
+            if(data.datasets[0]) this.chart.data.datasets[0].data = data.datasets[0].data;
+            if(data.datasets[1]) this.chart.data.datasets[1].data = data.datasets[1].data;
+          this.chart.update('none');
+        }
+      } catch(e){ console.warn('Chart update failed', e); }
+    }
+    showToast(){
+      const toastEl = document.getElementById('refresh-toast');
+      if(!toastEl) return;
+      const t = new bootstrap.Toast(toastEl, {delay: 2000});
+      t.show();
+    }
+  }
+  document.addEventListener('DOMContentLoaded', ()=> new AnalysisDashboard());
+})();
+</script>
+{% endblock %}

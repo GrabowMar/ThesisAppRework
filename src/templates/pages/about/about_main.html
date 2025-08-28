@@ -1,0 +1,103 @@
+{#
+  Page: About
+  Template: pages/about/about_main.html
+  Layout: layouts/single-page.html
+  Purpose: Brief overview of platform purpose, architecture highlights, and links to documentation.
+  Context Provided:
+    - platform_stats (optional): dict with summary counts
+  Notes:
+    - Keep lightweight; deep technical docs live under /docs links.
+    - Accessible headings structure (h1 then h2+).
+#}
+{% extends 'layouts/single-page.html' %}
+{% block page_title %}About the Platform{% endblock %}
+{% block main %}
+  <div class="container py-4" data-page="about" data-component="about-page">
+    <h1 class="mb-3">About This Platform</h1>
+    <p class="lead">A unified workspace for generating, running, and analyzing AI model application sandboxes with consistent observability.</p>
+
+    <div class="row g-4">
+      <div class="col-md-6">
+        <section aria-labelledby="mission-heading">
+          <h2 id="mission-heading" class="h4">Mission</h2>
+          <p>Provide a fast feedback loop for AI model app generation, deployment, security and performance analysis—fully observable and reproducible.</p>
+          <ul class="small mb-0">
+            <li>Server-first rendering + progressive enhancement</li>
+            <li>Deterministic build & port orchestration</li>
+            <li>Actionable analyzer results surfaced quickly</li>
+          </ul>
+        </section>
+      </div>
+      <div class="col-md-6">
+        <section aria-labelledby="architecture-heading">
+          <h2 id="architecture-heading" class="h4">High-Level Architecture</h2>
+          <p class="mb-1">Core layers:</p>
+          <ol class="small mb-0">
+            <li>Flask UI + HTMX fragments</li>
+            <li>Celery task queue (async orchestration)</li>
+            <li>Analyzer microservices (static, dynamic, performance, AI, security)</li>
+            <li>Result persistence + presentation layer</li>
+          </ol>
+        </section>
+      </div>
+    </div>
+
+    <hr class="my-4" />
+
+    <section aria-labelledby="capabilities-heading" class="mb-4">
+      <h2 id="capabilities-heading" class="h4">Key Capabilities</h2>
+      <div class="row row-cols-1 row-cols-md-3 g-3">
+        <div class="col">
+          <div class="card h-100 border-0 shadow-sm c-analysis-card">
+            <div class="card-body py-3">
+              <h3 class="h6">Analyzer Orchestration</h3>
+              <p class="small mb-0">Queue and monitor multi-dimension analyses across models & apps.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card h-100 border-0 shadow-sm c-analysis-card">
+            <div class="card-body py-3">
+              <h3 class="h6">Generated Apps</h3>
+            <p class="small mb-0">Spin up isolated sandboxed model applications with routed ports.</p>
+            </div>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card h-100 border-0 shadow-sm c-analysis-card">
+            <div class="card-body py-3">
+              <h3 class="h6">Comparative Metrics</h3>
+              <p class="small mb-0">Surface trends, regressions, and relative performance quickly.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="links-heading" class="mb-4">
+      <h2 id="links-heading" class="h4">Documentation Links</h2>
+      <ul class="small list-unstyled mb-0">
+        <li><a href="/docs" class="link-primary">Documentation Index</a></li>
+        <li><a href="/docs/ARCHITECTURE" class="link-primary">Architecture Overview</a></li>
+        <li><a href="/docs/ANALYSIS_PIPELINE" class="link-primary">Analysis Pipeline</a></li>
+        <li><a href="/docs/PROJECT_STRUCTURE" class="link-primary">Project Structure</a></li>
+      </ul>
+    </section>
+
+    {% if platform_stats %}
+      <section aria-labelledby="stats-heading" class="mb-4">
+        <h2 id="stats-heading" class="h4">Current Stats</h2>
+        <dl class="row small mb-0">
+          {% for label, value in platform_stats.items() %}
+            <dt class="col-sm-3">{{ label|capitalize }}</dt>
+            <dd class="col-sm-9">{{ value }}</dd>
+          {% endfor %}
+        </dl>
+      </section>
+    {% endif %}
+
+    <footer class="pt-3 mt-4 border-top small text-muted">
+      <p class="mb-0">Built with Flask, Celery, HTMX, and Bootstrap 5.</p>
+    </footer>
+  </div>
+{% endblock %}
