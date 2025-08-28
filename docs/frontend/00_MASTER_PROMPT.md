@@ -19,7 +19,7 @@ Rebuild the Flask + Jinja + HTMX based UI for ThesisApp into a clean, modular, t
 
 ## Scope Guardrails
 - Do NOT introduce frontend build step (no webpack/Vite) unless explicitly approved; stick to plain ES modules only if/when needed.
-- Avoid large JS frameworks; Alpine.js allowed only for localized state if HTMX insufficient.
+- Avoid large JS frameworks; Hyperscript allowed only for localized state if HTMX insufficient.
 - Use plain Bootstrap 5 CSS/JS via CDN or local copy; custom overrides in `static/css/theme.css`.
 - No jQuery dependencies; use vanilla JavaScript or Bootstrap 5's built-in JavaScript components.
 
