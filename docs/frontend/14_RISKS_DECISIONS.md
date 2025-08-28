@@ -33,6 +33,16 @@ Record decisions (ADRs) and known risks; update as migration proceeds.
 - Decision: Prefix custom component classes with `c-`.
 - Consequences: Predictable styling namespace.
 
+### ADR-0004 – Migrate from AdminLTE to Bootstrap 5
+- Date: 2025-08-28
+- Status: Accepted
+- Context: AdminLTE has jQuery dependencies and complex styling that conflicts with modern development practices.
+- Decision: Replace AdminLTE with plain Bootstrap 5 for cleaner, jQuery-free styling foundation.
+- Consequences: 
+  - Positive: Modern CSS framework, no jQuery dependencies, better accessibility, cleaner component system
+  - Negative: Migration effort required, need to rebuild navigation components, potential visual regressions during transition
+  - Mitigation: Incremental migration per domain, comprehensive testing, fallback to AdminLTE during transition if needed
+
 ## Open Risks
 | Risk | Impact | Likelihood | Mitigation |
 |------|--------|------------|------------|
@@ -40,9 +50,12 @@ Record decisions (ADRs) and known risks; update as migration proceeds.
 | Fragment size bloat over time | Performance | Medium | Add size budget check script |
 | A11y regressions not caught early | Compliance | Medium | Integrate axe-core sooner |
 | Duplicate components reintroduced | Maintainability | Medium | Taxonomy review in PR template |
+| Bootstrap 5 migration introduces visual regressions | User Experience | Medium | Incremental migration, comprehensive testing, visual regression testing |
+| jQuery dependencies not fully removed | Technical Debt | Low | Automated detection in CI, manual review during migration |
 
 ## Pending Decisions
 | Topic | Notes |
 |-------|-------|
 | Dedicated `pages/dashboard/` vs reusing `pages/analysis/` for root dashboard | Decide during Stage 2 |
 | Adopt Alpine.js for minor client state? | Evaluate after initial migrations |
+| Bootstrap Icons vs Font Awesome for iconography | Prefer Bootstrap Icons for consistency, but Font Awesome may be needed for legacy compatibility |

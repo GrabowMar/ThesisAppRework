@@ -3,7 +3,7 @@
 Use this prompt (updated continually) when asking an AI assistant to generate or refactor frontend code.
 
 ## Mission
-Rebuild the Flask + Jinja + HTMX based UI for ThesisApp into a clean, modular, testable, accessible system. Remove legacy path cruft, consolidate duplicate partials, and enforce consistent patterns for incremental HTMX-driven interactivity without drifting into a SPA rewrite.
+Rebuild the Flask + Jinja + HTMX based UI for ThesisApp into a clean, modular, testable, accessible system using plain Bootstrap 5. Remove legacy path cruft, consolidate duplicate partials, and enforce consistent patterns for incremental HTMX-driven interactivity without drifting into a SPA rewrite.
 
 ## Non-Negotiable Principles (see 01_CORE_PRINCIPLES.md for depth)
 1. Server-first rendering. HTMX augments; JS sprinkles only.
@@ -14,13 +14,14 @@ Rebuild the Flask + Jinja + HTMX based UI for ThesisApp into a clean, modular, t
 6. No inline styles; no inline JS except minimal `hx-*` attributes.
 7. Deterministic template paths under `templates/` with domain-based grouping: `layouts/`, `pages/<domain>/`, `ui/elements/<category>/`.
 8. Reuse partials before creating new ones; every new partial registered in component taxonomy doc.
-9. Consistent naming: kebab-case for file names (`analysis-dashboard.html` only if leaf page), snake_case for Jinja macro names, BEM-like class composition optional but must not collide with AdminLTE core classes.
+9. Consistent naming: kebab-case for file names (`analysis-dashboard.html` only if leaf page), snake_case for Jinja macro names, BEM-like class composition optional but must not collide with Bootstrap 5 utility classes.
 10. Observability hooks (data attributes or comments) for key dynamic regions.
 
 ## Scope Guardrails
 - Do NOT introduce frontend build step (no webpack/Vite) unless explicitly approved; stick to plain ES modules only if/when needed.
 - Avoid large JS frameworks; Alpine.js allowed only for localized state if HTMX insufficient.
-- Keep AdminLTE vendor assets isolated under `static/vendor/adminlte/`; custom overrides in `static/css/theme.css`.
+- Use plain Bootstrap 5 CSS/JS via CDN or local copy; custom overrides in `static/css/theme.css`.
+- No jQuery dependencies; use vanilla JavaScript or Bootstrap 5's built-in JavaScript components.
 
 ## Template Layer Strategy
 - Layouts provide `<head>`, navigation shell, and block definitions: `base.html`, `dashboard.html`, `full-width.html`, `single-page.html`, `modal.html`, `print.html`.
@@ -53,7 +54,7 @@ Rebuild the Flask + Jinja + HTMX based UI for ThesisApp into a clean, modular, t
 ## Performance Budgets
 - Initial dashboard HTML < 120KB uncompressed.
 - Per incremental HTMX fragment response < 40KB typical.
-- Critical CSS in vendor + theme only; avoid per-page inline style blocks.
+- Critical CSS in Bootstrap 5 + theme only; avoid per-page inline style blocks.
 
 ## Accessibility
 - Heading hierarchy enforced: no skipped levels within a content region.
@@ -76,6 +77,7 @@ Rebuild the Flask + Jinja + HTMX based UI for ThesisApp into a clean, modular, t
 - Mixed naming (`_partial.html` vs no prefix) → normalize to descriptive names without leading underscores except for private partials not directly routed.
 - Deep nested partial chains causing context confusion.
 - Duplicate card widgets across dashboard & analysis hub.
+- AdminLTE-specific classes and dependencies → migrate to Bootstrap 5 equivalents.
 
 ## Success Definition
 A maintainable, documented, test-covered template system where adding a new analysis visualization requires touching no more than: one route method, one partial, optional macro/styles, and a doc update.
