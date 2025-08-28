@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 from flask import Blueprint
-from .analysis import render_template  # reuse compatibility shim import
+from flask import render_template
 
 from ..models import SecurityAnalysis, PerformanceTest, ZAPAnalysis
 

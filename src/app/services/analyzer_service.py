@@ -15,10 +15,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
 from ..extensions import db
-# Temporarily commented out due to missing models
-# from ..models import (
-#     AnalyzerConfiguration, AnalysisType, AnalysisTask, BatchAnalysis
-# )
+from ..models import (
+    AnalyzerConfiguration, AnalysisTask, BatchAnalysis
+)
+from ..constants import AnalysisType
 
 
 logger = get_logger('analyzer_service')

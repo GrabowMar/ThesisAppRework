@@ -22,9 +22,9 @@ from sqlalchemy import and_, or_, desc, asc, func, text
 
 from ..extensions import db
 from ..models import (
-    AnalysisTask, BatchAnalysis, AnalysisResult, AnalyzerConfiguration,
-    AnalysisStatus, AnalysisType, Priority, BatchStatus
+    AnalysisTask, BatchAnalysis, AnalysisResult, AnalyzerConfiguration
 )
+from ..constants import AnalysisStatus, AnalysisType, JobPriority as Priority, JobStatus as BatchStatus
 
 
 logger = logging.getLogger(__name__)

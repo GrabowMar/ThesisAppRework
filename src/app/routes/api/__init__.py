@@ -51,7 +51,7 @@ def register_api_routes(app):
         from . import statistics  # noqa: F401
         from . import dashboard  # noqa: F401
         from . import applications  # noqa: F401
-        from . import analysis  # noqa: F401
+        # from . import analysis  # noqa: F401  # File was deleted
         from . import system  # noqa: F401
         from . import misc  # noqa: F401
         from . import results  # noqa: F401

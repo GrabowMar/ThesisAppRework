@@ -17,12 +17,11 @@ from sqlalchemy import and_, or_, desc, asc
 from celery import Task
 
 from ..extensions import db
-# Temporarily commented out due to missing models
-# from ..models import (
-#     AnalysisTask, BatchAnalysis, AnalyzerConfiguration,
-#     AnalysisStatus, AnalysisType, Priority, BatchStatus
-# )
-from .new_analyzer_service import analyzer_manager_service
+from ..models import (
+    AnalysisTask, BatchAnalysis, AnalyzerConfiguration
+)
+from ..constants import AnalysisStatus, AnalysisType, JobPriority as Priority, JobStatus as BatchStatus
+from .analyzer_service import analyzer_manager_service
 
 
 logger = get_logger('task_service')
@@ -35,9 +34,9 @@ class TaskPriority(Enum):
     HIGH = (3, "high")
     CRITICAL = (4, "critical")
     
-    def __init__(self, order, value):
+    def __init__(self, order, label):
         self.order = order
-        self.value = value
+        self.label = label
 
 
 class AnalysisTaskService:
@@ -535,7 +534,7 @@ class TaskQueueService:
             'max_concurrent_tasks': 5,
             'max_concurrent_per_type': 2,
             'priority_weights': {
-                Priority.CRITICAL.value: 10,
+                Priority.URGENT.value: 10,
                 Priority.HIGH.value: 5,
                 Priority.NORMAL.value: 1,
                 Priority.LOW.value: 0.5
@@ -594,7 +593,7 @@ class TaskQueueService:
         from sqlalchemy import case
         
         priority_order = case(
-            (AnalysisTask.priority == Priority.CRITICAL.value, 4),
+            (AnalysisTask.priority == Priority.URGENT.value, 4),
             (AnalysisTask.priority == Priority.HIGH.value, 3),
             (AnalysisTask.priority == Priority.NORMAL.value, 2),
             (AnalysisTask.priority == Priority.LOW.value, 1),

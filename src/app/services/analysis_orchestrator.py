@@ -14,19 +14,19 @@ from enum import Enum
 
 from ..extensions import db
 from ..models import (
-    AnalysisTask, BatchAnalysis, AnalyzerConfiguration,
-    AnalysisStatus, AnalysisType, Priority, BatchStatus
+    AnalysisTask, BatchAnalysis, AnalyzerConfiguration
 )
-from .new_task_service import (
+from ..constants import AnalysisStatus, AnalysisType, JobPriority as Priority, JobStatus as BatchStatus
+from .task_service import (
     AnalysisTaskService, BatchAnalysisService, queue_service
 )
-from .new_analyzer_service import (
+from .analyzer_service import (
     analyzer_config_service, analyzer_manager_service
 )
-from .new_batch_service import (
+from .batch_service import (
     batch_template_service, batch_validation_service, batch_execution_service
 )
-from .new_results_service import (
+from .results_service import (
     results_query_service, results_aggregation_service
 )
 

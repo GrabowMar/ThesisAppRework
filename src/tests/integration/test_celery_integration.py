@@ -38,7 +38,7 @@ def test_imports():
         assert False
     
     try:
-        from app.services.task_manager import TaskManager as _TaskManager  # noqa: F401
+        from app.services.task_service import AnalysisTaskService as _TaskManager  # noqa: F401
         print("✓ Task manager import successful")
     except ImportError as e:
         print(f"✗ Task manager import failed: {e}")
@@ -84,7 +84,7 @@ def test_task_manager():
     print("\nTesting TaskManager initialization...")
     
     try:
-        from app.services.task_manager import TaskManager
+        from app.services.task_service import AnalysisTaskService as TaskManager
         _ = TaskManager()
         print("✓ TaskManager initialized successfully")
         assert True

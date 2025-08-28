@@ -71,8 +71,8 @@ def test_comprehensive_template_renders(app_ctx, monkeypatch):
     monkeypatch.setattr(svc, 'start_dynamic_analysis', fake_start_dyn)
 
     # Register blueprint under same prefix as production route uses
-    from app.routes.analysis import analysis_bp  # type: ignore
-    app.register_blueprint(analysis_bp)
+    from app.routes.analysis import new_analysis_api  # type: ignore
+    app.register_blueprint(new_analysis_api)
 
     g = _create_generated_app()
 

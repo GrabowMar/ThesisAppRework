@@ -17,10 +17,10 @@ import websockets
 from websockets.exceptions import ConnectionClosed, InvalidStatusCode
 
 from ..extensions import db
-# Temporarily commented out due to missing models
-# from ..models import (
-#     Any,  # AnalysisTask AnalysisResult, AnalysisStatus, AnalysisType
-# )
+from ..models import (
+    AnalysisTask, AnalysisResult
+)
+from ..constants import AnalysisStatus, AnalysisType
 
 
 logger = get_logger('analyzer_integration')

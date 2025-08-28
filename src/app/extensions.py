@@ -216,11 +216,7 @@ def get_session():
 def init_db():
     """Initialize database tables."""
     try:
-        # Ensure all models are imported so SQLAlchemy's metadata is complete
-        try:
-            import app.models as _models  # noqa: F401
-        except Exception:
-            pass
+        # Models should already be imported by factory.py, so no need to re-import here
         db.create_all()
     except Exception:
         # Re-raise so callers can log details

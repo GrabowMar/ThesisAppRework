@@ -1,370 +1,339 @@
-{#
-    Analysis Hub Dashboard (Unified)
-    Purpose: Comprehensive analysis overview merging dashboard statistics, results overview, and batch operations
-    
-    Features:
-    - Combined statistics from analysis + batch + results
-    - Recent activity timeline across all operation types
-    - System health and queue status monitoring
-    - Batch operations overview integrated
-    - Results summary and trends
-    - Real-time updates via HTMX
-    
-    Note: Quick actions removed - users navigate to dedicated creation pages
-#}
+{% extends "layouts/base.html" %}
 
-<div class="container-fluid">
-    <!-- Actions Bar -->
-    <div class="d-flex flex-wrap align-items-center justify-content-between mb-4 gap-2">
-        <h2 class="h4 mb-0">Analysis Hub
-            <span class="visually-hidden">Analysis Dashboard</span>
-        </h2>
-        <div class="d-flex flex-wrap gap-2">
-            <a href="{{ url_for('analysis.analysis_create_wizard') if 'analysis.analysis_create_wizard' in current_app.view_functions else url_for('analysis.analysis_dashboard') }}" class="btn btn-primary">
-                <i class="fas fa-plus-circle me-1"></i> New Analysis
-            </a>
-            <a href="{{ url_for('tasks.tasks_overview') if 'tasks.tasks_overview' in current_app.view_functions else '#' }}" class="btn btn-outline-secondary">
-                <i class="fas fa-tasks me-1"></i> Tasks
-            </a>
-            <div class="btn-group" aria-label="Quick Actions">
-                <a href="{{ url_for('statistics.statistics_overview') }}" class="btn btn-outline-info">
-                    <i class="fas fa-chart-bar me-1"></i> Generation Stats
-                </a>
-                <a href="{{ url_for('statistics.statistics_overview') }}#analysis" class="btn btn-outline-info">
-                    <i class="fas fa-chart-line me-1"></i> Analysis Stats
-                </a>
-                <!-- Hidden legacy label for tests expecting 'Quick Actions' -->
-                <span class="visually-hidden">Quick Actions</span>
+{% block title %}Analysis Dashboard{% endblock %}
+
+{% block extra_head %}
+<style>
+.analysis-card {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+}
+
+.analysis-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+
+.metric-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+
+.metric-card:hover {
+    border-color: #007bff;
+    box-shadow: 0 4px 15px rgba(0,123,255,0.1);
+}
+
+.status-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 8px;
+}
+
+.status-running { background-color: #007bff; }
+.status-completed { background-color: #28a745; }
+.status-failed { background-color: #dc3545; }
+.status-pending { background-color: #6c757d; }
+
+.analyzer-status {
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.analyzer-healthy { background-color: #d4edda; color: #155724; }
+.analyzer-warning { background-color: #fff3cd; color: #856404; }
+.analyzer-error { background-color: #f8d7da; color: #721c24; }
+
+.progress-ring {
+    width: 60px;
+    height: 60px;
+}
+
+.activity-item {
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background-color: #f8f9fa;
+    border-left: 4px solid #007bff;
+}
+
+.chart-container {
+    position: relative;
+    height: 300px;
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 20px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1">Analysis Dashboard</h1>
+                    <p class="text-muted mb-0">Monitor and manage analysis operations</p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary" onclick="refreshDashboard()">
+                        <i class="fas fa-sync-alt me-1"></i>Refresh
+                    </button>
+                    <a href="/analysis/create" class="btn btn-primary">
+                        <i class="fas fa-plus me-1"></i>New Analysis
+                    </a>
+                    <a href="/analysis/batch/create" class="btn btn-success">
+                        <i class="fas fa-layer-group me-1"></i>Batch Analysis
+                    </a>
+                </div>
             </div>
         </div>
     </div>
-    <!-- Unified Statistics Overview -->
+
+    <!-- Key Metrics Row -->
     <div class="row mb-4">
-        <!-- Core Analysis Stats -->
-        <div class="col-xl-2 col-md-4 col-6 mb-3">
-            <div class="card bg-gradient-danger h-100">
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card metric-card h-100">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h3 class="text-white mb-1">{{ stats.total_security or 0 }}</h3>
-                            <p class="text-white-50 mb-0 small">Security Analyses</p>
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="card-title text-muted mb-1">Active Tasks</h6>
+                            <h3 class="mb-0" id="active-tasks-count">{{ dashboard_data.active_tasks|default(0) }}</h3>
                         </div>
-                        <div class="text-white-50">
-                            <i class="fas fa-shield-alt fa-2x"></i>
+                        <div class="text-primary">
+                            <i class="fas fa-play-circle fa-2x"></i>
                         </div>
                     </div>
-                    {% if trends and trends.security_this_week %}
                     <div class="mt-2">
-                        <small class="text-white-50">+{{ trends.security_this_week }} this week</small>
+                        <small class="text-success">
+                            <i class="fas fa-arrow-up"></i>
+                            <span id="active-tasks-trend">+12%</span> from yesterday
+                        </small>
                     </div>
-                    {% endif %}
                 </div>
             </div>
         </div>
-
-        <div class="col-xl-2 col-md-4 col-6 mb-3">
-            <div class="card bg-gradient-info h-100">
+        
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card metric-card h-100">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h3 class="text-white mb-1">{{ stats.total_performance or 0 }}</h3>
-                            <p class="text-white-50 mb-0 small">Performance Tests</p>
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="card-title text-muted mb-1">Completed Today</h6>
+                            <h3 class="mb-0" id="completed-today">{{ dashboard_data.completed_today|default(0) }}</h3>
                         </div>
-                        <div class="text-white-50">
-                            <i class="fas fa-tachometer-alt fa-2x"></i>
+                        <div class="text-success">
+                            <i class="fas fa-check-circle fa-2x"></i>
                         </div>
                     </div>
-                    {% if trends and trends.performance_this_week %}
                     <div class="mt-2">
-                        <small class="text-white-50">+{{ trends.performance_this_week }} this week</small>
+                        <small class="text-muted">
+                            Success rate: <span id="success-rate">{{ dashboard_data.success_rate|default(95) }}%</span>
+                        </small>
                     </div>
-                    {% endif %}
                 </div>
             </div>
         </div>
-
-        <div class="col-xl-2 col-md-4 col-6 mb-3">
-            <div class="card bg-gradient-warning h-100">
+        
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card metric-card h-100">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h3 class="text-white mb-1">{{ stats.total_dynamic or 0 }}</h3>
-                            <p class="text-white-50 mb-0 small">Dynamic Scans</p>
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="card-title text-muted mb-1">Running Batches</h6>
+                            <h3 class="mb-0" id="running-batches">{{ dashboard_data.running_batches|default(0) }}</h3>
                         </div>
-                        <div class="text-white-50">
-                            <i class="fas fa-bug fa-2x"></i>
-                        </div>
-                    </div>
-                    {% if trends and trends.dynamic_this_week %}
-                    <div class="mt-2">
-                        <small class="text-white-50">+{{ trends.dynamic_this_week }} this week</small>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
-        <!-- Batch Operations Stats -->
-        <div class="col-xl-2 col-md-4 col-6 mb-3">
-            <div class="card bg-gradient-success h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h3 class="text-white mb-1">{{ batch_stats.total_batches or 0 }}</h3>
-                            <p class="text-white-50 mb-0 small">Batch Operations</p>
-                        </div>
-                        <div class="text-white-50">
+                        <div class="text-info">
                             <i class="fas fa-layer-group fa-2x"></i>
                         </div>
                     </div>
-                    {% if batch_stats and batch_stats.active_batches %}
                     <div class="mt-2">
-                        <small class="text-white-50">{{ batch_stats.active_batches }} active</small>
+                        <small class="text-muted">
+                            <span id="total-batch-tasks">{{ dashboard_data.total_batch_tasks|default(0) }}</span> total tasks
+                        </small>
                     </div>
-                    {% endif %}
                 </div>
             </div>
         </div>
-
-        <!-- System Health -->
-        <div class="col-xl-2 col-md-4 col-6 mb-3">
-            <div class="card bg-gradient-primary h-100">
+        
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card metric-card h-100">
                 <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h3 class="text-white mb-1">{{ stats.running_analyses or 0 }}</h3>
-                            <p class="text-white-50 mb-0 small">Running Tasks</p>
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="card-title text-muted mb-1">Avg. Duration</h6>
+                            <h3 class="mb-0" id="avg-duration">{{ dashboard_data.avg_duration|default("5.2m") }}</h3>
                         </div>
-                        <div class="text-white-50">
-                            <i class="fas fa-play fa-2x"></i>
+                        <div class="text-warning">
+                            <i class="fas fa-clock fa-2x"></i>
                         </div>
                     </div>
-                    {% if system_health and system_health.queue_length %}
                     <div class="mt-2">
-                        <small class="text-white-50">{{ system_health.queue_length }} queued</small>
+                        <small class="text-muted">
+                            Last 24 hours
+                        </small>
                     </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
-        <!-- Results Summary -->
-        <div class="col-xl-2 col-md-4 col-6 mb-3">
-            <div class="card bg-gradient-secondary h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h3 class="text-white mb-1">{{ stats.total_models or 0 }}</h3>
-                            <p class="text-white-50 mb-0 small">Models Tested</p>
-                        </div>
-                        <div class="text-white-50">
-                            <i class="fas fa-cube fa-2x"></i>
-                        </div>
-                    </div>
-                    {% if results_summary and results_summary.total_results %}
-                    <div class="mt-2">
-                        <small class="text-white-50">{{ results_summary.total_results }} results</small>
-                    </div>
-                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Main Content Row -->
     <div class="row">
-        <!-- Left Column - Activity & Results -->
-        <div class="col-lg-8">
-            <!-- Recent Activity Timeline -->
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="fas fa-clock me-2"></i>Recent Activity
-                    </h5>
-                    <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-secondary" onclick="refreshActivity()" title="Refresh">
-                            <i class="fas fa-sync-alt"></i>
-                        </button>
-                        <div class="dropdown">
-                            <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" title="Filter">
-                                <i class="fas fa-filter"></i>
-                            </button>
-                            <ul class="dropdown-menu">
-                                <li><a class="dropdown-item" href="#" onclick="filterActivity('all')">All Activities</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="filterActivity('security')">Security Only</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="filterActivity('performance')">Performance Only</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="filterActivity('batch')">Batch Only</a></li>
-                            </ul>
+        <!-- Left Column -->
+        <div class="col-xl-8">
+            <!-- Activity Chart -->
+            <div class="card analysis-card mb-4">
+                <div class="card-header bg-transparent border-0">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Analysis Activity</h5>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <input type="radio" class="btn-check" name="chart-period" id="period-day" checked>
+                            <label class="btn btn-outline-primary" for="period-day">24H</label>
+                            
+                            <input type="radio" class="btn-check" name="chart-period" id="period-week">
+                            <label class="btn btn-outline-primary" for="period-week">7D</label>
+                            
+                            <input type="radio" class="btn-check" name="chart-period" id="period-month">
+                            <label class="btn btn-outline-primary" for="period-month">30D</label>
                         </div>
                     </div>
                 </div>
                 <div class="card-body">
-                    <div id="activity-timeline" 
-                         hx-get="/analysis/api/activity/combined" 
-                         hx-trigger="load, every 10s" 
-                         hx-swap="innerHTML"
-                         class="timeline-container">
-                        {% if recent_activity %}
-                        {% include 'pages/analysis/partials/unified_activity.html' %}
-                        {% else %}
-                        <div class="text-center text-muted py-4">
-                            <i class="fas fa-clock fa-2x mb-3"></i>
-                            <p>No recent activity</p>
+                    <div class="chart-container">
+                        <canvas id="activity-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="card analysis-card mb-4">
+                <div class="card-header bg-transparent border-0">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Recent Activity</h5>
+                        <a href="/analysis/tasks" class="btn btn-outline-primary btn-sm">View All</a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="recent-activity-list">
+                        <!-- Activity items will be loaded here -->
+                        {% for activity in dashboard_data.recent_activity|default([]) %}
+                        <div class="activity-item">
+                            <div class="d-flex align-items-center">
+                                <span class="status-indicator status-{{ activity.status }}"></span>
+                                <div class="flex-grow-1">
+                                    <div class="fw-medium">{{ activity.analysis_type|title }} Analysis</div>
+                                    <div class="text-muted small">
+                                        {{ activity.model_slug }} - App {{ activity.app_number }}
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="small text-muted">{{ activity.created_at|timeago }}</div>
+                                    {% if activity.progress_percentage %}
+                                    <div class="progress" style="width: 60px; height: 4px;">
+                                        <div class="progress-bar" style="width: {{ activity.progress_percentage }}%"></div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="col-xl-4">
+            <!-- System Health -->
+            <div class="card analysis-card mb-4">
+                <div class="card-header bg-transparent border-0">
+                    <h5 class="card-title mb-0">System Health</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-column gap-3">
+                        {% for analyzer in dashboard_data.analyzer_status|default({}) %}
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <div class="fw-medium">{{ analyzer.name|title }} Analyzer</div>
+                                <div class="small text-muted">{{ analyzer.version|default("v1.0.0") }}</div>
+                            </div>
+                            <span class="analyzer-status analyzer-{{ analyzer.status }}">
+                                {{ analyzer.status|title }}
+                            </span>
+                        </div>
+                        {% endfor %}
+                        
+                        {% if not dashboard_data.analyzer_status %}
+                        <div class="text-center text-muted py-3">
+                            <i class="fas fa-cog fa-2x mb-2"></i>
+                            <div>Loading system status...</div>
                         </div>
                         {% endif %}
                     </div>
                 </div>
             </div>
 
-            <!-- Results Overview -->
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="fas fa-chart-bar me-2"></i>Results Overview
-                    </h5>
-                    <a href="{{ url_for('reports.reports_index') }}" class="btn btn-outline-primary btn-sm">
-                        View All Results
-                    </a>
+            <!-- Queue Status -->
+            <div class="card analysis-card mb-4">
+                <div class="card-header bg-transparent border-0">
+                    <h5 class="card-title mb-0">Queue Status</h5>
                 </div>
                 <div class="card-body">
-                    <div id="results-overview" 
-                         hx-get="/analysis/api/results/summary" 
-                         hx-trigger="load, every 15s" 
-                         hx-swap="innerHTML">
-                        <!-- Results summary will load here -->
-                        <div class="text-center text-muted py-3">
-                            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-                            Loading results summary...
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Right Column - System Status & Batch Operations -->
-        <div class="col-lg-4">
-            <!-- System Health -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h6 class="mb-0">
-                        <i class="fas fa-heartbeat me-2"></i>System Health
-                    </h6>
-                </div>
-                <div class="card-body" id="system-health" 
-                     hx-get="/analysis/api/system/health" 
-                     hx-trigger="load, every 5s" 
-                     hx-swap="innerHTML">
-                    <!-- System health indicators -->
                     <div class="row text-center">
-                        <div class="col-6">
-                            <div class="resource-gauge mb-2">
-                                <canvas id="cpu-gauge" width="80" height="80"></canvas>
-                                <div class="gauge-value">{{ system_resources.cpu_usage|round(1) if system_resources else 0 }}%</div>
-                            </div>
-                            <small class="text-muted">CPU Usage</small>
+                        <div class="col-4">
+                            <div class="h4 mb-1 text-primary">{{ dashboard_data.queue_status.pending|default(0) }}</div>
+                            <div class="small text-muted">Pending</div>
                         </div>
-                        <div class="col-6">
-                            <div class="resource-gauge mb-2">
-                                <canvas id="memory-gauge" width="80" height="80"></canvas>
-                                <div class="gauge-value">{{ system_resources.memory_usage|round(1) if system_resources else 0 }}%</div>
-                            </div>
-                            <small class="text-muted">Memory Usage</small>
+                        <div class="col-4">
+                            <div class="h4 mb-1 text-warning">{{ dashboard_data.queue_status.running|default(0) }}</div>
+                            <div class="small text-muted">Running</div>
+                        </div>
+                        <div class="col-4">
+                            <div class="h4 mb-1 text-success">{{ dashboard_data.queue_status.available|default(3) }}</div>
+                            <div class="small text-muted">Available</div>
                         </div>
                     </div>
-                    <hr>
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="small">Active Workers:</span>
-                        <span class="fw-bold">{{ system_resources.active_workers or 0 }}/{{ system_resources.max_workers or 1 }}</span>
-                    </div>
-                    <div class="progress progress-sm mb-2">
-                        <div class="progress-bar bg-info" style="width: {{ ((system_resources.active_workers or 0) / (system_resources.max_workers or 1) * 100) if system_resources else 0 }}%"></div>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="small">Queue Length:</span>
-                        <span class="fw-bold">{{ system_health.queue_length or 0 }}</span>
+                    
+                    <div class="mt-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="small">Capacity</span>
+                            <span class="small">{{ dashboard_data.queue_status.used|default(2) }}/{{ dashboard_data.queue_status.total|default(5) }}</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar" style="width: {{ (dashboard_data.queue_status.used|default(2) / dashboard_data.queue_status.total|default(5) * 100)|round }}%"></div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Batch Operations Summary -->
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">
-                        <i class="fas fa-layer-group me-2"></i>Batch Operations
-                    </h6>
-                    <a href="{{ url_for('batch.batch_overview') }}" class="btn btn-outline-success btn-sm">
-                        Manage Batches
-                    </a>
-                </div>
-                <div class="card-body" id="batch-summary" 
-                     hx-get="/analysis/api/batch/summary" 
-                     hx-trigger="load, every 10s" 
-                     hx-swap="innerHTML">
-                    <!-- Batch operations summary -->
-                    {% if batch_stats %}
-                    <div class="row text-center mb-3">
-                        <div class="col-4">
-                            <div class="text-primary">
-                                <h5 class="mb-0">{{ batch_stats.running or 0 }}</h5>
-                                <small>Running</small>
-                            </div>
-                        </div>
-                        <div class="col-4">
-                            <div class="text-warning">
-                                <h5 class="mb-0">{{ batch_stats.queued or 0 }}</h5>
-                                <small>Queued</small>
-                            </div>
-                        </div>
-                        <div class="col-4">
-                            <div class="text-success">
-                                <h5 class="mb-0">{{ batch_stats.completed_today or 0 }}</h5>
-                                <small>Today</small>
-                            </div>
-                        </div>
-                    </div>
-                    {% if batch_stats.recent_batches %}
-                    <h6 class="small text-uppercase text-muted mb-2">Recent Batches</h6>
-                    {% for batch in batch_stats.recent_batches[:3] %}
-                    <div class="d-flex justify-content-between align-items-center py-1">
-                        <div class="small">
-                            <span class="fw-medium">Batch #{{ batch.id }}</span>
-                            <span class="text-muted">{{ batch.created_at.strftime('%H:%M') }}</span>
-                        </div>
-                        <span class="badge bg-{{ 'primary' if batch.status == 'running' else 'success' if batch.status == 'completed' else 'warning' if batch.status == 'queued' else 'danger' }}">
-                            {{ batch.status }}
-                        </span>
-                    </div>
-                    {% endfor %}
-                    {% endif %}
-                    {% else %}
-                    <div class="text-center text-muted py-3">
-                        <i class="fas fa-layer-group fa-2x mb-2"></i>
-                        <p class="mb-0">No batch operations yet</p>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-
-            <!-- Quick Navigation -->
-            <div class="card">
-                <div class="card-header">
-                    <h6 class="mb-0">
-                        <i class="fas fa-compass me-2"></i>Quick Navigation
-                    </h6>
+            <!-- Quick Actions -->
+            <div class="card analysis-card">
+                <div class="card-header bg-transparent border-0">
+                    <h5 class="card-title mb-0">Quick Actions</h5>
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
-                        <a href="{{ url_for('analysis.analysis_list') }}" class="btn btn-outline-primary btn-sm">
-                            <i class="fas fa-list me-2"></i>All Analyses
+                        <a href="/analysis/create" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Start New Analysis
                         </a>
-                        <a href="{{ url_for('batch.batch_overview') }}" class="btn btn-outline-success btn-sm">
-                            <i class="fas fa-layer-group me-2"></i>Batch Operations
+                        <a href="/analysis/batch/create" class="btn btn-success">
+                            <i class="fas fa-layer-group me-2"></i>Create Batch
                         </a>
-                        <a href="{{ url_for('reports.reports_index') }}" class="btn btn-outline-info btn-sm">
-                            <i class="fas fa-chart-bar me-2"></i>Results & Reports
+                        <a href="/analysis/configs" class="btn btn-outline-secondary">
+                            <i class="fas fa-cog me-2"></i>Manage Configs
                         </a>
-                        <a href="{{ url_for('statistics.statistics_overview') }}" class="btn btn-outline-secondary btn-sm">
-                            <i class="fas fa-chart-line me-2"></i>Statistics
+                        <a href="/analysis/results" class="btn btn-outline-info">
+                            <i class="fas fa-chart-bar me-2"></i>View Results
                         </a>
                     </div>
                 </div>
@@ -373,95 +342,217 @@
     </div>
 </div>
 
-<!-- Inline Styles for Resource Gauges -->
-<style>
-.resource-gauge {
-    position: relative;
-    display: inline-block;
-}
-.gauge-value {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 12px;
-    font-weight: bold;
-}
-.timeline-container {
-    max-height: 400px;
-    overflow-y: auto;
-}
-.progress-sm {
-    height: 6px;
-}
-</style>
+<!-- Auto-refresh indicator -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1000;">
+    <div class="toast" id="refresh-toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-body">
+            <i class="fas fa-sync-alt me-2"></i>Dashboard updated
+        </div>
+    </div>
+</div>
+{% endblock %}
 
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-// Initialize resource gauges
-document.addEventListener('DOMContentLoaded', function() {
-    initializeResourceGauges();
-});
+// Dashboard management
+class AnalysisDashboard {
+    constructor() {
+        this.refreshInterval = 30000; // 30 seconds
+        this.chart = null;
+        this.init();
+    }
 
-function initializeResourceGauges() {
-    if (typeof Chart !== 'undefined') {
-        const cpuCanvas = document.getElementById('cpu-gauge');
-        const memoryCanvas = document.getElementById('memory-gauge');
-        
-        if (cpuCanvas) {
-            const cpuValue = {{ system_resources.cpu_usage|round(1) if system_resources else 0 }};
-            createGauge(cpuCanvas, cpuValue);
+    init() {
+        this.initChart();
+        this.startAutoRefresh();
+        this.bindEvents();
+        this.loadInitialData();
+    }
+
+    initChart() {
+        const ctx = document.getElementById('activity-chart');
+        if (!ctx) return;
+
+        this.chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Completed Tasks',
+                    data: [],
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }, {
+                    label: 'Failed Tasks',
+                    data: [],
+                    borderColor: '#dc3545',
+                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: 'rgba(0,0,0,0.05)'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: 'rgba(0,0,0,0.05)'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    bindEvents() {
+        // Period selection
+        document.querySelectorAll('input[name="chart-period"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                this.updateChart(radio.id.replace('period-', ''));
+            });
+        });
+
+        // Manual refresh
+        window.refreshDashboard = () => {
+            this.refreshData();
+        };
+    }
+
+    startAutoRefresh() {
+        setInterval(() => {
+            this.refreshData();
+        }, this.refreshInterval);
+    }
+
+    async loadInitialData() {
+        await this.refreshData();
+        this.updateChart('day');
+    }
+
+    async refreshData() {
+        try {
+            const response = await fetch('/api/analysis/dashboard-data');
+            const data = await response.json();
+            
+            this.updateMetrics(data);
+            this.updateRecentActivity(data.recent_activity);
+            this.updateSystemHealth(data.system_health);
+            this.updateQueueStatus(data.queue_status);
+            
+            this.showRefreshToast();
+        } catch (error) {
+            console.error('Failed to refresh dashboard:', error);
         }
-        
-        if (memoryCanvas) {
-            const memoryValue = {{ system_resources.memory_usage|round(1) if system_resources else 0 }};
-            createGauge(memoryCanvas, memoryValue);
+    }
+
+    updateMetrics(data) {
+        const elements = {
+            'active-tasks-count': data.active_tasks,
+            'completed-today': data.completed_today,
+            'running-batches': data.running_batches,
+            'avg-duration': data.avg_duration,
+            'success-rate': data.success_rate + '%'
+        };
+
+        Object.entries(elements).forEach(([id, value]) => {
+            const element = document.getElementById(id);
+            if (element && value !== undefined) {
+                element.textContent = value;
+            }
+        });
+    }
+
+    updateRecentActivity(activities) {
+        const container = document.getElementById('recent-activity-list');
+        if (!container || !activities) return;
+
+        container.innerHTML = activities.map(activity => `
+            <div class="activity-item">
+                <div class="d-flex align-items-center">
+                    <span class="status-indicator status-${activity.status}"></span>
+                    <div class="flex-grow-1">
+                        <div class="fw-medium">${activity.analysis_type} Analysis</div>
+                        <div class="text-muted small">
+                            ${activity.model_slug} - App ${activity.app_number}
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <div class="small text-muted">${this.formatTimeAgo(activity.created_at)}</div>
+                        ${activity.progress_percentage ? `
+                            <div class="progress" style="width: 60px; height: 4px;">
+                                <div class="progress-bar" style="width: ${activity.progress_percentage}%"></div>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async updateChart(period) {
+        try {
+            const response = await fetch(`/api/analysis/chart-data?period=${period}`);
+            const data = await response.json();
+            
+            if (this.chart && data.labels && data.datasets) {
+                this.chart.data.labels = data.labels;
+                this.chart.data.datasets[0].data = data.datasets[0].data;
+                this.chart.data.datasets[1].data = data.datasets[1].data;
+                this.chart.update('none');
+            }
+        } catch (error) {
+            console.error('Failed to update chart:', error);
         }
+    }
+
+    updateSystemHealth(health) {
+        // Implementation would update the system health display
+        console.log('System health update:', health);
+    }
+
+    updateQueueStatus(status) {
+        // Implementation would update the queue status display
+        console.log('Queue status update:', status);
+    }
+
+    showRefreshToast() {
+        const toast = new bootstrap.Toast(document.getElementById('refresh-toast'));
+        toast.show();
+    }
+
+    formatTimeAgo(timestamp) {
+        const now = new Date();
+        const time = new Date(timestamp);
+        const diff = Math.floor((now - time) / 1000);
+
+        if (diff < 60) return 'Just now';
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+        return `${Math.floor(diff / 86400)}d ago`;
     }
 }
 
-function createGauge(canvas, value) {
-    const ctx = canvas.getContext('2d');
-    const percentage = Math.min(value, 100);
-    
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            datasets: [{
-                data: [percentage, 100 - percentage],
-                backgroundColor: [
-                    percentage < 50 ? '#28a745' : percentage < 80 ? '#ffc107' : '#dc3545',
-                    '#e9ecef'
-                ],
-                borderWidth: 0,
-                circumference: 270,
-                rotation: 225
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            cutout: '75%',
-            plugins: {
-                legend: { display: false },
-                tooltip: { enabled: false }
-            }
-        }
-    });
-}
-
-// Activity filtering
-function filterActivity(type) {
-    const items = document.querySelectorAll('.activity-item');
-    items.forEach(item => {
-        if (type === 'all' || item.classList.contains(`activity-${type}`)) {
-            item.style.display = 'block';
-        } else {
-            item.style.display = 'none';
-        }
-    });
-}
-
-function refreshActivity() {
-    htmx.trigger('#activity-timeline', 'refresh');
-}
+// Initialize dashboard when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    new AnalysisDashboard();
+});
 </script>
+{% endblock %}
+
+
+

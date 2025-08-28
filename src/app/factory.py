@@ -155,6 +155,46 @@ def create_app(config_name: str = 'default') -> Flask:
     # Initialize extensions and get components manager
     components = init_extensions(app)
     
+    # Register custom Jinja filters
+    from datetime import datetime, timezone
+    
+    def timeago_filter(dt):
+        """Convert datetime to human-readable relative time."""
+        if not dt:
+            return 'Never'
+        
+        if not isinstance(dt, datetime):
+            return str(dt)
+            
+        # Ensure timezone awareness
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+            
+        now = datetime.now(timezone.utc)
+        diff = now - dt
+        
+        seconds = diff.total_seconds()
+        
+        if seconds < 60:
+            return 'just now'
+        elif seconds < 3600:
+            minutes = int(seconds // 60)
+            return f'{minutes} minute{"s" if minutes != 1 else ""} ago'
+        elif seconds < 86400:
+            hours = int(seconds // 3600)
+            return f'{hours} hour{"s" if hours != 1 else ""} ago'
+        elif seconds < 2592000:  # 30 days
+            days = int(seconds // 86400)
+            return f'{days} day{"s" if days != 1 else ""} ago'
+        elif seconds < 31536000:  # 365 days
+            months = int(seconds // 2592000)
+            return f'{months} month{"s" if months != 1 else ""} ago'
+        else:
+            years = int(seconds // 31536000)
+            return f'{years} year{"s" if years != 1 else ""} ago'
+    
+    app.jinja_env.filters['timeago'] = timeago_filter
+    
     # Create Celery instance
     celery = create_celery(app)
     components.set_celery(celery)
@@ -185,7 +225,7 @@ def create_app(config_name: str = 'default') -> Flask:
         logger.info("Service locator initialized with core services")
         
         # Initialize task manager (defer import to avoid circulars during module import)
-        from app.services.task_manager import TaskManager  # local import to break cycles
+        from app.services.task_service import AnalysisTaskService as TaskManager  # local import to break cycles
         task_manager = TaskManager()
         components.set_task_manager(task_manager)
         logger.info("Task manager initialized")
