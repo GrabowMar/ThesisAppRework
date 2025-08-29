@@ -1,13 +1,22 @@
 {#
-  Component: Vertical Sidebar Navigation
-  Purpose: Left-side navigation following Tabler.io vertical layout pattern
-  Based on: https://preview.tabler.io/layout-vertical.html
+  Component: Vertical Sidebar Navigation with Collapse/Shrink Functionality
+  Purpose: Standalone sidebar component that can collapse from full text to icons-only
+  Based on: Tabler.io vertical layout with custom shrink feature
 #}
 {% from 'shared/ui/macros/nav_macros.html' import nav_link %}
 
-<aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
+<aside class="navbar navbar-vertical navbar-expand-lg navbar-dark" 
+       data-bs-theme="dark" 
+       id="navbar-menu"
+       _="init set $sidebarCollapsed to false">
   <div class="container-fluid">
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-controls="sidebar-menu" aria-expanded="false" aria-label="Toggle navigation">
+    <button class="navbar-toggler d-lg-none" 
+            type="button" 
+            data-bs-toggle="collapse" 
+            data-bs-target="#sidebar-menu" 
+            aria-controls="sidebar-menu" 
+            aria-expanded="false" 
+            aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
     
@@ -18,7 +27,7 @@
           <path d="M4 19l16 0"/>
           <path d="M4 15l4 -6l4 2l4 -5l4 4"/>
         </svg>
-        Thesis Platform
+        <span class="sidebar-text ms-2">Thesis Platform</span>
       </a>
     </h1>
     
@@ -38,6 +47,24 @@
           </svg>
         </a>
       </div>
+      
+      {# Desktop Sidebar Toggle Button #}
+      <div class="nav-item d-none d-lg-flex">
+        <button class="btn btn-ghost-white btn-sm" 
+                type="button"
+                title="Toggle sidebar"
+                _="on click 
+                   toggle .navbar-collapsed on #navbar-menu 
+                   then toggle $sidebarCollapsed">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M4 6l16 0"/>
+            <path d="M4 12l16 0"/>
+            <path d="M4 18l16 0"/>
+          </svg>
+        </button>
+      </div>
+      
       <div class="nav-item">
         <a href="#" class="nav-link px-0" data-bs-toggle="offcanvas" data-bs-target="#offcanvasEnd" aria-controls="offcanvasEnd">
           <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -55,19 +82,19 @@
           {{ nav_link('main.dashboard', 'Dashboard', '<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l-2 0l9 -9l9 9l-2 0"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/><path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"/></svg>') }}
         </li>
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#navbar-analysis" data-bs-toggle="dropdown" data-bs-auto-close="false" role="button" aria-expanded="false">
+          <a class="nav-link dropdown-toggle" href="#navbar-analysis" data-bs-toggle="dropdown" data-bs-auto-close="false" role="button" aria-expanded="false" title="Analysis">
             <span class="nav-link-icon d-md-none d-lg-inline-block">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
               </svg>
             </span>
-            <span class="nav-link-title">Analysis</span>
+            <span class="nav-link-title sidebar-text">Analysis</span>
           </a>
           <div class="dropdown-menu">
             <div class="dropdown-menu-columns">
               <div class="dropdown-menu-column">
-                <a class="dropdown-item" href="{{ url_for('analysis.analysis_index') }}">
+                <a class="dropdown-item" href="{{ url_for('analysis.analysis_index') }}" hx-boost="true">
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                     <path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9l8 -4.5"/>
@@ -77,7 +104,7 @@
                   </svg>
                   Analysis Hub
                 </a>
-                <a class="dropdown-item" href="{{ url_for('analysis.analysis_dashboard') }}">
+                <a class="dropdown-item" href="{{ url_for('analysis.analysis_dashboard') }}" hx-boost="true">
                   <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                     <path d="M9 12l2 2l4 -4"/>
@@ -91,7 +118,7 @@
           </div>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('main.models_overview') }}">
+          <a class="nav-link" href="{{ url_for('main.models_overview') }}" hx-boost="true" title="Models">
             <span class="nav-link-icon d-md-none d-lg-inline-block">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -102,11 +129,11 @@
                 <path d="M9 15h4"/>
               </svg>
             </span>
-            <span class="nav-link-title">Models</span>
+            <span class="nav-link-title sidebar-text">Models</span>
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('models.applications') }}">
+          <a class="nav-link" href="{{ url_for('models.applications') }}" hx-boost="true" title="Applications">
             <span class="nav-link-icon d-md-none d-lg-inline-block">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -116,11 +143,11 @@
                 <path d="M16 15l-4 4"/>
               </svg>
             </span>
-            <span class="nav-link-title">Applications</span>
+            <span class="nav-link-title sidebar-text">Applications</span>
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('reports.reports_index') }}">
+          <a class="nav-link" href="{{ url_for('reports.reports_index') }}" hx-boost="true" title="Reports">
             <span class="nav-link-icon d-md-none d-lg-inline-block">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -131,21 +158,112 @@
                 <path d="M9 17l6 0"/>
               </svg>
             </span>
-            <span class="nav-link-title">Reports</span>
+            <span class="nav-link-title sidebar-text">Reports</span>
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="{{ url_for('statistics.statistics_overview') }}">
+          <a class="nav-link" href="{{ url_for('statistics.statistics_overview') }}" hx-boost="true" title="Statistics">
             <span class="nav-link-icon d-md-none d-lg-inline-block">
               <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                 <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                 <path d="M3 12h4l3 8l4 -16l3 8h4"/>
               </svg>
             </span>
-            <span class="nav-link-title">Statistics</span>
+            <span class="nav-link-title sidebar-text">Statistics</span>
           </a>
         </li>
       </ul>
     </div>
   </div>
 </aside>
+
+{# Sidebar Collapse Styles - Controls the shrink to icons functionality #}
+<style>
+  /* Base sidebar dimensions and transitions */
+  #navbar-menu {
+    width: 280px;
+    transition: width 0.2s ease;
+  }
+  
+  /* Collapsed state - shrink to icon-only width */
+  #navbar-menu.navbar-collapsed {
+    width: 80px;
+  }
+  
+  /* Hide text elements when collapsed */
+  #navbar-menu.navbar-collapsed .sidebar-text {
+    opacity: 0;
+    visibility: hidden;
+    width: 0;
+    overflow: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+  }
+  
+  /* Center navbar brand when collapsed */
+  #navbar-menu.navbar-collapsed .navbar-brand a {
+    justify-content: center;
+  }
+  
+  /* Center dropdown toggles when collapsed */
+  #navbar-menu.navbar-collapsed .dropdown-toggle {
+    justify-content: center;
+  }
+  
+  /* Hide dropdown arrows when collapsed */
+  #navbar-menu.navbar-collapsed .dropdown-toggle::after {
+    display: none;
+  }
+  
+  /* Center nav links when collapsed */
+  #navbar-menu.navbar-collapsed .nav-link {
+    justify-content: center;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+  
+  /* Position dropdowns correctly when collapsed */
+  #navbar-menu.navbar-collapsed .dropdown-menu {
+    left: 80px;
+    top: 0;
+    margin-left: 0.25rem;
+  }
+  
+  /* Adjust main content area when sidebar shrinks */
+  .page-wrapper {
+    margin-left: 280px;
+    transition: margin-left 0.2s ease;
+  }
+  
+  #navbar-menu.navbar-collapsed ~ .page-wrapper {
+    margin-left: 80px;
+  }
+  
+  /* Mobile responsive behavior */
+  @media (max-width: 991.98px) {
+    #navbar-menu {
+      width: 100%;
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 1000;
+      transform: translateX(-100%);
+      transition: transform 0.2s ease;
+    }
+    
+    #navbar-menu.show {
+      transform: translateX(0);
+    }
+    
+    #navbar-menu.navbar-collapsed {
+      width: 100%;
+    }
+    
+    .page-wrapper {
+      margin-left: 0;
+    }
+    
+    #navbar-menu.navbar-collapsed ~ .page-wrapper {
+      margin-left: 0;
+    }
+  }
+</style>

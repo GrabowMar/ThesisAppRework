@@ -1,6 +1,6 @@
 {#
-  Component: Footer
-  Purpose: Application footer with links and status information
+  Component: Footer with Real-time Status Updates
+  Purpose: Application footer with navigation links and live system information
 #}
 <footer class="footer footer-transparent d-print-none">
   <div class="container-xl">
@@ -8,14 +8,16 @@
       <div class="col-lg-auto ms-lg-auto">
         <ul class="list-inline list-inline-dots mb-0">
           <li class="list-inline-item">
-            {# Updated endpoint: the about page lives on the 'main' blueprint (#main.about) #}
-            <a href="{{ url_for('main.about') }}" class="link-secondary">About</a>
+            <a href="{{ url_for('main.about') }}" class="link-secondary" hx-boost="true">About</a>
           </li>
           <li class="list-inline-item">
-            <a href="{{ url_for('main.system_status') }}" class="link-secondary">System Status</a>
+            <a href="{{ url_for('main.system_status') }}" class="link-secondary" hx-boost="true">System Status</a>
           </li>
           <li class="list-inline-item">
-            <a href="{{ url_for('tasks.tasks_overview') }}" class="link-secondary">Tasks</a>
+            <a href="{{ url_for('tasks.tasks_overview') }}" class="link-secondary" hx-boost="true">Tasks</a>
+          </li>
+          <li class="list-inline-item">
+            <a href="https://docs.tabler.io" target="_blank" class="link-secondary">Documentation</a>
           </li>
         </ul>
       </div>
@@ -25,48 +27,71 @@
             <span id="footer-status"
                   hx-get="/api/system/footer-status"
                   hx-trigger="load, every 30s"
-                  hx-swap="innerHTML">
-              <span class="status-indicator status-green"></span>
-              System OK
+                  hx-swap="innerHTML"
+                  class="d-flex align-items-center">
+              <span class="status-indicator status-indicator-animated bg-green me-2"></span>
+              <span class="text-secondary">System OK</span>
             </span>
           </li>
           <li class="list-inline-item">
             <span id="active-tasks-count"
                   hx-get="/api/tasks/count"
                   hx-trigger="load, every 10s"
-                  hx-swap="innerHTML">
-              Tasks: 0
+                  hx-swap="innerHTML"
+                  class="text-secondary">
+              Tasks: <span class="badge bg-blue ms-1">0</span>
             </span>
           </li>
           <li class="list-inline-item">
             <span id="uptime-display"
                   hx-get="/api/uptime"
                   hx-trigger="load, every 60s"
-                  hx-swap="innerHTML">
+                  hx-swap="innerHTML"
+                  class="text-secondary">
               Uptime: --
             </span>
           </li>
         </ul>
       </div>
     </div>
-    
+    <div class="row mt-2">
+      <div class="col-12 text-center">
+        <p class="text-muted mb-0 small">
+          Copyright © 2024 
+          <a href="#" class="link-secondary">ThesisAppRework</a>. 
+          All rights reserved.
+        </p>
+      </div>
+    </div>
   </div>
-</footer>{# Footer WebSocket connection for real-time updates #}
+</footer>
+
+{# Real-time WebSocket updates with fallback to HTMX polling #}
 <script _="
   init
-    if window.WebSocket
+    if window.WebSocket then
       try 
         set ws to new WebSocket('ws://localhost:8765/ws/footer')
         on message(event) from ws
           set data to JSON.parse(event.data)
-          if data.type is 'status-update'
-            get #footer-status
-            set its innerHTML to data.content
+          if data.type is 'status-update' then
+            get #footer-status then set its innerHTML to data.content
+          end
+          if data.type is 'tasks-update' then
+            get #active-tasks-count then set its innerHTML to data.content  
+          end
+          if data.type is 'uptime-update' then
+            get #uptime-display then set its innerHTML to data.content
           end
         end
+        on close from ws
+          log 'WebSocket connection closed, falling back to HTMX polling'
+        end
+        on error from ws
+          log 'WebSocket error, using HTMX polling'
+        end
       catch error
-        -- WebSocket not available, fall back to polling
-        log 'WebSocket connection failed, using polling'
+        log 'WebSocket connection failed, using HTMX polling fallback'
       end
     end
 "></script>

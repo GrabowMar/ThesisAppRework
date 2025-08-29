@@ -1,106 +1,260 @@
-<!doctype html>
-<html lang="en">
-	<head>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, initial-scale=1">
-		<meta http-equiv="X-UA-Compatible" content="IE=edge">
-		<title>{% block title %}ThesisAppRework{% endblock %}</title>
+{# Base Layout Template - Extends main.html and includes UI components #}
+{% extends "main.html" %}
 
-	{# Core CSS - load Tabler CDN first then override with local theme.css for custom tweaks #}
-	<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/css/tabler.min.css" crossorigin="anonymous" />
-	<link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+{% block body %}
+<div class="page">
+  <!-- Include Sidebar Component -->
+  {% include 'shared/ui/sidebar.html' %}
+  
+  <!-- Include Header Component -->
+  {% include 'shared/ui/header.html' %}
+  
+  <!-- Main Content -->
+  <div class="page-wrapper">
+    <!-- Page body -->
+    <div class="page-body">
+      <div class="container-xl">
+        {% block content %}
+        <!-- Content goes here -->
+        {% endblock %}
+      </div>
+    </div>
+  </div>
+</div>
 
-	{# Icon fallback using FontAwesome CDN - harmless if already present locally #}
-	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+<!-- Mobile Sidebar Offcanvas -->
+<div class="offcanvas offcanvas-start" tabindex="-1" id="mobile-sidebar" aria-labelledby="mobile-sidebar-label" data-bs-theme="dark">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="mobile-sidebar-label">
+      <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+        <path d="M4 19l16 0"/>
+        <path d="M4 15l4 -6l4 2l4 -5l4 4"/>
+      </svg>
+      ThesisApp
+    </h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <ul class="navbar-nav">
+      <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('main.dashboard') if url_for is defined else '/' }}" hx-boost="true">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M5 12l-2 0l9 -9l9 9l-2 0"/>
+            <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/>
+            <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"/>
+          </svg>
+          Dashboard
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('analysis.analysis_index') if url_for is defined else '/analysis' }}" hx-boost="true">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+          Analysis
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('main.models_overview') if url_for is defined else '/models' }}" hx-boost="true">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M7 3m0 2a2 2 0 0 1 2 -2h6a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-6a2 2 0 0 1 -2 -2z"/>
+          </svg>
+          Models
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('models.applications') if url_for is defined else '/applications' }}" hx-boost="true">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M9 4h6l-1 7h-4l-1 -7z"/>
+          </svg>
+          Applications
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('reports.reports_index') if url_for is defined else '/reports' }}" hx-boost="true">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
+            <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
+          </svg>
+          Reports
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('statistics.statistics_overview') if url_for is defined else '/statistics' }}" hx-boost="true">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M3 12h4l3 8l4 -16l3 8h4"/>
+          </svg>
+          Statistics
+        </a>
+      </li>
+    </ul>
+  </div>
+</div>
 
-		{# Optional theme or custom styles inserted by pages #}
-		{% block head_extra %}{% endblock %}
+<!-- Search Modal -->
+<div class="modal modal-blur fade" id="search-modal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Search</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" class="form-control" placeholder="Search..." autofocus>
+      </div>
+    </div>
+  </div>
+</div>
 
-		{# Small inline CSS variables for layout stability #}
-		<style>
-			:root { --main-bg: #f8f9fa; --main-color: #343a40; }
-			html,body { height:100%; }
-			body { background: var(--main-bg); color:var(--main-color); }
-		</style>
-	</head>
-	<body>
-		{# Accessibility skip link #}
-		<a class="sr-only sr-only-focusable" href="#main-content">Skip to main content</a>
+<!-- Include Footer Component -->
+{% include 'shared/ui/footer.html' %}
 
-		{# Top navigation - prefer page-level override; fallback include if exists #}
-		{% if self.top_nav is defined %}
-			{{ self.top_nav() }}
-		{% else %}
-			{% include 'ui/elements/top_nav.html' ignore missing %}
-		{% endif %}
+<!-- Layout CSS -->
+<style>
+  /* CSS Custom Properties for dynamic layout */
+  :root {
+    --sidebar-width: 280px;
+    --sidebar-collapsed-width: 80px;
+    --header-height: 60px;
+  }
+  
+  /* Header bar positioning - NO GAP, perfect alignment */
+  .navbar.navbar-expand-md {
+    position: fixed;
+    top: 0;
+    left: var(--sidebar-width);
+    right: 0;
+    z-index: 1010;
+    height: var(--header-height);
+    background: white;
+    border-bottom: 1px solid var(--tbl-border-color, #e6e7e9);
+    transition: left 0.2s ease;
+    margin: 0;
+    border-left: none;
+  }
+  
+  /* Header bar when sidebar collapsed - NO GAP */
+  #navbar-menu.navbar-collapsed + .navbar.navbar-expand-md {
+    left: var(--sidebar-collapsed-width);
+  }
+  
+  /* Main content offset - responsive to sidebar state */
+  .page-wrapper {
+    margin-left: var(--sidebar-width);
+    margin-top: var(--header-height);
+    transition: margin-left 0.2s ease;
+    min-height: calc(100vh - var(--header-height));
+    padding: 1rem;
+  }
+  
+  /* Main content when sidebar collapsed */
+  #navbar-menu.navbar-collapsed ~ * .page-wrapper {
+    margin-left: var(--sidebar-collapsed-width);
+  }
+  
+  /* Mobile responsive */
+  @media (max-width: 991.98px) {
+    .navbar.navbar-expand-md {
+      left: 0;
+      right: 0;
+    }
+    
+    .page-wrapper {
+      margin-left: 0;
+    }
+  }
+  
+  /* Improve mobile offcanvas */
+  .offcanvas-start {
+    width: 280px;
+  }
+  
+  .offcanvas-body {
+    overflow-y: auto;
+  }
+  
+  .offcanvas-body .nav-link {
+    padding: 0.75rem 1rem;
+    display: flex;
+    align-items: center;
+  }
+  
+  .offcanvas-body .nav-link:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 0.375rem;
+  }
+</style>
 
-		{# Page container with optional sidebar and content area #}
-		<div id="page-wrapper" class="container-fluid">
-			<div class="row">
-				<aside id="sidebar" class="col-2 bg-light sidebar" style="min-height:100vh;border-right:1px solid var(--tbl-border, #e9ecef);padding-top:1rem;">
-					{% block sidebar %}
-						{% include 'ui/elements/sidebar.html' ignore missing %}
-					{% endblock %}
-				</aside>
-
-				<main id="main-content" class="col ps-4" role="main">
-					{# Page header region #}
-					<header class="page-header mt-3 mb-4">
-						<h1 class="h3">{% block page_title %}ThesisAppRework{% endblock %}</h1>
-						{% block page_actions %}{% endblock %}
-					</header>
-
-					{# Main content block for pages. Support pages that define `block main` by
-					   rendering it inside the content block for backwards compatibility. #}
-					<section id="content">
-						{% block content %}
-							{# Backwards-compatible hook: pages may define `main` or `content` #}
-							{% block main %}{% endblock %}
-						{% endblock %}
-					</section>
-				</main>
-			</div>
-		</div>
-
-		{# Footer include (non-blocking) #}
-		<footer class="mt-4">
-			{% include 'ui/elements/footer.html' ignore missing %}
-		</footer>
-
-		{# Core JS: load HTMX only if not present, then app.js and Tabler JS #}
-		<script>
-			(function(){
-				if (!window.htmx){
-					var s = document.createElement('script');
-					s.src = 'https://unpkg.com/htmx.org@1.11.0';
-					s.async = false;
-					document.head.appendChild(s);
-				}
-			})();
-		</script>
-		<script src="{{ url_for('static', filename='js/app.js') }}"></script>
-		<script src="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/js/tabler.min.js"></script>
-
-		{# Chart.js CDN for dashboards that use charts #}
-		<script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
-
-		{# Provide an event hook for pages to add scripts/styles #}
-		{% block scripts %}{% endblock %}
-
-		{# Small JS helpers: show a global loading indicator for HTMX requests #}
-		<script>
-			(function(){
-				const indicatorId = 'htmx-loading-indicator';
-				const ind = document.createElement('div');
-				ind.id = indicatorId;
-				ind.style.cssText = 'position:fixed;top:0;left:0;right:0;height:3px;background:#007bff;transition:opacity .2s;opacity:0;z-index:1200;';
-				document.body.appendChild(ind);
-
-				document.body.addEventListener('htmx:configRequest', () => { ind.style.opacity = '1'; });
-				document.body.addEventListener('htmx:afterOnLoad', () => { ind.style.opacity = '0'; });
-				document.body.addEventListener('htmx:sendError', () => { ind.style.opacity = '0'; });
-			})();
-		</script>
-	</body>
-</html>
+<script>
+  // JavaScript to handle responsive layout adjustments
+  document.addEventListener('DOMContentLoaded', function() {
+    const sidebar = document.getElementById('navbar-menu');
+    const header = document.querySelector('.navbar.navbar-expand-md');
+    const pageWrapper = document.querySelector('.page-wrapper');
+    const toggleButtons = document.querySelectorAll('#sidebar-toggle, #sidebar-toggle-header');
+    
+    // Function to update layout based on sidebar state
+    function updateLayout() {
+      if (!sidebar || !header || !pageWrapper) return;
+      
+      const isCollapsed = sidebar.classList.contains('navbar-collapsed');
+      
+      if (window.innerWidth > 991.98) { // Desktop only
+        if (isCollapsed) {
+          header.style.left = '80px';
+          pageWrapper.style.marginLeft = '80px';
+        } else {
+          header.style.left = '280px';
+          pageWrapper.style.marginLeft = '280px';
+        }
+      } else { // Mobile
+        header.style.left = '0';
+        pageWrapper.style.marginLeft = '0';
+      }
+    }
+    
+    // Function to toggle sidebar collapsed state
+    function toggleSidebar(e) {
+      e.preventDefault();
+      if (sidebar) {
+        sidebar.classList.toggle('navbar-collapsed');
+        
+        // Update layout immediately
+        updateLayout();
+        
+        // Store state in localStorage for persistence
+        const isCollapsed = sidebar.classList.contains('navbar-collapsed');
+        localStorage.setItem('sidebar-collapsed', isCollapsed);
+      }
+    }
+    
+    // Add click listeners to all toggle buttons
+    toggleButtons.forEach(button => {
+      button.addEventListener('click', toggleSidebar);
+    });
+    
+    // Restore sidebar state from localStorage
+    const savedState = localStorage.getItem('sidebar-collapsed');
+    if (savedState === 'true' && sidebar) {
+      sidebar.classList.add('navbar-collapsed');
+    }
+    
+    // Handle window resize to ensure proper mobile behavior
+    function handleResize() {
+      updateLayout();
+    }
+    
+    window.addEventListener('resize', handleResize);
+    
+    // Initial layout setup
+    updateLayout();
+  });
+</script>
+{% endblock %}
