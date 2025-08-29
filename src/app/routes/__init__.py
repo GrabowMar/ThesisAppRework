@@ -10,7 +10,8 @@ from .jinja import (
     stats_bp,
     tasks_bp,
     advanced_bp,
-    reports_bp
+    reports_bp,
+    docs_bp
 )
 from .api import api_bp
 from .websockets import websocket_api_bp, register_websocket_routes, register_error_handlers
@@ -25,6 +26,7 @@ __all__ = [
     'tasks_bp',
     'advanced_bp',
     'reports_bp',
+    'docs_bp',
 
     # API blueprints
     'api_bp',
@@ -56,6 +58,7 @@ def register_blueprints(app):
     app.register_blueprint(tasks_bp)
     app.register_blueprint(advanced_bp)
     app.register_blueprint(reports_bp)
+    app.register_blueprint(docs_bp)
 
     # Register API blueprint
     app.register_blueprint(api_bp, url_prefix='/api')

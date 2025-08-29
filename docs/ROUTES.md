@@ -24,6 +24,13 @@ This document enumerates the Flask routes defined under `src/app/routes/` and `s
     - GET /api/dashboard/stats — Enhanced dashboard stats
     - POST /api/analyzer/start — Check/start analyzer services (advisory)
 
+- docs (prefix: /docs)
+  - GET /docs/ — Documentation index page
+  - GET /docs/<path:filepath> — Display specific markdown documentation file
+  - Supports all .md files in /docs/ and /docs/frontend/ directories
+  - Renders markdown with syntax highlighting, tables, and code blocks
+  - Security: Path traversal protection, only serves .md files from docs directory
+
 - models (prefix: /models)
   - GET /models/ — Models overview page
   - GET /models/model/<model_slug>/details — Model details page

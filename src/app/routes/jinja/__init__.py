@@ -10,6 +10,7 @@ from .stats import stats_bp
 from .tasks import tasks_bp
 from .advanced import advanced_bp
 from .reports import reports_bp
+from .docs import docs_bp
 
 __all__ = [
     'main_bp',
@@ -18,5 +19,6 @@ __all__ = [
     'stats_bp',
     'tasks_bp',
     'advanced_bp',
-    'reports_bp'
+    'reports_bp',
+    'docs_bp'
 ]
