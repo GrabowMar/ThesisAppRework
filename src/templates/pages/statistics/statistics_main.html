@@ -1,0 +1,35 @@
+{#
+  Standard wrapper for Statistics pages.
+#}
+{% extends 'layouts/base.html' %}
+{% block page_title %}{{ page_title or 'Statistics' }}{% endblock %}
+{% block main %}
+<div class="page">
+  <div class="page-wrapper">
+    <div class="page-header d-print-none">
+      <div class="container-xl">
+        <div class="row g-2 align-items-center">
+          <div class="col">
+            <h2 class="page-title">Statistics</h2>
+            <div class="text-muted mt-1">Platform statistics and trends</div>
+          </div>
+        </div>
+      </div>
+    </div>
+        <div class="page-body">
+      <div class="container-xl">
+        {% if main_partial %}
+          {% include main_partial ignore missing %}
+        {% else %}
+          {% include 'pages/statistics/partials/main.html' ignore missing %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  {% include 'pages/statistics/partials/scripts.html' ignore missing %}
+{% endblock %}

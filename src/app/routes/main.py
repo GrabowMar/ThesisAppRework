@@ -64,9 +64,9 @@ def dashboard():
             status=JobStatus.RUNNING
         ).all()
         
-        # Render layout directly (layout extends the main shell)
+        # Render the dashboard page which extends the main layout
         return render_template(
-            'layouts/base.html',
+            'pages/index/index_main.html',
             stats=stats,
             recent_apps=recent_apps,
             recent_analyses=recent_analyses,

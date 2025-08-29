@@ -6,9 +6,13 @@
 		<meta http-equiv="X-UA-Compatible" content="IE=edge">
 		<title>{% block title %}ThesisAppRework{% endblock %}</title>
 
-		{# Core CSS - tweak paths as needed #}
-		<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor.min.css') }}">
-		<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+	{# Core CSS - load Tabler CDN first then override with local theme.css for custom tweaks #}
+	<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/css/tabler.min.css" crossorigin="anonymous" />
+	<link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+
+	{# Icon fallback using FontAwesome CDN - harmless if already present locally #}
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
 		{# Optional theme or custom styles inserted by pages #}
 		{% block head_extra %}{% endblock %}
@@ -34,22 +38,26 @@
 		{# Page container with optional sidebar and content area #}
 		<div id="page-wrapper" class="container-fluid">
 			<div class="row">
-				<aside id="sidebar" class="col-md-2 d-none d-md-block bg-light sidebar">
+				<aside id="sidebar" class="col-2 bg-light sidebar" style="min-height:100vh;border-right:1px solid var(--tbl-border, #e9ecef);padding-top:1rem;">
 					{% block sidebar %}
 						{% include 'ui/elements/sidebar.html' ignore missing %}
 					{% endblock %}
 				</aside>
 
-				<main id="main-content" class="col-md-10 ms-sm-auto px-4" role="main">
+				<main id="main-content" class="col ps-4" role="main">
 					{# Page header region #}
 					<header class="page-header mt-3 mb-4">
-						<h1 class="h3">{% block page_title %}{% block title %}ThesisAppRework{% endblock %}{% endblock %}</h1>
+						<h1 class="h3">{% block page_title %}ThesisAppRework{% endblock %}</h1>
 						{% block page_actions %}{% endblock %}
 					</header>
 
-					{# Main content block for pages #}
+					{# Main content block for pages. Support pages that define `block main` by
+					   rendering it inside the content block for backwards compatibility. #}
 					<section id="content">
-						{% block content %}{% endblock %}
+						{% block content %}
+							{# Backwards-compatible hook: pages may define `main` or `content` #}
+							{% block main %}{% endblock %}
+						{% endblock %}
 					</section>
 				</main>
 			</div>
@@ -60,10 +68,22 @@
 			{% include 'ui/elements/footer.html' ignore missing %}
 		</footer>
 
-		{# Core JS: vendor libs, HTMX, and app entry #}
-		<script src="{{ url_for('static', filename='js/vendor.min.js') }}"></script>
-		<script src="{{ url_for('static', filename='js/htmx.min.js') }}"></script>
+		{# Core JS: load HTMX only if not present, then app.js and Tabler JS #}
+		<script>
+			(function(){
+				if (!window.htmx){
+					var s = document.createElement('script');
+					s.src = 'https://unpkg.com/htmx.org@1.11.0';
+					s.async = false;
+					document.head.appendChild(s);
+				}
+			})();
+		</script>
 		<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+		<script src="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/js/tabler.min.js"></script>
+
+		{# Chart.js CDN for dashboards that use charts #}
+		<script src="https://cdn.jsdelivr.net/npm/chart.js@4.3.0/dist/chart.umd.min.js"></script>
 
 		{# Provide an event hook for pages to add scripts/styles #}
 		{% block scripts %}{% endblock %}

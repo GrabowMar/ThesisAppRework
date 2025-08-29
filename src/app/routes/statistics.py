@@ -114,9 +114,10 @@ def statistics_overview():
         # Load external data from misc folder
         external_data = _load_external_statistics()
 
-        # Render existing statistics overview view
+        # Render using the new standardized statistics wrapper
         return render_template(
-            'views/statistics/overview.html',
+            'pages/statistics/statistics_main.html',
+            page_title='Statistics Overview',
             stats=generation_stats,
             analysis_stats=analysis_stats,
             batch_stats=batch_stats,
@@ -135,7 +136,7 @@ def statistics_overview():
     except Exception as e:
         logger.error(f"Error loading statistics overview: {e}")
         return render_template(
-            'layouts/single-page.html',
+            'pages/statistics/statistics_main.html',
             page_title='Statistics Error',
             main_partial='ui/elements/common/error.html',
             error=str(e)
@@ -178,7 +179,7 @@ def statistics_generation():
         external_data = _load_external_statistics()
 
         return render_template(
-            'layouts/single-page.html',
+            'pages/statistics/statistics_main.html',
             page_title='Generation Statistics',
             page_icon='fa-chart-bar',
             main_partial='pages/statistics/generation.html',
@@ -192,7 +193,7 @@ def statistics_generation():
         )
     except Exception as e:  # pragma: no cover
         logger.error(f"Error loading generation statistics: {e}")
-        return render_template('layouts/single-page.html', page_title='Error', main_partial='ui/elements/common/error.html', error=str(e)), 500
+        return render_template('pages/statistics/statistics_main.html', page_title='Error', main_partial='ui/elements/common/error.html', error=str(e)), 500
 
 
 @stats_bp.route('/analysis')
@@ -221,7 +222,7 @@ def statistics_analysis():
         error_analysis = _get_error_analysis()
 
         return render_template(
-            'layouts/single-page.html',
+            'pages/statistics/statistics_main.html',
             page_title='Analysis Statistics',
             page_icon='fa-chart-line',
             main_partial='pages/statistics/analysis.html',
@@ -232,7 +233,7 @@ def statistics_analysis():
         )
     except Exception as e:  # pragma: no cover
         logger.error(f"Error loading analysis statistics: {e}")
-        return render_template('layouts/single-page.html', page_title='Error', main_partial='ui/elements/common/error.html', error=str(e)), 500
+        return render_template('pages/statistics/statistics_main.html', page_title='Error', main_partial='ui/elements/common/error.html', error=str(e)), 500
 
 def _load_external_generation_data() -> Dict[str, Any]:
     """Load generation data from misc folder files."""
