@@ -1096,6 +1096,116 @@ def api_uptime():
             return 'Uptime: --'
         return jsonify({'error': str(e), 'uptime_formatted': '--'}), 500
 
+@api_bp.route('/header/summary')
+def api_header_summary():
+    """API endpoint: Get header summary with status, tasks, and uptime for HTMX."""
+    try:
+        # Get system status
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        memory = psutil.virtual_memory()
+
+        # Determine status based on resource usage
+        if cpu_percent > 90 or memory.percent > 90:
+            status_class = 'status-indicator-animated bg-orange'
+            status_text = 'Warning'
+        elif cpu_percent > 50 or memory.percent > 80:
+            status_class = 'status-indicator-animated bg-yellow'
+            status_text = 'Moderate'
+        else:
+            status_class = 'status-indicator-animated bg-green'
+            status_text = 'OK'
+
+        # Get active tasks count
+        from app.models import SecurityAnalysis, PerformanceTest, BatchAnalysis
+
+        active_security = SecurityAnalysis.query.filter(
+            SecurityAnalysis.status.in_(['pending', 'running'])
+        ).count()
+
+        active_performance = PerformanceTest.query.filter(
+            PerformanceTest.status.in_(['pending', 'running'])
+        ).count()
+
+        active_batch = BatchAnalysis.query.filter(
+            BatchAnalysis.status.in_(['pending', 'running'])
+        ).count()
+
+        total_active = active_security + active_performance + active_batch
+
+        # Get uptime
+        boot_time = psutil.boot_time()
+        uptime_seconds = datetime.now(timezone.utc).timestamp() - boot_time
+
+        uptime_days = int(uptime_seconds // 86400)
+        uptime_hours = int((uptime_seconds % 86400) // 3600)
+        uptime_minutes = int((uptime_seconds % 3600) // 60)
+
+        # Format uptime for display
+        if uptime_days > 0:
+            uptime_str = f"{uptime_days}d {uptime_hours}h"
+        elif uptime_hours > 0:
+            uptime_str = f"{uptime_hours}h {uptime_minutes}m"
+        else:
+            uptime_str = f"{uptime_minutes}m"
+
+        # Return HTML fragment for HTMX
+        return f'''
+        <span class="d-flex align-items-center me-3" aria-live="polite">
+          <span class="{status_class} me-2" style="width:20px;height:20px;border-radius:50%;display:inline-block;" aria-hidden="true"></span>
+          <small class="text-muted">{status_text}</small>
+        </span>
+
+        <a class="text-muted d-flex align-items-center me-3" href="{{{{ url_for('tasks.tasks_overview') }}}}" title="Active tasks">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3.5 5.5l1.5 1.5l2.5 -2.5"/>
+            <path d="M3.5 11.5l1.5 1.5l2.5 -2.5"/>
+            <path d="M3.5 17.5l1.5 1.5l2.5 -2.5"/>
+            <path d="M11 6l9 0"/>
+            <path d="M11 12l9 0"/>
+            <path d="M11 18l9 0"/>
+          </svg>
+          <small class="text-muted">{total_active}</small>
+        </a>
+
+        <div class="text-muted me-3 d-flex align-items-center" title="Uptime">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/>
+            <path d="M12 7l0 5 3 3"/>
+          </svg>
+          <small class="text-muted">{uptime_str}</small>
+        </div>
+        '''
+
+    except Exception as e:
+        current_app.logger.error(f"Error getting header summary: {e}")
+        # Return fallback HTML on error
+        return '''
+        <span class="d-flex align-items-center me-3" aria-live="polite">
+          <span class="status-indicator-animated bg-red me-2" style="width:20px;height:20px;border-radius:50%;display:inline-block;" aria-hidden="true"></span>
+          <small class="text-muted">Error</small>
+        </span>
+
+        <a class="text-muted d-flex align-items-center me-3" href="#" title="Active tasks">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3.5 5.5l1.5 1.5l2.5 -2.5"/>
+            <path d="M3.5 11.5l1.5 1.5l2.5 -2.5"/>
+            <path d="M3.5 17.5l1.5 1.5l2.5 -2.5"/>
+            <path d="M11 6l9 0"/>
+            <path d="M11 12l9 0"/>
+            <path d="M11 18l9 0"/>
+          </svg>
+          <small class="text-muted">!</small>
+        </a>
+
+        <div class="text-muted me-3 d-flex align-items-center" title="Uptime">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/>
+            <path d="M12 7l0 5 3 3"/>
+          </svg>
+          <small class="text-muted">--</small>
+        </div>
+        '''
+
 @api_bp.route('/analyzer/start', methods=['POST'])
 def start_analyzer_services():
     """Start analyzer services via Docker"""
