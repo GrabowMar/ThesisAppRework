@@ -8,13 +8,12 @@
       "body": {
         "data": {
           "status": "healthy",
-          "timestamp": null,
+          "timestamp": "2025-08-29T20:09:52.028389+00:00",
           "version": "1.0"
         },
-        "error": null,
-        "message": null,
-        "meta": null,
-        "ok": true
+        "message": "Success",
+        "success": true,
+        "timestamp": "2025-08-29T22:09:52.028408"
       }
     },
     "health": {
@@ -1549,7 +1548,7 @@
             "updated_at": "Wed, 27 Aug 2025 17:42:45 GMT"
           }
         ],
-        "timestamp": "2025-08-28T20:34:19.150817+00:00"
+        "timestamp": "2025-08-29T20:09:53.335460+00:00"
       }
     },
     "system_health": {
@@ -1557,34 +1556,23 @@
       "status": 200,
       "ok": true,
       "body": {
-        "analyzers": {
-          "ai": {
-            "port": 2004,
-            "status": "unknown"
-          },
-          "dynamic": {
-            "port": 2003,
-            "status": "unknown"
-          },
-          "performance": {
-            "port": 2002,
-            "status": "unknown"
-          },
-          "security": {
-            "port": 2001,
-            "status": "unknown"
-          }
-        },
         "database": {
-          "available": true,
-          "error": null
+          "error": null,
+          "healthy": true
         },
         "docker": {
           "available": true,
           "containers_running": 12,
           "error": null
         },
-        "timestamp": "2025-08-28T20:34:19.291060+00:00"
+        "issues": [],
+        "status": "healthy",
+        "system": {
+          "cpu_percent": 2.2,
+          "disk_percent": 66.3,
+          "memory_percent": 51.4
+        },
+        "timestamp": "2025-08-29T20:09:54.523429+00:00"
       }
     },
     "analysis_stats": {
@@ -1597,86 +1585,50 @@
     },
     "analysis_start": {
       "url": "http://127.0.0.1:5005/advanced/api/analysis/start",
-      "status": 200,
+      "status": 404,
       "ok": true,
       "body": {
-        "analyses_started": 1,
-        "app_count": 1,
-        "success": true
+        "error": "Not found"
       }
     },
     "ws_status": {
       "url": "http://127.0.0.1:5005/api/websocket/status",
-      "status": 200,
+      "status": 404,
       "ok": true,
       "body": {
-        "active_service": "celery_websocket",
-        "data": {
-          "active_analyses": 0,
-          "connected": true,
-          "last_update": "2025-08-28T20:34:19.308651+00:00",
-          "service": "celery_websocket"
-        },
-        "preference": "celery",
-        "status": "success",
-        "strict": true
+        "error": "Not found"
       }
     },
     "ws_events_clear": {
       "url": "http://127.0.0.1:5005/api/websocket/events/clear",
-      "status": 200,
+      "status": 404,
       "ok": true,
       "body": {
-        "message": "Event log cleared",
-        "status": "success"
+        "error": "Not found"
       }
     },
     "ws_start": {
       "url": "http://127.0.0.1:5005/api/websocket/analysis/start",
-      "status": 200,
+      "status": 404,
       "ok": true,
       "body": {
-        "analysis_id": "6f374a50-eeed-4231-964a-eb51f3d9d953",
-        "message": "Analysis started successfully",
-        "status": "success"
+        "error": "Not found"
       }
     },
     "ws_analyses": {
       "url": "http://127.0.0.1:5005/api/websocket/analyses",
-      "status": 200,
+      "status": 404,
       "ok": true,
       "body": {
-        "analyses": [
-          {
-            "app_number": 1,
-            "created_at": "2025-08-28T20:34:19.417913+00:00",
-            "id": "6f374a50-eeed-4231-964a-eb51f3d9d953",
-            "model_slug": "anthropic_claude-3.7-sonnet",
-            "progress": 0,
-            "status": "queued",
-            "type": "security"
-          }
-        ],
-        "status": "success"
+        "error": "Not found"
       }
     },
     "ws_events": {
       "url": "http://127.0.0.1:5005/api/websocket/events",
-      "status": 200,
+      "status": 404,
       "ok": true,
       "body": {
-        "events": [
-          {
-            "data": {
-              "analysis_id": "6f374a50-eeed-4231-964a-eb51f3d9d953",
-              "status": "started"
-            },
-            "event": "analysis_started",
-            "room": null,
-            "timestamp": "2025-08-28T20:34:19.417941+00:00"
-          }
-        ],
-        "status": "success"
+        "error": "Not found"
       }
     },
     "active_tasks": {

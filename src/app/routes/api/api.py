@@ -946,6 +946,156 @@ def api_system_overview():
         current_app.logger.error(f"Error getting system overview: {e}")
         return jsonify({'error': str(e)}), 500
 
+@api_bp.route('/system/footer-status')
+def api_system_footer_status():
+    """API endpoint: Get system status for footer display."""
+    try:
+        # Quick system health check
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        memory = psutil.virtual_memory()
+
+        # Determine status based on resource usage
+        if cpu_percent > 90 or memory.percent > 90:
+            status = 'warning'
+            status_class = 'status-indicator-animated bg-orange'
+        elif cpu_percent > 50 or memory.percent > 80:
+            status = 'moderate'
+            status_class = 'status-indicator-animated bg-yellow'
+        else:
+            status = 'healthy'
+            status_class = 'status-indicator-animated bg-green'
+
+        data = {
+            'status': status,
+            'status_class': status_class,
+            'cpu_percent': cpu_percent,
+            'memory_percent': memory.percent,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }
+
+        # Return HTML fragment for HTMX requests
+        if request.headers.get('HX-Request'):
+            # Check if this is for header or footer
+            if 'header' in request.headers.get('HX-Target', '').lower() or 'header' in request.path:
+                return f'<span class="status-indicator {status_class} me-1"></span><small class="text-muted">OK</small>'
+            else:
+                return f'''
+                <span class="status-indicator {status_class} me-2"></span>
+                <span class="text-secondary">System OK</span>
+                '''
+
+        return jsonify(data)
+    except Exception as e:
+        current_app.logger.error(f"Error getting footer status: {e}")
+        if request.headers.get('HX-Request'):
+            return '<span class="status-indicator status-indicator-animated bg-red me-2"></span><span class="text-secondary">System Error</span>'
+        return jsonify({
+            'status': 'error',
+            'status_class': 'status-indicator-animated bg-red',
+            'error': str(e)
+        }), 500
+
+@api_bp.route('/tasks/count')
+def api_tasks_count():
+    """API endpoint: Get active tasks count."""
+    try:
+        # Count active tasks from various sources
+        from app.models import SecurityAnalysis, PerformanceTest, BatchAnalysis
+
+        active_security = SecurityAnalysis.query.filter(
+            SecurityAnalysis.status.in_(['pending', 'running'])
+        ).count()
+
+        active_performance = PerformanceTest.query.filter(
+            PerformanceTest.status.in_(['pending', 'running'])
+        ).count()
+
+        active_batch = BatchAnalysis.query.filter(
+            BatchAnalysis.status.in_(['pending', 'running'])
+        ).count()
+
+        total_active = active_security + active_performance + active_batch
+
+        data = {
+            'total_active': total_active,
+            'security': active_security,
+            'performance': active_performance,
+            'batch': active_batch,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }
+
+        # Return HTML fragment for HTMX requests
+        if request.headers.get('HX-Request'):
+            # Check if this is for header or footer
+            if 'header' in request.headers.get('HX-Target', '').lower() or 'header' in request.path:
+                badge_class = 'text-blue' if total_active > 0 else 'text-muted'
+                return f'''<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-list-check me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M3.5 5.5l1.5 1.5l2.5 -2.5"/>
+                <path d="M3.5 11.5l1.5 1.5l2.5 -2.5"/>
+                <path d="M3.5 17.5l1.5 1.5l2.5 -2.5"/>
+                <path d="M11 6l9 0"/>
+                <path d="M11 12l9 0"/>
+                <path d="M11 18l9 0"/>
+              </svg><small class="{badge_class}">{total_active}</small>'''
+            else:
+                badge_class = 'bg-blue' if total_active > 0 else 'bg-secondary'
+                return f'Tasks: <span class="badge {badge_class} ms-1">{total_active}</span>'
+
+        return jsonify(data)
+    except Exception as e:
+        current_app.logger.error(f"Error getting tasks count: {e}")
+        if request.headers.get('HX-Request'):
+            return 'Tasks: <span class="badge bg-red ms-1">!</span>'
+        return jsonify({'error': str(e), 'total_active': 0}), 500
+
+@api_bp.route('/uptime')
+def api_uptime():
+    """API endpoint: Get system uptime."""
+    try:
+        boot_time = psutil.boot_time()
+        uptime_seconds = datetime.now(timezone.utc).timestamp() - boot_time
+
+        uptime_days = int(uptime_seconds // 86400)
+        uptime_hours = int((uptime_seconds % 86400) // 3600)
+        uptime_minutes = int((uptime_seconds % 3600) // 60)
+
+        # Format for display
+        if uptime_days > 0:
+            uptime_str = f"{uptime_days}d {uptime_hours}h"
+        elif uptime_hours > 0:
+            uptime_str = f"{uptime_hours}h {uptime_minutes}m"
+        else:
+            uptime_str = f"{uptime_minutes}m"
+
+        data = {
+            'uptime_seconds': int(uptime_seconds),
+            'uptime_formatted': uptime_str,
+            'days': uptime_days,
+            'hours': uptime_hours,
+            'minutes': uptime_minutes,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }
+
+        # Return HTML fragment for HTMX requests
+        if request.headers.get('HX-Request'):
+            # Check if this is for header or footer
+            if 'header' in request.headers.get('HX-Target', '').lower() or 'header' in request.path:
+                return f'''<svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/>
+                <path d="M12 7l0 5 3 3"/>
+              </svg><small class="text-muted">{uptime_str}</small>'''
+            else:
+                return f'Uptime: {uptime_str}'
+
+        return jsonify(data)
+    except Exception as e:
+        current_app.logger.error(f"Error getting uptime: {e}")
+        if request.headers.get('HX-Request'):
+            return 'Uptime: --'
+        return jsonify({'error': str(e), 'uptime_formatted': '--'}), 500
+
 @api_bp.route('/analyzer/start', methods=['POST'])
 def start_analyzer_services():
     """Start analyzer services via Docker"""

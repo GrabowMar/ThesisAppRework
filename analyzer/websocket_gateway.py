@@ -18,9 +18,9 @@ from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
 
 import websockets
-from websockets.asyncio.server import serve
+from websockets import serve
 try:
-    from websockets.legacy.server import WebSocketServerProtocol  # type: ignore
+    from websockets.server import WebSocketServerProtocol  # type: ignore
 except Exception:  # pragma: no cover
     WebSocketServerProtocol = object  # fallback for type hints
 

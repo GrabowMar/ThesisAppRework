@@ -229,13 +229,11 @@
   {% endif %}
 {% endmacro %}
 
-{# Sidebar collapse toggle button - can be placed anywhere #}
+{# Mobile sidebar toggle button - for mobile devices #}
 {% macro sidebar_toggle_button(extra_classes='') %}
-  <button class="btn btn-outline-primary btn-sm {{ extra_classes }}" 
+  <button class="btn btn-outline-primary btn-sm sidebar-toggle-mobile {{ extra_classes }}"
           type="button"
-          title="Toggle sidebar"
-          _="on click 
-             toggle .navbar-collapsed on #navbar-menu">
+          title="Toggle sidebar">
     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
       <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
       <path d="M4 6l16 0"/>

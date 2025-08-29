@@ -1,0 +1,294 @@
+{#
+  Applications overview page with grid layout and container management.
+#}
+{% extends 'layouts/base.html' %}
+{% block page_title %}Applications{% endblock %}
+{% block main %}
+<div class="page">
+  <div class="page-wrapper">
+    <div class="page-header d-print-none">
+      <div class="container-xl">
+        <div class="row g-2 align-items-center">
+          <div class="col">
+            <h2 class="page-title">Applications</h2>
+            <div class="text-muted mt-1">Generated applications overview and management</div>
+          </div>
+          <div class="col-auto ms-auto d-print-none">
+            <div class="btn-list">
+              <a href="#" class="btn btn-primary d-none d-sm-inline-block" data-bs-toggle="modal" data-bs-target="#generateAppModal">
+                <i class="fas fa-plus me-2"></i>Generate Application
+              </a>
+              <a href="#" class="btn btn-primary d-sm-none btn-icon" data-bs-toggle="modal" data-bs-target="#generateAppModal">
+                <i class="fas fa-plus"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div class="container-xl">
+        <!-- Statistics Cards -->
+        <div class="row row-deck row-cards mb-4">
+          <div class="col-sm-6 col-lg-3">
+            <div class="card">
+              <div class="card-body">
+                <div class="d-flex align-items-center">
+                  <div class="subheader">Total Applications</div>
+                  <div class="ms-auto lh-1">
+                    <div class="text-muted small">Generated</div>
+                  </div>
+                </div>
+                <div class="h1 mb-0">{{ total_apps|default(0) }}</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <div class="card">
+              <div class="card-body">
+                <div class="d-flex align-items-center">
+                  <div class="subheader">Running</div>
+                  <div class="ms-auto lh-1">
+                    <div class="text-success small">Active</div>
+                  </div>
+                </div>
+                <div class="h1 mb-0 text-success">{{ running_containers|default(0) }}</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <div class="card">
+              <div class="card-body">
+                <div class="d-flex align-items-center">
+                  <div class="subheader">Stopped</div>
+                  <div class="ms-auto lh-1">
+                    <div class="text-muted small">Inactive</div>
+                  </div>
+                </div>
+                <div class="h1 mb-0 text-muted">{{ stopped_containers|default(0) }}</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-sm-6 col-lg-3">
+            <div class="card">
+              <div class="card-body">
+                <div class="d-flex align-items-center">
+                  <div class="subheader">Models</div>
+                  <div class="ms-auto lh-1">
+                    <div class="text-info small">Available</div>
+                  </div>
+                </div>
+                <div class="h1 mb-0 text-info">{{ total_models|default(0) }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="card mb-4">
+          <div class="card-body">
+            <form method="GET" class="row g-3" hx-get="/models/applications" hx-target="body" hx-push-url="true">
+              <div class="col-md-4">
+                <label class="form-label">Model</label>
+                <select name="model" class="form-select">
+                  <option value="">All Models</option>
+                  {% for model in available_models %}
+                  <option value="{{ model.slug }}" {% if current_filters.model == model.slug %}selected{% endif %}>
+                    {{ model.display_name }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Provider</label>
+                <select name="provider" class="form-select">
+                  <option value="">All Providers</option>
+                  {% for provider in providers %}
+                  <option value="{{ provider }}" {% if current_filters.provider == provider %}selected{% endif %}>
+                    {{ provider|title }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Search</label>
+                <input type="text" name="search" class="form-control" placeholder="Search models..."
+                       value="{{ current_filters.search|default('') }}">
+              </div>
+              <div class="col-12">
+                <button type="submit" class="btn btn-primary me-2">
+                  <i class="fas fa-search me-2"></i>Filter
+                </button>
+                <a href="/models/applications" class="btn btn-outline-secondary">
+                  <i class="fas fa-times me-2"></i>Clear
+                </a>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Applications Grid -->
+        {% if application_grid %}
+        {% for model_entry in application_grid %}
+        <div class="card mb-4">
+          <div class="card-header">
+            <h3 class="card-title">
+              <i class="fas fa-robot me-2"></i>{{ model_entry.model.model_name }}
+              <small class="text-muted ms-2">{{ model_entry.model.provider }}</small>
+            </h3>
+            <div class="card-actions">
+              <span class="badge bg-info">{{ model_entry.apps_count }} apps</span>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              {% for app in model_entry.apps %}
+              <div class="col-xl-2 col-lg-3 col-md-4 col-sm-6">
+                <div class="card app-card {% if app.exists %}border-primary{% else %}border-secondary{% endif %}">
+                  <div class="card-body text-center p-3">
+                    <div class="mb-2">
+                      {% if app.exists %}
+                        {% if app.status == 'running' %}
+                          <i class="fas fa-play-circle text-success fa-2x"></i>
+                        {% elif app.status == 'stopped' %}
+                          <i class="fas fa-stop-circle text-muted fa-2x"></i>
+                        {% else %}
+                          <i class="fas fa-cog text-warning fa-2x"></i>
+                        {% endif %}
+                      {% else %}
+                        <i class="fas fa-plus-circle text-secondary fa-2x"></i>
+                      {% endif %}
+                    </div>
+                    <h6 class="card-title mb-1">App {{ app.app_number }}</h6>
+                    <div class="small text-muted mb-2">
+                      {% if app.exists %}
+                        {{ app.app_type|title }}
+                      {% else %}
+                        Not Created
+                      {% endif %}
+                    </div>
+                    {% if app.exists %}
+                    <div class="btn-group btn-group-sm w-100" role="group">
+                      {% if app.ports %}
+                      <a href="http://localhost:{{ app.ports.frontend }}" target="_blank"
+                         class="btn btn-outline-primary btn-sm" title="Frontend">
+                        <i class="fas fa-external-link-alt"></i>
+                      </a>
+                      {% if app.ports.backend %}
+                      <a href="http://localhost:{{ app.ports.backend }}" target="_blank"
+                         class="btn btn-outline-info btn-sm" title="Backend">
+                        <i class="fas fa-server"></i>
+                      </a>
+                      {% endif %}
+                      {% endif %}
+                      <a href="/models/application/{{ model_entry.model.canonical_slug }}/{{ app.app_number }}"
+                         class="btn btn-outline-secondary btn-sm" title="Details">
+                        <i class="fas fa-info-circle"></i>
+                      </a>
+                    </div>
+                    {% else %}
+                    <button class="btn btn-outline-primary btn-sm w-100"
+                            onclick="generateApp('{{ model_entry.model.canonical_slug }}', {{ app.app_number }})">
+                      <i class="fas fa-plus me-1"></i>Create
+                    </button>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="card">
+          <div class="card-body text-center py-5">
+            <i class="fas fa-cubes fa-3x text-muted mb-3"></i>
+            <h4 class="text-muted">No Applications Found</h4>
+            <p class="text-muted">No applications have been generated yet. Use the "Generate Application" button to create your first application.</p>
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#generateAppModal">
+              <i class="fas fa-plus me-2"></i>Generate Application
+            </button>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Generate Application Modal -->
+<div class="modal modal-blur fade" id="generateAppModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Generate New Application</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="generateAppForm" hx-post="/models/applications/generate" hx-target="#generateAppForm" hx-swap="innerHTML">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Model</label>
+              <select name="model_slug" class="form-select" required>
+                <option value="">Select Model</option>
+                {% for model in available_models %}
+                <option value="{{ model.slug }}">{{ model.display_name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">App Number</label>
+              <input type="number" name="app_number" class="form-control" min="1" max="30" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Type</label>
+              <select name="app_type" class="form-select">
+                <option value="web_app">Web App</option>
+                <option value="api">API</option>
+                <option value="microservice">Microservice</option>
+                <option value="dashboard">Dashboard</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="auto_start" id="autoStart">
+                <label class="form-check-label" for="autoStart">
+                  Auto-start application after generation
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3">
+            <button type="submit" class="btn btn-primary">
+              <i class="fas fa-cog me-2"></i>Generate Application
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+function generateApp(modelSlug, appNumber) {
+    // Pre-fill the modal form
+    document.querySelector('select[name="model_slug"]').value = modelSlug;
+    document.querySelector('input[name="app_number"]').value = appNumber;
+
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('generateAppModal'));
+    modal.show();
+}
+
+// Handle HTMX events for grid refresh
+document.addEventListener('refresh-grid', function() {
+    // Refresh the page or reload the applications grid
+    window.location.reload();
+});
+</script>
+{% endblock %}
