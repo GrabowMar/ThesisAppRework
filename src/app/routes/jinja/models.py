@@ -10,6 +10,7 @@ from datetime import timedelta
 from flask import Blueprint, request, flash, current_app, Response
 
 from app.extensions import db, deep_merge_dicts, dicts_to_csv
+from sqlalchemy import or_
 from app.models import (
     ModelCapability, GeneratedApplication, SecurityAnalysis, PerformanceTest,
     PortConfiguration, ExternalModelInfoCache
@@ -777,3 +778,82 @@ def export_models_csv():
     except Exception as e:
         current_app.logger.error(f"Error exporting models CSV: {e}")
         return Response('provider,model_name,slug\n', mimetype='text/csv')
+
+@models_bp.route('/filter')
+def models_filter():
+    """HTMX endpoint: Return filtered models grid for dynamic updates."""
+    try:
+        # Get filter parameters
+        search = request.args.get('search', '').strip()
+        provider = request.args.get('provider', '').strip()
+        capabilities = request.args.get('capabilities', '').strip()
+        pricing = request.args.get('pricing', '').strip()
+        sort = request.args.get('sort', 'name')
+
+        # Base query
+        query = ModelCapability.query
+
+        # Apply filters
+        if provider:
+            query = query.filter(ModelCapability.provider.ilike(f'%{provider}%'))
+
+        if search:
+            query = query.filter(
+                or_(
+                    ModelCapability.model_name.ilike(f'%{search}%'),
+                    ModelCapability.provider.ilike(f'%{search}%'),
+                    ModelCapability.canonical_slug.ilike(f'%{search}%')
+                )
+            )
+
+        if pricing:
+            if pricing == 'free':
+                query = query.filter(ModelCapability.is_free)
+            elif pricing == 'paid':
+                query = query.filter(~ModelCapability.is_free)
+
+        # Apply sorting
+        if sort == 'provider':
+            query = query.order_by(ModelCapability.provider, ModelCapability.model_name)
+        elif sort == 'cost':
+            # Sort by pricing (this is approximate since pricing comes from OpenRouter)
+            query = query.order_by(ModelCapability.provider, ModelCapability.model_name)
+        else:  # name
+            query = query.order_by(ModelCapability.model_name)
+
+        models = query.all()
+
+        # Enrich models with OpenRouter data and filter by capabilities
+        enriched_models = []
+        for model in models:
+            enriched_data = openrouter_service.enrich_model_data(model)
+            app_count = GeneratedApplication.query.filter_by(model_slug=model.canonical_slug).count()
+            enriched_data['apps_count'] = app_count
+
+            # Filter by capabilities if specified
+            if capabilities:
+                model_caps = enriched_data.get('capabilities', {})
+                cap_supported = False
+
+                if capabilities == 'text' and model_caps.get('text'):
+                    cap_supported = True
+                elif capabilities == 'vision' and (model_caps.get('vision') or model_caps.get('images')):
+                    cap_supported = True
+                elif capabilities == 'multimodal' and model_caps.get('multimodal'):
+                    cap_supported = True
+                elif capabilities == 'function_calling' and model_caps.get('function_calling'):
+                    cap_supported = True
+                elif capabilities == 'streaming' and model_caps.get('streaming'):
+                    cap_supported = True
+
+                if not cap_supported:
+                    continue
+
+            enriched_models.append(enriched_data)
+
+        # Return just the models grid
+        return render_template('pages/models/partials/models-grid.html', models=enriched_models)
+
+    except Exception as e:
+        current_app.logger.error(f"Error filtering models: {e}")
+        return f'<div class="alert alert-danger">Error filtering models: {str(e)}</div>', 500

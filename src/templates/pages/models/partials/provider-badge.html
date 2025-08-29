@@ -1,0 +1,150 @@
+{#
+  Provider Badge Component - AI Model Provider Indicator
+
+  Displays provider information with branding and status.
+  Adapted for new template structure.
+#}
+
+{%- set provider = provider|default('Unknown') -%}
+{%- set model_count = model_count|default(0) -%}
+{%- set status = status|default('active') -%}
+{%- set style = style|default('default') -%}
+{%- set size = size|default('default') -%}
+
+{# Provider configuration #}
+{%- set provider_config = {
+  'OpenAI': {
+    'color': '#00a67e',
+    'bg_class': 'bg-success',
+    'text_class': 'text-success',
+    'icon': 'fas fa-robot'
+  },
+  'Anthropic': {
+    'color': '#d97706',
+    'bg_class': 'bg-warning',
+    'text_class': 'text-warning',
+    'icon': 'fas fa-brain'
+  },
+  'Google': {
+    'color': '#1a73e8',
+    'bg_class': 'bg-primary',
+    'text_class': 'text-primary',
+    'icon': 'fab fa-google'
+  },
+  'Microsoft': {
+    'color': '#0078d4',
+    'bg_class': 'bg-info',
+    'text_class': 'text-info',
+    'icon': 'fab fa-microsoft'
+  },
+  'Meta': {
+    'color': '#1877f2',
+    'bg_class': 'bg-primary',
+    'text_class': 'text-primary',
+    'icon': 'fab fa-meta'
+  },
+  'Cohere': {
+    'color': '#6b46c1',
+    'bg_class': 'bg-purple',
+    'text_class': 'text-purple',
+    'icon': 'fas fa-layer-group'
+  }
+} -%}
+
+{%- set config = provider_config.get(provider, {
+  'color': '#6c757d',
+  'bg_class': 'bg-secondary',
+  'text_class': 'text-secondary',
+  'icon': 'fas fa-question-circle'
+}) -%}
+
+{# Size classes #}
+{%- set size_classes = {
+  'sm': 'provider-badge-sm',
+  'default': '',
+  'lg': 'provider-badge-lg'
+} -%}
+
+{# Status configuration #}
+{%- set status_config = {
+  'active': {'color': 'success', 'icon': 'fas fa-check-circle', 'text': 'Active'},
+  'limited': {'color': 'warning', 'icon': 'fas fa-exclamation-triangle', 'text': 'Limited'},
+  'maintenance': {'color': 'info', 'icon': 'fas fa-wrench', 'text': 'Maintenance'},
+  'deprecated': {'color': 'danger', 'icon': 'fas fa-times-circle', 'text': 'Deprecated'},
+  'unknown': {'color': 'secondary', 'icon': 'fas fa-question-circle', 'text': 'Unknown'}
+} -%}
+
+{%- set status_info = status_config.get(status, status_config['unknown']) -%}
+
+<div class="provider-badge {{ size_classes.get(size, '') }} {{ style }}"
+     data-provider="{{ provider }}"
+     data-status="{{ status }}">
+
+  {% if style == 'minimal' %}
+    <!-- Minimal Style -->
+    <span class="badge {{ config.bg_class }} {{ size_classes.get(size, '') }}">
+      <i class="{{ config.icon }} me-1"></i>
+      {{ provider }}
+      {% if model_count > 0 %}
+      <span class="ms-1">({{ model_count }})</span>
+      {% endif %}
+    </span>
+
+  {% elif style == 'compact' %}
+    <!-- Compact Style -->
+    <div class="d-flex align-items-center">
+      <div class="provider-icon me-2">
+        <i class="{{ config.icon }} {{ config.text_class }}"></i>
+      </div>
+      <div class="provider-info">
+        <div class="fw-bold small">{{ provider }}</div>
+        {% if model_count > 0 %}
+        <small class="text-muted">{{ model_count }} models</small>
+        {% endif %}
+      </div>
+      <div class="ms-auto">
+        <span class="status-indicator bg-{{ status_info.color }}"></span>
+      </div>
+    </div>
+
+  {% elif style == 'card' %}
+    <!-- Card Style -->
+    <div class="card">
+      <div class="card-body text-center py-3">
+        <i class="{{ config.icon }} fa-2x {{ config.text_class }} mb-2"></i>
+        <h6 class="card-title mb-1">{{ provider }}</h6>
+        {% if model_count > 0 %}
+        <p class="card-text small text-muted">{{ model_count }} models available</p>
+        {% endif %}
+        <span class="badge bg-{{ status_info.color }}">
+          <i class="{{ status_info.icon }} me-1"></i>
+          {{ status_info.text }}
+        </span>
+      </div>
+    </div>
+
+  {% else %}
+    <!-- Default Style -->
+    <div class="d-flex align-items-center">
+      <div class="provider-icon me-3">
+        <div class="icon-container {{ config.bg_class }}">
+          <i class="{{ config.icon }} text-white"></i>
+        </div>
+      </div>
+      <div class="provider-info flex-grow-1">
+        <div class="d-flex align-items-center justify-content-between">
+          <div>
+            <h6 class="provider-name mb-0">{{ provider }}</h6>
+            {% if model_count > 0 %}
+            <small class="text-muted">{{ model_count }} models</small>
+            {% endif %}
+          </div>
+          <span class="badge bg-{{ status_info.color }}">
+            <i class="{{ status_info.icon }} me-1"></i>
+            {{ status_info.text }}
+          </span>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>

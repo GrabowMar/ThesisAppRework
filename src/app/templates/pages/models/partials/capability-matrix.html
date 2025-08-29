@@ -1,0 +1,44 @@
+{% set capabilities = model.capabilities or {} %}
+
+<div class="mb-3">
+    <div class="row g-1">
+        <div class="col-6">
+            <small class="text-muted d-block mb-1">Text</small>
+            {% if capabilities.text %}
+            <i class="fas fa-check text-success"></i>
+            {% else %}
+            <i class="fas fa-times text-muted"></i>
+            {% endif %}
+        </div>
+        <div class="col-6">
+            <small class="text-muted d-block mb-1">Vision</small>
+            {% if capabilities.vision or capabilities.images %}
+            <i class="fas fa-check text-success"></i>
+            {% else %}
+            <i class="fas fa-times text-muted"></i>
+            {% endif %}
+        </div>
+        <div class="col-6">
+            <small class="text-muted d-block mb-1">Functions</small>
+            {% if capabilities.function_calling %}
+            <i class="fas fa-check text-success"></i>
+            {% else %}
+            <i class="fas fa-times text-muted"></i>
+            {% endif %}
+        </div>
+        <div class="col-6">
+            <small class="text-muted d-block mb-1">Streaming</small>
+            {% if capabilities.streaming %}
+            <i class="fas fa-check text-success"></i>
+            {% else %}
+            <i class="fas fa-times text-muted"></i>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if capabilities.multimodal %}
+<div class="mb-2">
+    <span class="badge bg-info">Multimodal</span>
+</div>
+{% endif %}

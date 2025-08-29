@@ -1,0 +1,36 @@
+{#
+  Models Grid Partial - HTMX response for filtered models
+
+  Returns just the models grid for dynamic updates.
+#}
+
+<div id="models-grid" class="row row-cards">
+  {% for model in models %}
+  <div class="col-md-6 col-lg-4 col-xl-3 mb-4">
+    {% include 'pages/models/partials/model-card.html' %}
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Loading indicator (hidden by default) -->
+<div id="loading-indicator" class="d-none text-center py-4">
+  <div class="spinner-border text-primary" role="status">
+    <span class="visually-hidden">Loading...</span>
+  </div>
+  <div class="mt-2">Loading models...</div>
+</div>
+
+<!-- Empty state -->
+{% if not models %}
+<div class="text-center py-5">
+  <div class="empty">
+    <div class="empty-icon">
+      <i class="fas fa-robot fa-3x text-muted"></i>
+    </div>
+    <p class="empty-title h3">No models found</p>
+    <p class="empty-subtitle text-muted">
+      Try adjusting your search criteria.
+    </p>
+  </div>
+</div>
+{% endif %}
