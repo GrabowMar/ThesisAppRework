@@ -12,7 +12,7 @@ if SRC_PATH not in sys.path:
 
 from app.extensions import db  # type: ignore  # noqa: E402
 from app.models import BatchAnalysis  # type: ignore  # noqa: E402
-from app.routes.analysis import new_analysis_api as batch_bp  # type: ignore  # noqa: E402
+from app.routes.jinja import analysis_bp as batch_bp  # type: ignore  # noqa: E402
 
 
 @pytest.fixture()

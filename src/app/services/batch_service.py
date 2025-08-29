@@ -645,4 +645,29 @@ batch_validation_service = BatchValidationService()
 batch_execution_service = BatchExecutionService()
 
 
+# Create a batch_service instance for backward compatibility
+class BatchService:
+    """Main batch service class for backward compatibility."""
+    
+    def __init__(self):
+        self.template_service = batch_template_service
+        self.validation_service = batch_validation_service
+        self.execution_service = batch_execution_service
+    
+    def get_templates(self):
+        """Get available batch templates."""
+        return self.template_service.get_default_templates()
+    
+    def validate_config(self, **kwargs):
+        """Validate batch configuration."""
+        return self.validation_service.validate_batch_config(**kwargs)
+    
+    def execute_batch(self, **kwargs):
+        """Execute a batch."""
+        return self.execution_service.execute_batch(**kwargs)
+
+
+batch_service = BatchService()
+
+
 

@@ -13,6 +13,7 @@ from .service_locator import ServiceLocator
 from .docker_manager import DockerManager
 from .task_service import BatchAnalysisService, batch_service
 from .security_service import SecurityService, security_service
+from .analysis_service import AnalysisService, analysis_service
 # from .task_manager import TaskManager  # Module not found
 # from .analyzer_integration import AnalyzerIntegration  # Temporarily disabled
 from .model_service import ModelService
@@ -28,7 +29,8 @@ __all__ = [
     'batch_service',
     'SecurityService',
     'security_service',
+    'AnalysisService',
+    'analysis_service',
     # 'TaskManager',  # Module not found
-    'AnalyzerIntegration',
     'ModelService',
 ]
