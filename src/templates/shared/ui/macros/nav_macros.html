@@ -1,0 +1,11 @@
+{#
+  Navigation Macros
+  Provides helpers for rendering nav links with active state evaluation.
+#}
+{% macro nav_link(endpoint, label, icon_svg, extra_classes='') %}
+  {%- set is_active = (request.endpoint == endpoint) or (request.endpoint and request.endpoint.startswith(endpoint + '.')) -%}
+  <a class="nav-link {{ 'active' if is_active }} {{ extra_classes }}" href="{{ url_for(endpoint) }}">
+    <span class="nav-link-icon d-md-none d-lg-inline-block">{{ icon_svg|safe }}</span>
+    <span class="nav-link-title">{{ label }}</span>
+  </a>
+{% endmacro %}

@@ -110,6 +110,17 @@ def analysis_dashboard():
     
     return render_template('pages/analysis/dashboard_main.html', dashboard_data=dashboard_data)
 
+# Temporary compatibility alias (legacy templates may still reference 'analysis.dashboard')
+@new_analysis_api.route('/legacy-dashboard')
+def legacy_dashboard_alias():  # pragma: no cover - thin redirect
+    """Redirect legacy dashboard path to canonical endpoint.
+
+    This helps avoid 500 errors while residual references are cleaned up.
+    Remove after all templates/tests use analysis.analysis_dashboard.
+    """
+    from flask import redirect, url_for
+    return redirect(url_for('analysis.analysis_dashboard'), code=302)
+
 @new_analysis_api.route('/list')
 def analysis_list():
     """Render analysis hub/list page.

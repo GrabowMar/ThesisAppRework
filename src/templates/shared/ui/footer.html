@@ -8,13 +8,14 @@
       <div class="col-lg-auto ms-lg-auto">
         <ul class="list-inline list-inline-dots mb-0">
           <li class="list-inline-item">
-            <a href="{{ url_for('about.about') }}" class="link-secondary">About</a>
+            {# Updated endpoint: the about page lives on the 'main' blueprint (#main.about) #}
+            <a href="{{ url_for('main.about') }}" class="link-secondary">About</a>
           </li>
           <li class="list-inline-item">
-            <a href="{{ url_for('system.status') }}" class="link-secondary">System Status</a>
+            <a href="{{ url_for('main.system_status') }}" class="link-secondary">System Status</a>
           </li>
           <li class="list-inline-item">
-            <a href="{{ url_for('tasks.overview') }}" class="link-secondary">Tasks</a>
+            <a href="{{ url_for('tasks.tasks_overview') }}" class="link-secondary">Tasks</a>
           </li>
         </ul>
       </div>

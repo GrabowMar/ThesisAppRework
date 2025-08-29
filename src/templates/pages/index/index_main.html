@@ -10,16 +10,49 @@
 {% block page_title %}Dashboard{% endblock %}
 {% block main %}
   <div class="container py-4">
-    <div class="d-flex align-items-center gap-2 flex-wrap mb-4" data-component="root-dashboard-header">
-      <h1 class="h3 mb-0">Dashboard</h1>
-    </div>
+    {% include 'pages/index/partials/header.html' %}
+
     <div class="d-grid gap-4" data-component="root-dashboard">
-      <section class="card" aria-labelledby="welcome-heading">
-        <div class="card-header py-2"><h2 id="welcome-heading" class="h6 mb-0">Welcome</h2></div>
-        <div class="card-body small">
-          <p class="mb-0">This space will aggregate cross-domain metrics (models, analyses, tasks, system health) as they are migrated.</p>
+      <div class="row">
+        <div class="col-12 mb-4">
+          {% include 'pages/index/partials/quick_actions.html' %}
         </div>
-      </section>
+
+        <div class="col-12 mb-4">
+          {% include 'pages/index/partials/stats.html' %}
+        </div>
+
+        <div class="col-12 mb-4">
+          {% include 'pages/index/partials/system_health.html' %}
+        </div>
+
+        <div class="col-12 mb-4">
+          {% include 'pages/index/partials/analysis_chart.html' %}
+        </div>
+
+        <div class="col-12 mb-4">
+          {% include 'pages/index/partials/quick_actions.html' %}
+        </div>
+
+        <div class="col-lg-6 mb-4">
+          {% include 'pages/index/partials/recent_activity.html' %}
+        </div>
+
+        <div class="col-lg-6 mb-4">
+          {% include 'pages/index/partials/service_status.html' %}
+        </div>
+
+        <div class="col-12 mb-4">
+          {% include 'pages/index/partials/top_models.html' %}
+        </div>
+      </div>
     </div>
+
+    {% include 'pages/index/partials/modal.html' %}
   </div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  {% include 'pages/index/partials/scripts.html' %}
 {% endblock %}

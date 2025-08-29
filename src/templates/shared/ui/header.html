@@ -6,7 +6,7 @@
   <div class="container-xl">
     {# Brand #}
     <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3">
-      <a href="{{ url_for('index.index') }}">
+      <a href="{{ url_for('main.dashboard') }}">
         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chart-line" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
           <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
           <path d="M4 19l16 0"/>
@@ -57,7 +57,7 @@
           </div>
         </a>
         <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
-          <a href="{{ url_for('system.status') }}" class="dropdown-item">
+          <a href="{{ url_for('main.system_status') }}" class="dropdown-item">
             <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
               <path d="M3 12a9 9 0 0 0 9 9a9 9 0 0 0 9 -9a9 9 0 0 0 -9 -9"/>
@@ -66,7 +66,7 @@
             </svg>
             System Status
           </a>
-          <a href="{{ url_for('tasks.overview') }}" class="dropdown-item">
+          <a href="{{ url_for('tasks.tasks_overview') }}" class="dropdown-item">
             <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
               <path d="M9 12l2 2l4 -4"/>
@@ -75,7 +75,7 @@
             </svg>
             Task Manager
           </a>
-          <a href="{{ url_for('statistics.overview') }}" class="dropdown-item">
+          <a href="{{ url_for('statistics.statistics_overview') }}" class="dropdown-item">
             <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
               <path d="M3 12h4l3 8l4 -16l3 8h4"/>
@@ -83,7 +83,8 @@
             Statistics
           </a>
           <div class="dropdown-divider"></div>
-          <a href="{{ url_for('about.about') }}" class="dropdown-item">
+          {# Updated to correct blueprint endpoint main.about #}
+          <a href="{{ url_for('main.about') }}" class="dropdown-item">
             <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
               <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/>
@@ -108,17 +109,8 @@
   <div class="d-flex flex-column flex-md-row flex-fill align-items-stretch align-items-md-center">
     <ul class="navbar-nav">
       <li class="nav-item">
-        <a class="nav-link" href="{{ url_for('index.index') }}">
-          <span class="nav-link-icon d-md-none d-lg-inline-block">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M5 12l-2 0l9 -9l9 9l-2 0"/>
-              <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/>
-              <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"/>
-            </svg>
-          </span>
-          <span class="nav-link-title">Dashboard</span>
-        </a>
+        {% from 'shared/ui/macros/nav_macros.html' import nav_link %}
+        {{ nav_link('main.dashboard', 'Dashboard', '<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l-2 0l9 -9l9 9l-2 0"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/><path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"/></svg>') }}
       </li>
       <li class="nav-item dropdown">
         <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="outside" role="button" aria-expanded="false">
@@ -133,7 +125,7 @@
         <div class="dropdown-menu">
           <div class="dropdown-menu-columns">
             <div class="dropdown-menu-column">
-              <a class="dropdown-item" href="{{ url_for('analysis.hub') }}">
+              <a class="dropdown-item" href="{{ url_for('analysis.analysis_index') }}">
                 <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                   <path d="M12 3l8 4.5v9l-8 4.5l-8 -4.5v-9l8 -4.5"/>
@@ -143,7 +135,8 @@
                 </svg>
                 Analysis Hub
               </a>
-              <a class="dropdown-item" href="{{ url_for('analysis.dashboard') }}">
+              {# Endpoint corrected: analysis.dashboard -> analysis.analysis_dashboard #}
+              <a class="dropdown-item" href="{{ url_for('analysis.analysis_dashboard') }}">
                 <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                   <path d="M12 20l-3 -3h-2a3 3 0 0 1 -3 -3v-6a3 3 0 0 1 3 -3h10a3 3 0 0 1 3 3v6a3 3 0 0 1 -3 3h-2l-3 3z"/>
@@ -156,7 +149,7 @@
         </div>
       </li>
       <li class="nav-item">
-        <a class="nav-link" href="{{ url_for('models.overview') }}">
+        <a class="nav-link" href="{{ url_for('main.models_overview') }}">
           <span class="nav-link-icon d-md-none d-lg-inline-block">
             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -170,7 +163,7 @@
         </a>
       </li>
       <li class="nav-item">
-        <a class="nav-link" href="{{ url_for('applications.index') }}">
+        <a class="nav-link" href="{{ url_for('models.applications') }}">
           <span class="nav-link-icon d-md-none d-lg-inline-block">
             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -186,7 +179,7 @@
         </a>
       </li>
       <li class="nav-item">
-        <a class="nav-link" href="{{ url_for('reports.index') }}">
+        <a class="nav-link" href="{{ url_for('reports.reports_index') }}">
           <span class="nav-link-icon d-md-none d-lg-inline-block">
             <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <path stroke="none" d="M0 0h24v24H0z" fill="none"/>

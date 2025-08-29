@@ -1,700 +1,237 @@
-/*!
- * ThesisApp Custom Theme
- * Bootstrap 5 based theme with custom design tokens and components
- */
+/* Enhanced Sidebar Styles for Modern Tabler Layout */
 
-/* ==========================================
-   CSS Custom Properties (Design Tokens)
-   ========================================== */
-
-:root {
-  /* Color Palette */
-  --app-color-primary: #0d6efd;
-  --app-color-secondary: #6c757d;
-  --app-color-success: #198754;
-  --app-color-warning: #ffc107;
-  --app-color-danger: #dc3545;
-  --app-color-info: #0dcaf0;
-  --app-color-light: #f8f9fa;
-  --app-color-dark: #212529;
-  
-  /* Extended Color Palette */
-  --app-color-accent: #7c3aed;
-  --app-color-surface: #ffffff;
-  --app-color-surface-alt: #f1f3f4;
-  --app-color-border: #dee2e6;
-  --app-color-text: #212529;
-  --app-color-text-muted: #6c757d;
-  --app-color-text-light: #ffffff;
-  
-  /* Status Colors */
-  --app-status-running: var(--app-color-warning);
-  --app-status-completed: var(--app-color-success);
-  --app-status-failed: var(--app-color-danger);
-  --app-status-pending: var(--app-color-info);
-  --app-status-queued: var(--app-color-secondary);
-  
-  /* Typography */
-  --app-font-family-base: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif;
-  --app-font-family-monospace: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --app-font-size-base: 1rem;
-  --app-font-size-sm: 0.875rem;
-  --app-font-size-lg: 1.125rem;
-  --app-line-height-base: 1.5;
-  --app-font-weight-normal: 400;
-  --app-font-weight-medium: 500;
-  --app-font-weight-semibold: 600;
-  --app-font-weight-bold: 700;
-  
-  /* Spacing */
-  --app-spacing-xs: 0.25rem;
-  --app-spacing-sm: 0.5rem;
-  --app-spacing-md: 1rem;
-  --app-spacing-lg: 1.5rem;
-  --app-spacing-xl: 2rem;
-  --app-spacing-xxl: 3rem;
-  
-  /* Border Radius */
-  --app-border-radius-sm: 0.375rem;
-  --app-border-radius: 0.5rem;
-  --app-border-radius-lg: 0.75rem;
-  --app-border-radius-xl: 1rem;
-  
-  /* Shadows */
-  --app-shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-  --app-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
-  --app-shadow-lg: 0 1rem 3rem rgba(0, 0, 0, 0.175);
-  
-  /* Transitions */
-  --app-transition-base: all 0.15s ease-in-out;
-  --app-transition-fast: all 0.1s ease-in-out;
-  --app-transition-slow: all 0.3s ease-in-out;
-}
-
-/* Dark mode overrides */
-[data-bs-theme="dark"] {
-  --app-color-surface: #1a1a1a;
-  --app-color-surface-alt: #2d2d2d;
-  --app-color-border: #404040;
-  --app-color-text: #ffffff;
-  --app-color-text-muted: #adb5bd;
-}
-
-/* ==========================================
-   Base Styles and Utilities
-   ========================================== */
-
-body {
-  font-family: var(--app-font-family-base);
-  font-size: var(--app-font-size-base);
-  line-height: var(--app-line-height-base);
-  color: var(--app-color-text);
-}
-
-/* Focus styles for accessibility */
-.btn:focus,
-.form-control:focus,
-.form-select:focus {
-  box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.25);
-}
-
-/* Skip to main content link */
-.visually-hidden-focusable:focus {
-  position: absolute !important;
-  width: auto !important;
-  height: auto !important;
-  padding: 0.5rem 1rem;
-  margin: 0.25rem;
-  background-color: var(--app-color-primary);
-  color: var(--app-color-text-light);
-  border-radius: var(--app-border-radius);
-  text-decoration: none;
-  z-index: 9999;
-}
-
-/* ==========================================
-   Custom Component Classes
-   ========================================== */
-
-/* Analysis Cards */
-.c-analysis-card {
-  transition: var(--app-transition-base);
-  border: none;
-  border-radius: var(--app-border-radius-lg);
-  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-  box-shadow: var(--app-shadow-sm);
-}
-
-.c-analysis-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--app-shadow);
-}
-
-/* Metric Cards */
-.c-metric-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-  border: 1px solid var(--app-color-border);
-  border-radius: var(--app-border-radius-lg);
-  transition: var(--app-transition-base);
-}
-
-.c-metric-card:hover {
-  border-color: var(--app-color-primary);
-  box-shadow: 0 4px 15px rgba(13, 110, 253, 0.1);
-}
-
-/* Status Indicators */
-.c-status-indicator {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  display: inline-block;
-  margin-right: 8px;
-}
-
-.c-status-indicator.is-running {
-  background-color: var(--app-status-running);
-}
-
-.c-status-indicator.is-completed {
-  background-color: var(--app-status-completed);
-}
-
-.c-status-indicator.is-failed {
-  background-color: var(--app-status-failed);
-}
-
-.c-status-indicator.is-pending {
-  background-color: var(--app-status-pending);
-}
-
-.c-status-indicator.is-queued {
-  background-color: var(--app-status-queued);
-}
-
-/* Analyzer Status Badges */
-.c-analyzer-status {
-  padding: 8px 12px;
-  border-radius: 20px;
-  font-size: var(--app-font-size-sm);
-  font-weight: var(--app-font-weight-medium);
-}
-
-.c-analyzer-status.is-healthy {
-  background-color: #d4edda;
-  color: #155724;
-}
-
-.c-analyzer-status.is-warning {
-  background-color: #fff3cd;
-  color: #856404;
-}
-
-.c-analyzer-status.is-error {
-  background-color: #f8d7da;
-  color: #721c24;
-}
-
-/* Activity Items */
-.c-activity-item {
-  padding: var(--app-spacing-md);
-  border-radius: var(--app-border-radius);
-  margin-bottom: var(--app-spacing-sm);
-  background-color: var(--app-color-surface-alt);
-  border-left: 4px solid var(--app-color-primary);
-  transition: var(--app-transition-base);
-}
-
-.c-activity-item:hover {
-  background-color: #ffffff;
-  box-shadow: var(--app-shadow-sm);
-}
-
-/* Chart Containers */
-.c-chart-container {
-  position: relative;
-  height: 300px;
-  background: var(--app-color-surface);
-  border-radius: var(--app-border-radius);
-  padding: var(--app-spacing-lg);
-  border: 1px solid var(--app-color-border);
-}
-
-/* Progress Rings */
-.c-progress-ring {
-  width: 60px;
-  height: 60px;
-}
-
-/* Loading States */
-.c-loading-overlay {
-  position: absolute;
+/* Sidebar Base Styles */
+.navbar-vertical {
+  width: 280px;
+  position: fixed;
   top: 0;
   left: 0;
-  right: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.8);
+  z-index: 1030;
+  background: var(--tblr-navbar-bg, #1e293b);
+  border-right: 1px solid var(--tblr-border-color-translucent);
+  transition: all 0.3s ease;
+}
+
+/* Brand Enhancements */
+.navbar-brand {
+  padding: 1.25rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.navbar-brand-text {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+/* Navigation Improvements */
+.navbar-nav {
+  padding: 0 0.75rem;
+  flex-direction: column;
+  flex: 1;
+}
+
+.nav-item {
+  margin-bottom: 0.25rem;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  color: var(--tblr-navbar-color, rgba(255, 255, 255, 0.7));
+  border-radius: 0.5rem;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.nav-link:hover {
+  color: var(--tblr-navbar-hover-color, #ffffff);
+  background-color: var(--tblr-navbar-hover-bg, rgba(255, 255, 255, 0.05));
+  transform: translateX(2px);
+}
+
+.nav-link.active {
+  color: var(--tblr-primary, #0054a6);
+  background-color: var(--tblr-primary-bg-subtle, rgba(0, 84, 166, 0.1));
+  border: 1px solid var(--tblr-primary-border-subtle, rgba(0, 84, 166, 0.2));
+}
+
+/* Icon Styling */
+.nav-link-icon {
+  margin-right: 0.75rem;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: inherit;
-  z-index: 10;
+  flex-shrink: 0;
 }
 
-.c-loading-spinner {
-  display: inline-block;
+/* Dropdown Enhancements */
+.dropdown-toggle::after {
+  margin-left: auto;
+  transition: transform 0.2s ease;
 }
 
-.c-loading-spinner.is-sm {
-  width: 1rem;
-  height: 1rem;
+.dropdown[show] .dropdown-toggle::after {
+  transform: rotate(180deg);
 }
 
-.c-loading-spinner.is-lg {
-  width: 2rem;
-  height: 2rem;
-}
-
-/* Button Loading States */
-.btn.is-loading {
-  position: relative;
-  color: transparent !important;
-}
-
-.btn.is-loading::after {
-  content: "";
-  position: absolute;
-  width: 1rem;
-  height: 1rem;
-  top: 50%;
-  left: 50%;
-  margin-left: -0.5rem;
-  margin-top: -0.5rem;
-  border: 2px solid transparent;
-  border-top-color: currentColor;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* ==========================================
-   Layout-Specific Styles
-   ========================================== */
-
-/* Dashboard Layout */
-.dashboard-layout {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.dashboard-content {
-  flex: 1;
-}
-
-/* Full-width Layout */
-.full-width-layout {
-  min-height: 100vh;
-}
-
-.full-width-layout .container-fluid {
-  padding-left: 0;
-  padding-right: 0;
-}
-
-/* Single-page Layout */
-.single-page-layout {
-  min-height: 100vh;
-  background-color: var(--app-color-surface-alt);
-}
-
-.single-page-content {
-  min-height: calc(100vh - 120px);
-  background: var(--app-color-surface);
-  border-radius: var(--app-border-radius-lg);
-  margin: var(--app-spacing-lg);
-  padding: var(--app-spacing-xl);
-  box-shadow: var(--app-shadow);
-}
-
-/* ==========================================
-   Bootstrap Customizations
-   ========================================== */
-
-/* Card Enhancements */
-.card {
-  border: 1px solid var(--app-color-border);
-  box-shadow: var(--app-shadow-sm);
-}
-
-.card-header {
-  background-color: var(--app-color-surface-alt);
-  border-bottom: 1px solid var(--app-color-border);
-  font-weight: var(--app-font-weight-medium);
-}
-
-/* Button Enhancements */
-.btn {
-  font-weight: var(--app-font-weight-medium);
-  transition: var(--app-transition-base);
-}
-
-.btn-primary {
-  background-color: var(--app-color-primary);
-  border-color: var(--app-color-primary);
-}
-
-.btn-accent {
-  background-color: var(--app-color-accent);
-  border-color: var(--app-color-accent);
-  color: var(--app-color-text-light);
-}
-
-.btn-accent:hover {
-  background-color: #6d28d9;
-  border-color: #6d28d9;
-}
-
-/* Form Enhancements */
-.form-control:focus,
-.form-select:focus {
-  border-color: var(--app-color-primary);
-  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-}
-
-/* Badge Enhancements */
-.badge {
-  font-weight: var(--app-font-weight-medium);
-}
-
-/* Alert Enhancements */
-.alert {
-  border: none;
-  border-left: 4px solid;
-}
-
-.alert-primary {
-  border-left-color: var(--app-color-primary);
-}
-
-.alert-success {
-  border-left-color: var(--app-color-success);
-}
-
-.alert-warning {
-  border-left-color: var(--app-color-warning);
-}
-
-.alert-danger {
-  border-left-color: var(--app-color-danger);
-}
-
-/* Table Enhancements */
-.table {
-  --bs-table-hover-color: var(--app-color-text);
-  --bs-table-hover-bg: var(--app-color-surface-alt);
-}
-
-.table th {
-  font-weight: var(--app-font-weight-semibold);
-  color: var(--app-color-text-muted);
-  font-size: var(--app-font-size-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-/* Navigation Enhancements */
-.navbar-brand {
-  font-weight: var(--app-font-weight-bold);
-}
-
-.nav-link {
-  font-weight: var(--app-font-weight-medium);
-}
-
-/* ==========================================
-   Responsive Design
-   ========================================== */
-
-/* Mobile Optimizations */
-@media (max-width: 768px) {
-  .c-metric-card {
-    margin-bottom: var(--app-spacing-md);
-  }
-  
-  .c-chart-container {
-    height: 250px;
-    padding: var(--app-spacing-md);
-  }
-  
-  .single-page-content {
-    margin: var(--app-spacing-sm);
-    padding: var(--app-spacing-lg);
-  }
-}
-
-/* ==========================================
-   Accessibility Enhancements
-   ========================================== */
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-  :root {
-    --app-color-border: #000000;
-    --app-color-text-muted: #000000;
-  }
-  
-  .c-metric-card,
-  .c-analysis-card {
-    border: 2px solid var(--app-color-border);
-  }
-}
-
-/* Reduced motion support */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-  
-  .c-analysis-card:hover,
-  .c-metric-card:hover {
-    transform: none;
-  }
-}
-
-/* Focus visible for keyboard navigation */
-.btn:focus-visible,
-.form-control:focus-visible,
-.form-select:focus-visible,
-.nav-link:focus-visible {
-  outline: 2px solid var(--app-color-primary);
-  outline-offset: 2px;
-}
-
-/* ==========================================
-   Tabler Integration Styles
-   ========================================== */
-
-/* Tabler Layout Overrides */
-.page {
-  min-height: 100vh;
-}
-
-.page-wrapper {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.page-body {
-  flex: 1;
-}
-
-/* Tabler Card Enhancements */
-.card {
-  box-shadow: var(--tblr-box-shadow-card);
-  border: 1px solid var(--tblr-border-color);
-}
-
-.card-header {
-  background-color: var(--tblr-card-cap-bg);
-  border-bottom: 1px solid var(--tblr-border-color);
-  font-weight: var(--tblr-font-weight-medium);
-}
-
-/* Tabler Status Indicators */
-.status-indicator {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 6px;
-}
-
-.status-green {
-  background-color: var(--tblr-green);
-}
-
-.status-yellow {
-  background-color: var(--tblr-yellow);
-}
-
-.status-red {
-  background-color: var(--tblr-red);
-}
-
-/* Tabler Button Enhancements */
-.btn {
-  font-weight: var(--tblr-font-weight-medium);
-  border-radius: var(--tblr-border-radius);
-}
-
-/* Tabler Form Enhancements */
-.form-control:focus,
-.form-select:focus {
-  border-color: var(--tblr-primary);
-  box-shadow: 0 0 0 0.2rem rgba(var(--tblr-primary-rgb), 0.25);
-}
-
-/* Tabler Table Enhancements */
-.table {
-  --tblr-table-hover-color: var(--tblr-body-color);
-  --tblr-table-hover-bg: var(--tblr-bg-surface-secondary);
-}
-
-.table th {
-  font-weight: var(--tblr-font-weight-semibold);
-  color: var(--tblr-muted);
-  font-size: var(--tblr-font-size-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-/* Tabler Navigation Enhancements */
-.navbar-brand {
-  font-weight: var(--tblr-font-weight-bold);
-}
-
-.nav-link {
-  font-weight: var(--tblr-font-weight-medium);
-}
-
-/* Tabler Alert Enhancements */
-.alert {
-  border: none;
-  border-left: 4px solid;
-  border-radius: var(--tblr-border-radius);
-}
-
-.alert-primary {
-  border-left-color: var(--tblr-primary);
-}
-
-.alert-success {
-  border-left-color: var(--tblr-green);
-}
-
-.alert-warning {
-  border-left-color: var(--tblr-yellow);
-}
-
-.alert-danger {
-  border-left-color: var(--tblr-red);
-}
-
-/* Tabler Badge Enhancements */
-.badge {
-  font-weight: var(--tblr-font-weight-medium);
-  border-radius: calc(var(--tblr-border-radius) * 0.75);
-}
-
-/* Tabler Dropdown Enhancements */
 .dropdown-menu {
-  border: 1px solid var(--tblr-border-color);
-  box-shadow: var(--tblr-box-shadow-dropdown);
+  background: var(--tblr-navbar-dropdown-bg, #334155);
+  border: 1px solid var(--tblr-navbar-dropdown-border, rgba(255, 255, 255, 0.1));
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  margin-top: 0.5rem;
+  width: 100%;
+  position: relative;
+  transform: none !important;
 }
 
 .dropdown-item {
-  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  padding: 0.625rem 1rem;
+  color: var(--tblr-navbar-dropdown-color, rgba(255, 255, 255, 0.8));
+  border-radius: 0.375rem;
+  margin: 0.125rem 0.5rem;
+  transition: all 0.2s ease;
 }
 
 .dropdown-item:hover {
-  background-color: var(--tblr-bg-surface-secondary);
+  color: #ffffff;
+  background-color: var(--tblr-navbar-dropdown-hover-bg, rgba(255, 255, 255, 0.1));
 }
 
-/* Tabler Modal Enhancements */
-.modal-content {
-  border: 1px solid var(--tblr-border-color);
-  box-shadow: var(--tblr-box-shadow-modal);
+.dropdown-item-icon {
+  margin-right: 0.75rem;
+  width: 20px;
+  height: 20px;
+  opacity: 0.8;
 }
 
-.modal-header {
-  border-bottom: 1px solid var(--tblr-border-color);
+/* Theme Toggle Styling */
+.mt-auto {
+  padding: 1rem 0.75rem;
 }
 
-.modal-footer {
-  border-top: 1px solid var(--tblr-border-color);
+.btn-list {
+  display: flex;
+  gap: 0.5rem;
 }
 
-/* Tabler Toast Enhancements */
-.toast {
-  border: 1px solid var(--tblr-border-color);
-  box-shadow: var(--tblr-box-shadow);
-  border-radius: var(--tblr-border-radius);
+.btn-outline-white {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.7);
 }
 
-/* Tabler Loading States */
-.spinner-border {
-  border-color: var(--tblr-primary);
-  border-right-color: transparent;
+.btn-outline-white:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
 }
 
-/* Tabler Responsive Design */
-@media (max-width: 768px) {
-  .page-wrapper {
-    padding-left: 0;
-  }
-  
+/* Responsive Design */
+@media (max-width: 991.98px) {
   .navbar-vertical {
-    width: 100%;
     position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 1030;
     transform: translateX(-100%);
-    transition: transform 0.2s ease-in-out;
+    transition: transform 0.3s ease;
   }
-  
+
   .navbar-vertical.show {
     transform: translateX(0);
   }
-}
 
-/* Tabler Dark Mode Support */
-[data-bs-theme="dark"] {
-  --tblr-bg-surface: #1a1a1a;
-  --tblr-bg-surface-secondary: #2d2d2d;
-  --tblr-border-color: #404040;
-  --tblr-body-color: #ffffff;
-  --tblr-muted: #adb5bd;
-}
-
-/* Tabler Accessibility Enhancements */
-@media (prefers-contrast: high) {
-  :root {
-    --tblr-border-color: #000000;
-    --tblr-muted: #000000;
-  }
-  
-  .card {
-    border: 2px solid var(--tblr-border-color);
+  /* Mobile backdrop */
+  .navbar-vertical.show::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 280px;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: -1;
   }
 }
 
-/* Tabler Reduced Motion Support */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-  
-  .navbar-vertical {
-    transition: none;
-  }
+/* Collapsed sidebar for larger screens (optional enhancement) */
+.navbar-vertical.collapsed {
+  width: 70px;
 }
 
-/* Tabler Focus Visible for Keyboard Navigation */
-.btn:focus-visible,
-.form-control:focus-visible,
-.form-select:focus-visible,
-.nav-link:focus-visible {
-  outline: 2px solid var(--tblr-primary);
+.navbar-vertical.collapsed .navbar-brand-text,
+.navbar-vertical.collapsed .nav-link-title,
+.navbar-vertical.collapsed .dropdown-item-text {
+  display: none;
+}
+
+.navbar-vertical.collapsed .nav-link-icon {
+  margin-right: 0;
+}
+
+.navbar-vertical.collapsed .dropdown-menu {
+  position: absolute;
+  left: 70px;
+  top: 0;
+  width: 200px;
+}
+
+/* Scrollable navigation for long menus */
+.navbar-collapse {
+  overflow-y: auto;
+  max-height: calc(100vh - 140px);
+  display: flex;
+  flex-direction: column;
+}
+
+.navbar-collapse::-webkit-scrollbar {
+  width: 4px;
+}
+
+.navbar-collapse::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.navbar-collapse::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.navbar-collapse::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Focus states for accessibility */
+.nav-link:focus,
+.dropdown-item:focus {
+  outline: 2px solid var(--tblr-primary, #0054a6);
   outline-offset: 2px;
+}
+
+/* Active states */
+.nav-item.active > .nav-link,
+.nav-link[aria-current="page"] {
+  color: var(--tblr-primary, #0054a6);
+  background-color: var(--tblr-primary-bg-subtle, rgba(0, 84, 166, 0.1));
+}
+
+/* Animation for better UX */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-menu.show {
+  animation: slideIn 0.2s ease;
 }
