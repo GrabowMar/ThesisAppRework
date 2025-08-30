@@ -105,8 +105,8 @@ function Show-LogsHelp {
     Write-Host "Stream and aggregate live logs from Flask, Celery, and Analyzer with readable formatting and optional HTTP summaries." -ForegroundColor White
     Write-Host ""
     Write-Host "Usage:" -ForegroundColor Yellow
-    Write-Host "  powershell .\\start.ps1 logs [-Target (flask|celery|analyzer|all)] [-TailLines (N)] [-Service (name)]" -ForegroundColor White
-    Write-Host "                                   [-Format (raw|compact|http)] [-StatsIntervalSeconds (N)] [-MaxLineLength (N)] [-NoColor]" -ForegroundColor White
+    Write-Host "  powershell .\start.ps1 logs `[Target (flask|celery|analyzer|all)] `[TailLines (N)] `[Service (name)]" -ForegroundColor White
+    Write-Host "                                   `[Format (raw|compact|http)] `[StatsIntervalSeconds (N)] `[MaxLineLength (N)] `[NoColor]" -ForegroundColor White
     Write-Host ""
     Write-Host "Targets:" -ForegroundColor Yellow
     Write-Host "  flask      Stream logs/app.log (Flask/Werkzeug)" -ForegroundColor White
@@ -120,12 +120,12 @@ function Show-LogsHelp {
     Write-Host "  raw                Pass-through with minimal severity coloring" -ForegroundColor White
     Write-Host ""
     Write-Host "Options:" -ForegroundColor Yellow
-    Write-Host "  -Target [flask|celery|analyzer|all]   Select logs to stream (default: all)" -ForegroundColor White
-    Write-Host "  -TailLines [N]                         Initial lines per stream (default: 200)" -ForegroundColor White
-    Write-Host "  -Service [name]                        Analyzer compose service (e.g., ai-analyzer)" -ForegroundColor White
-    Write-Host "  -Format [raw|compact|http]             Output style (default: compact)" -ForegroundColor White
-    Write-Host "  -StatsIntervalSeconds [N]              Print HTTP summary (2xx/3xx/4xx/5xx) every N seconds (0=disable, default: 0)" -ForegroundColor White
-    Write-Host "  -MaxLineLength [N]                     Truncate long lines (0=disable, default: 200)" -ForegroundColor White
+    Write-Host "  -Target flask|celery|analyzer|all   Select logs to stream (default: all)" -ForegroundColor White
+    Write-Host "  -TailLines N                         Initial lines per stream (default: 200)" -ForegroundColor White
+    Write-Host "  -Service name                        Analyzer compose service (e.g. ai-analyzer)" -ForegroundColor White
+    Write-Host "  -Format raw|compact|http             Output style (default: compact)" -ForegroundColor White
+    Write-Host "  -StatsIntervalSeconds N              Print HTTP summary (2xx/3xx/4xx/5xx) every N seconds (0=disable, default: 0)" -ForegroundColor White
+    Write-Host "  -MaxLineLength N                     Truncate long lines (0=disable, default: 200)" -ForegroundColor White
     Write-Host "  -NoColor                               Disable colored output" -ForegroundColor White
     Write-Host ""
     Write-Host "Notes:" -ForegroundColor Yellow
@@ -260,8 +260,10 @@ function Format-LogObject {
     else {
         # HTTP log compaction (Werkzeug style)
         # e.g., 127.0.0.1 - - [date] "GET /path HTTP/1.1" 200 -
-        if ($text -match '"(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD)\s+([^"\s]+)(?:\s+HTTP/\d+\.\d+)?"\s+(\d{3})') {
-            $method = $Matches[1]; $path = $Matches[2]; $code = [int]$Matches[3]
+        $pattern = '"(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD)\s+([^"]+)\s+(?:\s+HTTP/\d+\.\d+)?"\s+(\d{3})'
+        $httpPattern = $pattern
+        if ($text -match $httpPattern) {
+            $method = $Matches[1]; $path = $Matches[2]; $code = [int]::Parse($Matches[3])
             $text = "$method $path -> $code"
             if     ($code -ge 500) { $color = 'Red';      $codeClass = '5xx' }
             elseif ($code -ge 400) { $color = 'Yellow';   $codeClass = '4xx' }
@@ -292,30 +294,39 @@ function Format-LogObject {
     [PSCustomObject]@{ Text = $text; Color = $color; Tag = $outTag; CodeClass = $codeClass }
 }
 
-# Utility: get Flask process IDs (by PID file, command line, and port)
+# Utility: get Flask process IDs (by database lookup)
 function Get-FlaskPids {
     $pids = @()
     try {
-        $pidFile = Join-Path $ScriptRoot "src\flask_app_pid.txt"
-        if (Test-Path $pidFile) {
-            $pidFromFile = Get-Content $pidFile | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^[0-9]+$' }
-            foreach ($p in $pidFromFile) {
-                $proc = Get-Process -Id $p -ErrorAction SilentlyContinue
+        # Prefer venv Python
+        $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
+        $pythonExe = if (Test-Path (Join-Path $venvScripts "python.exe")) { Join-Path $venvScripts "python.exe" } else { "python" }
+        $srcDir = Join-Path $ScriptRoot "src"
+        
+        # Query database for Flask app PID
+        $pidOutput = & $pythonExe "process_manager.py" "pid" "flask_app" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $pidOutput) {
+            $flaskPid = $pidOutput.Trim()
+            if ($flaskPid -match '^[0-9]+$') {
+                $proc = Get-Process -Id $flaskPid -ErrorAction SilentlyContinue
                 if ($proc) { $pids += $proc.Id }
             }
         }
     } catch {}
-    # Match on command line containing src\main.py (Windows path)
+    
+    # Fallback: Match on command line containing src\main.py (Windows path)
     try {
         $mainPath = [Regex]::Escape((Join-Path $ScriptRoot "src\main.py"))
         $procs = Get-CimInstance Win32_Process -Filter "Name='python.exe' OR Name='pythonw.exe'" | Where-Object { $_.CommandLine -match $mainPath }
         foreach ($p in $procs) { $pids += $p.ProcessId }
     } catch {}
-    # Processes listening on port 5000 (default Flask dev port)
+    
+    # Fallback: Processes listening on port 5000 (default Flask dev port)
     try {
         $listeners = Get-NetTCPConnection -State Listen -LocalPort 5000 -ErrorAction SilentlyContinue
         foreach ($l in $listeners) { if ($l.OwningProcess) { $pids += $l.OwningProcess } }
     } catch {}
+    
     $pids | Sort-Object -Unique
 }
 
@@ -330,7 +341,18 @@ function Stop-FlaskApp {
         } else {
             Write-Info-Log "No Flask processes found"
         }
-        Remove-Item (Join-Path $ScriptRoot "src\flask_app_pid.txt") -ErrorAction SilentlyContinue
+        
+        # Mark process as stopped in database
+        $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
+        $pythonExe = if (Test-Path (Join-Path $venvScripts "python.exe")) { Join-Path $venvScripts "python.exe" } else { "python" }
+        $srcDir = Join-Path $ScriptRoot "src"
+        $stopArgs = @("process_manager.py", "stop", "flask_app")
+        $stopProcess = Start-Process -FilePath $pythonExe -ArgumentList $stopArgs -WorkingDirectory $srcDir -NoNewWindow -Wait -PassThru
+        if ($stopProcess.ExitCode -eq 0) {
+            Write-Log "Flask application marked as stopped in database"
+        } else {
+            Write-Warning-Log "Failed to mark Flask application as stopped in database"
+        }
     } catch {
         Write-Warning-Log "Error stopping Flask app: $_"
     }
@@ -423,14 +445,23 @@ function Test-Redis {
 
 # Remove stale PID and schedule files that can confuse restarts
 function Cleanup-StaleArtifacts {
-    Write-Log "Cleaning up stale runtime artifacts (PID/schedule files)..." "Blue"
+    Write-Log "Cleaning up stale runtime artifacts (PID/schedule files and database entries)..." "Blue"
     try {
         $srcDir = Join-Path $ScriptRoot "src"
         Remove-Item -Path (Join-Path $srcDir "celery_worker.pid") -ErrorAction SilentlyContinue
-        Remove-Item -Path (Join-Path $srcDir "celery_worker_pid.txt") -ErrorAction SilentlyContinue
         Remove-Item -Path (Join-Path $srcDir "celery_beat.pid") -ErrorAction SilentlyContinue
-        Remove-Item -Path (Join-Path $srcDir "celery_beat_pid.txt") -ErrorAction SilentlyContinue
         Get-ChildItem -Path $srcDir -Filter "celerybeat-schedule*" -ErrorAction SilentlyContinue | ForEach-Object { $_ | Remove-Item -Force -ErrorAction SilentlyContinue }
+        
+        # Clean up dead processes in database
+        $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
+        $pythonExe = if (Test-Path (Join-Path $venvScripts "python.exe")) { Join-Path $venvScripts "python.exe" } else { "python" }
+        $cleanupArgs = @("process_manager.py", "cleanup")
+        $cleanupProcess = Start-Process -FilePath $pythonExe -ArgumentList $cleanupArgs -WorkingDirectory $srcDir -NoNewWindow -Wait -PassThru
+        if ($cleanupProcess.ExitCode -eq 0) {
+            Write-Log "Database cleanup completed"
+        } else {
+            Write-Warning-Log "Database cleanup may have encountered issues"
+        }
     } catch {
         Write-Warning-Log "Cleanup encountered issues: $_"
     }
@@ -456,10 +487,10 @@ function Purge-CeleryQueues {
         $totalPurged = 0
         foreach ($q in $Queues) {
             try {
-                $args = @("-m","celery","-A",$CeleryApp,"purge","-f","-Q",$q)
+                $celeryArgs = @("-m","celery","-A",$CeleryApp,"purge","-f","-Q",$q)
                 $psi = New-Object System.Diagnostics.ProcessStartInfo
                 $psi.FileName = $pythonExe
-                $psi.Arguments = ($args -join ' ')
+                $psi.Arguments = ($celeryArgs -join ' ')
                 $psi.RedirectStandardOutput = $true
                 $psi.RedirectStandardError = $true
                 $psi.UseShellExecute = $false
@@ -691,7 +722,6 @@ function Start-CeleryWorker {
     # Clear stale pid files before attempting start
     $srcDir = Join-Path $ScriptRoot "src"
     Remove-Item -Path (Join-Path $srcDir "celery_worker.pid") -ErrorAction SilentlyContinue
-    Remove-Item -Path (Join-Path $srcDir "celery_worker_pid.txt") -ErrorAction SilentlyContinue
         # Ensure PYTHONPATH includes src so 'app' package is importable
         if ($env:PYTHONPATH -and $env:PYTHONPATH.Trim() -ne '') {
             if (-not $env:PYTHONPATH.Split([IO.Path]::PathSeparator) -contains $srcDir) {
@@ -713,9 +743,6 @@ function Start-CeleryWorker {
         }
         
         if ($workerProcess) {
-            # Write initial wrapper PID (may be a short-lived launcher)
-            try { $workerProcess.Id | Out-File -FilePath (Join-Path $srcDir "celery_worker_pid.txt") } catch {}
-            
             # Try to capture the real Celery worker PID from Celery's pidfile
             $realPid = $null
             $attempts = 0
@@ -737,7 +764,6 @@ function Start-CeleryWorker {
             }
 
             if ($realPid -and ($realPid -match '^[0-9]+$')) {
-                try { $realPid | Out-File -FilePath (Join-Path $srcDir "celery_worker_pid.txt") } catch {}
                 # Double-check the process is still alive after a brief grace period
                 Start-Sleep -Milliseconds 300
                 $pidVal2 = $null
@@ -745,7 +771,14 @@ function Start-CeleryWorker {
                 $procCheck = $null
                 if ($pidVal2) { $procCheck = Get-Process -Id $pidVal2 -ErrorAction SilentlyContinue }
                 if ($procCheck) {
-                    Write-Log "Celery worker started successfully (PID: $realPid)"
+                    # Register the real Celery worker PID in database
+                    $registerArgs = @("process_manager.py", "register", "celery_worker", "--pid", $realPid, "--command", "`"$pythonExe -m celery -A $CeleryApp worker`"")
+                    $registerProcess = Start-Process -FilePath $pythonExe -ArgumentList $registerArgs -WorkingDirectory $srcDir -NoNewWindow -Wait -PassThru
+                    if ($registerProcess.ExitCode -eq 0) {
+                        Write-Log "Celery worker started and registered successfully (PID: $realPid)"
+                    } else {
+                        Write-Warning-Log "Celery worker started but failed to register in database (PID: $realPid)"
+                    }
                 } else {
                     Write-Warning-Log "Celery worker PID file found ($realPid) but process not running; check logs/celery_worker.log for errors."
                 }
@@ -792,9 +825,6 @@ function Start-CeleryBeat {
         }
         
         if ($beatProcess) {
-            # Write initial launcher PID
-            try { $beatProcess.Id | Out-File -FilePath (Join-Path $srcDir "celery_beat_pid.txt") } catch {}
-            
             # Try to capture the real beat PID from Celery's pidfile
             $realPid = $null
             $attempts = 0
@@ -813,8 +843,14 @@ function Start-CeleryBeat {
             }
 
             if ($realPid -and ($realPid -match '^[0-9]+$')) {
-                try { $realPid | Out-File -FilePath (Join-Path $srcDir "celery_beat_pid.txt") } catch {}
-                Write-Log "Celery beat started successfully (PID: $realPid)"
+                # Register the real Celery beat PID in database
+                $registerArgs = @("process_manager.py", "register", "celery_beat", "--pid", $realPid, "--command", "`"$pythonExe -m celery -A $CeleryApp beat`"")
+                $registerProcess = Start-Process -FilePath $pythonExe -ArgumentList $registerArgs -WorkingDirectory $srcDir -NoNewWindow -Wait -PassThru
+                if ($registerProcess.ExitCode -eq 0) {
+                    Write-Log "Celery beat started and registered successfully (PID: $realPid)"
+                } else {
+                    Write-Warning-Log "Celery beat started but failed to register in database (PID: $realPid)"
+                }
             } else {
                 Write-Log "Celery beat start triggered (launcher PID: $($beatProcess.Id)); awaiting readiness..." "Yellow"
             }
@@ -854,8 +890,14 @@ function Start-FlaskApp {
     $flaskProcess = Start-Process $pythonExe -ArgumentList $FlaskApp -PassThru -WindowStyle Hidden -WorkingDirectory $srcDir
         
         if ($flaskProcess) {
-            $flaskProcess.Id | Out-File -FilePath (Join-Path $srcDir "flask_app_pid.txt")
-            Write-Log "Flask application started successfully (PID: $($flaskProcess.Id))"
+            # Register process in database instead of writing PID file
+            $registerArgs = @("process_manager.py", "register", "flask_app", "--pid", $flaskProcess.Id, "--command", "`"$pythonExe $FlaskApp`"")
+            $registerProcess = Start-Process -FilePath $pythonExe -ArgumentList $registerArgs -WorkingDirectory $srcDir -NoNewWindow -Wait -PassThru
+            if ($registerProcess.ExitCode -eq 0) {
+                Write-Log "Flask application started and registered successfully (PID: $($flaskProcess.Id))"
+            } else {
+                Write-Warning-Log "Flask application started but failed to register in database (PID: $($flaskProcess.Id))"
+            }
             return $true
         }
         else {
@@ -1012,71 +1054,89 @@ function Stop-Services {
     Write-Log "Stopping all services..." "Blue"
     
     # Stop Flask app
-    $srcDir = Join-Path $ScriptRoot "src"
-    $flaskPidFile = Join-Path $srcDir "flask_app_pid.txt"
-    if (Test-Path $flaskPidFile) {
-        try {
-            $flaskPid = Get-Content $flaskPidFile
-            $flaskProcess = Get-Process -Id $flaskPid -ErrorAction SilentlyContinue
-            if ($flaskProcess) {
-                Stop-Process -Id $flaskPid -Force
-                Write-Log "Flask application stopped"
+    try {
+        $flaskPids = Get-FlaskPids
+        if ($flaskPids -and $flaskPids.Count -gt 0) {
+            foreach ($pidToKill in $flaskPids) {
+                try { Stop-Process -Id $pidToKill -Force -ErrorAction SilentlyContinue; Write-Log "Stopped Flask process PID: $pidToKill" } catch {}
             }
-            Remove-Item $flaskPidFile -ErrorAction SilentlyContinue
+        } else {
+            Write-Info-Log "No Flask processes found"
         }
-        catch {
-            Write-Warning-Log "Error stopping Flask app: $_"
+        
+        # Mark process as stopped in database
+        $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
+        $pythonExe = if (Test-Path (Join-Path $venvScripts "python.exe")) { Join-Path $venvScripts "python.exe" } else { "python" }
+        $stopArgs = @("process_manager.py", "stop", "flask_app")
+        $stopProcess = Start-Process -FilePath $pythonExe -ArgumentList $stopArgs -WorkingDirectory $srcDir -NoNewWindow -Wait -PassThru
+        if ($stopProcess.ExitCode -eq 0) {
+            Write-Log "Flask application marked as stopped in database"
+        } else {
+            Write-Warning-Log "Failed to mark Flask application as stopped in database"
         }
+    } catch {
+        Write-Warning-Log "Error stopping Flask app: $_"
     }
     
     # Stop Celery worker
-    $workerPidFile = Join-Path $srcDir "celery_worker_pid.txt"
-    if (Test-Path $workerPidFile) {
-        try {
-            $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
-            $celeryExe = Join-Path $venvScripts "celery.exe"
-            $pythonExe = Join-Path $venvScripts "python.exe"
-            $ctlArgs = @("-A", $CeleryApp, "control", "shutdown")
-            Push-Location $srcDir
-            if (Test-Path $celeryExe) {
-                & $celeryExe @ctlArgs 2>$null
-            } elseif (Test-Path $pythonExe) {
-                & $pythonExe -m celery @ctlArgs 2>$null
-            } else {
-                & celery @ctlArgs 2>$null
-            }
-            Pop-Location
-            $workerPidTxt = Get-Content $workerPidFile
-            $workerProcess = Get-Process -Id $workerPidTxt -ErrorAction SilentlyContinue
-            if ($workerProcess) {
-                Stop-Process -Id $workerPidTxt -Force
-            }
-            Remove-Item $workerPidFile -ErrorAction SilentlyContinue
-            Remove-Item (Join-Path $srcDir "celery_worker.pid") -ErrorAction SilentlyContinue
-            Write-Log "Celery worker stopped"
+    try {
+        $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
+        $celeryExe = Join-Path $venvScripts "celery.exe"
+        $pythonExe = Join-Path $venvScripts "python.exe"
+        $ctlArgs = @("-A", $CeleryApp, "control", "shutdown")
+        Push-Location $srcDir
+        if (Test-Path $celeryExe) {
+            & $celeryExe @ctlArgs 2>$null
+        } elseif (Test-Path $pythonExe) {
+            & $pythonExe -m celery @ctlArgs 2>$null
+        } else {
+            & celery @ctlArgs 2>$null
         }
-        catch {
-            Write-Warning-Log "Error stopping Celery worker: $_"
-        }
+        Pop-Location
+        Remove-Item (Join-Path $srcDir "celery_worker.pid") -ErrorAction SilentlyContinue
+        Write-Log "Celery worker stopped"
+    }
+    catch {
+        Write-Warning-Log "Error stopping Celery worker: $_"
     }
     
     # Stop Celery beat
-    $beatPidFile = Join-Path $srcDir "celery_beat_pid.txt"
-    if (Test-Path $beatPidFile) {
-        try {
-            $beatPid = Get-Content $beatPidFile
-            $beatProcess = Get-Process -Id $beatPid -ErrorAction SilentlyContinue
-            if ($beatProcess) {
-                Stop-Process -Id $beatPid -Force
-            }
-            Remove-Item $beatPidFile -ErrorAction SilentlyContinue
-            Remove-Item (Join-Path $srcDir "celery_beat.pid") -ErrorAction SilentlyContinue
-            Get-ChildItem -Path $srcDir -Filter "celerybeat-schedule*" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
-            Write-Log "Celery beat stopped"
+    try {
+        Remove-Item (Join-Path $srcDir "celery_beat.pid") -ErrorAction SilentlyContinue
+        Get-ChildItem -Path $srcDir -Filter "celerybeat-schedule*" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+        Write-Log "Celery beat stopped"
+    }
+    catch {
+        Write-Warning-Log "Error stopping Celery beat: $_"
+    }
+    
+    # Mark all processes as stopped in database
+    try {
+        $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
+        $pythonExe = if (Test-Path (Join-Path $venvScripts "python.exe")) { Join-Path $venvScripts "python.exe" } else { "python" }
+        
+        # Stop Flask app in database
+        $stopFlaskArgs = @("process_manager.py", "stop", "flask_app")
+        $stopFlaskProcess = Start-Process -FilePath $pythonExe -ArgumentList $stopFlaskArgs -WorkingDirectory $srcDir -NoNewWindow -Wait -PassThru
+        if ($stopFlaskProcess.ExitCode -eq 0) {
+            Write-Log "Flask app marked as stopped in database"
         }
-        catch {
-            Write-Warning-Log "Error stopping Celery beat: $_"
+        
+        # Stop Celery worker in database
+        $stopWorkerArgs = @("process_manager.py", "stop", "celery_worker")
+        $stopWorkerProcess = Start-Process -FilePath $pythonExe -ArgumentList $stopWorkerArgs -WorkingDirectory $srcDir -NoNewWindow -Wait -PassThru
+        if ($stopWorkerProcess.ExitCode -eq 0) {
+            Write-Log "Celery worker marked as stopped in database"
         }
+        
+        # Stop Celery beat in database
+        $stopBeatArgs = @("process_manager.py", "stop", "celery_beat")
+        $stopBeatProcess = Start-Process -FilePath $pythonExe -ArgumentList $stopBeatArgs -WorkingDirectory $srcDir -NoNewWindow -Wait -PassThru
+        if ($stopBeatProcess.ExitCode -eq 0) {
+            Write-Log "Celery beat marked as stopped in database"
+        }
+    } catch {
+        Write-Warning-Log "Error updating database with stopped processes: $_"
     }
     
     # Stop analyzer services
@@ -1089,15 +1149,6 @@ function Stop-Services {
         Push-Location $analyzerDir
         & $pythonExe $analyzerManager stop 2>$null
         Pop-Location
-            $analyzerPidFile = Join-Path $analyzerDir "analyzer_manager_pid.txt"
-            if (Test-Path $analyzerPidFile) {
-                try {
-            $analyzerPid = Get-Content $analyzerPidFile
-            $proc = Get-Process -Id $analyzerPid -ErrorAction SilentlyContinue
-            if ($proc) { Stop-Process -Id $analyzerPid -Force }
-                    Remove-Item $analyzerPidFile -ErrorAction SilentlyContinue
-                } catch {}
-            }
             Write-Log "Analyzer services stopped"
         }
         catch {
@@ -1111,84 +1162,36 @@ function Get-ServiceStatus {
     Write-Log "Checking service status..." "Blue"
     Write-Info-Log "Log file: $Global:LogFile"
     
+    # Use process_manager.py to get status from database
+    $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
+    $pythonExe = if (Test-Path (Join-Path $venvScripts "python.exe")) { Join-Path $venvScripts "python.exe" } else { "python" }
+    $srcDir = Join-Path $ScriptRoot "src"
+    
+    try {
+        # Use Start-Process like other functions for consistency
+        $statusArgs = @("process_manager.py", "status")
+        $statusProcess = Start-Process -FilePath $pythonExe -ArgumentList $statusArgs -WorkingDirectory $srcDir -NoNewWindow -Wait -PassThru
+        if ($statusProcess.ExitCode -eq 0) {
+            Write-Log "Database status retrieved successfully"
+        } else {
+            Write-Warning-Log "Failed to get status from database (Exit code: $($statusProcess.ExitCode))"
+        }
+    } catch {
+        Write-Warning-Log "Error getting status from database: $_"
+    }
+    
+    # Fallback to individual checks if database query fails
+    Write-Info-Log "Performing fallback status checks..."
+    
     # Flask app (robust detection)
     try {
         $flaskPids = Get-FlaskPids
         if ($flaskPids -and $flaskPids.Count -gt 0) {
             Write-Info-Log "Flask app: RUNNING (PIDs: $($flaskPids -join ', '))"
         } else {
-            $flaskPidFile = Join-Path $ScriptRoot "src\flask_app_pid.txt"
-            if (Test-Path $flaskPidFile) { Write-Warning-Log "Flask app: STOPPED (stale PID file)" } else { Write-Warning-Log "Flask app: STOPPED" }
+            Write-Warning-Log "Flask app: STOPPED"
         }
     } catch { Write-Warning-Log "Flask app: UNKNOWN" }
-    
-    # Celery worker
-    $srcDir = Join-Path $ScriptRoot "src"
-    $workerReported = $false
-    $workerPidTxt = $null
-    $workerPidFile = Join-Path $srcDir "celery_worker_pid.txt"
-    if (Test-Path $workerPidFile) {
-        try {
-            $workerPidTxt = (Get-Content $workerPidFile).Trim()
-            if ($workerPidTxt -and $workerPidTxt -match '^[0-9]+$') {
-                $workerProcess = Get-Process -Id [int]$workerPidTxt -ErrorAction SilentlyContinue
-                if ($workerProcess) { Write-Info-Log "Celery worker: RUNNING (PID: $workerPidTxt)"; $workerReported = $true }
-            }
-        } catch {}
-    }
-    if (-not $workerReported) {
-        $workerRealPidFile = Join-Path $srcDir "celery_worker.pid"
-        if (Test-Path $workerRealPidFile) {
-            try {
-                $realPid = (Get-Content $workerRealPidFile).Trim()
-                if ($realPid -and $realPid -match '^[0-9]+$') {
-                    $proc = Get-Process -Id [int]$realPid -ErrorAction SilentlyContinue
-                    if ($proc) {
-                        Write-Info-Log "Celery worker: RUNNING (PID: $realPid)"
-                        # self-heal: update our txt pid file
-                        try { $realPid | Out-File -FilePath $workerPidFile } catch {}
-                        $workerReported = $true
-                    }
-                }
-            } catch {}
-        }
-    }
-    if (-not $workerReported) {
-        if ($workerPidTxt) { Write-Warning-Log "Celery worker: STOPPED (stale PID file)" } else { Write-Warning-Log "Celery worker: STOPPED" }
-    }
-    
-    # Celery beat
-    $beatReported = $false
-    $beatPidTxt = $null
-    $beatPidFile = Join-Path $srcDir "celery_beat_pid.txt"
-    if (Test-Path $beatPidFile) {
-        try {
-            $beatPidTxt = (Get-Content $beatPidFile).Trim()
-            if ($beatPidTxt -and $beatPidTxt -match '^[0-9]+$') {
-                $beatProcess = Get-Process -Id [int]$beatPidTxt -ErrorAction SilentlyContinue
-                if ($beatProcess) { Write-Info-Log "Celery beat: RUNNING (PID: $beatPidTxt)"; $beatReported = $true }
-            }
-        } catch {}
-    }
-    if (-not $beatReported) {
-        $beatRealPidFile = Join-Path $srcDir "celery_beat.pid"
-        if (Test-Path $beatRealPidFile) {
-            try {
-                $realPid = (Get-Content $beatRealPidFile).Trim()
-                if ($realPid -and $realPid -match '^[0-9]+$') {
-                    $proc = Get-Process -Id [int]$realPid -ErrorAction SilentlyContinue
-                    if ($proc) {
-                        Write-Info-Log "Celery beat: RUNNING (PID: $realPid)"
-                        try { $realPid | Out-File -FilePath $beatPidFile } catch {}
-                        $beatReported = $true
-                    }
-                }
-            } catch {}
-        }
-    }
-    if (-not $beatReported) {
-        if ($beatPidTxt) { Write-Warning-Log "Celery beat: STOPPED (stale PID file)" } else { Write-Warning-Log "Celery beat: STOPPED" }
-    }
     
     # Redis
     if (Test-Redis) {
