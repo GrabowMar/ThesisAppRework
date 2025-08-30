@@ -301,7 +301,6 @@ function Get-FlaskPids {
         # Prefer venv Python
         $venvScripts = Join-Path $RepoRoot ".venv\Scripts"
         $pythonExe = if (Test-Path (Join-Path $venvScripts "python.exe")) { Join-Path $venvScripts "python.exe" } else { "python" }
-        $srcDir = Join-Path $ScriptRoot "src"
         
         # Query database for Flask app PID
         $pidOutput = & $pythonExe "process_manager.py" "pid" "flask_app" 2>$null
@@ -444,7 +443,7 @@ function Test-Redis {
 }
 
 # Remove stale PID and schedule files that can confuse restarts
-function Cleanup-StaleArtifacts {
+function Clear-StaleArtifacts {
     Write-Log "Cleaning up stale runtime artifacts (PID/schedule files and database entries)..." "Blue"
     try {
         $srcDir = Join-Path $ScriptRoot "src"
@@ -468,7 +467,7 @@ function Cleanup-StaleArtifacts {
 }
 
 # Purge Celery queues to avoid replaying old tasks from Redis on fresh starts
-function Purge-CeleryQueues {
+function Clear-CeleryQueues {
     param(
         [string[]]$Queues
     )
@@ -552,7 +551,7 @@ function Invoke-HealthSanityCheck {
 }
 
 # Ensure Redis is available, preferring the analyzer's Redis container if present
-function Ensure-RedisAvailable {
+function Test-RedisAvailable {
     param(
         [switch]$NoAnalyzer
     )
@@ -934,9 +933,9 @@ function Start-AnalyzerServices {
                 if (Get-Command docker -ErrorAction SilentlyContinue) {
                     try {
                         Write-Info-Log "Running: docker compose down"
-                        $p1 = Start-Process -FilePath "docker" -ArgumentList @("compose") + $composeArgsDown -WorkingDirectory $analyzerDir -NoNewWindow -Wait -PassThru
+                        Start-Process -FilePath "docker" -ArgumentList @("compose") + $composeArgsDown -WorkingDirectory $analyzerDir -NoNewWindow -Wait | Out-Null
                         Write-Info-Log "Running: docker compose up --build --force-recreate -d"
-                        $p2 = Start-Process -FilePath "docker" -ArgumentList @("compose") + $composeArgsUp -WorkingDirectory $analyzerDir -NoNewWindow -Wait -PassThru
+                        Start-Process -FilePath "docker" -ArgumentList @("compose") + $composeArgsUp -WorkingDirectory $analyzerDir -NoNewWindow -Wait | Out-Null
                         $usedCompose = $true
                     } catch {
                         Write-Warning-Log "docker compose failed: $_"
@@ -945,9 +944,9 @@ function Start-AnalyzerServices {
                 if (-not $usedCompose -and (Get-Command docker-compose -ErrorAction SilentlyContinue)) {
                     try {
                         Write-Info-Log "Running: docker-compose down"
-                        $pc1 = Start-Process -FilePath "docker-compose" -ArgumentList $composeArgsDown -WorkingDirectory $analyzerDir -NoNewWindow -Wait -PassThru
+                        Start-Process -FilePath "docker-compose" -ArgumentList $composeArgsDown -WorkingDirectory $analyzerDir -NoNewWindow -Wait | Out-Null
                         Write-Info-Log "Running: docker-compose up --build --force-recreate -d"
-                        $pc2 = Start-Process -FilePath "docker-compose" -ArgumentList $composeArgsUp -WorkingDirectory $analyzerDir -NoNewWindow -Wait -PassThru
+                        Start-Process -FilePath "docker-compose" -ArgumentList $composeArgsUp -WorkingDirectory $analyzerDir -NoNewWindow -Wait | Out-Null
                         $usedCompose = $true
                     } catch {
                         Write-Warning-Log "docker-compose failed: $_"
@@ -1223,11 +1222,11 @@ function Invoke-Main {
             }
             
             # Ensure Redis (prefer analyzer's Redis if available)
-            if (-not (Ensure-RedisAvailable -NoAnalyzer:$NoAnalyzer)) { exit 1 }
+            if (-not (Test-RedisAvailable -NoAnalyzer:$NoAnalyzer)) { exit 1 }
             
             # Clean up stale files and purge Celery queues to avoid replaying old tasks
-            Cleanup-StaleArtifacts
-            Purge-CeleryQueues -Queues @(
+            Clear-StaleArtifacts
+            Clear-CeleryQueues -Queues @(
                 'security_analysis', 'performance_testing', 'static_analysis', 'dynamic_analysis',
                 'ai_analysis', 'batch_processing', 'container_ops', 'monitoring', 'celery'
             )
@@ -1267,7 +1266,7 @@ function Invoke-Main {
             if (-not (Test-Dependencies)) {
                 exit 1
             }
-            if (-not (Ensure-RedisAvailable -NoAnalyzer:$false)) { exit 1 }
+            if (-not (Test-RedisAvailable -NoAnalyzer:$false)) { exit 1 }
             $ok = Start-CeleryWorker
             if ($ok) {
                 Write-Log "Celery worker started" "Green"
@@ -1282,7 +1281,7 @@ function Invoke-Main {
             if (-not (Test-Dependencies)) {
                 exit 1
             }
-            if (-not (Ensure-RedisAvailable -NoAnalyzer:$false)) { exit 1 }
+            if (-not (Test-RedisAvailable -NoAnalyzer:$false)) { exit 1 }
             Start-CeleryBeat
             Write-Log "Celery beat started" "Green"
         }

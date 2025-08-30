@@ -8,7 +8,6 @@ and analyzer orchestration capabilities.
 
 import os
 import sys
-import logging
 from pathlib import Path
 
 # Configure centralized logging
@@ -18,11 +17,9 @@ logger = setup_application_logging()
 
 # Clean up old logs at startup
 try:
-    import sys
-    from pathlib import Path
     scripts_dir = Path(__file__).parent.parent / "scripts"
     sys.path.insert(0, str(scripts_dir))
-    from log_cleanup import cleanup_logs_startup
+    from scripts.log_cleanup import cleanup_logs_startup
     cleanup_logs_startup()
 except Exception as e:
     logger.warning(f"Log cleanup at startup failed: {e}")
