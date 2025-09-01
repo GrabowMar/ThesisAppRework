@@ -63,8 +63,6 @@ def statistics_overview():
     except Exception as e:
         current_app.logger.error(f"Error loading statistics overview: {e}")
         return render_template(
-            'pages/statistics/statistics_main.html',
-            page_title='Statistics Error',
-            main_partial='ui/elements/common/error.html',
+            'pages/errors/errors_main.html',
             error=str(e)
         )

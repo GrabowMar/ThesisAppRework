@@ -80,7 +80,7 @@ def models_overview():
         current_app.logger.error(f"Error loading models overview: {e}")
         flash(f"Error loading models: {e}", "error")
         return render_template(
-            'partials/common/error.html',
+            'pages/errors/errors_main.html',
             error=str(e),
             page_title='Models Overview Error'
         ), 500
@@ -122,9 +122,7 @@ def model_details(model_slug):
         current_app.logger.error(f"Error loading model details for {model_slug}: {e}")
         flash(f"Error loading model details: {e}", "error")
         return render_template(
-            'single_page.html',
-            page_title='Model Not Found',
-            main_partial='partials/common/error.html',
+            'pages/errors/errors_main.html',
             error_code=404,
             error_title='Model Not Found',
             error_message=f"Model '{model_slug}' not found"
@@ -335,9 +333,7 @@ def applications():
         current_app.logger.error(f"Error loading applications: {e}")
         flash(f"Error loading applications: {e}", "error")
         return render_template(
-            'single_page.html',
-            page_title='Applications Error',
-            main_partial='partials/common/error.html',
+            'pages/errors/errors_main.html',
             application_grid=[], total_apps=0,
             running_containers=0, stopped_containers=0,
             current_filters={}, providers=[], error=str(e)
@@ -579,9 +575,7 @@ def application_detail(model_slug, app_number):
         current_app.logger.error(f"Error loading application details for {model_slug}/app{app_number}: {e}")
         flash(f"Error loading application details: {e}", "error")
         return render_template(
-            'single_page.html',
-            page_title='Application Not Found',
-            main_partial='partials/common/error.html',
+            'pages/errors/errors_main.html',
             error_code=404,
             error_title='Application Not Found',
             error_message=f"Application '{model_slug}/app{app_number}' not found"
@@ -709,11 +703,7 @@ def model_apps(model_slug):
         current_app.logger.error(f"Error loading model apps for {model_slug}: {e}")
         flash(f'Error loading applications: {str(e)}', 'error')
         return render_template(
-            'single_page.html',
-            page_title='Error',
-            page_icon='fa-triangle-exclamation',
-            page_subtitle='Model Applications Error',
-            main_partial='partials/common/error.html',
+            'pages/errors/errors_main.html',
             error_code=500,
             error_title='Model Applications Error',
             error_message=str(e),
@@ -728,9 +718,7 @@ def models_import_page():
     except Exception as e:
         current_app.logger.error(f"Error rendering models import page: {e}")
         return render_template(
-            'single_page.html',
-            page_title='Models Import Error',
-            main_partial='partials/common/error.html',
+            'pages/errors/errors_main.html',
             error_code=500,
             error_title='Import Page Error',
             error_message=str(e)

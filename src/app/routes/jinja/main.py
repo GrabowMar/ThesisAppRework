@@ -57,7 +57,7 @@ def dashboard():
         current_app.logger.error(f"Error loading dashboard: {e}")
         flash('Error loading dashboard', 'error')
         return render_template(
-            'partials/common/error.html',
+            'pages/errors/errors_main.html',
             error=str(e),
             page_title='Dashboard Error'
         ), 500
@@ -74,7 +74,7 @@ def spa_dashboard():
         return render_template('spa/dashboard_content.html')
     except Exception as e:
         current_app.logger.error(f"Error loading SPA dashboard: {e}")
-        return render_template('partials/common/error.html', error=str(e)), 500
+        return render_template('pages/errors/errors_main.html', error=str(e)), 500
 
 @main_bp.route('/spa/analysis')
 def spa_analysis():
@@ -83,7 +83,7 @@ def spa_analysis():
         return render_template('spa/analysis_content.html')
     except Exception as e:
         current_app.logger.error(f"Error loading SPA analysis: {e}")
-        return render_template('partials/common/error.html', error=str(e)), 500
+        return render_template('pages/errors/errors_main.html', error=str(e)), 500
 
 @main_bp.route('/spa/models')
 def spa_models():
@@ -92,7 +92,7 @@ def spa_models():
         return render_template('spa/models_content.html')
     except Exception as e:
         current_app.logger.error(f"Error loading SPA models: {e}")
-        return render_template('partials/common/error.html', error=str(e)), 500
+        return render_template('pages/errors/errors_main.html', error=str(e)), 500
 
 @main_bp.route('/spa/applications')
 def spa_applications():
@@ -101,7 +101,7 @@ def spa_applications():
         return render_template('spa/applications_content.html')
     except Exception as e:
         current_app.logger.error(f"Error loading SPA applications: {e}")
-        return render_template('partials/common/error.html', error=str(e)), 500
+        return render_template('pages/errors/errors_main.html', error=str(e)), 500
 
 @main_bp.route('/system-status')
 def system_status():
@@ -118,7 +118,7 @@ def system_status():
         current_app.logger.error(f"Error loading system status: {e}")
         flash('Error loading system status', 'error')
         return render_template(
-            'partials/common/error.html',
+            'pages/errors/errors_main.html',
             error=str(e),
             page_title='System Status Error'
         ), 500
@@ -133,7 +133,7 @@ def testing():
         current_app.logger.error(f"Error redirecting testing page: {e}")
         flash('Error loading testing page', 'error')
         return render_template(
-            'partials/common/error.html',
+            'pages/errors/errors_main.html',
             error=str(e),
             page_title='Testing Page Error'
         ), 500

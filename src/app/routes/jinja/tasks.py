@@ -38,8 +38,6 @@ def tasks_overview():
     except Exception as e:
         current_app.logger.error(f"Error loading tasks overview: {e}")
         return render_template(
-            'layouts/single-page.html',
-            page_title='Error',
-            main_partial='ui/elements/common/error.html',
+            'pages/errors/errors_main.html',
             error=str(e)
         ), 500

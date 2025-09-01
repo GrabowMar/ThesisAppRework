@@ -42,7 +42,7 @@ def register_error_handlers(app):
     @app.errorhandler(404)
     def not_found_error(error):
         return render_template(
-            'pages/errors/errors.html',
+            'pages/errors/errors_main.html',
             error_code=404,
             error_title='Page Not Found',
             error_message="The page you're looking for doesn't exist or has been moved."
@@ -51,7 +51,7 @@ def register_error_handlers(app):
     @app.errorhandler(500)
     def internal_error(error):
         return render_template(
-            'pages/errors/errors.html',
+            'pages/errors/errors_main.html',
             error_code=500,
             error_title='Internal Server Error',
             error_message="Something went wrong on our end. Please try again later."
@@ -60,7 +60,7 @@ def register_error_handlers(app):
     @app.errorhandler(503)
     def service_unavailable_error(error):
         return render_template(
-            'pages/errors/errors.html',
+            'pages/errors/errors_main.html',
             error_code=503,
             error_title='Service Unavailable',
             error_message="The service is temporarily unavailable. Please try again later."
@@ -77,7 +77,7 @@ def register_error_handlers(app):
                 'hint': 'Use /api/websocket/* endpoints for polling when real-time is disabled'
             }), status
         return render_template(
-            'pages/errors/errors.html',
+            'pages/errors/errors_main.html',
             error_code=status,
             error_title='WebSocket Not Available',
             error_message=message

@@ -5,7 +5,7 @@ restructure. Route code (and possibly background tasks) may still reference
 legacy template paths like:
 
   - views/.../*.html
-  - partials/common/error.html
+  - partials/common/error.html -> pages/errors/errors_main.html
   - partials/analysis/...
 
 Rather than eagerly touching every call site, we maintain a mapping derived
@@ -83,9 +83,9 @@ def remap_template(name: str) -> str:
         if (_templates_root() / candidate).exists():
             return candidate
 
-    # Heuristic 2: common error partial relocation (in case mapping missing)
-    if name == 'partials/common/error.html' and (_templates_root() / 'ui/elements/common/error.html').exists():
-        return 'ui/elements/common/error.html'
+    # Heuristic 2: common error partial relocated to pages/errors/errors_main.html
+    if name == 'partials/common/error.html' and (_templates_root() / 'pages/errors/errors_main.html').exists():
+        return 'pages/errors/errors_main.html'
 
     # Heuristic 3: dashboard/system health inner partial moved under pages/system/partials
     if name.startswith('partials/dashboard/_system_health_inner'):
@@ -138,15 +138,15 @@ def remap_template(name: str) -> str:
                 return name
         return name
 
-    # Heuristic 8: error partial moved to shared/ui/error.html
+    # Heuristic 8: error partial moved to pages/errors/errors_main.html
     if name == 'partials/common/error.html':
-        candidate = 'shared/ui/error.html'
+        candidate = 'pages/errors/errors_main.html'
         if (_templates_root() / candidate).exists():
             return candidate
 
-    # Heuristic 9: single_page.html should map to pages/errors/errors.html for error contexts
+    # Heuristic 9: single_page.html should map to pages/errors/errors_main.html for error contexts
     if name == 'single_page.html':
-        candidate = 'pages/errors/errors.html'
+        candidate = 'pages/errors/errors_main.html'
         if (_templates_root() / candidate).exists():
             return candidate
 
