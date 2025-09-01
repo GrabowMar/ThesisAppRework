@@ -7,16 +7,18 @@
     - Provides noscript fallback for environments without JS
   #}
 
-  <header class="navbar navbar-expand-md navbar-light d-print-none border-bottom" role="banner" aria-label="Main header">
+  <header class="navbar navbar-expand-md navbar-light d-print-none border-bottom" 
+          role="banner" 
+          aria-label="Main header">
     <div class="container-xl d-flex align-items-center">
+      {# Mobile hamburger (burger) menu button #}
+      <button class="btn btn-outline-secondary d-lg-none me-3" id="mobile-burger" type="button" aria-label="Open navigation" aria-controls="mobile-sidebar" aria-expanded="false" data-bs-toggle="offcanvas" data-bs-target="#mobile-sidebar">
+        <i class="fa-solid fa-bars" aria-hidden="true"></i>
+      </button>
       {# Left: Brand + breadcrumb (kept visually) #}
       <div class="d-flex align-items-center me-auto">
         <a class="navbar-brand d-none d-lg-flex align-items-center" href="{{ url_for('main.dashboard') }}" aria-label="Go to dashboard">
-          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chart-line me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-            <path d="M4 19l16 0"/>
-            <path d="M4 15l4 -6l4 2l4 -5l4 4"/>
-          </svg>
+          <i class="fa-solid fa-chart-line me-2" aria-hidden="true"></i>
           <span class="fw-semibold">Thesis Platform</span>
         </a>
 
@@ -46,12 +48,12 @@
           </span>
 
           <a class="text-muted d-flex align-items-center me-3" href="{{ url_for('tasks.tasks_overview') }}" title="Active tasks">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 5.5l1.5 1.5l2.5 -2.5"/><path d="M3.5 11.5l1.5 1.5l2.5 -2.5"/><path d="M3.5 17.5l1.5 1.5l2.5 -2.5"/></svg>
+            <i class="fa-solid fa-list-check me-1" aria-hidden="true"></i>
             <small class="text-muted">0</small>
           </a>
 
           <div class="text-muted me-3 d-flex align-items-center" title="Uptime">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M12 7l0 5 3 3"/></svg>
+            <i class="fa-regular fa-clock me-1" aria-hidden="true"></i>
             <small class="text-muted">--</small>
           </div>
         </div>

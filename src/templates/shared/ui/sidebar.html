@@ -1,24 +1,26 @@
 {#
-  Component: Simplified Vertical Sidebar Navigation
-  Purpose: Clean, Bootstrap-style sidebar navigation
-  Based on: Bootstrap documentation examples
+  Component: Collapsible Vertical Sidebar Navigation
+  Purpose: Clean, Bootstrap-style sidebar navigation with collapse functionality
+  Based on: Bootstrap documentation examples with hyperscript enhancements
 #}
 {% from 'shared/ui/macros/nav_macros.html' import nav_link %}
 
 <aside class="sidebar bg-dark text-white d-flex flex-column flex-shrink-0"
        id="sidebar"
-       style="width: 260px; min-height: 100vh;">
+       style="min-height: 100vh;">
   <div class="sidebar-content d-flex flex-column h-100">
-    {# Brand/Logo Section #}
-    <div class="sidebar-brand p-3 border-bottom border-secondary">
+    {# Brand/Logo Section with Toggle Button #}
+    <div class="sidebar-brand p-3 border-bottom border-secondary d-flex align-items-center justify-content-between">
       <a href="{{ url_for('main.dashboard') }}" class="d-flex align-items-center text-white text-decoration-none">
-        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-          <path d="M4 19l16 0"/>
-          <path d="M4 15l4 -6l4 2l4 -5l4 4"/>
-        </svg>
-        <span class="fw-bold fs-5">Thesis</span>
+        <span class="fw-bold fs-5 sidebar-text">Thesis</span>
       </a>
+  <button id="sidebar-toggle" class="btn btn-link text-white p-0 sidebar-toggle-btn"
+      type="button"
+      aria-label="Collapse sidebar"
+      aria-expanded="true"
+      title="Toggle Sidebar">
+        <i class="fa-solid fa-bars" aria-hidden="true"></i>
+  </button>
     </div>
 
     {# Navigation Menu #}
@@ -26,91 +28,57 @@
       <ul class="nav nav-pills flex-column px-3">
         {# Dashboard #}
         <li class="nav-item mb-2">
-          <a href="{{ url_for('main.dashboard') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-3" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M5 12l-2 0l9 -9l9 9l-2 0"/>
-              <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/>
-              <path d="M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"/>
-            </svg>
-            Dashboard
+          <a href="{{ url_for('main.dashboard') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="Dashboard">
+            <i class="fa-solid fa-gauge-high me-3 nav-icon" aria-hidden="true"></i>
+            <span class="sidebar-text">Dashboard</span>
           </a>
         </li>
 
         {# Analysis Section #}
         <li class="nav-item mb-2">
-          <a href="{{ url_for('analysis.analysis_index') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-3" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-            </svg>
-            Analysis Hub
+          <a href="{{ url_for('analysis.analysis_index') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="Analysis Hub">
+            <i class="fa-solid fa-chart-column me-3 nav-icon" aria-hidden="true"></i>
+            <span class="sidebar-text">Analysis Hub</span>
           </a>
         </li>
 
         {# Models & Applications #}
         <li class="nav-item mb-2">
-          <a href="{{ url_for('main.models_overview') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-3" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M7 3m0 2a2 2 0 0 1 2 -2h6a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-6a2 2 0 0 1 -2 -2z"/>
-              <path d="M9 7h6"/>
-              <path d="M9 11h6"/>
-              <path d="M9 15h4"/>
-            </svg>
-            Models
+          <a href="{{ url_for('main.models_overview') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="Models">
+            <i class="fa-solid fa-cubes-stacked me-3 nav-icon" aria-hidden="true"></i>
+            <span class="sidebar-text">Models</span>
           </a>
         </li>
 
         {# Reports #}
         <li class="nav-item mb-2">
-          <a href="{{ url_for('reports.reports_index') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-3" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
-              <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
-              <path d="M9 9l1 0"/>
-              <path d="M9 13l6 0"/>
-              <path d="M9 17l6 0"/>
-            </svg>
-            Reports
+          <a href="{{ url_for('reports.reports_index') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="Reports">
+            <i class="fa-solid fa-file-lines me-3 nav-icon" aria-hidden="true"></i>
+            <span class="sidebar-text">Reports</span>
           </a>
         </li>
 
         {# Statistics #}
         <li class="nav-item mb-2">
-          <a href="{{ url_for('statistics.statistics_overview') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-3" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M3 12h4l3 8l4 -16l3 8h4"/>
-            </svg>
-            Statistics
+          <a href="{{ url_for('statistics.statistics_overview') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="Statistics">
+            <i class="fa-solid fa-chart-line me-3 nav-icon" aria-hidden="true"></i>
+            <span class="sidebar-text">Statistics</span>
           </a>
         </li>
 
         {# System Status #}
         <li class="nav-item mb-2">
-          <a href="{{ url_for('main.system_status') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-3" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M3 12a9 9 0 0 0 9 9a9 9 0 0 0 9 -9a9 9 0 0 0 -9 -9"/>
-              <path d="M13 12a6 6 0 0 0 -6 -6"/>
-              <path d="M12 7v5l2 1"/>
-            </svg>
-            System Status
+          <a href="{{ url_for('main.system_status') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="System Status">
+            <i class="fa-solid fa-server me-3 nav-icon" aria-hidden="true"></i>
+            <span class="sidebar-text">System Status</span>
           </a>
         </li>
 
         {# Tasks #}
         <li class="nav-item mb-2">
-          <a href="{{ url_for('tasks.tasks_overview') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-3" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M9 12l2 2l4 -4"/>
-              <path d="M21 12c-1 0 -3 -3.5 -3 -6c0 -1.5 .5 -3 3 -3s3 1.5 3 3c0 2.5 -2 6 -3 6"/>
-              <path d="M5 6v12l4 2"/>
-            </svg>
-            Tasks
+          <a href="{{ url_for('tasks.tasks_overview') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="Tasks">
+            <i class="fa-solid fa-list-check me-3 nav-icon" aria-hidden="true"></i>
+            <span class="sidebar-text">Tasks</span>
           </a>
         </li>
       </ul>
@@ -122,11 +90,11 @@
         {# System Status #}
         <div class="d-flex align-items-center justify-content-center">
           <span class="status-indicator status-indicator-animated bg-green me-2" style="width: 8px; height: 8px;"></span>
-          <small class="text-muted fw-medium">Online</small>
+          <small class="text-muted fw-medium sidebar-text">Online</small>
         </div>
 
         {# Version & Copyright #}
-        <div class="text-center">
+        <div class="text-center sidebar-text">
           <small class="text-muted d-block fw-medium">
             <strong>Thesis Platform</strong> v1.0
           </small>
@@ -138,157 +106,4 @@
     </div>
   </div>
 </aside>
-
-{# Sidebar Styles - Clean Bootstrap-style design #}
-<style>
-  /* Sidebar base styles */
-  .sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 1000;
-    height: 100vh;
-    background-color: #212529 !important;
-    border-right: 1px solid #495057;
-    box-shadow: 2px 0 4px rgba(0,0,0,0.1);
-  }
-
-  /* Sidebar content layout */
-  .sidebar-content {
-    height: 100%;
-  }
-
-  /* Brand section */
-  .sidebar-brand {
-    border-bottom: 1px solid #495057 !important;
-    transition: background-color 0.15s ease;
-  }
-
-  .sidebar-brand:hover {
-    background-color: rgba(255, 255, 255, 0.05);
-  }
-
-  .sidebar-brand a {
-    color: #ffffff !important;
-    text-decoration: none;
-    transition: color 0.15s ease;
-  }
-
-  .sidebar-brand a:hover {
-    color: #ffffff !important;
-  }
-
-  .sidebar-brand a:focus {
-    outline: 2px solid #0d6efd;
-    outline-offset: 2px;
-    border-radius: 0.375rem;
-  }
-
-  /* Navigation styles */
-  .sidebar-nav .nav-link {
-    color: #adb5bd;
-    padding: 0.625rem 1rem;
-    border-radius: 0.375rem;
-    margin-bottom: 0.125rem;
-    transition: all 0.15s ease-in-out;
-    font-size: 0.95rem;
-    font-weight: 500;
-    position: relative;
-  }
-
-  .sidebar-nav .nav-link:hover {
-    background-color: #495057;
-    color: #ffffff;
-    transform: translateX(2px);
-  }
-
-  .sidebar-nav .nav-link:focus {
-    outline: 2px solid #0d6efd;
-    outline-offset: 2px;
-    background-color: #495057;
-    color: #ffffff;
-  }
-
-  .sidebar-nav .nav-link.active {
-    background-color: #0d6efd;
-    color: #ffffff;
-    box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
-  }
-
-  /* Icon spacing */
-  .sidebar-nav .nav-link svg {
-    flex-shrink: 0;
-  }
-
-  /* Footer section */
-  .sidebar-footer {
-    border-top: 1px solid #495057 !important;
-    margin-top: auto;
-    background-color: rgba(0, 0, 0, 0.2);
-  }
-
-  /* Status indicator styling */
-  .status-indicator {
-    border-radius: 50%;
-    display: inline-block;
-  }
-
-  .status-indicator-animated {
-    animation: pulse 2s infinite;
-  }
-
-  @keyframes pulse {
-    0% { opacity: 1; }
-    50% { opacity: 0.5; }
-    100% { opacity: 1; }
-  }
-
-  /* Adjust main content area */
-  .page-wrapper {
-    margin-left: 260px;
-    transition: margin-left 0.2s ease;
-  }
-
-  /* Mobile responsive behavior */
-  @media (max-width: 991.98px) {
-    .sidebar {
-      transform: translateX(-100%);
-      transition: transform 0.2s ease;
-    }
-
-    .sidebar.show {
-      transform: translateX(0);
-    }
-
-    .page-wrapper {
-      margin-left: 0;
-    }
-
-    /* Mobile toggle button */
-    .sidebar-toggle-mobile {
-      position: fixed;
-      top: 1rem;
-      left: 1rem;
-      z-index: 1050;
-      background-color: #212529;
-      border: 1px solid #495057;
-      color: #ffffff;
-      padding: 0.5rem;
-      border-radius: 0.375rem;
-      cursor: pointer;
-    }
-
-    .sidebar-toggle-mobile:hover {
-      background-color: #495057;
-    }
-  }
-
-  /* Ensure proper spacing and alignment */
-  .sidebar-nav .nav {
-    margin: 0;
-  }
-
-  .sidebar-nav .nav-item {
-    list-style: none;
-  }
-</style>
+{# Sidebar styles moved to static/css/theme.css #}
