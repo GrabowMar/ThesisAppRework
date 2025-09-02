@@ -40,7 +40,12 @@ if (window.__MODELS_JS_LOADED__) {
 
   document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('models-table-body')) {
-      loadModels();
+      // First, trigger a lightweight filesystem -> DB sync so newly generated
+      // apps/models appear without manual intervention. Fire-and-forget; if it
+      // fails we still proceed to load existing DB state.
+      fetch('/api/models/sync', { method: 'POST' })
+        .catch(() => {})
+        .finally(() => loadModels());
       setupMultiselects();
     }
   });
@@ -154,6 +159,7 @@ function toggleModelSelection(slug) {
   if (i > -1) selectedModels.splice(i, 1); else selectedModels.push(slug);
   const el = document.getElementById('selected-models-count');
   if (el) el.textContent = selectedModels.length;
+  try { localStorage.setItem('models_selected', JSON.stringify(selectedModels)); } catch(e) {}
 }
 /** Master checkbox: select / deselect all visible models */
 function toggleSelectAll() {
@@ -170,6 +176,7 @@ function toggleSelectAll() {
   });
   const el = document.getElementById('selected-models-count');
   if (el) el.textContent = selectedModels.length;
+  try { localStorage.setItem('models_selected', JSON.stringify(selectedModels)); } catch(e) {}
 }
 /** Open modal with enriched model details (fetched on demand) */
 function viewModelDetails(slug) {
@@ -187,6 +194,17 @@ function viewModelDetails(slug) {
     .catch(() => target.innerHTML = '<div class="alert alert-danger m-0">Failed to load.</div>');
 }
 function refreshModels() { loadModels(); }
+function openComparison() {
+  // Load from current in-memory selection (fallback to localStorage)
+  if (!selectedModels.length) {
+    try { const stored = JSON.parse(localStorage.getItem('models_selected')||'[]'); if(Array.isArray(stored)) selectedModels = stored; } catch(e) {}
+  }
+  const unique = [...new Set(selectedModels)];
+  const param = unique.slice(0,20).join(','); // cap to avoid huge URLs
+  try { localStorage.setItem('models_selected', JSON.stringify(unique)); } catch(e) {}
+  const url = '/models/comparison' + (param? ('?models='+encodeURIComponent(param)):'');
+  window.location.href = url;
+}
 function exportModelsData() { window.open('/api/models/export?format=json', '_blank'); }
 /** Mark locally installed models (server heuristic) */
 function tagInstalledModels() {
@@ -207,6 +225,7 @@ function setupMultiselects() {
   window.toggleSelectAll = toggleSelectAll;
   window.viewModelDetails = viewModelDetails;
   window.refreshModels = refreshModels;
+  window.openComparison = openComparison;
   window.exportModelsData = exportModelsData;
   window.tagInstalledModels = tagInstalledModels;
 }

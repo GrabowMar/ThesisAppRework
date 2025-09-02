@@ -890,24 +890,32 @@ def models_comparison():
                     for k, v in caps.items():
                         if v:
                             capability_union.add(k)
+                # Normalize price fields to float (original sources may be strings like '0.0012')
+                def _to_float(v):
+                    try:
+                        if v is None or v == '':
+                            return 0.0
+                        return float(v)
+                    except Exception:
+                        return 0.0
                 selected_models.append({
                     'slug': slug,
                     'name': data.get('name') or m.model_name,
                     'provider': data.get('provider') or m.provider,
                     'context_length': data.get('openrouter_context_length') or m.context_window,
-                    'input_price': data.get('openrouter_prompt_price') or data.get('input_price_per_1k'),
-                    'output_price': data.get('openrouter_completion_price') or data.get('output_price_per_1k'),
+                    'input_price': _to_float(data.get('openrouter_prompt_price') or data.get('input_price_per_1k')),
+                    'output_price': _to_float(data.get('openrouter_completion_price') or data.get('output_price_per_1k')),
                     'performance_score': data.get('performance_score'),
                     'capabilities': caps,
                 })
             # Pricing delta baseline (first model)
             if selected_models:
                 base = selected_models[0]
-                b_in = (base.get('input_price') or 0) or 0
-                b_out = (base.get('output_price') or 0) or 0
+                b_in = float(base.get('input_price') or 0) or 0.0
+                b_out = float(base.get('output_price') or 0) or 0.0
                 for sm in selected_models:
-                    in_p = (sm.get('input_price') or 0) or 0
-                    out_p = (sm.get('output_price') or 0) or 0
+                    in_p = float(sm.get('input_price') or 0) or 0.0
+                    out_p = float(sm.get('output_price') or 0) or 0.0
                     pricing.append({
                         'slug': sm['slug'],
                         'name': sm['name'],

@@ -927,6 +927,36 @@ class SampleGenerationService:
                 for b in blocks:
                     self.organizer.save_block(b, model)
                 self.organizer.save_markdown(result)
+                # --- Automatic model/application DB sync (filesystem -> DB) ---
+                # After saving generated artifacts, ensure a corresponding ModelCapability & GeneratedApplication
+                # row exist so the /models UI immediately reflects the new generation without manual sync.
+                try:  # Guard to avoid breaking generation flow if sync fails
+                    from app.services.model_sync_service import upsert_model_and_application  # local import to avoid circular refs
+                    # Derive filesystem paths used by ProjectOrganizer for presence flags
+                    import re
+                    safe_model = re.sub(r'[^\w\-_]', '_', model)
+                    app_dir = Path('generated') / safe_model / f"app{result.app_num}"
+                    has_backend = (app_dir / 'backend').exists()
+                    has_frontend = (app_dir / 'frontend').exists()
+                    # docker-compose.yml may live either under app directory or model root
+                    has_compose = any([
+                        (app_dir / 'docker-compose.yml').exists(),
+                        (app_dir / 'docker-compose.yaml').exists(),
+                        (app_dir.parent / 'docker-compose.yml').exists(),
+                        (app_dir.parent / 'docker-compose.yaml').exists(),
+                    ])
+                    upsert_model_and_application(
+                        model,
+                        result.app_num,
+                        has_backend=has_backend,
+                        has_frontend=has_frontend,
+                        has_compose=has_compose,
+                    )
+                    if db:
+                        # Defer commit until later when we also persist GeneratedCodeResult to keep atomicity
+                        db.session.flush()
+                except Exception as sync_err:  # noqa: BLE001
+                    logger.warning("Auto model/app upsert failed (non-fatal): %s", sync_err)
             result_id = f"{model.replace('/', '_')}_{template.app_num}_{int(time.time())}"
             self._results[result_id] = result
             # Persist to DB if available

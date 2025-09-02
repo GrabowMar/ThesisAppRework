@@ -9,6 +9,10 @@
 		<div class="container-xl">
 				<div class="card mb-3"><div class="card-header"><h3 class="card-title"><i class="fas fa-sliders-h me-2"></i>Comparison Settings</h3></div>
 					<div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label">Quick Select Models</label>
+                            <div id="model-picker" class="d-flex flex-wrap"></div>
+                        </div>
 						<form id="comparison-form" onsubmit="event.preventDefault();refreshComparison();">
 							<div class="row g-3">
 								<div class="col-md-4"><label class="form-label">Select Models (slugs comma-separated)</label><input type="text" class="form-control" id="models-input" placeholder="model_a,model_b" value="{{ selected_models|join(',') if selected_models else '' }}" /></div>
@@ -91,6 +95,55 @@
 {% block scripts %}
 {{ super() }}
 <script>
-function refreshComparison(){const models=document.getElementById('models-input').value.trim();fetch('/api/models/comparison/refresh',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'models='+encodeURIComponent(models)}).then(r=>r.text()).then(html=>{document.getElementById('comparison-matrix').innerHTML=html;}).catch(()=>alert('Comparison refresh failed'));}
+// Simple model picker enhancement
+let availableModels=[];let selectedSet=new Set();
+function loadAvailableModels(){fetch('/api/models/all').then(r=>r.json()).then(d=>{availableModels=(d.models||[]);renderModelPicker();});}
+function renderModelPicker(){const target=document.getElementById('model-picker');if(!target)return;target.innerHTML=availableModels.map(m=>`<button type="button" class="btn btn-sm me-1 mb-1 ${selectedSet.has(m.slug)?'btn-primary':'btn-outline-secondary'}" onclick="togglePick('${m.slug}')">${m.slug}</button>`).join('');document.getElementById('models-input').value=[...selectedSet].join(',');}
+function togglePick(slug){if(selectedSet.has(slug))selectedSet.delete(slug);else selectedSet.add(slug);renderModelPicker();}
+function refreshComparison(){
+	const models=document.getElementById('models-input').value.trim();
+	if(!models){document.getElementById('comparison-matrix').innerHTML='<div class="card"><div class="card-body text-center text-muted py-5">Enter model slugs first.</div></div>';return;}
+	const slugs=[...new Set(models.split(',').map(s=>s.trim()).filter(Boolean))];
+	fetch('/api/models/comparison/refresh',{
+		method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({models:slugs})})
+	.then(r=>r.json())
+	.then(data=>{
+		const container=document.getElementById('comparison-matrix');
+		const slugs=data.models||[];
+		if(!slugs.length){container.innerHTML='<div class="card"><div class="card-body text-center text-muted py-5">No models returned.</div></div>';return;}
+		// Build simple comparison tables from metrics
+		const metrics=data.metrics||{};
+		// Core metrics table header
+		let html='<div class="card mb-3"><div class="card-header d-flex align-items-center"><h3 class="card-title mb-0"><i class="fas fa-table me-2"></i>Core Metrics</h3><span class="badge bg-info ms-2">'+slugs.length+' models</span></div><div class="table-responsive"><table class="table table-sm table-bordered mb-0"><thead><tr><th>Metric</th>';
+		slugs.forEach(s=>{html+='<th>'+s+'</th>';});
+		html+='</tr></thead><tbody>';
+		// Throughput row
+		html+='<tr><td>Throughput</td>'+slugs.map(s=>'<td>'+(metrics[s]?.throughput??'-')+'</td>').join('')+'</tr>';
+		// Latency
+		html+='<tr><td>Latency (ms)</td>'+slugs.map(s=>'<td>'+(metrics[s]?.latency_ms??'-')+'</td>').join('')+'</tr>';
+		// Cost
+		html+='<tr><td>Cost / call</td>'+slugs.map(s=>'<td>'+(metrics[s]?.cost_per_call??'-')+'</td>').join('')+'</tr>';
+		html+='</tbody></table></div></div>';
+		container.innerHTML=html;
+	})
+	.catch(()=>alert('Comparison refresh failed'));
+}
+	document.addEventListener('DOMContentLoaded',()=>{loadAvailableModels();});
+	// Preselect from query/localStorage after models load
+	function preselectFromContext(){
+		try {
+			const params=new URLSearchParams(window.location.search);
+			let fromQuery=(params.get('models')||'').split(',').map(s=>s.trim()).filter(Boolean);
+			if(!fromQuery.length){
+				const stored=JSON.parse(localStorage.getItem('models_selected')||'[]');
+				if(Array.isArray(stored)) fromQuery=stored;
+			}
+			fromQuery.forEach(s=>selectedSet.add(s));
+			renderModelPicker();
+			if(fromQuery.length) refreshComparison();
+		}catch(e){}
+	}
+	// Hook after available models fetched
+	const _origLoad=loadAvailableModels;loadAvailableModels=function(){fetch('/api/models/all').then(r=>r.json()).then(d=>{availableModels=(d.models||[]);preselectFromContext();renderModelPicker();});};
 </script>
 {% endblock %}

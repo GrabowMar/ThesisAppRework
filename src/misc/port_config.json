@@ -1,0 +1,632 @@
+[
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 1,
+    "backend_port": 5001,
+    "frontend_port": 8001
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 2,
+    "backend_port": 5003,
+    "frontend_port": 8003
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 3,
+    "backend_port": 5005,
+    "frontend_port": 8005
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 4,
+    "backend_port": 5007,
+    "frontend_port": 8007
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 5,
+    "backend_port": 5009,
+    "frontend_port": 8009
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 6,
+    "backend_port": 5011,
+    "frontend_port": 8011
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 7,
+    "backend_port": 5013,
+    "frontend_port": 8013
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 8,
+    "backend_port": 5015,
+    "frontend_port": 8015
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 9,
+    "backend_port": 5017,
+    "frontend_port": 8017
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 10,
+    "backend_port": 5019,
+    "frontend_port": 8019
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 11,
+    "backend_port": 5021,
+    "frontend_port": 8021
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 12,
+    "backend_port": 5023,
+    "frontend_port": 8023
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 13,
+    "backend_port": 5025,
+    "frontend_port": 8025
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 14,
+    "backend_port": 5027,
+    "frontend_port": 8027
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 15,
+    "backend_port": 5029,
+    "frontend_port": 8029
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 16,
+    "backend_port": 5031,
+    "frontend_port": 8031
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 17,
+    "backend_port": 5033,
+    "frontend_port": 8033
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 18,
+    "backend_port": 5035,
+    "frontend_port": 8035
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 19,
+    "backend_port": 5037,
+    "frontend_port": 8037
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 20,
+    "backend_port": 5039,
+    "frontend_port": 8039
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 21,
+    "backend_port": 5041,
+    "frontend_port": 8041
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 22,
+    "backend_port": 5043,
+    "frontend_port": 8043
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 23,
+    "backend_port": 5045,
+    "frontend_port": 8045
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 24,
+    "backend_port": 5047,
+    "frontend_port": 8047
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 25,
+    "backend_port": 5049,
+    "frontend_port": 8049
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 26,
+    "backend_port": 5051,
+    "frontend_port": 8051
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 27,
+    "backend_port": 5053,
+    "frontend_port": 8053
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 28,
+    "backend_port": 5055,
+    "frontend_port": 8055
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 29,
+    "backend_port": 5057,
+    "frontend_port": 8057
+  },
+  {
+    "model": "x-ai/grok-code-fast-1",
+    "model_index": 0,
+    "app_number": 30,
+    "backend_port": 5059,
+    "frontend_port": 8059
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 1,
+    "backend_port": 5071,
+    "frontend_port": 8071
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 2,
+    "backend_port": 5073,
+    "frontend_port": 8073
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 3,
+    "backend_port": 5075,
+    "frontend_port": 8075
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 4,
+    "backend_port": 5077,
+    "frontend_port": 8077
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 5,
+    "backend_port": 5079,
+    "frontend_port": 8079
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 6,
+    "backend_port": 5081,
+    "frontend_port": 8081
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 7,
+    "backend_port": 5083,
+    "frontend_port": 8083
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 8,
+    "backend_port": 5085,
+    "frontend_port": 8085
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 9,
+    "backend_port": 5087,
+    "frontend_port": 8087
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 10,
+    "backend_port": 5089,
+    "frontend_port": 8089
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 11,
+    "backend_port": 5091,
+    "frontend_port": 8091
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 12,
+    "backend_port": 5093,
+    "frontend_port": 8093
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 13,
+    "backend_port": 5095,
+    "frontend_port": 8095
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 14,
+    "backend_port": 5097,
+    "frontend_port": 8097
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 15,
+    "backend_port": 5099,
+    "frontend_port": 8099
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 16,
+    "backend_port": 5101,
+    "frontend_port": 8101
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 17,
+    "backend_port": 5103,
+    "frontend_port": 8103
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 18,
+    "backend_port": 5105,
+    "frontend_port": 8105
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 19,
+    "backend_port": 5107,
+    "frontend_port": 8107
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 20,
+    "backend_port": 5109,
+    "frontend_port": 8109
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 21,
+    "backend_port": 5111,
+    "frontend_port": 8111
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 22,
+    "backend_port": 5113,
+    "frontend_port": 8113
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 23,
+    "backend_port": 5115,
+    "frontend_port": 8115
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 24,
+    "backend_port": 5117,
+    "frontend_port": 8117
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 25,
+    "backend_port": 5119,
+    "frontend_port": 8119
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 26,
+    "backend_port": 5121,
+    "frontend_port": 8121
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 27,
+    "backend_port": 5123,
+    "frontend_port": 8123
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 28,
+    "backend_port": 5125,
+    "frontend_port": 8125
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 29,
+    "backend_port": 5127,
+    "frontend_port": 8127
+  },
+  {
+    "model": "qwen/qwen3-30b-a3b-thinking-2507",
+    "model_index": 1,
+    "app_number": 30,
+    "backend_port": 5129,
+    "frontend_port": 8129
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 1,
+    "backend_port": 5141,
+    "frontend_port": 8141
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 2,
+    "backend_port": 5143,
+    "frontend_port": 8143
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 3,
+    "backend_port": 5145,
+    "frontend_port": 8145
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 4,
+    "backend_port": 5147,
+    "frontend_port": 8147
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 5,
+    "backend_port": 5149,
+    "frontend_port": 8149
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 6,
+    "backend_port": 5151,
+    "frontend_port": 8151
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 7,
+    "backend_port": 5153,
+    "frontend_port": 8153
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 8,
+    "backend_port": 5155,
+    "frontend_port": 8155
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 9,
+    "backend_port": 5157,
+    "frontend_port": 8157
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 10,
+    "backend_port": 5159,
+    "frontend_port": 8159
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 11,
+    "backend_port": 5161,
+    "frontend_port": 8161
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 12,
+    "backend_port": 5163,
+    "frontend_port": 8163
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 13,
+    "backend_port": 5165,
+    "frontend_port": 8165
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 14,
+    "backend_port": 5167,
+    "frontend_port": 8167
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 15,
+    "backend_port": 5169,
+    "frontend_port": 8169
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 16,
+    "backend_port": 5171,
+    "frontend_port": 8171
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 17,
+    "backend_port": 5173,
+    "frontend_port": 8173
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 18,
+    "backend_port": 5175,
+    "frontend_port": 8175
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 19,
+    "backend_port": 5177,
+    "frontend_port": 8177
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 20,
+    "backend_port": 5179,
+    "frontend_port": 8179
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 21,
+    "backend_port": 5181,
+    "frontend_port": 8181
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 22,
+    "backend_port": 5183,
+    "frontend_port": 8183
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 23,
+    "backend_port": 5185,
+    "frontend_port": 8185
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 24,
+    "backend_port": 5187,
+    "frontend_port": 8187
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 25,
+    "backend_port": 5189,
+    "frontend_port": 8189
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 26,
+    "backend_port": 5191,
+    "frontend_port": 8191
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 27,
+    "backend_port": 5193,
+    "frontend_port": 8193
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 28,
+    "backend_port": 5195,
+    "frontend_port": 8195
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 29,
+    "backend_port": 5197,
+    "frontend_port": 8197
+  },
+  {
+    "model": "nousresearch/hermes-4-405b",
+    "model_index": 2,
+    "app_number": 30,
+    "backend_port": 5199,
+    "frontend_port": 8199
+  }
+]

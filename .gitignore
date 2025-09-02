@@ -230,3 +230,6 @@ yarn-debug.log*
 yarn-error.log*
 package-lock.json
 yarn.lock
+
+# Large model artifacts (do not version control generated model folders)
+models/

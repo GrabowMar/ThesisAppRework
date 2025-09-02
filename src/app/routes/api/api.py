@@ -596,6 +596,87 @@ def api_models_all():
         current_app.logger.error(f"Error building models/all payload: {e}")
         return jsonify({'models': [], 'statistics': {'total_models': 0, 'active_models': 0, 'unique_providers': 0, 'avg_cost_per_1k': 0}})
 
+@api_bp.route('/models/filtered')
+def api_models_filtered():
+    """Filtered models list used by models.js applyFilters().
+
+    Query params:
+      search: substring match on model_name or canonical_slug
+      providers: repeated param list of provider slugs
+      capabilities: repeated param list (matched against capabilities array)
+      price: optional tier (free|low|mid|high) based on input price per 1k tokens
+    Returns same envelope shape as /models/all but with filtered subset & recalculated statistics.
+    """
+    try:
+        search = (request.args.get('search') or '').strip().lower()
+        providers = {p.lower() for p in request.args.getlist('providers') if p.strip()}
+        caps_filter = {c.lower() for c in request.args.getlist('capabilities') if c.strip()}
+        price_tier = (request.args.get('price') or '').lower()
+
+        base = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+
+        def price_bucket(val: float) -> str:
+            if val == 0:
+                return 'free'
+            if val < 0.001:  # < $0.001 per token (~$1 per 1k) low
+                return 'low'
+            if val < 0.005:
+                return 'mid'
+            return 'high'
+
+        filtered = []
+        for m in base:
+            name_l = (m.model_name or '').lower()
+            slug_l = (m.canonical_slug or '').lower()
+            if search and search not in name_l and search not in slug_l:
+                continue
+            if providers and m.provider.lower() not in providers:
+                continue
+            caps_raw = m.get_capabilities() or {}
+            caps_list = _norm_caps(caps_raw.get('capabilities') if isinstance(caps_raw, dict) else caps_raw)
+            caps_lower = {c.lower() for c in caps_list}
+            if caps_filter and not caps_filter.issubset(caps_lower):
+                continue
+            if price_tier:
+                bucket = price_bucket(m.input_price_per_token or 0.0)
+                if bucket != price_tier:
+                    continue
+            filtered.append(m)
+
+        def map_model(m: ModelCapability):
+            caps_raw = m.get_capabilities() or {}
+            caps_list = _norm_caps(caps_raw.get('capabilities') if isinstance(caps_raw, dict) else caps_raw)
+            meta = m.get_metadata() or {}
+            return {
+                'slug': m.canonical_slug,
+                'model_id': m.model_id,
+                'name': m.model_name,
+                'provider': m.provider,
+                'provider_logo': '/static/images/default-avatar.svg',
+                'capabilities': caps_list,
+                'input_price_per_1k': round((m.input_price_per_token or 0.0) * 1000, 6),
+                'output_price_per_1k': round((m.output_price_per_token or 0.0) * 1000, 6),
+                'context_length': m.context_window or 0,
+                'max_output_tokens': m.max_output_tokens or 0,
+                'performance_score': int((m.cost_efficiency or 0.0) * 10) if (m.cost_efficiency or 0) <= 1 else int(m.cost_efficiency or 0),
+                'status': 'active',
+                'description': meta.get('openrouter_description') or meta.get('description') or None,
+                'installed': bool(getattr(m, 'installed', False)),
+            }
+
+        models_list = [map_model(m) for m in filtered]
+        providers_set = {m['provider'] for m in models_list}
+        stats = {
+            'total_models': len(models_list),
+            'active_models': len(models_list),
+            'unique_providers': len(providers_set),
+            'avg_cost_per_1k': round(sum(x['input_price_per_1k'] for x in models_list) / max(len(models_list), 1), 6)
+        }
+        return jsonify({'models': models_list, 'statistics': stats})
+    except Exception as e:  # pragma: no cover - unexpected failure path
+        current_app.logger.error(f"Error building models/filtered payload: {e}")
+        return jsonify({'models': [], 'statistics': {'total_models': 0, 'active_models': 0, 'unique_providers': 0, 'avg_cost_per_1k': 0}})
+
 @api_bp.route('/models/comparison/refresh', methods=['POST'])
 def models_comparison_refresh():
     """Compute lightweight comparison metrics for provided models.
@@ -604,9 +685,40 @@ def models_comparison_refresh():
     Form fields: models (comma separated), baseline (avg|median|model:<slug>)
     """
     try:
-        raw_models = request.form.get('models', '')
-        baseline_spec = request.form.get('baseline', 'avg')
-        model_slugs = [m.strip() for m in raw_models.split(',') if m.strip()]
+        baseline_spec = 'avg'
+        model_slugs: list[str] = []
+        if request.is_json:
+            body = request.get_json(silent=True) or {}
+            raw_models = body.get('models') or body.get('slugs') or body.get('ids') or ''
+            baseline_spec = body.get('baseline', 'avg')
+            if isinstance(raw_models, list):
+                items = raw_models
+            else:
+                items = [s.strip() for s in str(raw_models).split(',') if s.strip()]
+        else:
+            raw_models = request.form.get('models', '')
+            baseline_spec = request.form.get('baseline', 'avg')
+            items = [m.strip() for m in raw_models.split(',') if m.strip()]
+
+        # Resolve provided identifiers (canonical_slug, model_id, model_name) to canonical_slug
+        for ident in items:
+            q = ModelCapability.query.filter(
+                (ModelCapability.canonical_slug == ident) |
+                (ModelCapability.model_id == ident) |
+                (ModelCapability.model_name == ident)
+            ).first()
+            if q:
+                model_slugs.append(q.canonical_slug)
+        # Deduplicate & limit to 8 to keep payload small
+        seen = set()
+        deduped = []
+        for s in model_slugs:
+            if s not in seen:
+                seen.add(s)
+                deduped.append(s)
+            if len(deduped) >= 8:
+                break
+        model_slugs = deduped
         metrics = {}
         for idx, slug in enumerate(model_slugs, start=1):
             metrics[slug] = {
@@ -710,6 +822,26 @@ def api_models_mark_installed():
             "Failed to mark installed models",
             status=500,
             error="MarkInstalledError",
+            details={"reason": str(e)}
+        )), 500
+
+@api_bp.route('/models/sync', methods=['POST'])
+def api_models_sync():
+    """Sync filesystem model/app directories into the database.
+
+    Returns JSON summary so UI can refresh models list. Safe & idempotent.
+    """
+    try:
+        from app.services.model_sync_service import sync_models_from_filesystem
+        summary = sync_models_from_filesystem()
+        summary['success'] = True
+        return jsonify(summary)
+    except Exception as e:  # pragma: no cover - unexpected failures
+        current_app.logger.error(f"Filesystem sync failed: {e}")
+        return jsonify(build_error_payload(
+            "Filesystem model sync failed",
+            status=500,
+            error="ModelSyncError",
             details={"reason": str(e)}
         )), 500
 
