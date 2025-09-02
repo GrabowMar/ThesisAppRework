@@ -19,6 +19,7 @@ from app.models import (
 )
 from app.constants import ContainerState
 from app.utils.helpers import create_success_response, create_error_response
+from app.utils.errors import build_error_payload
 from app.services.data_initialization import data_init_service
 from app.services.statistics_service import (
     get_application_statistics, get_model_statistics, get_analysis_statistics,
@@ -137,7 +138,7 @@ def api_stats():
         return jsonify(stats)
     except Exception as e:
         current_app.logger.error(f"Error getting API stats: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify(build_error_payload("Failed to retrieve statistics", status=500, error="StatsError", details={"reason": str(e)})), 500
 
 @api_bp.route('/data/initialize', methods=['POST'])
 def api_initialize_data():
@@ -147,7 +148,12 @@ def api_initialize_data():
         return jsonify(results)
     except Exception as e:
         current_app.logger.error(f"Error initializing data: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify(build_error_payload(
+            "Failed to initialize data",
+            status=500,
+            error="DataInitializationError",
+            details={"reason": str(e)}
+        )), 500
 
 @api_bp.route('/data/status')
 def api_data_status():
@@ -157,7 +163,7 @@ def api_data_status():
         return jsonify(status)
     except Exception as e:
         current_app.logger.error(f"Error getting data status: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify(build_error_payload("Failed to retrieve data status", status=500, error="DataStatusError", details={"reason": str(e)})), 500
 
 @api_bp.route('/data/reload', methods=['POST'])
 def api_reload_core_data():
@@ -168,7 +174,12 @@ def api_reload_core_data():
         return jsonify(results), status_code
     except Exception as e:
         current_app.logger.error(f"Error reloading core data: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify(build_error_payload(
+            "Failed to reload core data",
+            status=500,
+            error="DataReloadError",
+            details={"reason": str(e)}
+        )), 500
 
 # =================================================================
 # DASHBOARD API ROUTES
@@ -233,7 +244,12 @@ def api_dashboard_overview():
 
     except Exception as e:
         current_app.logger.error(f"Error getting dashboard overview: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify(build_error_payload(
+            "Failed to retrieve dashboard overview",
+            status=500,
+            error="DashboardOverviewError",
+            details={"reason": str(e)}
+        )), 500
 
 @api_bp.route('/dashboard/stats')
 def api_dashboard_stats():
@@ -282,7 +298,12 @@ def api_dashboard_stats():
 
     except Exception as e:
         current_app.logger.error(f"Error getting dashboard stats: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify(build_error_payload(
+            "Failed to retrieve dashboard stats",
+            status=500,
+            error="DashboardStatsError",
+            details={"reason": str(e)}
+        )), 500
 
 @api_bp.route('/sidebar_stats')
 def sidebar_stats():
@@ -418,7 +439,12 @@ def api_models_list():
         return jsonify([model.to_dict() for model in models])
     except Exception as e:
         current_app.logger.error(f"Error getting models list: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify(build_error_payload(
+            "Failed to get models list",
+            status=500,
+            error="ModelsListError",
+            details={"reason": str(e)}
+        )), 500
 
 @api_bp.route('/models/list-options')
 def api_models_list_options():
@@ -567,7 +593,12 @@ def api_models_load_openrouter():
         return jsonify({'success': True, 'upserted': upserted, 'fetched': len(data or []), 'mark_installed': mark_res})
     except Exception as e:
         current_app.logger.error(f'Error loading models from OpenRouter: {e}')
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify(build_error_payload(
+            "Failed to load models from OpenRouter",
+            status=500,
+            error="OpenRouterLoadError",
+            details={"reason": str(e)}
+        )), 500
 
 @api_bp.route('/models/mark-installed', methods=['POST'])
 def api_models_mark_installed():
@@ -579,10 +610,20 @@ def api_models_mark_installed():
             return jsonify(res), status_code
         except Exception as e:
             current_app.logger.error(f'Error in mark-installed delegate: {e}')
-            return jsonify({'success': False, 'error': str(e), 'updated': 0}), 500
+            return jsonify(build_error_payload(
+                "Failed to mark installed models (delegate)",
+                status=500,
+                error="MarkInstalledDelegateError",
+                details={"reason": str(e), "updated": 0}
+            )), 500
     except Exception as e:
         current_app.logger.error(f'Error marking installed models: {e}')
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify(build_error_payload(
+            "Failed to mark installed models",
+            status=500,
+            error="MarkInstalledError",
+            details={"reason": str(e)}
+        )), 500
 
 # =================================================================
 # APPLICATION API ROUTES
@@ -888,7 +929,12 @@ def api_system_info():
 
     except Exception as e:
         current_app.logger.error(f"Error getting system info: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify(build_error_payload(
+            "Failed to retrieve system info",
+            status=500,
+            error="SystemInfoError",
+            details={"reason": str(e)}
+        )), 500
 
 @api_bp.route('/system/overview')
 def api_system_overview():
@@ -944,7 +990,12 @@ def api_system_overview():
         return jsonify(data)
     except Exception as e:
         current_app.logger.error(f"Error getting system overview: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify(build_error_payload(
+            "Failed to retrieve system overview",
+            status=500,
+            error="SystemOverviewError",
+            details={"reason": str(e)}
+        )), 500
 
 @api_bp.route('/system/footer-status')
 def api_system_footer_status():
@@ -1047,7 +1098,12 @@ def api_tasks_count():
         current_app.logger.error(f"Error getting tasks count: {e}")
         if request.headers.get('HX-Request'):
             return 'Tasks: <span class="badge bg-red ms-1">!</span>'
-        return jsonify({'error': str(e), 'total_active': 0}), 500
+        return jsonify(build_error_payload(
+            "Failed to retrieve tasks count",
+            status=500,
+            error="TasksCountError",
+            details={"reason": str(e), "total_active": 0}
+        )), 500
 
 @api_bp.route('/uptime')
 def api_uptime():
@@ -1094,7 +1150,12 @@ def api_uptime():
         current_app.logger.error(f"Error getting uptime: {e}")
         if request.headers.get('HX-Request'):
             return 'Uptime: --'
-        return jsonify({'error': str(e), 'uptime_formatted': '--'}), 500
+        return jsonify(build_error_payload(
+            "Failed to retrieve uptime",
+            status=500,
+            error="UptimeError",
+            details={"reason": str(e), "uptime_formatted": '--'}
+        )), 500
 
 @api_bp.route('/header/summary')
 def api_header_summary():
@@ -1331,7 +1392,12 @@ def get_api_results():
 
     except Exception as e:
         current_app.logger.error(f"Error getting results: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify(build_error_payload(
+            "Failed to retrieve results",
+            status=500,
+            error="ResultsQueryError",
+            details={"reason": str(e)}
+        )), 500
 
 # =================================================================
 # MISCELLANEOUS API ROUTES
@@ -1398,7 +1464,12 @@ def tasks_status():
         return jsonify(status)
     except Exception as e:
         current_app.logger.error(f"Error getting task status: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify(build_error_payload(
+            "Failed to retrieve task status",
+            status=500,
+            error="TaskStatusError",
+            details={"reason": str(e)}
+        )), 500
 
 @api_bp.route('/notifications/count')
 def notifications_count():
@@ -1408,7 +1479,12 @@ def notifications_count():
         return jsonify({'count': count})
     except Exception as e:
         current_app.logger.error(f"Error getting notifications count: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify(build_error_payload(
+            "Failed to retrieve notifications count",
+            status=500,
+            error="NotificationsCountError",
+            details={"reason": str(e)}
+        )), 500
 
 @api_bp.route('/analysis/active-tests')
 def testing_active_tests():
@@ -1429,4 +1505,9 @@ def testing_active_tests():
         })
     except Exception as e:
         current_app.logger.error(f"Error getting active tests: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify(build_error_payload(
+            "Failed to retrieve active tests",
+            status=500,
+            error="ActiveTestsError",
+            details={"reason": str(e)}
+        )), 500

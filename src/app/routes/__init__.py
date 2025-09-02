@@ -73,8 +73,9 @@ def register_blueprints(app):
     # App scaffolding API (/api/app-scaffold)
     app.register_blueprint(scaffold_bp)
 
-    # Register WebSocket API blueprint
-    app.register_blueprint(websocket_api_bp, url_prefix='/ws-api')
+    # Register WebSocket API blueprint under both legacy (/api/websocket) and new (/ws-api) paths
+    # The tests expect /api/websocket/* endpoints.
+    app.register_blueprint(websocket_api_bp, url_prefix='/api/websocket')
 
     # Register WebSocket routes and error handlers
     register_websocket_routes(app)

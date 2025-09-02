@@ -94,7 +94,20 @@
                     {% if python_version %}
                     | Python Version: {{ python_version }}
                     {% endif %}
+                    {% if request_id %}
+                    | Request ID: <code>{{ request_id }}</code>
+                    {% endif %}
                   </small>
+                </div>
+                {% endif %}
+
+                {% if debug and debug_info %}
+                <div class="text-start mt-4">
+                  <div class="alert alert-warning" role="alert">
+                    <strong>Debug Information</strong> (visible only in debug mode)
+                  </div>
+                  <pre class="small bg-light p-3 rounded overflow-auto" style="max-height: 300px;">
+{% if debug_info.exception_type %}Exception: {{ debug_info.exception_type }}\n{% endif %}{% if debug_info.stacktrace %}{{ debug_info.stacktrace }}{% endif %}</pre>
                 </div>
                 {% endif %}
               </div>

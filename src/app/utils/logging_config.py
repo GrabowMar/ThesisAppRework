@@ -12,14 +12,14 @@ import logging
 import warnings
 import re
 from pathlib import Path
-from typing import Dict, Optional, Union, Set
+from typing import Dict, Optional
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
-from collections import defaultdict, deque
+from collections import defaultdict
 
 # Color coding dependencies
 try:
-    from colorama import init, Fore, Back, Style
+    from colorama import init, Fore, Style
     init(autoreset=True)
     COLORS_AVAILABLE = True
 except ImportError:
@@ -343,11 +343,26 @@ class LoggingConfig:
             use_colors=False  # No colors in log files
         )
         
+        # Custom filter to inject request_id if available
+        class RequestIdFilter(logging.Filter):  # pragma: no cover - contextual
+            def filter(self, record: logging.LogRecord) -> bool:
+                try:
+                    from flask import g  # type: ignore
+                    rid = getattr(g, 'request_id', None)
+                    if rid and not hasattr(record, 'request_id'):
+                        record.request_id = rid  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                return True
+
+        req_filter = RequestIdFilter()
+
         # Setup console handler
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(self.log_level)
         console_handler.setFormatter(console_formatter)
         console_handler.addFilter(SmartLogFilter())
+        console_handler.addFilter(req_filter)
         
         # Setup file handler with rotation
         log_file = self.log_dir / "app.log"
@@ -359,6 +374,7 @@ class LoggingConfig:
         )
         file_handler.setLevel(logging.DEBUG)  # Always log everything to file
         file_handler.setFormatter(file_formatter)
+        file_handler.addFilter(req_filter)
         
         # Add handlers to root logger
         root_logger.addHandler(console_handler)
@@ -470,6 +486,6 @@ def reduce_monitoring_spam():
     """Apply additional filters to reduce monitoring-related spam."""
     
     # Add filters to existing handlers
+    # (Currently a placeholder - real filters may be added later.)
     for handler in logging.getLogger().handlers:
-        if not any(isinstance(f, LogLevelFilter) for f in handler.filters):
-            handler.addFilter(LogLevelFilter())
+        pass

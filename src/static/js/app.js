@@ -63,6 +63,33 @@ ThesisApp.layout = (function(){
     autoDetermine();
     const t = getToggle(); if(t){ t.addEventListener('click', e=>{ e.preventDefault(); toggleUser(); }); }
     window.addEventListener('resize', onResize);
+        // Re-apply on htmx swaps (if hx-boost partial navigation used)
+    if(window.htmx){
+      document.body.addEventListener('htmx:afterSettle', ()=>{
+        // Ensure collapsed class persists (localStorage preference already stored)
+        autoDetermine();
+        // Mark active link based on location
+        try{
+          const path = window.location.pathname;
+          document.querySelectorAll('#sidebar .nav-link').forEach(a=>{
+            const match = a.getAttribute('href');
+            if(!match) return;
+            if(path === match || (match !== '/' && path.startsWith(match))){ a.classList.add('active'); }
+            else { a.classList.remove('active'); }
+          });
+        }catch(_){/* noop */}
+      });
+    }
+    // Initial active link highlight
+    try{
+      const path = window.location.pathname;
+      document.querySelectorAll('#sidebar .nav-link').forEach(a=>{
+        const match = a.getAttribute('href');
+        if(!match) return;
+        if(path === match || (match !== '/' && path.startsWith(match))){ a.classList.add('active'); }
+      });
+    }catch(_){/* noop */}
+  
   }
   document.addEventListener('DOMContentLoaded', init);
   return { init, toggleUser };

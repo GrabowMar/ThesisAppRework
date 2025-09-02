@@ -326,15 +326,47 @@ def create_app(config_name: str = 'default') -> Flask:
         if app.config.get('WEBSOCKET_STRICT_CELERY', False):
             raise
     
-    # Error handlers
-    @app.errorhandler(404)
-    def not_found(error):
-        return {'error': 'Not found'}, 404
-    
-    @app.errorhandler(500)
-    def internal_error(error):
-        logger.error(f"Internal server error: {error}")
-        return {'error': 'Internal server error'}, 500
+    # Register rich error handlers (HTML + JSON negotiation)
+    try:  # pragma: no cover - simple wiring
+        from app.errors import register_error_handlers
+        register_error_handlers(app)
+    except Exception as _err_reg:
+        logger.warning(f"Custom error handlers not registered: {_err_reg}")
+
+    # Request / Response logging middleware (after error handlers so request_id is present)
+    try:  # pragma: no cover - wiring
+        import time
+        from flask import request, g
+
+        @app.before_request  # type: ignore[misc]
+        def _req_start_timer():
+            g._req_start = time.perf_counter()
+
+        @app.after_request  # type: ignore[misc]
+        def _log_response(resp):
+            try:
+                duration_ms = None
+                if hasattr(g, '_req_start'):
+                    duration_ms = (time.perf_counter() - g._req_start) * 1000.0
+                req_id = getattr(g, 'request_id', None)
+                size = resp.calculate_content_length() or len(resp.get_data() or b'')
+                logger.info(
+                    "request", extra={
+                        'event': 'http_request',
+                        'request_id': req_id,
+                        'method': request.method,
+                        'path': request.path,
+                        'status': resp.status_code,
+                        'duration_ms': round(duration_ms, 2) if duration_ms is not None else None,
+                        'size': size,
+                        'content_type': resp.content_type,
+                    }
+                )
+            except Exception as _log_err:  # pragma: no cover
+                logger.debug(f"Request logging failed: {_log_err}")
+            return resp
+    except Exception as _mw_err:  # pragma: no cover
+        logger.warning(f"Request logging middleware not active: {_mw_err}")
     
     # Health check endpoint
     @app.route('/health')
