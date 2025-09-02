@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 class ScaffoldConfig:
     MODELS_DIR = Path("models")
     LOGS_DIR = "_logs"
-    TEMPLATES_DIR = Path("misc") / "z_code_templates"
+    TEMPLATES_DIR = Path("misc") / "code_templates"
     BASE_BACKEND_PORT = 5001
     BASE_FRONTEND_PORT = 8001
     PORTS_PER_APP = 2
@@ -102,6 +102,9 @@ class GenerationResult:
     preview: GenerationPreview
     generated: bool
     output_paths: List[Path]
+    errors: List[str] = field(default_factory=list)
+    missing_templates: List[str] = field(default_factory=list)
+    apps_created: int = 0
 
 # ---------------------------------------------------------------------------
 # Service implementation
@@ -152,14 +155,15 @@ class AppScaffoldingService:
         return mapping
 
     # ----------------------------- Ports ----------------------------------
-    def calculate_port_range(self, model_index: int) -> Tuple[int, int]:
-        ports_needed = ScaffoldConfig.APPS_PER_MODEL * ScaffoldConfig.PORTS_PER_APP + ScaffoldConfig.BUFFER_PORTS
+    def calculate_port_range(self, model_index: int, apps_per_model: Optional[int] = None) -> Tuple[int, int]:
+        apm = apps_per_model or ScaffoldConfig.APPS_PER_MODEL
+        ports_needed = apm * ScaffoldConfig.PORTS_PER_APP + ScaffoldConfig.BUFFER_PORTS
         backend_start = ScaffoldConfig.BASE_BACKEND_PORT + (model_index * ports_needed)
         frontend_start = ScaffoldConfig.BASE_FRONTEND_PORT + (model_index * ports_needed)
         return backend_start, frontend_start
 
-    def get_app_ports(self, model_index: int, app_number: int) -> PortAssignment:
-        backend_base, frontend_base = self.calculate_port_range(model_index)
+    def get_app_ports(self, model_index: int, app_number: int, apps_per_model: Optional[int] = None) -> PortAssignment:
+        backend_base, frontend_base = self.calculate_port_range(model_index, apps_per_model=apps_per_model)
         offset = (app_number - 1) * ScaffoldConfig.PORTS_PER_APP
         return PortAssignment(backend=backend_base + offset, frontend=frontend_base + offset)
 
@@ -184,21 +188,22 @@ class AppScaffoldingService:
         return {"templates_dir": str(self.templates_dir), "missing": missing, "ok": len(missing) == 0}
 
     # ----------------------------- Preview --------------------------------
-    def preview_generation(self, models: List[str]) -> GenerationPreview:
+    def preview_generation(self, models: List[str], apps_per_model: Optional[int] = None) -> GenerationPreview:
+        apm = apps_per_model or ScaffoldConfig.APPS_PER_MODEL
         plans: List[ModelPlan] = []
         for idx, name in enumerate(models):
-            backend_start, _ = self.calculate_port_range(idx)
-            last_backend_port = backend_start + ScaffoldConfig.APPS_PER_MODEL * ScaffoldConfig.PORTS_PER_APP - 1
+            backend_start, _ = self.calculate_port_range(idx, apps_per_model=apm)
+            last_backend_port = backend_start + apm * ScaffoldConfig.PORTS_PER_APP - 1
             plan = ModelPlan(name=name, index=idx, port_range=(backend_start, last_backend_port))
-            for app_num in range(1, ScaffoldConfig.APPS_PER_MODEL + 1):
-                ports = self.get_app_ports(idx, app_num)
+            for app_num in range(1, apm + 1):
+                ports = self.get_app_ports(idx, app_num, apps_per_model=apm)
                 plan.apps[app_num] = ports
             plans.append(plan)
         preview = GenerationPreview(
             models=plans,
-            total_apps=len(models) * ScaffoldConfig.APPS_PER_MODEL,
+            total_apps=len(models) * apm,
             config_summary={
-                "apps_per_model": ScaffoldConfig.APPS_PER_MODEL,
+                "apps_per_model": apm,
                 "ports_per_app": ScaffoldConfig.PORTS_PER_APP,
                 "base_backend_port": ScaffoldConfig.BASE_BACKEND_PORT,
                 "base_frontend_port": ScaffoldConfig.BASE_FRONTEND_PORT,
@@ -207,39 +212,139 @@ class AppScaffoldingService:
         return preview
 
     # ----------------------------- Generation -----------------------------
-    def generate(self, models: List[str], dry_run: bool = False) -> GenerationResult:
-        preview = self.preview_generation(models)
+    def generate(self, models: List[str], dry_run: bool = False, apps_per_model: Optional[int] = None, compose: bool = True) -> GenerationResult:
+        preview = self.preview_generation(models, apps_per_model=apps_per_model)
         output_paths: List[Path] = []
         if dry_run:
             return GenerationResult(preview=preview, generated=False, output_paths=[])
 
         template_check = self.validate_templates()
+        missing = template_check["missing"]
         if not template_check["ok"]:
-            logger.warning("Proceeding with generation despite missing templates: %s", template_check["missing"])
+            logger.warning("Proceeding with generation despite missing templates: %s", missing)
+
+        errors: List[str] = []
+        apps_created = 0
 
         for plan in preview.models:
             model_dir = self.models_dir / plan.name.replace('/', '_')
-            (model_dir / 'backend').mkdir(parents=True, exist_ok=True)
-            (model_dir / 'frontend').mkdir(parents=True, exist_ok=True)
+            model_dir.mkdir(parents=True, exist_ok=True)
             output_paths.append(model_dir)
-            # Minimal placeholder files
-            backend_main = model_dir / 'backend' / 'app.py'
-            if not backend_main.exists():
-                backend_main.write_text(f"# Backend placeholder for {plan.name}\nfrom flask import Flask\napp = Flask(__name__)\n\n@app.get('/')\ndef index():\n    return 'Hello from {plan.name} backend'\n", encoding='utf-8')
-            frontend_readme = model_dir / 'frontend' / 'README.md'
-            if not frontend_readme.exists():
-                frontend_readme.write_text(f"# Frontend placeholder for {plan.name}\n\nPorts allocated start at {plan.port_range[0]} (backend).\n", encoding='utf-8')
+            # Per-app structure
+            for app_num, ports in plan.apps.items():
+                app_dir = model_dir / f"app{app_num}"
+                backend_dir = app_dir / 'backend'
+                frontend_dir = app_dir / 'frontend'
+                backend_dir.mkdir(parents=True, exist_ok=True)
+                frontend_dir.mkdir(parents=True, exist_ok=True)
+
+                # Process backend template files
+                try:
+                    self._materialize_backend(backend_dir, plan.name, app_num, ports)
+                    self._materialize_frontend(frontend_dir, plan.name, app_num, ports)
+                    apps_created += 1
+                except Exception as e:  # noqa: BLE001
+                    err = f"Failed generating app {plan.name}#{app_num}: {e}"
+                    logger.exception(err)
+                    errors.append(err)
+
+            # docker-compose at model root (one compose referencing all apps for model)
+            if compose:
+                try:
+                    self._generate_docker_compose(model_dir, plan)
+                except Exception as e:  # noqa: BLE001
+                    err = f"Failed docker-compose for {plan.name}: {e}"
+                    logger.exception(err)
+                    errors.append(err)
 
         # Write configuration JSONs
-        self._write_config_files(models)
-        return GenerationResult(preview=preview, generated=True, output_paths=output_paths)
+        self._write_config_files(models, apps_per_model=preview.config_summary['apps_per_model'])
+        return GenerationResult(preview=preview, generated=True, output_paths=output_paths, errors=errors, missing_templates=missing, apps_created=apps_created)
 
-    def _write_config_files(self, models: List[str]):
+    def _template_subs(self, content: str, substitutions: Dict[str, Any]) -> str:
+        for k, v in substitutions.items():
+            content = content.replace(f"{{{{{k}}}}}", str(v))
+        return content
+
+    def _read_template(self, rel_path: str) -> Optional[str]:
+        path = self.templates_dir / rel_path
+        if not path.exists():
+            return None
+        return path.read_text(encoding='utf-8', errors='ignore')
+
+    def _materialize_backend(self, backend_dir: Path, model_name: str, app_num: int, ports: PortAssignment):
+        substitutions = {
+            'model_name': model_name,
+            'app_number': app_num,
+            'backend_port': ports.backend,
+            'python_base_image': ScaffoldConfig.PYTHON_BASE_IMAGE,
+        }
+        # app.py
+        app_tpl = self._read_template('backend/app.py.template')
+        if app_tpl:
+            (backend_dir / 'app.py').write_text(self._template_subs(app_tpl, substitutions), encoding='utf-8')
+        else:
+            # fallback simple file
+            (backend_dir / 'app.py').write_text(
+                f"from flask import Flask\napp = Flask(__name__)\n\n@app.get('/')\ndef index():\n    return 'Hello from {model_name} app{app_num}'\n", encoding='utf-8')
+        # requirements
+        req_tpl = self._read_template('backend/requirements.txt')
+        if req_tpl:
+            (backend_dir / 'requirements.txt').write_text(req_tpl, encoding='utf-8')
+        # Dockerfile
+        docker_tpl = self._read_template('backend/Dockerfile.template')
+        if docker_tpl:
+            (backend_dir / 'Dockerfile').write_text(self._template_subs(docker_tpl, substitutions), encoding='utf-8')
+
+    def _materialize_frontend(self, frontend_dir: Path, model_name: str, app_num: int, ports: PortAssignment):
+        substitutions = {
+            'model_name': model_name,
+            'app_number': app_num,
+            'backend_port': ports.backend,
+            'frontend_port': ports.frontend,
+        }
+        pkg_tpl = self._read_template('frontend/package.json.template')
+        if pkg_tpl:
+            (frontend_dir / 'package.json').write_text(self._template_subs(pkg_tpl, substitutions), encoding='utf-8')
+        vite_tpl = self._read_template('frontend/vite.config.js.template')
+        if vite_tpl:
+            (frontend_dir / 'vite.config.js').write_text(self._template_subs(vite_tpl, substitutions), encoding='utf-8')
+        appx_tpl = self._read_template('frontend/src/App.jsx.template')
+        if appx_tpl:
+            src_dir = frontend_dir / 'src'
+            src_dir.mkdir(exist_ok=True)
+            (src_dir / 'App.jsx').write_text(self._template_subs(appx_tpl, substitutions), encoding='utf-8')
+        app_css = self._read_template('frontend/src/App.css')
+        if app_css:
+            css_dir = frontend_dir / 'src'
+            css_dir.mkdir(exist_ok=True)
+            (css_dir / 'App.css').write_text(app_css, encoding='utf-8')
+        index_tpl = self._read_template('frontend/index.html.template')
+        if index_tpl:
+            (frontend_dir / 'index.html').write_text(self._template_subs(index_tpl, substitutions), encoding='utf-8')
+        docker_tpl = self._read_template('frontend/Dockerfile.template')
+        if docker_tpl:
+            (frontend_dir / 'Dockerfile').write_text(self._template_subs(docker_tpl, substitutions), encoding='utf-8')
+
+    def _generate_docker_compose(self, model_dir: Path, plan: ModelPlan):
+        compose_tpl = self._read_template('docker-compose.yml.template')
+        if not compose_tpl:
+            return
+        services_entries = []
+        for app_num, ports in plan.apps.items():
+            svc_name = f"{plan.name.replace('/', '_')}_app{app_num}"
+            services_entries.append(
+                f"  {svc_name}:%n    build: ./app{app_num}/backend%n    ports:%n      - \"{ports.backend}:{ports.backend}\"%n    environment:%n      - FLASK_ENV=production".replace('%n', '\n')
+            )
+        compose_content = compose_tpl.replace('{{services}}', '\n'.join(services_entries))
+        (model_dir / 'docker-compose.generated.yml').write_text(compose_content, encoding='utf-8')
+
+    def _write_config_files(self, models: List[str], apps_per_model: int):
         colors = self._generate_color_mapping(models)
         ports_config: List[Dict[str, Any]] = []
         for idx, m in enumerate(models):
-            for app_num in range(1, ScaffoldConfig.APPS_PER_MODEL + 1):
-                p = self.get_app_ports(idx, app_num)
+            for app_num in range(1, apps_per_model + 1):
+                p = self.get_app_ports(idx, app_num, apps_per_model=apps_per_model)
                 ports_config.append({
                     "model": m,
                     "model_index": idx,

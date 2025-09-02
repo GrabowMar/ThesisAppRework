@@ -27,9 +27,10 @@ def validate_templates():
 def parse_models():
     data = request.get_json(silent=True) or {}
     input_string = data.get('input') or ''
+    apps_per_model = data.get('apps_per_model') or None
     try:
         models, colors = svc().parse_models(input_string)
-        preview = svc().preview_generation(models)
+        preview = svc().preview_generation(models, apps_per_model=apps_per_model)
         return jsonify({
             "success": True,
             "data": {
@@ -42,6 +43,10 @@ def parse_models():
                             "name": p.name,
                             "index": p.index,
                             "port_range": p.port_range,
+                            "apps": [
+                                {"number": a_num, "backend": a_ports.backend, "frontend": a_ports.frontend}
+                                for a_num, a_ports in sorted(p.apps.items())
+                            ],
                         } for p in preview.models
                     ],
                     "config_summary": preview.config_summary,
@@ -55,9 +60,10 @@ def parse_models():
 def preview_generation():
     data = request.get_json(silent=True) or {}
     models = data.get('models') or []
+    apps_per_model = data.get('apps_per_model') or None
     if not models:
         return jsonify({"success": False, "error": "'models' list required"}), 400
-    preview = svc().preview_generation(models)
+    preview = svc().preview_generation(models, apps_per_model=apps_per_model)
     return jsonify({
         "success": True,
         "data": {
@@ -67,6 +73,10 @@ def preview_generation():
                     "name": p.name,
                     "index": p.index,
                     "port_range": p.port_range,
+                    "apps": [
+                        {"number": a_num, "backend": a_ports.backend, "frontend": a_ports.frontend}
+                        for a_num, a_ports in sorted(p.apps.items())
+                    ],
                 } for p in preview.models
             ],
             "config_summary": preview.config_summary,
@@ -88,17 +98,30 @@ def generate():
     data = request.get_json(silent=True) or {}
     models = data.get('models') or []
     dry_run = bool(data.get('dry_run', False))
+    apps_per_model = data.get('apps_per_model') or None
+    compose = bool(data.get('compose', True))
     if not models:
         return jsonify({"success": False, "error": "'models' list required"}), 400
     try:
-        result = svc().generate(models, dry_run=dry_run)
+        result = svc().generate(models, dry_run=dry_run, apps_per_model=apps_per_model, compose=compose)
         return jsonify({
             "success": True,
             "data": {
                 "generated": result.generated,
                 "total_apps": result.preview.total_apps,
+                "apps_created": result.apps_created,
+                "missing_templates": result.missing_templates,
+                "errors": result.errors,
                 "models": [
-                    {"name": p.name, "index": p.index, "port_range": p.port_range} for p in result.preview.models
+                    {
+                        "name": p.name,
+                        "index": p.index,
+                        "port_range": p.port_range,
+                        "apps": [
+                            {"number": a_num, "backend": a_ports.backend, "frontend": a_ports.frontend}
+                            for a_num, a_ports in sorted(p.apps.items())
+                        ],
+                    } for p in result.preview.models
                 ],
                 "output_paths": [str(p) for p in result.output_paths],
             }

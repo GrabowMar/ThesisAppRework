@@ -890,12 +890,13 @@
 
         async scaffoldParseModels() {
             const input = document.getElementById('scaffold-models-input')?.value || '';
+            const apm = parseInt(document.getElementById('scaffold-apps-per-model')?.value) || undefined;
             if (!input.trim()) {
                 this.scaffoldFeedback('Please enter a URL or model list.', true);
                 return;
             }
             try {
-                const res = await this.postScaffold('/models/parse', { input });
+                const res = await this.postScaffold('/models/parse', { input, apps_per_model: apm });
                 if (!res.success) throw new Error(res.error || 'Parse failed');
                 this._scaffoldModels = res.data.models;
                 this._scaffoldPreview = res.data.preview;
@@ -925,15 +926,23 @@
                 this.scaffoldFeedback('Parse models first.', true);
                 return;
             }
+            const apm = parseInt(document.getElementById('scaffold-apps-per-model')?.value) || undefined;
+            const compose = !!document.getElementById('scaffold-compose-toggle')?.checked;
             try {
-                const res = await this.postScaffold('/generate', { models: this._scaffoldModels, dry_run: dryRun });
+                const res = await this.postScaffold('/generate', { models: this._scaffoldModels, dry_run: dryRun, apps_per_model: apm, compose });
                 if (!res.success) throw new Error(res.error || 'Generation failed');
                 if (res.data.generated) {
                     this.scaffoldLog(`Generated model scaffolds. Paths: ${res.data.output_paths.join('; ')}`);
                 } else {
                     this.scaffoldLog('Dry run complete. No files written.');
                 }
-                this.scaffoldFeedback(`Success: ${dryRun ? 'Dry run' : 'Generated'} ${res.data.total_apps} apps.`);
+                const meta = [];
+                if (res.data.apps_created !== undefined) meta.push(`apps_created=${res.data.apps_created}`);
+                if (res.data.missing_templates?.length) meta.push(`missing_templates=${res.data.missing_templates.length}`);
+                if (res.data.errors?.length) meta.push(`errors=${res.data.errors.length}`);
+                this._scaffoldLastResult = res.data;
+                this.renderScaffoldMetadata();
+                this.scaffoldFeedback(`Success: ${dryRun ? 'Dry run' : 'Generated'} ${res.data.total_apps} apps (${meta.join(', ')}).`);
             } catch (e) {
                 this.scaffoldFeedback(e.message || 'Generation error', true);
             }
@@ -946,19 +955,39 @@
             if (!previewDiv || !tableBody) return;
             placeholder.style.display = 'none';
             previewDiv.style.display = 'block';
-            tableBody.innerHTML = this._scaffoldPreview.models.map(m => `
+            tableBody.innerHTML = this._scaffoldPreview.models.map(m => {
+                const sampleApps = (m.apps || []).slice(0,3).map(a => `#${a.number}:${a.backend}/${a.frontend}`).join(' ');
+                return `
                 <tr>
                   <td>${m.name}</td>
                   <td>${m.index}</td>
                   <td>${m.port_range[0]} - ${m.port_range[1]}</td>
-                </tr>
-            `).join('');
+                  <td class='small'>${sampleApps || '-'}</td>
+                </tr>`;
+            }).join('');
             document.getElementById('scaffold-total-apps').textContent = this._scaffoldPreview.total_apps;
             const summary = this._scaffoldPreview.config_summary;
             document.getElementById('scaffold-config-summary').textContent = `Apps/model: ${summary.apps_per_model}, Ports/app: ${summary.ports_per_app}`;
             // Enable buttons
             document.getElementById('scaffold-dryrun-btn').disabled = false;
             document.getElementById('scaffold-generate-btn').disabled = false;
+        }
+
+        renderScaffoldMetadata() {
+            const metaEl = document.getElementById('scaffold-metadata');
+            if (!metaEl || !this._scaffoldLastResult) return;
+            const r = this._scaffoldLastResult;
+            const lines = [];
+            if (r.missing_templates?.length) {
+                lines.push(`<span class='text-warning'>Missing templates:</span> ${r.missing_templates.join(', ')}`);
+            }
+            if (r.errors?.length) {
+                lines.push(`<span class='text-danger'>Errors:</span> ${r.errors.join('; ')}`);
+            }
+            if (!lines.length) {
+                lines.push('<span class="text-success">No template issues or generation errors.</span>');
+            }
+            metaEl.innerHTML = lines.join('<br>');
         }
 
         scaffoldFeedback(message, isError = false) {
