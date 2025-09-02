@@ -46,8 +46,70 @@ def get_status():
 def list_models():
     """List all available models from the model registry."""
     try:
-        models = _svc().model_registry.get_available_models()
-        return create_success_response(models, message="Models fetched")
+        mode = request.args.get('mode', 'scaffolded').lower()
+        force_sync = request.args.get('sync', '0').lower() in ('1', 'true', 'yes')
+        # Prefer database-backed list of models that have scaffolded applications
+        model_slugs: list[str] = []
+        try:
+            from app.models import ModelCapability, GeneratedApplication  # type: ignore
+            from sqlalchemy import exists  # type: ignore
+            if force_sync:
+                try:
+                    from app.services.model_sync_service import sync_models_from_filesystem  # type: ignore
+                    sync_models_from_filesystem()
+                except Exception as sync_err:  # noqa: BLE001
+                    current_app.logger.warning("Model filesystem sync failed: %s", sync_err)
+            # Get models that have at least one GeneratedApplication
+            db_models = (
+                ModelCapability.query
+                .filter(
+                    exists().where(GeneratedApplication.model_slug == ModelCapability.canonical_slug)
+                ).all()
+            )
+            for m in db_models:
+                if not getattr(m, 'canonical_slug', None):
+                    continue
+                # Convert canonical_slug provider_model to provider/model for consistency with previous frontend expectations
+                cs = m.canonical_slug
+                if '_' in cs:
+                    provider, rest = cs.split('_', 1)
+                    model_slugs.append(f"{provider}/{rest}")
+                else:
+                    model_slugs.append(cs)
+        except Exception as db_err:  # noqa: BLE001
+            current_app.logger.warning("DB model fetch failed, falling back to registry: %s", db_err)
+        # Fallback if no DB-derived scaffolded models
+        if not model_slugs:
+            # Attempt filesystem-based detection of scaffold directories under generated/
+            try:
+                from pathlib import Path
+                from app.services.model_sync_service import sync_models_from_filesystem  # type: ignore
+                gen_dir = Path('generated')
+                if gen_dir.exists():
+                    for child in gen_dir.iterdir():
+                        if child.is_dir() and any(p.is_dir() for p in child.glob('app*')):
+                            cs = child.name
+                            if '_' in cs:
+                                provider, rest = cs.split('_', 1)
+                                model_slugs.append(f"{provider}/{rest}")
+                            else:
+                                model_slugs.append(cs)
+                # Attempt a sync so DB gets populated for next call
+                try:
+                    sync_models_from_filesystem()
+                except Exception:
+                    pass
+            except Exception:
+                pass
+        registry_models = _svc().model_registry.get_available_models()
+        if mode != 'scaffolded':  # union of all known models
+            union = sorted(set(model_slugs) | set(registry_models))
+            return create_success_response(union, message="All models (scaffolded + available)")
+        # Final fallback to legacy in-memory registry if still empty (so UI not empty)
+        if not model_slugs:
+            model_slugs = registry_models
+        model_slugs = sorted(set(model_slugs))
+        return create_success_response(model_slugs, message="Scaffolded models fetched")
     except Exception as e:
         current_app.logger.exception("Failed listing models")
         return create_error_response(str(e), 500)

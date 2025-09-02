@@ -23,6 +23,16 @@
             this.monitoringInterval = null;
             this.templates = [];
             this.models = [];
+            // Deduplicate repeated identical error messages
+            this._lastErrorMessage = null;
+            this._lastErrorTs = 0;
+            // Flags to ensure we don't double-bind events on HTMX swaps
+            this._generationEventsBound = false;
+            this._templateEventsBound = false;
+            this._resultsEventsBound = false;
+            this._batchEventsBound = false;
+            this._managementEventsBound = false;
+            this._scaffoldingEventsBound = false;
             
             // Initialize the application
             this.init();
@@ -76,17 +86,38 @@
          * Bind generation tab events
          */
         bindGenerationEvents() {
+            if (this._generationEventsBound) return; // idempotent
+            this._generationEventsBound = true;
             // Template selection change
             document.getElementById('template-select')?.addEventListener('change', (e) => {
                 if (e.target.value) {
                     this.loadTemplateContent(e.target.value);
                 }
+                this.updateGenerateButtonState();
+            });
+
+            // Reload templates button
+            document.getElementById('reload-templates-btn')?.addEventListener('click', () => {
+                this.reloadTemplates();
+            });
+
+            // New SG Template button
+            document.getElementById('new-sg-template-btn')?.addEventListener('click', () => {
+                this.createNewAppTemplate();
             });
 
             // Generate button
             document.getElementById('generate-btn')?.addEventListener('click', () => {
                 this.generateSample();
             });
+
+            // Model selection change -> update enable/disable state
+            document.getElementById('model-select')?.addEventListener('change', () => {
+                this.updateGenerateButtonState();
+            });
+
+            // Initial state
+            this.updateGenerateButtonState();
 
             // Refresh recent generations
             document.getElementById('refresh-recent-btn')?.addEventListener('click', () => {
@@ -98,6 +129,8 @@
          * Bind template tab events
          */
         bindTemplateEvents() {
+            if (this._templateEventsBound) return; // idempotent
+            this._templateEventsBound = true;
             // Load template button
             document.getElementById('load-template-btn')?.addEventListener('click', () => {
                 this.showTemplateLoader();
@@ -128,6 +161,8 @@
          * Bind results tab events
          */
         bindResultsEvents() {
+            if (this._resultsEventsBound) return; // idempotent
+            this._resultsEventsBound = true;
             // Apply filters
             document.getElementById('apply-filters-btn')?.addEventListener('click', () => {
                 this.applyResultsFilters();
@@ -168,6 +203,8 @@
          * Bind batch tab events
          */
         bindBatchEvents() {
+            if (this._batchEventsBound) return; // idempotent
+            this._batchEventsBound = true;
             // Select all checkboxes
             document.getElementById('select-all-templates')?.addEventListener('change', (e) => {
                 this.toggleAllTemplates(e.target.checked);
@@ -211,6 +248,8 @@
          * Bind management tab events
          */
         bindManagementEvents() {
+            if (this._managementEventsBound) return; // idempotent
+            this._managementEventsBound = true;
             // System status refresh
             document.getElementById('refresh-system-status-btn')?.addEventListener('click', () => {
                 this.loadSystemStatus();
@@ -273,6 +312,8 @@
          * Bind scaffolding tab events
          */
         bindScaffoldingEvents() {
+            if (this._scaffoldingEventsBound) return; // idempotent
+            this._scaffoldingEventsBound = true;
             document.getElementById('scaffold-parse-btn')?.addEventListener('click', () => {
                 this.scaffoldParseModels();
             });
@@ -398,7 +439,11 @@
         async loadTemplates() {
             try {
                 const response = await this.get('/templates');
-                this.templates = response.templates || [];
+                // API returns { success, message, timestamp, data: [...] }
+                // Older code expected response.templates. Normalize here.
+                let rawTemplates = response.data || response.templates || [];
+                // Ensure objects have a name property; backend uses 'name' already.
+                this.templates = Array.isArray(rawTemplates) ? rawTemplates : [];
                 this.updateTemplateSelect();
                 this.updateBatchTemplates();
             } catch (error) {
@@ -413,7 +458,14 @@
         async loadModels() {
             try {
                 const response = await this.get('/models');
-                this.models = response.models || [];
+                let rawModels = response.data || response.models || [];
+                this.models = Array.isArray(rawModels) ? rawModels.map(m => {
+                    // Normalize simple list of strings to objects if backend returns just list
+                    if (typeof m === 'string') {
+                        return { name: m, provider: (m.split('/')[0] || 'unknown') };
+                    }
+                    return m;
+                }) : [];
                 this.updateModelSelect();
                 this.updateBatchModels();
             } catch (error) {
@@ -433,7 +485,9 @@
             this.templates.forEach(template => {
                 const option = document.createElement('option');
                 option.value = template.name;
-                option.textContent = `${template.name} (${template.description || 'No description'})`;
+                const badge = template.has_extra_prompt ? ' *' : '';
+                option.textContent = `${template.name}${badge}`;
+                if (template.has_extra_prompt) option.title = 'Has extra prompt context';
                 select.appendChild(option);
             });
         }
@@ -474,7 +528,7 @@
                     <div class="form-check">
                         <input class="form-check-input template-checkbox" type="checkbox" value="${template.name}" id="template-${template.name}">
                         <label class="form-check-label" for="template-${template.name}">
-                            ${template.name}
+                            ${template.name} ${template.has_extra_prompt ? '<span class="badge bg-info ms-1">ctx</span>' : ''}
                         </label>
                     </div>
                 `;
@@ -488,6 +542,51 @@
                     this.updateBatchPreview();
                 });
             });
+        }
+
+        /** Reload templates from disk via backend directory loader */
+        async reloadTemplates() {
+            try {
+                const directory = 'src/misc/app_templates';
+                const res = await this.post('/templates/load-dir', { directory });
+                console.log('Reload templates result', res);
+                await this.loadTemplates();
+                this.showSuccess('Templates reloaded');
+            } catch (e) {
+                console.error('Failed to reload templates', e);
+                this.showError('Reload failed');
+            }
+        }
+
+        /** Create a new app template persisted to misc/app_templates */
+        async createNewAppTemplate() {
+            try {
+                const name = prompt('Enter new template base name (e.g. app_31_backend_custom)');
+                if (!name) return;
+                // Basic sanitization
+                const safe = name.replace(/[^a-zA-Z0-9_\-]/g, '_');
+                const filename = safe.endsWith('.md') ? safe : `${safe}.md`;
+                const content = prompt('Enter initial template content (markdown). You can edit later.','New application template\n\nDescribe the application requirements here.');
+                if (content == null) return;
+                // Persist using TemplateStoreService (category 'app')
+                const saveRes = await fetch(`/api/templates/app/${encodeURIComponent(filename)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content })
+                });
+                if (!saveRes.ok) throw new Error('Save failed');
+                // Now reload sample generation registry to pick it up
+                await this.reloadTemplates();
+                // Pre-select new template if present
+                const select = document.getElementById('template-select');
+                if (select) {
+                    select.value = safe;
+                }
+                this.showSuccess('Template created');
+            } catch (e) {
+                console.error('Failed to create template', e);
+                this.showError('Create failed');
+            }
         }
 
         /**
@@ -643,8 +742,28 @@
         }
 
         showError(message) {
-            // You could use Bootstrap alerts, toast notifications, etc.
-            alert(`Error: ${message}`);
+            const now = Date.now();
+            // Suppress duplicate errors fired within 1.5s
+            if (message === this._lastErrorMessage && (now - this._lastErrorTs) < 1500) {
+                return;
+            }
+            this._lastErrorMessage = message;
+            this._lastErrorTs = now;
+            let container = document.getElementById('sg-inline-error');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'sg-inline-error';
+                container.className = 'alert alert-danger py-2 px-3 mb-2';
+                // Insert near the top of the generation panel if present
+                const parent = document.getElementById('generation-tab') || document.body;
+                parent.prepend(container);
+            }
+            container.textContent = message;
+            container.style.display = 'block';
+            clearTimeout(this._hideErrorTimeout);
+            this._hideErrorTimeout = setTimeout(() => {
+                if (container) container.style.display = 'none';
+            }, 4000);
         }
 
         showSuccess(message) {
@@ -1036,6 +1155,16 @@ SampleGeneratorApp.prototype._normalizeEndpoint = function(endpoint) {
                             .replace(this.apiBase, '')
                             .replace(/^\/+/, '/');
     return cleaned;
+};
+
+// Enable / disable Generate button based on selections
+SampleGeneratorApp.prototype.updateGenerateButtonState = function() {
+    const tmpl = document.getElementById('template-select')?.value;
+    const model = document.getElementById('model-select')?.value;
+    const btn = document.getElementById('generate-btn');
+    if (btn) {
+        btn.disabled = !(tmpl && model);
+    }
 };
 
 function initializeSampleGeneratorApp() {

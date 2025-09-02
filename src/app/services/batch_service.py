@@ -668,6 +668,10 @@ class BatchService:
         self._jobs: dict[str, dict] = {}
         self._job_tasks: dict[str, int] = {}
         self._emit = lambda event, payload: None  # patched in websocket tests
+        # Added legacy priority queue + stats tracking
+        self._queue: list[str] = []  # insertion order queue of job ids
+        self._priority_order = {'high': 0, 'normal': 1, 'low': 2}
+        self._failures: int = 0
 
     # ---------------- Legacy compatibility job API -----------------
     def create_job(self, name: str, description: str, analysis_types: list[str], models: list[str], app_range_str: str, options: dict | None = None) -> str:
@@ -714,12 +718,17 @@ class BatchService:
             'status': 'completed' if cache_only else 'pending',
             'cache_only': cache_only,
             'cache_hit': cache_hit,
+            'priority': (options or {}).get('priority', 'normal'),
+            'failures': 0,
         }
         self._job_tasks[job_id] = total
         # Emit created event
         self._emit('batch_created', {'job_id': job_id, 'total_tasks': total, 'cached': cached})
         if cache_only:
             self._emit('batch_completed', {'job_id': job_id, 'status': 'completed', 'cache_only': True})
+        else:
+            self._queue.append(job_id)
+            self._emit('queue_depth_update', {'total': self._pending_queue_depth()})
         return job_id
 
     def get_job_status(self, job_id: str) -> dict | None:
@@ -732,7 +741,14 @@ class BatchService:
         job['status'] = 'running'
         self._emit('batch_started', {'job_id': job_id})
 
-    def update_task_progress(self, job_id: str, task_completed: bool = True) -> None:
+    def update_task_progress(self, job_id: str, task_completed: bool = True, **kwargs) -> None:  # noqa: D401
+        """Update task progress (backward compatible signature).
+
+        Some legacy tests call update_task_progress(job_id, task_failed=True). We accept
+        arbitrary kwargs and if task_failed is present we delegate to update_task_progress_legacy.
+        """
+        if 'task_failed' in kwargs:
+            return self.update_task_progress_legacy(job_id, task_completed=task_completed, task_failed=kwargs.get('task_failed'))
         job = self._jobs.get(job_id)
         if not job or job['status'] not in ('pending', 'running'):
             return
@@ -744,36 +760,34 @@ class BatchService:
             self._emit('batch_completed', {'job_id': job_id, 'status': 'completed'})
 
     # ---- Newly added legacy expectations ----
-    def dispatch_next(self, job_id: str) -> dict | None:
-        """Simulate dispatching the next pending task for a job.
+    def dispatch_next(self, job_id: str | None = None) -> str | None:  # noqa: D401
+        """Dispatch next job by priority returning its job_id.
 
-        Legacy tests call this to pop a task and advance progress. We approximate by
-        incrementing completed_tasks if still pending and emitting an event. Returns
-        a lightweight task payload or None when job finished.
+        Legacy unit tests expect dispatch_next() to yield job ids ordered by priority
+        (high -> normal -> low) and emit events with a batch_id field.
         """
+        if job_id is None:
+            candidates: list[tuple[int, int, str]] = []
+            for idx, jid in enumerate(self._queue):
+                job = self._jobs.get(jid)
+                if not job or job['status'] != 'pending':
+                    continue
+                prio = self._priority_order.get(job.get('priority', 'normal'), 1)
+                candidates.append((prio, idx, jid))
+            if not candidates:
+                return None
+            candidates.sort(key=lambda x: (x[0], x[1]))
+            job_id = candidates[0][2]
         job = self._jobs.get(job_id)
         if not job:
             return None
         if job['status'] == 'pending':
-            # auto-start when first dispatch requested
             job['status'] = 'running'
-            self._emit('batch_started', {'job_id': job_id})
+            self._emit('batch_started', {'batch_id': job_id})
+            self._emit('queue_depth_update', {'total': self._pending_queue_depth()})
         if job['status'] != 'running':
             return None
-        if job['completed_tasks'] >= job['total_tasks']:
-            return None
-        # fabricate a task identifier
-        next_index = job['completed_tasks'] + 1
-        task_id = f"{job_id}_task_{next_index}"
-        payload = {
-            'task_id': task_id,
-            'ordinal': next_index,
-            'total': job['total_tasks'],
-            'job_id': job_id,
-        }
-        # progress happens when update_task_progress is called, not here
-        self._emit('task_dispatched', payload)
-        return payload
+        return job_id
 
     def cancel_job(self, job_id: str) -> bool:
         """Cancel a job (legacy expectation)."""
@@ -799,6 +813,8 @@ class BatchService:
             # treat as completed but emit failure
             job['completed_tasks'] += 1
             self._emit('task_failed', {'job_id': job_id, 'completed': job['completed_tasks'], 'total': job['total_tasks']})
+            job['failures'] += 1
+            self._failures += 1
         else:
             if task_completed:
                 job['completed_tasks'] += 1
@@ -808,10 +824,31 @@ class BatchService:
             if job['status'] != 'cancelled':
                 job['status'] = 'completed'
                 self._emit('batch_completed', {'job_id': job_id, 'status': 'completed'})
+        # Always emit queue depth so tests can observe zero depth
+        self._emit('queue_depth_update', {'total': self._pending_queue_depth()})
+
+    # --- Queue helpers and stats ---
+    def _pending_queue_depth(self) -> int:
+        return sum(1 for jid in self._queue if self._jobs.get(jid, {}).get('status') == 'pending')
+
+    def get_job_stats(self) -> dict:
+        total = len(self._jobs)
+        cache_hits = sum(1 for j in self._jobs.values() if j.get('cache_hit'))
+        completed = sum(1 for j in self._jobs.values() if j.get('status') == 'completed')
+        failures = self._failures
+        return {
+            'total': total,
+            'cache_hit_rate': cache_hits / total if total else 0.0,
+            'failure_rate': failures / completed if completed else 0.0,
+            'completed': completed,
+            'failures': failures,
+        }
 
     def _reset_for_test(self):  # used by several legacy unit tests
         self._jobs.clear()
         self._job_tasks.clear()
+        self._queue.clear()
+        self._failures = 0
     
     def get_templates(self):
         """Get available batch templates."""
