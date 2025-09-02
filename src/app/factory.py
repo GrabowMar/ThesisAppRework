@@ -8,6 +8,7 @@ Celery integration and proper initialization.
 
 import os
 import logging
+from pathlib import Path
 from typing import Optional
 
 from flask import Flask
@@ -74,8 +75,24 @@ def create_app(config_name: str = 'default') -> Flask:
         Configured Flask application
     """
     
+    # Load .env early (if python-dotenv installed) so OPENROUTER_API_KEY & LOG_LEVEL present
+    try:  # pragma: no cover - lightweight
+        from dotenv import load_dotenv  # type: ignore
+        env_path = Path(os.getenv('ENV_FILE', '.env'))
+        if env_path.exists():
+            load_dotenv(env_path)
+    except Exception:
+        pass
+
+    # Apply LOG_LEVEL early
+    _lvl = os.getenv('LOG_LEVEL')
+    if _lvl:
+        try:
+            logging.getLogger().setLevel(getattr(logging, _lvl.upper(), logging.INFO))
+        except Exception:  # pragma: no cover
+            pass
+
     # Set template and static folders relative to src directory
-    import os
     src_dir = os.path.dirname(os.path.dirname(__file__))  # Get src directory
     template_folder = os.path.join(src_dir, 'templates')
     static_folder = os.path.join(src_dir, 'static')

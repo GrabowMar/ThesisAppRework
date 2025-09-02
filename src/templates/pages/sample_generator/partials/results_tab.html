@@ -1,0 +1,242 @@
+{# Results Management Interface #}
+
+<div class="row mb-3">
+  <!-- Filters -->
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label">Model Filter</label>
+            <select class="form-select form-select-sm" id="results-model-filter">
+              <option value="">All Models</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Status Filter</label>
+            <select class="form-select form-select-sm" id="results-status-filter">
+              <option value="">All Status</option>
+              <option value="true">Success Only</option>
+              <option value="false">Failed Only</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">Results per page</label>
+            <select class="form-select form-select-sm" id="results-limit">
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label">&nbsp;</label>
+            <div class="d-grid">
+              <button class="btn btn-sm btn-primary" id="apply-filters-btn">Apply Filters</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Actions -->
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <button class="btn btn-sm btn-outline-secondary" id="refresh-results-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+              <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+            </svg>
+            Refresh
+          </button>
+          <button class="btn btn-sm btn-outline-warning" id="cleanup-dialog-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M4 7l16 0"/>
+              <path d="M10 11l0 6"/>
+              <path d="M14 11l0 6"/>
+              <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/>
+              <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/>
+            </svg>
+            Cleanup Old
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Results Table -->
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h4 class="card-title">Generation Results</h4>
+        <div class="card-actions">
+          <span class="badge bg-secondary" id="results-count">0 results</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-vcenter" id="results-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Template</th>
+                <th>Model</th>
+                <th>Status</th>
+                <th>Duration</th>
+                <th>Size</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="8" class="text-center text-muted py-4">Loading results...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <!-- Pagination -->
+        <div class="d-flex justify-content-between align-items-center mt-3">
+          <div class="text-muted">
+            <span id="results-info">Showing 0 of 0 results</span>
+          </div>
+          <nav>
+            <ul class="pagination pagination-sm m-0" id="results-pagination">
+              <!-- Pagination buttons will be generated here -->
+            </ul>
+          </nav>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Result Details Modal -->
+<div class="modal fade" id="result-details-modal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Result Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-md-4">
+            <div class="card">
+              <div class="card-header">
+                <h6 class="card-title">Metadata</h6>
+              </div>
+              <div class="card-body">
+                <dl class="row">
+                  <dt class="col-sm-5">Result ID:</dt>
+                  <dd class="col-sm-7" id="detail-result-id">-</dd>
+                  
+                  <dt class="col-sm-5">Template:</dt>
+                  <dd class="col-sm-7" id="detail-template">-</dd>
+                  
+                  <dt class="col-sm-5">Model:</dt>
+                  <dd class="col-sm-7" id="detail-model">-</dd>
+                  
+                  <dt class="col-sm-5">Status:</dt>
+                  <dd class="col-sm-7" id="detail-status">-</dd>
+                  
+                  <dt class="col-sm-5">Duration:</dt>
+                  <dd class="col-sm-7" id="detail-duration">-</dd>
+                  
+                  <dt class="col-sm-5">Created:</dt>
+                  <dd class="col-sm-7" id="detail-timestamp">-</dd>
+                  
+                  <dt class="col-sm-5">Blocks:</dt>
+                  <dd class="col-sm-7" id="detail-blocks-count">-</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-8">
+            <div class="card">
+              <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="card-title">Generated Content</h6>
+                <div class="card-actions">
+                  <button class="btn btn-sm btn-outline-secondary" id="copy-content-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                      <path d="M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z"/>
+                      <path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2"/>
+                    </svg>
+                    Copy
+                  </button>
+                </div>
+              </div>
+              <div class="card-body">
+                <pre class="code" id="detail-content" style="max-height: 400px; overflow-y: auto;">Loading content...</pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-primary" id="regenerate-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+            <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+          </svg>
+          Regenerate
+        </button>
+        <button type="button" class="btn btn-outline-danger" id="delete-result-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M4 7l16 0"/>
+            <path d="M10 11l0 6"/>
+            <path d="M14 11l0 6"/>
+            <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/>
+            <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/>
+          </svg>
+          Delete
+        </button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cleanup Confirmation Modal -->
+<div class="modal fade" id="cleanup-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Cleanup Old Results</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="cleanup-form">
+          <div class="mb-3">
+            <label class="form-label">Delete results older than</label>
+            <div class="input-group">
+              <input type="number" class="form-control" id="cleanup-days" value="7" min="1" max="365">
+              <span class="input-group-text">days</span>
+            </div>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="cleanup-dry-run" checked>
+            <label class="form-check-label" for="cleanup-dry-run">
+              Dry run (preview only, don't delete)
+            </label>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-warning" id="execute-cleanup-btn">Execute Cleanup</button>
+      </div>
+    </div>
+  </div>
+</div>

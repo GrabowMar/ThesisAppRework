@@ -145,6 +145,16 @@ class BatchTemplateService:
         templates = BatchTemplateService.get_default_templates()
         return next((t for t in templates if t.name == name), None)
 
+# ---------------------------------------------------------------------------
+# Backward compatibility re-export:
+# Some legacy tests import BatchAnalysisService from this module instead of
+# task_service. Provide a lightweight alias if available.
+try:  # pragma: no cover - simple compatibility layer
+    from .task_service import BatchAnalysisService as _BatchAnalysisServiceAlias  # type: ignore
+    BatchAnalysisService = _BatchAnalysisServiceAlias  # type: ignore
+except Exception:  # pragma: no cover
+    pass
+
 
 class BatchValidationService:
     """Service for validating batch configurations."""

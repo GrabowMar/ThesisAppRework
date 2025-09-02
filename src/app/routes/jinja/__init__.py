@@ -11,6 +11,7 @@ from .tasks import tasks_bp
 from .advanced import advanced_bp
 from .reports import reports_bp
 from .docs import docs_bp
+from .sample_generator import sample_generator_bp
 
 __all__ = [
     'main_bp',
@@ -20,5 +21,6 @@ __all__ = [
     'tasks_bp',
     'advanced_bp',
     'reports_bp',
-    'docs_bp'
+    'docs_bp',
+    'sample_generator_bp'
 ]

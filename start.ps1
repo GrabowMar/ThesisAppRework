@@ -1220,6 +1220,28 @@ function Invoke-Main {
             if (-not (Test-Dependencies)) {
                 exit 1
             }
+
+            # Preflight: Docker availability (non-fatal if analyzer skipped)
+            function Test-DockerPreflight {
+                param([switch]$Required)
+                $dockerCli = Get-Command docker -ErrorAction SilentlyContinue
+                if (-not $dockerCli) {
+                    if ($Required) { Write-Warning-Log "Docker CLI not found in PATH. Install/start Docker Desktop." }
+                    return $false
+                }
+                $ok = $false
+                try {
+                    $ver = (& docker version --format '{{.Server.Version}}' 2>$null)
+                    if ($LASTEXITCODE -eq 0 -and $ver) { $ok = $true }
+                } catch {}
+                if (-not $ok) {
+                    Write-Warning-Log "Docker CLI present but daemon not reachable yet. If Docker Desktop was just started, wait a few seconds." 
+                } else {
+                    Write-Info-Log "Docker daemon reachable (ServerVersion=$ver)"
+                }
+                return $ok
+            }
+            if (-not $NoAnalyzer) { $null = Test-DockerPreflight }
             
             # Ensure Redis (prefer analyzer's Redis if available)
             if (-not (Test-RedisAvailable -NoAnalyzer:$NoAnalyzer)) { exit 1 }

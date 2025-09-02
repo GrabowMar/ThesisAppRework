@@ -50,6 +50,14 @@
           </a>
         </li>
 
+        {# Sample Generator #}
+        <li class="nav-item mb-2">
+          <a href="{{ url_for('sample_generator.index') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="Sample Generator">
+            <i class="fa-solid fa-code me-3 nav-icon" aria-hidden="true"></i>
+            <span class="sidebar-text">Sample Generator</span>
+          </a>
+        </li>
+
         {# Reports #}
         <li class="nav-item mb-2">
           <a href="{{ url_for('reports.reports_index') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="Reports">

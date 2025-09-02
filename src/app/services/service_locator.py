@@ -41,6 +41,10 @@ class ServiceLocator:
         """Register all core application services."""
         # Import services here to avoid circular imports. Keep the list short.
         from .model_service import ModelService
+        try:
+            from .sample_generation_service import get_sample_generation_service
+        except ImportError:  # pragma: no cover
+            get_sample_generation_service = None  # type: ignore
 
         try:
             from .docker_manager import DockerManager
@@ -48,9 +52,9 @@ class ServiceLocator:
             DockerManager = None
 
         try:
-            from .batch_service import BatchAnalysisService
-        except ImportError:
-            BatchAnalysisService = None
+            from .task_service import BatchAnalysisService
+        except ImportError:  # pragma: no cover
+            BatchAnalysisService = None  # type: ignore
 
         try:
             from .security_service import SecurityService
@@ -59,6 +63,9 @@ class ServiceLocator:
 
         # Register available services
         cls.register('model_service', ModelService(app))
+        if get_sample_generation_service:
+            # Defer instance creation until first use; store accessor
+            cls.register('sample_generation_service', get_sample_generation_service())
 
         # No registrations for removed legacy services
         if DockerManager:
@@ -122,6 +129,11 @@ class ServiceLocator:
     def get_security_service(cls):
         """Get the security analysis service."""
         return cls.get('security_service')
+
+    @classmethod
+    def get_sample_generation_service(cls):
+        """Get sample generation service."""
+        return cls.get('sample_generation_service')
     
     @classmethod
     def clear(cls):

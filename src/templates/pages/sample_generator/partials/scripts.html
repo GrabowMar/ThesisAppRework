@@ -1,0 +1,16 @@
+{# Sample Generator JavaScript and Dependencies #}
+
+<!-- Bootstrap JS (if not already included in base template) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Sample Generator App JavaScript -->
+<script src="{{ url_for('static', filename='js/sample_generator.js') }}"></script>
+
+<!-- Additional initialization if needed -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // The main script (sample_generator.js) now handles its own initialization,
+    // including re-initialization after HTMX swaps.
+    console.log('Sample Generator interface loaded, main script will initialize.');
+});
+</script>

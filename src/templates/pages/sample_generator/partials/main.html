@@ -1,0 +1,175 @@
+{# Main Sample Generator Interface #}
+
+<!-- Status Bar -->
+<div class="row mb-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Generation Status</h3>
+      </div>
+      <div class="card-body">
+        <div class="row" id="status-display">
+          <div class="col-md-3">
+            <div class="statcard">
+              <div class="h1 m-0" id="in-flight-count">-</div>
+              <div class="text-muted">In Flight</div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="statcard">
+              <div class="h1 m-0" id="available-slots">-</div>
+              <div class="text-muted">Available Slots</div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="statcard">
+              <div class="h1 m-0" id="total-templates">-</div>
+              <div class="text-muted">Templates</div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="statcard">
+              <div class="h1 m-0" id="total-results">-</div>
+              <div class="text-muted">Results</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main Tabbed Interface -->
+<div class="card">
+  <div class="card-header">
+    <ul class="nav nav-tabs card-header-tabs" id="main-tabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="generation-tab" data-bs-toggle="tab" data-bs-target="#generation" type="button" role="tab">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M12 3c7.2 0 9 1.8 9 9s-1.8 9 -9 9s-9 -1.8 -9 -9s1.8 -9 9 -9z"/>
+            <path d="M8 12l2 2l4 -4"/>
+          </svg>
+          Generation
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="templates-tab" data-bs-toggle="tab" data-bs-target="#templates" type="button" role="tab">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
+            <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
+            <path d="M9 9l1 0"/>
+            <path d="M9 13l6 0"/>
+            <path d="M9 17l6 0"/>
+          </svg>
+          Templates
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="results-tab" data-bs-toggle="tab" data-bs-target="#results" type="button" role="tab">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"/>
+            <path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z"/>
+            <path d="M9 12l2 2l4 -4"/>
+          </svg>
+          Results
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="batch-tab" data-bs-toggle="tab" data-bs-target="#batch" type="button" role="tab">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5"/>
+            <path d="M12 12l8 -4.5"/>
+            <path d="M12 12l0 9"/>
+            <path d="M12 12l-8 -4.5"/>
+          </svg>
+          Batch Operations
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="management-tab" data-bs-toggle="tab" data-bs-target="#management" type="button" role="tab">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z"/>
+            <path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0"/>
+          </svg>
+          Management
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="scaffolding-tab" data-bs-toggle="tab" data-bs-target="#scaffolding" type="button" role="tab">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M4 4h6v6h-6z" />
+            <path d="M14 4h6v6h-6z" />
+            <path d="M4 14h6v6h-6z" />
+            <path d="M17 17l3 3" />
+            <path d="M14 14l3 3l3 -3l-3 -3z" />
+          </svg>
+          Scaffolding
+        </button>
+      </li>
+    </ul>
+  </div>
+  <div class="card-body">
+    <div class="tab-content">
+      
+      <!-- Generation Tab -->
+      <div class="tab-pane fade show active" id="generation" role="tabpanel">
+        {% include 'pages/sample_generator/partials/generation_tab.html' %}
+      </div>
+      
+      <!-- Templates Tab -->
+      <div class="tab-pane fade" id="templates" role="tabpanel">
+        {% include 'pages/sample_generator/partials/templates_tab.html' %}
+      </div>
+      
+      <!-- Results Tab -->
+      <div class="tab-pane fade" id="results" role="tabpanel">
+        {% include 'pages/sample_generator/partials/results_tab.html' %}
+      </div>
+      
+      <!-- Batch Operations Tab -->
+      <div class="tab-pane fade" id="batch" role="tabpanel">
+        {% include 'pages/sample_generator/partials/batch_tab.html' %}
+      </div>
+      
+      <!-- Management Tab -->
+      <div class="tab-pane fade" id="management" role="tabpanel">
+        {% include 'pages/sample_generator/partials/management_tab.html' %}
+      </div>
+
+      <!-- Scaffolding Tab -->
+      <div class="tab-pane fade" id="scaffolding" role="tabpanel">
+        {% include 'pages/sample_generator/partials/scaffolding_tab.html' %}
+      </div>
+      
+    </div>
+  </div>
+</div>
+
+<!-- Progress Modal -->
+<div class="modal fade" id="progress-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Generation Progress</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="progress-content">
+          <div class="progress mb-3">
+            <div class="progress-bar" id="generation-progress-bar" style="width: 0%"></div>
+          </div>
+          <div id="progress-details"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>

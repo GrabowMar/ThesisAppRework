@@ -1,0 +1,322 @@
+{# Batch Operations Interface #}
+
+<div class="row">
+  <!-- Batch Generation Setup -->
+  <div class="col-md-8">
+    <div class="card">
+      <div class="card-header">
+        <h4 class="card-title">Batch Generation Setup</h4>
+      </div>
+      <div class="card-body">
+        <form id="batch-generation-form">
+          <!-- Template Selection -->
+          <div class="mb-3">
+            <label class="form-label">Select Templates</label>
+            <div class="card">
+              <div class="card-body p-3">
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="select-all-templates">
+                      <label class="form-check-label" for="select-all-templates">
+                        <strong>Select All Templates</strong>
+                      </label>
+                    </div>
+                  </div>
+                  <div class="col-md-6 text-end">
+                    <span class="badge bg-secondary" id="selected-templates-count">0 selected</span>
+                  </div>
+                </div>
+                <hr>
+                <div class="row" id="templates-checkbox-list">
+                  <div class="col-12 text-center text-muted py-3">Loading templates...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Model Selection -->
+          <div class="mb-3">
+            <label class="form-label">Select Models</label>
+            <div class="card">
+              <div class="card-body p-3">
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="select-all-models">
+                      <label class="form-check-label" for="select-all-models">
+                        <strong>Select All Models</strong>
+                      </label>
+                    </div>
+                  </div>
+                  <div class="col-md-6 text-end">
+                    <span class="badge bg-secondary" id="selected-models-count">0 selected</span>
+                  </div>
+                </div>
+                <hr>
+                <div class="row" id="models-checkbox-list">
+                  <div class="col-12 text-center text-muted py-3">Loading models...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Generation Parameters -->
+          <div class="row mb-3">
+            <div class="col-md-4">
+              <label class="form-label">Max Concurrent</label>
+              <input type="number" class="form-control" id="batch-max-concurrent" value="3" min="1" max="10">
+              <div class="form-hint">Number of simultaneous generations</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Request Timeout</label>
+              <div class="input-group">
+                <input type="number" class="form-control" id="batch-timeout" value="300" min="60" max="1800">
+                <span class="input-group-text">sec</span>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Progress Updates</label>
+              <select class="form-select" id="batch-progress-mode">
+                <option value="detailed">Detailed Progress</option>
+                <option value="summary">Summary Only</option>
+                <option value="silent">Silent Mode</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+            <button type="button" class="btn btn-outline-secondary" id="preview-batch-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/>
+                <path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6"/>
+              </svg>
+              Preview Batch
+            </button>
+            <button type="button" class="btn btn-primary" id="start-batch-btn" disabled>
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M7 4v16l13 -8z"/>
+              </svg>
+              Start Batch Generation
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Batch Status -->
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-header">
+        <h4 class="card-title">Batch Status</h4>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="text-muted">Current Batch</span>
+            <span class="badge bg-secondary" id="batch-status">No Active Batch</span>
+          </div>
+          <div class="progress" style="height: 6px;">
+            <div class="progress-bar" id="batch-progress-bar" style="width: 0%"></div>
+          </div>
+          <div class="text-muted small mt-1" id="batch-progress-text">Ready to start</div>
+        </div>
+
+        <dl class="row small">
+          <dt class="col-6">Total Tasks:</dt>
+          <dd class="col-6" id="batch-total-tasks">0</dd>
+          
+          <dt class="col-6">Completed:</dt>
+          <dd class="col-6" id="batch-completed-tasks">0</dd>
+          
+          <dt class="col-6">Running:</dt>
+          <dd class="col-6" id="batch-running-tasks">0</dd>
+          
+          <dt class="col-6">Failed:</dt>
+          <dd class="col-6" id="batch-failed-tasks">0</dd>
+          
+          <dt class="col-6">ETA:</dt>
+          <dd class="col-6" id="batch-eta">-</dd>
+        </dl>
+
+        <div class="d-grid gap-2 mt-3">
+          <button class="btn btn-sm btn-outline-warning" id="pause-batch-btn" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M6 5m0 1a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z"/>
+              <path d="M14 5m0 1a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1z"/>
+            </svg>
+            Pause Batch
+          </button>
+          <button class="btn btn-sm btn-outline-danger" id="cancel-batch-btn" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M18 6l-12 12"/>
+              <path d="M6 6l12 12"/>
+            </svg>
+            Cancel Batch
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Active Tasks -->
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h4 class="card-title">Active Tasks</h4>
+        <div class="card-actions">
+          <button class="btn btn-sm btn-outline-secondary" id="refresh-tasks-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+              <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+            </svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-vcenter" id="active-tasks-table">
+            <thead>
+              <tr>
+                <th>Task ID</th>
+                <th>Template</th>
+                <th>Model</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Duration</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="7" class="text-center text-muted py-4">No active tasks</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Batch Preview Modal -->
+<div class="modal fade" id="batch-preview-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Batch Generation Preview</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-md-6">
+            <h6>Selected Templates (<span id="preview-templates-count">0</span>)</h6>
+            <div class="list-group" id="preview-templates-list">
+              <!-- Template list will be populated here -->
+            </div>
+          </div>
+          <div class="col-md-6">
+            <h6>Selected Models (<span id="preview-models-count">0</span>)</h6>
+            <div class="list-group" id="preview-models-list">
+              <!-- Model list will be populated here -->
+            </div>
+          </div>
+        </div>
+        <hr>
+        <div class="row">
+          <div class="col-md-6">
+            <dl class="row">
+              <dt class="col-sm-6">Total Tasks:</dt>
+              <dd class="col-sm-6" id="preview-total-tasks">0</dd>
+              
+              <dt class="col-sm-6">Max Concurrent:</dt>
+              <dd class="col-sm-6" id="preview-max-concurrent">0</dd>
+              
+              <dt class="col-sm-6">Estimated Time:</dt>
+              <dd class="col-sm-6" id="preview-estimated-time">-</dd>
+            </dl>
+          </div>
+          <div class="col-md-6">
+            <div class="card bg-light">
+              <div class="card-body">
+                <h6 class="card-title">Resource Usage</h6>
+                <div class="text-muted small">
+                  This batch will generate <strong id="preview-combinations">0</strong> combinations
+                  across <strong id="preview-template-count">0</strong> templates and 
+                  <strong id="preview-model-count">0</strong> models.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirm-batch-btn">Start Batch Generation</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Task Details Modal -->
+<div class="modal fade" id="task-details-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Task Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-md-6">
+            <dl class="row">
+              <dt class="col-sm-4">Task ID:</dt>
+              <dd class="col-sm-8" id="task-detail-id">-</dd>
+              
+              <dt class="col-sm-4">Template:</dt>
+              <dd class="col-sm-8" id="task-detail-template">-</dd>
+              
+              <dt class="col-sm-4">Model:</dt>
+              <dd class="col-sm-8" id="task-detail-model">-</dd>
+              
+              <dt class="col-sm-4">Status:</dt>
+              <dd class="col-sm-8" id="task-detail-status">-</dd>
+              
+              <dt class="col-sm-4">Started:</dt>
+              <dd class="col-sm-8" id="task-detail-started">-</dd>
+              
+              <dt class="col-sm-4">Duration:</dt>
+              <dd class="col-sm-8" id="task-detail-duration">-</dd>
+            </dl>
+          </div>
+          <div class="col-md-6">
+            <h6>Progress</h6>
+            <div class="progress mb-3">
+              <div class="progress-bar" id="task-detail-progress-bar" style="width: 0%"></div>
+            </div>
+            <div class="text-muted small" id="task-detail-progress-text">No progress information</div>
+          </div>
+        </div>
+        
+        <div class="mt-3" id="task-detail-logs">
+          <h6>Task Logs</h6>
+          <pre class="code" style="max-height: 200px; overflow-y: auto;" id="task-logs-content">No logs available</pre>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-danger" id="cancel-task-btn">Cancel Task</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>

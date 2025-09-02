@@ -1,0 +1,140 @@
+{# Single Generation Interface #}
+
+<div class="row">
+  <!-- Generation Form -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">
+        <h4 class="card-title">Single Generation</h4>
+      </div>
+      <div class="card-body">
+        <form id="single-generation-form">
+          <div class="mb-3">
+            <label class="form-label">Template</label>
+            <select class="form-select" id="template-select" required>
+              <option value="">Select a template...</option>
+            </select>
+            <div class="form-hint">Choose from loaded application templates</div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Model</label>
+            <select class="form-select" id="model-select" required>
+              <option value="">Select a model...</option>
+              <option value="openai/gpt-4">OpenAI GPT-4</option>
+              <option value="openai/gpt-4-turbo">OpenAI GPT-4 Turbo</option>
+              <option value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</option>
+              <option value="anthropic/claude-3-haiku">Claude 3 Haiku</option>
+              <option value="google/gemini-pro">Google Gemini Pro</option>
+              <option value="meta-llama/llama-3.1-70b-instruct">Llama 3.1 70B</option>
+              <option value="mistralai/mistral-large">Mistral Large</option>
+              <option value="cohere/command-r-plus">Cohere Command R+</option>
+            </select>
+            <div class="form-hint">Select AI model for code generation</div>
+          </div>
+          
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label">Temperature</label>
+                <input type="number" class="form-control" id="temperature" min="0" max="1" step="0.1" placeholder="0.7">
+                <div class="form-hint">Creativity level (0-1)</div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label">Max Tokens</label>
+                <input type="number" class="form-control" id="max-tokens" min="1000" max="32000" step="1000" placeholder="12000">
+                <div class="form-hint">Response length limit</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="d-grid gap-2">
+            <button type="submit" class="btn btn-primary" id="generate-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M12 3c7.2 0 9 1.8 9 9s-1.8 9 -9 9s-9 -1.8 -9 -9s1.8 -9 9 -9z"/>
+                <path d="M8 12l2 2l4 -4"/>
+              </svg>
+              Generate Code
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Template Preview -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">
+        <h4 class="card-title">Template Preview</h4>
+        <div class="card-actions">
+          <button class="btn btn-sm btn-outline-secondary" id="refresh-template-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+              <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+            </svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="template-preview">
+          <div class="text-muted text-center py-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg mb-3 text-muted" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
+              <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
+            </svg>
+            <p>Select a template to see preview</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Generations -->
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h4 class="card-title">Recent Generations</h4>
+        <div class="card-actions">
+          <button class="btn btn-sm btn-outline-secondary" id="refresh-recent-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+              <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+            </svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-vcenter" id="recent-generations-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Template</th>
+                <th>Model</th>
+                <th>Status</th>
+                <th>Duration</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="6" class="text-center text-muted py-4">No recent generations</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

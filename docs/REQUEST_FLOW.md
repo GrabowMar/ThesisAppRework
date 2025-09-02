@@ -91,6 +91,78 @@ See: [Analysis Pipeline](ANALYSIS_PIPELINE.md) for deep steps.
 Analysis message: `{action, model, app, options}`.
 Bridge normalizes inbound container events into: PROGRESS, COMPLETE, ERROR. Celery consumes; UI polls derived task status.
 
+## 7. Sample Generation Flow
+
+The `/api/sample-gen` endpoints provide a different workflow from analysis tasks:
+
+### Generation Request
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Browser/API
+    participant R as Route Layer
+    participant S as Sample Service
+    participant G as Code Generator
+    participant E as Extractor
+    participant O as OpenRouter API
+    participant DB as Database
+    
+    B->>R: POST /api/sample-gen/generate
+    R->>S: generate_async(template, model)
+    S->>S: Check concurrency limits
+    S->>G: generate(template, model)
+    G->>G: Build prompt with enrichment
+    G->>O: HTTP call to OpenRouter API
+    O-->>G: Raw markdown response
+    G-->>S: GenerationResult
+    S->>E: extract(content)
+    E-->>S: CodeBlock[]
+    S->>DB: persist result
+    S-->>R: result_id + metadata
+    R-->>B: JSON response
+```
+
+### Result Management Flow
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as Browser/API
+    participant R as Route Layer
+    participant S as Sample Service
+    participant DB as Database
+    
+    Note over B,DB: Filtering & Pagination
+    B->>R: GET /results?model=gpt-4&limit=10
+    R->>S: list_results(filters)
+    S->>DB: Query with filters
+    DB-->>S: Filtered results
+    S-->>R: Paginated metadata
+    R-->>B: JSON response
+    
+    Note over B,DB: Regeneration
+    B->>R: POST /regenerate
+    R->>S: regenerate(result_id)
+    S->>DB: Lookup original template/model
+    S->>S: generate_async(same params)
+    S-->>R: New result_id
+    R-->>B: JSON response
+    
+    Note over B,DB: Cleanup
+    B->>R: POST /cleanup
+    R->>S: cleanup_old_results(max_age)
+    S->>DB: Delete old records
+    S->>S: Remove from memory
+    S-->>R: Deletion count
+    R-->>B: JSON response
+```
+
+Key differences from analysis flow:
+- **Synchronous**: Uses `asyncio.run()` to block request until completion
+- **Immediate Response**: No polling needed; result available instantly
+- **Concurrency Control**: Built-in limits prevent API overload
+- **Dual Persistence**: Memory cache + database fallback
+- **Rich Metadata**: Port allocations, checksums, extraction details
+
 ## 6. HTMX Fragment Strategy
 
 | Pattern | Reason |

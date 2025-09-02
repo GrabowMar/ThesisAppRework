@@ -1,0 +1,157 @@
+{# Templates Management Interface #}
+
+<div class="row">
+  <!-- Template Actions -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">
+        <h4 class="card-title">Template Actions</h4>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <button class="btn btn-primary" id="load-templates-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
+              <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
+              <path d="M12 11v6"/>
+              <path d="M9 14l3 3l3 -3"/>
+            </svg>
+            Load from Directory
+          </button>
+          
+          <button class="btn btn-outline-primary" id="create-template-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M12 5l0 14"/>
+              <path d="M5 12l14 0"/>
+            </svg>
+            Create New Template
+          </button>
+          
+          <button class="btn btn-outline-secondary" id="refresh-templates-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+              <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+            </svg>
+            Refresh List
+          </button>
+        </div>
+        
+        <hr>
+        
+        <!-- Load Directory Form -->
+        <div class="collapse" id="load-directory-form">
+          <form id="load-dir-form">
+            <div class="mb-3">
+              <label class="form-label">Directory Path</label>
+              <input type="text" class="form-control" id="template-directory" placeholder="misc/app_templates">
+              <div class="form-hint">Path to template files directory</div>
+            </div>
+            <div class="d-grid">
+              <button type="submit" class="btn btn-primary">Load Templates</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Template Statistics -->
+    <div class="card mt-3">
+      <div class="card-header">
+        <h4 class="card-title">Statistics</h4>
+      </div>
+      <div class="card-body">
+        <div class="row text-center">
+          <div class="col-6">
+            <div class="h3 m-0" id="template-count">0</div>
+            <div class="text-muted">Templates</div>
+          </div>
+          <div class="col-6">
+            <div class="h3 m-0" id="avg-complexity">0.0</div>
+            <div class="text-muted">Avg Complexity</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Templates List -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">
+        <h4 class="card-title">Loaded Templates</h4>
+        <div class="card-actions">
+          <div class="input-group input-group-sm">
+            <input type="text" class="form-control" id="template-search" placeholder="Search templates...">
+            <button class="btn btn-outline-secondary" type="button" id="clear-search-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                <path d="M18 6l-12 12"/>
+                <path d="M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="templates-list">
+          <div class="text-center text-muted py-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg mb-3" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
+              <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
+            </svg>
+            <p>No templates loaded</p>
+            <p class="text-muted">Click "Load from Directory" to load templates</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Template Editor Modal -->
+<div class="modal fade" id="template-editor-modal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Template Editor</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="template-form">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label">App Number</label>
+                <input type="number" class="form-control" id="template-app-num" min="1" required>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="mb-3">
+                <label class="form-label">Template Name</label>
+                <input type="text" class="form-control" id="template-name" required>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Requirements (comma-separated)</label>
+            <input type="text" class="form-control" id="template-requirements" placeholder="Flask, SQLAlchemy, Redis">
+          </div>
+          
+          <div class="mb-3">
+            <label class="form-label">Content</label>
+            <textarea class="form-control" id="template-content" rows="15" required></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="save-template-btn">Save Template</button>
+      </div>
+    </div>
+  </div>
+</div>

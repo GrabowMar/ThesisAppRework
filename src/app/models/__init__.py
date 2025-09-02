@@ -299,6 +299,43 @@ class GeneratedApplication(db.Model):
         return f'<GeneratedApplication {self.model_slug}/app{self.app_number}>'
 
 
+class GeneratedCodeResult(db.Model):
+    """Persistence model for AI code generation results (sample generation service)."""
+    __tablename__ = 'generated_code_results'
+    __table_args__ = (db.UniqueConstraint('result_id', name='uq_generated_code_result_id'), {'extend_existing': True})
+
+    id = db.Column(db.Integer, primary_key=True)
+    result_id = db.Column(db.String(200), nullable=False, index=True)
+    model = db.Column(db.String(200), nullable=False, index=True)
+    app_num = db.Column(db.Integer, nullable=False, index=True)
+    app_name = db.Column(db.String(200), nullable=False)
+    success = db.Column(db.Boolean, default=False, index=True)
+    error_message = db.Column(db.Text)
+    duration = db.Column(db.Float)
+    timestamp = db.Column(db.DateTime(timezone=True), default=utc_now, index=True)
+    requirements_json = db.Column(db.Text)
+    content = db.Column(db.Text)  # Large markdown / code content
+    blocks_json = db.Column(db.Text)  # JSON array of extracted block metadata
+
+    def to_dict(self, include_content: bool = False) -> dict:
+        import json as _json
+        data = {
+            'result_id': self.result_id,
+            'model': self.model,
+            'app_num': self.app_num,
+            'app_name': self.app_name,
+            'success': self.success,
+            'error_message': self.error_message,
+            'duration': self.duration,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'requirements': _json.loads(self.requirements_json) if self.requirements_json else [],
+            'extracted_blocks': _json.loads(self.blocks_json) if self.blocks_json else [],
+        }
+        if include_content:
+            data['content'] = self.content
+        return data
+
+
 class SecurityAnalysis(db.Model):
     """Model for storing security analysis results with comprehensive tool configurations."""
     __tablename__ = 'security_analyses'

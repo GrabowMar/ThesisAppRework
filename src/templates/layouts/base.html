@@ -52,6 +52,12 @@
         </a>
       </li>
       <li class="nav-item">
+  <a class="nav-link d-flex align-items-center" href="{{ url_for('sample_generator.index') if url_for is defined else '/sample-generator' }}" hx-boost="true" data-bs-dismiss="offcanvas">
+          <i class="fa-solid fa-code me-2" aria-hidden="true"></i>
+          <span>Sample Generator</span>
+        </a>
+      </li>
+      <li class="nav-item">
   <a class="nav-link d-flex align-items-center" href="{{ url_for('models.applications') if url_for is defined else '/applications' }}" hx-boost="true" data-bs-dismiss="offcanvas">
           <i class="fa-solid fa-box me-2" aria-hidden="true"></i>
           <span>Applications</span>

@@ -6,6 +6,7 @@ Provides container lifecycle management, health monitoring, and log retrieval.
 """
 
 import logging
+import time
 import docker
 from docker.errors import NotFound as DockerNotFound
 from pathlib import Path
@@ -43,33 +44,93 @@ class DockerManager:
         self.models_dir = self.project_root / "misc" / "models"
     
     def _create_docker_client(self) -> Optional[docker.DockerClient]:
-        """Create Docker client with Windows support.
+        """Create Docker client with retries and diagnostics.
 
-        On Windows, Docker Desktop may expose either 'docker_engine' or
-        'dockerDesktopLinuxEngine' named pipes. Try both before falling back
-        to environment-based client.
+        Strategy order:
+        1. Named pipes (Windows) – common Docker Desktop endpoints
+        2. docker.from_env() fallback (respects DOCKER_HOST / env vars)
+
+        Retries each endpoint a few times with short backoff to handle race
+        conditions when Docker Desktop is still initializing.
         """
         base_urls = [
             'npipe:////./pipe/docker_engine',
             'npipe:////./pipe/dockerDesktopLinuxEngine',
         ]
+        attempts_per_url = 3
+        backoff_seconds = 1.0
+        last_error: Optional[Exception] = None
+
         for url in base_urls:
+            for attempt in range(1, attempts_per_url + 1):
+                try:
+                    client = docker.DockerClient(base_url=url)
+                    client.ping()
+                    self.logger.info(f"Connected to Docker via Windows named pipe: {url} (attempt {attempt})")
+                    return client
+                except Exception as e:
+                    last_error = e
+                    # Only log at debug level to avoid noise unless final attempt
+                    if attempt == attempts_per_url:
+                        self.logger.debug(f"Failed to connect using {url} after {attempts_per_url} attempts: {e}")
+                    time.sleep(backoff_seconds)
+
+        # Fallback to default environment based client
+        for attempt in range(1, attempts_per_url + 1):
             try:
-                client = docker.DockerClient(base_url=url)
+                client = docker.from_env()
                 client.ping()
-                self.logger.info(f"Connected to Docker via Windows named pipe: {url}")
+                self.logger.info("Connected to Docker via default environment client")
                 return client
-            except Exception:
-                continue
+            except Exception as e:
+                last_error = e
+                if attempt == attempts_per_url:
+                    self.logger.error(f"Failed to connect to Docker via any method (env client final attempt): {e}")
+                time.sleep(backoff_seconds)
+
+        # If we reach here, we failed all attempts
+        if last_error:
+            self.logger.error(
+                "Docker client unavailable after retries. Last error: %s. "
+                "HINT: Ensure Docker Desktop is running and that the named pipe is accessible. "
+                "If using a custom DOCKER_HOST, verify it is reachable.", last_error
+            )
+        return None
+
+    def diagnose(self) -> Dict[str, Any]:
+        """Return structured diagnostic information about Docker connectivity.
+
+        Provides hints to surface in UI or logs, enabling faster troubleshooting.
+        """
+        info: Dict[str, Any] = {
+            'connected': bool(self.client),
+            'engine_info': None,
+            'errors': [],
+            'suggestions': []
+        }
+        if not self.client:
+            info['suggestions'].extend([
+                'Confirm Docker Desktop is running',
+                'Run: docker version (should succeed without error)',
+                'If DOCKER_HOST is set, ensure it points to a reachable daemon',
+                'On Windows, try restarting Docker Desktop to re-create the named pipe',
+            ])
+            return info
+
         try:
-            # Fallback to default env client (TCP or other)
-            client = docker.from_env()
-            client.ping()
-            self.logger.info("Connected to Docker via default client")
-            return client
+            raw = self.client.info()
+            info['engine_info'] = {
+                'server_version': raw.get('ServerVersion'),
+                'os_type': raw.get('OSType'),
+                'architecture': raw.get('Architecture'),
+                'kernel_version': raw.get('KernelVersion'),
+                'containers_running': raw.get('ContainersRunning'),
+                'images': raw.get('Images')
+            }
         except Exception as e:
-            self.logger.error(f"Failed to connect to Docker via any method: {e}")
-            return None
+            info['errors'].append(str(e))
+            info['suggestions'].append('Could not retrieve engine info – check daemon health with: docker info')
+        return info
     
     def get_container_status(self, container_name: str) -> DockerStatus:
         """Get status of a specific container."""

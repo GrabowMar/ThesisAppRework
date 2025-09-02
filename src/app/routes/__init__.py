@@ -11,9 +11,12 @@ from .jinja import (
     tasks_bp,
     advanced_bp,
     reports_bp,
-    docs_bp
+    docs_bp,
+    sample_generator_bp
 )
 from .api import api_bp
+from .api.sample_generation import sample_gen_bp
+from .api.app_scaffolding import scaffold_bp
 from .websockets import websocket_api_bp, register_websocket_routes, register_error_handlers
 from .shared_utils import register_template_globals_and_filters
 
@@ -30,6 +33,8 @@ __all__ = [
 
     # API blueprints
     'api_bp',
+    'sample_gen_bp',
+    'scaffold_bp',
 
     # WebSocket blueprints and functions
     'websocket_api_bp',
@@ -59,9 +64,14 @@ def register_blueprints(app):
     app.register_blueprint(advanced_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(docs_bp)
+    app.register_blueprint(sample_generator_bp)
 
     # Register API blueprint
     app.register_blueprint(api_bp, url_prefix='/api')
+    # Sample generation API (already prefixed inside file with /api/sample-gen)
+    app.register_blueprint(sample_gen_bp)
+    # App scaffolding API (/api/app-scaffold)
+    app.register_blueprint(scaffold_bp)
 
     # Register WebSocket API blueprint
     app.register_blueprint(websocket_api_bp, url_prefix='/ws-api')

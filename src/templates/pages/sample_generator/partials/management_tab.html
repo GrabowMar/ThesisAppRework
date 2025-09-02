@@ -1,0 +1,357 @@
+{# Management Interface #}
+
+<div class="row">
+  <!-- System Status -->
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">
+        <h4 class="card-title">System Status</h4>
+        <div class="card-actions">
+          <button class="btn btn-sm btn-outline-secondary" id="refresh-system-status-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
+              <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-6">
+            <div class="text-center">
+              <div class="h3 text-primary" id="total-results-count">0</div>
+              <div class="text-muted">Total Results</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="text-center">
+              <div class="h3 text-success" id="total-templates-count">0</div>
+              <div class="text-muted">Templates</div>
+            </div>
+          </div>
+        </div>
+        <hr>
+        <div class="row">
+          <div class="col-6">
+            <div class="text-center">
+              <div class="h3 text-warning" id="active-tasks-count">0</div>
+              <div class="text-muted">Active Tasks</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="text-center">
+              <div class="h3 text-info" id="total-models-count">0</div>
+              <div class="text-muted">Models</div>
+            </div>
+          </div>
+        </div>
+        <hr>
+        <div class="row">
+          <div class="col-12">
+            <div class="text-center">
+              <div class="h4" id="database-size">0 MB</div>
+              <div class="text-muted">Database Size</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">
+        <h4 class="card-title">Quick Actions</h4>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <button class="btn btn-outline-primary" id="export-data-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
+              <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
+              <path d="M12 17v-6"/>
+              <path d="M9.5 14.5l2.5 2.5l2.5 -2.5"/>
+            </svg>
+            Export All Data
+          </button>
+          
+          <button class="btn btn-outline-warning" id="cleanup-orphaned-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M4 7l16 0"/>
+              <path d="M10 11l0 6"/>
+              <path d="M14 11l0 6"/>
+              <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/>
+              <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/>
+            </svg>
+            Clean Orphaned Data
+          </button>
+          
+          <button class="btn btn-outline-info" id="optimize-database-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0"/>
+              <path d="M12 7v5l3 3"/>
+            </svg>
+            Optimize Database
+          </button>
+          
+          <button class="btn btn-outline-secondary" id="validate-templates-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+              <path d="M9 12l2 2l4 -4"/>
+              <path d="M21 12c-1 0 -3 -1 -3 -3s2 -3 3 -3s3 1 3 3s-2 3 -3 3"/>
+              <path d="M3 12c1 0 3 -1 3 -3s-2 -3 -3 -3s-3 1 -3 3s2 3 3 3"/>
+              <path d="M12 3c0 1 -1 3 -3 3s-3 -2 -3 -3s1 -3 3 -3s3 2 3 3"/>
+              <path d="M12 21c0 -1 1 -3 3 -3s3 2 3 3s-1 3 -3 3s-3 -2 -3 -3"/>
+            </svg>
+            Validate All Templates
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Advanced Management -->
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h4 class="card-title">Advanced Management</h4>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <!-- Cleanup Operations -->
+          <div class="col-md-4">
+            <div class="card border">
+              <div class="card-header">
+                <h6 class="card-title">Cleanup Operations</h6>
+              </div>
+              <div class="card-body">
+                <form id="bulk-cleanup-form">
+                  <div class="mb-3">
+                    <label class="form-label">Cleanup Target</label>
+                    <select class="form-select" id="cleanup-target">
+                      <option value="old_results">Old Results</option>
+                      <option value="failed_results">Failed Results</option>
+                      <option value="duplicate_results">Duplicate Results</option>
+                      <option value="empty_results">Empty Results</option>
+                      <option value="all_results">All Results</option>
+                    </select>
+                  </div>
+                  
+                  <div class="mb-3" id="cleanup-days-section">
+                    <label class="form-label">Older than (days)</label>
+                    <input type="number" class="form-control" id="cleanup-age-days" value="30" min="1">
+                  </div>
+                  
+                  <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="cleanup-dry-run-advanced" checked>
+                    <label class="form-check-label" for="cleanup-dry-run-advanced">
+                      Dry run (preview only)
+                    </label>
+                  </div>
+                  
+                  <button type="button" class="btn btn-warning btn-sm" id="execute-bulk-cleanup-btn">
+                    Execute Cleanup
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <!-- Import/Export -->
+          <div class="col-md-4">
+            <div class="card border">
+              <div class="card-header">
+                <h6 class="card-title">Import/Export</h6>
+              </div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <label class="form-label">Export Format</label>
+                  <select class="form-select" id="export-format">
+                    <option value="json">JSON</option>
+                    <option value="csv">CSV</option>
+                    <option value="xlsx">Excel</option>
+                  </select>
+                </div>
+                
+                <div class="mb-3">
+                  <label class="form-label">Export Data</label>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="export-results" checked>
+                    <label class="form-check-label" for="export-results">
+                      Results
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="export-templates" checked>
+                    <label class="form-check-label" for="export-templates">
+                      Templates
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="export-metadata">
+                    <label class="form-check-label" for="export-metadata">
+                      Metadata
+                    </label>
+                  </div>
+                </div>
+                
+                <div class="d-grid gap-2">
+                  <button type="button" class="btn btn-primary btn-sm" id="download-export-btn">
+                    Download Export
+                  </button>
+                  
+                  <div class="mt-2">
+                    <label class="form-label">Import Templates</label>
+                    <input type="file" class="form-control form-control-sm" id="import-templates-file" accept=".json,.zip">
+                    <button type="button" class="btn btn-outline-secondary btn-sm mt-1" id="upload-templates-btn">
+                      Upload Templates
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- System Monitoring -->
+          <div class="col-md-4">
+            <div class="card border">
+              <div class="card-header">
+                <h6 class="card-title">System Monitoring</h6>
+              </div>
+              <div class="card-body">
+                <div class="mb-3">
+                  <label class="form-label">Monitor Interval</label>
+                  <select class="form-select" id="monitor-interval">
+                    <option value="5">5 seconds</option>
+                    <option value="10" selected>10 seconds</option>
+                    <option value="30">30 seconds</option>
+                    <option value="60">1 minute</option>
+                  </select>
+                </div>
+                
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" id="auto-refresh-enabled">
+                  <label class="form-check-label" for="auto-refresh-enabled">
+                    Auto-refresh enabled
+                  </label>
+                </div>
+                
+                <div class="mb-3">
+                  <small class="text-muted">Last updated: <span id="last-update-time">Never</span></small>
+                </div>
+                
+                <div class="d-grid gap-2">
+                  <button type="button" class="btn btn-info btn-sm" id="force-refresh-btn">
+                    Force Refresh
+                  </button>
+                  
+                  <button type="button" class="btn btn-outline-warning btn-sm" id="clear-cache-btn">
+                    Clear Cache
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- System Logs -->
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h4 class="card-title">System Logs</h4>
+        <div class="card-actions">
+          <select class="form-select form-select-sm me-2" id="log-level-filter">
+            <option value="">All Levels</option>
+            <option value="ERROR">Error</option>
+            <option value="WARNING">Warning</option>
+            <option value="INFO">Info</option>
+            <option value="DEBUG">Debug</option>
+          </select>
+          <button class="btn btn-sm btn-outline-secondary" id="refresh-logs-btn">
+            Refresh
+          </button>
+          <button class="btn btn-sm btn-outline-danger" id="clear-logs-btn">
+            Clear
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm table-striped" id="system-logs-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Level</th>
+                <th>Component</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="4" class="text-center text-muted py-3">No logs available</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Export Progress Modal -->
+<div class="modal fade" id="export-progress-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Export Progress</h5>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <div class="progress">
+            <div class="progress-bar" id="export-progress-bar" style="width: 0%"></div>
+          </div>
+          <div class="text-center mt-2" id="export-progress-text">Preparing export...</div>
+        </div>
+        <div class="text-muted small" id="export-status-text">Starting export process</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="cancel-export-btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Operation Confirmation Modal -->
+<div class="modal fade" id="operation-confirm-modal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirm Operation</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning">
+          <strong>Warning!</strong> This operation cannot be undone.
+        </div>
+        <p id="operation-description">Are you sure you want to proceed?</p>
+        <div id="operation-details" class="text-muted small"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirm-operation-btn">Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
