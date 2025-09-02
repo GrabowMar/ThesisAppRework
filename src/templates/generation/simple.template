@@ -1,0 +1,10 @@
+"""Simple generation template.
+Model: {{ model_slug }}
+App Number: {{ app_number }}
+Generated At: {{ generated_at }}
+"""
+
+def handler():
+    return {
+        "message": "Hello from simple template for {{ model_slug }} app {{ app_number }}"
+    }

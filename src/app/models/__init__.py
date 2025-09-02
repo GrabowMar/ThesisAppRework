@@ -2214,6 +2214,20 @@ class AnalyzerConfiguration(db.Model):
     def __repr__(self) -> str:
         return f'<AnalyzerConfiguration {self.name} ({self.analyzer_type.value if self.analyzer_type else "unknown"})>'
 
+    # --- Backward compatibility helpers expected by analyzer_service ---
+    @property
+    def config_id(self) -> int:
+        return self.id
+
+    def get_tools_config(self) -> Dict[str, Any]:
+        return self.get_config_data().get('tools_config', {})
+
+    def get_execution_config(self) -> Dict[str, Any]:
+        return self.get_config_data().get('execution_config', {})
+
+    def get_output_config(self) -> Dict[str, Any]:
+        return self.get_config_data().get('output_config', {})
+
 
 class AnalysisTask(db.Model):
     """Individual analysis task tracking and management."""

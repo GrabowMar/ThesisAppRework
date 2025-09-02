@@ -1,157 +1,138 @@
-{# Templates Management Interface #}
-
 <div class="row">
-  <!-- Template Actions -->
   <div class="col-lg-4">
     <div class="card">
-      <div class="card-header">
-        <h4 class="card-title">Template Actions</h4>
-      </div>
+      <div class="card-header"><h4 class="card-title">Templates</h4></div>
       <div class="card-body">
-        <div class="d-grid gap-2">
-          <button class="btn btn-primary" id="load-templates-btn">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
-              <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
-              <path d="M12 11v6"/>
-              <path d="M9 14l3 3l3 -3"/>
-            </svg>
-            Load from Directory
-          </button>
-          
-          <button class="btn btn-outline-primary" id="create-template-btn">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M12 5l0 14"/>
-              <path d="M5 12l14 0"/>
-            </svg>
-            Create New Template
-          </button>
-          
-          <button class="btn btn-outline-secondary" id="refresh-templates-btn">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
-              <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
-            </svg>
-            Refresh List
-          </button>
+        <div class="d-grid gap-2 mb-3">
+          <button class="btn btn-sm btn-outline-primary" id="btn-refresh-templates">Refresh</button>
+          <button class="btn btn-sm btn-outline-success" id="btn-new-template">New Template</button>
+          <button class="btn btn-sm btn-outline-secondary" id="btn-load-profiles">Profiles</button>
         </div>
-        
-        <hr>
-        
-        <!-- Load Directory Form -->
-        <div class="collapse" id="load-directory-form">
-          <form id="load-dir-form">
-            <div class="mb-3">
-              <label class="form-label">Directory Path</label>
-              <input type="text" class="form-control" id="template-directory" placeholder="misc/app_templates">
-              <div class="form-hint">Path to template files directory</div>
-            </div>
-            <div class="d-grid">
-              <button type="submit" class="btn btn-primary">Load Templates</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-    
-    <!-- Template Statistics -->
-    <div class="card mt-3">
-      <div class="card-header">
-        <h4 class="card-title">Statistics</h4>
-      </div>
-      <div class="card-body">
-        <div class="row text-center">
-          <div class="col-6">
-            <div class="h3 m-0" id="template-count">0</div>
-            <div class="text-muted">Templates</div>
-          </div>
-          <div class="col-6">
-            <div class="h3 m-0" id="avg-complexity">0.0</div>
-            <div class="text-muted">Avg Complexity</div>
-          </div>
+        <div class="small text-muted mb-2">Manage code & app templates. Click a row to edit.</div>
+        <div class="border rounded p-2" style="font-family:monospace; font-size:0.75rem; max-height:50vh; overflow:auto;" id="template-list">
+          <div class="text-muted">Loading...</div>
         </div>
       </div>
     </div>
   </div>
-  
-  <!-- Templates List -->
   <div class="col-lg-8">
     <div class="card">
-      <div class="card-header">
-        <h4 class="card-title">Loaded Templates</h4>
-        <div class="card-actions">
-          <div class="input-group input-group-sm">
-            <input type="text" class="form-control" id="template-search" placeholder="Search templates...">
-            <button class="btn btn-outline-secondary" type="button" id="clear-search-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                <path d="M18 6l-12 12"/>
-                <path d="M6 6l12 12"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
+      <div class="card-header"><h4 class="card-title">Editor</h4></div>
       <div class="card-body">
-        <div id="templates-list">
-          <div class="text-center text-muted py-4">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg mb-3" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
-              <path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
-            </svg>
-            <p>No templates loaded</p>
-            <p class="text-muted">Click "Load from Directory" to load templates</p>
-          </div>
+        <div class="mb-2">
+          <span class="badge bg-info" id="template-category-badge"></span>
+          <code id="template-path-display"></code>
+          <span class="small text-muted ms-2" id="template-placeholders"></span>
+        </div>
+        <textarea id="template-editor-text" class="form-control" style="min-height:55vh; font-family:monospace; font-size:0.8rem;" placeholder="Select or create a template to begin editing..."></textarea>
+        <div class="mt-2 d-flex gap-2">
+          <button class="btn btn-sm btn-primary" id="btn-save-template" disabled>Save</button>
+          <button class="btn btn-sm btn-outline-danger" id="btn-delete-template" disabled>Delete</button>
+          <div class="ms-auto small text-muted" id="template-status"></div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Template Editor Modal -->
-<div class="modal fade" id="template-editor-modal" tabindex="-1">
-  <div class="modal-dialog modal-xl">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Template Editor</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <form id="template-form">
-          <div class="row">
-            <div class="col-md-6">
-              <div class="mb-3">
-                <label class="form-label">App Number</label>
-                <input type="number" class="form-control" id="template-app-num" min="1" required>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="mb-3">
-                <label class="form-label">Template Name</label>
-                <input type="text" class="form-control" id="template-name" required>
-              </div>
-            </div>
-          </div>
-          
-          <div class="mb-3">
-            <label class="form-label">Requirements (comma-separated)</label>
-            <input type="text" class="form-control" id="template-requirements" placeholder="Flask, SQLAlchemy, Redis">
-          </div>
-          
-          <div class="mb-3">
-            <label class="form-label">Content</label>
-            <textarea class="form-control" id="template-content" rows="15" required></textarea>
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" id="save-template-btn">Save Template</button>
-      </div>
-    </div>
-  </div>
-</div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const listEl = document.getElementById('template-list');
+  const refreshBtn = document.getElementById('btn-refresh-templates');
+  const newBtn = document.getElementById('btn-new-template');
+  const saveBtn = document.getElementById('btn-save-template');
+  const deleteBtn = document.getElementById('btn-delete-template');
+  const editor = document.getElementById('template-editor-text');
+  const categoryBadge = document.getElementById('template-category-badge');
+  const pathDisplay = document.getElementById('template-path-display');
+  const placeholdersDisplay = document.getElementById('template-placeholders');
+  const statusEl = document.getElementById('template-status');
+
+  let currentCategory = null;
+  let currentPath = null;
+  let originalContent = '';
+  let dirty = false;
+
+  function setStatus(msg, cls='text-muted'){ statusEl.className = 'small ' + cls; statusEl.textContent = msg; }
+  function markDirty(){ if(currentCategory){ dirty = true; saveBtn.disabled = false; setStatus('Unsaved changes','text-warning'); } }
+  editor.addEventListener('input', markDirty);
+
+  function renderList(items){
+    if(!items.length){ listEl.innerHTML = '<div class="text-muted">No templates found.</div>'; return; }
+    const rows = items.sort((a,b)=>a.category.localeCompare(b.category) || a.relative_path.localeCompare(b.relative_path))
+      .map(m => `<div class='d-flex justify-content-between align-items-center border-bottom py-1 template-row' style='cursor:pointer' data-cat='${m.category}' data-path='${m.relative_path}'>
+        <div><span class='badge bg-secondary me-1'>${m.category}</span><code>${m.relative_path}</code></div>
+        <div class='text-muted small'>v${m.versions} ${(m.size/1024).toFixed(1)} KB</div>
+      </div>`).join('');
+    listEl.innerHTML = rows;
+    listEl.querySelectorAll('.template-row').forEach(row => {
+      row.addEventListener('click', () => loadTemplate(row.dataset.cat, row.dataset.path));
+    });
+  }
+
+  async function fetchList(){
+    listEl.innerHTML = '<div class="text-muted">Loading...</div>';
+    try {
+      const res = await fetch('/api/templates/');
+      const data = await res.json();
+      renderList(data.items || []);
+    } catch(e){ listEl.innerHTML = '<div class="text-danger">Failed to load list</div>'; }
+  }
+
+  async function loadTemplate(category, rel){
+    if(dirty && !confirm('Discard unsaved changes?')) return;
+    setStatus('Loading...');
+    try {
+      const res = await fetch(`/api/templates/${category}/${rel}`);
+      if(!res.ok) throw new Error();
+      const data = await res.json();
+      currentCategory = category; currentPath = rel; dirty = false;
+      editor.value = data.content || ''; originalContent = editor.value;
+      categoryBadge.textContent = category; pathDisplay.textContent = rel;
+      placeholdersDisplay.textContent = 'Placeholders: ' + (data.placeholders?.join(', ') || 'none');
+      saveBtn.disabled = true; deleteBtn.disabled = false;
+      setStatus('Loaded','text-success');
+    } catch(e){ setStatus('Failed to load','text-danger'); }
+  }
+
+  saveBtn.addEventListener('click', async () => {
+    if(!currentCategory || !currentPath) return;
+    setStatus('Saving...');
+    try {
+      const res = await fetch(`/api/templates/${currentCategory}/${currentPath}`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({content: editor.value})
+      });
+      if(!res.ok) throw new Error();
+      dirty = false; originalContent = editor.value; saveBtn.disabled = true;
+      setStatus('Saved','text-success');
+      fetchList();
+    } catch(e){ setStatus('Save failed','text-danger'); }
+  });
+
+  deleteBtn.addEventListener('click', async () => {
+    if(!currentCategory || !currentPath) return;
+    if(!confirm('Delete this template?')) return;
+    setStatus('Deleting...');
+    try {
+      const res = await fetch(`/api/templates/${currentCategory}/${currentPath}`, { method:'DELETE' });
+      if(!res.ok) throw new Error();
+      editor.value=''; currentCategory=null; currentPath=null; placeholdersDisplay.textContent='';
+      deleteBtn.disabled = true; saveBtn.disabled = true; setStatus('Deleted','text-success');
+      fetchList();
+    } catch(e){ setStatus('Delete failed','text-danger'); }
+  });
+
+  newBtn.addEventListener('click', () => {
+    if(dirty && !confirm('Discard unsaved changes?')) return;
+    const rel = prompt('Enter relative path (e.g. backend/new_service.py.template or app_31_backend_new.md)');
+    if(!rel) return;
+    const category = /^(backend|frontend|docker)/.test(rel) || rel.includes('/') ? 'code' : 'app';
+    currentCategory = category; currentPath = rel; editor.value=''; originalContent=''; dirty=true;
+    categoryBadge.textContent = category; pathDisplay.textContent = rel; placeholdersDisplay.textContent='';
+    saveBtn.disabled=false; deleteBtn.disabled=true; setStatus('New (unsaved)','text-warning');
+  });
+
+  refreshBtn.addEventListener('click', fetchList);
+  fetchList();
+});
+</script>

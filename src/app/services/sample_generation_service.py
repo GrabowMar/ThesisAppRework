@@ -40,6 +40,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Any, Tuple
 
 import aiohttp
+from app.paths import CODE_TEMPLATES_DIR, APP_TEMPLATES_DIR
 import json
 
 try:
@@ -669,15 +670,16 @@ class ProjectOrganizer:
                                 backend_port, frontend_port = self._compute_ports(app_num)
                                 model_prefix = re.sub(r'[^\w\-]', '_', model_name.lower())
                                 substitutions = {
-                                    '{model_name}': model_name,
-                                    '{model_name_lower}': model_prefix,
-                                    '{backend_port}': str(backend_port),
-                                    '{frontend_port}': str(frontend_port),
-                                    '{model_prefix}': model_prefix,
-                                    '{port}': str(backend_port) if 'backend' in rel.parts else str(frontend_port),
+                                    'model_name': model_name,
+                                    'model_name_lower': model_prefix,
+                                    'backend_port': str(backend_port),
+                                    'frontend_port': str(frontend_port),
+                                    'model_prefix': model_prefix,
+                                    # generic port placeholder (context sensitive)
+                                    'port': str(backend_port) if 'backend' in rel.parts else str(frontend_port),
                                 }
-                                for k, v in substitutions.items():
-                                    content = content.replace(k, v)
+                                for key, value in substitutions.items():
+                                    content = content.replace(f"{{{{{key}}}}}", value)
                                 target_path.write_text(content, encoding='utf-8')
                             except Exception as e:  # noqa: BLE001
                                 logger.warning("Failed copying scaffold file %s: %s", src, e)
@@ -761,14 +763,14 @@ class SampleGenerationService:
         self.model_registry = ModelRegistry()
         self.template_registry = TemplateRegistry()
         self.port_allocator = PortAllocator()
-        # Preferred new location under src/misc; fallback to legacy project root misc
-        self.app_templates_dir = Path('src') / 'misc' / 'app_templates'
+        # Centralized directories
+        self.app_templates_dir = APP_TEMPLATES_DIR
         # API key loaded lazily; supports runtime rotation
         self.generator = CodeGenerator(api_key=os.getenv('OPENROUTER_API_KEY', ''))
         self.extractor = CodeExtractor(self.port_allocator)
         self.organizer = ProjectOrganizer(
             Path('generated'),
-            code_templates_dir=Path('src') / 'misc' / 'code_templates'
+            code_templates_dir=CODE_TEMPLATES_DIR
         )
         # In-memory results store: id -> GenerationResult
         self._results: Dict[str, GenerationResult] = {}

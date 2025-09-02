@@ -1,0 +1,24 @@
+{# Legacy compatibility active tasks partial.
+   Tests render this via {% include 'partials/analysis/list/active_tasks.html' %} and
+   expect it to work with either a dict or list named 'active'. #}
+<div class="active-tasks-fragment">
+  {% set items = [] %}
+  {% if active is mapping %}
+    {% for k,v in active.items() %}
+      {% set _ = items.append(v) %}
+    {% endfor %}
+  {% elif active is iterable %}
+    {% for v in active %}
+      {% set _ = items.append(v) %}
+    {% endfor %}
+  {% endif %}
+  {% if items|length == 0 %}
+    <div class="text-muted small">No active tasks</div>
+  {% else %}
+    <ul class="list-unstyled mb-0">
+      {% for t in items %}
+        <li class="mb-1"><span class="badge bg-blue me-1">{{ t.status or t.state or 'PENDING' }}</span>{{ t.name or t.task_name or t.id }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</div>

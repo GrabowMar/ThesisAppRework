@@ -2,7 +2,48 @@ import os
 import re
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3]  # repo root
+def _detect_root(start: Path) -> Path:
+    """Detect project root robustly.
+
+    Strategy (first hit wins):
+      1. Walk upward (max 10 levels) looking for standard project markers:
+         - .git directory
+         - pyproject.toml
+         - requirements.txt
+         - src/app (Flask app package)
+         - src/templates (template root) with base.html present
+      2. If none found, perform a secondary upward scan specifically for any
+         ancestor containing 'src/templates'. This handles cases where the
+         repository root lacks conventional markers (e.g. exported snapshot).
+      3. Fallback: last ancestor that existed in the climb, else starting path.
+
+    This replaces the brittle fixed-depth parents[3] heuristic which broke
+    when the test file depth changed or the repository was nested differently
+    on CI machines / developer workstations (e.g. an extra path component for
+    user home directories).
+    """
+    current = start
+    last_valid = start
+    for _ in range(10):  # reasonable safety cap
+        if (current / '.git').exists() or \
+           (current / 'pyproject.toml').exists() or \
+           (current / 'requirements.txt').exists() or \
+           (current / 'src' / 'app').exists() or \
+           ((current / 'src' / 'templates' / 'base.html').exists()):
+            return current
+        if current.parent == current:
+            break
+        last_valid = current
+        current = current.parent
+
+    # Secondary scan for any ancestor with src/templates present
+    for ancestor in start.parents:
+        if (ancestor / 'src' / 'templates').exists():
+            return ancestor
+
+    return last_valid
+
+ROOT = _detect_root(Path(__file__).resolve())
 TEMPLATES_DIR = ROOT / 'src' / 'templates'
 ROUTES_DIR = ROOT / 'src' / 'app' / 'routes'
 

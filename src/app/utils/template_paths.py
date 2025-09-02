@@ -144,11 +144,7 @@ def remap_template(name: str) -> str:
         if (_templates_root() / candidate).exists():
             return candidate
 
-    # Heuristic 9: single_page.html should map to pages/errors/errors_main.html for error contexts
-    if name == 'single_page.html':
-        candidate = 'pages/errors/errors_main.html'
-        if (_templates_root() / candidate).exists():
-            return candidate
+    # Heuristic 9 removed: single_page.html deprecated.
 
     return name
 

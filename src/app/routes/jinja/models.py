@@ -24,6 +24,25 @@ from ..shared_utils import openrouter_service, _project_root
 # Create blueprint
 models_bp = Blueprint('models', __name__, url_prefix='/models')
 
+# In-process lightweight enrichment cache (simple rate limiting / TTL)
+_ENRICH_CACHE: dict[str, dict] = {}
+_ENRICH_TTL_SECONDS = 300  # 5 minutes
+
+def _enrich_model(model: ModelCapability):
+    """Enrich a model with OpenRouter data using a tiny time-based cache.
+
+    Avoids hammering external API repeatedly during rapid comparison / overview refreshes.
+    """
+    from time import time
+    key = model.canonical_slug
+    now = time()
+    cached = _ENRICH_CACHE.get(key)
+    if cached and (now - cached.get('_ts', 0)) < _ENRICH_TTL_SECONDS:
+        return cached['data']
+    data = openrouter_service.enrich_model_data(model)
+    _ENRICH_CACHE[key] = {'_ts': now, 'data': data}
+    return data
+
 @models_bp.route('/')
 def models_overview():
     """Static models overview page showing table of AI models with OpenRouter data."""
@@ -37,7 +56,7 @@ def models_overview():
         # Enrich models with OpenRouter data
         enriched_models = []
         for model in models:
-            enriched_data = openrouter_service.enrich_model_data(model)
+            enriched_data = _enrich_model(model)
             app_count = GeneratedApplication.query.filter_by(model_slug=model.canonical_slug).count()
             enriched_data['apps_count'] = app_count
             enriched_models.append(enriched_data)
@@ -74,7 +93,7 @@ def models_overview():
             'page_title': 'AI Models Overview',
             'show_openrouter_data': bool(openrouter_service.api_key)
         }
-        return render_template('views/models/overview.html', **context)
+        return render_template('pages/models/overview.html', **context)
 
     except Exception as e:
         current_app.logger.error(f"Error loading models overview: {e}")
@@ -109,11 +128,9 @@ def model_details(model_slug):
         is_disabled = model_slug in disabled_models
 
         return render_template(
-            'single_page.html',
-            page_title=f"Model: {enriched_data.get('model_name', model_slug)}",
-            page_icon='fas fa-robot',
-            main_partial='partials/models/details.html',
+            'pages/models/model_details.html',
             model=enriched_data,
+            model_slug=model_slug,
             analysis_disabled=is_disabled,
             disabled_models=disabled_models
         )
@@ -144,7 +161,7 @@ def model_more_info(model_slug):
                 cached = None
 
         if cached is None or force_refresh:
-            data = openrouter_service.enrich_model_data(model)
+            data = _enrich_model(model)
 
             try:
                 entry = ExternalModelInfoCache.query.filter_by(model_slug=model_slug).first()
@@ -155,8 +172,13 @@ def model_more_info(model_slug):
                     db.session.add(entry)
                 else:
                     entry.set_data(data)
-                from ..models import utc_now
-                entry.cache_expires_at = utc_now() + timedelta(hours=ttl_hours)
+                # utc_now helper may live in app.utils.time or fall back to datetime.utcnow
+                try:
+                    from app.utils.time import utc_now  # type: ignore
+                    entry.cache_expires_at = utc_now() + timedelta(hours=ttl_hours)
+                except Exception:
+                    from datetime import datetime, timezone
+                    entry.cache_expires_at = datetime.now(timezone.utc) + timedelta(hours=ttl_hours)
                 entry.source_notes = 'openrouter'
                 db.session.commit()
             except Exception as e:
@@ -625,8 +647,8 @@ def generate_application():
         if auto_start and created.get('id'):
             try:
                 app_service.start_application(created['id'])
-            except Exception:
-                pass
+            except Exception:  # pragma: no cover - non critical
+                current_app.logger.warning("Failed to auto-start application", exc_info=True)
 
         detail_url = f"{request.url_root.rstrip('/')}/models/application/{model_slug}/{app_number}"
         resp = Response(
@@ -636,8 +658,6 @@ def generate_application():
         )
         resp.headers['HX-Trigger'] = 'refresh-grid'
         return resp
-    except app_service.ValidationError as ve:
-        return (f'<div class="alert alert-danger">{str(ve)}</div>', 400)
     except Exception as e:
         msg = str(e)
         if 'unique' in msg.lower() and 'model' in msg.lower():
@@ -691,13 +711,10 @@ def model_apps(model_slug):
         apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
 
         return render_template(
-            'single_page.html',
-            page_title=f"{model.display_name} Applications",
-            page_icon='fa-cubes',
-            page_subtitle=f"All generated apps for {model.display_name}",
-            main_partial='partials/overview.html',
+            'pages/applications/index.html',
             model=model,
-            apps=apps
+            apps=apps,
+            page_title=f"{model.display_name} Applications"
         )
     except Exception as e:
         current_app.logger.error(f"Error loading model apps for {model_slug}: {e}")
@@ -714,7 +731,7 @@ def model_apps(model_slug):
 def models_import_page():
     """Render a simple import page to upload JSON and call the API."""
     try:
-        return render_template('views/models/import.html')
+        return render_template('pages/models/import.html')
     except Exception as e:
         current_app.logger.error(f"Error rendering models import page: {e}")
         return render_template(
@@ -728,13 +745,18 @@ def models_import_page():
 def export_models_csv():
     """Export models overview to CSV with selected fields."""
     try:
-        models = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+        models = ModelCapability.query.order_by(
+            ModelCapability.provider, ModelCapability.model_name
+        ).all()
         rows = []
         for m in models:
-            data = openrouter_service.enrich_model_data(m)
+            data = _enrich_model(m)
             cached = ExternalModelInfoCache.query.filter_by(model_slug=m.canonical_slug).first()
             if cached:
-                data = deep_merge_dicts(data, cached.get_data())
+                try:
+                    data = deep_merge_dicts(data, cached.get_data())
+                except Exception:  # pragma: no cover
+                    pass
             rows.append({
                 'provider': m.provider,
                 'model_name': m.model_name,
@@ -757,13 +779,13 @@ def export_models_csv():
                 'is_free': m.is_free,
             })
 
-        csv_content = dicts_to_csv(rows, fieldnames=(list(rows[0].keys()) if rows else ['provider','model_name','slug']))
+        csv_content = dicts_to_csv(rows)
         return Response(
             csv_content,
             mimetype='text/csv',
             headers={'Content-Disposition': 'attachment; filename=models_export.csv'}
         )
-    except Exception as e:
+    except Exception as e:  # pragma: no cover - export failures rare
         current_app.logger.error(f"Error exporting models CSV: {e}")
         return Response('provider,model_name,slug\n', mimetype='text/csv')
 
@@ -814,7 +836,7 @@ def models_filter():
         # Enrich models with OpenRouter data and filter by capabilities
         enriched_models = []
         for model in models:
-            enriched_data = openrouter_service.enrich_model_data(model)
+            enriched_data = _enrich_model(model)
             app_count = GeneratedApplication.query.filter_by(model_slug=model.canonical_slug).count()
             enriched_data['apps_count'] = app_count
 
@@ -845,3 +867,81 @@ def models_filter():
     except Exception as e:
         current_app.logger.error(f"Error filtering models: {e}")
         return f'<div class="alert alert-danger">Error filtering models: {str(e)}</div>', 500
+
+@models_bp.route('/comparison')
+def models_comparison():
+    """Render comparison page with optional selected models list."""
+    try:
+        raw = request.args.get('models', '')
+        slugs = [s.strip() for s in raw.split(',') if s.strip()][:6]  # limit to 6 for layout
+        selected_models = []
+        comparison_rows = []
+        capability_union: set[str] = set()
+        pricing = []
+        if slugs:
+            for slug in slugs:
+                m = ModelCapability.query.filter_by(canonical_slug=slug).first()
+                if not m:
+                    continue
+                data = _enrich_model(m)
+                caps = data.get('capabilities') or {}
+                # normalize capability keys
+                if isinstance(caps, dict):
+                    for k, v in caps.items():
+                        if v:
+                            capability_union.add(k)
+                selected_models.append({
+                    'slug': slug,
+                    'name': data.get('name') or m.model_name,
+                    'provider': data.get('provider') or m.provider,
+                    'context_length': data.get('openrouter_context_length') or m.context_window,
+                    'input_price': data.get('openrouter_prompt_price') or data.get('input_price_per_1k'),
+                    'output_price': data.get('openrouter_completion_price') or data.get('output_price_per_1k'),
+                    'performance_score': data.get('performance_score'),
+                    'capabilities': caps,
+                })
+            # Pricing delta baseline (first model)
+            if selected_models:
+                base = selected_models[0]
+                b_in = (base.get('input_price') or 0) or 0
+                b_out = (base.get('output_price') or 0) or 0
+                for sm in selected_models:
+                    in_p = (sm.get('input_price') or 0) or 0
+                    out_p = (sm.get('output_price') or 0) or 0
+                    pricing.append({
+                        'slug': sm['slug'],
+                        'name': sm['name'],
+                        'input_price': in_p,
+                        'output_price': out_p,
+                        'input_delta': (in_p - b_in) if b_in else None,
+                        'output_delta': (out_p - b_out) if b_out else None,
+                    })
+            # Capability matrix
+            capability_list = sorted(capability_union)
+            for cap in capability_list:
+                row = {'capability': cap, 'support': []}
+                for sm in selected_models:
+                    caps = sm.get('capabilities') or {}
+                    val = False
+                    if isinstance(caps, dict):
+                        val = bool(caps.get(cap))
+                    elif isinstance(caps, list):
+                        val = cap in caps
+                    row['support'].append(val)
+                comparison_rows.append(row)
+        return render_template(
+            'pages/models/comparison.html',
+            models=selected_models,
+            pricing=pricing,
+            capability_rows=comparison_rows,
+            selected_models=slugs,
+        )
+    except Exception as e:
+        current_app.logger.error(f"Error building comparison page: {e}")
+        flash('Error building comparison', 'error')
+        return render_template(
+            'pages/errors/errors_main.html',
+            error_code=500,
+            error_title='Comparison Error',
+            error_message=str(e)
+        ), 500

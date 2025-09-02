@@ -1,0 +1,40 @@
+{# Removed legacy include of backup_notice from views path #}
+{# Adapted from backup/models/partials/more_info_modal_body.html #}
+<div class="modal-header">
+  <h5 class="modal-title"><i class="fas fa-robot me-2"></i>OpenRouter Model Info</h5>
+  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+</div>
+<div class="modal-body">
+  <div class="row g-3 mb-3">
+    <div class="col-md-6">
+      <div class="text-muted small">Provider</div>
+      <div class="fw-semibold">{{ model.provider or model.get('provider') or 'unknown' }}</div>
+      <div class="mt-2 text-muted small">Model Name</div>
+      <div class="fw-semibold">{{ model.model_name or model.get('model_name') or model.get('name') or model_slug }}</div>
+      <div class="mt-2 text-muted small">Model ID</div>
+      <div class="fw-semibold text-break">{{ model.id or model.get('id') or model.get('openrouter_model_id') or '—' }}</div>
+    </div>
+    <div class="col-md-6">
+      <div class="text-muted small">Canonical Slug</div>
+      <div class="fw-semibold">{{ model.get('openrouter_canonical_slug') or model_slug }}</div>
+      <div class="mt-2 text-muted small">Created</div>
+      <div class="fw-semibold">{{ model.created or model.get('created') or model.get('openrouter_created') or '—' }}</div>
+      <div class="mt-2 text-muted small">Variants</div>
+      <div class="fw-semibold">{{ model.openrouter_variants or model.get('variants') or '—' }}</div>
+    </div>
+  </div>
+  <h6 class="mb-2">Pricing (per 1K tokens)</h6>
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    <span class="badge bg-light text-dark border">Prompt: {{ model.openrouter_prompt_price if model.openrouter_prompt_price is not none else model.get('prompt_price','n/a') }}</span>
+    <span class="badge bg-light text-dark border">Completion: {{ model.openrouter_completion_price if model.openrouter_completion_price is not none else model.get('completion_price','n/a') }}</span>
+  </div>
+  <h6 class="mb-2">Feature Flags</h6>
+  <div class="d-flex flex-wrap gap-2 mb-3">
+    {% set features=[('Tool Use', model.tool_use or model.get('tool_use') or model.get('supports_tool_calling')),('JSON Mode', model.supports_json or model.get('supports_json') or model.get('supports_json_mode')),('Streaming', model.streaming or model.get('streaming') or model.get('supports_streaming')),('Vision', model.vision or model.get('vision') or model.get('supports_vision'))] %}
+    {% for label,val in features %}<span class="badge bg-{{ 'success' if val else 'secondary' }}">{{ label }}</span>{% endfor %}
+  </div>
+  <details class="mt-2"><summary class="text-muted">Raw JSON</summary><pre class="bg-light p-2 small border rounded mt-2">{{ model | tojson(indent=2) }}</pre></details>
+  <hr/>
+  <div class="small text-muted">OpenRouter data may be cached. Some fields may be unavailable.</div>
+</div>
+<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>

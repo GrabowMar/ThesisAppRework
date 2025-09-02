@@ -1,0 +1,37 @@
+{# Placeholder for detailed model view partial (used by single_page layout) #}
+<div class="model-details-partial">
+  <h3 class="mb-3"><i class="fas fa-robot me-2"></i>{{ model.model_name or model.get('model_name') or model.get('name') }}</h3>
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="card h-100">
+        <div class="card-header"><strong>Quick Info</strong></div>
+        <div class="card-body small">
+          <dl class="row mb-0">
+            <dt class="col-5">Provider</dt><dd class="col-7">{{ model.provider or model.get('provider') }}</dd>
+            <dt class="col-5">Slug</dt><dd class="col-7"><code>{{ model.slug or model.get('canonical_slug') or model.get('openrouter_canonical_slug') }}</code></dd>
+            <dt class="col-5">Context</dt><dd class="col-7">{{ model.context_window or model.get('context_length') }}</dd>
+            <dt class="col-5">Input $/1K</dt><dd class="col-7">{{ '%.6f'|format(model.input_price_per_1k or model.get('openrouter_prompt_price') or 0) }}</dd>
+            <dt class="col-5">Output $/1K</dt><dd class="col-7">{{ '%.6f'|format(model.output_price_per_1k or model.get('openrouter_completion_price') or 0) }}</dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-8">
+      <div class="card h-100">
+        <div class="card-header d-flex justify-content-between align-items-center"><strong>Capabilities</strong></div>
+        <div class="card-body small">
+          {% set caps = model.capabilities or model.get('capabilities') or [] %}
+          {% if caps %}
+          <div class="d-flex flex-wrap gap-2">
+            {% for c in caps if caps is iterable %}
+              <span class="badge bg-info">{{ c }}</span>
+            {% endfor %}
+          </div>
+          {% else %}
+            <span class="text-muted">No capability data.</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

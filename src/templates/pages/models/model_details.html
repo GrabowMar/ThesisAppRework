@@ -1,0 +1,5 @@
+{% extends 'layouts/base.html' %}
+{% block page_title %}Model: {{ model.model_name or model.get('model_name') or model_slug }}{% endblock %}
+{% block content %}
+  {% include 'pages/models/partials/details.html' %}
+{% endblock %}

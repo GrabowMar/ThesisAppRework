@@ -33,6 +33,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from app.paths import CODE_TEMPLATES_DIR
 from typing import Dict, List, Tuple, Optional, Any
 import os
 import json
@@ -48,7 +49,7 @@ logger = logging.getLogger(__name__)
 class ScaffoldConfig:
     MODELS_DIR = Path("models")
     LOGS_DIR = "_logs"
-    TEMPLATES_DIR = Path("src") / "misc" / "code_templates"
+    TEMPLATES_DIR = CODE_TEMPLATES_DIR
     BASE_BACKEND_PORT = 5001
     BASE_FRONTEND_PORT = 8001
     PORTS_PER_APP = 2
@@ -264,6 +265,10 @@ class AppScaffoldingService:
         return GenerationResult(preview=preview, generated=True, output_paths=output_paths, errors=errors, missing_templates=missing, apps_created=apps_created)
 
     def _template_subs(self, content: str, substitutions: Dict[str, Any]) -> str:
+        """Perform simple double-brace placeholder replacement.
+
+        Example: {{model_name}}, {{backend_port}}. Extra unknown placeholders are left as-is.
+        """
         for k, v in substitutions.items():
             content = content.replace(f"{{{{{k}}}}}", str(v))
         return content
@@ -280,6 +285,9 @@ class AppScaffoldingService:
             'app_number': app_num,
             'backend_port': ports.backend,
             'python_base_image': ScaffoldConfig.PYTHON_BASE_IMAGE,
+            'port': ports.backend,
+            'model_name_lower': model_name.replace('/', '_').lower(),
+            'model_prefix': model_name.replace('/', '_').lower(),
         }
         # app.py
         app_tpl = self._read_template('backend/app.py.template')
@@ -304,6 +312,9 @@ class AppScaffoldingService:
             'app_number': app_num,
             'backend_port': ports.backend,
             'frontend_port': ports.frontend,
+            'model_name_lower': model_name.replace('/', '_').lower(),
+            'model_prefix': model_name.replace('/', '_').lower(),
+            'port': ports.frontend,
         }
         pkg_tpl = self._read_template('frontend/package.json.template')
         if pkg_tpl:

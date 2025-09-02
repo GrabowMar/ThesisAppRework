@@ -3,17 +3,15 @@ Routes Package
 Handles all application routes organized by type.
 """
 
-from .jinja import (
-    main_bp,
-    models_bp,
-    analysis_bp,
-    stats_bp,
-    tasks_bp,
-    advanced_bp,
-    reports_bp,
-    docs_bp,
-    sample_generator_bp
-)
+from .jinja.main import main_bp
+from .jinja.models import models_bp
+from .jinja.analysis import analysis_bp
+from .jinja.stats import stats_bp
+from .jinja.tasks import tasks_bp
+from .jinja.advanced import advanced_bp
+from .jinja.reports import reports_bp
+from .jinja.docs import docs_bp
+from .jinja.sample_generator import sample_generator_bp
 from .api import api_bp
 from .api.sample_generation import sample_gen_bp
 from .api.app_scaffolding import scaffold_bp

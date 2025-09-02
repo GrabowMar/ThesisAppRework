@@ -1,0 +1,6 @@
+{# Display a simple grid of top models (expects top_models list) #}
+<div class="row g-3">
+  {% for m in top_models %}
+  <div class="col-sm-6 col-md-4 col-lg-3">{% set model=m %}{% include 'pages/models/partials/model-card.html' %}</div>
+  {% endfor %}
+</div>

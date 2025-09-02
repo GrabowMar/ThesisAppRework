@@ -15,19 +15,17 @@ advanced_bp = Blueprint('advanced', __name__, url_prefix='/advanced')
 @advanced_bp.route('/apps')
 def apps_grid():
     """Main apps grid page."""
+    # Directly render new applications index template (replaces single_page wrapper)
     return render_template(
-        'single_page.html',
-        page_title='Applications Grid',
-        page_icon='fas fa-th',
-        main_partial='partials/apps_grid/apps_grid.html'
+        'views/applications/index.html',
+        page_title='Applications Grid'
     )
 
 @advanced_bp.route('/models')
 def models_overview():
     """Main models overview page."""
+    # Reuse models overview page (new structure)
     return render_template(
-        'single_page.html',
-        page_title='Models Overview',
-        page_icon='fas fa-layer-group',
-        main_partial='partials/models/overview.html'
+        'pages/models/overview.html',
+        page_title='Models Overview'
     )

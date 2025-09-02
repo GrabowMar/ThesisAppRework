@@ -14,8 +14,11 @@
     <!-- Page body -->
     <div class="page-body">
       <div class="container-xl">
-        {% block content %}
-        <!-- Content goes here -->
+        {# Backward compatibility: support both 'main' and 'content' block names #}
+        {% block main %}
+          {% block content %}
+          <!-- Content goes here -->
+          {% endblock %}
         {% endblock %}
       </div>
     </div>

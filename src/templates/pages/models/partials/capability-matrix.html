@@ -1,0 +1,17 @@
+{# Simple capability matrix for a set of models passed as 'models' #}
+<table class="table table-sm table-bordered mb-0">
+  <thead><tr><th>Capability</th>{% for m in models %}<th>{{ m.name or m.model_name }}</th>{% endfor %}</tr></thead>
+  <tbody>
+    {% set capability_keys = ['coding','analysis','reasoning','multimodal','vision','json_mode','streaming'] %}
+    {% for cap in capability_keys %}
+    <tr>
+      <td class="fw-semibold text-capitalize">{{ cap.replace('_',' ') }}</td>
+      {% for m in models %}
+        {% set caps = m.capabilities or m.get('capabilities') or {} %}
+        {% set val = (caps.get(cap) if caps is mapping else (cap in caps)) %}
+        <td class="text-center">{% if val %}<span class="text-success"><i class="fas fa-check"></i></span>{% else %}<span class="text-muted"><i class="fas fa-minus"></i></span>{% endif %}</td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>

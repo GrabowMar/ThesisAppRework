@@ -1,0 +1,16 @@
+[
+  {
+    "model_slug": "anthropic_claude-3.7-sonnet",
+    "app_number": 1,
+    "ports": {
+      "http": 8001,
+      "https": 8444,
+      "metrics": 9101
+    }
+  },
+  {
+    "model_slug": "prov_a_model1",
+    "app_number": 1,
+    "ports": {"http": 8101}
+  }
+]

@@ -1,0 +1,19 @@
+<div class="card model-card h-100">
+  <div class="card-body p-3">
+    <div class="d-flex justify-content-between align-items-start mb-2">
+      <strong class="text-truncate">{{ model.display_name or model.model_name or model.name }}</strong>
+      {% include 'pages/models/partials/provider-badge.html' %}
+    </div>
+    {% include 'pages/models/partials/pricing-info.html' %}
+    <div class="mt-2 small text-muted">Context: {{ model.context_window or model.get('context_length') or '—' }}</div>
+    <div class="mt-2 d-flex flex-wrap gap-1">
+      {% set caps = model.capabilities or model.get('capabilities') or [] %}
+      {% for c in caps[0:4] if caps is iterable %}<span class="badge bg-info">{{ c }}</span>{% endfor %}
+      {% if caps|length > 4 %}<span class="badge bg-secondary">+{{ caps|length - 4 }}</span>{% endif %}
+    </div>
+    <div class="mt-3 d-flex gap-2">
+      <a class="btn btn-sm btn-outline-primary" href="/models/model/{{ model.canonical_slug or model.slug }}/details"><i class="fas fa-eye"></i></a>
+      <button class="btn btn-sm btn-outline-success" onclick="window.location.href='/analysis/create?model={{ model.canonical_slug or model.slug }}'"><i class="fas fa-play"></i></button>
+    </div>
+  </div>
+</div>

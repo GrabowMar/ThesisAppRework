@@ -8,40 +8,20 @@ Handles individual tasks, batch operations, queuing, and progress tracking.
 
 from app.utils.logging_config import get_logger
 import uuid
-from typing import Dict, List, Optional, Any, Tuple
-from datetime import datetime, timezone, timedelta
-from enum import Enum
-
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, desc, asc
-from celery import Task
-
+from typing import Dict, List, Optional, Any
+from datetime import datetime, timezone
+from sqlalchemy import desc, asc
 from ..extensions import db
-from ..models import (
-    AnalysisTask, BatchAnalysis, AnalyzerConfiguration
-)
+from ..models import AnalysisTask, BatchAnalysis, AnalyzerConfiguration
 from ..constants import AnalysisStatus, AnalysisType, JobPriority as Priority, JobStatus as BatchStatus
-from .analyzer_service import analyzer_manager_service
 
 
 logger = get_logger('task_service')
 
 
-class TaskPriority(Enum):
-    """Task priority levels with ordering."""
-    LOW = (1, "low")
-    NORMAL = (2, "normal") 
-    HIGH = (3, "high")
-    CRITICAL = (4, "critical")
-    
-    def __init__(self, order, label):
-        self.order = order
-        self.label = label
-
-
 class AnalysisTaskService:
-    """Service for managing individual analysis tasks."""
-    
+    """Service for managing individual analysis tasks (simplified)."""
+
     @staticmethod
     def create_task(
         model_slug: str,
@@ -50,76 +30,84 @@ class AnalysisTaskService:
         config_id: Optional[str] = None,
         priority: str = Priority.NORMAL.value,
         custom_options: Optional[Dict[str, Any]] = None,
-        batch_id: Optional[int] = None
+        batch_id: Optional[int] = None,
+        task_name: Optional[str] = None,
+        description: Optional[str] = None
     ) -> AnalysisTask:
-        """Create a new analysis task."""
-        
-        # Validate the request
-        is_valid, message, config = analyzer_manager_service.validate_analysis_request(
-            analyzer_type=analysis_type,
-            model_slug=model_slug,
-            app_number=app_number,
-            config_id=config_id
-        )
-        
-        if not is_valid:
-            raise ValueError(f"Invalid analysis request: {message}")
-        
-        # Prepare analysis configuration
-        analysis_config = analyzer_manager_service.prepare_analysis_config(
-            config=config,
-            model_slug=model_slug,
-            app_number=app_number,
-            custom_options=custom_options
-        )
-        
-        # Create task
-        task = AnalysisTask(
-            model_slug=model_slug,
-            app_number=app_number,
-            analysis_type=analysis_type,
-            priority=priority,
-            batch_id=batch_id
-        )
-        
-        task.set_config(analysis_config)
+        """Create and persist an AnalysisTask using actual model fields.
+
+        Notes:
+        - Maps legacy (model_slug/app_number) to target_model/target_app_number.
+        - Stores enum instances directly (model uses Enum columns).
+        - Accepts integer batch DB id; stores its batch_id string in task.batch_id.
+        """
+        task_uuid = f"task_{uuid.uuid4().hex[:12]}"
+
+        # Resolve analyzer configuration
+        analyzer_config = None
+        if config_id:
+            try:
+                analyzer_config = AnalyzerConfiguration.query.get(int(config_id))  # type: ignore[arg-type]
+            except Exception:
+                analyzer_config = None
+        if analyzer_config is None:
+            analyzer_config = AnalyzerConfiguration.query.first()
+        if analyzer_config is None:
+            default_type = list(AnalysisType)[0]
+            analyzer_config = AnalyzerConfiguration()
+            analyzer_config.name = f"AutoDefault-{default_type.value}"
+            analyzer_config.analyzer_type = default_type
+            analyzer_config.config_data = "{}"
+            db.session.add(analyzer_config)
+            db.session.flush()
+
+        at_enum = next((at for at in AnalysisType if at.value == analysis_type), None) or list(AnalysisType)[0]
+        pr_enum = next((pr for pr in Priority if pr.value == priority), None) or Priority.NORMAL
+
+        task = AnalysisTask()
+        task.task_id = task_uuid
+        task.analyzer_config_id = analyzer_config.id
+        task.analysis_type = at_enum
+        task.status = AnalysisStatus.PENDING
+        task.priority = pr_enum
+        task.target_model = model_slug
+        task.target_app_number = app_number
+        task.task_name = task_name or f"{at_enum.value}:{model_slug}:{app_number}"
+        task.description = description
+        if batch_id is not None:
+            batch_obj = BatchAnalysis.query.get(batch_id)
+            if batch_obj:
+                task.batch_id = batch_obj.batch_id
         if custom_options:
-            task.set_metadata({'custom_options': custom_options})
-        
-        # Estimate duration based on analysis type and configuration
-        estimated_duration = AnalysisTaskService._estimate_task_duration(
-            analysis_type, analysis_config
-        )
-        task.estimated_duration = estimated_duration
-        
+            try:
+                task.set_metadata({'custom_options': custom_options})
+            except Exception:
+                pass
         db.session.add(task)
         db.session.commit()
-        
-        logger.info(f"Created analysis task {task.task_id}: {analysis_type} for {model_slug} app {app_number}")
+        logger.info(f"Created analysis task {task.task_id}: {at_enum.value} for {model_slug} app {app_number}")
         return task
-    
+
     @staticmethod
     def _estimate_task_duration(analysis_type: str, config: Dict[str, Any]) -> int:
-        """Estimate task duration in seconds based on type and configuration."""
-        base_durations = {
-            AnalysisType.SECURITY.value: 300,     # 5 minutes
-            AnalysisType.PERFORMANCE.value: 180,  # 3 minutes
-            AnalysisType.STATIC.value: 120,       # 2 minutes
-            AnalysisType.DYNAMIC.value: 600,      # 10 minutes
-            AnalysisType.AI_REVIEW.value: 240,    # 4 minutes
-            AnalysisType.COMPREHENSIVE.value: 900 # 15 minutes
+        mapping = {
+            'security_backend': 300,
+            'security_frontend': 300,
+            'security_combined': 420,
+            'performance': 180,
+            'zap_security': 480,
+            'openrouter': 120,
+            'code_quality': 150,
+            'dependency_check': 200,
+            'docker_scan': 210,
+            'frontend_security': 300,
+            'backend_security': 300
         }
-        
-        base_duration = base_durations.get(analysis_type, 300)
-        
-        # Adjust based on configuration
-        execution_config = config.get('execution_config', {})
-        if 'timeout' in execution_config:
-            # Use configured timeout as upper bound
-            timeout = execution_config['timeout']
-            base_duration = min(base_duration, timeout * 0.8)  # 80% of timeout
-        
-        return int(base_duration)
+        base = mapping.get(analysis_type, 300)
+        timeout = (config or {}).get('execution_config', {}).get('timeout') if isinstance(config, dict) else None
+        if isinstance(timeout, int) and timeout > 0:
+            base = min(base, int(timeout * 0.8))
+        return base
     
     @staticmethod
     def get_task(task_id: str) -> Optional[AnalysisTask]:
@@ -142,38 +130,28 @@ class AnalysisTaskService:
         order_by: str = 'created_at',
         order_desc: bool = True
     ) -> List[AnalysisTask]:
-        """List tasks with filtering and pagination."""
+        """List tasks with filtering and pagination (accept legacy strings)."""
         query = AnalysisTask.query
-        
-        # Apply filters
         if status:
-            query = query.filter_by(status=status)
+            status_enum = next((st for st in AnalysisStatus if st.value == status), None)
+            query = query.filter_by(status=status_enum or status)
         if analysis_type:
-            query = query.filter_by(analysis_type=analysis_type)
+            at_enum = next((at for at in AnalysisType if at.value == analysis_type), None)
+            query = query.filter_by(analysis_type=at_enum or analysis_type)
         if model_slug:
-            query = query.filter_by(model_slug=model_slug)
+            query = query.filter_by(target_model=model_slug)
         if batch_id:
             query = query.filter_by(batch_id=batch_id)
-        
-        # Apply ordering
         if hasattr(AnalysisTask, order_by):
             order_col = getattr(AnalysisTask, order_by)
-            if order_desc:
-                query = query.order_by(desc(order_col))
-            else:
-                query = query.order_by(asc(order_col))
-        
-        # Apply pagination
+            query = query.order_by(desc(order_col) if order_desc else asc(order_col))
         return query.offset(offset).limit(limit).all()
     
     @staticmethod
     def get_active_tasks() -> List[AnalysisTask]:
-        """Get all currently active (running or queued) tasks."""
+        """Get active tasks (pending or running)."""
         return AnalysisTask.query.filter(
-            AnalysisTask.status.in_([
-                AnalysisStatus.QUEUED.value,
-                AnalysisStatus.RUNNING.value
-            ])
+            AnalysisTask.status.in_([AnalysisStatus.PENDING, AnalysisStatus.RUNNING])
         ).order_by(AnalysisTask.created_at.desc()).all()
     
     @staticmethod
@@ -194,7 +172,14 @@ class AnalysisTaskService:
         if not task:
             return None
         
-        task.update_progress(percentage, message)
+        # Tolerant update for shim or ORM task
+        if hasattr(task, 'update_progress'):
+            try:
+                task.update_progress(percentage, message)  # type: ignore[arg-type]
+            except Exception:
+                setattr(task, 'progress_percentage', percentage)
+        else:
+            setattr(task, 'progress_percentage', percentage)
         db.session.commit()
         
         logger.debug(f"Updated progress for task {task_id}: {percentage}%")
@@ -207,7 +192,12 @@ class AnalysisTaskService:
         if not task:
             return None
         
-        task.mark_started()
+        if hasattr(task, 'start_execution'):
+            task.start_execution()
+        elif hasattr(task, 'mark_started'):
+            task.mark_started()  # type: ignore[attr-defined]
+        else:
+            setattr(task, 'status', 'running')
         db.session.commit()
         
         logger.info(f"Started task {task_id}")
@@ -223,7 +213,13 @@ class AnalysisTaskService:
         if not task:
             return None
         
-        task.mark_completed(results)
+        if hasattr(task, 'complete_execution'):
+            task.complete_execution(success=True)
+        elif hasattr(task, 'mark_completed'):
+            task.mark_completed(results)  # type: ignore[attr-defined]
+        else:
+            setattr(task, 'status', 'completed')
+            setattr(task, 'progress_percentage', 100.0)
         db.session.commit()
         
         logger.info(f"Completed task {task_id}")
@@ -239,7 +235,15 @@ class AnalysisTaskService:
         if not task:
             return None
         
-        task.mark_failed(error)
+        if hasattr(task, 'complete_execution'):
+            if error is not None:
+                task.complete_execution(success=False, error_message=error)  # type: ignore[arg-type]
+            else:
+                task.complete_execution(success=False)
+        elif hasattr(task, 'mark_failed'):
+            task.mark_failed(error)  # type: ignore[attr-defined]
+        else:
+            setattr(task, 'status', 'failed')
         db.session.commit()
         
         logger.warning(f"Failed task {task_id}: {error}")
@@ -252,10 +256,12 @@ class AnalysisTaskService:
         if not task:
             return None
         
-        if task.is_complete:
+        if getattr(task, 'is_complete', False):
             raise ValueError("Cannot cancel completed task")
-        
-        task.mark_cancelled()
+        if hasattr(task, 'mark_cancelled'):
+            task.mark_cancelled()  # type: ignore[attr-defined]
+        else:
+            setattr(task, 'status', 'cancelled')
         db.session.commit()
         
         logger.info(f"Cancelled task {task_id}")
@@ -293,16 +299,19 @@ class AnalysisTaskService:
             type_counts[analysis_type.value] = count
         
         # Calculate average durations
-        completed_tasks = AnalysisTask.query.filter_by(
-            status=AnalysisStatus.COMPLETED.value
-        ).filter(AnalysisTask.actual_duration.isnot(None)).all()
+        completed_tasks = AnalysisTask.query.filter(
+            AnalysisTask.status == AnalysisStatus.COMPLETED,
+            AnalysisTask.actual_duration != None  # noqa: E711
+        ).all()
         
         avg_duration_by_type = {}
         for analysis_type in AnalysisType:
-            type_tasks = [t for t in completed_tasks if t.analysis_type == analysis_type.value]
+            type_tasks = [t for t in completed_tasks if t.analysis_type == analysis_type]
             if type_tasks:
-                avg_duration = sum(t.actual_duration for t in type_tasks) / len(type_tasks)
-                avg_duration_by_type[analysis_type.value] = round(avg_duration, 1)
+                durations = [t.actual_duration for t in type_tasks if t.actual_duration]
+                if durations:
+                    avg_duration = sum(durations) / len(durations)
+                    avg_duration_by_type[analysis_type.value] = round(avg_duration, 1)
         
         return {
             'total_tasks': total_tasks,
@@ -315,88 +324,65 @@ class AnalysisTaskService:
 
 
 class BatchAnalysisService:
-    """Service for managing batch analysis operations."""
+    """Service for managing batch analysis operations (adapted to current BatchAnalysis schema)."""
     
     @staticmethod
     def create_batch(
-        name: str,
-        description: str,
+        name: str,  # kept for legacy signature (ignored)
+        description: str,  # kept for legacy signature (ignored)
         analysis_types: List[str],
         target_models: List[str],
         target_apps: List[int],
-        priority: str = Priority.NORMAL.value,
+        priority: str = Priority.NORMAL.value,  # kept for legacy signature (ignored)
         config: Optional[Dict[str, Any]] = None
     ) -> BatchAnalysis:
-        """Create a new batch analysis."""
-        
-        # Validate analysis types
+        """Create a new batch analysis using available BatchAnalysis columns."""
         valid_types = [t.value for t in AnalysisType]
-        invalid_types = [t for t in analysis_types if t not in valid_types]
-        if invalid_types:
-            raise ValueError(f"Invalid analysis types: {invalid_types}")
-        
-        # Create batch
-        batch = BatchAnalysis(
-            name=name,
-            description=description,
-            priority=priority
-        )
-        
+        invalid = [t for t in analysis_types if t not in valid_types]
+        if invalid:
+            raise ValueError(f"Invalid analysis types: {invalid}")
+        batch = BatchAnalysis()
+        batch.batch_id = f"batch_{uuid.uuid4().hex[:10]}"
         batch.set_analysis_types(analysis_types)
-        batch.set_target_models(target_models)
-        batch.set_target_apps(target_apps)
-        
+        batch.set_model_filter(target_models)
+        batch.set_app_filter(target_apps)
         if config:
             batch.set_config(config)
-        
-        # Calculate total tasks
-        total_tasks = len(target_models) * len(target_apps) * len(analysis_types)
-        batch.total_tasks = total_tasks
-        
+        batch.total_tasks = len(target_models) * len(target_apps) * len(analysis_types)
         db.session.add(batch)
         db.session.commit()
-        
-        logger.info(f"Created batch analysis {batch.batch_id}: {name} ({total_tasks} tasks)")
+        logger.info(f"Created batch analysis {batch.batch_id} ({batch.total_tasks} tasks)")
         return batch
     
     @staticmethod
-    def generate_batch_tasks(batch_id: int) -> List[AnalysisTask]:
-        """Generate all tasks for a batch."""
-        batch = BatchAnalysis.query.get(batch_id)
+    def generate_batch_tasks(batch_db_id: int) -> List[AnalysisTask]:
+        batch = BatchAnalysis.query.get(batch_db_id)
         if not batch:
-            raise ValueError(f"Batch not found: {batch_id}")
-        
-        if batch.status != BatchStatus.CREATED.value:
-            raise ValueError(f"Batch is not in CREATED status: {batch.status}")
-        
-        tasks = []
+            raise ValueError(f"Batch not found: {batch_db_id}")
+        # Only allow generation if still pending
+        if batch.status not in (BatchStatus.PENDING, BatchStatus.QUEUED):
+            raise ValueError(f"Batch not in a generatable status: {batch.status}")
         analysis_types = batch.get_analysis_types()
-        target_models = batch.get_target_models()
-        target_apps = batch.get_target_apps()
-        batch_config = batch.get_config()
-        
-        for model_slug in target_models:
-            for app_number in target_apps:
-                for analysis_type in analysis_types:
+        models = batch.get_model_filter()
+        apps = batch.get_app_filter()
+        cfg = batch.get_config()
+        tasks: List[AnalysisTask] = []
+        for m in models:
+            for a in apps:
+                for at in analysis_types:
                     try:
-                        task = AnalysisTaskService.create_task(
-                            model_slug=model_slug,
-                            app_number=app_number,
-                            analysis_type=analysis_type,
-                            priority=batch.priority,
-                            custom_options=batch_config.get('task_options'),
+                        t = AnalysisTaskService.create_task(
+                            model_slug=m,
+                            app_number=a,
+                            analysis_type=at,
+                            custom_options=cfg.get('task_options') if cfg else None,
                             batch_id=batch.id
                         )
-                        tasks.append(task)
-                    except Exception as e:
-                        logger.error(f"Failed to create task for {model_slug} app {app_number} {analysis_type}: {e}")
-                        # Continue creating other tasks
-        
-        # Update batch with actual task count
+                        tasks.append(t)
+                    except Exception as e:  # pragma: no cover
+                        logger.error(f"Task gen failed for {m}:{a}:{at}: {e}")
         batch.total_tasks = len(tasks)
         db.session.commit()
-        
-        logger.info(f"Generated {len(tasks)} tasks for batch {batch.batch_id}")
         return tasks
     
     @staticmethod
@@ -427,62 +413,55 @@ class BatchAnalysisService:
     
     @staticmethod
     def start_batch(batch_id: str) -> Optional[BatchAnalysis]:
-        """Start a batch analysis."""
         batch = BatchAnalysisService.get_batch(batch_id)
         if not batch:
             return None
-        
-        if batch.status != BatchStatus.CREATED.value:
-            raise ValueError(f"Batch cannot be started from status: {batch.status}")
-        
-        # Generate tasks if not already done
-        if len(batch.tasks) == 0:
+        if batch.status not in (BatchStatus.PENDING, BatchStatus.QUEUED):
+            raise ValueError(f"Cannot start batch from status: {batch.status}")
+        # Generate tasks if none exist yet
+        existing = AnalysisTask.query.filter_by(batch_id=batch.batch_id).count()
+        if existing == 0:
             BatchAnalysisService.generate_batch_tasks(batch.id)
-        
-        batch.mark_started()
+        batch.status = BatchStatus.RUNNING
+        batch.started_at = datetime.now(timezone.utc)
         db.session.commit()
-        
-        logger.info(f"Started batch {batch_id} with {len(batch.tasks)} tasks")
         return batch
     
     @staticmethod
     def update_batch_progress(batch_id: str) -> Optional[BatchAnalysis]:
-        """Update batch progress based on task status."""
         batch = BatchAnalysisService.get_batch(batch_id)
         if not batch:
             return None
-        
-        batch.update_task_counts()
-        
-        # Check if batch is complete
-        if batch.progress_percentage >= 100:
-            if batch.failed_tasks > 0 and not batch.get_config().get('continue_on_failure', True):
-                batch.mark_failed("Some tasks failed")
-            else:
-                batch.mark_completed()
-        
+        # Recalculate counts
+        total = batch.total_tasks or 0
+        completed = AnalysisTask.query.filter_by(batch_id=batch.batch_id, status=AnalysisStatus.COMPLETED).count()
+        failed = AnalysisTask.query.filter_by(batch_id=batch.batch_id, status=AnalysisStatus.FAILED).count()
+        batch.completed_tasks = completed
+        batch.failed_tasks = failed
+        if total > 0:
+            batch.progress_percentage = (completed / total) * 100.0
+        # Mark completion
+        if total > 0 and completed + failed >= total and batch.status == BatchStatus.RUNNING:
+            batch.status = BatchStatus.COMPLETED if failed == 0 else BatchStatus.FAILED
+            batch.completed_at = datetime.now(timezone.utc)
         db.session.commit()
         return batch
     
     @staticmethod
     def cancel_batch(batch_id: str) -> Optional[BatchAnalysis]:
-        """Cancel a batch and all its tasks."""
         batch = BatchAnalysisService.get_batch(batch_id)
         if not batch:
             return None
-        
-        if batch.is_complete:
-            raise ValueError("Cannot cancel completed batch")
-        
-        # Cancel all non-completed tasks
-        for task in batch.tasks:
-            if not task.is_complete:
-                task.mark_cancelled()
-        
-        batch.mark_cancelled()
+        if batch.status in (BatchStatus.COMPLETED, BatchStatus.FAILED, BatchStatus.CANCELLED):
+            raise ValueError("Batch already finished")
+        # Mark tasks as cancelled (best-effort)
+        tasks = AnalysisTask.query.filter_by(batch_id=batch.batch_id).all()
+        for t in tasks:
+            if t.status not in (AnalysisStatus.COMPLETED, AnalysisStatus.FAILED, AnalysisStatus.CANCELLED):
+                t.status = AnalysisStatus.CANCELLED
+        batch.status = BatchStatus.CANCELLED
+        batch.completed_at = datetime.now(timezone.utc)
         db.session.commit()
-        
-        logger.info(f"Cancelled batch {batch_id}")
         return batch
     
     @staticmethod
@@ -492,7 +471,7 @@ class BatchAnalysisService:
         if not batch:
             return False
         
-        if batch.is_running:
+        if batch.status in (BatchStatus.RUNNING, BatchStatus.QUEUED):
             raise ValueError("Cannot delete running batch")
         
         db.session.delete(batch)
@@ -511,11 +490,9 @@ class BatchAnalysisService:
             count = BatchAnalysis.query.filter_by(status=status.value).count()
             status_counts[status.value] = count
         
+        from sqlalchemy import or_
         active_batches = BatchAnalysis.query.filter(
-            BatchAnalysis.status.in_([
-                BatchStatus.QUEUED.value,
-                BatchStatus.RUNNING.value
-            ])
+            or_(BatchAnalysis.status == BatchStatus.QUEUED, BatchAnalysis.status == BatchStatus.RUNNING)
         ).count()
         
         return {
@@ -541,25 +518,27 @@ class TaskQueueService:
             }
         }
     
-    def get_next_tasks(self, limit: int = None) -> List[AnalysisTask]:
+    def get_next_tasks(self, limit: Optional[int] = None) -> List[AnalysisTask]:
         """Get next tasks to execute based on priority and availability."""
         if limit is None:
             limit = self.queue_config['max_concurrent_tasks']
         
         # Get currently running tasks
         running_tasks = AnalysisTaskService.get_active_tasks()
-        running_count = len([t for t in running_tasks if t.status == AnalysisStatus.RUNNING.value])
+        running_count = len([t for t in running_tasks if t.status == AnalysisStatus.RUNNING])
         
         # Calculate available slots
         available_slots = max(0, self.queue_config['max_concurrent_tasks'] - running_count)
-        available_slots = min(available_slots, limit)
+        # Ensure limit is within bounds
+        limit_int = int(limit) if limit is not None else self.queue_config['max_concurrent_tasks']
+        available_slots = min(available_slots, limit_int)
         
         if available_slots == 0:
             return []
         
         # Get pending tasks ordered by priority
         pending_tasks = AnalysisTask.query.filter_by(
-            status=AnalysisStatus.PENDING.value
+            status=AnalysisStatus.PENDING
         ).order_by(
             self._get_priority_order(),
             AnalysisTask.created_at.asc()
@@ -568,7 +547,7 @@ class TaskQueueService:
         # Filter based on per-type concurrency limits
         running_by_type = {}
         for task in running_tasks:
-            if task.status == AnalysisStatus.RUNNING.value:
+            if task.status == AnalysisStatus.RUNNING:
                 running_by_type[task.analysis_type] = running_by_type.get(task.analysis_type, 0) + 1
         
         selected_tasks = []
@@ -593,10 +572,10 @@ class TaskQueueService:
         from sqlalchemy import case
         
         priority_order = case(
-            (AnalysisTask.priority == Priority.URGENT.value, 4),
-            (AnalysisTask.priority == Priority.HIGH.value, 3),
-            (AnalysisTask.priority == Priority.NORMAL.value, 2),
-            (AnalysisTask.priority == Priority.LOW.value, 1),
+            (AnalysisTask.priority == Priority.URGENT, 4),
+            (AnalysisTask.priority == Priority.HIGH, 3),
+            (AnalysisTask.priority == Priority.NORMAL, 2),
+            (AnalysisTask.priority == Priority.LOW, 1),
             else_=2  # Default to normal priority
         )
         
@@ -605,9 +584,9 @@ class TaskQueueService:
     def get_queue_status(self) -> Dict[str, Any]:
         """Get current queue status."""
         active_tasks = AnalysisTaskService.get_active_tasks()
-        running_tasks = [t for t in active_tasks if t.status == AnalysisStatus.RUNNING.value]
-        queued_tasks = [t for t in active_tasks if t.status == AnalysisStatus.QUEUED.value]
-        pending_tasks = AnalysisTask.query.filter_by(status=AnalysisStatus.PENDING.value).all()
+        running_tasks = [t for t in active_tasks if t.status == AnalysisStatus.RUNNING]
+        queued_tasks: List[AnalysisTask] = []
+        pending_tasks = AnalysisTask.query.filter_by(status=AnalysisStatus.PENDING).all()
         
         # Group by type
         running_by_type = {}

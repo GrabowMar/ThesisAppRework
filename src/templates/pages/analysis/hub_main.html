@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Analysis Hub{% endblock %}
+{% block content %}
+<div class="container-fluid py-3">
+  <h1 class="h3 mb-3">Analysis Hub</h1>
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header"><h5 class="card-title mb-0">Security Analyses</h5></div>
+        <div class="card-body small" id="security-analyses-panel">
+          <div class="text-muted">No data yet.</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header"><h5 class="card-title mb-0">Performance Tests</h5></div>
+        <div class="card-body small" id="performance-tests-panel">
+          <div class="text-muted">No data yet.</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card h-100">
+        <div class="card-header"><h5 class="card-title mb-0">Recent Activity</h5></div>
+        <div class="card-body small" id="recent-activity-panel">
+          <div class="text-muted">No activity.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

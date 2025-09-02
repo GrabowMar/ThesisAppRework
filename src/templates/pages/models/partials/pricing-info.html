@@ -1,0 +1,4 @@
+<div class="pricing-info small">
+  <div>Input: ${{ '%.6f'|format(model.input_price_per_1k or model.get('openrouter_prompt_price') or 0) }}</div>
+  <div>Output: ${{ '%.6f'|format(model.output_price_per_1k or model.get('openrouter_completion_price') or 0) }}</div>
+</div>

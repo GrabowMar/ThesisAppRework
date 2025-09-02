@@ -1,0 +1,11 @@
+<div class="active-tasks-fragment">
+  {% if tasks %}
+    <ul class="list-unstyled small mb-0">
+      {% for t in tasks %}
+        <li><span class="badge bg-info me-1">{{ t.analysis_type or t.type }}</span>{{ t.status or 'pending' }} - {{ t.task_id or t.id }}</li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <div class="text-muted small">No active tasks.</div>
+  {% endif %}
+</div>
