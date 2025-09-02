@@ -359,19 +359,41 @@ def format_file_size(size_bytes: int) -> str:
     return f"{size:.1f} {units[unit_index]}"
 
 
-def create_error_response(error: str, code: int = 500, details: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Create standardized error response."""
-    response = {
-        'success': False,
-        'error': error,
-        'code': code,
-        'timestamp': datetime.now().isoformat()
-    }
-    
-    if details:
-        response['details'] = details
-    
-    return response
+def create_error_response(error: str, code: int = 500, details: Optional[Dict[str, Any]] = None, error_type: Optional[str] = None, **extra: Any) -> Dict[str, Any]:
+    """Create standardized error response (backward compatible).
+
+    Migration Notes:
+    - Legacy keys: success, error, code, timestamp, details retained.
+    - New unified schema keys added: status, status_code, message, error_id, path.
+    - Prefer using build_error_payload directly for new endpoints.
+    """
+    try:
+        from app.utils.errors import build_error_payload  # local import to avoid cycles
+        payload = build_error_payload(
+            error,
+            status=code,
+            error=error_type or error,
+            details=details if details else None,
+            **extra
+        )
+        # Backward compatibility fields
+        payload.setdefault('success', False)
+        payload.setdefault('code', code)
+        payload.setdefault('error', error_type or error)
+        if details:
+            payload.setdefault('details', details)
+        return payload
+    except Exception:  # pragma: no cover - fallback path
+        response = {
+            'success': False,
+            'error': error_type or error,
+            'code': code,
+            'timestamp': datetime.now().isoformat()
+        }
+        if details:
+            response['details'] = details
+        response.update(extra)
+        return response
 
 
 def create_success_response(data: Any = None, message: str = "Success") -> Dict[str, Any]:
@@ -461,35 +483,28 @@ def dicts_to_csv(rows: list[dict], fieldnames: Optional[list[str]] = None) -> st
 
 
 def json_success(data: Any = None, message: str = "Success", **kwargs) -> tuple[Dict[str, Any], int]:
-    """Create a standardized JSON success response."""
+    """Create a standardized JSON success response (adds unified keys)."""
     response = {
         'success': True,
+        'status': 'success',
+        'status_code': 200,
         'message': message,
-        'timestamp': datetime.now(UTC).isoformat()
+        'timestamp': datetime.now(UTC).isoformat(),
     }
-    
     if data is not None:
         response['data'] = data
-    
-    # Add any additional fields
     response.update(kwargs)
-    
     return response, 200
 
 
-def json_error(message: str, code: int = 400, details: Optional[Dict[str, Any]] = None, **kwargs) -> tuple[Dict[str, Any], int]:
-    """Create a standardized JSON error response."""
-    response = {
-        'success': False,
-        'error': message,
-        'code': code,
-        'timestamp': datetime.now(UTC).isoformat()
-    }
-    
-    if details:
-        response['details'] = details
-    
-    # Add any additional fields
-    response.update(kwargs)
-    
-    return response, code
+def json_error(message: str, code: int = 400, details: Optional[Dict[str, Any]] = None, error_type: Optional[str] = None, **kwargs) -> tuple[Dict[str, Any], int]:
+    """Create a standardized JSON error response (delegates to unified builder).
+
+    Parameters:
+        message: Human readable message
+        code: HTTP status code
+        details: Optional extra detail structure
+        error_type: Machine readable error identifier (falls back to message)
+    """
+    payload = create_error_response(message, code=code, details=details, error_type=error_type, **kwargs)
+    return payload, code

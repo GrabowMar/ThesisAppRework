@@ -4,6 +4,7 @@ Handles WebSocket fallback routes and error handlers.
 """
 
 from flask import request, jsonify, render_template
+from app.utils.errors import build_error_payload
 from werkzeug.routing.exceptions import WebsocketMismatch
 from app.utils.logging_config import get_logger
 
@@ -17,23 +18,30 @@ def register_websocket_routes(app):
     def websocket_analysis():
         """Basic WebSocket endpoint for analysis dashboard."""
         try:
-            return jsonify({
-                'error': 'websocket_upgrade_required',
-                'message': 'Native WebSocket upgrade not supported by this server route',
-                'hint': 'Use Socket.IO client if enabled, or REST API at /api/websocket/* for polling',
-            }), 426
+            return jsonify(build_error_payload(
+                'Native WebSocket upgrade not supported by this server route',
+                status=426,
+                error='websocket_upgrade_required',
+                hint='Use Socket.IO client if enabled, or REST API at /api/websocket/* for polling'
+            )), 426
         except Exception as e:
             logger.error(f"WebSocket analysis endpoint error: {e}")
-            return jsonify({'error': str(e)}), 500
+            return jsonify(build_error_payload(
+                'Failed to process websocket analysis request',
+                status=500,
+                error='WebSocketAnalysisError',
+                details={'reason': str(e)}
+            )), 500
 
     @app.route('/socket.io/')
     def socket_io_fallback():
         """Fallback for Socket.IO requests when not available."""
-        return jsonify({
-            'status': 'Socket.IO not available',
-            'message': 'Using mock WebSocket service',
-            'alternative': 'Use REST API at /api/websocket/ for WebSocket functionality'
-        }), 404
+        return jsonify(build_error_payload(
+            'Socket.IO not available',
+            status=404,
+            error='socketio_not_available',
+            alternative='Use REST API at /api/websocket/ for WebSocket functionality'
+        )), 404
 
 
 def register_error_handlers(app):
@@ -71,11 +79,12 @@ def register_error_handlers(app):
         status = 400
         message = 'WebSocket endpoint not available. Use Socket.IO client or REST fallback.'
         if request.path.startswith('/api'):
-            return jsonify({
-                'error': 'websocket_mismatch',
-                'message': message,
-                'hint': 'Use /api/websocket/* endpoints for polling when real-time is disabled'
-            }), status
+            return jsonify(build_error_payload(
+                message,
+                status=status,
+                error='websocket_mismatch',
+                hint='Use /api/websocket/* endpoints for polling when real-time is disabled'
+            )), status
         return render_template(
             'pages/errors/errors_main.html',
             error_code=status,
