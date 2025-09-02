@@ -25,8 +25,8 @@ class DataInitializationService:
         current_file = Path(__file__)
         src_path = current_file.parent.parent.parent  # Go up from services -> app -> src
         self.base_path = src_path.parent  # Go up one more to get project root
-        self.misc_path = self.base_path / "misc"
-        self.models_path = self.misc_path / "models"
+        self.misc_path = self.base_path / "src" / "misc"
+        self.models_path = self.base_path / "generated"
         
         logger.info("Data initialization paths:")
         logger.info(f"  Base path: {self.base_path}")
@@ -49,8 +49,8 @@ class DataInitializationService:
             results['models_loaded'] = model_results['loaded']
             results['errors'].extend(model_results['errors'])
             
-            # Load applications from misc/models folder
-            app_results = self.load_applications_from_misc()
+            # Load applications from generated folder
+            app_results = self.load_applications_from_generated()
             results['applications_loaded'] = app_results['loaded']
             results['errors'].extend(app_results['errors'])
             
@@ -155,13 +155,13 @@ class DataInitializationService:
             
         return results
     
-    def load_applications_from_misc(self) -> Dict[str, Any]:
-        """Load applications from misc/models folder structure."""
+    def load_applications_from_generated(self) -> Dict[str, Any]:
+        """Load applications from the generated folder structure."""
         results = {'loaded': 0, 'errors': []}
         
         try:
             if not self.models_path.exists():
-                results['errors'].append("misc/models folder not found")
+                results['errors'].append("generated folder not found")
                 return results
             
             # Iterate through model folders
@@ -508,14 +508,14 @@ class DataInitializationService:
         return latest.updated_at.isoformat() if latest and latest.updated_at else None
 
     def mark_installed_models(self, reset_first: bool = True) -> Dict[str, Any]:
-        """Scan the misc/models folder and set ModelCapability.installed=True for matching slugs.
+        """Scan the generated folder and set ModelCapability.installed=True for matching slugs.
 
         Returns a dict with success, updated count, and scanned_folders count or errors on failure.
         """
         results = {'success': True, 'updated': 0, 'scanned_folders': 0, 'errors': []}
         try:
             if not self.models_path.exists():
-                results.update({'success': False, 'errors': ['misc/models folder not found']})
+                results.update({'success': False, 'errors': ['generated folder not found']})
                 return results
 
             dirs = [d.name for d in self.models_path.iterdir() if d.is_dir()]

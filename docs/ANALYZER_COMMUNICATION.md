@@ -33,8 +33,8 @@ Docker Compose defines these services in `analyzer/docker-compose.yml` with heal
 
 ## Filesystem Layout and Mounts
 
-- Host repository structure contains generated apps under `misc/models/<model_slug>/app<number>`
-- Analyzer containers mount: `../misc/models` (host) → `/app/sources` (in-container, read-only)
+- Host repository structure contains generated apps under `generated/<model_slug>/app<number>`
+- Analyzer containers mount: `../generated` (host) → `/app/sources` (in-container, read-only)
 - Each analyzer expects source code at: `/app/sources/<model_slug>/app<number>`
 - Analyzer results are written to container-local `/app/results` and mapped/collected under host `analyzer/results/`
 
@@ -171,8 +171,8 @@ Flask/Celery:
 
 1) Model path errors
 - Ensure model is selected in batch form (server rejects empty models)
-- Verify `misc/models/<model_slug>/app<number>` exists on host
-- Confirm docker-compose mount: `../misc/models:/app/sources:ro`
+- Verify `generated/<model_slug>/app<number>` exists on host
+- Confirm docker-compose mount: `../generated:/app/sources:ro`
 
 2) Port issues
 - Check container status (`python analyzer_manager.py status`)

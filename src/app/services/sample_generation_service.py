@@ -633,7 +633,7 @@ class ProjectOrganizer:
         self.output_dir = output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
         # Directory containing skeleton backend/frontend/docker-compose templates
-        self.code_templates_dir = code_templates_dir or Path('misc') / 'code_templates'
+        self.code_templates_dir = code_templates_dir or Path('src') / 'misc' / 'code_templates'
         self._scaffold_cache: Set[str] = set()  # model_app key cache to avoid redundant copies
         # Parity base ports (mirrors original generateApps Config values)
         self.base_backend_port = 5001
@@ -761,11 +761,15 @@ class SampleGenerationService:
         self.model_registry = ModelRegistry()
         self.template_registry = TemplateRegistry()
         self.port_allocator = PortAllocator()
-        self.app_templates_dir = Path('misc') / 'app_templates'
+        # Preferred new location under src/misc; fallback to legacy project root misc
+        self.app_templates_dir = Path('src') / 'misc' / 'app_templates'
         # API key loaded lazily; supports runtime rotation
         self.generator = CodeGenerator(api_key=os.getenv('OPENROUTER_API_KEY', ''))
         self.extractor = CodeExtractor(self.port_allocator)
-        self.organizer = ProjectOrganizer(Path('generated'))
+        self.organizer = ProjectOrganizer(
+            Path('generated'),
+            code_templates_dir=Path('src') / 'misc' / 'code_templates'
+        )
         # In-memory results store: id -> GenerationResult
         self._results: Dict[str, GenerationResult] = {}
         self._last_api_key_check = 0.0
@@ -780,7 +784,7 @@ class SampleGenerationService:
         self._filesystem_storage_dir.mkdir(parents=True, exist_ok=True)
         try:
             # Try to load models from default location
-            models_path = Path('misc') / 'models_summary.json'
+            models_path = Path('src') / 'misc' / 'models_summary.json'
             if models_path.exists():
                 with open(models_path, 'r', encoding='utf-8') as f:
                     models_data = json.load(f)

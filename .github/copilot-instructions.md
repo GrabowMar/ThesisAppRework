@@ -10,8 +10,8 @@ Flow (core analysis): User action → Flask route/service layer → Celery task 
 `src/app/services/` business logic (access ONLY via ServiceLocator).  
 `src/app/services/analyzer_integration.py` WebSocket/bridge.  
 `analyzer/analyzer_manager.py` CLI & orchestration of analyzer containers.  
-`misc/models/{model_slug}/app{N}/` generated apps (backend/frontend compose).  
-`misc/port_config.json` + DB table `port_configuration` authoritative port map (DB first, JSON fallback).  
+`generated/{model_slug}/app{N}/` generated apps (backend/frontend compose).  
+`src/misc/port_config.json` + DB table `port_configuration` authoritative port map (DB first, JSON fallback).  
 `scripts/build_start_app.py` build & run a single generated app.  
 `src/templates/` reorganized (see Template Restructure below).  
 

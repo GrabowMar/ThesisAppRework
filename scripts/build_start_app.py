@@ -5,8 +5,8 @@ Usage:
   python scripts/build_start_app.py --model anthropic_claude-3.7-sonnet --app 1 [--rebuild]
 
 This script:
- 1. Locates the app directory under misc/models/{model}/app{N}
- 2. Loads port info from DB if available, else falls back to misc/port_config.json
+ 1. Locates the app directory under generated/{model}/app{N}
+ 2. Loads port info from DB if available, else falls back to src/misc/port_config.json
  3. Ensures docker-compose.yml exists (reports if missing)
  4. Runs `docker compose build` (with optional --no-cache) and `docker compose up -d`
 
@@ -20,10 +20,11 @@ import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-MISC_DIR = PROJECT_ROOT / 'misc'
-MODELS_DIR = MISC_DIR / 'models'
-PORT_CONFIG_FILE = MISC_DIR / 'port_config.json'
 SRC_DIR = PROJECT_ROOT / 'src'
+GENERATED_DIR = PROJECT_ROOT / 'generated'
+SRC_MISC_DIR = SRC_DIR / 'misc'
+PORT_CONFIG_FILE = SRC_MISC_DIR / 'port_config.json'
+
 
 # Optional: access DB to resolve ports if app context available
 DB_AVAILABLE = False
@@ -71,7 +72,7 @@ def main():
     parser.add_argument('--rebuild', action='store_true', help='Force no-cache rebuild')
     args = parser.parse_args()
 
-    app_dir = MODELS_DIR / args.model / f"app{args.app}"
+    app_dir = GENERATED_DIR / args.model / f"app{args.app}"
     if not app_dir.exists():
         print(f"ERROR: App directory not found: {app_dir}", file=sys.stderr)
         return 2

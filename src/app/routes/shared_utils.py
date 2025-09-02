@@ -190,10 +190,10 @@ def _upsert_openrouter_models(models_payload: list) -> int:
         except Exception:
             pass
 
-        # Set installed flag by checking misc/models/<canonical_slug>
+        # Set installed flag by checking generated/<canonical_slug>
         try:
             repo_root = os.path.abspath(os.path.join(current_app.root_path, os.pardir))
-            models_base = os.path.join(repo_root, 'misc', 'models')
+            models_base = os.path.join(repo_root, 'generated')
             existing.installed = os.path.isdir(os.path.join(models_base, existing.canonical_slug))
         except Exception:
             pass
@@ -262,10 +262,10 @@ def _get_recent_analyses(limit: int = 20):
     return analyses[:limit]
 
 def _find_models_root() -> Optional[Path]:
-    """Locate repo's misc/models directory by walking up parents."""
+    """Locate repo's generated directory by walking up parents."""
     try:
         for parent in Path(__file__).resolve().parents:
-            candidate = parent / 'misc' / 'models'
+            candidate = parent / 'generated'
             if candidate.exists() and candidate.is_dir():
                 return candidate
     except Exception:

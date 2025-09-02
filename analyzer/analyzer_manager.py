@@ -90,7 +90,7 @@ class AnalysisRequest:
         if self.options is None:
             self.options = {}
         if not self.source_path:
-            self.source_path = f"../misc/models/{self.model_slug}/app{self.app_number}"
+            self.source_path = f"../generated/{self.model_slug}/app{self.app_number}"
 
 
 @dataclass
@@ -141,9 +141,9 @@ class AnalyzerManager:
 
         # Determine docker compose command (prefer modern 'docker compose')
         self._compose_cmd = self._resolve_compose_cmd()
-        # Discover available model slugs under ../misc/models for convenience
+        # Discover available model slugs under ../generated for convenience
         try:
-            self._models_root = (Path(__file__).parent / ".." / "misc" / "models").resolve()
+            self._models_root = (Path(__file__).parent / ".." / "generated").resolve()
         except Exception:
             self._models_root = None
         # Lazy-loaded port configuration cache
@@ -163,7 +163,7 @@ class AnalyzerManager:
             return self._port_config_cache
         try:
             root = Path(__file__).parent.parent  # project root (analyzer/..)
-            cfg_path = (root / 'misc' / 'port_config.json').resolve()
+            cfg_path = (root / 'src' / 'misc' / 'port_config.json').resolve()
             with open(cfg_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
             if isinstance(data, list):
@@ -889,7 +889,7 @@ class AnalyzerManager:
         return test_results
 
     def _pick_available_model_slug(self, preferred: Optional[List[str]] = None) -> Optional[str]:
-        """Pick a model slug that exists under misc/models and has an app1 folder.
+        """Pick a model slug that exists under generated and has an app1 folder.
 
         Preference order:
         - Any slug in the preferred list that exists and contains app1

@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 class ScaffoldConfig:
     MODELS_DIR = Path("models")
     LOGS_DIR = "_logs"
-    TEMPLATES_DIR = Path("misc") / "code_templates"
+    TEMPLATES_DIR = Path("src") / "misc" / "code_templates"
     BASE_BACKEND_PORT = 5001
     BASE_FRONTEND_PORT = 8001
     PORTS_PER_APP = 2
@@ -115,6 +115,8 @@ class AppScaffoldingService:
         self.base_path = Path(base_path or os.getcwd())
         self.models_dir = self.base_path / ScaffoldConfig.MODELS_DIR
         self.templates_dir = self.base_path / ScaffoldConfig.TEMPLATES_DIR
+        if not self.templates_dir.exists():
+            logger.warning("Code templates directory not found at %s", self.templates_dir)
         self.logs_dir = self.models_dir / ScaffoldConfig.LOGS_DIR
         self.models_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir.mkdir(parents=True, exist_ok=True)
@@ -352,10 +354,10 @@ class AppScaffoldingService:
                     "backend_port": p.backend,
                     "frontend_port": p.frontend,
                 })
-        ports_path = self.base_path / 'misc' / 'port_config.json'
+        ports_path = self.base_path / 'src' / 'misc' / 'port_config.json'
         ports_path.parent.mkdir(parents=True, exist_ok=True)
         ports_path.write_text(json.dumps(ports_config, indent=2), encoding='utf-8')
-        colors_path = self.base_path / 'misc' / 'model_capabilities.json'
+        colors_path = self.base_path / 'src' / 'misc' / 'model_capabilities.json'
         colors_path.write_text(json.dumps({"colors": colors}, indent=2), encoding='utf-8')
 
     # ----------------------------- Status ---------------------------------

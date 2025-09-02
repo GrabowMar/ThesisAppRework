@@ -459,7 +459,7 @@ def api_models_list_options():
                 models = [m for m in models if getattr(m, 'installed', False)]
             except Exception:
                 repo_root = os.path.abspath(os.path.join(current_app.root_path, os.pardir))
-                models_base = os.path.join(repo_root, 'misc', 'models')
+                models_base = os.path.join(repo_root, 'generated')
                 models = [m for m in models if os.path.isdir(os.path.join(models_base, m.canonical_slug))]
         return render_template('partials/models/_model_options.html', models=models)
     except Exception as e:
@@ -510,7 +510,7 @@ def api_models_all():
                 models = [m for m in models if getattr(m, 'installed', False)]
             except Exception:
                 repo_root = os.path.abspath(os.path.join(current_app.root_path, os.pardir))
-                models_base = os.path.join(repo_root, 'misc', 'models')
+                models_base = os.path.join(repo_root, 'generated')
                 models = [m for m in models if os.path.isdir(os.path.join(models_base, m.canonical_slug))]
 
         def map_model(m: ModelCapability):
@@ -602,7 +602,7 @@ def api_models_load_openrouter():
 
 @api_bp.route('/models/mark-installed', methods=['POST'])
 def api_models_mark_installed():
-    """Scan misc/models and set ModelCapability.installed=True for matching canonical_slugs."""
+    """Scan generated and set ModelCapability.installed=True for matching canonical_slugs."""
     try:
         try:
             res = data_init_service.mark_installed_models(reset_first=True)

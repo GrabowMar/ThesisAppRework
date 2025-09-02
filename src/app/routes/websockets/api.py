@@ -20,19 +20,19 @@ def _find_models_root() -> Path | None:
     try:
         # Try relative to current working directory
         cwd = Path.cwd()
-        models_dir = cwd / 'misc' / 'models'
+        models_dir = cwd / 'generated'
         if models_dir.exists() and models_dir.is_dir():
             return models_dir
 
         # Try relative to Flask app root
         if hasattr(current_app, 'root_path'):
             app_root = Path(current_app.root_path)
-            models_dir = app_root.parent / 'misc' / 'models'
+            models_dir = app_root.parent / 'generated'
             if models_dir.exists() and models_dir.is_dir():
                 return models_dir
 
         # Try absolute path
-        abs_models = Path('misc/models')
+        abs_models = Path('generated')
         if abs_models.exists() and abs_models.is_dir():
             return abs_models
 
