@@ -113,3 +113,92 @@ body.sidebar-collapsed footer.footer { margin-left: var(--sidebar-collapsed-widt
 #mobile-burger:focus { outline:2px solid #0d6efd; outline-offset:2px; }
 @media (min-width: 992px){ #mobile-burger { display:none !important; } }
 
+/* ------------------------------------------------------------
+	Sample Generator – Subtle Enhancements
+	(All styles additive & scoped to existing markup; safe to remove)
+	------------------------------------------------------------ */
+
+/* Stat cards (status counters) */
+.statcard { background:linear-gradient(180deg,#f8f9fa,#f1f3f5); border:1px solid #e1e5ea; border-radius:.75rem; padding:.75rem 1rem; box-shadow:0 1px 2px rgba(0,0,0,.04); transition:box-shadow .2s ease, transform .2s ease; }
+.statcard:hover { box-shadow:0 4px 10px -2px rgba(0,0,0,.12); transform:translateY(-2px); }
+.statcard .h1 { font-size:1.9rem; line-height:1.1; }
+
+/* Main tab navigation inside Sample Generator card */
+#main-tabs .nav-link { position:relative; transition:color .15s ease, background-color .15s ease; }
+#main-tabs .nav-link:not(.active):hover { background:rgba(13,110,253,.08); }
+#main-tabs .nav-link.active { background:linear-gradient(135deg,#0d6efd,#3b82f6); color:#fff; box-shadow:0 2px 4px rgba(13,110,253,.3); }
+#main-tabs .nav-link.active::after { content:""; position:absolute; left:12px; right:12px; bottom:4px; height:3px; border-radius:2px; background:rgba(255,255,255,.85); }
+
+/* Table polish (hover + sticky header for large scrolling areas) */
+#recent-generations-table tbody tr:hover,
+#results-table tbody tr:hover { background:#f5f9ff; }
+#recent-generations-table thead th,
+#results-table thead th { position:sticky; top:0; background:#fff; z-index:1; box-shadow:0 1px 0 #e6e7e9; }
+
+/* Result count badge emphasis */
+#results-count { font-weight:500; letter-spacing:.5px; }
+
+/* Code block (generated content) */
+pre.code { background:#0f172a; color:#e2e8f0; font-size:.85rem; border-radius:.5rem; padding:1rem; border:1px solid #1e293b; }
+pre.code code { color:inherit; }
+pre.code::-webkit-scrollbar { height:8px; width:8px; }
+pre.code::-webkit-scrollbar-thumb { background:#334155; border-radius:4px; }
+pre.code::-webkit-scrollbar-thumb:hover { background:#475569; }
+
+/* Animated progress bar (generation modal) */
+#generation-progress-bar { background:linear-gradient(90deg,#0d6efd,#3b82f6,#0d6efd); background-size:200% 100%; animation:progress-move 2s linear infinite; }
+@keyframes progress-move { 0% { background-position:0 0; } 100% { background-position:-200% 0; } }
+
+/* Card action buttons subtle spacing */
+.card-header .card-actions .btn { margin-left:.25rem; }
+
+/* Form hint (if not already styled) */
+.form-hint { font-size:.75rem; color:#6c757d; }
+
+/* Slight shadow separation for nested cards within modals */
+.modal .card { box-shadow:0 2px 6px rgba(0,0,0,.08); }
+
+/* Ensure card headers remain clean white (overrides theme variants) */
+.page-body .card-header { background:#fff; }
+
+/* End Sample Generator enhancements */
+
+/* ------------------------------------------------------------
+	Sample Generator – Consistency Pass
+	------------------------------------------------------------ */
+/* Harmonize card title hierarchy inside sample generator tabs */
+#generation .card-title,#templates .card-title,#results .card-title,#batch .card-title,#management .card-title,#scaffolding .card-title { font-weight:600; letter-spacing:.25px; }
+
+/* Inline code appearance inside explanatory text */
+#scaffolding code, #templates-list code, #generation code, #batch code, #results code, #management code { background:#f1f3f5; padding:2px 6px; border-radius:4px; font-size:.75rem; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+
+/* Uniform small form hint spacing */
+form .form-hint, .form-hint { margin-top:.25rem; display:block; }
+
+/* Log / pre blocks standardization */
+#task-logs-content,#scaffold-log { background:#0f172a !important; color:#e2e8f0 !important; border-radius:.5rem; border:1px solid #1e293b; font-size:.75rem; line-height:1.35; }
+
+/* Progress bars inside batch / tasks */
+#batch-progress-bar,#task-detail-progress-bar,#export-progress-bar { background:linear-gradient(90deg,#0d6efd,#3b82f6,#0d6efd); background-size:200% 100%; animation:progress-move 2.4s linear infinite; }
+
+/* Badges slight rounding & weight */
+#selected-templates-count,#selected-models-count,#results-count,#batch-status { border-radius:1rem; font-weight:500; }
+
+/* Disabled primary buttons clarity */
+button.btn-primary:disabled, .btn.btn-primary:disabled { background:#6ea8fe; border-color:#6ea8fe; opacity:.65; }
+
+/* List group in batch preview modal */
+#batch-preview-modal .list-group { max-height:260px; overflow:auto; }
+#batch-preview-modal .list-group-item { font-size:.8125rem; }
+
+/* Table cell vertical alignment */
+#results-table td,#recent-generations-table td,#active-tasks-table td,#system-logs-table td,#scaffold-models-table td { vertical-align:middle; }
+
+/* Subtle hover for action rows */
+#system-logs-table tbody tr:hover { background:#f8f9fa; }
+
+/* Footer buttons spacing in modals */
+.modal-footer .btn + .btn { margin-left:.5rem; }
+
+/* End Sample Generator Consistency */
+
