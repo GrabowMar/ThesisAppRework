@@ -845,6 +845,37 @@ def api_models_sync():
             details={"reason": str(e)}
         )), 500
 
+@api_bp.route('/models/<model_slug>/containers/start', methods=['POST'])
+def api_model_start_containers(model_slug):
+    """Start all application containers for a model.
+
+    Uses application_service.start_model_containers (DB-level status flip for now).
+    Returns counts and triggers front-end grid refresh via HTMX trigger header.
+    """
+    try:
+        result = app_service.start_model_containers(model_slug)
+        response = create_success_response(result, message=f'Model {model_slug} applications started')
+        # Trigger front-end grid refresh if HTMX
+        response.headers['HX-Trigger'] = 'refresh-grid'
+        return response
+    except Exception as e:  # pragma: no cover - unexpected
+        return create_error_response(f'Failed to start containers for model {model_slug}: {e}', code=500)
+
+@api_bp.route('/models/<model_slug>/containers/stop', methods=['POST'])
+def api_model_stop_containers(model_slug):
+    """Stop all running application containers for a model.
+
+    Uses application_service.stop_model_containers (DB-level status flip for now).
+    Returns counts and triggers front-end grid refresh via HTMX trigger header.
+    """
+    try:
+        result = app_service.stop_model_containers(model_slug)
+        response = create_success_response(result, message=f'Model {model_slug} applications stopped')
+        response.headers['HX-Trigger'] = 'refresh-grid'
+        return response
+    except Exception as e:  # pragma: no cover
+        return create_error_response(f'Failed to stop containers for model {model_slug}: {e}', code=500)
+
 # =================================================================
 # APPLICATION API ROUTES
 # =================================================================
@@ -927,7 +958,9 @@ def api_application_start(app_id):
     """API endpoint to start an application container (service-backed)."""
     try:
         result = app_service.start_application(app_id)
-        return create_success_response(result, message=f'Application {app_id} started successfully')
+        response = create_success_response(result, message=f'Application {app_id} started successfully')
+        response.headers['HX-Trigger'] = 'refresh-grid'
+        return response
     except app_service.NotFoundError:
         return create_error_response(f'Application {app_id} not found', code=404)
 
@@ -936,7 +969,9 @@ def api_application_stop(app_id):
     """API endpoint to stop an application container (service-backed)."""
     try:
         result = app_service.stop_application(app_id)
-        return create_success_response(result, message=f'Application {app_id} stopped successfully')
+        response = create_success_response(result, message=f'Application {app_id} stopped successfully')
+        response.headers['HX-Trigger'] = 'refresh-grid'
+        return response
     except app_service.NotFoundError:
         return create_error_response(f'Application {app_id} not found', code=404)
 
@@ -945,7 +980,9 @@ def api_application_restart(app_id):
     """API endpoint to restart an application container (service-backed)."""
     try:
         result = app_service.restart_application(app_id)
-        return create_success_response(result, message=f'Application {app_id} restarted successfully')
+        response = create_success_response(result, message=f'Application {app_id} restarted successfully')
+        response.headers['HX-Trigger'] = 'refresh-grid'
+        return response
     except app_service.NotFoundError:
         return create_error_response(f'Application {app_id} not found', code=404)
 

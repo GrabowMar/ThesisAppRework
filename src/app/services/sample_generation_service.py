@@ -40,7 +40,13 @@ from pathlib import Path
 from typing import Dict, List, Optional, Set, Any, Tuple
 
 import aiohttp
-from app.paths import CODE_TEMPLATES_DIR, APP_TEMPLATES_DIR
+from app.paths import (
+    CODE_TEMPLATES_DIR,
+    APP_TEMPLATES_DIR,
+    GENERATED_ROOT,
+    GENERATED_LARGE_CONTENT_DIR,
+    GENERATED_INDICES_DIR,
+)
 import json
 
 try:
@@ -632,8 +638,11 @@ class CodeExtractor:
 
 class ProjectOrganizer:
     def __init__(self, output_dir: Path = Path('generated'), code_templates_dir: Path | None = None):
+        # Root (GENERATED_ROOT). Apps live under apps/ subfolder for clarity.
         self.output_dir = output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.apps_root = self.output_dir / 'apps'
+        self.apps_root.mkdir(parents=True, exist_ok=True)
         # Directory containing skeleton backend/frontend/docker-compose templates
         self.code_templates_dir = code_templates_dir or Path('src') / 'misc' / 'code_templates'
         self._scaffold_cache: Set[str] = set()  # model_app key cache to avoid redundant copies
@@ -650,7 +659,7 @@ class ProjectOrganizer:
         .template have the suffix stripped. Existing files are not overwritten (idempotent).
         """
         safe_model = re.sub(r'[^\w\-_]', '_', model_name)
-        app_dir = self.output_dir / safe_model / f"app{app_num}"
+        app_dir = self.apps_root / safe_model / f"app{app_num}"
         app_dir.mkdir(parents=True, exist_ok=True)
         key = f"{safe_model}_app{app_num}"
         if key in self._scaffold_cache:
@@ -741,8 +750,8 @@ class ProjectOrganizer:
 
     def structure(self) -> Dict[str, Any]:
         structure: Dict[str, Any] = {}
-        for model_dir in self.output_dir.iterdir():
-            if model_dir.is_dir() and model_dir.name != 'markdown':
+        for model_dir in (self.apps_root.iterdir() if self.apps_root.exists() else []):
+            if model_dir.is_dir():
                 apps: Dict[str, List[str]] = {}
                 for app_dir in model_dir.iterdir():
                     if app_dir.is_dir():
@@ -769,8 +778,9 @@ class SampleGenerationService:
         # API key loaded lazily; supports runtime rotation
         self.generator = CodeGenerator(api_key=os.getenv('OPENROUTER_API_KEY', ''))
         self.extractor = CodeExtractor(self.port_allocator)
+        # Use unified generated root (apps will live under generated/apps via organizer logic)
         self.organizer = ProjectOrganizer(
-            Path('generated'),
+            GENERATED_ROOT,
             code_templates_dir=CODE_TEMPLATES_DIR
         )
         # In-memory results store: id -> GenerationResult
@@ -783,10 +793,19 @@ class SampleGenerationService:
         self._batch_operations = {}  # batch_id -> BatchProgress
         # Content size limits (in characters)
         self._max_content_size = 100_000  # 100KB
-        self._filesystem_storage_dir = Path('generated') / 'large_content'
+        self._filesystem_storage_dir = GENERATED_LARGE_CONTENT_DIR
         self._filesystem_storage_dir.mkdir(parents=True, exist_ok=True)
+        # Manifest / index file
+        self._manifest_path = GENERATED_INDICES_DIR / 'generation_manifest.json'
+        GENERATED_INDICES_DIR.mkdir(parents=True, exist_ok=True)
+        if not self._manifest_path.exists():
+            try:
+                self._manifest_path.write_text('[]', encoding='utf-8')
+            except Exception:  # noqa: BLE001
+                pass
         try:
             # Try to load models from default location
+            # Models summary remains in misc for now (authoritative source)
             models_path = Path('src') / 'misc' / 'models_summary.json'
             if models_path.exists():
                 with open(models_path, 'r', encoding='utf-8') as f:
@@ -987,6 +1006,39 @@ class SampleGenerationService:
                     logger.warning("Auto model/app upsert failed (non-fatal): %s", sync_err)
             result_id = f"{model.replace('/', '_')}_{template.app_num}_{int(time.time())}"
             self._results[result_id] = result
+            # Append manifest entry (best-effort, atomic via read-modify-write)
+            try:
+                entry = {
+                    'result_id': result_id,
+                    'model': result.model,
+                    'app_num': result.app_num,
+                    'app_name': result.app_name,
+                    'timestamp': result.timestamp.isoformat(),
+                    'success': result.success,
+                    'blocks': [
+                        {
+                            'language': b.language,
+                            'file_type': b.file_type,
+                            'checksum': b.checksum,
+                            'backend_port': b.backend_port,
+                        } for b in result.extracted_blocks
+                    ],
+                }
+                import json as _json
+                try:
+                    data = _json.loads(self._manifest_path.read_text(encoding='utf-8'))
+                    if isinstance(data, list):
+                        data.insert(0, entry)
+                        # cap size to avoid unbounded growth
+                        if len(data) > 5000:
+                            data = data[:5000]
+                    else:
+                        data = [entry]
+                except Exception:
+                    data = [entry]
+                self._manifest_path.write_text(_json.dumps(data, indent=2), encoding='utf-8')
+            except Exception:  # noqa: BLE001
+                pass
             # Persist to DB if available
             if GeneratedCodeResult and db:
                 try:

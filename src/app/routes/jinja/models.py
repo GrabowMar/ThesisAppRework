@@ -349,7 +349,8 @@ def applications():
                 'search': search_filter
             }
         }
-        return render_template('views/applications/index.html', **context)
+        # Updated template path to new unified pages namespace
+        return render_template('pages/applications/index.html', **context)
 
     except Exception as e:
         current_app.logger.error(f"Error loading applications: {e}")
