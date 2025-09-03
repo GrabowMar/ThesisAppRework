@@ -1,313 +1,79 @@
-# Project Structure - ThesisAppRework/src
+# Project Structure (Concise)
 
-## 📁 Current Structure (Updated)
+Purpose: Orientation for contributors and automated agents. Factual, minimal, cross-links to detailed docs.
 
-```
-src/
-├── main.py                       # ✅ Application entry point
-├── worker.py                     # ✅ Celery worker entry point
-├── requirements.txt              # ✅ Python dependencies
-├── start.ps1 / start.sh          # ✅ Cross-platform startup scripts
-│
-├── app/                          # Flask application package
-│   ├── __init__.py               # ✅ Package init (exposes factory)
-│   ├── factory.py                # ✅ Flask application factory
-│   ├── models.py                 # ✅ Legacy/aggregated models (superseded by app/models/)
-│   ├── constants.py              # ✅ Application enums & constants
-│   ├── extensions.py             # ✅ DB, Celery, other extensions
-│   ├── tasks.py                  # ✅ Celery task definitions
-│   ├── data/                     # ✅ SQLite database storage
-│   │   └── thesis_app.db
-│   ├── models/                   # ✅ Structured model modules
-│   │   └── analysis.py           # ✅ Analysis-related ORM models
-│   │
-│   ├── routes/                   # Modular Flask blueprints (UI + API segregation)
-│   │   ├── __init__.py           # ✅ Blueprint registration helpers
-│   │   ├── main.py               # ✅ Dashboard & landing views
-│   │   ├── models.py             # ✅ Model catalog & app listing views
-│   │   ├── analysis.py           # ✅ Analysis hub views
-│   │   ├── batch.py              # ✅ Legacy batch operations UI (redirects to tasks in prod)
-│   │   ├── tasks.py              # ✅ Unified tasks/operations hub (supersedes batch)
-│   │   ├── statistics.py         # ✅ Metrics & statistics views (split generation vs analysis pages)
-│   │   ├── testing.py            # ❌ Removed (consolidated into analysis)
-│   │   ├── advanced.py           # ✅ Advanced / experimental views
-│   │   ├── errors.py             # ✅ Error handlers
-│   │   ├── api/                  # ✅ REST/HTMX JSON endpoints (fine‑grained)
-│   │   │   ├── __init__.py       # ✅ API blueprint init
-│   │   │   ├── core.py           # ✅ Core system status endpoints
-│   │   │   ├── dashboard.py      # ✅ Dashboard data endpoints
-│   │   │   ├── models.py         # ✅ Model + application endpoints
-│   │   │   ├── applications.py   # ✅ Application detail endpoints
-│   │   │   ├── analysis.py       # ✅ Analysis orchestration endpoints
-│   │   │   ├── statistics.py     # ✅ Statistical data endpoints
-│   │   │   ├── system.py         # ✅ System & container status endpoints
-│   │   │   └── misc.py           # ✅ Misc / utility endpoints
-│   │   └── api.py.backup         # 🗃️ Legacy aggregated API (kept for reference)
-│   │
-│   ├── services/                 # Business logic layer (Service Locator pattern)
-│   │   ├── __init__.py           # ✅ Export service factory helpers
-│   │   ├── service_locator.py    # ✅ Central DI / lazy instantiation
-│   │   ├── task_manager.py       # ✅ Async task tracking abstraction
-│   │   ├── analyzer_integration.py # ✅ Bridge to external analyzer processes
-│   │   ├── analyzer_config_service.py # ✅ Analyzer config & capability loading
-│   │   ├── model_service.py      # ✅ Model + generated app metadata operations
-│   │   ├── batch_service.py      # ✅ Batch submission + aggregation
-│   │   ├── security_service.py   # ✅ Fully implemented security analysis (DB-backed)
-│   │   ├── docker_manager.py     # ✅ Implemented low-level Docker/compose orchestration
-│   │   ├── background_service.py # ✅ Background maintenance / cleanup helpers
-│   │   ├── openrouter_service.py # ✅ OpenRouter model capability integration
-│   │   ├── port_service.py       # 🚧 Dynamic port allocation (PARTIAL stub)
-│   │   ├── websocket_integration.py  # ✅ Active WebSocket/HTMX bridge
-│   │   └── celery_websocket_service.py # ✅ Celery + WS utility wrapper
-│   │
-│   ├── utils/                    # Utility helpers
-│   │   ├── __init__.py
-│   │   ├── helpers.py            # ✅ Generic helpers
-│   │   └── validators.py         # ✅ Input validation
-│   │
-│   ├── static/                   # (Legacy in-package static - may migrate to top-level static/)
-│   │   ├── css/
-│   │   └── js/
-│   │
-│   └── (legacy templates moved to top-level `templates/` directory)
-│
-├── templates/                    # Global Jinja2 templates (HTMX + dashboard)
-│   ├── base.html                 # ✅ Unified base layout (AdminLTE themed)
-│   ├── single_page.html          # ✅ Lightweight single-page base
-│   ├── pages/                    # Page-level views
-│   │   ├── dashboard.html        # ✅ Interactive dashboard UI
-│   │   ├── analysis.html         # ✅ Analysis hub screen (modern unified dashboard)
-│   │   ├── applications.html     # ✅ Generated apps explorer
-│   │   ├── models.html           # ✅ Model registry overview
-│   │   ├── statistics.html       # ✅ Legacy unified metrics (kept for compatibility)
-│   │   ├── statistics/           # ✅ Split statistics pages (generation.html, analysis.html)
-│   │   ├── system_status.html    # ✅ System/container status page
-│   │   └── about.html            # ✅ About / info
-│   └── partials/                 # HTMX-fragment & component templates
-│       ├── active_batches.html   # ✅ Batch status widget
-│       ├── analysis/             # ✅ Analysis dashboard components
-│       ├── applications/         # ✅ Application detail/overview fragments
-│       ├── apps_grid/            # ✅ App grid/list + detail modals
-│       ├── batch/                # ✅ Batch CRUD fragments
-│       ├── common/               # ✅ Shared UI (sidebar, errors, timeline)
-│       ├── dashboard/            # ✅ Dashboard stats/health widgets
-│       ├── models/               # ✅ Model catalog components
-│       ├── statistics/           # ✅ Statistics section fragments
-│       ├── testing/              # ❌ Removed (use analysis/create/* and analysis/list/*)
-│       └── system_status.html    # ✅ System status summary block
-│
-├── static/                       # Consolidated static assets
-│   ├── css/
-│   │   ├── adminlte.css          # ✅ Theme overrides
-│   │   └── security-analysis.css # ✅ Security analysis styling
-│   └── js/
-│       ├── dashboard.js          # ✅ Dashboard interactions
-│       └── theme_toggle.js       # ✅ Theme toggle handling
-│
-├── config/                       # Configuration modules
-│   ├── __init__.py               # ✅ Config package init
-│   ├── settings.py               # ✅ App & environment settings
-│   └── celery_config.py          # ✅ Celery configuration
-│
-├── docs/                         # Project docs & change logs
-│   ├── API.md
-│   ├── DEVELOPMENT.md
-│   ├── IMPLEMENTATION_SUMMARY.md
-│   ├── README.md
-│   ├── ROUTES.md                 # ✅ Route organization reference
-│   ├── route_*                   # 🗃️ Route refactor progress artifacts
-│   └── TODO.md                   # ✅ Pending tasks & priorities
-│
-├── tests/                        # Test suite (expanding)
-│   ├── __init__.py
-│   ├── conftest.py               # ✅ Pytest fixtures
-│   ├── unit/                     # ✅ Unit tests (add coverage)
-│   └── integration/             # ✅ Integration / Celery tests
-│
-└── PROJECT_STRUCTURE.md          # ✅ (This file)
-```
+## Top-Level (src/)
+| File/Dir | Role |
+|----------|------|
+| `main.py` | Flask app entry (creates app, optional SocketIO) |
+| `worker.py` | Celery worker bootstrap (Flask context wrapper) |
+| `app/` | Application package (routes, services, models, tasks) |
+| `templates/` | Jinja templates (pages + HTMX partials) |
+| `static/` | Consolidated static assets (css/js) |
+| `config/` | Settings + Celery config modules |
+| `tests/` | Pytest suite (unit + integration) |
+| `generated/` | Generated model application artifacts (ports, compose) |
+| `misc/` | Seed/fallback JSON (models, capabilities, ports) |
+| `logs/` | Runtime logs |
+| `analyzer/` | Analyzer microservices (docker-compose + services) |
 
-## 🧹 Cleaned Up (Removed Files)
+## Key Packages
+### `app/routes/`
+Blueprints: domain separation (dashboard, models, analysis, tasks, statistics, advanced, errors) + `api/` subpackage (JSON + HTMX fragment endpoints). Legacy aggregate retained as `api.py.backup`.
 
-### ❌ Removed Legacy Files
-- `src/app/routes.py` - Monolithic routes file (replaced by modular routes/)
-- `src/run.py` - Legacy entry point (main.py is the proper entry point)
-- `src/app.log` - Moved to `logs/app.log`
-- `src/data/` - Empty directory removed
-- `src/app/templates/pages/` - Empty directory removed
-- `src/app/templates/components/` - Empty directory removed
-- All `__pycache__/` directories and `.pyc` files
+### `app/services/`
+Domain + integration layer. Access strictly via `ServiceLocator`.
+Core services: model, batch, docker_manager, analyzer_integration, openrouter, security, task_manager, background (maintenance).  
+Engines: `analysis_engines.py` (security | static | dynamic | performance) — uniform `run()` contract.
+Deprecated shims expose `DEPRECATED = True` and raise on use (see `LEGACY_REMOVALS.md`).
 
-### 📁 Moved Files
-- `src/app.log` → `logs/app.log`
-- `src/README.md` → `src/docs/README.md`
-- `src/IMPLEMENTATION_SUMMARY.md` → `src/docs/IMPLEMENTATION_SUMMARY.md`
-- `src/test_celery_integration.py` → `src/tests/integration/test_celery_integration.py`
+### `app/tasks.py`
+Celery task definitions; gating logic uses `DISABLED_ANALYSIS_MODELS` env to early-skip analysis tasks.
 
-## 🏗️ Architecture Overview
+### `app/models/`
+ORM models (capabilities, generated apps, analyses). Large analyzer outputs stored in JSON columns; parsing deferred to services.
 
-### Service Layer (Business Logic)
-Implemented:
-- SecurityService (end-to-end DB + aggregation)
-- DockerManager (compose orchestration + status/logs)
-- ModelService (model & app metadata aggregation)
-- BatchService (batch job orchestration)
-- TaskManager (in-memory tracking for async tasks)
-- AnalyzerIntegration / AnalyzerConfigService (bridging analyzer containers)
-- OpenRouterService (external model metadata)
-Partial / In Progress:
-- PortService (basic port check + stub allocation logic)
-- Higher-fidelity BackgroundService tasks (periodic cleanup, health scans)
-Removed (legacy/unused):
-- AnalyzerService (replaced by AnalyzerIntegration + Celery tasks)
-- WebSocket Integration v2 shim
-- ContainerService (unused stub)
-- HuggingFace service stub
-Pattern:
-- Service Locator centralizes lazy instantiation & reuse
+## Analyzer Stack (`analyzer/`)
+`docker-compose.yml` defines: gateway (8765), static (2001), dynamic (2002), performance (2003), ai (2004), redis (6379). Results persisted under per-service volumes and/or `analyzer/results/`.
 
-#### NEW: Analysis Engines Layer (2025-08 Refactor)
+## Generated Applications (`generated/`)
+Layout: `generated/<model_slug>/app<number>/` (slug keeps hyphens). Ports resolved primarily via DB (`PortConfiguration`); fallback JSON only if absent. Compose files built via `scripts/build_start_app.py`.
 
-To reduce duplication and standardize execution flows a lightweight
-`analysis_engines.py` module introduces small, focused engine classes
-(`SecurityAnalyzerEngine`, `PerformanceAnalyzerEngine`, `StaticAnalyzerEngine`,
-`DynamicAnalyzerEngine`). Each exposes a uniform:
+## Sample Generation Subsystem
+Synchronous API (`/api/sample-gen/*`) uses in-memory registry + manifest under `src/generated/indices/generation_manifest.json`. Does NOT use Celery; safe for fast test flows.
 
-```
-engine.run(model_slug, app_number, **kwargs) -> EngineResult
-```
+## Template Conventions
+Pages: `templates/pages/*.html`; partials: `templates/partials/**`. Detect HTMX with `HX-Request` header. Shared wrapper macros live under `partials/common/` (see `TEMPLATES.md`).
 
-They delegate to `AnalyzerIntegration` and normalize the response shape.
-`analysis_service.py` gained optional `use_engine` flags on start methods
-to permit synchronous invocation without Celery for fast paths / tests.
+## Error Handling
+Central handlers in `routes/errors.py` map internal `ServiceError` subclasses to JSON or HTML; request id injected. See `ERROR_HANDLING.md`.
 
-Legacy `AnalyzerService` was converted into a thin deprecated shim that
-simply forwards to engines (and raises a `DeprecationWarning`).
+## Common Extension Points
+| Extension | Touch Points |
+|----------|--------------|
+| New analyzer type | analyzer service+Dockerfile, manager command, engine registry, Celery task, ORM model, UI partials |
+| New service | `app/services/<name>_service.py` + register in `service_locator.py` |
+| New analysis table | ORM model + migration + JSON result/accessors |
+| New page | Route blueprint (or existing), `templates/pages/*`, partials for fragments |
 
-Configuration convergence began with `analysis_config_models.py` which
-contains lean dataclasses (`SecurityToolsConfig`, `PerformanceTestConfig`,
-etc.) providing a single, simplified shape for callers while preserving
-the richer legacy configs for future advanced use.
+## Conventions
+1. Routes delegate; no analyzer subprocess or heavy logic inline.
+2. Services return plain dicts / dataclasses; raise standardized service exceptions.
+3. Engines only wrap analyzer integration; persistence happens in tasks/services.
+4. Avoid hard-coded ports; always resolve via DB/service.
+5. Large JSON blobs: store raw once; parse lazily.
 
-### Route Layer (Web Interface)
-- Modular Blueprints: UI pages separated by domain (dashboard, analysis, models, batch, statistics, advanced)
-- Fine-Grained API Subpackage: The `routes/api/` folder decomposes endpoints for maintainability & discoverability
-- HTMX + Progressive Enhancement: Partial templates return fragment responses for dynamic updates
-- Separate WebSocket REST helper blueprint mounted at `/api/websocket` (see `app/routes/api/websocket.py`) for starting/canceling analyses and querying WS service state
-- Some UI blueprints intentionally expose small JSON/HTMX utilities under paths like `/analysis/api/...` or `/advanced/api/...` which are not part of the main `/api` blueprint; they serve page-specific partials or JSON
-- Legacy Aggregated API retained as `api.py.backup` for reference during transition
-  
-See also: `docs/ROUTES.md` for a comprehensive, blueprint-grouped route inventory.
-
-### Data Layer
-- SQLAlchemy ORM models (analysis, applications, port config, security results, etc.)
-
-## Service Layer Standardization (2025-08 Update)
-
-To reduce boilerplate and clarify responsibilities the service layer adopted
-lightweight shared utilities and a clear deprecation strategy:
-
-### service_base.py
-Located at `app/services/service_base.py`, this module provides:
-
-- Exception hierarchy: `ServiceError`, `NotFoundError`, `ValidationError`, `ConflictError`, `OperationError`
-- Helper: `ensure_dataclass_dict` (safe dataclass → dict)
-- Helper: `deprecation_warning` (consistent `DeprecationWarning` emission)
-
-All new/updated services raise these exceptions so route & API layers can map
-them uniformly to HTTP responses.
-
-### Deprecated Shims
-
-Previously bloated or placeholder services are now minimal compatibility shims:
-
-| Service | Status | Replacement / Direction |
-|---------|--------|--------------------------|
-| AnalyzerService | Deprecated shim | Analysis Engines (`analysis_engines.py`) + Celery tasks |
-| ContainerService | Deprecated shim | `DockerManager` (low-level) or future external orchestrator |
-| HuggingFaceService | Deprecated shim | Direct API utilities during batch ingest |
-| PortService | Legacy (partial) | Opportunistic load via `ServiceLocator` + future refactor |
-
-Each deprecated module exposes `DEPRECATED = True`. Public methods emit a
-`DeprecationWarning` then raise `NotImplementedError` to make migration explicit
-while avoiding sudden import failures.
-
-### Guidelines for New Services
-1. Keep synchronous services side‑effect free (no long-lived threads if avoidable).
-2. Prefer Celery tasks or dedicated managers for external process orchestration.
-3. Represent simple payloads with dataclasses; convert via `asdict` or helper.
-4. Raise standardized exceptions only—avoid ad hoc custom exception classes.
-5. Provide concise docstrings describing scope and explicit non‑responsibilities.
-
-### Benefits
-- Smaller, more readable service modules
-- Consistent error handling path
-- Easier unit testing (deterministic exceptions, pure functions)
-- Clear migration story for legacy placeholders
-
-These changes accompany the Analysis Engines refactor to continue the overall
-goal of de‑bloating core logic and improving maintainability.
-- SQLite (development) stored in `app/data/` with migration readiness (Alembic present at project root outside src)
-- JSON fields for flexible analyzer result storage
-- Future: switchable to Postgres (already abstracted by SQLAlchemy)
-
-## 🎯 Recent Improvements
-
-### 1. **Eliminated Conflicts**
-- Removed duplicate routing systems
-- Fixed import inconsistencies
-- Cleaned up legacy files
-
-### 2. **Proper Organization**
-- Moved files to appropriate directories
-- Organized templates by functionality
-- Separated concerns cleanly
-
-### 3. **Clear Structure**
-- Documented stub services with implementation roadmap
-- Established clear patterns for future development
-- Created comprehensive documentation
-
-### 4. **Development Ready**
-- Fixed logging paths
-- Cleaned up cache files
-- Established proper entry points
-
-## 🚀 Next Steps
-
-1. Implement ContainerService (compose up/down, restart, health) integrating DockerManager + PortService
-2. Flesh out PortService (DB-backed allocation, conflict detection, reservation lifecycle)
-3. Implement AnalyzerService orchestration (queue fan-out to analyzer containers, result collation)
-4. Expand test coverage (services: security, docker, model, batch; API endpoints; HTMX partial responses)
-5. Add performance & load testing harness integration (link to analyzer performance tester)
-6. Introduce background scheduled tasks (stale analysis cleanup, container health polling)
-7. Prepare production config (env-based settings, Postgres & Redis externalization, container orchestration)
-8. Security hardening (rate limiting, input validation audits, CSP headers)
-
-## 🔧 Development Commands
-
+## Minimal Dev Commands
 ```bash
-# Launch (Flask + Celery worker separate terminals)
-cd src
-python main.py
-celery -A app.tasks worker --loglevel=info
-
-# Run (selective) tests
-pytest tests/unit -q
-pytest tests/integration -v
-
-# Lint (if configured later)
-ruff check .  # (planned)
-
-# Clean Python caches (PowerShell)
-Get-ChildItem -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
+python src/main.py                  # Run Flask
+celery -A app.tasks worker -l info  # Worker
+pytest -q                           # Tests
+python scripts/build_start_app.py --model <slug> --app 1 --rebuild
 ```
 
----
+## Status Snapshot (2025-09-03)
+Stable: layering, engines, analyzer stack.  
+In Progress: richer port allocation & background tasks.  
+Deprecated: legacy analyzer service & container/port shims (see `LEGACY_REMOVALS.md`).
 
-**Structure Status**: ✅ Stable modular layout  
-**Legacy Artifacts**: 🗃️ Contained / documented (api.py.backup, route_* docs); testing blueprint and partials removed in favor of analysis-only  
-**Services**: Mixed (core implemented, orchestration stubs pending)  
-**Documentation**: Up-to-date (reflects refactor phases)  
-**Test Coverage**: Growing (needs expansion for new services)  
-**Readiness**: Ready for continued feature implementation
+_Last updated: 2025-09-03._

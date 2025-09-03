@@ -328,24 +328,36 @@ def sidebar_stats():
 def dashboard_stats_fragment():
     """HTMX endpoint returning dashboard stats inner fragment HTML."""
     try:
-        from app.utils.template_paths import render_template_compat as render_template
         stats = {
             'total_models': db.session.query(ModelCapability).count(),
             'total_apps': db.session.query(GeneratedApplication).count(),
             'security_tests': db.session.query(SecurityAnalysis).count(),
             'performance_tests': db.session.query(PerformanceTest).count(),
         }
-        return render_template('partials/dashboard/_dashboard_stats_inner.html', stats=stats)
+        # Return inline HTML fragment (removed external template dependency)
+        return (
+            '<div class="row g-3">'
+            f'<div class="col-6 col-md-3"><div class="card text-center stat-card"><div class="card-body py-3">'
+            f'<div class="h4 mb-0">{stats["total_models"]}</div><div class="text-muted small">Models</div>'
+            '</div></div></div>'
+            f'<div class="col-6 col-md-3"><div class="card text-center stat-card"><div class="card-body py-3">'
+            f'<div class="h4 mb-0">{stats["total_apps"]}</div><div class="text-muted small">Apps</div>'
+            '</div></div></div>'
+            f'<div class="col-6 col-md-3"><div class="card text-center stat-card"><div class="card-body py-3">'
+            f'<div class="h4 mb-0">{stats["security_tests"]}</div><div class="text-muted small">Security</div>'
+            '</div></div></div>'
+            f'<div class="col-6 col-md-3"><div class="card text-center stat-card"><div class="card-body py-3">'
+            f'<div class="h4 mb-0">{stats["performance_tests"]}</div><div class="text-muted small">Perf</div>'
+            '</div></div></div>'
+            '</div>'
+        )
     except Exception as e:
         current_app.logger.error(f"Error rendering dashboard stats fragment: {e}")
-        from app.utils.template_paths import render_template_compat as render_template
-        return render_template('partials/dashboard/_dashboard_stats_inner.html', stats={
-            'total_models': 0,
-            'total_apps': 0,
-            'security_tests': 0,
-            'performance_tests': 0,
-            'recent_activity': []
-        })
+        return (
+            '<div class="row g-3">'
+            '<div class="col-12 text-muted small">Stats unavailable</div>'
+            '</div>'
+        )
 
 @api_bp.route('/dashboard/system-health-fragment')
 def dashboard_system_health_fragment():
@@ -366,21 +378,29 @@ def dashboard_system_health_fragment():
 def dashboard_analyzer_services():
     """Return analyzer services status cards."""
     try:
-        from app.utils.template_paths import render_template_compat as render_template
         services = [
             {'name': 'Security', 'status': 'healthy', 'version': '1.0'},
             {'name': 'Performance', 'status': 'healthy', 'version': '1.0'},
         ]
-        return render_template('partials/dashboard/analyzer_services.html', services=services)
+        cards = []
+        for svc in services:
+            cards.append(
+                '<div class="col-md-3">'
+                '<div class="card h-100 service-card">'
+                '<div class="card-body py-2 px-3">'
+                '<div class="d-flex justify-content-between align-items-center">'
+                f'<strong class="small">{svc["name"]}</strong>'
+                f'<span class="badge bg-{"success" if svc["status"]=="healthy" else "secondary"}">{svc["status"]}</span>'
+                '</div>'
+                f'<div class="small text-muted">v{svc.get("version") or "1.0"}</div>'
+                '</div>'
+                '</div>'
+                '</div>'
+            )
+        return '<div class="row g-2">' + ''.join(cards) + '</div>'
     except Exception:
-        # fallback to new location template path
-        try:
-            from app.utils.template_paths import render_template_compat as render_template
-            services = []
-            return render_template('ui/elements/dashboard/analyzer_services.html', services=services)
-        except Exception as e2:
-            current_app.logger.error(f"Analyzer services fragment failed: {e2}")
-            return '<div class="text-muted small">Analyzer services unavailable</div>'
+        current_app.logger.error("Analyzer services fragment failed", exc_info=True)
+        return '<div class="text-muted small">Analyzer services unavailable</div>'
 
 @api_bp.route('/dashboard/docker-status')
 def dashboard_docker_status():

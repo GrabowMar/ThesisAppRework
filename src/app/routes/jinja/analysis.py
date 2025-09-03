@@ -90,9 +90,5 @@ def htmx_active_tasks():
     We simply render that include through a tiny wrapper div; data model kept
     trivial until real task manager integration is added.
     """
-    try:
-        from app.utils.template_paths import render_template_compat as rt
-        # Provide an empty iterable; template handles both dict/list gracefully.
-        return rt('partials/analysis/list/active_tasks.html', active=[])
-    except Exception:
-        return '<div class="active-tasks-empty"></div>'
+    # Return minimal inline fragment (template removed)
+    return '<div class="active-tasks-fragment"><div class="text-muted small">No active tasks</div></div>'

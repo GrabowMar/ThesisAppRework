@@ -13,26 +13,33 @@ This section describes the layered architecture, major components, and integrati
 │  - HTMX Partials & Jinja Templates                           │
 └───────────────▲──────────────────────────────────────────────┘
 				│
-┌───────────────┴──────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────┐
 │ Service Layer (Business Logic)                               │
-│  - ServiceLocator (factory/registry)                         │
-│  - Model, Port, Docker, Task, Batch, Analyzer Integration    │
+│  - ServiceLocator / domain services                          │
+│  - Model, Port alloc, Docker hooks, Batch, Generation        │
+│  - Analyzer Integration (subprocess + WS)                    │
 └───────────────▲──────────────────────────────────────────────┘
 				│
 ┌───────────────┴──────────────────────────────────────────────┐
-│ Asynchronous / Integration Layer                             │
+│ Analysis Engines Layer                                       │
+│  - security / static / dynamic / performance                 │
+│  - Uniform run(model, app, **opts)                           │
+└───────────────▲──────────────────────────────────────────────┘
+				│
+┌───────────────┴──────────────────────────────────────────────┐
+│ Asynchronous Orchestration                                   │
 │  - Celery Tasks (analysis, batch, container ops)             │
-│  - WebSocket Bridge (AnalyzerIntegration / WebSocketIntegration)│
+│  - WebSocket Bridge (progress fan-out)                       │
 └───────────────▲──────────────────────────────────────────────┘
 				│
 ┌───────────────┴──────────────────────────────────────────────┐
 │ Analyzer Microservices (Docker)                              │
-│  - static-analyzer / dynamic-analyzer / performance-tester   │
-│  - ai-analyzer / security composite                          │
+│  - static / dynamic(ZAP) / performance / ai                  │
+│  - Ports 2001-2004 (+ gateway 8765)                          │
 └───────────────▲──────────────────────────────────────────────┘
 				│
 ┌───────────────┴──────────────────────────────────────────────┐
-│ Persistence                                                   │
+│ Persistence                                                  │
 │  - SQLAlchemy Models + JSON Results                          │
 │  - Seed JSON (fallback)                                      │
 └──────────────────────────────────────────────────────────────┘
@@ -42,32 +49,36 @@ This section describes the layered architecture, major components, and integrati
 
 ```mermaid
 flowchart TB
-	subgraph UI[Presentation Layer]
-		R[Flask Routes]\nHTMX
-		Tmpl[Jinja Templates]
+	subgraph UI[Presentation]
+		R[Routes]\nHTMX Partials
+		T[Templates]
 	end
-	subgraph S[Service Layer]
+	subgraph S[Services]
 		SL[ServiceLocator]
-		MS[Model/Port Services]
-		TM[TaskManager]
-		AI[AnalyzerIntegration]
+		DOM[Domain Services]
+		INT[AnalyzerIntegration]
 	end
-	subgraph C[Async Layer]
+	subgraph E[Engines]
+		SEC[Security]
+		STA[Static]
+		DYN[Dynamic]
+		PERF[Performance]
+	end
+	subgraph C[Async]
 		CT[Celery Tasks]
-		WB[WebSocket Bridge]
+		WB[WS Bridge]
 	end
-	subgraph A[Analyzer Containers]
+	subgraph A[Analyzers]
 		SA[static]
-		DA[dynamic/ZAP]
+		DA[dynamic]
 		PA[performance]
 		AA[ai]
-		SEC[security]
 	end
 	subgraph P[Persistence]
-		DB[(Database)]
-		JSON[(JSON Results)]
+		DB[(DB)]
+		JSON[(Results JSON)]
 	end
-	UI --> S --> C --> A
+	UI --> S --> E --> C --> A
 	S --> P
 	C --> P
 ```
@@ -81,8 +92,9 @@ flowchart TB
 | Service Locator | Centralized instantiation/wiring of services | `service_locator.py` |
 | Domain Services | Encapsulate model, port allocation, docker, analysis config logic | `app/services/*` |
 | Celery Tasks | Offload long-running or I/O bound operations | `app/tasks.py` |
-| Analyzer Bridge | WebSocket orchestration to analyzer containers | `analyzer/websocket_gateway.py`, `app/services/analyzer_integration.py` |
-| Analyzer Microservices | Execute specialized analyses | `analyzer/services/*` |
+| Analyzer Bridge | Subprocess + WebSocket orchestration | `analyzer/analyzer_manager.py`, `app/services/analyzer_integration.py` |
+| Analysis Engines | Uniform execution adapters | `analysis_engines.py` |
+| Analyzer Microservices | Specialized analyzer containers | `analyzer/services/*` |
 | Data Initialization | Seed DB from JSON fallback files | `DataInitializationService` |
 | Observability | Logging, health endpoints, dashboards | `routes/api/system.py`, dashboards |
 
@@ -104,9 +116,10 @@ See [Services Reference](SERVICES_REFERENCE.md) for API-level details. High-leve
 | Container (re)build | Initiate only | Build inside task | CPU & I/O intensive |
 | Batch orchestration | Initiate only | Expand + parallel tasks | Potentially many sub-analyses |
 
-## Analyzer Integration Contract
+## Analyzer Integration & Engines Contract
 
-Messages (JSON) follow a command pattern: `{ "action": "run_static", "model": <slug>, "app": <n>, "options": {...} }`. Responses stream progress events until a terminal event with results payload. The bridge is intentionally narrow: START, PROGRESS, COMPLETE, ERROR.
+Messages (JSON) use command pattern: `{ "action": "run_<type>", "model": <slug>, "app": <n>, "options": {...} }`.
+Engines wrap integration calls to normalize output (`EngineResult`) for tasks or synchronous test execution. Progress events surface through the WebSocket bridge; Celery tasks persist terminal JSON & summary metrics.
 
 ## Error Containment
 
@@ -116,7 +129,7 @@ Failures in analyzer communication mark a single analysis as FAILED without dest
 
 | Extension | Required Steps |
 |-----------|----------------|
-| New Analyzer | Container + WebSocket handler + Celery task + result model/table + UI fragments |
+| New Analyzer | Container + WebSocket handler + engine registration + Celery task + result model/table + UI fragments |
 | New Dashboard Metric | Add aggregation query (service), route endpoint, HTMX fragment template |
 | Alternate Transport (e.g., gRPC) | Implement adapter parallel to WebSocketIntegration; register in ServiceLocator |
 | Caching Layer | Introduce cache service; wrap service methods returning large JSON |
@@ -125,7 +138,7 @@ Failures in analyzer communication mark a single analysis as FAILED without dest
 
 | Source | Purpose | Precedence |
 |--------|---------|------------|
-| Environment Variables | Operational toggles (strict websocket, concurrency) | Highest |
+| Environment Variables | Operational toggles (disabled models, timeouts) | Highest |
 | Database | Canonical runtime state (models, ports, analysis configs) | High |
 | JSON Seed Files (`misc/`) | Bootstrapping & fallback | Low |
 
@@ -148,8 +161,8 @@ Current deployment assumes trusted local environment. For multi-user or hosted d
 ## Deployment Diagram (Conceptual)
 
 ```
-User Browser --> Flask/HTMX (5000) --> Services --> DB (SQLite/Postgres) 
-								\--> Celery (Redis broker) --> Analyzer Bridge --> Analyzer Containers (2001-2005)
+User Browser --> Flask/HTMX (5000) --> Services --> Engines --> DB (SQLite/Postgres)
+				\--> Celery (Redis) --> Analyzer Bridge --> Analyzer Containers (2001-2004 + gateway)
 ```
 
 ## Observability Hooks
@@ -157,4 +170,4 @@ User Browser --> Flask/HTMX (5000) --> Services --> DB (SQLite/Postgres)
 See [Observability](OBSERVABILITY.md) for log streams, health endpoints, and metrics fragments. Key endpoints: `/health`, `/system/health`, `/analyzer/status`.
 
 ---
-_Last updated: 2025-08-24._ 
+_Last updated: 2025-09-03._ 

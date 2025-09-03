@@ -93,15 +93,7 @@ def remap_template(name: str) -> str:
         if (_templates_root() / candidate).exists():
             return candidate
 
-    # Heuristic 4: analyzer services + dashboard stats relocated to ui/elements/dashboard
-    if name.startswith('partials/dashboard/analyzer_services'):
-        candidate = 'ui/elements/dashboard/analyzer_services.html'
-        if (_templates_root() / candidate).exists():
-            return candidate
-    if name.startswith('partials/dashboard/_dashboard_stats_inner'):
-        candidate = 'ui/elements/dashboard/_dashboard_stats_inner.html'
-        if (_templates_root() / candidate).exists():
-            return candidate
+    # Heuristic 4 removed: dashboard analyzer services/stat cards templates deleted.
 
     # Heuristic 5: comparison matrix moved under pages/models/partials
     if name.startswith('partials/models/comparison_matrix'):
@@ -109,11 +101,7 @@ def remap_template(name: str) -> str:
         if (_templates_root() / candidate).exists():
             return candidate
 
-    # Heuristic 6: active_tasks list partial moved to pages/analysis/partials
-    if name.startswith('partials/analysis/list/active_tasks'):
-        candidate = 'pages/analysis/partials/active_tasks.html'
-        if (_templates_root() / candidate).exists():
-            return candidate
+    # Heuristic 6 removed: active_tasks partial deprecated and removed.
 
     # Heuristic 7: reports index may still reside under app/templates/pages/reports
     if name == 'pages/reports/index.html':
