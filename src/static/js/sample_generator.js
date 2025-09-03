@@ -455,16 +455,21 @@
         /**
          * Load models from API
          */
-        async loadModels() {
+        async loadModels(detail = true) {
             try {
-                const response = await this.get('/models');
+                const response = await this.get(`/models${detail ? '?detail=1&mode=all' : ''}`);
                 let rawModels = response.data || response.models || [];
                 this.models = Array.isArray(rawModels) ? rawModels.map(m => {
-                    // Normalize simple list of strings to objects if backend returns just list
                     if (typeof m === 'string') {
-                        return { name: m, provider: (m.split('/')[0] || 'unknown') };
+                        return { name: m, provider: (m.split('/')[0] || 'unknown'), is_free: m.endsWith(':free') };
                     }
-                    return m;
+                    // Ensure expected shape
+                    return {
+                        name: m.name,
+                        provider: m.provider || (m.name.split('/')[0] || 'unknown'),
+                        is_free: !!m.is_free,
+                        capabilities: m.capabilities || []
+                    };
                 }) : [];
                 this.updateModelSelect();
                 this.updateBatchModels();
@@ -503,7 +508,9 @@
             this.models.forEach(model => {
                 const option = document.createElement('option');
                 option.value = model.name;
-                option.textContent = `${model.name} (${model.provider || 'Unknown'})`;
+                const freeBadge = model.is_free ? ' [FREE]' : '';
+                option.textContent = `${model.name}${freeBadge} (${model.provider || 'Unknown'})`;
+                if (model.is_free) option.classList.add('text-success');
                 select.appendChild(option);
             });
         }
@@ -609,7 +616,7 @@
                     <div class="form-check">
                         <input class="form-check-input model-checkbox" type="checkbox" value="${model.name}" id="model-${model.name}">
                         <label class="form-check-label" for="model-${model.name}">
-                            ${model.name}
+                            ${model.name} ${model.is_free ? '<span class="badge bg-success ms-1">FREE</span>' : ''}
                         </label>
                     </div>
                 `;

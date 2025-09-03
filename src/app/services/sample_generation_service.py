@@ -156,7 +156,18 @@ class GenerationResult:
     attempts: int = 1
     duration: float = 0.0
 
-    def to_dict(self, include_content: bool = True) -> Dict[str, Any]:
+    # Extended stats (populated for real API calls; mock path leaves zeros)
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    # Cost estimation (optional future use)
+    estimated_cost: float = 0.0
+    # Network / retries timing granularity (first token latency etc.)
+    first_attempt_started: Optional[float] = None
+    first_token_latency: Optional[float] = None
+    finish_reason: Optional[str] = None
+
+    def to_dict(self, include_content: bool = True, meta_only: bool = False) -> Dict[str, Any]:
         data = {
             "app_num": self.app_num,
             "app_name": self.app_name,
@@ -167,6 +178,11 @@ class GenerationResult:
             "error_message": self.error_message,
             "attempts": self.attempts,
             "duration": self.duration,
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "total_tokens": self.total_tokens,
+            "estimated_cost": self.estimated_cost,
+            "finish_reason": self.finish_reason,
             "extracted_blocks": [
                 {
                     "language": b.language,
@@ -174,10 +190,11 @@ class GenerationResult:
                     "line_count": b.line_count,
                     "checksum": b.checksum,
                     "backend_port": b.backend_port,
+                    "port_replacements": b.port_replacements,
                 } for b in self.extracted_blocks
             ],
         }
-        if include_content:
+        if include_content and not meta_only:
             data["content"] = self.content
         return data
 
@@ -455,9 +472,15 @@ class CodeGenerator:
                     async with session.post(self.api_url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=self.timeout)) as resp:
                         if resp.status == 200:
                             data = await resp.json()
-                            content = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                            choice = (data.get("choices") or [{}])[0]
+                            content = choice.get("message", {}).get("content", "").strip()
+                            finish_reason = choice.get("finish_reason") or choice.get("finishReason")
+                            usage = data.get("usage") or {}
+                            prompt_tokens = usage.get("prompt_tokens") or usage.get("promptTokens") or 0
+                            completion_tokens = usage.get("completion_tokens") or usage.get("completionTokens") or 0
+                            total_tokens = usage.get("total_tokens") or usage.get("totalTokens") or (prompt_tokens + completion_tokens)
                             if content:
-                                return GenerationResult(
+                                gr = GenerationResult(
                                     app_num=template.app_num,
                                     app_name=template.name,
                                     model=model,
@@ -467,6 +490,11 @@ class CodeGenerator:
                                     attempts=attempt + 1,
                                     duration=time.time() - start_time,
                                 )
+                                gr.prompt_tokens = int(prompt_tokens or 0)
+                                gr.completion_tokens = int(completion_tokens or 0)
+                                gr.total_tokens = int(total_tokens or 0)
+                                gr.finish_reason = finish_reason
+                                return gr
                         elif resp.status == 429:
                             await asyncio.sleep(30 * (attempt + 1))
                             continue
@@ -537,8 +565,64 @@ class CodeExtractor:
             file_type = self._identify_file_type(code, language)
             block = CodeBlock(language=language, code=code, file_type=file_type, model_info=model_info, app_num=app_num)
             block.backend_port = self.port_allocator.get_port(model_info.standardized_name, app_num)
+            # Apply port replacement (parity with standalone tool expectation)
+            # This replaces common hard-coded dev ports (5000, 8000, 3000) with the allocated backend port
+            # ONLY for backend/app server style files (heuristic: python/requirements/dockerfile etc.)
+            try:
+                self._apply_port_replacement(block)
+            except Exception as e:  # noqa: BLE001
+                logger.debug("Port replacement skipped due to error: %s", e)
             blocks.append(block)
         return blocks
+
+    # ---------------- Port Replacement ----------------
+    def _apply_port_replacement(self, block: CodeBlock) -> None:
+        """Replace hard-coded port literals in backend code with allocated backend_port.
+
+        Strategy:
+        - Target only code that looks like an app server invocation (Flask, FastAPI, Uvicorn, Node-like listen)
+        - Find patterns specifying a port (common dev defaults: 5000, 8000, 3000, 8080)
+        - Replace numeric literal with block.backend_port; record mapping in block.port_replacements
+        - Avoid replacing numbers that are clearly not ports (e.g., timeouts < 1000, array indices)
+        """
+        if not block.backend_port or not block.code:
+            return
+        # Only attempt for languages where we expect inline run statements
+        if block.language not in {"python", "javascript", "typescript", "bash", "sh", "shell"}:
+            return
+        original_code = block.code
+        new_code = original_code
+        replacements: dict[str, str] = {}
+        port_literal_pattern = re.compile(r"(?P<prefix>(?:port\s*=\s*|:\s*|listen\(\s*))(?P<port>(?:5000|8000|3000|8080))\b")
+        # Specific framework patterns (Flask/FastAPI/Uvicorn)
+        run_call_pattern = re.compile(r"app\.run\((?P<args>[^)]*)\)")
+    # (Reserved for future advanced uvicorn pattern handling)
+        # Replace generic literals first
+        def _generic_sub(m: re.Match) -> str:  # type: ignore[name-defined]
+            port = m.group('port')
+            if port not in replacements:
+                replacements[port] = str(block.backend_port)
+            return f"{m.group('prefix')}{block.backend_port}"
+        new_code = port_literal_pattern.sub(_generic_sub, new_code)
+        # Handle app.run without explicit port but default usage
+        # If app.run() present without port kwarg, append one
+        def _augment_flask(match: re.Match) -> str:  # type: ignore[name-defined]
+            args = match.group('args')
+            if 'port=' in args:
+                return match.group(0)  # Already handled by generic substitution above
+            # Insert port argument before closing
+            prefix = 'app.run('
+            trimmed = args.strip()
+            if trimmed:
+                return f"{prefix}{args}, port={block.backend_port})"
+            return f"{prefix}port={block.backend_port})"
+        new_code = run_call_pattern.sub(_augment_flask, new_code)
+        # Uvicorn style may already have been replaced by generic pattern; no special handling beyond that
+        # Only commit if changed
+        if new_code != original_code:
+            block.code = new_code
+            for old, new in replacements.items():
+                block.port_replacements[old] = new
 
     def _extract_code_blocks_robust(self, content: str) -> List[Tuple[str, str]]:
         """Extract code blocks with better handling of nested backticks and edge cases."""

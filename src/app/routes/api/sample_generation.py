@@ -48,6 +48,7 @@ def list_models():
     try:
         mode = request.args.get('mode', 'scaffolded').lower()
         force_sync = request.args.get('sync', '0').lower() in ('1', 'true', 'yes')
+        detail = request.args.get('detail', '0').lower() in ('1', 'true', 'yes')
         # Prefer database-backed list of models that have scaffolded applications
         model_slugs: list[str] = []
         try:
@@ -104,11 +105,35 @@ def list_models():
         registry_models = _svc().model_registry.get_available_models()
         if mode != 'scaffolded':  # union of all known models
             union = sorted(set(model_slugs) | set(registry_models))
+            if detail:
+                detailed = []
+                reg = _svc().model_registry
+                for slug in union:
+                    info = reg.get_model_info(slug)
+                    detailed.append({
+                        'name': slug,
+                        'provider': info.provider,
+                        'is_free': info.is_free or slug.endswith(':free'),
+                        'capabilities': sorted(list(info.capabilities)),
+                    })
+                return create_success_response(detailed, message="All models (detailed)")
             return create_success_response(union, message="All models (scaffolded + available)")
         # Final fallback to legacy in-memory registry if still empty (so UI not empty)
         if not model_slugs:
             model_slugs = registry_models
         model_slugs = sorted(set(model_slugs))
+        if detail:
+            detailed = []
+            reg = _svc().model_registry
+            for slug in model_slugs:
+                info = reg.get_model_info(slug)
+                detailed.append({
+                    'name': slug,
+                    'provider': info.provider,
+                    'is_free': info.is_free or slug.endswith(':free'),
+                    'capabilities': sorted(list(info.capabilities)),
+                })
+            return create_success_response(detailed, message="Scaffolded models fetched (detailed)")
         return create_success_response(model_slugs, message="Scaffolded models fetched")
     except Exception as e:
         current_app.logger.exception("Failed listing models")
@@ -275,6 +300,23 @@ def get_result(result_id: str):
         return create_success_response(res, message="Result fetched")
     except Exception as e:  # noqa: BLE001
         current_app.logger.exception("Failed retrieving result")
+        return create_error_response(str(e), 500)
+
+@sample_gen_bp.route('/results/<result_id>/meta', methods=['GET'])
+def get_result_metadata(result_id: str):
+    """Return metadata for a generation result without full content payload.
+
+    Includes timing, token usage, attempts, block summaries, and port replacement info.
+    """
+    try:
+        res = _svc().get_result(result_id, include_content=False)
+        if not res:
+            return create_error_response("Result not found", 404)
+        # Ensure meta shape stable (no raw content even if backend included by mistake)
+        res.pop('content', None)
+        return create_success_response(res, message="Result metadata fetched")
+    except Exception as e:  # noqa: BLE001
+        current_app.logger.exception("Failed retrieving result metadata")
         return create_error_response(str(e), 500)
 
 

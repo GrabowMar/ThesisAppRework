@@ -5,8 +5,8 @@ const App = () => {
   const [message, setMessage] = useState('Loading...');
 
   useEffect(() => {
-    // Fetch the message from the backend server running on port {backend_port}
-    fetch('http://localhost:{backend_port}')
+    // Fetch the message from the backend server running on port {{backend_port}}
+    fetch('http://localhost:{{backend_port}}')
       .then((response) => {
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
