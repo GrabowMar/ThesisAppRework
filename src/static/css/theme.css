@@ -1,16 +1,16 @@
-/* Theme & Layout Styles extracted from templates */
+/* Sidebar Theme Styles (extracted & pared down) */
 
-/* Root variables */
+/* Root variables needed for sidebar & layout offsets */
 :root {
 	--sidebar-width: 240px;
 	--sidebar-collapsed-width: 68px;
-	--header-height: 60px;
+	--header-height: 60px; /* restored for wrapper/header spacing */
 	--sidebar-transition: width 0.3s ease, margin 0.3s ease;
 	--sidebar-icon-offset: 0.9rem;
 	--sidebar-icon-size: 20px;
 }
 
-/* Header */
+/* Header that horizontally shifts with sidebar state */
 .navbar.navbar-expand-md {
 	position: fixed;
 	top: 0;
@@ -19,14 +19,14 @@
 	z-index: 1010;
 	height: var(--header-height);
 	background: #fff;
-	border-bottom: 1px solid var(--tbl-border-color, #e6e7e9);
+	border-bottom: 1px solid var(--tbl-border-color, #e6e7e9, #e6e7e9);
 	transition: left 0.3s ease;
 	margin: 0;
 	border-left: none;
 }
 body.sidebar-collapsed .navbar.navbar-expand-md { left: var(--sidebar-collapsed-width); }
 
-/* Wrapper / footer offsets */
+/* Content wrapper & footer offset to accommodate sidebar */
 .page-wrapper {
 	margin-left: var(--sidebar-width);
 	margin-top: var(--header-height);
@@ -42,22 +42,29 @@ footer.footer {
 }
 body.sidebar-collapsed footer.footer { margin-left: var(--sidebar-collapsed-width); }
 
-/* Sidebar */
+/* ------------------ Sidebar Base ------------------ */
 .sidebar { position: fixed; top:0; left:0; z-index:1000; height:100vh; width:var(--sidebar-width); background:#212529 !important; border-right:1px solid #495057; box-shadow:2px 0 4px rgba(0,0,0,0.1); transition: var(--sidebar-transition); overflow:hidden; }
 .sidebar.collapsed { width: var(--sidebar-collapsed-width); }
 .sidebar-content { height:100%; }
-.sidebar-brand { border-bottom:1px solid #495057 !important; transition:background-color .15s ease; padding:1rem !important; display:flex; align-items:center; justify-content:space-between; }
+
+/* Brand / header area */
+.sidebar-brand { border-bottom:1px solid #495057 !important; transition:background-color .15s ease; padding:1rem !important; display:flex; align-items:center; justify-content:space-between; padding-left:var(--sidebar-icon-offset) !important; }
 .sidebar-brand:hover { background:rgba(255,255,255,0.05); }
 .sidebar-brand a { color:#fff !important; text-decoration:none; display:flex; align-items:center; min-width:0; }
 .sidebar-brand a:hover { color:#fff !important; }
+.sidebar.collapsed .sidebar-brand { justify-content:center; padding-left:0 !important; }
+.sidebar.collapsed .sidebar-brand .sidebar-text { display:none; }
 
+/* Toggle button (desktop) */
 .sidebar-toggle-btn { color:#adb5bd !important; border:none !important; background:none !important; padding:.25rem !important; border-radius:.25rem; transition:all .15s ease; opacity:.8; }
 .sidebar-toggle-btn:hover { color:#fff !important; background:rgba(255,255,255,0.1) !important; opacity:1; }
 .sidebar-toggle-btn:focus { outline:2px solid #0d6efd; outline-offset:2px; }
 
+/* Text visibility when collapsed */
 .sidebar-text { opacity:1; transition:opacity .2s ease .1s; white-space:nowrap; overflow:hidden; }
 .sidebar.collapsed .sidebar-text { opacity:0; transition:opacity .1s ease; }
 
+/* Navigation items */
 .sidebar-nav { padding-left:1rem !important; padding-right:1rem !important; }
 .sidebar-nav .nav-link { color:#adb5bd; padding:.625rem 1rem .625rem var(--sidebar-icon-offset); border-radius:.375rem; margin-bottom:.125rem; transition:all .15s ease-in-out; font-size:.95rem; font-weight:500; position:relative; display:flex; align-items:center; min-width:0; }
 .sidebar-nav .nav-link:hover { background:#495057; color:#fff; transform:translateX(2px); }
@@ -65,140 +72,49 @@ body.sidebar-collapsed footer.footer { margin-left: var(--sidebar-collapsed-widt
 .sidebar-nav .nav-link:focus { outline:2px solid #0d6efd; outline-offset:2px; background:#495057; color:#fff; }
 .sidebar-nav .nav-link.active { background:#0d6efd; color:#fff; box-shadow:0 2px 4px rgba(13,110,253,.3); }
 
+/* Icons */
 .sidebar-nav .nav-icon { flex-shrink:0; width:var(--sidebar-icon-size); text-align:left; margin-right:.75rem !important; }
 .sidebar.collapsed .nav-link { justify-content:center; padding-left:0; padding-right:0; }
 .sidebar.collapsed .nav-icon { margin-right:0 !important; text-align:center; }
 .sidebar.collapsed .nav-link .sidebar-text { display:none; }
-.sidebar-brand { padding-left:var(--sidebar-icon-offset) !important; }
-.sidebar.collapsed .sidebar-brand { justify-content:center; padding-left:0 !important; }
-.sidebar.collapsed .sidebar-brand .sidebar-text { display:none; }
 
+/* Footer section */
 .sidebar-footer { border-top:1px solid #495057 !important; margin-top:auto; background:rgba(0,0,0,0.2); }
 .sidebar.collapsed .sidebar-footer .d-flex:last-child { display:none !important; }
 .sidebar.collapsed .sidebar-footer .d-flex:first-child { justify-content:center !important; }
 
+/* Status dots */
 .status-indicator { border-radius:50%; display:inline-block; }
 .status-indicator-animated { animation:pulse 2s infinite; }
 @keyframes pulse { 0%{opacity:1;}50%{opacity:.5;}100%{opacity:1;} }
 
-/* Tooltip for collapsed */
+/* Tooltip on hover when collapsed */
 .sidebar.collapsed .nav-link { position:relative; }
 .sidebar.collapsed .nav-link::after { content:attr(title); position:absolute; left:calc(100% + 10px); top:50%; transform:translateY(-50%); background:#333; color:#fff; padding:.375rem .75rem; border-radius:.375rem; font-size:.875rem; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .2s ease; z-index:1001; box-shadow:0 2px 8px rgba(0,0,0,0.15); }
 .sidebar.collapsed .nav-link:hover::after { opacity:1; }
 
-/* Mobile overrides */
+/* ------------------ Mobile Behavior ------------------ */
 @media (max-width: 991.98px) {
-	.navbar.navbar-expand-md { left:0; right:0; }
-	.page-wrapper { margin-left:0; }
-	footer.footer { margin-left:0; }
 	.sidebar { transform:translateX(-100%); transition:transform .2s ease; width:var(--sidebar-width) !important; }
 	.sidebar.show { transform:translateX(0); }
 	.sidebar.collapsed { width:var(--sidebar-width) !important; }
 	.sidebar.collapsed .sidebar-text { opacity:1; }
-	.page-wrapper { margin-left:0; }
 	.sidebar-toggle-mobile { position:fixed; top:1rem; left:1rem; z-index:1050; background:#212529; border:1px solid #495057; color:#fff; padding:.5rem; border-radius:.375rem; cursor:pointer; }
 	.sidebar-toggle-mobile:hover { background:#495057; }
 	.sidebar-toggle-btn { display:none; }
 }
 @media (min-width: 992px) { .sidebar-toggle-mobile { display:none !important; } }
 
-/* Offcanvas (mobile separate) */
+/* Offcanvas variant (if used for mobile) */
 .offcanvas-start { width:260px; }
 .offcanvas-body { overflow-y:auto; }
 .offcanvas-body .nav-link { padding:.75rem 1rem; display:flex; align-items:center; }
 .offcanvas-body .nav-link:hover { background:rgba(255,255,255,0.1); border-radius:.375rem; }
 
-/* Mobile burger button */
+/* Burger trigger */
 #mobile-burger { line-height:1; display:inline-flex; align-items:center; justify-content:center; }
 #mobile-burger:focus { outline:2px solid #0d6efd; outline-offset:2px; }
 @media (min-width: 992px){ #mobile-burger { display:none !important; } }
 
-/* ------------------------------------------------------------
-	Sample Generator – Subtle Enhancements
-	(All styles additive & scoped to existing markup; safe to remove)
-	------------------------------------------------------------ */
-
-/* Stat cards (status counters) */
-.statcard { background:linear-gradient(180deg,#f8f9fa,#f1f3f5); border:1px solid #e1e5ea; border-radius:.75rem; padding:.75rem 1rem; box-shadow:0 1px 2px rgba(0,0,0,.04); transition:box-shadow .2s ease, transform .2s ease; }
-.statcard:hover { box-shadow:0 4px 10px -2px rgba(0,0,0,.12); transform:translateY(-2px); }
-.statcard .h1 { font-size:1.9rem; line-height:1.1; }
-
-/* Main tab navigation inside Sample Generator card */
-#main-tabs .nav-link { position:relative; transition:color .15s ease, background-color .15s ease; }
-#main-tabs .nav-link:not(.active):hover { background:rgba(13,110,253,.08); }
-#main-tabs .nav-link.active { background:linear-gradient(135deg,#0d6efd,#3b82f6); color:#fff; box-shadow:0 2px 4px rgba(13,110,253,.3); }
-#main-tabs .nav-link.active::after { content:""; position:absolute; left:12px; right:12px; bottom:4px; height:3px; border-radius:2px; background:rgba(255,255,255,.85); }
-
-/* Table polish (hover + sticky header for large scrolling areas) */
-#recent-generations-table tbody tr:hover,
-#results-table tbody tr:hover { background:#f5f9ff; }
-#recent-generations-table thead th,
-#results-table thead th { position:sticky; top:0; background:#fff; z-index:1; box-shadow:0 1px 0 #e6e7e9; }
-
-/* Result count badge emphasis */
-#results-count { font-weight:500; letter-spacing:.5px; }
-
-/* Code block (generated content) */
-pre.code { background:#0f172a; color:#e2e8f0; font-size:.85rem; border-radius:.5rem; padding:1rem; border:1px solid #1e293b; }
-pre.code code { color:inherit; }
-pre.code::-webkit-scrollbar { height:8px; width:8px; }
-pre.code::-webkit-scrollbar-thumb { background:#334155; border-radius:4px; }
-pre.code::-webkit-scrollbar-thumb:hover { background:#475569; }
-
-/* Animated progress bar (generation modal) */
-#generation-progress-bar { background:linear-gradient(90deg,#0d6efd,#3b82f6,#0d6efd); background-size:200% 100%; animation:progress-move 2s linear infinite; }
-@keyframes progress-move { 0% { background-position:0 0; } 100% { background-position:-200% 0; } }
-
-/* Card action buttons subtle spacing */
-.card-header .card-actions .btn { margin-left:.25rem; }
-
-/* Form hint (if not already styled) */
-.form-hint { font-size:.75rem; color:#6c757d; }
-
-/* Slight shadow separation for nested cards within modals */
-.modal .card { box-shadow:0 2px 6px rgba(0,0,0,.08); }
-
-/* Ensure card headers remain clean white (overrides theme variants) */
-.page-body .card-header { background:#fff; }
-
-/* End Sample Generator enhancements */
-
-/* ------------------------------------------------------------
-	Sample Generator – Consistency Pass
-	------------------------------------------------------------ */
-/* Harmonize card title hierarchy inside sample generator tabs */
-#generation .card-title,#templates .card-title,#results .card-title,#batch .card-title,#management .card-title,#scaffolding .card-title { font-weight:600; letter-spacing:.25px; }
-
-/* Inline code appearance inside explanatory text */
-#scaffolding code, #templates-list code, #generation code, #batch code, #results code, #management code { background:#f1f3f5; padding:2px 6px; border-radius:4px; font-size:.75rem; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
-
-/* Uniform small form hint spacing */
-form .form-hint, .form-hint { margin-top:.25rem; display:block; }
-
-/* Log / pre blocks standardization */
-#task-logs-content,#scaffold-log { background:#0f172a !important; color:#e2e8f0 !important; border-radius:.5rem; border:1px solid #1e293b; font-size:.75rem; line-height:1.35; }
-
-/* Progress bars inside batch / tasks */
-#batch-progress-bar,#task-detail-progress-bar,#export-progress-bar { background:linear-gradient(90deg,#0d6efd,#3b82f6,#0d6efd); background-size:200% 100%; animation:progress-move 2.4s linear infinite; }
-
-/* Badges slight rounding & weight */
-#selected-templates-count,#selected-models-count,#results-count,#batch-status { border-radius:1rem; font-weight:500; }
-
-/* Disabled primary buttons clarity */
-button.btn-primary:disabled, .btn.btn-primary:disabled { background:#6ea8fe; border-color:#6ea8fe; opacity:.65; }
-
-/* List group in batch preview modal */
-#batch-preview-modal .list-group { max-height:260px; overflow:auto; }
-#batch-preview-modal .list-group-item { font-size:.8125rem; }
-
-/* Table cell vertical alignment */
-#results-table td,#recent-generations-table td,#active-tasks-table td,#system-logs-table td,#scaffold-models-table td { vertical-align:middle; }
-
-/* Subtle hover for action rows */
-#system-logs-table tbody tr:hover { background:#f8f9fa; }
-
-/* Footer buttons spacing in modals */
-.modal-footer .btn + .btn { margin-left:.5rem; }
-
-/* End Sample Generator Consistency */
+/* End Sidebar Styles */
 

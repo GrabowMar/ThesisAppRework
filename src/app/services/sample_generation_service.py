@@ -783,6 +783,9 @@ class SampleGenerationService:
             GENERATED_ROOT,
             code_templates_dir=CODE_TEMPLATES_DIR
         )
+        # Feature flag: optionally persist full raw markdown output
+        # Default OFF to reduce clutter / disk usage; enable with SAMPLE_GEN_SAVE_MARKDOWN=1
+        self._save_markdown = os.getenv('SAMPLE_GEN_SAVE_MARKDOWN', '0').lower() in {'1', 'true', 'yes', 'on'}
         # In-memory results store: id -> GenerationResult
         self._results: Dict[str, GenerationResult] = {}
         self._last_api_key_check = 0.0
@@ -970,10 +973,12 @@ class SampleGenerationService:
                 
                 blocks = self.extractor.extract(result.content, model_info, result.app_num)
                 result.extracted_blocks = blocks
-                # Persist blocks and markdown
+                # Persist blocks
                 for b in blocks:
                     self.organizer.save_block(b, model)
-                self.organizer.save_markdown(result)
+                # Optionally persist raw markdown (disabled by default)
+                if self._save_markdown:
+                    self.organizer.save_markdown(result)
                 # --- Automatic model/application DB sync (filesystem -> DB) ---
                 # After saving generated artifacts, ensure a corresponding ModelCapability & GeneratedApplication
                 # row exist so the /models UI immediately reflects the new generation without manual sync.

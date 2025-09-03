@@ -27,16 +27,27 @@ The service uses `aiohttp` for async HTTP calls. Ensure the dependency is instal
 pip install aiohttp>=3.9.0
 ```
 
-Generated files are written under the `generated/` directory (created automatically) using the layout:
+Generated files are written under the `generated/` directory (created automatically). By default ONLY extracted code files are persisted (raw markdown output is now disabled to reduce noise and disk usage). To also keep the full raw model output set an environment variable `SAMPLE_GEN_SAVE_MARKDOWN=1` before starting the app.
 
+Default layout (markdown saving OFF):
 ```
 generated/
-  <model_name_sanitized>/
-    app<app_num>/
-      <files extracted from markdown blocks>
+  apps/
+    <model_name_sanitized>/
+      app<app_num>/
+        backend/ (if applicable)
+        frontend/ (if applicable)
+        docker-compose.yml (if generated)
+```
+
+If `SAMPLE_GEN_SAVE_MARKDOWN=1` is set:
+```
+generated/
+  apps/
+    <model_name_sanitized>/app<app_num>/...
   markdown/
     <model_name_sanitized>/
-      app_<num>_<name>.md  # raw model output
+      app_<num>_<name>.md  # raw model output (same content returned via result API)
 ```
 
 ## Base URL

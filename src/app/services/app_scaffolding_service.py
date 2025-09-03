@@ -33,7 +33,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from app.paths import CODE_TEMPLATES_DIR
+from app.paths import CODE_TEMPLATES_DIR, GENERATED_APPS_DIR
 from typing import Dict, List, Tuple, Optional, Any
 import os
 import json
@@ -47,7 +47,8 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 class ScaffoldConfig:
-    MODELS_DIR = Path("models")
+    # Output directory now unified under generated/apps (no writing into legacy top-level models/)
+    MODELS_DIR = GENERATED_APPS_DIR  # kept attribute name for minimal downstream change
     LOGS_DIR = "_logs"
     TEMPLATES_DIR = CODE_TEMPLATES_DIR
     BASE_BACKEND_PORT = 5001
@@ -114,7 +115,10 @@ class GenerationResult:
 class AppScaffoldingService:
     def __init__(self, base_path: Optional[Path] = None):
         self.base_path = Path(base_path or os.getcwd())
-        self.models_dir = self.base_path / ScaffoldConfig.MODELS_DIR
+        # If MODELS_DIR is absolute (Path inside src/generated/apps) use as-is; else join to base_path.
+        self.models_dir = (ScaffoldConfig.MODELS_DIR
+                           if isinstance(ScaffoldConfig.MODELS_DIR, Path) and ScaffoldConfig.MODELS_DIR.is_absolute()
+                           else (self.base_path / ScaffoldConfig.MODELS_DIR))
         self.templates_dir = self.base_path / ScaffoldConfig.TEMPLATES_DIR
         if not self.templates_dir.exists():
             logger.warning("Code templates directory not found at %s", self.templates_dir)
@@ -270,7 +274,13 @@ class AppScaffoldingService:
         Example: {{model_name}}, {{backend_port}}. Extra unknown placeholders are left as-is.
         """
         for k, v in substitutions.items():
+            # Double-brace style
             content = content.replace(f"{{{{{k}}}}}", str(v))
+        # Additionally support single-brace placeholders like {port} (opt-in for known keys only)
+        for k, v in substitutions.items():
+            token = f"{{{k}}}"
+            if token in content:
+                content = content.replace(token, str(v))
         return content
 
     def _read_template(self, rel_path: str) -> Optional[str]:
@@ -367,9 +377,38 @@ class AppScaffoldingService:
                 })
         ports_path = self.base_path / 'src' / 'misc' / 'port_config.json'
         ports_path.parent.mkdir(parents=True, exist_ok=True)
-        ports_path.write_text(json.dumps(ports_config, indent=2), encoding='utf-8')
+        # Merge with existing if present, keyed by (model, app_number)
+        existing_ports: Dict[tuple, Dict[str, Any]] = {}
+        if ports_path.exists():
+            try:
+                data = json.loads(ports_path.read_text(encoding='utf-8'))
+                if isinstance(data, list):
+                    for item in data:
+                        try:
+                            key = (item.get('model'), item.get('app_number'))
+                            existing_ports[key] = item
+                        except Exception:  # noqa: BLE001
+                            continue
+            except Exception:  # noqa: BLE001
+                logger.warning("Failed reading existing port_config.json; rewriting fresh")
+        for entry in ports_config:
+            key = (entry['model'], entry['app_number'])
+            existing_ports[key] = entry  # overwrite/refresh with latest calculation
+        merged_ports = list(existing_ports.values())
+        merged_ports.sort(key=lambda x: (x.get('model'), x.get('app_number')))
+        ports_path.write_text(json.dumps(merged_ports, indent=2), encoding='utf-8')
+
         colors_path = self.base_path / 'src' / 'misc' / 'model_capabilities.json'
-        colors_path.write_text(json.dumps({"colors": colors}, indent=2), encoding='utf-8')
+        existing_colors: Dict[str, str] = {}
+        if colors_path.exists():
+            try:
+                cdata = json.loads(colors_path.read_text(encoding='utf-8'))
+                if isinstance(cdata, dict) and isinstance(cdata.get('colors'), dict):
+                    existing_colors.update({str(k): str(v) for k, v in cdata['colors'].items()})
+            except Exception:  # noqa: BLE001
+                logger.warning("Failed reading existing model_capabilities.json; rewriting fresh")
+        existing_colors.update(colors)  # new mappings override
+        colors_path.write_text(json.dumps({"colors": existing_colors}, indent=2), encoding='utf-8')
 
     # ----------------------------- Status ---------------------------------
     def status(self) -> Dict[str, Any]:
