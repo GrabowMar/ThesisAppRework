@@ -1,146 +1,24 @@
-{# Applications Page - merged legacy features with new layout #}
+{# Applications Page - simplified (avoid duplicate page/page-wrapper/container from base layout) #}
 {% extends 'layouts/base.html' %}
-{% block page_title %}Applications{% endblock %}
-{% block page_subtitle %}Manage generated applications, start/stop containers & analyze{% endblock %}
+{% block page_title %}{{ page_title or 'Applications' }}{% endblock %}
 {% block main %}
-  <div class="page-header d-print-none">
-    <div class="container-xl">
-      <div class="row g-2 align-items-center">
-        <div class="col">
-          <h2 class="page-title"><i class="fas fa-box me-2"></i>Applications</h2>
-          <div class="text-muted mt-1">Overview, lifecycle controls & generation</div>
-        </div>
-        <div class="col-auto ms-auto d-print-none">
-          <div class="btn-list">
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#generateAppModal"><i class="fas fa-plus me-1"></i>Generate</button>
-            <button class="btn btn-outline-secondary" id="refreshGridBtn"><i class="fas fa-rotate me-1"></i>Refresh</button>
-          </div>
-        </div>
+  <div class="page-header d-print-none mb-3">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <h2 class="page-title">Applications</h2>
+        <div class="text-muted mt-1">Manage your applications</div>
       </div>
     </div>
   </div>
 
-  <div class="page-body">
-    <div class="container-xl" id="applications-root">
-      <!-- Stats Cards -->
-      <div class="row row-cards mb-4">
-        <div class="col-sm-6 col-lg-3">
-          <div class="card"><div class="card-body"><div class="d-flex align-items-center"><div class="subheader">Total Applications</div><div class="ms-auto lh-1"><div class="text-muted small">Generated</div></div></div><div class="h1 mb-0">{{ stats.total_applications if stats else total_apps }}</div></div></div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-          <div class="card"><div class="card-body"><div class="d-flex align-items-center"><div class="subheader">Running</div><div class="ms-auto lh-1"><div class="text-success small">Active</div></div></div><div class="h1 mb-0 text-success">{{ stats.running_applications if stats else running_containers }}</div></div></div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-          <div class="card"><div class="card-body"><div class="d-flex align-items-center"><div class="subheader">Analyzed</div><div class="ms-auto lh-1"><div class="text-info small">Security</div></div></div><div class="h1 mb-0 text-info">{{ stats.analyzed_applications if stats else 0 }}</div></div></div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-          <div class="card"><div class="card-body"><div class="d-flex align-items-center"><div class="subheader">Models</div><div class="ms-auto lh-1"><div class="text-muted small">Available</div></div></div><div class="h1 mb-0">{{ stats.unique_models if stats else total_models }}</div></div></div>
-        </div>
-      </div>
-
-      <!-- Filters -->
-      <div class="card mb-4">
-        <div class="card-body">
-          <form id="appFilterForm" class="row g-3" method="GET" hx-get="/models/applications" hx-target="#applications-grid-wrapper" hx-select="#applications-grid-wrapper" hx-swap="outerHTML" hx-push-url="true">
-            <div class="col-md-4">
-              <label class="form-label">Model</label>
-              <select name="model" class="form-select">
-                <option value="">All Models</option>
-                {% for model in available_models %}
-                  <option value="{{ model.slug }}" {% if current_filters.model == model.slug %}selected{% endif %}>{{ model.display_name }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Provider</label>
-              <select name="provider" class="form-select">
-                <option value="">All Providers</option>
-                {% for provider in providers %}
-                  <option value="{{ provider }}" {% if current_filters.provider == provider %}selected{% endif %}>{{ provider|title }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label">Search</label>
-              <input type="text" class="form-control" name="search" placeholder="Search..." value="{{ current_filters.search or '' }}" />
-            </div>
-            <div class="col-md-2 d-flex align-items-end">
-              <div class="d-flex gap-2 w-100">
-                <button type="submit" class="btn btn-primary w-100"><i class="fas fa-filter me-1"></i>Filter</button>
-                <a href="/models/applications" class="btn btn-outline-secondary" title="Clear"><i class="fas fa-xmark"></i></a>
-              </div>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      <!-- Grid Wrapper -->
-      <div id="applications-grid-wrapper">
-        {% include 'pages/applications/partials/applications_grid.html' %}
-      </div>
-    </div>
-  </div>
-
-  <!-- Hidden refresher for HTMX triggered updates -->
-  <div id="grid-refresher"
-       hx-get="/models/applications"
-       hx-target="#applications-grid-wrapper"
-       hx-select="#applications-grid-wrapper"
-       hx-swap="outerHTML"
-       hx-trigger="refresh-grid from:#generateAppForm"
-       class="d-none"></div>
-
-  <!-- Generate Application Modal -->
-  <div class="modal modal-blur fade" id="generateAppModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Generate New Application</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <form id="generateAppForm" hx-post="/models/applications/generate" hx-target="#generateAppForm" hx-swap="innerHTML">
-          <div class="modal-body">
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label">Model</label>
-                <select name="model_slug" class="form-select" required>
-                  <option value="">Select Model</option>
-                  {% for model in available_models %}
-                    <option value="{{ model.slug }}">{{ model.display_name }}</option>
-                  {% endfor %}
-                </select>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label">App #</label>
-                <input type="number" name="app_number" class="form-control" min="1" max="30" required />
-              </div>
-              <div class="col-md-3">
-                <label class="form-label">Type</label>
-                <select name="app_type" class="form-select">
-                  <option value="web_app">Web App</option>
-                  <option value="api">API</option>
-                  <option value="microservice">Microservice</option>
-                  <option value="dashboard">Dashboard</option>
-                </select>
-              </div>
-              <div class="col-12">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" name="auto_start" id="autoStart" checked />
-                  <label class="form-check-label" for="autoStart">Auto-start after generation</label>
-                </div>
-              </div>
-            </div>
-            <div class="mt-3">
-              <button type="submit" class="btn btn-primary"><i class="fas fa-cog me-1"></i>Generate Application</button>
-            </div>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
+  {% if main_partial %}
+    {% include main_partial ignore missing %}
+  {% else %}
+    {% include 'pages/applications/partials/main.html' ignore missing %}
+  {% endif %}
 {% endblock %}
 
 {% block scripts %}
   {{ super() }}
-  <script src="/static/js/applications.js"></script>
+  {% include 'pages/applications/partials/scripts.html' ignore missing %}
 {% endblock %}

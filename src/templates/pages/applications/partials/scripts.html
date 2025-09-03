@@ -1,0 +1,14 @@
+<script src="/static/js/applications.js"></script>
+<script>
+function expandAll(){
+  document.querySelectorAll('#grid-section .collapse').forEach(c=>{if(!c.classList.contains('show')){new bootstrap.Collapse(c,{toggle:true});}});
+}
+function collapseAll(){
+  document.querySelectorAll('#grid-section .collapse.show').forEach(c=>{new bootstrap.Collapse(c,{toggle:true});});
+}
+function syncModel(modelSlug, target){
+  if(window.htmx){
+    htmx.ajax('POST', `/api/model/${modelSlug}/containers/sync-status?format=html`, {target: target});
+  }
+}
+</script>

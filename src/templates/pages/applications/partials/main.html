@@ -1,0 +1,171 @@
+{# Applications Main Content #}
+
+<div class="row g-3 mb-4">
+  <!-- Stats Cards -->
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="d-flex align-items-center">
+          <span class="avatar me-3 bg-primary text-white"><i class="fa-solid fa-box"></i></span>
+          <div>
+            <div class="fw-bold" id="stat-total-apps">{{ stats.total_applications if stats else total_apps }}</div>
+            <div class="text-muted small">Applications</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="d-flex align-items-center">
+          <span class="avatar me-3 bg-success text-white"><i class="fa-solid fa-play"></i></span>
+          <div>
+            <div class="fw-bold" id="stat-running">{{ stats.running_applications if stats else running_containers }}</div>
+            <div class="text-muted small">Running</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="d-flex align-items-center">
+          <span class="avatar me-3 bg-info text-white"><i class="fa-solid fa-screwdriver-wrench"></i></span>
+          <div>
+            <div class="fw-bold" id="stat-analyzed">{{ stats.analyzed_applications if stats else 0 }}</div>
+            <div class="text-muted small">Analyzed</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="d-flex align-items-center">
+          <span class="avatar me-3 bg-secondary text-white"><i class="fa-solid fa-cubes-stacked"></i></span>
+          <div>
+            <div class="fw-bold" id="stat-models">{{ stats.unique_models if stats else total_models }}</div>
+            <div class="text-muted small">Models</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters & Actions -->
+<div class="card mb-4">
+  <div class="card-body">
+  <form class="row g-3" id="filters-form" hx-get="/applications" hx-target=".page-body .container-xl" hx-push-url="true">
+      <div class="col-md-3">
+        <label class="form-label">Model</label>
+        <select class="form-select" name="model">
+          <option value="">All models</option>
+          {% for m in available_models %}
+          <option value="{{ m.slug }}" {% if current_filters.model==m.slug %}selected{% endif %}>{{ m.display_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Provider</label>
+        <select class="form-select" name="provider">
+          <option value="">All providers</option>
+          {% for p in providers %}
+          <option value="{{ p }}" {% if current_filters.provider==p %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Search</label>
+        <input type="text" class="form-control" name="search" placeholder="model name…" value="{{ current_filters.search }}" />
+      </div>
+      <div class="col-md-3 d-flex align-items-end gap-2">
+        <button class="btn btn-primary w-50" type="submit"><i class="fa-solid fa-filter me-1"></i>Apply</button>
+  <a class="btn btn-outline-secondary w-50" href="/applications"><i class="fa-solid fa-xmark me-1"></i>Reset</a>
+      </div>
+    </form>
+    <hr />
+    <div class="d-flex flex-wrap gap-2">
+      <button class="btn btn-outline-primary btn-sm" id="refreshGridBtn" type="button"><i class="fa-solid fa-rotate me-1"></i>Refresh</button>
+      <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#generateAppModal"><i class="fa-solid fa-plus me-1"></i>Generate App</button>
+      <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#bulkActionsModal"><i class="fa-solid fa-layer-group me-1"></i>Batch Ops</button>
+    </div>
+  </div>
+</div>
+
+<!-- Grid -->
+<div id="grid-section">
+  <div id="grid-refresher" hx-get="/applications" hx-select="#grid-section" hx-target="#grid-section" hx-trigger="refresh-grid from:body" hx-swap="outerHTML"></div>
+  {% include 'pages/applications/partials/grid.html' %}
+</div>
+
+<!-- Generate Application Modal -->
+<div class="modal fade" id="generateAppModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa-solid fa-plus me-2"></i>Generate Application</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+  <form id="generateAppForm" hx-post="/applications/generate" hx-target="#generateAppResult" hx-swap="innerHTML">
+          <div class="mb-3">
+            <label class="form-label">Model</label>
+            <select class="form-select" name="model_slug" required>
+              <option value="" disabled selected>Select model</option>
+              {% for m in available_models %}
+              <option value="{{ m.slug }}">{{ m.display_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Application Number</label>
+            <input type="number" name="app_number" class="form-control" min="1" max="30" required />
+            <div class="form-hint">Range 1 - 30 maps to prompt templates</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Type</label>
+            <select class="form-select" name="app_type">
+              <option value="web_app" selected>Web App</option>
+              <option value="api_service">API Service</option>
+              <option value="frontend_only">Frontend Only</option>
+            </select>
+          </div>
+          <div class="mb-3 form-check">
+            <input class="form-check-input" type="checkbox" id="autoStartChk" name="auto_start" />
+            <label class="form-check-label" for="autoStartChk">Auto-start container after generation</label>
+          </div>
+          <div id="generateAppResult" class="small"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="submit" form="generateAppForm" class="btn btn-primary"><i class="fa-solid fa-hammer me-1"></i>Generate</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Actions Modal (placeholder) -->
+<div class="modal fade" id="bulkActionsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa-solid fa-layer-group me-2"></i>Batch Operations</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Launch analyses or container operations across multiple models.</p>
+        <div id="bulkActionsContent" hx-get="/models/model_actions" hx-trigger="revealed" hx-target="#bulkActionsContent" class="text-center py-4">
+          <div class="text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading…</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>

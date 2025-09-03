@@ -209,9 +209,8 @@ def model_more_info(model_slug):
         current_app.logger.error(f"Error loading more info for {model_slug}: {e}")
         return f'<div class="alert alert-danger">Error: {str(e)}</div>'
 
-@models_bp.route('/applications')
-def applications():
-    """Applications overview page with grid layout and container management."""
+def _render_applications_page():
+    """Core implementation for applications overview (shared by legacy and new routes)."""
     try:
         # Build port map from database
         port_map = {}
@@ -361,6 +360,15 @@ def applications():
             running_containers=0, stopped_containers=0,
             current_filters={}, providers=[], error=str(e)
         )
+
+@models_bp.route('/applications')
+def applications():  # legacy path
+    """Redirect old /models/applications to new /applications path for cleaner URL while preserving compatibility."""
+    from flask import redirect, url_for, request
+    # Preserve query string parameters
+    qs = request.query_string.decode()
+    target = url_for('main.applications_index') + (f'?{qs}' if qs else '')
+    return redirect(target, code=302)
 
 @models_bp.route('/application/<model_slug>/<int:app_number>')
 def application_detail(model_slug, app_number):

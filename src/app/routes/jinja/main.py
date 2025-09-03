@@ -142,3 +142,32 @@ def testing():
 def models_overview():
     """Redirect to models overview page."""
     return redirect(url_for('models.models_overview'))
+
+@main_bp.route('/applications')
+def applications_index():
+    """Primary Applications page (clean URL). Delegates to legacy models blueprint implementation."""
+    try:
+        # Local import to avoid circular references at module import time
+        from app.routes.jinja.models import applications as models_applications  # type: ignore
+        return models_applications()
+    except Exception as e:  # pragma: no cover - defensive
+        current_app.logger.error(f"Error loading applications page: {e}")
+        flash('Error loading applications page', 'error')
+        return render_template(
+            'pages/errors/errors_main.html',
+            error=str(e),
+            page_title='Applications Error'
+        ), 500
+
+@main_bp.route('/applications/generate', methods=['POST'])
+def applications_generate():
+    """Delegate application generation to existing models blueprint route for cleaner URL."""
+    try:
+        from app.routes.jinja.models import generate_application  # type: ignore
+        return generate_application()
+    except Exception as e:  # pragma: no cover - defensive
+        current_app.logger.error(f"Error generating application via /applications/generate: {e}")
+        return (
+            '<div class="alert alert-danger">Error generating application.</div>',
+            500,
+        )
