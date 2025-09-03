@@ -11,6 +11,11 @@ from pathlib import Path
 import re
 from typing import Dict, Any, Optional, Union
 
+try:  # Import path constants; keep optional to avoid circular issues in early migrations
+    from app.paths import GENERATED_APPS_DIR
+except Exception:  # pragma: no cover - fallback if paths not ready
+    GENERATED_APPS_DIR = Path(__file__).resolve().parents[3] / 'generated' / 'apps'
+
 logger = logging.getLogger(__name__)
 
 
@@ -244,8 +249,40 @@ def _resolve_model_directory(model_slug: str, base_path: Optional[Path] = None) 
 
 
 def get_app_directory(model_slug: str, app_number: int, base_path: Optional[Path] = None) -> Path:
-    """Get the directory path for a specific app, resolving slug variations robustly."""
-    model_dir = _resolve_model_directory(model_slug, base_path or (Path(__file__).parent.parent.parent.parent / "misc" / "models"))
+    """Return path to generated app directory.
+
+    Resolution order (non‑destructive, backwards compatible):
+      1. New unified path: generated/apps/<model_slug>/appN
+      2. Legacy misc/models path (older layout)
+      3. Fallback to resolved model directory heuristic (for unusual cases)
+    """
+    # 1) Prefer new generated/apps structure
+    try:
+        gen_model_dir = GENERATED_APPS_DIR / model_slug
+        if gen_model_dir.exists():
+            candidate = gen_model_dir / f"app{app_number}"
+            if candidate.exists():
+                return candidate
+            # Some generations used app_# pattern
+            alt = gen_model_dir / f"app_{app_number}"
+            if alt.exists():
+                return alt
+            # Even if not present, return canonical expected path for creation
+            return candidate
+    except Exception:
+        pass
+
+    # 2) Legacy misc/models path
+    legacy_base = _project_root_from_helpers() / "misc" / "models" / model_slug
+    legacy_candidate = legacy_base / f"app{app_number}"
+    if legacy_candidate.exists():
+        return legacy_candidate
+    legacy_alt = legacy_base / f"app_{app_number}"
+    if legacy_alt.exists():
+        return legacy_alt
+
+    # 3) Fallback heuristic (may not exist)
+    model_dir = _resolve_model_directory(model_slug, base_path or (_project_root_from_helpers() / "misc" / "models"))
     return model_dir / f"app{app_number}"
 
 

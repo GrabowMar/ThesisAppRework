@@ -15,6 +15,7 @@ from app.models import (
     ModelCapability, GeneratedApplication, SecurityAnalysis, PerformanceTest,
     PortConfiguration, ExternalModelInfoCache
 )
+from app.utils.generated_apps import list_generated_apps, list_generated_models
 from app.utils.template_paths import render_template_compat as render_template
 from app.utils.helpers import get_app_directory
 
@@ -52,12 +53,28 @@ def models_overview():
             ModelCapability.provider,
             ModelCapability.model_name
         ).all()
+        # Fallback: if DB empty but generated app folders exist, synthesize transient entries
+        if not models:
+            fs_models = list_generated_models()
+            synthetic = []
+            for slug in fs_models:
+                mc = ModelCapability()
+                mc.canonical_slug = slug
+                mc.model_name = slug
+                mc.provider = slug.split('_')[0]
+                mc.installed = True
+                synthetic.append(mc)
+            if synthetic:
+                models = synthetic
 
         # Enrich models with OpenRouter data
         enriched_models = []
         for model in models:
             enriched_data = _enrich_model(model)
             app_count = GeneratedApplication.query.filter_by(model_slug=model.canonical_slug).count()
+            if app_count == 0:
+                # Fallback to filesystem count
+                app_count = len(list_generated_apps(model.canonical_slug))
             enriched_data['apps_count'] = app_count
             enriched_models.append(enriched_data)
 
@@ -253,31 +270,68 @@ def _render_applications_page():
 
         models = models_query.all()
 
+        # If no DB models, synthesize from filesystem directories so application
+        # grid can still render existing generated apps.
+        if not models:
+            try:
+                from app.utils.generated_apps import list_generated_models
+                fs_slugs = list_generated_models()
+                synthetic = []
+                for slug in fs_slugs:
+                    class _SyntheticModel:
+                        canonical_slug = slug
+                        model_name = slug
+                        provider = slug.split('_')[0]
+                        display_name = slug
+                    synthetic.append(_SyntheticModel())
+                if synthetic:
+                    models = synthetic
+            except Exception as _e:  # pragma: no cover
+                current_app.logger.warning(f"Failed building synthetic models for applications page: {_e}")
+
         # Build application grid data
         application_grid = []
         total_apps = 0
         running_containers = 0
         stopped_containers = 0
 
+        from app.utils.helpers import get_app_directory
+        try:
+            current_app.logger.debug(f"[apps-grid] models_count={len(models)} total_apps_db={GeneratedApplication.query.count()}")
+        except Exception:
+            pass
         for model in models:
-            apps = GeneratedApplication.query.filter_by(
+            db_apps = GeneratedApplication.query.filter_by(
                 model_slug=model.canonical_slug
             ).all()
+            db_apps_index = {a.app_number: a for a in db_apps}
 
             model_apps = []
+            existing_count = 0
             for i in range(1, 31):  # Apps 1-30
-                app = next((a for a in apps if a.app_number == i), None)
+                app = db_apps_index.get(i)
                 ports = port_map.get((model.canonical_slug, i))
+                # Filesystem fallback detection (only if no DB row)
+                fs_exists = False
+                if not app:
+                    try:
+                        fs_dir = get_app_directory(model.canonical_slug, i)
+                        fs_exists = fs_dir.exists()
+                    except Exception:
+                        fs_exists = False
+                exists_flag = bool(app) or fs_exists
+                if exists_flag:
+                    existing_count += 1
                 app_data = {
                     'id': app.id if app else None,
                     'app_number': i,
-                    'exists': bool(app),
-                    'status': app.container_status if app else 'not_created',
-                    'app_type': app.app_type if app else 'unknown',
-                    'has_backend': app.has_backend if app else False,
-                    'has_frontend': app.has_frontend if app else False,
+                    'exists': exists_flag,
+                    'status': app.container_status if app else ('running' if getattr(app, 'container_status', '') == 'running' else ('filesystem' if fs_exists else 'not_created')),
+                    'app_type': app.app_type if app else 'web_app' if fs_exists else 'unknown',
+                    'has_backend': app.has_backend if app else fs_exists,
+                    'has_frontend': app.has_frontend if app else fs_exists,
                     'has_docker_compose': app.has_docker_compose if app else False,
-                    'generation_status': app.generation_status if app else 'pending',
+                    'generation_status': app.generation_status if app else ('filesystem' if fs_exists else 'pending'),
                     'ports': ports
                 }
                 model_apps.append(app_data)
@@ -288,16 +342,31 @@ def _render_applications_page():
                         running_containers += 1
                     else:
                         stopped_containers += 1
+                elif fs_exists:
+                    # Count filesystem-only apps as stopped (not running)
+                    total_apps += 1
+                    stopped_containers += 1
 
             application_grid.append({
                 'model': model,
                 'apps': model_apps,
-                'apps_count': len([a for a in model_apps if a['exists']])
+                'apps_count': existing_count
             })
+            try:
+                current_app.logger.debug(f"[apps-grid] model={getattr(model,'canonical_slug','?')} fs_apps={existing_count} total_apps_running={running_containers} total_apps={total_apps}")
+            except Exception:
+                pass
 
         # Get filter options
-        providers = db.session.query(ModelCapability.provider.distinct()).all()
-        providers = [p[0] for p in providers if p[0]]
+        providers = []
+        try:
+            providers = db.session.query(ModelCapability.provider.distinct()).all()
+            providers = [p[0] for p in providers if p[0]]
+        except Exception:
+            providers = []
+        if not providers and models:
+            # derive from synthetic set
+            providers = sorted({getattr(m, 'provider', 'local') for m in models if getattr(m, 'provider', None)})
 
         # Build additional context expected by template
         applications_list = []
@@ -349,6 +418,10 @@ def _render_applications_page():
             }
         }
         # Updated template path to new unified pages namespace
+        try:
+            current_app.logger.debug(f"[apps-grid] final_stats total_apps={total_apps} models={len(models)}")
+        except Exception:
+            pass
         return render_template('pages/applications/index.html', **context)
 
     except Exception as e:
@@ -361,14 +434,6 @@ def _render_applications_page():
             current_filters={}, providers=[], error=str(e)
         )
 
-@models_bp.route('/applications')
-def applications():  # legacy path
-    """Redirect old /models/applications to new /applications path for cleaner URL while preserving compatibility."""
-    from flask import redirect, url_for, request
-    # Preserve query string parameters
-    qs = request.query_string.decode()
-    target = url_for('main.applications_index') + (f'?{qs}' if qs else '')
-    return redirect(target, code=302)
 
 @models_bp.route('/application/<model_slug>/<int:app_number>')
 def application_detail(model_slug, app_number):

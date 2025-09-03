@@ -6,6 +6,7 @@ Dashboard and core web routes that render Jinja templates.
 """
 
 from flask import Blueprint, flash, current_app, redirect, url_for
+from app.utils.generated_apps import generated_apps_stats
 
 from app.models import (
     ModelCapability, GeneratedApplication, SecurityAnalysis, PerformanceTest,
@@ -31,6 +32,10 @@ def dashboard():
                 status=ContainerState.RUNNING.value
             ).count()
         }
+        if stats['total_applications'] == 0:
+            fs = generated_apps_stats()
+            stats['total_applications_fs'] = fs.get('total_apps', 0)
+            stats['total_models_fs'] = fs.get('total_models', 0)
 
         # Get recent activities
         recent_apps = GeneratedApplication.query.order_by(
@@ -147,9 +152,17 @@ def models_overview():
 def applications_index():
     """Primary Applications page (clean URL). Delegates to legacy models blueprint implementation."""
     try:
-        # Local import to avoid circular references at module import time
-        from app.routes.jinja.models import applications as models_applications  # type: ignore
-        return models_applications()
+        # If no applications (and likely empty models/apps tables), perform a quick
+        # idempotent filesystem sync so the grid can display existing folders.
+        try:
+            if GeneratedApplication.query.count() == 0:
+                from app.services.model_sync_service import sync_models_from_filesystem  # type: ignore
+                sync_models_from_filesystem()
+        except Exception:  # pragma: no cover - non-fatal
+            current_app.logger.warning("Auto filesystem sync on /applications failed", exc_info=True)
+        # Import internal render helper directly
+        from app.routes.jinja.models import _render_applications_page  # type: ignore
+        return _render_applications_page()
     except Exception as e:  # pragma: no cover - defensive
         current_app.logger.error(f"Error loading applications page: {e}")
         flash('Error loading applications page', 'error')

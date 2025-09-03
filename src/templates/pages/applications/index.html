@@ -1,15 +1,11 @@
-{# Applications Page - simplified (avoid duplicate page/page-wrapper/container from base layout) #}
+{# Applications Page - simplified (avoid duplicate page/page-wrapper/container from base layout)
+   Refactored to use shared page_header macro (safe additive change)
+#}
 {% extends 'layouts/base.html' %}
+{% import 'shared/macros/ui.html' as ui %}
 {% block page_title %}{{ page_title or 'Applications' }}{% endblock %}
 {% block main %}
-  <div class="page-header d-print-none mb-3">
-    <div class="row g-2 align-items-center">
-      <div class="col">
-        <h2 class="page-title">Applications</h2>
-        <div class="text-muted mt-1">Manage your applications</div>
-      </div>
-    </div>
-  </div>
+  {{ ui.page_header('Applications', 'Manage your applications') }}
 
   {% if main_partial %}
     {% include main_partial ignore missing %}

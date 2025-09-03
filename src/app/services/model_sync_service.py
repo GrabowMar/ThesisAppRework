@@ -32,6 +32,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Dict, Any, Optional
 
+try:  # Prefer centralized path constants if available
+    from app.paths import GENERATED_APPS_DIR
+except Exception:  # pragma: no cover
+    GENERATED_APPS_DIR = Path('src/generated/apps')
+
 from app.extensions import db
 from app.models import ModelCapability, GeneratedApplication
 from app.constants import AnalysisStatus
@@ -58,12 +63,47 @@ def _infer_provider(slug: str) -> str:
 
 
 def _discover_model_dirs() -> Iterable[Path]:
-    roots = [Path('models'), Path('generated')]
+    """Yield model directory roots from legacy and new layouts.
+
+    Order:
+      1. New unified generated/apps/*
+      2. Legacy top-level models/*
+      3. Legacy generated/* (older mixed layout)
+    """
+    roots = []
+    # 1) Unified path
+    if GENERATED_APPS_DIR.exists():
+        roots.append(GENERATED_APPS_DIR)
+    # 2) Legacy explicit
+    legacy_models = Path('models')
+    if legacy_models.exists():
+        roots.append(legacy_models)
+    # 3) Legacy generic generated (pre-refactor)
+    legacy_generated = Path('generated')
+    if legacy_generated.exists():
+        roots.append(legacy_generated)
+
+    seen = set()
     for root in roots:
-        if root.exists() and root.is_dir():
+        try:
             for child in root.iterdir():
-                if child.is_dir() and not child.name.startswith('_'):
+                if not child.is_dir() or child.name.startswith('_'):
+                    continue
+                # In unified path, model dir is direct child of generated/apps
+                if root == GENERATED_APPS_DIR:
+                    key = child.resolve()
+                    if key in seen:
+                        continue
+                    seen.add(key)
                     yield child
+                else:
+                    key = child.resolve()
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    yield child
+        except Exception:  # pragma: no cover
+            continue
 
 
 def _discover_apps(model_dir: Path) -> Iterable[DiscoveredApp]:

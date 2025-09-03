@@ -27,6 +27,7 @@ from app.services.statistics_service import (
     get_analysis_summary, export_statistics
 )
 from app.services import application_service as app_service
+from app.utils.generated_apps import list_generated_models, load_model_capabilities
 
 # Import shared utilities
 from ..shared_utils import _upsert_openrouter_models, _norm_caps
@@ -532,6 +533,44 @@ def api_models_all():
     try:
         models = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
 
+        # Fallback path: if database empty, synthesize lightweight model entries
+        # from filesystem directories (generated/apps/<model_slug>) or
+        # model_capabilities.json. This allows the front-end to show models
+        # immediately after generation even before data import tasks ran.
+        synthetic_mode = False
+        synthetic_models = []
+        if not models:
+            try:
+                fs_slugs = list_generated_models()  # raw folder names
+                cap_json = load_model_capabilities().get('data') or {}
+                # Normalize capability map: expect dict keyed by slug
+                for slug in fs_slugs:
+                    entry = cap_json.get(slug) if isinstance(cap_json, dict) else {}
+                    class _Synthetic:
+                        canonical_slug = slug
+                        model_id = slug
+                        model_name = slug
+                        provider = slug.split('_')[0]
+                        input_price_per_token = 0.0
+                        output_price_per_token = 0.0
+                        context_window = 0
+                        max_output_tokens = 0
+                        cost_efficiency = 0.0
+                        installed = True
+                        def get_capabilities(self):
+                            # entry may already be capabilities list/dict
+                            if isinstance(entry, dict) and 'capabilities' in entry:
+                                return entry
+                            return {'capabilities': entry if isinstance(entry, (list, dict)) else []}
+                        def get_metadata(self):
+                            return {}
+                    synthetic_models.append(_Synthetic())
+                if synthetic_models:
+                    models = synthetic_models
+                    synthetic_mode = True
+            except Exception:
+                pass
+
         # If DB is empty, try to fetch from OpenRouter
         try:
             if not models:
@@ -609,7 +648,8 @@ def api_models_all():
             'total_models': len(models_list),
             'active_models': len(models_list),
             'unique_providers': len(providers),
-            'avg_cost_per_1k': round(sum(x['input_price_per_1k'] for x in models_list) / max(len(models_list), 1), 6)
+            'avg_cost_per_1k': round(sum(x['input_price_per_1k'] for x in models_list) / max(len(models_list), 1), 6),
+            'source': 'synthetic' if synthetic_mode else 'database'
         }
         return jsonify({'models': models_list, 'statistics': stats})
     except Exception as e:
@@ -634,6 +674,38 @@ def api_models_filtered():
         price_tier = (request.args.get('price') or '').lower()
 
         base = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+
+        # If DB empty, synthesize base list from filesystem so filtering still works
+        if not base:
+            try:
+                from app.utils.generated_apps import list_generated_models, load_model_capabilities
+                slugs = list_generated_models()
+                caps_json = load_model_capabilities().get('data') or {}
+                syn = []
+                for slug in slugs:
+                    entry = caps_json.get(slug) if isinstance(caps_json, dict) else {}
+                    class _Synthetic:
+                        canonical_slug = slug
+                        model_id = slug
+                        model_name = slug
+                        provider = slug.split('_')[0]
+                        input_price_per_token = 0.0
+                        output_price_per_token = 0.0
+                        context_window = 0
+                        max_output_tokens = 0
+                        cost_efficiency = 0.0
+                        installed = True
+                        def get_capabilities(self):
+                            if isinstance(entry, dict) and 'capabilities' in entry:
+                                return entry
+                            return {'capabilities': entry if isinstance(entry, (list, dict)) else []}
+                        def get_metadata(self):
+                            return {}
+                    syn.append(_Synthetic())
+                if syn:
+                    base = syn
+            except Exception:
+                pass
 
         def price_bucket(val: float) -> str:
             if val == 0:
