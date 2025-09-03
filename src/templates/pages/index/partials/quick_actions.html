@@ -1,0 +1,56 @@
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
+    <div class="btn-group btn-group-sm">
+      <button type="button" class="btn btn-outline-primary btn-sm" 
+              hx-get="/api/dashboard/refresh" 
+              hx-swap="none" 
+              hx-indicator="#global-spinner">
+        <i class="fas fa-sync-alt me-1"></i>Refresh All
+      </button>
+      <button type="button" class="btn btn-outline-success btn-sm" 
+              hx-get="/analysis/create" 
+              hx-target="#main-modal" 
+              hx-trigger="click"
+              data-bs-toggle="modal" 
+              data-bs-target="#main-modal">
+        <i class="fas fa-plus me-1"></i>New Analysis
+      </button>
+      <button type="button" class="btn btn-outline-info btn-sm"
+              hx-get="/models/quick-select"
+              hx-target="#model-selector"
+              hx-swap="innerHTML">
+        <i class="fas fa-robot me-1"></i>Select Model
+      </button>
+      <button type="button" class="btn btn-outline-warning btn-sm"
+              onclick="reloadCoreData(this)"
+              title="Reload model capabilities, summary and port config from misc/*.json">
+        <i class="fas fa-database me-1"></i>Reload Data
+      </button>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-3">
+        <div class="d-grid">
+          <button class="btn btn-outline-primary h-100">Action A</button>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="d-grid">
+          <button class="btn btn-outline-success h-100">Action B</button>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="d-grid">
+          <a class="btn btn-outline-info h-100" href="/models/">Models</a>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="d-grid">
+          <button class="btn btn-outline-warning h-100">Maintenance</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

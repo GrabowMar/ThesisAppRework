@@ -1,0 +1,181 @@
+{# slug: pages/analysis/partials/unified_activity (recreated) #}
+{#
+  Unified Activity Fragment
+  
+  Purpose: Display unified activity timeline from all analysis types
+  Features:
+  - Combined activity from security, performance, and dynamic analyses
+  - Chronological timeline
+  - Type-specific icons and styling
+  
+  Routes:
+  - /api/activity/unified (HTMX endpoint)
+  
+  Technical Details:
+  - Expects recent_activity context with analysis objects
+  - Designed for dashboard widgets and activity feeds
+  - Responsive design with Bootstrap 5
+#}
+
+<div class="unified-activity-container">
+    {% if recent_activity %}
+        <div class="timeline">
+            {% for activity in recent_activity %}
+            <div class="timeline-item">
+                <div class="timeline-marker">
+                    {% if activity.type == 'security' %}
+                        <i class="fas fa-shield-alt text-danger"></i>
+                    {% elif activity.type == 'performance' %}
+                        <i class="fas fa-tachometer-alt text-info"></i>
+                    {% elif activity.type == 'dynamic' %}
+                        <i class="fas fa-play text-success"></i>
+                    {% else %}
+                        <i class="fas fa-chart-bar text-primary"></i>
+                    {% endif %}
+                </div>
+                
+                <div class="timeline-content">
+                    <div class="timeline-header">
+                        <h6 class="mb-1">
+                            <a href="{{ url_for('analysis.analysis_detail', analysis_id=activity.id) }}" 
+                               class="text-decoration-none">
+                                {{ activity.title }}
+                            </a>
+                        </h6>
+                        <small class="text-muted">
+                            <i class="fas fa-robot me-1"></i>{{ activity.model_slug|replace('_', ' ')|title }}
+                            <i class="fas fa-code ms-2 me-1"></i>App #{{ activity.app_number }}
+                        </small>
+                    </div>
+                    
+                    <div class="timeline-meta">
+                        <span class="badge bg-{{ 'danger' if activity.type == 'security' else 'info' if activity.type == 'performance' else 'success' if activity.type == 'dynamic' else 'primary' }}">
+                            {{ activity.type|title }}
+                        </span>
+                        <small class="text-muted ms-2">
+                            {{ activity.created_at|datetime }}
+                        </small>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="text-center mt-4">
+            <a href="{{ url_for('analysis.analysis_dashboard') }}" class="btn btn-outline-primary btn-sm">
+                <i class="fas fa-eye me-1"></i>View All Activity
+            </a>
+        </div>
+    {% else %}
+        <div class="text-center py-4">
+            <div class="text-muted mb-3">
+                <i class="fas fa-activity fa-3x"></i>
+            </div>
+            <h6 class="text-muted">No Recent Activity</h6>
+            <p class="small text-muted mb-3">
+                Analysis activity will appear here once analyses are started.
+            </p>
+            <a href="{{ url_for('analysis.create_analysis') }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus me-1"></i>Start Analysis
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<style>
+.unified-activity-container {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.timeline {
+    position: relative;
+    padding-left: 0;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 20px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--bs-border-color);
+}
+
+.timeline-item {
+    position: relative;
+    padding-left: 50px;
+    margin-bottom: 1.5rem;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 40px;
+    height: 40px;
+    background: white;
+    border: 2px solid var(--bs-border-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+}
+
+.timeline-marker i {
+    font-size: 1rem;
+}
+
+.timeline-content {
+    background: white;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    transition: box-shadow 0.2s ease;
+}
+
+.timeline-content:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.timeline-header h6 a:hover {
+    color: var(--bs-primary) !important;
+}
+
+.timeline-meta {
+    margin-top: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.timeline-meta .badge {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* Scrollbar styling */
+.unified-activity-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.unified-activity-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.unified-activity-container::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.unified-activity-container::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+</style>
+
+
+

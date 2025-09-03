@@ -58,7 +58,7 @@ Tool outputs evolve quickly; JSON preserves flexibility while summary metrics ca
 ## Reliability & Observability
 
 ### Where do logs go?
-Primary application logs under `logs/app.log`; Celery worker logs `src/celery_worker.log`; analyzer container logs accessible via CLI (`python analyzer/analyzer_manager.py logs <service>` or via API routes).
+Primary application logs under `logs/app.log`; Celery worker logs `logs/celery_worker.log`; analyzer container logs accessible via CLI (`python analyzer/analyzer_manager.py logs <service>` or via API routes).
 
 ### How do I diagnose a stuck analysis?
 1. Check Celery task state via `/tasks/status` endpoint or UI fragment.

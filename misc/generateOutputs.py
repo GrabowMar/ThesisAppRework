@@ -514,8 +514,10 @@ class APICallStats:
     timeout_used: int = 180
 
 # =============================================================================
-# Logging Configuration
+# Legacy Logging Configuration (DEPRECATED - Use app.utils.logging_config)
 # =============================================================================
+# NOTE: This logging setup is deprecated. New code should use the centralized
+# logging configuration in src/app/utils/logging_config.py
 
 class LoggerSetup:
     """

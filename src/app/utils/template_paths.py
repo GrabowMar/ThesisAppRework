@@ -138,6 +138,18 @@ def remap_template(name: str) -> str:
                 return name
         return name
 
+    # Heuristic 8: error partial moved to shared/ui/error.html
+    if name == 'partials/common/error.html':
+        candidate = 'shared/ui/error.html'
+        if (_templates_root() / candidate).exists():
+            return candidate
+
+    # Heuristic 9: single_page.html should map to pages/errors/errors.html for error contexts
+    if name == 'single_page.html':
+        candidate = 'pages/errors/errors.html'
+        if (_templates_root() / candidate).exists():
+            return candidate
+
     return name
 
 

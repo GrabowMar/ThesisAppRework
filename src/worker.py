@@ -15,7 +15,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler('celery_worker.log')
+        logging.FileHandler('../logs/celery_worker.log')
     ]
 )
 

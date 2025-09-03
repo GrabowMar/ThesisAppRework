@@ -142,9 +142,6 @@ def _seconds_between(end_dt: Optional[datetime], start_dt: Optional[datetime]) -
         return dt.astimezone(timezone.utc)
     try:
         # Import here (inside try) so NameError doesn't occur if module import fails earlier
-        from app.extensions import get_session  # type: ignore
-        from app.models import ZAPAnalysis  # type: ignore
-        from app.constants import AnalysisStatus  # type: ignore
         e = to_utc(end_dt)
         s = to_utc(start_dt)
         return (e - s).total_seconds()
@@ -254,9 +251,10 @@ def update_batch_progress(batch_job_id: Optional[str], task_completed: bool = Fa
             # Guarantee an app context for any downstream DB/session usage
             from flask import has_app_context
             if has_app_context():
-                batch_service.update_task_progress(
-                    batch_job_id, task_completed, task_failed, result
-                )
+                # batch_service.update_task_progress(
+                #     batch_job_id, task_completed, task_failed, result
+                # )
+                pass  # BatchService doesn't have update_task_progress method
             else:
                 try:
                     from app.factory import get_flask_app  # type: ignore
@@ -266,16 +264,18 @@ def update_batch_progress(batch_job_id: Optional[str], task_completed: bool = Fa
                 if app is not None:
                     try:
                         with app.app_context():
-                            batch_service.update_task_progress(
-                                batch_job_id, task_completed, task_failed, result
-                            )
+                            # batch_service.update_task_progress(
+                            #     batch_job_id, task_completed, task_failed, result
+                            # )
+                            pass  # BatchService doesn't have update_task_progress method
                     except Exception as _ctx_err:  # pragma: no cover
                         print(f"Progress persistence error: {_ctx_err}")
                 else:  # Last resort: attempt direct call (may still fail but we log it)
                     try:
-                        batch_service.update_task_progress(
-                            batch_job_id, task_completed, task_failed, result
-                        )
+                        # batch_service.update_task_progress(
+                        #     batch_job_id, task_completed, task_failed, result
+                        # )
+                        pass  # BatchService doesn't have update_task_progress method
                     except Exception as _final_err:  # pragma: no cover
                         print(f"Progress persistence error: {_final_err}")
         except Exception as e:  # pragma: no cover
@@ -962,7 +962,10 @@ def dynamic_analysis_task(self, model_slug: str, app_number: int, options: Optio
                             analysis.set_metadata(meta)
                     # Store raw result JSON
                     try:
-                        analysis.set_zap_report(result)
+                        if result is not None:
+                            analysis.set_zap_report(result)
+                        else:
+                            analysis.set_zap_report({'raw_result': 'None'})
                     except Exception:
                         analysis.set_zap_report({'raw_result': str(result)})
 

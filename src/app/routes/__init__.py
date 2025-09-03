@@ -1,78 +1,74 @@
-"""Unified Route Registration
-=============================
-
-This package centralizes blueprint registration for the Flask application.
-
-Improvements in this refactored module:
-1. Programmatic registration table instead of ad-hoc calls
-2. Lazy imports inside `load_blueprints()` reduce import side effects during tooling
-3. Clear documentation of each blueprint's purpose
-4. Single place to toggle blueprints or adjust URL prefixes
-5. Separation of concerns: blueprint discovery vs. registration logic
-
-Extensibility: To add a new blueprint, implement it in a sibling module and
-add an entry to the BLUEPRINT_SPECS list.
 """
-from __future__ import annotations
+Routes Package
+Handles all application routes organized by type.
+"""
 
-import logging
+from .jinja import (
+    main_bp,
+    models_bp,
+    analysis_bp,
+    stats_bp,
+    tasks_bp,
+    advanced_bp,
+    reports_bp,
+    docs_bp
+)
+from .api import api_bp
+from .websockets import websocket_api_bp, register_websocket_routes, register_error_handlers
+from .shared_utils import register_template_globals_and_filters
 
-from .errors import register_error_handlers
-from .api import register_api_routes  # API blueprint managed separately
+__all__ = [
+    # Jinja blueprints
+    'main_bp',
+    'models_bp',
+    'analysis_bp',
+    'stats_bp',
+    'tasks_bp',
+    'advanced_bp',
+    'reports_bp',
+    'docs_bp',
 
-logger = logging.getLogger(__name__)
+    # API blueprints
+    'api_bp',
 
+    # WebSocket blueprints and functions
+    'websocket_api_bp',
+    'register_websocket_routes',
+    'register_error_handlers',
 
-def load_blueprints():
-    """Import and return blueprint specifications.
+    # Shared utilities
+    'register_template_globals_and_filters',
 
-    Returns a list of dicts: { 'bp': Blueprint, 'url_prefix': str | None, 'name': str }
-    Lazy import pattern keeps module import side effects minimal until runtime.
+    # Blueprint registration function
+    'register_blueprints'
+]
+
+def register_blueprints(app):
     """
-    from .main import main_bp
-    from .models import models_bp
-    from .analysis import analysis_bp
-    from .batch import batch_bp
-    from .statistics import stats_bp
-    from .tasks import tasks_bp
-    from .advanced import advanced as advanced_bp
-    from .reports import reports_bp
-    from .system_api import system_api_bp, analysis_api_bp
+    Register all application blueprints with the Flask app.
 
-    return [
-        {"bp": main_bp, "url_prefix": None, "name": "main"},
-        {"bp": models_bp, "url_prefix": "/models", "name": "models"},
-        {"bp": analysis_bp, "url_prefix": "/analysis", "name": "analysis"},
-        {"bp": batch_bp, "url_prefix": "/batch", "name": "batch"},
-        {"bp": stats_bp, "url_prefix": "/statistics", "name": "statistics"},
-    {"bp": tasks_bp, "url_prefix": "/tasks", "name": "tasks"},
-        {"bp": advanced_bp, "url_prefix": "/advanced", "name": "advanced"},
-    {"bp": reports_bp, "url_prefix": "/reports", "name": "reports"},
-        {"bp": system_api_bp, "url_prefix": "/api/system", "name": "system_api"},
-        {"bp": analysis_api_bp, "url_prefix": "/api/analysis", "name": "analysis_api"},
-    ]
+    Args:
+        app: Flask application instance
+    """
+    # Register Jinja template blueprints
+    app.register_blueprint(main_bp)
+    app.register_blueprint(models_bp)
+    app.register_blueprint(analysis_bp)
+    app.register_blueprint(stats_bp)
+    app.register_blueprint(tasks_bp)
+    app.register_blueprint(advanced_bp)
+    app.register_blueprint(reports_bp)
+    app.register_blueprint(docs_bp)
 
+    # Register API blueprint
+    app.register_blueprint(api_bp, url_prefix='/api')
 
-def register_blueprints(app):  # noqa: D401
-    """Register all application blueprints and error handlers."""
+    # Register WebSocket API blueprint
+    app.register_blueprint(websocket_api_bp, url_prefix='/ws-api')
 
-    # Register non-API blueprints
-    for spec in load_blueprints():
-        bp = spec["bp"]
-        url_prefix = spec["url_prefix"]
-        app.register_blueprint(bp, url_prefix=url_prefix)
-        logger.debug("Registered blueprint '%s' at prefix '%s'", spec["name"], url_prefix or "/")
-
-    # API blueprint (handles its own lazy module imports)
-    register_api_routes(app)
-
-    # WebSocket fallback routes
-    from .websocket_fallbacks import register_websocket_routes
+    # Register WebSocket routes and error handlers
     register_websocket_routes(app)
-
-    # Error handlers (global)
     register_error_handlers(app)
 
-    logger.info("All blueprints registered successfully")
-
-__all__ = ["register_blueprints", "load_blueprints"]
+    # Register template globals and filters
+    register_template_globals_and_filters(app)

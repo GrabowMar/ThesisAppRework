@@ -1,0 +1,475 @@
+"""
+Centralized Logging Configuration
+=================================
+
+Provides a unified logging setup for the entire application with proper
+log levels, formatting, and rotation to reduce spam and improve readability.
+"""
+
+import os
+import sys
+import logging
+import warnings
+import re
+from pathlib import Path
+from typing import Dict, Optional, Union, Set
+from logging.handlers import RotatingFileHandler
+from datetime import datetime
+from collections import defaultdict, deque
+
+# Color coding dependencies
+try:
+    from colorama import init, Fore, Back, Style
+    init(autoreset=True)
+    COLORS_AVAILABLE = True
+except ImportError:
+    COLORS_AVAILABLE = False
+    # Fallback color constants
+    class Fore:
+        RED = BLUE = GREEN = YELLOW = MAGENTA = CYAN = WHITE = RESET = ""
+    class Style:
+        BRIGHT = DIM = RESET_ALL = ""
+
+
+class StackTraceFilter(logging.Filter):
+    """Filter to compress and group stack traces."""
+    
+    def __init__(self, name: str = ""):
+        super().__init__(name)
+        self._last_stack_traces: Dict[str, datetime] = {}
+        self._stack_count: Dict[str, int] = defaultdict(int)
+        
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Filter and compress stack traces."""
+        if record.exc_info or record.stack_info:
+            # Create a hash of the stack trace
+            stack_key = self._get_stack_key(record)
+            current_time = datetime.now()
+            
+            # Count occurrences
+            self._stack_count[stack_key] += 1
+            
+            # Only show stack trace every 5 minutes for the same error
+            if stack_key in self._last_stack_traces:
+                last_time = self._last_stack_traces[stack_key]
+                if (current_time - last_time).seconds < 300:
+                    # Replace with summary message
+                    count = self._stack_count[stack_key]
+                    record.msg = f"{record.getMessage()} (repeated {count}x - stack trace suppressed)"
+                    record.exc_info = None
+                    record.stack_info = None
+                    return True
+            
+            self._last_stack_traces[stack_key] = current_time
+        
+        return True
+    
+    def _get_stack_key(self, record: logging.LogRecord) -> str:
+        """Create a key to identify similar stack traces."""
+        if record.exc_info:
+            exc_type = record.exc_info[0].__name__ if record.exc_info[0] else "Unknown"
+            exc_msg = str(record.exc_info[1])[:100] if record.exc_info[1] else ""
+            return f"{exc_type}:{exc_msg}"
+        return f"stack:{record.getMessage()[:50]}"
+
+
+class LogGrouper:
+    """Groups similar log messages to reduce spam."""
+    
+    def __init__(self, group_window: int = 60):
+        self.group_window = group_window  # seconds
+        self.message_groups: Dict[str, Dict] = {}
+        
+    def should_log_message(self, record: logging.LogRecord) -> tuple[bool, Optional[str]]:
+        """Determine if message should be logged or grouped."""
+        message_pattern = self._get_message_pattern(record)
+        current_time = datetime.now()
+        
+        if message_pattern in self.message_groups:
+            group = self.message_groups[message_pattern]
+            group['count'] += 1
+            group['last_seen'] = current_time
+            
+            # If it's been less than group_window seconds, suppress
+            if (current_time - group['first_seen']).seconds < self.group_window:
+                return False, None
+            else:
+                # Time to summarize
+                summary = f"[GROUPED] {record.getMessage()} (repeated {group['count']}x in {self.group_window}s)"
+                # Reset the group
+                del self.message_groups[message_pattern]
+                return True, summary
+        else:
+            # New message pattern
+            self.message_groups[message_pattern] = {
+                'count': 1,
+                'first_seen': current_time,
+                'last_seen': current_time,
+                'record': record
+            }
+            return True, None
+    
+    def _get_message_pattern(self, record: logging.LogRecord) -> str:
+        """Extract pattern from log message for grouping."""
+        message = record.getMessage()
+        
+        # Patterns for common repetitive messages
+        patterns = [
+            r'Scheduler: Sending due task [\w-]+ \([\w.]+\)',
+            r'Task [\w.]+\[[\w-]+\] received',
+            r'Task [\w.]+\[[\w-]+\] succeeded',
+            r'Connected to redis://[\w.:/@]+',
+            r'consumer: Cannot connect to redis://[\w.:/@]+',
+            r'broker_connection_retry.*',
+        ]
+        
+        for pattern in patterns:
+            if re.search(pattern, message):
+                return pattern
+        
+        # Fallback: use first 50 chars
+        return message[:50]
+
+
+class SmartLogFilter(logging.Filter):
+    """Advanced filter combining multiple filtering strategies."""
+    
+    def __init__(self, name: str = ""):
+        super().__init__(name)
+        self.stack_filter = StackTraceFilter()
+        self.grouper = LogGrouper()
+        self._suppressed_patterns = {
+            # Celery deprecation warnings
+            r'CPendingDeprecationWarning.*broker_connection_retry',
+            r'.*Monkey-patching ssl after ssl.*',
+            r'.*The broker_connection_retry configuration setting.*',
+            # Redis connection spam  
+            r'Connection closed by server\.',
+            r'Error \d+ connecting to localhost:\d+\.',
+            r'Redis is loading the dataset in memory\.',
+        }
+        
+        self._rate_limited_messages = {}
+        self._rate_limit_window = 300  # 5 minutes
+        
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Apply comprehensive filtering."""
+        message = record.getMessage()
+        
+        # 1. Suppress known spam patterns
+        for pattern in self._suppressed_patterns:
+            if re.search(pattern, message):
+                return False
+        
+        # 2. Apply stack trace filtering
+        if not self.stack_filter.filter(record):
+            return False
+        
+        # 3. Apply grouping
+        should_log, grouped_message = self.grouper.should_log_message(record)
+        if not should_log:
+            return False
+        elif grouped_message:
+            record.msg = grouped_message
+        
+        # 4. Rate limit specific message types
+        if self._is_rate_limited_message(record):
+            return self._should_allow_rate_limited(record)
+            
+        return True
+    
+    def _is_rate_limited_message(self, record: logging.LogRecord) -> bool:
+        """Check if message should be rate limited."""
+        message = record.getMessage().lower()
+        rate_limited_keywords = [
+            'scheduler: sending due task',
+            'mingle: searching for neighbors',
+            'mingle: all alone',
+            'background saving',
+        ]
+        return any(keyword in message for keyword in rate_limited_keywords)
+    
+    def _should_allow_rate_limited(self, record: logging.LogRecord) -> bool:
+        """Rate limit repetitive messages."""
+        message_key = f"{record.name}:{record.getMessage()[:50]}"
+        current_time = datetime.now().timestamp()
+        
+        if message_key in self._rate_limited_messages:
+            last_time = self._rate_limited_messages[message_key]
+            if current_time - last_time < self._rate_limit_window:
+                return False
+        
+        self._rate_limited_messages[message_key] = current_time
+        return True
+
+
+class ColoredSmartFormatter(logging.Formatter):
+    """Enhanced formatter with color coding and smart contextual information."""
+    
+    def __init__(self, include_function: bool = False, use_colors: bool = True):
+        self.include_function = include_function
+        self.use_colors = use_colors and COLORS_AVAILABLE
+        super().__init__()
+        
+        # Define color schemes for different log levels
+        self.level_colors = {
+            logging.DEBUG: Fore.CYAN,
+            logging.INFO: Fore.GREEN,
+            logging.WARNING: Fore.YELLOW,
+            logging.ERROR: Fore.RED,
+            logging.CRITICAL: Fore.RED + Style.BRIGHT
+        }
+        
+        # Define color schemes for different services
+        self.service_colors = {
+            'factory': Fore.BLUE,
+            'task_service': Fore.MAGENTA,
+            'analyzer': Fore.CYAN,
+            'celery': Fore.YELLOW,
+            'redis': Fore.RED,
+            'websocket': Fore.GREEN,
+            'security': Fore.MAGENTA,
+        }
+    
+    def format(self, record: logging.LogRecord) -> str:
+        """Format log record with color coding and smart contextual information."""
+        
+        # Base format
+        timestamp = self.formatTime(record, '%H:%M:%S')
+        level = record.levelname
+        name = self._clean_logger_name(record.name)
+        message = record.getMessage()
+        
+        # Apply colors if enabled
+        if self.use_colors:
+            level_color = self.level_colors.get(record.levelno, "")
+            service_color = self._get_service_color(name)
+            
+            # Color the level
+            colored_level = f"{level_color}{level:8}{Style.RESET_ALL}"
+            
+            # Color the service name
+            colored_name = f"{service_color}{name:20}{Style.RESET_ALL}"
+            
+            # Add special formatting for grouped messages
+            if message.startswith('[GROUPED]'):
+                message = f"{Fore.BLUE}{Style.BRIGHT}{message}{Style.RESET_ALL}"
+            elif 'repeated' in message and 'stack trace suppressed' in message:
+                message = f"{Fore.YELLOW}{message}{Style.RESET_ALL}"
+        else:
+            colored_level = f"{level:8}"
+            colored_name = f"{name:20}"
+        
+        # Add function info for errors and warnings in development
+        if self.include_function and record.levelno >= logging.WARNING:
+            location = f"{record.funcName}:{record.lineno}"
+            if self.use_colors:
+                location = f"{Fore.WHITE}{Style.DIM}[{location}]{Style.RESET_ALL}"
+            else:
+                location = f"[{location}]"
+            return f"[{timestamp}] {colored_level} {colored_name} {location} {message}"
+        else:
+            return f"[{timestamp}] {colored_level} {colored_name} {message}"
+    
+    def _clean_logger_name(self, name: str) -> str:
+        """Clean and shorten logger names for readability."""
+        # Shorten common long names
+        replacements = {
+            'ThesisApp.': '',
+            'app.services.': 'svc.',
+            'app.routes.': 'route.',
+            'app.utils.': 'util.',
+            'analyzer.services.': 'analyzer.',
+            'analyzer.websocket_gateway': 'analyzer.ws',
+            'celery.worker.': 'celery.',
+            'celery.app.': 'celery.',
+        }
+        
+        for old, new in replacements.items():
+            if name.startswith(old):
+                name = new + name[len(old):]
+                break
+        
+        # Truncate if still too long
+        if len(name) > 20:
+            name = name[:17] + "..."
+            
+        return name
+    
+    def _get_service_color(self, service_name: str) -> str:
+        """Get color for service based on name patterns."""
+        if not self.use_colors:
+            return ""
+            
+        name_lower = service_name.lower()
+        for service, color in self.service_colors.items():
+            if service in name_lower:
+                return color
+        
+        # Default color for unknown services
+        return Fore.WHITE
+
+
+class LoggingConfig:
+    """Centralized logging configuration for the application."""
+    
+    def __init__(self, app_name: str = "ThesisApp"):
+        self.app_name = app_name
+        self.log_dir = Path(__file__).parent.parent.parent.parent / "logs"
+        self.log_dir.mkdir(exist_ok=True)
+        
+        # Get log level from environment
+        self.log_level = self._get_log_level()
+        self.is_development = os.environ.get('FLASK_ENV', 'development') == 'development'
+        
+        # Configure Python warnings
+        self._configure_warnings()
+    
+    def setup_logging(self) -> logging.Logger:
+        """Setup centralized logging configuration."""
+        
+        # Get root logger and clear existing handlers
+        root_logger = logging.getLogger()
+        root_logger.handlers.clear()
+        root_logger.setLevel(self.log_level)
+        
+        # Create formatters
+        console_formatter = ColoredSmartFormatter(
+            include_function=self.is_development,
+            use_colors=True
+        )
+        file_formatter = ColoredSmartFormatter(
+            include_function=True,
+            use_colors=False  # No colors in log files
+        )
+        
+        # Setup console handler
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(self.log_level)
+        console_handler.setFormatter(console_formatter)
+        console_handler.addFilter(SmartLogFilter())
+        
+        # Setup file handler with rotation
+        log_file = self.log_dir / "app.log"
+        file_handler = RotatingFileHandler(
+            log_file,
+            maxBytes=10 * 1024 * 1024,  # 10MB
+            backupCount=5,
+            encoding='utf-8'
+        )
+        file_handler.setLevel(logging.DEBUG)  # Always log everything to file
+        file_handler.setFormatter(file_formatter)
+        
+        # Add handlers to root logger
+        root_logger.addHandler(console_handler)
+        root_logger.addHandler(file_handler)
+        
+        # Configure specific loggers
+        self._configure_specific_loggers()
+        
+        # Get application logger
+        app_logger = logging.getLogger(self.app_name)
+        app_logger.info(f"Logging configured - Level: {logging.getLevelName(self.log_level)}")
+        
+        return app_logger
+    
+    def _get_log_level(self) -> int:
+        """Get log level from environment or default."""
+        level_str = os.environ.get('LOG_LEVEL', 'INFO').upper()
+        return getattr(logging, level_str, logging.INFO)
+    
+    def _configure_warnings(self):
+        """Configure Python warnings to reduce noise."""
+        
+        # Filter out common warnings that create spam
+        warnings.filterwarnings('ignore', category=DeprecationWarning, module='celery')
+        warnings.filterwarnings('ignore', message='.*broker_connection_retry.*')
+        warnings.filterwarnings('ignore', message='.*CPendingDeprecationWarning.*')
+        
+        # Redirect warnings to logging
+        logging.captureWarnings(True)
+        
+        # Reduce warnings logger level
+        warnings_logger = logging.getLogger('py.warnings')
+        warnings_logger.setLevel(logging.ERROR)
+    
+    def _configure_specific_loggers(self):
+        """Configure specific loggers to reduce spam."""
+        
+        # Celery loggers - reduce verbosity
+        celery_loggers = [
+            'celery.worker.strategy',
+            'celery.worker.consumer',
+            'celery.worker.heartbeat',
+            'celery.worker.control',
+            'celery.app.trace',
+            'celery.task',
+        ]
+        
+        for logger_name in celery_loggers:
+            logger = logging.getLogger(logger_name)
+            logger.setLevel(logging.WARNING)
+        
+        # Flask and Werkzeug - reduce verbosity in production
+        if not self.is_development:
+            logging.getLogger('werkzeug').setLevel(logging.WARNING)
+            logging.getLogger('flask.app').setLevel(logging.WARNING)
+        
+        # SQLAlchemy - reduce verbosity
+        logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
+        logging.getLogger('sqlalchemy.pool').setLevel(logging.WARNING)
+        
+        # WebSocket and analyzer services
+        logging.getLogger('analyzer.websocket_gateway').setLevel(logging.INFO)
+        logging.getLogger('app.services.analyzer_integration').setLevel(logging.INFO)
+    
+    def create_service_logger(self, service_name: str) -> logging.Logger:
+        """Create a logger for a specific service."""
+        logger_name = f"{self.app_name}.{service_name}"
+        return logging.getLogger(logger_name)
+    
+    def cleanup_old_logs(self, days_to_keep: int = 7):
+        """Clean up old log files."""
+        if not self.log_dir.exists():
+            return
+            
+        cutoff_time = datetime.now().timestamp() - (days_to_keep * 24 * 3600)
+        
+        for log_file in self.log_dir.glob("*.log*"):
+            try:
+                if log_file.stat().st_mtime < cutoff_time:
+                    log_file.unlink()
+            except Exception:
+                pass  # Ignore errors during cleanup
+
+
+# Global instance
+_logging_config = None
+
+
+def get_logging_config() -> LoggingConfig:
+    """Get the global logging configuration instance."""
+    global _logging_config
+    if _logging_config is None:
+        _logging_config = LoggingConfig()
+    return _logging_config
+
+
+def setup_application_logging() -> logging.Logger:
+    """Setup application logging - call this once at startup."""
+    config = get_logging_config()
+    return config.setup_logging()
+
+
+def get_logger(name: str) -> logging.Logger:
+    """Get a logger with the specified name."""
+    return logging.getLogger(f"ThesisApp.{name}")
+
+
+def reduce_monitoring_spam():
+    """Apply additional filters to reduce monitoring-related spam."""
+    
+    # Add filters to existing handlers
+    for handler in logging.getLogger().handlers:
+        if not any(isinstance(f, LogLevelFilter) for f in handler.filters):
+            handler.addFilter(LogLevelFilter())

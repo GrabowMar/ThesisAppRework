@@ -1,0 +1,93 @@
+{#
+  {#
+    Rewritten Header: PC-optimized, minimal DOM, consolidated HTMX
+    - Consolidates status/task/uptime into one summary endpoint (/api/header/summary)
+    - Reduces periodic network calls for faster desktop responsiveness
+    - Keeps visuals consistent with existing CSS classes
+    - Provides noscript fallback for environments without JS
+  #}
+
+  <header class="navbar navbar-expand-md navbar-light d-print-none border-bottom" role="banner" aria-label="Main header">
+    <div class="container-xl d-flex align-items-center">
+      {# Left: Brand + breadcrumb (kept visually) #}
+      <div class="d-flex align-items-center me-auto">
+        <a class="navbar-brand d-none d-lg-flex align-items-center" href="{{ url_for('main.dashboard') }}" aria-label="Go to dashboard">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chart-line me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+            <path d="M4 19l16 0"/>
+            <path d="M4 15l4 -6l4 2l4 -5l4 4"/>
+          </svg>
+          <span class="fw-semibold">Thesis Platform</span>
+        </a>
+
+        {# Breadcrumb: small and unobtrusive on desktop #}
+        <div class="ms-3 d-none d-md-block">
+          {% from 'shared/ui/macros/nav_macros.html' import breadcrumb %}
+          {% set _bs = [] %}
+          {% set _ = _bs.append({'label': 'Dashboard', 'url': url_for('main.dashboard')}) %}
+          {% if request and request.endpoint %}
+            {% if 'models' in request.endpoint %}
+              {% set _ = _bs.append({'label': 'Models', 'url': url_for('main.models_overview')}) %}
+            {% elif 'analysis' in request.endpoint %}
+              {% set _ = _bs.append({'label': 'Analysis', 'url': url_for('analysis.analysis_index')}) %}
+            {% endif %}
+          {% endif %}
+          {{ breadcrumb(_bs, 'mb-0') }}
+        </div>
+      </div>
+
+      {# Right: compact controls optimized for desktop - single HTMX call #}
+      <nav class="navbar-nav d-flex flex-row align-items-center gap-3" role="navigation" aria-label="Header actions">
+        <div id="header-summary" class="d-flex align-items-center" hx-get="/api/header/summary" hx-trigger="load, every 15s" hx-swap="innerHTML">
+          {# Expected server fragment: small dot + status text + small tasks number (kept simple) #}
+          <span class="d-flex align-items-center me-3" aria-live="polite">
+            <span class="status-indicator status-indicator-animated bg-green me-2" style="width:20px;height:20px;border-radius:50%;display:inline-block;" aria-hidden="true"></span>
+            <small class="text-muted">OK</small>
+          </span>
+
+          <a class="text-muted d-flex align-items-center me-3" href="{{ url_for('tasks.tasks_overview') }}" title="Active tasks">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 5.5l1.5 1.5l2.5 -2.5"/><path d="M3.5 11.5l1.5 1.5l2.5 -2.5"/><path d="M3.5 17.5l1.5 1.5l2.5 -2.5"/></svg>
+            <small class="text-muted">0</small>
+          </a>
+
+          <div class="text-muted me-3 d-flex align-items-center" title="Uptime">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/><path d="M12 7l0 5 3 3"/></svg>
+            <small class="text-muted">--</small>
+          </div>
+        </div>
+
+        {# Theme, search, notifications, user menu preserved but compact #}
+        <div class="nav-item dropdown d-none d-md-flex">
+          <a href="#" class="nav-link px-2" data-bs-toggle="dropdown" aria-label="Theme">Theme</a>
+          <div class="dropdown-menu dropdown-menu-end">
+            <a class="dropdown-item" href="#" data-bs-theme-value="light">Light</a>
+            <a class="dropdown-item" href="#" data-bs-theme-value="dark">Dark</a>
+          </div>
+        </div>
+
+        <div class="nav-item d-none d-md-flex">
+          <a class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#search-modal" aria-label="Open search">Search</a>
+        </div>
+
+        <div class="nav-item dropdown">
+          <a href="#" class="nav-link px-2" data-bs-toggle="dropdown" aria-label="User menu">
+            <span class="avatar avatar-sm bg-primary text-white d-flex align-items-center justify-content-center" style="width:32px;height:32px;border-radius:50%;">A</span>
+          </a>
+          <div class="dropdown-menu dropdown-menu-end">
+            <a class="dropdown-item" href="#">Profile</a>
+            <a class="dropdown-item" href="#">Settings</a>
+            <div class="dropdown-divider"></div>
+            <a class="dropdown-item text-danger" href="#">Logout</a>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  {# noscript fallback: small static header summary for non-JS environments #}
+  <noscript>
+    <style> .status-indicator{display:inline-block;width:12px;height:12px;border-radius:50%;background:#28a745;vertical-align:middle;margin-right:6px;} </style>
+    <div class="container-xl d-none d-md-block mt-1">
+      <span class="status-indicator" aria-hidden="true"></span><small class="text-muted">OK</small>
+    </div>
+  </noscript>

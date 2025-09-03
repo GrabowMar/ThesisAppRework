@@ -8,24 +8,21 @@ and analyzer orchestration capabilities.
 
 import os
 import sys
-import logging
 from pathlib import Path
 
-# Configure logging
-log_dir = Path(__file__).parent.parent / "logs"
-log_dir.mkdir(exist_ok=True)
-log_file = log_dir / "app.log"
+# Configure centralized logging
+from app.utils.logging_config import setup_application_logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(log_file)
-    ]
-)
+logger = setup_application_logging()
 
-logger = logging.getLogger(__name__)
+# Clean up old logs at startup
+try:
+    scripts_dir = Path(__file__).parent.parent / "scripts"
+    sys.path.insert(0, str(scripts_dir))
+    from scripts.log_cleanup import cleanup_logs_startup
+    cleanup_logs_startup()
+except Exception as e:
+    logger.warning(f"Log cleanup at startup failed: {e}")
 
 def main():
     """Main application entry point."""

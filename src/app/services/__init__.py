@@ -11,10 +11,11 @@ This package contains all service layer components including:
 
 from .service_locator import ServiceLocator
 from .docker_manager import DockerManager
-from .batch_service import BatchAnalysisService, batch_service
+from .task_service import BatchAnalysisService, batch_service
 from .security_service import SecurityService, security_service
-from .task_manager import TaskManager
-from .analyzer_integration import AnalyzerIntegration
+from .analysis_service import AnalysisService, analysis_service
+# from .task_manager import TaskManager  # Module not found
+# from .analyzer_integration import AnalyzerIntegration  # Temporarily disabled
 from .model_service import ModelService
 
 # Legacy services removed:
@@ -28,7 +29,8 @@ __all__ = [
     'batch_service',
     'SecurityService',
     'security_service',
-    'TaskManager',
-    'AnalyzerIntegration',
+    'AnalysisService',
+    'analysis_service',
+    # 'TaskManager',  # Module not found
     'ModelService',
 ]

@@ -162,6 +162,15 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def now() -> datetime:
+    """Return current timezone-aware datetime for Jinja templates.
+    
+    This function is registered as a Jinja global to provide current time
+    in templates without needing to pass it from every route.
+    """
+    return datetime.now(UTC)
+
+
 def make_safe_dom_id(value: str, prefix: Optional[str] = None) -> str:
     """Create a DOM-safe id from an arbitrary string.
 
@@ -449,3 +458,38 @@ def dicts_to_csv(rows: list[dict], fieldnames: Optional[list[str]] = None) -> st
     for r in rows:
         writer.writerow(r)
     return output.getvalue()
+
+
+def json_success(data: Any = None, message: str = "Success", **kwargs) -> tuple[Dict[str, Any], int]:
+    """Create a standardized JSON success response."""
+    response = {
+        'success': True,
+        'message': message,
+        'timestamp': datetime.now(UTC).isoformat()
+    }
+    
+    if data is not None:
+        response['data'] = data
+    
+    # Add any additional fields
+    response.update(kwargs)
+    
+    return response, 200
+
+
+def json_error(message: str, code: int = 400, details: Optional[Dict[str, Any]] = None, **kwargs) -> tuple[Dict[str, Any], int]:
+    """Create a standardized JSON error response."""
+    response = {
+        'success': False,
+        'error': message,
+        'code': code,
+        'timestamp': datetime.now(UTC).isoformat()
+    }
+    
+    if details:
+        response['details'] = details
+    
+    # Add any additional fields
+    response.update(kwargs)
+    
+    return response, code

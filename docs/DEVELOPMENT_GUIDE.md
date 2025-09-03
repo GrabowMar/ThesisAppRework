@@ -132,7 +132,7 @@ Include the standard nav line (see top of this file) to ensure cross-links remai
 ## 18. Troubleshooting Quick Table
 | Symptom | Likely Cause | Check |
 |---------|--------------|-------|
-| Analysis stuck queued | Celery worker not running | `celery_worker.log` |
+| Analysis stuck queued | Celery worker not running | `logs/celery_worker.log` |
 | No progress events | WebSocket bridge down | `analyzer_manager.py status` |
 | Port resolution fails | Missing DB record / stale JSON fallback | Port service logs |
 | Docs not loading | MkDocs server not started | `start.ps1 -Docs` flag |

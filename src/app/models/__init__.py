@@ -19,12 +19,16 @@ import json
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List
 
-# Import centralized constants and enums
+# Import centralized constants and enums  
 from ..constants import AnalysisStatus, JobStatus, ContainerState
 from ..extensions import db
 
-# Import analysis configuration models
-from .analysis import AnalysisConfig, ConfigPreset
+# Analysis configuration models are now defined in this file below
+
+# Import centralized enums for analysis system
+from ..constants import AnalysisType, AnalysisStatus, JobPriority as Priority, JobStatus as BatchStatus, SeverityLevel
+
+# Cleanup models for file replacement are defined below
 
 def utc_now() -> datetime:
     """Get current UTC time - replacement for deprecated datetime.utcnow()"""
@@ -33,6 +37,7 @@ def utc_now() -> datetime:
 class ModelCapability(db.Model):
     """Model for storing AI model capabilities and metadata."""
     __tablename__ = 'model_capabilities'
+    __table_args__ = {'extend_existing': True}
     
     id = db.Column(db.Integer, primary_key=True)
     model_id = db.Column(db.String(200), unique=True, nullable=False, index=True)
@@ -125,6 +130,7 @@ class ModelCapability(db.Model):
 class PortConfiguration(db.Model):
     """Model for storing Docker port configurations."""
     __tablename__ = 'port_configurations'
+    __table_args__ = {'extend_existing': True}
     
     id = db.Column(db.Integer, primary_key=True)
     model = db.Column(db.String(200), nullable=False, index=True)  # Model name/ID
@@ -177,6 +183,7 @@ class PortConfiguration(db.Model):
 class GeneratedApplication(db.Model):
     """Model for storing information about AI-generated applications."""
     __tablename__ = 'generated_applications'
+    __table_args__ = {'extend_existing': True}
     
     id = db.Column(db.Integer, primary_key=True)
     model_slug = db.Column(db.String(200), nullable=False, index=True)
@@ -295,6 +302,7 @@ class GeneratedApplication(db.Model):
 class SecurityAnalysis(db.Model):
     """Model for storing security analysis results with comprehensive tool configurations."""
     __tablename__ = 'security_analyses'
+    __table_args__ = {'extend_existing': True}
     
     id = db.Column(db.Integer, primary_key=True)
     application_id = db.Column(db.Integer, db.ForeignKey('generated_applications.id'), nullable=False, index=True)
@@ -694,6 +702,7 @@ class SecurityAnalysis(db.Model):
 class PerformanceTest(db.Model):
     """Model for storing performance test results."""
     __tablename__ = 'performance_tests'
+    __table_args__ = {'extend_existing': True}
     
     id = db.Column(db.Integer, primary_key=True)
     application_id = db.Column(db.Integer, db.ForeignKey('generated_applications.id'), nullable=False, index=True)
@@ -782,6 +791,7 @@ class PerformanceTest(db.Model):
 class ZAPAnalysis(db.Model):
     """Model for storing ZAP security analysis results."""
     __tablename__ = 'zap_analyses'
+    __table_args__ = {'extend_existing': True}
     
     id = db.Column(db.Integer, primary_key=True)
     application_id = db.Column(db.Integer, db.ForeignKey('generated_applications.id'), nullable=False, index=True)
@@ -860,6 +870,7 @@ class ZAPAnalysis(db.Model):
 class OpenRouterAnalysis(db.Model):
     """Model for storing OpenRouter AI analysis results."""
     __tablename__ = 'openrouter_analyses'
+    __table_args__ = {'extend_existing': True}
     
     id = db.Column(db.Integer, primary_key=True)
     application_id = db.Column(db.Integer, db.ForeignKey('generated_applications.id'), nullable=False, index=True)
@@ -963,6 +974,7 @@ class OpenRouterAnalysis(db.Model):
 class ContainerizedTest(db.Model):
     """Model for tracking containerized test services."""
     __tablename__ = 'containerized_tests'
+    __table_args__ = {'extend_existing': True}
     
     id = db.Column(db.Integer, primary_key=True)
     container_name = db.Column(db.String(200), unique=True, nullable=False, index=True)
@@ -1043,6 +1055,7 @@ class ContainerizedTest(db.Model):
 class OpenRouterModelCache(db.Model):
     """Model for caching OpenRouter API model data to reduce API calls."""
     __tablename__ = 'openrouter_model_cache'
+    __table_args__ = {'extend_existing': True}
     
     id = db.Column(db.Integer, primary_key=True)
     model_id = db.Column(db.String(200), unique=True, nullable=False, index=True)
@@ -1106,6 +1119,7 @@ class ExternalModelInfoCache(db.Model):
     Keyed by canonical model slug, stores JSON payload and expiry.
     """
     __tablename__ = 'external_model_info_cache'
+    __table_args__ = {'extend_existing': True}
 
     id = db.Column(db.Integer, primary_key=True)
     model_slug = db.Column(db.String(200), unique=True, nullable=False, index=True)
@@ -1145,6 +1159,7 @@ class ExternalModelInfoCache(db.Model):
 class BatchAnalysis(db.Model):
     """Model for tracking batch analysis jobs."""
     __tablename__ = 'batch_analyses'
+    __table_args__ = {'extend_existing': True}
     
     id = db.Column(db.Integer, primary_key=True)
     batch_id = db.Column(db.String(100), unique=True, nullable=False, index=True)
@@ -1512,6 +1527,1000 @@ class BatchTemplate(db.Model):
         return f'<BatchTemplate {self.name}>'
 
 
+class ProcessTracking(db.Model):
+    """Track running processes to replace PID files."""
+    __tablename__ = 'process_tracking'
+    
+    # Primary identification
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Process information
+    service_name = db.Column(db.String(100), nullable=False, index=True)  # celery_beat, celery_worker, flask_app
+    service_type = db.Column(db.String(50), nullable=False, index=True)   # main, analyzer
+    process_id = db.Column(db.Integer, nullable=False)
+    
+    # Status and health
+    status = db.Column(db.String(20), default='running', index=True)  # running, stopped, crashed
+    host = db.Column(db.String(100), default='localhost')
+    port = db.Column(db.Integer)
+    
+    # Process metadata
+    command_line = db.Column(db.Text)
+    working_directory = db.Column(db.String(500))
+    environment_info_json = db.Column(db.Text)
+    
+    # Monitoring
+    last_heartbeat = db.Column(db.DateTime(timezone=True), default=utc_now)
+    resource_usage_json = db.Column(db.Text)  # CPU, memory, etc.
+    
+    # Timestamps
+    started_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    stopped_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    
+    def get_environment_info(self) -> Dict[str, Any]:
+        """Get environment info as dictionary."""
+        if self.environment_info_json:
+            try:
+                return json.loads(self.environment_info_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_environment_info(self, info: Dict[str, Any]) -> None:
+        """Set environment info."""
+        self.environment_info_json = json.dumps(info)
+    
+    def get_resource_usage(self) -> Dict[str, Any]:
+        """Get resource usage as dictionary."""
+        if self.resource_usage_json:
+            try:
+                return json.loads(self.resource_usage_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_resource_usage(self, usage: Dict[str, Any]) -> None:
+        """Set resource usage."""
+        self.resource_usage_json = json.dumps(usage)
+    
+    def mark_stopped(self) -> None:
+        """Mark process as stopped."""
+        self.status = 'stopped'
+        self.stopped_at = utc_now()
+    
+    def update_heartbeat(self, resource_usage: Dict[str, Any] = None) -> None:
+        """Update last heartbeat and optionally resource usage."""
+        self.last_heartbeat = utc_now()
+        if resource_usage:
+            self.set_resource_usage(resource_usage)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary representation."""
+        return {
+            'id': self.id,
+            'service_name': self.service_name,
+            'service_type': self.service_type,
+            'process_id': self.process_id,
+            'status': self.status,
+            'host': self.host,
+            'port': self.port,
+            'command_line': self.command_line,
+            'working_directory': self.working_directory,
+            'environment_info': self.get_environment_info(),
+            'resource_usage': self.get_resource_usage(),
+            'last_heartbeat': self.last_heartbeat.isoformat() if self.last_heartbeat else None,
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'stopped_at': self.stopped_at.isoformat() if self.stopped_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
+    
+    def __repr__(self) -> str:
+        return f'<ProcessTracking {self.service_name}:{self.process_id}>'
+
+
+class TestResults(db.Model):
+    """Store test results to replace JSON result files."""
+    __tablename__ = 'test_results'
+    
+    # Primary identification
+    id = db.Column(db.Integer, primary_key=True)
+    result_id = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    
+    # Test information
+    test_type = db.Column(db.String(50), nullable=False, index=True)  # smoke_test, api_test, integration_test
+    test_name = db.Column(db.String(200), nullable=False)
+    test_suite = db.Column(db.String(100), index=True)
+    
+    # Target information
+    target_url = db.Column(db.String(500))
+    target_service = db.Column(db.String(100))
+    model_slug = db.Column(db.String(200), index=True)
+    app_number = db.Column(db.Integer, index=True)
+    
+    # Results
+    status = db.Column(db.String(20), nullable=False, index=True)  # passed, failed, error, skipped
+    response_time_ms = db.Column(db.Float)
+    status_code = db.Column(db.Integer)
+    
+    # Detailed results
+    request_data_json = db.Column(db.Text)
+    response_data_json = db.Column(db.Text)
+    error_message = db.Column(db.Text)
+    assertions_json = db.Column(db.Text)  # List of assertion results
+    
+    # Test metadata
+    test_environment_json = db.Column(db.Text)
+    test_config_json = db.Column(db.Text)
+    tags_json = db.Column(db.Text)
+    
+    # Timestamps
+    started_at = db.Column(db.DateTime(timezone=True))
+    completed_at = db.Column(db.DateTime(timezone=True))
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    
+    def get_request_data(self) -> Dict[str, Any]:
+        """Get request data as dictionary."""
+        if self.request_data_json:
+            try:
+                return json.loads(self.request_data_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_request_data(self, data: Dict[str, Any]) -> None:
+        """Set request data."""
+        self.request_data_json = json.dumps(data)
+    
+    def get_response_data(self) -> Dict[str, Any]:
+        """Get response data as dictionary."""
+        if self.response_data_json:
+            try:
+                return json.loads(self.response_data_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_response_data(self, data: Dict[str, Any]) -> None:
+        """Set response data."""
+        self.response_data_json = json.dumps(data)
+    
+    def get_assertions(self) -> List[Dict[str, Any]]:
+        """Get assertions as list."""
+        if self.assertions_json:
+            try:
+                return json.loads(self.assertions_json)
+            except json.JSONDecodeError:
+                return []
+        return []
+    
+    def set_assertions(self, assertions: List[Dict[str, Any]]) -> None:
+        """Set assertions."""
+        self.assertions_json = json.dumps(assertions)
+    
+    def get_test_environment(self) -> Dict[str, Any]:
+        """Get test environment as dictionary."""
+        if self.test_environment_json:
+            try:
+                return json.loads(self.test_environment_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_test_environment(self, env: Dict[str, Any]) -> None:
+        """Set test environment."""
+        self.test_environment_json = json.dumps(env)
+    
+    def get_test_config(self) -> Dict[str, Any]:
+        """Get test config as dictionary."""
+        if self.test_config_json:
+            try:
+                return json.loads(self.test_config_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_test_config(self, config: Dict[str, Any]) -> None:
+        """Set test config."""
+        self.test_config_json = json.dumps(config)
+    
+    def get_tags(self) -> List[str]:
+        """Get tags as list."""
+        if self.tags_json:
+            try:
+                return json.loads(self.tags_json)
+            except json.JSONDecodeError:
+                return []
+        return []
+    
+    def set_tags(self, tags: List[str]) -> None:
+        """Set tags."""
+        self.tags_json = json.dumps(tags)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary representation."""
+        return {
+            'id': self.id,
+            'result_id': self.result_id,
+            'test_type': self.test_type,
+            'test_name': self.test_name,
+            'test_suite': self.test_suite,
+            'target_url': self.target_url,
+            'target_service': self.target_service,
+            'model_slug': self.model_slug,
+            'app_number': self.app_number,
+            'status': self.status,
+            'response_time_ms': self.response_time_ms,
+            'status_code': self.status_code,
+            'request_data': self.get_request_data(),
+            'response_data': self.get_response_data(),
+            'error_message': self.error_message,
+            'assertions': self.get_assertions(),
+            'test_environment': self.get_test_environment(),
+            'test_config': self.get_test_config(),
+            'tags': self.get_tags(),
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+    
+    def __repr__(self) -> str:
+        return f'<TestResults {self.test_name}:{self.status}>'
+
+
+class EventLog(db.Model):
+    """Store system events to replace gateway_events.jsonl."""
+    __tablename__ = 'event_logs'
+    
+    # Primary identification
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    
+    # Event information
+    event_type = db.Column(db.String(50), nullable=False, index=True)  # gateway, analysis, system, user
+    event_name = db.Column(db.String(100), nullable=False, index=True)
+    source = db.Column(db.String(100), nullable=False, index=True)  # gateway, analyzer, web_ui, api
+    
+    # Event context
+    user_id = db.Column(db.String(100))
+    session_id = db.Column(db.String(100))
+    request_id = db.Column(db.String(100))
+    correlation_id = db.Column(db.String(100))
+    
+    # Event data
+    message = db.Column(db.Text)
+    event_data_json = db.Column(db.Text)
+    event_metadata_json = db.Column(db.Text)
+    
+    # Severity and categorization
+    severity = db.Column(db.String(20), default='info', index=True)  # debug, info, warning, error, critical
+    category = db.Column(db.String(50), index=True)  # auth, analysis, system, performance, security
+    
+    # Context information
+    ip_address = db.Column(db.String(45))  # IPv6 compatible
+    user_agent = db.Column(db.String(500))
+    request_method = db.Column(db.String(10))
+    request_path = db.Column(db.String(500))
+    
+    # Performance data
+    duration_ms = db.Column(db.Float)
+    memory_usage_mb = db.Column(db.Float)
+    
+    # Timestamps
+    timestamp = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    
+    def get_event_data(self) -> Dict[str, Any]:
+        """Get event data as dictionary."""
+        if self.event_data_json:
+            try:
+                return json.loads(self.event_data_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_event_data(self, data: Dict[str, Any]) -> None:
+        """Set event data."""
+        self.event_data_json = json.dumps(data)
+    
+    def get_event_metadata(self) -> Dict[str, Any]:
+        """Get event metadata as dictionary."""
+        if self.event_metadata_json:
+            try:
+                return json.loads(self.event_metadata_json)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_event_metadata(self, metadata: Dict[str, Any]) -> None:
+        """Set event metadata."""
+        self.event_metadata_json = json.dumps(metadata)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary representation."""
+        return {
+            'id': self.id,
+            'event_id': self.event_id,
+            'event_type': self.event_type,
+            'event_name': self.event_name,
+            'source': self.source,
+            'user_id': self.user_id,
+            'session_id': self.session_id,
+            'request_id': self.request_id,
+            'correlation_id': self.correlation_id,
+            'message': self.message,
+            'event_data': self.get_event_data(),
+            'metadata': self.get_event_metadata(),
+            'severity': self.severity,
+            'category': self.category,
+            'ip_address': self.ip_address,
+            'user_agent': self.user_agent,
+            'request_method': self.request_method,
+            'request_path': self.request_path,
+            'duration_ms': self.duration_ms,
+            'memory_usage_mb': self.memory_usage_mb,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+    
+    def __repr__(self) -> str:
+        return f'<EventLog {self.event_type}:{self.event_name}>'
+
+
+# =============================================================================
+# ANALYSIS CONFIGURATION MODELS  
+# =============================================================================
+
+class AnalysisConfig(db.Model):
+    """Model for storing analysis tool configurations."""
+    __tablename__ = 'analysis_configs'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    config_type = db.Column(db.String(50), nullable=False, index=True)  # security, performance, ai
+    
+    # Configuration data as JSON
+    config_data = db.Column(db.Text, nullable=False)
+    
+    # Metadata
+    is_default = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
+    tags = db.Column(db.Text)  # JSON array of tags
+    
+    # Version tracking
+    version = db.Column(db.String(20), default='1.0.0')
+    parent_config_id = db.Column(db.Integer, db.ForeignKey('analysis_configs.id'), nullable=True)
+    
+    # Usage tracking
+    usage_count = db.Column(db.Integer, default=0)
+    last_used = db.Column(db.DateTime(timezone=True))
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    
+    # Relationships
+    child_configs = db.relationship('AnalysisConfig', 
+                                  backref=db.backref('parent_config', remote_side=[id]),
+                                  lazy=True)
+    
+    def get_config_data(self) -> Dict[str, Any]:
+        """Get configuration data as dictionary."""
+        if self.config_data:
+            try:
+                return json.loads(self.config_data)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_config_data(self, config_dict: Dict[str, Any]) -> None:
+        """Set configuration data from dictionary."""
+        self.config_data = json.dumps(config_dict, indent=2)
+    
+    def get_tags(self) -> list:
+        """Get tags as list."""
+        if self.tags:
+            try:
+                return json.loads(self.tags)
+            except json.JSONDecodeError:
+                return []
+        return []
+    
+    def set_tags(self, tags_list: list) -> None:
+        """Set tags from list."""
+        self.tags = json.dumps(tags_list)
+    
+    def increment_usage(self) -> None:
+        """Increment usage count and update last used timestamp."""
+        self.usage_count += 1
+        self.last_used = utc_now()
+    
+    def create_child_config(self, name: str, description: str = "") -> 'AnalysisConfig':
+        """Create a child configuration based on this one."""
+        child = AnalysisConfig(
+            name=name,
+            description=description,
+            config_type=self.config_type,
+            config_data=self.config_data,
+            parent_config_id=self.id,
+            version="1.0.0"
+        )
+        return child
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert model to dictionary."""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'config_type': self.config_type,
+            'config_data': self.get_config_data(),
+            'is_default': self.is_default,
+            'is_active': self.is_active,
+            'tags': self.get_tags(),
+            'version': self.version,
+            'parent_config_id': self.parent_config_id,
+            'usage_count': self.usage_count,
+            'last_used': self.last_used,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at
+        }
+    
+    def __repr__(self) -> str:
+        return f'<AnalysisConfig {self.name} ({self.config_type})>'
+
+
+class ConfigPreset(db.Model):
+    """Model for storing predefined configuration presets."""
+    __tablename__ = 'config_presets'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    category = db.Column(db.String(50), nullable=False, index=True)  # quick_scan, comprehensive, etc.
+    config_type = db.Column(db.String(50), nullable=False, index=True)  # security, performance, ai
+    
+    # Preset configuration
+    preset_data = db.Column(db.Text, nullable=False)
+    
+    # Metadata
+    is_system_preset = db.Column(db.Boolean, default=True)  # System vs user-created
+    is_public = db.Column(db.Boolean, default=True)
+    difficulty_level = db.Column(db.String(20), default='beginner')  # beginner, intermediate, advanced
+    estimated_duration = db.Column(db.Integer)  # Estimated runtime in minutes
+    
+    # Usage tracking
+    usage_count = db.Column(db.Integer, default=0)
+    rating_sum = db.Column(db.Integer, default=0)
+    rating_count = db.Column(db.Integer, default=0)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    
+    def get_preset_data(self) -> Dict[str, Any]:
+        """Get preset data as dictionary."""
+        if self.preset_data:
+            try:
+                return json.loads(self.preset_data)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_preset_data(self, preset_dict: Dict[str, Any]) -> None:
+        """Set preset data from dictionary."""
+        self.preset_data = json.dumps(preset_dict, indent=2)
+    
+    def get_average_rating(self) -> float:
+        """Get average rating."""
+        if self.rating_count > 0:
+            return self.rating_sum / self.rating_count
+        return 0.0
+    
+    def add_rating(self, rating: int) -> None:
+        """Add a rating (1-5)."""
+        if 1 <= rating <= 5:
+            self.rating_sum += rating
+            self.rating_count += 1
+    
+    def increment_usage(self) -> None:
+        """Increment usage count."""
+        self.usage_count += 1
+    
+    def to_config(self) -> AnalysisConfig:
+        """Convert preset to an AnalysisConfig instance."""
+        return AnalysisConfig(
+            name=f"{self.name} (from preset)",
+            description=self.description,
+            config_type=self.config_type,
+            config_data=self.preset_data
+        )
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert model to dictionary."""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'category': self.category,
+            'config_type': self.config_type,
+            'preset_data': self.get_preset_data(),
+            'is_system_preset': self.is_system_preset,
+            'is_public': self.is_public,
+            'difficulty_level': self.difficulty_level,
+            'estimated_duration': self.estimated_duration,
+            'usage_count': self.usage_count,
+            'average_rating': self.get_average_rating(),
+            'rating_count': self.rating_count,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at
+        }
+    
+    def __repr__(self) -> str:
+        return f'<ConfigPreset {self.name} ({self.config_type})>'
+
+
+# =============================================================================
+# NEW ANALYSIS SYSTEM MODELS
+# =============================================================================
+
+class AnalyzerConfiguration(db.Model):
+    """Configuration profiles for different analyzer types and tools."""
+    __tablename__ = 'analyzer_configurations'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False, unique=True)
+    description = db.Column(db.Text)
+    analyzer_type = db.Column(db.Enum(AnalysisType), nullable=False, index=True)
+    
+    # Configuration settings stored as JSON
+    config_data = db.Column(db.Text, nullable=False)  # Tool-specific configuration
+    template_config = db.Column(db.Text)  # Reusable template settings
+    
+    # Metadata and categorization
+    is_active = db.Column(db.Boolean, default=True, index=True)
+    is_default = db.Column(db.Boolean, default=False)
+    tags = db.Column(db.Text)  # JSON array of tags
+    category = db.Column(db.String(100))  # e.g., "quick-scan", "comprehensive"
+    
+    # Usage and performance metrics
+    usage_count = db.Column(db.Integer, default=0)
+    success_rate = db.Column(db.Float, default=0.0)  # Percentage of successful runs
+    avg_execution_time = db.Column(db.Float, default=0.0)  # Average time in seconds
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    last_used = db.Column(db.DateTime(timezone=True))
+    
+    def get_config_data(self) -> Dict[str, Any]:
+        """Get configuration data as dictionary."""
+        if self.config_data:
+            try:
+                return json.loads(self.config_data)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_config_data(self, config_dict: Dict[str, Any]) -> None:
+        """Set configuration data from dictionary."""
+        self.config_data = json.dumps(config_dict)
+    
+    def get_template_config(self) -> Dict[str, Any]:
+        """Get template configuration as dictionary."""
+        if self.template_config:
+            try:
+                return json.loads(self.template_config)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_template_config(self, template_dict: Dict[str, Any]) -> None:
+        """Set template configuration from dictionary."""
+        self.template_config = json.dumps(template_dict)
+    
+    def get_tags(self) -> List[str]:
+        """Get tags as list."""
+        if self.tags:
+            try:
+                return json.loads(self.tags)
+            except json.JSONDecodeError:
+                return []
+        return []
+    
+    def set_tags(self, tags_list: List[str]) -> None:
+        """Set tags from list."""
+        self.tags = json.dumps(tags_list)
+    
+    def update_metrics(self, execution_time: float, success: bool) -> None:
+        """Update usage metrics."""
+        self.usage_count += 1
+        self.last_used = utc_now()
+        
+        # Update average execution time
+        if self.usage_count == 1:
+            self.avg_execution_time = execution_time
+        else:
+            self.avg_execution_time = ((self.avg_execution_time * (self.usage_count - 1)) + execution_time) / self.usage_count
+        
+        # Update success rate
+        if success:
+            successful_runs = (self.success_rate / 100.0) * (self.usage_count - 1) + 1
+        else:
+            successful_runs = (self.success_rate / 100.0) * (self.usage_count - 1)
+        self.success_rate = (successful_runs / self.usage_count) * 100.0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert model to dictionary."""
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'analyzer_type': self.analyzer_type.value if self.analyzer_type else None,
+            'config_data': self.get_config_data(),
+            'template_config': self.get_template_config(),
+            'is_active': self.is_active,
+            'is_default': self.is_default,
+            'tags': self.get_tags(),
+            'category': self.category,
+            'usage_count': self.usage_count,
+            'success_rate': self.success_rate,
+            'avg_execution_time': self.avg_execution_time,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
+            'last_used': self.last_used
+        }
+    
+    def __repr__(self) -> str:
+        return f'<AnalyzerConfiguration {self.name} ({self.analyzer_type.value if self.analyzer_type else "unknown"})>'
+
+
+class AnalysisTask(db.Model):
+    """Individual analysis task tracking and management."""
+    __tablename__ = 'analysis_tasks'
+    __table_args__ = {'extend_existing': True}
+    
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    
+    # Task configuration
+    analyzer_config_id = db.Column(db.Integer, db.ForeignKey('analyzer_configurations.id'), nullable=False)
+    analysis_type = db.Column(db.Enum(AnalysisType), nullable=False, index=True)
+    status = db.Column(db.Enum(AnalysisStatus), default=AnalysisStatus.PENDING, index=True)
+    priority = db.Column(db.Enum(Priority), default=Priority.NORMAL, index=True)
+    
+    # Target application information
+    target_model = db.Column(db.String(200), nullable=False, index=True)
+    target_app_number = db.Column(db.Integer, nullable=False)
+    target_path = db.Column(db.String(500))
+    
+    # Task metadata
+    task_name = db.Column(db.String(200))
+    description = db.Column(db.Text)
+    task_metadata = db.Column(db.Text)  # JSON metadata
+    
+    # Progress tracking
+    progress_percentage = db.Column(db.Float, default=0.0)
+    current_step = db.Column(db.String(200))
+    total_steps = db.Column(db.Integer)
+    completed_steps = db.Column(db.Integer, default=0)
+    
+    # Batch association
+    batch_id = db.Column(db.String(100), index=True)  # Optional batch association
+    
+    # Execution details
+    assigned_worker = db.Column(db.String(100))  # Worker/analyzer instance
+    execution_context = db.Column(db.Text)  # JSON execution context
+    
+    # Results summary
+    result_summary = db.Column(db.Text)  # JSON summary of findings
+    issues_found = db.Column(db.Integer, default=0)
+    severity_breakdown = db.Column(db.Text)  # JSON severity count breakdown
+    
+    # Timing and performance
+    estimated_duration = db.Column(db.Integer)  # Estimated duration in seconds
+    actual_duration = db.Column(db.Float)  # Actual duration in seconds
+    queue_time = db.Column(db.Float)  # Time spent in queue
+    
+    # Error handling
+    error_message = db.Column(db.Text)
+    retry_count = db.Column(db.Integer, default=0)
+    max_retries = db.Column(db.Integer, default=3)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    started_at = db.Column(db.DateTime(timezone=True))
+    completed_at = db.Column(db.DateTime(timezone=True))
+    
+    # Relationships
+    analyzer_config = db.relationship('AnalyzerConfiguration', backref='tasks')
+    results = db.relationship('AnalysisResult', backref='task', cascade='all, delete-orphan')
+    
+    def get_metadata(self) -> Dict[str, Any]:
+        """Get metadata as dictionary."""
+        if self.task_metadata:
+            try:
+                return json.loads(self.task_metadata)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+
+    def set_metadata(self, metadata_dict: Dict[str, Any]) -> None:
+        """Set metadata from dictionary."""
+        self.task_metadata = json.dumps(metadata_dict)
+    
+    def get_execution_context(self) -> Dict[str, Any]:
+        """Get execution context as dictionary."""
+        if self.execution_context:
+            try:
+                return json.loads(self.execution_context)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_execution_context(self, context_dict: Dict[str, Any]) -> None:
+        """Set execution context from dictionary."""
+        self.execution_context = json.dumps(context_dict)
+    
+    def get_result_summary(self) -> Dict[str, Any]:
+        """Get result summary as dictionary."""
+        if self.result_summary:
+            try:
+                return json.loads(self.result_summary)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_result_summary(self, summary_dict: Dict[str, Any]) -> None:
+        """Set result summary from dictionary."""
+        self.result_summary = json.dumps(summary_dict)
+    
+    def get_severity_breakdown(self) -> Dict[str, int]:
+        """Get severity breakdown as dictionary."""
+        if self.severity_breakdown:
+            try:
+                return json.loads(self.severity_breakdown)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_severity_breakdown(self, breakdown_dict: Dict[str, int]) -> None:
+        """Set severity breakdown from dictionary."""
+        self.severity_breakdown = json.dumps(breakdown_dict)
+    
+    def update_progress(self, percentage: float, current_step: str = None) -> None:
+        """Update task progress."""
+        self.progress_percentage = min(100.0, max(0.0, percentage))
+        if current_step:
+            self.current_step = current_step
+        self.updated_at = utc_now()
+    
+    def start_execution(self, worker: str = None) -> None:
+        """Mark task as started."""
+        self.status = AnalysisStatus.RUNNING
+        self.started_at = utc_now()
+        if worker:
+            self.assigned_worker = worker
+    
+    def complete_execution(self, success: bool = True, error_message: str = None) -> None:
+        """Mark task as completed or failed."""
+        self.completed_at = utc_now()
+        if success:
+            self.status = AnalysisStatus.COMPLETED
+            self.progress_percentage = 100.0
+        else:
+            self.status = AnalysisStatus.FAILED
+            if error_message:
+                self.error_message = error_message
+        
+        # Calculate actual duration
+        if self.started_at:
+            self.actual_duration = (self.completed_at - self.started_at).total_seconds()
+    
+    def can_retry(self) -> bool:
+        """Check if task can be retried."""
+        return self.retry_count < self.max_retries and self.status == AnalysisStatus.FAILED
+    
+    def retry(self) -> None:
+        """Retry the task."""
+        if self.can_retry():
+            self.retry_count += 1
+            self.status = AnalysisStatus.PENDING
+            self.error_message = None
+            self.started_at = None
+            self.completed_at = None
+            self.progress_percentage = 0.0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert model to dictionary."""
+        return {
+            'id': self.id,
+            'task_id': self.task_id,
+            'analyzer_config_id': self.analyzer_config_id,
+            'analysis_type': self.analysis_type.value if self.analysis_type else None,
+            'status': self.status.value if self.status else None,
+            'priority': self.priority.value if self.priority else None,
+            'target_model': self.target_model,
+            'target_app_number': self.target_app_number,
+            'target_path': self.target_path,
+            'task_name': self.task_name,
+            'description': self.description,
+            'metadata': self.get_metadata(),
+            'progress_percentage': self.progress_percentage,
+            'current_step': self.current_step,
+            'total_steps': self.total_steps,
+            'completed_steps': self.completed_steps,
+            'batch_id': self.batch_id,
+            'assigned_worker': self.assigned_worker,
+            'execution_context': self.get_execution_context(),
+            'result_summary': self.get_result_summary(),
+            'issues_found': self.issues_found,
+            'severity_breakdown': self.get_severity_breakdown(),
+            'estimated_duration': self.estimated_duration,
+            'actual_duration': self.actual_duration,
+            'queue_time': self.queue_time,
+            'error_message': self.error_message,
+            'retry_count': self.retry_count,
+            'max_retries': self.max_retries,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
+            'started_at': self.started_at,
+            'completed_at': self.completed_at
+        }
+    
+    def __repr__(self) -> str:
+        return f'<AnalysisTask {self.task_id} ({self.analysis_type.value if self.analysis_type else "unknown"})>'
+
+
+class AnalysisResult(db.Model):
+    """Detailed analysis results and findings."""
+    __tablename__ = 'analysis_results'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    result_id = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    
+    # Association with task
+    task_id = db.Column(db.String(100), db.ForeignKey('analysis_tasks.task_id'), nullable=False, index=True)
+    
+    # Result metadata
+    tool_name = db.Column(db.String(100), nullable=False)  # Specific tool that generated result
+    tool_version = db.Column(db.String(50))
+    result_type = db.Column(db.String(50), nullable=False)  # finding, metric, summary, etc.
+    
+    # Finding details
+    title = db.Column(db.String(500), nullable=False)
+    description = db.Column(db.Text)
+    severity = db.Column(db.Enum(SeverityLevel), nullable=False, index=True)
+    confidence = db.Column(db.String(20))  # low, medium, high
+    
+    # Location information
+    file_path = db.Column(db.String(1000))
+    line_number = db.Column(db.Integer)
+    column_number = db.Column(db.Integer)
+    code_snippet = db.Column(db.Text)
+    
+    # Classification
+    category = db.Column(db.String(100))  # security, performance, quality, etc.
+    rule_id = db.Column(db.String(100))   # Tool-specific rule identifier
+    tags = db.Column(db.Text)  # JSON array of tags
+    
+    # Detailed data
+    raw_output = db.Column(db.Text)  # Raw tool output
+    structured_data = db.Column(db.Text)  # JSON structured finding data
+    recommendations = db.Column(db.Text)  # JSON array of recommendations
+    
+    # Impact and priority
+    impact_score = db.Column(db.Float)  # 0-10 impact score
+    business_impact = db.Column(db.String(20))  # low, medium, high, critical
+    remediation_effort = db.Column(db.String(20))  # low, medium, high
+    
+    # Status tracking
+    status = db.Column(db.String(20), default='new')  # new, reviewed, resolved, false_positive
+    reviewed_by = db.Column(db.String(100))
+    review_notes = db.Column(db.Text)
+    
+    # Timestamps
+    created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    reviewed_at = db.Column(db.DateTime(timezone=True))
+    
+    def get_structured_data(self) -> Dict[str, Any]:
+        """Get structured data as dictionary."""
+        if self.structured_data:
+            try:
+                return json.loads(self.structured_data)
+            except json.JSONDecodeError:
+                return {}
+        return {}
+    
+    def set_structured_data(self, data_dict: Dict[str, Any]) -> None:
+        """Set structured data from dictionary."""
+        self.structured_data = json.dumps(data_dict)
+    
+    def get_recommendations(self) -> List[str]:
+        """Get recommendations as list."""
+        if self.recommendations:
+            try:
+                return json.loads(self.recommendations)
+            except json.JSONDecodeError:
+                return []
+        return []
+    
+    def set_recommendations(self, recommendations_list: List[str]) -> None:
+        """Set recommendations from list."""
+        self.recommendations = json.dumps(recommendations_list)
+    
+    def get_tags(self) -> List[str]:
+        """Get tags as list."""
+        if self.tags:
+            try:
+                return json.loads(self.tags)
+            except json.JSONDecodeError:
+                return []
+        return []
+    
+    def set_tags(self, tags_list: List[str]) -> None:
+        """Set tags from list."""
+        self.tags = json.dumps(tags_list)
+    
+    def mark_reviewed(self, reviewer: str, notes: str = None) -> None:
+        """Mark result as reviewed."""
+        self.status = 'reviewed'
+        self.reviewed_by = reviewer
+        self.reviewed_at = utc_now()
+        if notes:
+            self.review_notes = notes
+    
+    def mark_false_positive(self, reviewer: str, notes: str = None) -> None:
+        """Mark result as false positive."""
+        self.status = 'false_positive'
+        self.reviewed_by = reviewer
+        self.reviewed_at = utc_now()
+        if notes:
+            self.review_notes = notes
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert model to dictionary."""
+        return {
+            'id': self.id,
+            'result_id': self.result_id,
+            'task_id': self.task_id,
+            'tool_name': self.tool_name,
+            'tool_version': self.tool_version,
+            'result_type': self.result_type,
+            'title': self.title,
+            'description': self.description,
+            'severity': self.severity.value if self.severity else None,
+            'confidence': self.confidence,
+            'file_path': self.file_path,
+            'line_number': self.line_number,
+            'column_number': self.column_number,
+            'code_snippet': self.code_snippet,
+            'category': self.category,
+            'rule_id': self.rule_id,
+            'tags': self.get_tags(),
+            'raw_output': self.raw_output,
+            'structured_data': self.get_structured_data(),
+            'recommendations': self.get_recommendations(),
+            'impact_score': self.impact_score,
+            'business_impact': self.business_impact,
+            'remediation_effort': self.remediation_effort,
+            'status': self.status,
+            'reviewed_by': self.reviewed_by,
+            'review_notes': self.review_notes,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
+            'reviewed_at': self.reviewed_at
+        }
+    
+    def __repr__(self) -> str:
+        return f'<AnalysisResult {self.result_id} ({self.tool_name})>'
+
+
 # Initialize database function
 def init_db():
     """Create all database tables."""
@@ -1544,5 +2553,12 @@ __all__ = [
     'BatchDependency',
     'BatchSchedule',
     'BatchResourceUsage',
-    'BatchTemplate'
+    'BatchTemplate',
+    'ProcessTracking',
+    'TestResults',
+    'EventLog',
+    # New Analysis System Models
+    'AnalyzerConfiguration',
+    'AnalysisTask',
+    'AnalysisResult'
 ]

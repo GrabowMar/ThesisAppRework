@@ -24,13 +24,9 @@ except Exception:  # pragma: no cover - optional
     def create_analyzer_integration():
         return None  # fallback noop
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
-logger = logging.getLogger(__name__)
+# Import logging from utils
+from app.utils.logging_config import get_logger
+logger = get_logger('factory')
 
 def create_celery(app: Optional[Flask] = None) -> Celery:
     """
@@ -133,12 +129,14 @@ def create_app(config_name: str = 'default') -> Flask:
     # Ensure Jinja picks up template changes without restarting the app
     try:
         app.jinja_env.auto_reload = True
-        # Register useful Jinja globals
+        # Register useful Jinja globals and filters
         try:
-            from app.utils.helpers import make_safe_dom_id as _make_safe_dom_id
+            from app.utils.helpers import make_safe_dom_id as _make_safe_dom_id, format_datetime, now
             app.jinja_env.globals['make_safe_dom_id'] = _make_safe_dom_id
+            app.jinja_env.globals['now'] = now
+            app.jinja_env.filters['datetime'] = format_datetime
         except Exception as _reg_err:
-            logger.warning(f"Could not register make_safe_dom_id in Jinja globals: {_reg_err}")
+            logger.warning(f"Could not register Jinja globals/filters: {_reg_err}")
     except Exception:
         pass
 
@@ -156,6 +154,46 @@ def create_app(config_name: str = 'default') -> Flask:
 
     # Initialize extensions and get components manager
     components = init_extensions(app)
+    
+    # Register custom Jinja filters
+    from datetime import datetime, timezone
+    
+    def timeago_filter(dt):
+        """Convert datetime to human-readable relative time."""
+        if not dt:
+            return 'Never'
+        
+        if not isinstance(dt, datetime):
+            return str(dt)
+            
+        # Ensure timezone awareness
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+            
+        now = datetime.now(timezone.utc)
+        diff = now - dt
+        
+        seconds = diff.total_seconds()
+        
+        if seconds < 60:
+            return 'just now'
+        elif seconds < 3600:
+            minutes = int(seconds // 60)
+            return f'{minutes} minute{"s" if minutes != 1 else ""} ago'
+        elif seconds < 86400:
+            hours = int(seconds // 3600)
+            return f'{hours} hour{"s" if hours != 1 else ""} ago'
+        elif seconds < 2592000:  # 30 days
+            days = int(seconds // 86400)
+            return f'{days} day{"s" if days != 1 else ""} ago'
+        elif seconds < 31536000:  # 365 days
+            months = int(seconds // 2592000)
+            return f'{months} month{"s" if months != 1 else ""} ago'
+        else:
+            years = int(seconds // 31536000)
+            return f'{years} year{"s" if years != 1 else ""} ago'
+    
+    app.jinja_env.filters['timeago'] = timeago_filter
     
     # Create Celery instance
     celery = create_celery(app)
@@ -187,7 +225,7 @@ def create_app(config_name: str = 'default') -> Flask:
         logger.info("Service locator initialized with core services")
         
         # Initialize task manager (defer import to avoid circulars during module import)
-        from app.services.task_manager import TaskManager  # local import to break cycles
+        from app.services.task_service import AnalysisTaskService as TaskManager  # local import to break cycles
         task_manager = TaskManager()
         components.set_task_manager(task_manager)
         logger.info("Task manager initialized")

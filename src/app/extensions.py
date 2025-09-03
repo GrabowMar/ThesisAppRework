@@ -216,12 +216,49 @@ def get_session():
 def init_db():
     """Initialize database tables."""
     try:
-        # Ensure all models are imported so SQLAlchemy's metadata is complete
-        try:
-            import app.models as _models  # noqa: F401
-        except Exception:
-            pass
+        # Models should already be imported by factory.py, so no need to re-import here
         db.create_all()
     except Exception:
         # Re-raise so callers can log details
         raise
+
+
+def deep_merge_dicts(base: dict, update: dict) -> dict:
+    """Recursively merge update dict into base dict."""
+    result = base.copy()
+
+    for key, value in update.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = deep_merge_dicts(result[key], value)
+        else:
+            result[key] = value
+
+    return result
+
+
+def dicts_to_csv(data: list[dict], filename: Optional[str] = None) -> str:
+    """Convert list of dictionaries to CSV string."""
+    if not data:
+        return ""
+
+    import io
+    import csv
+
+    # Get all unique keys from all dictionaries
+    fieldnames = set()
+    for item in data:
+        if isinstance(item, dict):
+            fieldnames.update(item.keys())
+
+    fieldnames = sorted(fieldnames)
+
+    # Create CSV string
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+
+    for item in data:
+        if isinstance(item, dict):
+            writer.writerow(item)
+
+    return output.getvalue()

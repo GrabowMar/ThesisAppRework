@@ -1,0 +1,85 @@
+{#
+  Page: Reports Index
+  Template: pages/reports/index_main.html
+  Layout: layouts/base.html
+  Purpose: Entry point to select and view generated analysis reports.
+  Context:
+    - reports: list[ReportRecord]
+#}
+{% extends 'layouts/base.html' %}
+{% block page_title %}Reports{% endblock %}
+{% block main %}
+<div class="page">
+  <div class="page-wrapper">
+    <div class="page-header d-print-none">
+      <div class="container-xl">
+        <div class="row g-2 align-items-center">
+          <div class="col">
+            <h2 class="page-title">Reports</h2>
+            <div class="text-muted mt-1">Generated analysis reports and summaries</div>
+          </div>
+          <div class="col-auto ms-auto d-print-none">
+            <div class="btn-list">
+              <button class="btn btn-primary" hx-get="/reports/new" hx-target="#modal-region">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14"/><path d="M5 12l14 0"/></svg>
+                Generate Report
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="page-body">
+      <div class="container-xl">
+        <div class="card" data-component="reports-index">
+          <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Type</th>
+                  <th>Created</th>
+                  <th class="w-1"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% if reports %}
+                  {% for r in reports %}
+                  <tr>
+                    <td><span class="text-muted">{{ r.id }}</span></td>
+                    <td>{{ r.type }}</td>
+                    <td class="text-muted">--</td>
+                    <td>
+                      <button class="btn btn-sm btn-outline-primary">View</button>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                {% else %}
+                  <tr>
+                    <td colspan="4" class="text-center text-muted py-4">
+                      <div class="empty">
+                        <div class="empty-icon">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/></svg>
+                        </div>
+                        <p class="empty-title">No reports yet</p>
+                        <p class="empty-subtitle text-muted">Generate your first analysis report to get started</p>
+                      </div>
+                    </td>
+                  </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    // Reports page hooks
+  </script>
+{% endblock %}

@@ -1,0 +1,240 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}{{ title }} - Documentation{% endblock %}
+
+{% block head_styles %}
+<style>
+/* Markdown content styling */
+.docs-content {
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+.docs-content h1,
+.docs-content h2,
+.docs-content h3,
+.docs-content h4,
+.docs-content h5,
+.docs-content h6 {
+    color: var(--tbl-primary, #206bc4);
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.docs-content h1 { font-size: 2rem; border-bottom: 2px solid #e6e7e9; padding-bottom: 0.5rem; }
+.docs-content h2 { font-size: 1.75rem; border-bottom: 1px solid #e6e7e9; padding-bottom: 0.25rem; }
+.docs-content h3 { font-size: 1.5rem; }
+.docs-content h4 { font-size: 1.25rem; }
+.docs-content h5 { font-size: 1.125rem; }
+.docs-content h6 { font-size: 1rem; }
+
+.docs-content p {
+    margin-bottom: 1rem;
+}
+
+.docs-content blockquote {
+    border-left: 4px solid var(--tbl-primary, #206bc4);
+    padding-left: 1rem;
+    margin: 1.5rem 0;
+    background-color: #f8fafc;
+    padding: 1rem;
+    border-radius: 0.375rem;
+}
+
+.docs-content code {
+    background-color: #f1f5f9;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+    font-size: 0.875em;
+}
+
+.docs-content pre {
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    overflow-x: auto;
+    margin: 1rem 0;
+}
+
+.docs-content pre code {
+    background-color: transparent;
+    padding: 0;
+    border-radius: 0;
+}
+
+.docs-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    overflow: hidden;
+}
+
+.docs-content th,
+.docs-content td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.docs-content th {
+    background-color: #f8fafc;
+    font-weight: 600;
+    color: var(--tbl-primary, #206bc4);
+}
+
+.docs-content tr:nth-child(even) {
+    background-color: #f8fafc;
+}
+
+.docs-content ul,
+.docs-content ol {
+    padding-left: 2rem;
+    margin: 1rem 0;
+}
+
+.docs-content li {
+    margin-bottom: 0.5rem;
+}
+
+.docs-content a {
+    color: var(--tbl-primary, #206bc4);
+    text-decoration: none;
+}
+
+.docs-content a:hover {
+    text-decoration: underline;
+}
+
+.docs-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+    margin: 1rem 0;
+}
+
+.docs-content hr {
+    border: none;
+    border-top: 1px solid #e2e8f0;
+    margin: 2rem 0;
+}
+
+/* File info banner */
+.file-info {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 2rem;
+}
+
+.file-info h5 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+/* Navigation breadcrumb */
+.breadcrumb-nav {
+    background-color: #f8fafc;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin-bottom: 2rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- File Info Banner -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="file-info">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <h5 class="mb-1">
+                        <i class="fas fa-file-alt me-2"></i>
+                        {{ title }}
+                    </h5>
+                    <small class="opacity-75">{{ filepath }}</small>
+                </div>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('docs.docs_index') }}" class="btn btn-light btn-sm">
+                        <i class="fas fa-arrow-left me-1"></i>
+                        Back to Docs
+                    </a>
+                    <a href="{{ url_for('main.about') }}" class="btn btn-light btn-sm">
+                        <i class="fas fa-home me-1"></i>
+                        About
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Breadcrumb Navigation -->
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb breadcrumb-nav mb-0">
+                <li class="breadcrumb-item">
+                    <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
+                </li>
+                <li class="breadcrumb-item">
+                    <a href="{{ url_for('main.about') }}">About</a>
+                </li>
+                <li class="breadcrumb-item">
+                    <a href="{{ url_for('docs.docs_index') }}">Documentation</a>
+                </li>
+                <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<!-- Markdown Content -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="docs-content">
+                    {{ content|safe }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Footer Actions -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <a href="{{ url_for('docs.docs_index') }}" class="btn btn-outline-primary btn-lg w-100">
+                            <i class="fas fa-list me-2"></i>
+                            All Documents
+                        </a>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <a href="{{ url_for('main.about') }}" class="btn btn-outline-success btn-lg w-100">
+                            <i class="fas fa-info-circle me-2"></i>
+                            About Platform
+                        </a>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-info btn-lg w-100">
+                            <i class="fas fa-tachometer-alt me-2"></i>
+                            Dashboard
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

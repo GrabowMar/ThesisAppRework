@@ -19,6 +19,22 @@ class CeleryConfig:
     
     # Mitigate startup connection warnings
     broker_connection_retry_on_startup = True
+    
+    # Beat schedule for periodic tasks - reduced frequencies to minimize spam
+    beat_schedule = {
+        'cleanup-expired-results': {
+            'task': 'app.tasks.cleanup_expired_results',
+            'schedule': 3600.0,  # Run every hour
+        },
+        'health-check-analyzers': {
+            'task': 'app.tasks.health_check_analyzers',
+            'schedule': 600.0,  # Run every 10 minutes (reduced frequency)
+        },
+        'monitor-analyzer-containers': {
+            'task': 'app.tasks.monitor_analyzer_containers',
+            'schedule': 300.0,  # Run every 5 minutes (reduced from 1 minute to reduce spam)
+        },
+    }
 
 
 
@@ -102,11 +118,11 @@ CELERYBEAT_SCHEDULE = {
     },
     'health-check-analyzers': {
         'task': 'app.tasks.health_check_analyzers',
-        'schedule': 300.0,  # Run every 5 minutes
+        'schedule': 600.0,  # Run every 10 minutes (reduced frequency)
     },
     'monitor-analyzer-containers': {
         'task': 'app.tasks.monitor_analyzer_containers',
-        'schedule': 60.0,  # Run every minute
+        'schedule': 300.0,  # Run every 5 minutes (reduced from 1 minute to reduce spam)
     },
 }
 
