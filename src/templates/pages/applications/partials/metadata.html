@@ -1,24 +1,29 @@
 {# metadata partial migrated #}
 <div class="card">
   <div class="card-header">
-    <h6 class="mb-0"><i class="fas fa-database me-2"></i>Metadata</h6>
+    <h3 class="card-title mb-0"><i class="fas fa-database me-2"></i>Metadata</h3>
   </div>
   <div class="card-body">
     {% set meta = app_data.metadata %}
     {% if meta %}
       {% if meta is mapping %}
         <div class="table-responsive mb-3">
-          <table class="table table-sm">
-            <thead><tr><th>Key</th><th>Value</th></tr></thead>
+          <table class="table table-vcenter">
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>Value</th>
+              </tr>
+            </thead>
             <tbody>
             {% for k, v in meta.items() %}
               <tr>
-                <td class="text-muted small align-top">{{ k }}</td>
-                <td class="small">
+                <td class="text-muted align-top w-25">{{ k }}</td>
+                <td>
                   {% if v is mapping or v is sequence and v is not string %}
-                    <pre class="mb-0 small bg-body-tertiary p-2 rounded" style="max-height:220px;overflow:auto;white-space:pre-wrap">{{ v | tojson(indent=2) }}</pre>
+                    <pre class="mb-0 bg-light p-2 rounded" style="max-height:220px;overflow:auto;white-space:pre-wrap"><code>{{ v | tojson(indent=2) }}</code></pre>
                   {% else %}
-                    <code class="small">{{ v }}</code>
+                    <code>{{ v }}</code>
                   {% endif %}
                 </td>
               </tr>
@@ -26,13 +31,17 @@
             </tbody>
           </table>
         </div>
-        <div class="text-muted small">Source: application metadata{% if generation_manifest %}, merged with generation manifest if available{% endif %}.</div>
+        <div class="text-muted">Source: application metadata{% if generation_manifest %}, merged with generation manifest if available{% endif %}.</div>
       {% else %}
-        <pre class="small bg-body-tertiary p-2 rounded" style="max-height:260px;overflow:auto;white-space:pre-wrap">{{ meta | tojson(indent=2) }}</pre>
+        <pre class="bg-light p-3 rounded" style="max-height:260px;overflow:auto;white-space:pre-wrap"><code>{{ meta | tojson(indent=2) }}</code></pre>
       {% endif %}
     {% else %}
-      <div class="alert alert-warning mb-2 py-2 px-3 small">No metadata available for this application.</div>
-      <div class="small text-muted">If the application was generated on disk only, metadata may exist in <code>generated/indices/generation_manifest.json</code> but did not match the slug <code>{{ app_data.model_slug }}</code>.</div>
+      <div class="alert alert-warning">
+        <h4 class="alert-title">No metadata available</h4>
+        <div class="text-muted">
+          If the application was generated on disk only, metadata may exist in <code>generated/indices/generation_manifest.json</code> but did not match the slug <code>{{ app_data.model_slug }}</code>.
+        </div>
+      </div>
     {% endif %}
   </div>
 </div>

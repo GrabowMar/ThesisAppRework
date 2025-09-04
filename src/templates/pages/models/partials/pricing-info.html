@@ -1,4 +1,12 @@
-<div class="pricing-info small">
-  <div>Input: ${{ '%.6f'|format(model.input_price_per_1k or model.get('openrouter_prompt_price') or 0) }}</div>
-  <div>Output: ${{ '%.6f'|format(model.output_price_per_1k or model.get('openrouter_completion_price') or 0) }}</div>
+<div class="pricing-info">
+  <div class="row text-muted">
+    <div class="col">
+      <i class="fas fa-arrow-down me-1 text-success"></i>
+      Input: ${{ '%.6f'|format(model.input_price_per_1k or model.get('openrouter_prompt_price') or 0) }}
+    </div>
+    <div class="col">
+      <i class="fas fa-arrow-up me-1 text-primary"></i>
+      Output: ${{ '%.6f'|format(model.output_price_per_1k or model.get('openrouter_completion_price') or 0) }}
+    </div>
+  </div>
 </div>

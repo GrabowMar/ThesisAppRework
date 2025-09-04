@@ -1,14 +1,14 @@
 <div class="card">
   <div class="card-header d-flex justify-content-between align-items-center">
-    <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
-    <div class="btn-group btn-group-sm">
-      <button type="button" class="btn btn-outline-primary btn-sm" 
+    <h3 class="card-title mb-0"><i class="fas fa-bolt me-2"></i>Quick Actions</h3>
+    <div class="btn-list">
+      <button type="button" class="btn btn-sm btn-outline-primary" 
               hx-get="/api/dashboard/refresh" 
               hx-swap="none" 
               hx-indicator="#global-spinner">
         <i class="fas fa-sync-alt me-1"></i>Refresh All
       </button>
-      <button type="button" class="btn btn-outline-success btn-sm" 
+      <button type="button" class="btn btn-sm btn-outline-success" 
               hx-get="/analysis/create" 
               hx-target="#main-modal" 
               hx-trigger="click"
@@ -16,13 +16,13 @@
               data-bs-target="#main-modal">
         <i class="fas fa-plus me-1"></i>New Analysis
       </button>
-      <button type="button" class="btn btn-outline-info btn-sm"
+      <button type="button" class="btn btn-sm btn-outline-info"
               hx-get="/models/quick-select"
               hx-target="#model-selector"
               hx-swap="innerHTML">
         <i class="fas fa-robot me-1"></i>Select Model
       </button>
-      <button type="button" class="btn btn-outline-warning btn-sm"
+      <button type="button" class="btn btn-sm btn-outline-warning"
               onclick="reloadCoreData(this)"
               title="Reload model capabilities, summary and port config from misc/*.json">
         <i class="fas fa-database me-1"></i>Reload Data
@@ -30,25 +30,57 @@
     </div>
   </div>
   <div class="card-body">
-    <div class="row g-3">
+    <div class="row row-cards">
       <div class="col-md-3">
-        <div class="d-grid">
-          <button class="btn btn-outline-primary h-100">Action A</button>
+        <div class="card card-sm card-link">
+          <div class="card-body d-flex align-items-center p-3">
+            <span class="avatar me-3 bg-primary text-white">
+              <i class="fas fa-play"></i>
+            </span>
+            <div>
+              <div class="font-weight-medium">Start Analysis</div>
+              <div class="text-muted">Begin new test</div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="col-md-3">
-        <div class="d-grid">
-          <button class="btn btn-outline-success h-100">Action B</button>
+        <div class="card card-sm card-link">
+          <div class="card-body d-flex align-items-center p-3">
+            <span class="avatar me-3 bg-success text-white">
+              <i class="fas fa-code"></i>
+            </span>
+            <div>
+              <div class="font-weight-medium">Generate App</div>
+              <div class="text-muted">Create sample</div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="col-md-3">
-        <div class="d-grid">
-          <a class="btn btn-outline-info h-100" href="/models/">Models</a>
-        </div>
+        <a class="card card-sm card-link" href="/models/">
+          <div class="card-body d-flex align-items-center p-3">
+            <span class="avatar me-3 bg-info text-white">
+              <i class="fas fa-robot"></i>
+            </span>
+            <div>
+              <div class="font-weight-medium">Browse Models</div>
+              <div class="text-muted">View catalog</div>
+            </div>
+          </div>
+        </a>
       </div>
       <div class="col-md-3">
-        <div class="d-grid">
-          <button class="btn btn-outline-warning h-100">Maintenance</button>
+        <div class="card card-sm card-link">
+          <div class="card-body d-flex align-items-center p-3">
+            <span class="avatar me-3 bg-warning text-white">
+              <i class="fas fa-tools"></i>
+            </span>
+            <div>
+              <div class="font-weight-medium">Maintenance</div>
+              <div class="text-muted">System tools</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -1,68 +1,88 @@
-<div class="row g-3" id="dashboard-stats">
-  <div class="col-lg-3 col-md-6 mb-3">
-    <div class="card bg-primary text-white h-100">
-      <div class="card-body">
-        <div class="d-flex align-items-center">
-          <div class="flex-shrink-0"><i class="fas fa-robot fa-2x"></i></div>
-          <div class="flex-grow-1 ms-3">
-            <div class="h4 mb-0" id="total-models">{{ stats.total_models|default(0) }}</div>
-            <div class="small">AI Models</div>
-          </div>
+<div class="row row-cards" id="dashboard-stats">
+  <div class="col-lg-3 col-md-6">
+    <div class="card card-sm">
+      <div class="card-body d-flex align-items-center">
+        <span class="avatar me-3 bg-primary text-white">
+          <i class="fas fa-robot"></i>
+        </span>
+        <div>
+          <div class="h1" id="total-models">{{ stats.total_models|default(0) }}</div>
+          <div class="text-muted">AI Models</div>
         </div>
       </div>
-      <div class="card-footer bg-primary-dark">
-        <div class="d-flex justify-content-between"><span class="small">Active: <span id="active-models">{{ stats.active_models|default(0) }}</span></span></div>
+      <div class="progress progress-sm">
+        <div class="progress-bar bg-primary" style="width: {{ ((stats.active_models|default(0) / stats.total_models|default(1)) * 100)|round }}%"></div>
+      </div>
+      <div class="card-footer">
+        <div class="d-flex justify-content-between text-muted">
+          <span>Active: <span id="active-models">{{ stats.active_models|default(0) }}</span></span>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="col-lg-3 col-md-6 mb-3">
-    <div class="card bg-success text-white h-100">
-      <div class="card-body">
-        <div class="d-flex align-items-center">
-          <div class="flex-shrink-0"><i class="fas fa-flask fa-2x"></i></div>
-          <div class="flex-grow-1 ms-3">
-            <div class="h4 mb-0" id="total-analyses">{{ stats.total_analyses|default(0) }}</div>
-            <div class="small">Analyses Run</div>
-          </div>
+  <div class="col-lg-3 col-md-6">
+    <div class="card card-sm">
+      <div class="card-body d-flex align-items-center">
+        <span class="avatar me-3 bg-success text-white">
+          <i class="fas fa-flask"></i>
+        </span>
+        <div>
+          <div class="h1" id="total-analyses">{{ stats.total_analyses|default(0) }}</div>
+          <div class="text-muted">Analyses Run</div>
         </div>
       </div>
-      <div class="card-footer bg-success-dark">
-        <div class="d-flex justify-content-between"><span class="small">Today: <span id="today-analyses">{{ stats.today_analyses|default(0) }}</span></span></div>
+      <div class="progress progress-sm">
+        <div class="progress-bar bg-success" style="width: {{ ((stats.today_analyses|default(0) / 10) * 100)|round|min(100) }}%"></div>
+      </div>
+      <div class="card-footer">
+        <div class="d-flex justify-content-between text-muted">
+          <span>Today: <span id="today-analyses">{{ stats.today_analyses|default(0) }}</span></span>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="col-lg-3 col-md-6 mb-3">
-    <div class="card bg-warning text-white h-100">
-      <div class="card-body">
-        <div class="d-flex align-items-center">
-          <div class="flex-shrink-0"><i class="fas fa-code fa-2x"></i></div>
-          <div class="flex-grow-1 ms-3">
-            <div class="h4 mb-0" id="total-applications">{{ stats.total_applications|default(0) }}</div>
-            <div class="small">Applications</div>
-          </div>
+  <div class="col-lg-3 col-md-6">
+    <div class="card card-sm">
+      <div class="card-body d-flex align-items-center">
+        <span class="avatar me-3 bg-warning text-white">
+          <i class="fas fa-code"></i>
+        </span>
+        <div>
+          <div class="h1" id="total-applications">{{ stats.total_applications|default(0) }}</div>
+          <div class="text-muted">Applications</div>
         </div>
       </div>
-      <div class="card-footer bg-warning-dark">
-        <div class="d-flex justify-content-between"><span class="small">Running: <span id="running-apps">{{ stats.running_apps|default(0) }}</span></span></div>
+      <div class="progress progress-sm">
+        <div class="progress-bar bg-warning" style="width: {{ ((stats.running_apps|default(0) / stats.total_applications|default(1)) * 100)|round }}%"></div>
+      </div>
+      <div class="card-footer">
+        <div class="d-flex justify-content-between text-muted">
+          <span>Running: <span id="running-apps">{{ stats.running_apps|default(0) }}</span></span>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="col-lg-3 col-md-6 mb-3">
-    <div class="card bg-info text-white h-100">
-      <div class="card-body">
-        <div class="d-flex align-items-center">
-          <div class="flex-shrink-0"><i class="fas fa-shield-alt fa-2x"></i></div>
-          <div class="flex-grow-1 ms-3">
-            <div class="h4 mb-0" id="security-scans">{{ stats.security_scans|default(0) }}</div>
-            <div class="small">Security Scans</div>
-          </div>
+  <div class="col-lg-3 col-md-6">
+    <div class="card card-sm">
+      <div class="card-body d-flex align-items-center">
+        <span class="avatar me-3 bg-info text-white">
+          <i class="fas fa-shield-alt"></i>
+        </span>
+        <div>
+          <div class="h1" id="security-scans">{{ stats.security_scans|default(0) }}</div>
+          <div class="text-muted">Security Scans</div>
         </div>
       </div>
-      <div class="card-footer bg-info-dark">
-        <div class="d-flex justify-content-between"><span class="small">Issues: <span id="security-issues">{{ stats.security_issues|default(0) }}</span></span></div>
+      <div class="progress progress-sm">
+        <div class="progress-bar bg-info" style="width: {{ (100 - ((stats.security_issues|default(0) / stats.security_scans|default(1)) * 100))|round|max(10) }}%"></div>
+      </div>
+      <div class="card-footer">
+        <div class="d-flex justify-content-between text-muted">
+          <span>Issues: <span id="security-issues">{{ stats.security_issues|default(0) }}</span></span>
+        </div>
       </div>
     </div>
   </div>

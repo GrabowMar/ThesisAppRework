@@ -1,12 +1,12 @@
 {# Overview content migrated directly (was views/models/partials/_overview_content.html) #}
 <div class="models-overview">
-	<div class="row g-3 mb-4">
+	<div class="row row-cards mb-4">
 		<div class="col-sm-6 col-lg-3">
 			<div class="card card-sm">
 				<div class="card-body d-flex align-items-center">
-					<span class="text-primary me-3"><i class="fas fa-brain fa-lg"></i></span>
+					<span class="avatar me-3 bg-primary text-white"><i class="fas fa-brain"></i></span>
 					<div>
-						<div class="fs-3" id="total-models">{{ models_stats.total_models }}</div>
+						<div class="h1" id="total-models">{{ models_stats.total_models }}</div>
 						<div class="text-muted">Total Models</div>
 					</div>
 				</div>
@@ -15,9 +15,9 @@
 		<div class="col-sm-6 col-lg-3">
 			<div class="card card-sm">
 				<div class="card-body d-flex align-items-center">
-					<span class="text-success me-3"><i class="fas fa-check-circle fa-lg"></i></span>
+					<span class="avatar me-3 bg-success text-white"><i class="fas fa-check-circle"></i></span>
 					<div>
-						<div class="fs-3" id="active-models">{{ models_stats.active_models }}</div>
+						<div class="h1" id="active-models">{{ models_stats.active_models }}</div>
 						<div class="text-muted">Active Models</div>
 					</div>
 				</div>
@@ -26,9 +26,9 @@
 		<div class="col-sm-6 col-lg-3">
 			<div class="card card-sm">
 				<div class="card-body d-flex align-items-center">
-					<span class="text-info me-3"><i class="fas fa-building fa-lg"></i></span>
+					<span class="avatar me-3 bg-info text-white"><i class="fas fa-building"></i></span>
 					<div>
-						<div class="fs-3" id="unique-providers">{{ models_stats.unique_providers }}</div>
+						<div class="h1" id="unique-providers">{{ models_stats.unique_providers }}</div>
 						<div class="text-muted">Providers</div>
 					</div>
 				</div>
@@ -37,9 +37,9 @@
 		<div class="col-sm-6 col-lg-3">
 			<div class="card card-sm">
 				<div class="card-body d-flex align-items-center">
-					<span class="text-warning me-3"><i class="fas fa-dollar-sign fa-lg"></i></span>
+					<span class="avatar me-3 bg-warning text-white"><i class="fas fa-dollar-sign"></i></span>
 					<div>
-						<div class="fs-3" id="avg-cost">$<span>{{ models_stats.avg_cost_per_1k|round(4) }}</span></div>
+						<div class="h1" id="avg-cost">$<span>{{ models_stats.avg_cost_per_1k|round(4) }}</span></div>
 						<div class="text-muted">Avg Cost / 1K</div>
 					</div>
 				</div>
@@ -48,33 +48,38 @@
 	</div>
 
 	<div class="card mb-4">
-		<div class="card-header"><h3 class="card-title"><i class="fas fa-filter me-2"></i>Filters & Search</h3></div>
+		<div class="card-header">
+			<h3 class="card-title"><i class="fas fa-filter me-2"></i>Filters & Search</h3>
+		</div>
 		<div class="card-body">
-			<div class="row g-2" id="filters-row">
+			<div class="row g-3" id="filters-row">
 				<div class="col-md-4">
 					<label class="form-label">Search Models</label>
-						<div class="input-group">
-							<input type="text" id="model-search" class="form-control" placeholder="Search..." onkeyup="debounceSearch()" />
-							<button class="btn btn-outline-secondary" onclick="clearSearch()"><i class="fas fa-times"></i></button>
-						</div>
+					<div class="input-group">
+						<input type="text" id="model-search" class="form-control" placeholder="Search..." onkeyup="debounceSearch()" />
+						<button class="btn btn-outline-secondary" onclick="clearSearch()"><i class="fas fa-times"></i></button>
+					</div>
 				</div>
 				<div class="col-md-3">
 					<label class="form-label">Providers</label>
 					<div class="dropdown w-100">
-						<button class="form-control d-flex justify-content-between" data-bs-toggle="dropdown"><span id="providers-summary">All</span><i class="fas fa-chevron-down text-muted"></i></button>
+						<button class="form-control d-flex justify-content-between align-items-center" data-bs-toggle="dropdown">
+							<span id="providers-summary">All</span>
+							<i class="fas fa-chevron-down"></i>
+						</button>
 						<div class="dropdown-menu p-2 w-100">
 							<div class="d-flex justify-content-between align-items-center mb-2 small text-muted">
 								<span>Select providers</span>
-								<span>
+								<div>
 									<button class="btn btn-link btn-sm p-0" onclick="toggleProviders(true)">All</button>
 									<button class="btn btn-link btn-sm p-0" onclick="toggleProviders(false)">None</button>
-								</span>
+								</div>
 							</div>
 							{% for provider in available_providers %}
-							<div class="form-check dropdown-item">
+							<label class="dropdown-item form-check">
 								<input class="form-check-input provider-option" type="checkbox" value="{{ provider.id }}" id="provider-{{ provider.id }}">
-								<label class="form-check-label" for="provider-{{ provider.id }}">{{ provider.name }}</label>
-							</div>
+								<span class="form-check-label">{{ provider.name }}</span>
+							</label>
 							{% endfor %}
 						</div>
 						<input type="hidden" id="provider-filter" value="" />
@@ -83,14 +88,17 @@
 				<div class="col-md-3">
 					<label class="form-label">Capabilities</label>
 					<div class="dropdown w-100">
-						<button class="form-control d-flex justify-content-between" data-bs-toggle="dropdown"><span id="capabilities-summary">All</span><i class="fas fa-chevron-down text-muted"></i></button>
+						<button class="form-control d-flex justify-content-between align-items-center" data-bs-toggle="dropdown">
+							<span id="capabilities-summary">All</span>
+							<i class="fas fa-chevron-down"></i>
+						</button>
 						<div class="dropdown-menu p-2 w-100">
 							{% set capability_options = ['coding','analysis','reasoning','multimodal','language','vision','function_calling','json_mode','streaming'] %}
 							{% for cap in capability_options %}
-							<div class="form-check dropdown-item">
+							<label class="dropdown-item form-check">
 								<input class="form-check-input capability-option" type="checkbox" value="{{ cap }}" id="cap-{{ cap }}">
-								<label class="form-check-label text-capitalize" for="cap-{{ cap }}">{{ cap.replace('_',' ') }}</label>
-							</div>
+								<span class="form-check-label text-capitalize">{{ cap.replace('_',' ') }}</span>
+							</label>
 							{% endfor %}
 						</div>
 					</div>
@@ -106,17 +114,21 @@
 					</select>
 				</div>
 			</div>
-			<div class="mt-2" id="active-filter-chips" style="display:none"></div>
+			<div class="mt-3" id="active-filter-chips" style="display:none"></div>
 		</div>
 	</div>
 
 	<div class="card">
 		<div class="card-body p-0">
 			<div class="table-responsive">
-				<table class="table table-hover table-sm mb-0" id="models-table">
+				<table class="table table-vcenter mb-0" id="models-table">
 					<thead>
 						<tr>
-							<th><input type="checkbox" id="select-all-models" onchange="toggleSelectAll()"/></th>
+							<th class="w-1">
+								<label class="form-check">
+									<input type="checkbox" id="select-all-models" class="form-check-input" onchange="toggleSelectAll()"/>
+								</label>
+							</th>
 							<th onclick="sortTable('name')" class="sortable">Model <i class="fas fa-sort ms-1"></i></th>
 							<th onclick="sortTable('provider')" class="sortable">Provider <i class="fas fa-sort ms-1"></i></th>
 							<th onclick="sortTable('capabilities')" class="sortable">Capabilities <i class="fas fa-sort ms-1"></i></th>
@@ -124,7 +136,7 @@
 							<th onclick="sortTable('context_length')" class="sortable">Context <i class="fas fa-sort ms-1"></i></th>
 							<th onclick="sortTable('status')" class="sortable">Status <i class="fas fa-sort ms-1"></i></th>
 							<th onclick="sortTable('performance_score')" class="sortable">Perf <i class="fas fa-sort ms-1"></i></th>
-							<th>Actions</th>
+							<th class="w-1">Actions</th>
 						</tr>
 					</thead>
 					<tbody id="models-table-body"></tbody>
@@ -135,7 +147,9 @@
 
 	<div id="comparison-panel" class="mt-4"></div>
 	<div id="loading-spinner" class="text-center py-4" style="display:none">
-		<div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+		<div class="spinner-border text-primary" role="status">
+			<span class="visually-hidden">Loading...</span>
+		</div>
 		<p class="text-muted mt-2">Loading models...</p>
 	</div>
 </div>
@@ -149,17 +163,30 @@
 <div class="modal fade" id="batchOperationsModal" tabindex="-1">
 	<div class="modal-dialog">
 		<div class="modal-content">
-			<div class="modal-header"><h5 class="modal-title">Batch Operations</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+			<div class="modal-header">
+				<h5 class="modal-title">Batch Operations</h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+			</div>
 			<div class="modal-body">
 				<p>Perform operations on <span id="selected-models-count">0</span> selected models:</p>
 				<div class="list-group">
-					<button class="list-group-item list-group-item-action" onclick="batchAnalyze()"><i class="fas fa-play me-2"></i>Run Analysis</button>
-					<button class="list-group-item list-group-item-action" onclick="batchExport()"><i class="fas fa-download me-2"></i>Export Selected</button>
-					<button class="list-group-item list-group-item-action text-warning" onclick="batchUpdateStatus()"><i class="fas fa-edit me-2"></i>Update Status</button>
-					<button class="list-group-item list-group-item-action text-danger" onclick="batchDelete()"><i class="fas fa-trash me-2"></i>Delete</button>
+					<button class="list-group-item list-group-item-action" onclick="batchAnalyze()">
+						<i class="fas fa-play me-2"></i>Run Analysis
+					</button>
+					<button class="list-group-item list-group-item-action" onclick="batchExport()">
+						<i class="fas fa-download me-2"></i>Export Selected
+					</button>
+					<button class="list-group-item list-group-item-action text-warning" onclick="batchUpdateStatus()">
+						<i class="fas fa-edit me-2"></i>Update Status
+					</button>
+					<button class="list-group-item list-group-item-action text-danger" onclick="batchDelete()">
+						<i class="fas fa-trash me-2"></i>Delete
+					</button>
 				</div>
 			</div>
-			<div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+			</div>
 		</div>
 	</div>
 </div>

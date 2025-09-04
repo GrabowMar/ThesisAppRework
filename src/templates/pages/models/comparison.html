@@ -1,96 +1,132 @@
 {# Model Comparison migrated fully to pages/models #}
 {% extends 'layouts/base.html' %}
-{% block page_title %}Model Comparison{% endblock %}
+{% block page_title %}Model C          </div>
+        {% endif %}
+      </div>
+{% endblock %}n{% endblock %}
 {% block main %}
-	<div class="page-header d-print-none">
-		<div class="container-xl"><h2 class="page-title"><i class="fas fa-table-columns me-2"></i>Model Comparison</h2></div>
-	</div>
-	<div class="page-body">
-		<div class="container-xl">
-				<div class="card mb-3"><div class="card-header"><h3 class="card-title"><i class="fas fa-sliders-h me-2"></i>Comparison Settings</h3></div>
-					<div class="card-body">
-                        <div class="mb-3">
-                            <label class="form-label">Quick Select Models</label>
-                            <div id="model-picker" class="d-flex flex-wrap"></div>
-                        </div>
-						<form id="comparison-form" onsubmit="event.preventDefault();refreshComparison();">
-							<div class="row g-3">
-								<div class="col-md-4"><label class="form-label">Select Models (slugs comma-separated)</label><input type="text" class="form-control" id="models-input" placeholder="model_a,model_b" value="{{ selected_models|join(',') if selected_models else '' }}" /></div>
-								<div class="col-md-3"><label class="form-label">Use Case</label><select id="use-case" class="form-select"><option value="general">General</option><option value="code">Code</option><option value="analysis">Analysis</option><option value="creative">Creative</option></select></div>
-								<div class="col-md-3"><label class="form-label">Weights (perf,cost,avail)</label><input type="text" id="weights" class="form-control" value="50,30,20" /></div>
-								<div class="col-md-2 d-flex align-items-end"><button class="btn btn-primary w-100" type="submit"><i class="fas fa-sync me-1"></i>Update</button></div>
-							</div>
-						</form>
-					</div></div>
-				<div id="comparison-matrix">
-					{% if models %}
-						<div class="card mb-3">
-							<div class="card-header d-flex align-items-center">
-								<h3 class="card-title mb-0"><i class="fas fa-table me-2"></i>Core Metrics</h3>
-								<span class="badge bg-info ms-2">{{ models|length }} models</span>
-							</div>
-							<div class="table-responsive">
-								<table class="table table-sm table-bordered mb-0">
-									<thead>
-										<tr><th>Metric</th>{% for m in models %}<th>{{ m.name }}</th>{% endfor %}</tr>
-									</thead>
-									<tbody>
-										<tr><td>Provider</td>{% for m in models %}<td>{{ m.provider }}</td>{% endfor %}</tr>
-										<tr><td>Context Window</td>{% for m in models %}<td>{{ m.context_length or '-' }}</td>{% endfor %}</tr>
-										<tr><td>Input $/1K</td>{% for m in models %}<td>{{ m.input_price if m.input_price is not none else '-' }}</td>{% endfor %}</tr>
-										<tr><td>Output $/1K</td>{% for m in models %}<td>{{ m.output_price if m.output_price is not none else '-' }}</td>{% endfor %}</tr>
-										<tr><td>Performance Score</td>{% for m in models %}<td>{{ m.performance_score or '-' }}</td>{% endfor %}</tr>
-									</tbody>
-								</table>
-							</div>
-						</div>
-						{% if pricing %}
-						<div class="card mb-3">
-							<div class="card-header"><h3 class="card-title mb-0"><i class="fas fa-scale-balanced me-2"></i>Pricing Deltas (vs first)</h3></div>
-							<div class="table-responsive">
-								<table class="table table-sm table-striped mb-0">
-									<thead><tr><th>Model</th><th>Input $/1K</th><th>Δ Input</th><th>Output $/1K</th><th>Δ Output</th></tr></thead>
-									<tbody>
-										{% for p in pricing %}
-											<tr>
-												<td>{{ p.name }}</td>
-												<td>{{ '%.4f'|format(p.input_price or 0) }}</td>
-												<td>{% if p.input_delta is not none %}{% if p.input_delta>0 %}<span class="text-danger">+{{ '%.4f'|format(p.input_delta) }}</span>{% elif p.input_delta<0 %}<span class="text-success">{{ '%.4f'|format(p.input_delta) }}</span>{% else %}<span class="text-muted">0</span>{% endif %}{% else %}-{% endif %}</td>
-												<td>{{ '%.4f'|format(p.output_price or 0) }}</td>
-												<td>{% if p.output_delta is not none %}{% if p.output_delta>0 %}<span class="text-danger">+{{ '%.4f'|format(p.output_delta) }}</span>{% elif p.output_delta<0 %}<span class="text-success">{{ '%.4f'|format(p.output_delta) }}</span>{% else %}<span class="text-muted">0</span>{% endif %}{% else %}-{% endif %}</td>
-											</tr>
-										{% endfor %}
-									</tbody>
-								</table>
-							</div>
-						</div>
-						{% endif %}
-						{% if capability_rows %}
-						<div class="card">
-							<div class="card-header"><h3 class="card-title mb-0"><i class="fas fa-toolbox me-2"></i>Capabilities</h3></div>
-							<div class="table-responsive">
-								<table class="table table-sm table-hover mb-0">
-									<thead><tr><th>Capability</th>{% for m in models %}<th>{{ m.name }}</th>{% endfor %}</tr></thead>
-									<tbody>
-									{% for row in capability_rows %}
-										<tr>
-											<td>{{ row.capability }}</td>
-											{% for supported in row.support %}
-												<td>{% if supported %}<span class="badge bg-success">Yes</span>{% else %}<span class="text-muted">-</span>{% endif %}</td>
-											{% endfor %}
-										</tr>
-									{% endfor %}
-									</tbody>
-								</table>
-							</div>
-						</div>
-						{% endif %}
-					{% else %}
-						<div class="card"><div class="card-body text-center text-muted py-5"><i class="fas fa-balance-scale fa-3x mb-3"></i><div>Select models to compare.</div></div></div>
-					{% endif %}
-				</div>
-		</div>
-	</div>
+<div class="page-header d-print-none">
+  <div class="container-xl">
+        <div class="row g-2 align-items-center">
+          <div class="col">
+            <h2 class="page-title"><i class="fas fa-table-columns me-2"></i>Model Comparison</h2>
+            <div class="text-muted mt-1">Compare models side by side</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+          <div class="card-header">
+            <h3 class="card-title"><i class="fas fa-sliders-h me-2"></i>Comparison Settings</h3>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <label class="form-label">Quick Select Models</label>
+              <div id="model-picker" class="d-flex flex-wrap"></div>
+            </div>
+            <form id="comparison-form" onsubmit="event.preventDefault();refreshComparison();">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label class="form-label">Select Models (slugs comma-separated)</label>
+                  <input type="text" class="form-control" id="models-input" placeholder="model_a,model_b" value="{{ selected_models|join(',') if selected_models else '' }}" />
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Use Case</label>
+                  <select id="use-case" class="form-select">
+                    <option value="general">General</option>
+                    <option value="code">Code</option>
+                    <option value="analysis">Analysis</option>
+                    <option value="creative">Creative</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Weights (perf,cost,avail)</label>
+                  <input type="text" id="weights" class="form-control" value="50,30,20" />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                  <button class="btn btn-primary w-100" type="submit"><i class="fas fa-sync me-1"></i>Update</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+        <div id="comparison-matrix">
+          {% if models %}
+            <div class="card mb-3">
+              <div class="card-header d-flex align-items-center">
+                <h3 class="card-title mb-0"><i class="fas fa-table me-2"></i>Core Metrics</h3>
+                <span class="badge bg-info ms-2">{{ models|length }} models</span>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0">
+                  <thead>
+                    <tr><th>Metric</th>{% for m in models %}<th>{{ m.name }}</th>{% endfor %}</tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Provider</td>{% for m in models %}<td>{{ m.provider }}</td>{% endfor %}</tr>
+                    <tr><td>Context Window</td>{% for m in models %}<td>{{ m.context_length or '-' }}</td>{% endfor %}</tr>
+                    <tr><td>Input $/1K</td>{% for m in models %}<td>{{ m.input_price if m.input_price is not none else '-' }}</td>{% endfor %}</tr>
+                    <tr><td>Output $/1K</td>{% for m in models %}<td>{{ m.output_price if m.output_price is not none else '-' }}</td>{% endfor %}</tr>
+                    <tr><td>Performance Score</td>{% for m in models %}<td>{{ m.performance_score or '-' }}</td>{% endfor %}</tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {% if pricing %}
+            <div class="card mb-3">
+              <div class="card-header"><h3 class="card-title mb-0"><i class="fas fa-scale-balanced me-2"></i>Pricing Deltas (vs first)</h3></div>
+              <div class="table-responsive">
+                <table class="table table-sm table-striped mb-0">
+                  <thead><tr><th>Model</th><th>Input $/1K</th><th>Δ Input</th><th>Output $/1K</th><th>Δ Output</th></tr></thead>
+                  <tbody>
+                    {% for p in pricing %}
+                      <tr>
+                        <td>{{ p.name }}</td>
+                        <td>{{ '%.4f'|format(p.input_price or 0) }}</td>
+                        <td>{% if p.input_delta is not none %}{% if p.input_delta>0 %}<span class="text-danger">+{{ '%.4f'|format(p.input_delta) }}</span>{% elif p.input_delta<0 %}<span class="text-success">{{ '%.4f'|format(p.input_delta) }}</span>{% else %}<span class="text-muted">0</span>{% endif %}{% else %}-{% endif %}</td>
+                        <td>{{ '%.4f'|format(p.output_price or 0) }}</td>
+                        <td>{% if p.output_delta is not none %}{% if p.output_delta>0 %}<span class="text-danger">+{{ '%.4f'|format(p.output_delta) }}</span>{% elif p.output_delta<0 %}<span class="text-success">{{ '%.4f'|format(p.output_delta) }}</span>{% else %}<span class="text-muted">0</span>{% endif %}{% else %}-{% endif %}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {% endif %}
+            {% if capability_rows %}
+            <div class="card">
+              <div class="card-header"><h3 class="card-title mb-0"><i class="fas fa-toolbox me-2"></i>Capabilities</h3></div>
+              <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                  <thead><tr><th>Capability</th>{% for m in models %}<th>{{ m.name }}</th>{% endfor %}</tr></thead>
+                  <tbody>
+                  {% for row in capability_rows %}
+                    <tr>
+                      <td>{{ row.capability }}</td>
+                      {% for supported in row.support %}
+                        <td>{% if supported %}<span class="badge bg-success">Yes</span>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {% endif %}
+          {% else %}
+            <div class="card">
+              <div class="card-body text-center text-muted py-5">
+                <i class="fas fa-balance-scale fa-3x mb-3"></i>
+                <div>Select models to compare.</div>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 {% block scripts %}
 {{ super() }}
