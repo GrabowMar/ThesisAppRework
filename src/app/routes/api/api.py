@@ -1860,3 +1860,86 @@ def testing_active_tests():
             error="ActiveTestsError",
             details={"reason": str(e)}
         )), 500
+
+# =================================================================
+# APPLICATION CONTROL (lightweight placeholders)
+# =================================================================
+
+def _get_app_or_404(model_slug, app_number):
+    app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number).first()
+    if not app:
+        return None, create_error_response_with_status(
+            f"Application {model_slug}/app{app_number} not found", status=404, error_type="NotFound"
+        )
+    return app, None
+
+@api_bp.route('/app/<model_slug>/<int:app_number>/start', methods=['POST'])
+def api_app_start(model_slug, app_number):
+    app, err = _get_app_or_404(model_slug, app_number)
+    if err:
+        return err
+    try:
+        assert app is not None
+        from app.services.application_service import start_application
+        result = start_application(app.id)
+        return create_success_response_with_status({'status': result['status']}, message='Application started')
+    except Exception as e:
+        db.session.rollback()
+        return create_error_response_with_status(str(e), status=500, error_type='StartError')
+
+@api_bp.route('/app/<model_slug>/<int:app_number>/stop', methods=['POST'])
+def api_app_stop(model_slug, app_number):
+    app, err = _get_app_or_404(model_slug, app_number)
+    if err:
+        return err
+    try:
+        assert app is not None
+        from app.services.application_service import stop_application
+        result = stop_application(app.id)
+        return create_success_response_with_status({'status': result['status']}, message='Application stopped')
+    except Exception as e:
+        db.session.rollback()
+        return create_error_response_with_status(str(e), status=500, error_type='StopError')
+
+@api_bp.route('/app/<model_slug>/<int:app_number>/restart', methods=['POST'])
+def api_app_restart(model_slug, app_number):
+    app, err = _get_app_or_404(model_slug, app_number)
+    if err:
+        return err
+    try:
+        assert app is not None
+        from app.services.application_service import restart_application
+        result = restart_application(app.id)
+        return create_success_response_with_status({'status': result['status']}, message='Application restarted')
+    except Exception as e:
+        db.session.rollback()
+        return create_error_response_with_status(str(e), status=500, error_type='RestartError')
+
+@api_bp.route('/app/<model_slug>/<int:app_number>/build', methods=['POST'])
+def api_app_build(model_slug, app_number):
+    app, err = _get_app_or_404(model_slug, app_number)
+    if err:
+        return err
+    try:
+        # Simulate build state
+        assert app is not None
+        app.container_status = 'building'
+        db.session.commit()
+        return create_success_response_with_status({'status': 'building'}, message='Build triggered')
+    except Exception as e:
+        db.session.rollback()
+        return create_error_response_with_status(str(e), status=500, error_type='BuildError')
+
+@api_bp.route('/app/<model_slug>/<int:app_number>/logs', methods=['GET'])
+def api_app_logs(model_slug, app_number):
+    # Reuse modal logic by calling internal function via request
+    try:
+        from app.routes.jinja.models import application_logs_modal
+        html = application_logs_modal(model_slug, app_number)
+        # application_logs_modal returns HTML string or tuple
+        if isinstance(html, tuple):
+            body, status = html
+            return jsonify({'html': body}), status
+        return jsonify({'html': html})
+    except Exception as e:
+        return create_error_response_with_status(str(e), status=500, error_type='LogsError')

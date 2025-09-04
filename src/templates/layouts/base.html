@@ -14,6 +14,11 @@
     <!-- Page body -->
     <div class="page-body">
       <div class="container-xl">
+        <!-- Global HTMX spinner indicator -->
+        <div id="global-spinner" class="htmx-indicator text-center mb-3" style="display:none;">
+          <div class="spinner-border text-primary spinner-border-sm me-2" role="status"></div>
+          <span class="small text-muted">Loading…</span>
+        </div>
         {# Backward compatibility: support both 'main' and 'content' block names #}
         {% block main %}
           {% block content %}

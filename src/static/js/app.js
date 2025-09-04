@@ -25,8 +25,11 @@ ThesisApp.layout = (function(){
   const AUTO_COLLAPSE_BREAKPOINT = 1200;
   const MOBILE_BREAKPOINT = 992;
   const LS_KEY = 'sidebarPref';
+  
   function getSidebar(){ return document.getElementById('sidebar'); }
   function getToggle(){ return document.getElementById('sidebar-toggle'); }
+  function getMobileToggle(){ return document.getElementById('mobile-sidebar-toggle'); }
+  
   function applyCollapsed(collapsed){
     const sb = getSidebar();
     if(!sb) return;
@@ -38,59 +41,148 @@ ThesisApp.layout = (function(){
       t.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
     }
   }
-  function getPref(){ try{return localStorage.getItem(LS_KEY);}catch(_){return null;} }
-  function setPref(v){ try{localStorage.setItem(LS_KEY, v);}catch(_){}}
+  
+  function getPref(){ 
+    try{ return localStorage.getItem(LS_KEY); }
+    catch(_){ return null; }
+  }
+  
+  function setPref(v){ 
+    try{ localStorage.setItem(LS_KEY, v); }
+    catch(_){}
+  }
+  
   function autoDetermine(){
     const w = window.innerWidth;
-    if(w < MOBILE_BREAKPOINT){ applyCollapsed(false); return; }
+    if(w < MOBILE_BREAKPOINT){ 
+      applyCollapsed(false); 
+      return; 
+    }
     const pref = getPref();
     if(pref === 'collapsed') return applyCollapsed(true);
     if(pref === 'expanded') return applyCollapsed(false);
     applyCollapsed(w < AUTO_COLLAPSE_BREAKPOINT);
   }
+  
   function toggleUser(){
-    const sb = getSidebar(); if(!sb) return;
+    const sb = getSidebar(); 
+    if(!sb) return;
     const next = !sb.classList.contains('collapsed');
-    applyCollapsed(next); setPref(next ? 'collapsed':'expanded');
+    applyCollapsed(next); 
+    setPref(next ? 'collapsed':'expanded');
   }
+  
   function onResize(){
     autoDetermine();
     if(window.innerWidth >= MOBILE_BREAKPOINT){
-      const sb = getSidebar(); if(sb) sb.classList.remove('show');
+      const sb = getSidebar(); 
+      if(sb) sb.classList.remove('show');
+      // Close mobile sidebar offcanvas if open
+      const mobileOffcanvas = document.getElementById('mobile-sidebar');
+      if(mobileOffcanvas && window.bootstrap){
+        const bsOffcanvas = bootstrap.Offcanvas.getInstance(mobileOffcanvas);
+        if(bsOffcanvas) bsOffcanvas.hide();
+      }
     }
   }
-  function init(){
-    autoDetermine();
-    const t = getToggle(); if(t){ t.addEventListener('click', e=>{ e.preventDefault(); toggleUser(); }); }
-    window.addEventListener('resize', onResize);
-        // Re-apply on htmx swaps (if hx-boost partial navigation used)
-    if(window.htmx){
-      document.body.addEventListener('htmx:afterSettle', ()=>{
-        // Ensure collapsed class persists (localStorage preference already stored)
-        autoDetermine();
-        // Mark active link based on location
-        try{
-          const path = window.location.pathname;
-          document.querySelectorAll('#sidebar .nav-link').forEach(a=>{
-            const match = a.getAttribute('href');
-            if(!match) return;
-            if(path === match || (match !== '/' && path.startsWith(match))){ a.classList.add('active'); }
-            else { a.classList.remove('active'); }
-          });
-        }catch(_){/* noop */}
-      });
-    }
-    // Initial active link highlight
+  
+  function updateActiveNavLink(){
     try{
       const path = window.location.pathname;
-      document.querySelectorAll('#sidebar .nav-link').forEach(a=>{
-        const match = a.getAttribute('href');
-        if(!match) return;
-        if(path === match || (match !== '/' && path.startsWith(match))){ a.classList.add('active'); }
+      // Clear all active states first
+      document.querySelectorAll('.sidebar .nav-link, .offcanvas .nav-link').forEach(a => {
+        a.classList.remove('active');
       });
-    }catch(_){/* noop */}
-  
+      
+      // Set active state based on current path
+      document.querySelectorAll('.sidebar .nav-link[data-nav-target], .offcanvas .nav-link[data-nav-target]').forEach(a => {
+        const href = a.getAttribute('href');
+        const target = a.getAttribute('data-nav-target');
+        if(!href) return;
+        
+        // Exact match or path starts with href (for sub-pages)
+        if(path === href || (href !== '/' && path.startsWith(href)) || 
+           (target && path.includes(target))) {
+          a.classList.add('active');
+        }
+      });
+    }catch(e){
+      console.warn('Active nav update failed:', e);
+    }
   }
-  document.addEventListener('DOMContentLoaded', init);
-  return { init, toggleUser };
+  
+  function setupEventListeners(){
+    // Desktop sidebar toggle
+    const toggle = getToggle();
+    if(toggle){
+      // Remove any existing listeners to prevent duplicates
+      toggle.replaceWith(toggle.cloneNode(true));
+      const newToggle = getToggle();
+      newToggle.addEventListener('click', e => {
+        e.preventDefault();
+        toggleUser();
+      });
+    }
+    
+    // Mobile toggle (already handled by Bootstrap offcanvas)
+    const mobileToggle = getMobileToggle();
+    if(mobileToggle){
+      // Ensure proper ARIA attributes
+      mobileToggle.setAttribute('aria-expanded', 'false');
+    }
+  }
+  
+  function init(){
+    console.log('Initializing sidebar layout...');
+    autoDetermine();
+    setupEventListeners();
+    updateActiveNavLink();
+    
+    // Listen for window resize
+    window.addEventListener('resize', onResize);
+    
+    // HTMX event handlers for robust reinitialization
+    if(window.htmx){
+      // After any HTMX content swap/settlement
+      document.body.addEventListener('htmx:afterSettle', function(evt){
+        console.log('HTMX content settled, reinitializing sidebar...');
+        // Small delay to ensure DOM is fully updated
+        setTimeout(() => {
+          autoDetermine();
+          setupEventListeners();
+          updateActiveNavLink();
+        }, 50);
+      });
+      
+      // Before HTMX swap to preserve state
+      document.body.addEventListener('htmx:beforeSwap', function(evt){
+        // Store current sidebar state
+        const sb = getSidebar();
+        if(sb && sb.classList.contains('collapsed')){
+          setPref('collapsed');
+        }
+      });
+    }
+  }
+  
+  // Also reinitialize on DOM content changes (for dynamic content)
+  function reinitialize(){
+    console.log('Reinitializing sidebar...');
+    init();
+  }
+  
+  // Initialize on DOM ready
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+  
+  return { 
+    init, 
+    reinitialize,
+    toggleUser, 
+    updateActiveNavLink,
+    autoDetermine
+  };
 })();

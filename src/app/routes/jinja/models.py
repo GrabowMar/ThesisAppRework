@@ -18,6 +18,7 @@ from app.models import (
 from app.utils.generated_apps import list_generated_apps, list_generated_models
 from app.utils.template_paths import render_template_compat as render_template
 from app.utils.helpers import get_app_directory
+from app.utils.port_resolution import resolve_ports
 
 # Import shared utilities
 from ..shared_utils import openrouter_service, _project_root
@@ -652,7 +653,7 @@ def application_detail(model_slug, app_number):
         }
 
         return render_template(
-            'views/applications/detail.html',
+            'pages/applications/detail.html',
             application=application,
             app_data=app_data,
             files_info=files_info,
@@ -745,6 +746,374 @@ def generate_application():
             500,
         )
 
+@models_bp.route('/application/<model_slug>/<int:app_number>/section/overview')
+def application_section_overview(model_slug, app_number):
+    return _render_application_section(model_slug, app_number, 'overview')
+
+@models_bp.route('/application/<model_slug>/<int:app_number>/section/prompts')
+def application_section_prompts(model_slug, app_number):
+    return _render_application_section(model_slug, app_number, 'prompts')
+
+@models_bp.route('/application/<model_slug>/<int:app_number>/section/files')
+def application_section_files(model_slug, app_number):
+    return _render_application_section(model_slug, app_number, 'files')
+
+@models_bp.route('/application/<model_slug>/<int:app_number>/section/ports')
+def application_section_ports(model_slug, app_number):
+    return _render_application_section(model_slug, app_number, 'ports')
+
+@models_bp.route('/application/<model_slug>/<int:app_number>/section/container')
+def application_section_container(model_slug, app_number):
+    return _render_application_section(model_slug, app_number, 'container')
+
+@models_bp.route('/application/<model_slug>/<int:app_number>/section/analyses')
+def application_section_analyses(model_slug, app_number):
+    return _render_application_section(model_slug, app_number, 'analyses')
+
+@models_bp.route('/application/<model_slug>/<int:app_number>/section/metadata')
+def application_section_metadata(model_slug, app_number):
+    return _render_application_section(model_slug, app_number, 'metadata')
+
+@models_bp.route('/application/<model_slug>/<int:app_number>/section/artifacts')
+def application_section_artifacts(model_slug, app_number):
+    return _render_application_section(model_slug, app_number, 'artifacts')
+
+@models_bp.route('/application/<model_slug>/<int:app_number>/section/logs')
+def application_section_logs(model_slug, app_number):
+    return _render_application_section(model_slug, app_number, 'logs')
+
+def _render_application_section(model_slug: str, app_number: int, section: str):
+    """Shared loader for application detail sections."""
+    try:
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        if not model:
+            # Attempt fallback slug normalization to locate a model even if canonical slug differs
+            try:
+                def _cands(slug: str):
+                    base = {slug, slug.replace('-', '_'), slug.replace('_', '-'), slug.replace(' ', '_'), slug.replace(' ', '-')}
+                    also = set()
+                    for s in list(base):
+                        also.add(s.replace('__','_'))
+                        also.add(s.replace('--','-'))
+                    return {c for c in (base | also) if c}
+                candidates = _cands(model_slug)
+                # Try canonical_slug first
+                model = ModelCapability.query.filter(ModelCapability.canonical_slug.in_(list(candidates))).first()
+                if not model:
+                    # Try model_name
+                    model = ModelCapability.query.filter(ModelCapability.model_name.in_(list(candidates))).first()
+                if not model:
+                    # Final normalization: compare alphanumeric forms
+                    import re
+                    def _norm(s: str):
+                        return re.sub(r'[^0-9a-z]+','', (s or '').lower())
+                    target_norm = _norm(model_slug)
+                    if target_norm:
+                        for m in ModelCapability.query.all():  # pragma: no cover (rare path)
+                            if _norm(m.canonical_slug) == target_norm or _norm(getattr(m, 'model_name', '')) == target_norm:
+                                model = m
+                                break
+            except Exception:  # pragma: no cover
+                pass
+        if not model:
+            # Provide a synthetic minimal object so templates still render
+            class _SyntheticModel:
+                canonical_slug = model_slug
+                model_name = model_slug
+                provider = (model_slug.split('_')[0] if '_' in model_slug else model_slug.split('-')[0]) or 'local'
+                display_name = model_slug
+            model = _SyntheticModel()
+        app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number).first()
+        app_path = get_app_directory(model_slug, app_number)
+
+        # Build app_data similar to full detail route
+        if not app:
+            app_data = {
+                'model_slug': model_slug,
+                'app_number': app_number,
+                'exists_in_db': False,
+                'status': 'not_created',
+                'app_type': 'unknown',
+                'has_backend': False,
+                'has_frontend': False,
+                'has_docker_compose': False,
+                'generation_status': 'pending',
+                'container_status': 'not_created'
+            }
+        else:
+            app_data = {
+                'id': app.id,
+                'model_slug': app.model_slug,
+                'app_number': app.app_number,
+                'exists_in_db': True,
+                'app_type': app.app_type,
+                'provider': app.provider,
+                'generation_status': app.generation_status,
+                'container_status': app.container_status,
+                'has_backend': app.has_backend,
+                'has_frontend': app.has_frontend,
+                'has_docker_compose': app.has_docker_compose,
+                'backend_framework': app.backend_framework,
+                'frontend_framework': app.frontend_framework,
+                'created_at': app.created_at,
+                'metadata': app.get_metadata() if hasattr(app, 'get_metadata') else {}
+            }
+
+        # Files + code stats (lightweight for section use)
+        files_info = {
+            'app_exists': app_path.exists(),
+            'docker_compose': (app_path / 'docker-compose.yml').exists(),
+            'backend_files': [],
+            'frontend_files': [],
+            'other_files': []
+        }
+        code_stats = { 'total_files': 0, 'total_loc': 0, 'by_language': {} }
+        artifacts = {
+            'project_index': (app_path / 'PROJECT_INDEX.md') if app_path.exists() else None,
+            'readme': (app_path / 'README.md') if app_path.exists() else None,
+            'compose_path': (app_path / 'docker-compose.yml') if app_path.exists() else None,
+        }
+        if app_path.exists():
+            # Limit enumeration for performance (but still enough for stats & listing)
+            for item in list(app_path.rglob('*'))[:2000]:  # safety cap
+                if item.is_file():
+                    rel_path = item.relative_to(app_path)
+                    file_info = {
+                        'name': item.name,
+                        'path': str(rel_path),
+                        'size': item.stat().st_size,
+                        'modified': item.stat().st_mtime
+                    }
+                    lower_rel = str(rel_path).lower()
+                    if 'backend' in lower_rel:
+                        files_info['backend_files'].append(file_info)
+                    elif 'frontend' in lower_rel:
+                        files_info['frontend_files'].append(file_info)
+                    else:
+                        files_info['other_files'].append(file_info)
+                    ext = item.suffix.lower()
+                    lang_map = { '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript', '.tsx': 'TypeScript', '.jsx': 'JavaScript', '.html': 'HTML', '.css': 'CSS', '.md': 'Markdown', '.json': 'JSON', '.yml': 'YAML', '.yaml': 'YAML' }
+                    lang = lang_map.get(ext, 'Other')
+                    try:
+                        text = item.read_text(encoding='utf-8', errors='ignore')
+                        loc = text.count('\n') + 1 if text else 0
+                    except Exception:
+                        loc = 0
+                    code_stats['total_files'] += 1
+                    code_stats['total_loc'] += loc
+                    entry = code_stats['by_language'].setdefault(lang, {'files': 0, 'loc': 0})
+                    entry['files'] += 1
+                    entry['loc'] += loc
+
+        # Ports via centralized resolver
+        ports = resolve_ports(model_slug, app_number, include_attempts=True)
+        try:
+            if ports:
+                current_app.logger.debug(
+                    f"[ports-lookup] {model_slug}/app{app_number} attempts={'|'.join(ports.get('attempts', []))} result=found source={ports.get('source')}"
+                )
+            else:
+                current_app.logger.debug(f"[ports-lookup] {model_slug}/app{app_number} result=none")
+        except Exception:
+            pass
+
+        # Prompts
+        prompts = {'backend': '', 'frontend': ''}
+        template_files = {'backend_file': '', 'frontend_file': ''}
+        tmpl_dir = _project_root() / 'misc' / 'app_templates'
+        try:
+            backend_md = sorted(tmpl_dir.glob(f'app_{app_number}_backend_*.md'))
+            frontend_md = sorted(tmpl_dir.glob(f'app_{app_number}_frontend_*.md'))
+            if backend_md:
+                template_files['backend_file'] = backend_md[0].name
+                prompts['backend'] = backend_md[0].read_text(encoding='utf-8', errors='ignore')
+            if frontend_md:
+                template_files['frontend_file'] = frontend_md[0].name
+                prompts['frontend'] = frontend_md[0].read_text(encoding='utf-8', errors='ignore')
+        except Exception:
+            pass
+
+        # Analyses + stats
+        analyses = {'security': [], 'performance': [], 'zap': []}
+        stats = {
+            'total_security_analyses': 0,
+            'total_performance_tests': 0,
+            'total_zap_analyses': 0,
+            'total_openrouter_analyses': 0
+        }
+        if app:
+            try:
+                from app.models import ZAPAnalysis, OpenRouterAnalysis
+                analyses['security'] = SecurityAnalysis.query.filter_by(application_id=app.id).order_by(SecurityAnalysis.created_at.desc()).all()
+                analyses['performance'] = PerformanceTest.query.filter_by(application_id=app.id).order_by(PerformanceTest.created_at.desc()).all()
+                analyses['zap'] = ZAPAnalysis.query.filter_by(application_id=app.id).order_by(ZAPAnalysis.created_at.desc()).all()
+                openrouter_list = OpenRouterAnalysis.query.filter_by(application_id=app.id).order_by(OpenRouterAnalysis.created_at.desc()).all()
+                stats.update({
+                    'total_security_analyses': len(analyses['security']),
+                    'total_performance_tests': len(analyses['performance']),
+                    'total_zap_analyses': len(analyses['zap']),
+                    'total_openrouter_analyses': len(openrouter_list),
+                })
+            except Exception:
+                pass
+
+        ctx = {
+            'model': model,
+            'app': app,
+            'app_data': app_data,
+            'files_info': files_info,
+            'code_stats': code_stats,
+            'artifacts': artifacts,
+            'ports': ports,
+            'prompts': prompts,
+            'template_files': template_files,
+            'analyses': analyses,
+            'stats': stats,
+            'templates_dir': str(tmpl_dir),
+            'app_base_dir': str(app_path),
+        }
+        # Optional manifest
+        try:
+            manifest_path = _project_root() / 'generated' / 'indices' / 'generation_manifest.json'
+            if manifest_path.exists():
+                import json
+                ctx['generation_manifest'] = json.loads(manifest_path.read_text(encoding='utf-8', errors='ignore'))
+                # Attempt to enrich metadata from manifest if empty
+                if app_data.get('metadata') in (None, {}, []):
+                    gm = ctx.get('generation_manifest') or {}
+                    # manifest structure may be list or dict; try both patterns
+                    manifest_entry = None
+                    if isinstance(gm, dict):
+                        # try exact then fuzzy key match
+                        manifest_entry = gm.get(model_slug)
+                        if not manifest_entry:
+                            for k, v in gm.items():
+                                if k.replace('-','').replace('_','') == model_slug.replace('-','').replace('_',''):
+                                    manifest_entry = v
+                                    break
+                    elif isinstance(gm, list):
+                        for entry in gm:
+                            if not isinstance(entry, dict):
+                                continue
+                            slug_val = entry.get('model_slug') or entry.get('slug') or ''
+                            if slug_val == model_slug or slug_val.replace('-','').replace('_','') == model_slug.replace('-','').replace('_',''):
+                                manifest_entry = entry
+                                break
+                    if manifest_entry:
+                        # store under metadata so template can render
+                        try:
+                            app_data['metadata'] = manifest_entry if isinstance(manifest_entry, dict) else {'manifest_entry': manifest_entry}
+                        except Exception:
+                            pass
+        except Exception:
+            ctx['generation_manifest'] = {}
+        # Debug log summarizing context keys for troubleshooting missing sections
+        try:
+            current_app.logger.debug(
+                f"[app-section-debug] {model_slug}/app{app_number} section={section} "
+                f"ports={'yes' if ports else 'no'} prompts_back={(len(prompts.get('backend', '')) if prompts else 0)} "
+                f"metadata_keys={list((app_data.get('metadata') or {}).keys())[:6]}"
+            )
+        except Exception:
+            pass
+        template_map = {
+            'overview': 'pages/applications/partials/overview.html',
+            'prompts': 'pages/applications/partials/prompts.html',
+            'files': 'pages/applications/partials/files.html',
+            'ports': 'pages/applications/partials/ports.html',
+            'container': 'pages/applications/partials/container.html',
+            'analyses': 'pages/applications/partials/analyses.html',
+            'metadata': 'pages/applications/partials/metadata.html',
+            'artifacts': 'pages/applications/partials/artifacts.html',
+            'logs': 'pages/applications/partials/logs.html'
+        }
+        tpl = template_map.get(section)
+        if not tpl:
+            return f'<div class="alert alert-warning">Unknown section: {section}</div>', 404
+        try:
+            current_app.logger.debug(f"[app-section] {model_slug}/app{app_number} section={section} path={app_path}")
+        except Exception:
+            pass
+        return render_template(tpl, **ctx)
+    except Exception as e:
+        current_app.logger.error(f"Error rendering section {section} for {model_slug}/app{app_number}: {e}")
+        return f'<div class="alert alert-danger">Failed to load {section}: {e}</div>', 500
+
+@models_bp.route('/application/<model_slug>/<int:app_number>/file')
+def application_file_preview(model_slug, app_number):
+    """HTMX endpoint to preview a file inside an application directory."""
+    rel_path = request.args.get('path', '').strip()
+    if not rel_path:
+        return '<div class="text-muted">No file specified.</div>'
+    try:
+        app_dir = get_app_directory(model_slug, app_number)
+        if not app_dir.exists():
+            return '<div class="text-danger">Application directory not found.</div>'
+        # prevent path traversal
+        candidate = (app_dir / rel_path).resolve()
+        if not str(candidate).startswith(str(app_dir.resolve())):
+            return '<div class="text-danger">Invalid path.</div>', 400
+        if not candidate.exists() or not candidate.is_file():
+            return '<div class="text-warning">File not found.</div>', 404
+        try:
+            content = candidate.read_text(encoding='utf-8', errors='ignore')
+        except Exception:
+            return '<div class="text-danger">Unable to read file.</div>', 500
+        from markupsafe import escape
+        escaped = escape(content)
+        return f'<div class="file-preview"><h6 class="small text-muted mb-2">{rel_path}</h6><pre class="small bg-body-tertiary p-2 rounded" style="max-height:480px; overflow:auto; white-space: pre-wrap">{escaped}</pre></div>'
+    except Exception as e:
+        current_app.logger.error(f"Error previewing file {model_slug}/app{app_number}:{rel_path}: {e}")
+        return f'<div class="text-danger">Error: {e}</div>', 500
+
+@models_bp.route('/application/<model_slug>/<int:app_number>/logs/modal')
+def application_logs_modal(model_slug, app_number):
+    """Return a modal containing recent log lines for the app (backend & frontend)."""
+    try:
+        logs_dir = _project_root() / 'generated' / 'apps' / '_logs'
+        # fallback per model directory
+        model_logs_dir = logs_dir / model_slug
+        collected = []
+        def _tail(path, limit=200):
+            try:
+                if path.exists():
+                    lines = path.read_text(encoding='utf-8', errors='ignore').splitlines()[-limit:]
+                    collected.append((path.name, lines))
+            except Exception:
+                pass
+        # Try generic aggregated logs first
+        _tail(logs_dir / f'{model_slug}_app{app_number}_backend.log')
+        _tail(logs_dir / f'{model_slug}_app{app_number}_frontend.log')
+        # Per-model subdir
+        _tail(model_logs_dir / f'app{app_number}_backend.log')
+        _tail(model_logs_dir / f'app{app_number}_frontend.log')
+        if not collected:
+            return ('<div id="logsModal" class="modal fade" tabindex="-1">'
+                    '<div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">'
+                    '<div class="modal-header"><h5 class="modal-title">Logs</h5>'
+                    '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>'
+                    '<div class="modal-body"><div class="alert alert-warning mb-0">No logs found for this application.</div></div>'
+                    '</div></div></div>')
+        body_parts = []
+        for name, lines in collected:
+            escaped = '\n'.join(lines).replace('&','&amp;').replace('<','&lt;').replace('>','&gt;')
+            body_parts.append(f'<h6 class="mt-3">{name}</h6><pre class="small bg-body-tertiary p-2 rounded" style="max-height:260px; overflow:auto">{escaped}</pre>')
+        body_html = ''.join(body_parts)
+        return ('<div id="logsModal" class="modal fade" tabindex="-1">'
+                '<div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">'
+                f'<div class="modal-header"><h5 class="modal-title">Logs - {model_slug} app{app_number}</h5>'
+                '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>'
+                f'<div class="modal-body">{body_html}</div>'
+                '</div></div></div>')
+    except Exception as e:
+        current_app.logger.error(f"Error loading logs modal for {model_slug}/app{app_number}: {e}")
+        return ('<div id="logsModal" class="modal fade" tabindex="-1">'
+                '<div class="modal-dialog"><div class="modal-content">'
+                '<div class="modal-header"><h5 class="modal-title">Logs</h5>'
+                '<button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>'
+                f'<div class="modal-body"><div class="alert alert-danger">Error loading logs: {e}</div></div>'
+                '</div></div></div>'), 500
+
 @models_bp.route('/model_actions/<model_slug>')
 @models_bp.route('/model_actions')
 def model_actions(model_slug=None):
@@ -776,6 +1145,32 @@ def model_actions(model_slug=None):
     except Exception as e:
         current_app.logger.error(f"Error loading model actions for {model_slug}: {e}")
         return f'<div class="alert alert-danger">Error loading model actions: {str(e)}</div>'
+
+@models_bp.route('/application/<model_slug>/<int:app_number>/diagnostics/ports')
+def application_ports_diagnostics(model_slug, app_number):
+    """Lightweight preformatted diagnostics for port resolution attempts."""
+    try:
+        result = resolve_ports(model_slug, app_number, include_attempts=True)
+        if not result:
+            return '<pre class="small">{\n  "found": false\n}</pre>'
+        import html as _html
+        backend = result.get('backend')
+        frontend = result.get('frontend')
+        source = _html.escape(str(result.get('source')))
+        attempts = result.get('attempts', [])
+        esc_attempts = ',\n    '.join([_html.escape(a) for a in attempts])
+        body = (
+            '{\n'
+            f'  "found": true,\n'
+            f'  "backend": {backend},\n'
+            f'  "frontend": {frontend},\n'
+            f'  "source": "{source}",\n'
+            f'  "attempts": [\n    {esc_attempts}\n  ]\n'
+            '}'
+        )
+        return f'<pre class="small">{body}</pre>'
+    except Exception as e:
+        return f'<div class="alert alert-danger small">Diagnostics error: {e}</div>', 500
 
 @models_bp.route('/model_apps/<model_slug>')
 def model_apps(model_slug):

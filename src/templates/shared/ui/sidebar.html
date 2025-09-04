@@ -1,34 +1,43 @@
 {#
-  Component: Collapsible Vertical Sidebar Navigation
-  Purpose: Clean, Bootstrap-style sidebar navigation with collapse functionality
-  Based on: Bootstrap documentation examples with hyperscript enhancements
+  Component: Robust Collapsible Sidebar Navigation
+  Purpose: Mobile-friendly sidebar with proper collapse, HTMX compatibility, and responsive behavior
+  Features: Auto-collapse on mobile, persistent state, proper ARIA support
 #}
 {% from 'shared/ui/macros/nav_macros.html' import nav_link %}
 
-<aside class="sidebar bg-dark text-white d-flex flex-column flex-shrink-0"
+<!-- Desktop sidebar -->
+<aside class="sidebar bg-dark text-white d-flex flex-column flex-shrink-0 d-none d-lg-flex"
        id="sidebar"
-       style="min-height: 100vh;">
+       aria-label="Main navigation">
   <div class="sidebar-content d-flex flex-column h-100">
     {# Brand/Logo Section with Toggle Button #}
     <div class="sidebar-brand p-3 border-bottom border-secondary d-flex align-items-center justify-content-between">
-      <a href="{{ url_for('main.dashboard') }}" class="d-flex align-items-center text-white text-decoration-none">
+      <a href="{{ url_for('main.dashboard') }}" 
+         class="d-flex align-items-center text-white text-decoration-none"
+         hx-boost="true"
+         title="Go to Dashboard">
         <span class="fw-bold fs-5 sidebar-text">Thesis</span>
       </a>
-  <button id="sidebar-toggle" class="btn btn-link text-white p-0 sidebar-toggle-btn"
-      type="button"
-      aria-label="Collapse sidebar"
-      aria-expanded="true"
-      title="Toggle Sidebar">
+      <button id="sidebar-toggle" 
+              class="btn btn-link text-white p-0 sidebar-toggle-btn"
+              type="button"
+              aria-label="Collapse sidebar"
+              aria-expanded="true"
+              title="Toggle Sidebar">
         <i class="fa-solid fa-bars" aria-hidden="true"></i>
-  </button>
+      </button>
     </div>
 
     {# Navigation Menu #}
-    <nav class="sidebar-nav flex-grow-1 py-3">
+    <nav class="sidebar-nav flex-grow-1 py-3" role="navigation" aria-label="Main menu">
       <ul class="nav nav-pills flex-column px-3">
         {# Dashboard #}
         <li class="nav-item mb-2">
-          <a href="{{ url_for('main.dashboard') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="Dashboard">
+          <a href="{{ url_for('main.dashboard') }}" 
+             class="nav-link text-white d-flex align-items-center" 
+             hx-boost="true" 
+             title="Dashboard"
+             data-nav-target="dashboard">
             <i class="fa-solid fa-gauge-high me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">Dashboard</span>
           </a>
@@ -36,7 +45,11 @@
 
         {# Analysis Section #}
         <li class="nav-item mb-2">
-          <a href="{{ url_for('analysis.analysis_index') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="Analysis Hub">
+          <a href="{{ url_for('analysis.analysis_index') }}" 
+             class="nav-link text-white d-flex align-items-center" 
+             hx-boost="true" 
+             title="Analysis Hub"
+             data-nav-target="analysis">
             <i class="fa-solid fa-chart-column me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">Analysis Hub</span>
           </a>
@@ -44,7 +57,11 @@
 
         {# Models & Applications #}
         <li class="nav-item mb-2">
-          <a href="{{ url_for('main.models_overview') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="Models">
+          <a href="{{ url_for('main.models_overview') }}" 
+             class="nav-link text-white d-flex align-items-center" 
+             hx-boost="true" 
+             title="Models"
+             data-nav-target="models">
             <i class="fa-solid fa-cubes-stacked me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">Models</span>
           </a>
@@ -52,7 +69,11 @@
 
         {# Sample Generator #}
         <li class="nav-item mb-2">
-          <a href="{{ url_for('sample_generator.index') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="Sample Generator">
+          <a href="{{ url_for('sample_generator.index') }}" 
+             class="nav-link text-white d-flex align-items-center" 
+             hx-boost="true" 
+             title="Sample Generator"
+             data-nav-target="sample-generator">
             <i class="fa-solid fa-code me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">Sample Generator</span>
           </a>
@@ -60,7 +81,11 @@
 
         {# Reports #}
         <li class="nav-item mb-2">
-          <a href="{{ url_for('reports.reports_index') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="Reports">
+          <a href="{{ url_for('reports.reports_index') }}" 
+             class="nav-link text-white d-flex align-items-center" 
+             hx-boost="true" 
+             title="Reports"
+             data-nav-target="reports">
             <i class="fa-solid fa-file-lines me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">Reports</span>
           </a>
@@ -68,7 +93,11 @@
 
         {# Statistics #}
         <li class="nav-item mb-2">
-          <a href="{{ url_for('statistics.statistics_overview') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="Statistics">
+          <a href="{{ url_for('statistics.statistics_overview') }}" 
+             class="nav-link text-white d-flex align-items-center" 
+             hx-boost="true" 
+             title="Statistics"
+             data-nav-target="statistics">
             <i class="fa-solid fa-chart-line me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">Statistics</span>
           </a>
@@ -76,7 +105,11 @@
 
         {# System Status #}
         <li class="nav-item mb-2">
-          <a href="{{ url_for('main.system_status') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="System Status">
+          <a href="{{ url_for('main.system_status') }}" 
+             class="nav-link text-white d-flex align-items-center" 
+             hx-boost="true" 
+             title="System Status"
+             data-nav-target="system">
             <i class="fa-solid fa-server me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">System Status</span>
           </a>
@@ -84,7 +117,11 @@
 
         {# Tasks #}
         <li class="nav-item mb-2">
-          <a href="{{ url_for('tasks.tasks_overview') }}" class="nav-link text-white d-flex align-items-center" hx-boost="true" title="Tasks">
+          <a href="{{ url_for('tasks.tasks_overview') }}" 
+             class="nav-link text-white d-flex align-items-center" 
+             hx-boost="true" 
+             title="Tasks"
+             data-nav-target="tasks">
             <i class="fa-solid fa-list-check me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">Tasks</span>
           </a>
@@ -97,7 +134,9 @@
       <div class="d-flex flex-column gap-2">
         {# System Status #}
         <div class="d-flex align-items-center justify-content-center">
-          <span class="status-indicator status-indicator-animated bg-green me-2" style="width: 8px; height: 8px;"></span>
+          <span class="status-indicator status-indicator-animated bg-green me-2" 
+                style="width: 8px; height: 8px;" 
+                aria-hidden="true"></span>
           <small class="text-muted fw-medium sidebar-text">Online</small>
         </div>
 
@@ -114,4 +153,17 @@
     </div>
   </div>
 </aside>
-{# Sidebar styles moved to static/css/theme.css #}
+
+<!-- Mobile sidebar toggle button (visible only on mobile) -->
+<button class="sidebar-toggle-mobile d-lg-none btn btn-outline-primary btn-sm position-fixed"
+        id="mobile-sidebar-toggle"
+        type="button"
+        style="top: 15px; left: 15px; z-index: 1055;"
+        data-bs-toggle="offcanvas" 
+        data-bs-target="#mobile-sidebar"
+        aria-controls="mobile-sidebar"
+        aria-label="Open mobile menu"
+        title="Open navigation menu">
+  <i class="fa-solid fa-bars" aria-hidden="true"></i>
+</button>
+{# Sidebar styles are in static/css/theme.css #}
