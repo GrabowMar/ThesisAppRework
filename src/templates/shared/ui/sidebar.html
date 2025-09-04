@@ -55,7 +55,7 @@
           </a>
         </li>
 
-        {# Models & Applications #}
+        {# Models #}
         <li class="nav-item mb-2">
           <a href="{{ url_for('main.models_overview') }}" 
              class="nav-link text-white d-flex align-items-center" 
@@ -64,6 +64,18 @@
              data-nav-target="models">
             <i class="fa-solid fa-cubes-stacked me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">Models</span>
+          </a>
+        </li>
+
+        {# Applications #}
+        <li class="nav-item mb-2">
+          <a href="{{ url_for('main.applications_index') }}" 
+             class="nav-link text-white d-flex align-items-center" 
+             hx-boost="true" 
+             title="Applications"
+             data-nav-target="applications">
+            <i class="fa-solid fa-laptop-code me-3 nav-icon" aria-hidden="true"></i>
+            <span class="sidebar-text">Applications</span>
           </a>
         </li>
 
