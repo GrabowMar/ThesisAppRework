@@ -2371,6 +2371,26 @@ class AnalysisTask(db.Model):
         # Calculate actual duration
         if self.started_at:
             self.actual_duration = (self.completed_at - self.started_at).total_seconds()
+
+    # --- Compatibility methods for analyzer_integration (legacy naming) ---
+    def mark_completed(self, analysis_data: Dict[str, Any] | None = None) -> None:
+        """Backward compatible wrapper used by analyzer_integration.
+
+        Parameters:
+            analysis_data: Optional dict with summary/result info to persist to result_summary
+        """
+        self.complete_execution(success=True)
+        if analysis_data is not None:
+            # Store summary under result_summary field
+            try:
+                self.set_result_summary(analysis_data if isinstance(analysis_data, dict) else {'data': analysis_data})
+            except Exception:
+                # Fail-safe: ignore serialization issues
+                pass
+
+    def mark_failed(self, error_message: str) -> None:
+        """Backward compatible wrapper used by analyzer_integration."""
+        self.complete_execution(success=False, error_message=error_message)
     
     def can_retry(self) -> bool:
         """Check if task can be retried."""

@@ -319,6 +319,15 @@ def create_app(config_name: str = 'default') -> Flask:
                     logger.info("Analyzer services started successfully")
                 else:
                     logger.warning("Failed to auto-start analyzer services")
+
+        # Initialize lightweight in-process task execution to advance AnalysisTask
+        # objects from pending -> running -> completed for development and tests.
+        try:  # pragma: no cover - wiring
+            from app.services.task_execution_service import init_task_execution_service
+            init_task_execution_service(app=app)
+            logger.info("Task execution service initialized")
+        except Exception as _exec_err:  # pragma: no cover
+            logger.warning(f"Task execution service not started: {_exec_err}")
         
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")

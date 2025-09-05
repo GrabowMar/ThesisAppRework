@@ -13,6 +13,7 @@ from .jinja.reports import reports_bp
 from .jinja.docs import docs_bp
 from .jinja.sample_generator import sample_generator_bp
 from .api import api_bp
+from .api.tasks_realtime import tasks_rt_bp
 from .api.sample_generation import sample_gen_bp
 from .api.app_scaffolding import scaffold_bp
 from .websockets import websocket_api_bp, register_websocket_routes, register_error_handlers
@@ -66,6 +67,7 @@ def register_blueprints(app):
 
     # Register API blueprint
     app.register_blueprint(api_bp, url_prefix='/api')
+    app.register_blueprint(tasks_rt_bp)
     # Sample generation API (already prefixed inside file with /api/sample-gen)
     app.register_blueprint(sample_gen_bp)
     # App scaffolding API (/api/app-scaffold)

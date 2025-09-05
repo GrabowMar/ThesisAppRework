@@ -14,11 +14,9 @@ tasks_bp = Blueprint('tasks', __name__, url_prefix='/tasks')
 
 @tasks_bp.route('/')
 def tasks_overview():
-    """Delegate tasks overview to analysis hub (embedded tasks list)."""
+    """Render live tasks dashboard (websocket/poll hybrid)."""
     try:
-        from app.services.task_service import AnalysisTaskService
-        tasks = AnalysisTaskService.get_recent_tasks(limit=25)
-        return render_template('pages/analysis/hub_main.html', tasks=tasks)
+        return render_template('pages/tasks/live.html')
     except Exception as e:  # pragma: no cover
-        current_app.logger.error(f"Error loading tasks overview: {e}")
+        current_app.logger.error(f"Error loading live tasks page: {e}")
         return render_template('pages/errors/errors_main.html', error=str(e)), 500

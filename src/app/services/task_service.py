@@ -86,6 +86,25 @@ class AnalysisTaskService:
         db.session.add(task)
         db.session.commit()
         logger.info(f"Created analysis task {task.task_id}: {at_enum.value} for {model_slug} app {app_number}")
+        # Realtime event (best-effort)
+        try:  # pragma: no cover - small wrapper
+            from app.realtime.task_events import emit_task_event
+            emit_task_event(
+                "task.created",
+                {
+                    "id": task.id,
+                    "task_id": task.task_id,
+                    "analysis_type": task.analysis_type.value if task.analysis_type else None,
+                    "status": task.status.value if task.status else None,
+                    "priority": task.priority.value if task.priority else None,
+                    "target_model": task.target_model,
+                    "target_app_number": task.target_app_number,
+                    "progress_percentage": task.progress_percentage,
+                    "created_at": task.created_at.isoformat() if task.created_at else None,
+                },
+            )
+        except Exception:
+            pass
         return task
 
     @staticmethod

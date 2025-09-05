@@ -294,6 +294,37 @@ class AnalysisExecutor:
         try:
             percentage = data.get('percentage', 0)
             message = data.get('message', '')
+            stage = data.get('stage') or data.get('phase') or ''
+
+            # Heuristic mapping of stages to tool names
+            stage_tool_map = {
+                'scanning_python': ['bandit', 'pylint', 'mypy'],
+                'python_analysis': ['bandit', 'pylint', 'mypy'],
+                'scanning_js': ['eslint', 'tsc'],
+                'scanning_css': ['stylelint'],
+            }
+
+            # Initialize per-task emitted tools cache in metadata (non-persistent ephemeral via object attr)
+            if not hasattr(task, '_emitted_tool_started'):
+                setattr(task, '_emitted_tool_started', set())
+            emitted: set = getattr(task, '_emitted_tool_started')  # type: ignore
+
+            from app.realtime.task_events import emit_task_event  # local import to avoid circular
+            # For each stage, emit tool.started once per tool to allow UI to show pending vs running
+            if stage in stage_tool_map:
+                for tool_name in stage_tool_map[stage]:
+                    key = f"{tool_name}"
+                    if key not in emitted:
+                        emit_task_event(
+                            "task.tool.started",
+                            {
+                                "task_id": task.task_id,
+                                "tool": tool_name,
+                                "stage": stage,
+                                "progress_percentage": percentage,
+                            },
+                        )
+                        emitted.add(key)
             
             # Update task progress
             task.update_progress(percentage, message)
@@ -386,35 +417,81 @@ class AnalysisExecutor:
     async def _store_findings(self, task: Any, findings: List[Dict[str, Any]]):
         """Store detailed analysis findings."""
         try:
+            from app.constants import SeverityLevel as SevEnum
+            sev_values = {s.value for s in SevEnum}
+            from app.realtime.task_events import emit_task_event  # local import to avoid circulars
+            tool_counts: Dict[str, int] = {}
+            tool_severity: Dict[str, Dict[str, int]] = {}
             for finding_data in findings:
-                finding = AnalysisResult(
-                    task_id=task.id,
-                    result_type=finding_data.get('type', 'finding'),
-                    severity=finding_data.get('severity', 'low'),
-                    category=finding_data.get('category', 'general'),
-                    title=finding_data.get('title', ''),
-                    description=finding_data.get('description', ''),
-                    file_path=finding_data.get('file_path'),
-                    line_number=finding_data.get('line_number'),
-                    code_snippet=finding_data.get('code_snippet'),
-                    score=finding_data.get('score'),
-                    confidence=finding_data.get('confidence'),
-                    impact=finding_data.get('impact'),
-                    recommendation=finding_data.get('recommendation'),
-                    tool_name=finding_data.get('tool_name'),
-                    rule_id=finding_data.get('rule_id')
-                )
-                
-                # Store additional details
-                if 'details' in finding_data:
-                    finding.set_details(finding_data['details'])
-                
-                if 'external_references' in finding_data:
-                    finding.set_external_references(finding_data['external_references'])
-                
-                db.session.add(finding)
-            
+                severity_raw = (finding_data.get('severity') or 'low').lower()
+                if severity_raw not in sev_values:
+                    severity_raw = 'low'
+
+                result = AnalysisResult()
+                # Core identifiers / associations
+                result.result_id = str(uuid.uuid4())
+                result.task_id = task.task_id
+                # Descriptive metadata
+                result.tool_name = finding_data.get('tool_name', 'unknown_tool')
+                result.tool_version = finding_data.get('tool_version')
+                result.result_type = finding_data.get('type', 'finding')
+                result.title = finding_data.get('title', 'Untitled Finding')
+                result.description = finding_data.get('description')
+                result.severity = SevEnum(severity_raw)
+                result.confidence = finding_data.get('confidence')
+                # Location
+                result.file_path = finding_data.get('file_path')
+                result.line_number = finding_data.get('line_number')
+                result.column_number = finding_data.get('column_number')
+                result.code_snippet = finding_data.get('code_snippet')
+                # Classification
+                result.category = finding_data.get('category')
+                result.rule_id = finding_data.get('rule_id')
+                # Raw output
+                result.raw_output = finding_data.get('raw_output')
+
+                # Optional scoring
+                impact_score = finding_data.get('impact_score') or finding_data.get('score')
+                if impact_score is not None:
+                    try:
+                        result.impact_score = float(impact_score)
+                    except Exception:
+                        pass
+                result.business_impact = finding_data.get('business_impact') or finding_data.get('impact')
+                result.remediation_effort = finding_data.get('remediation_effort')
+
+                # JSON style helpers
+                tags = finding_data.get('tags')
+                if isinstance(tags, list):
+                    result.set_tags(tags)
+                recs = finding_data.get('recommendations') or finding_data.get('recommendation')
+                if isinstance(recs, list):
+                    result.set_recommendations(recs)
+                elif isinstance(recs, str):
+                    result.set_recommendations([recs])
+                structured = finding_data.get('structured_data') or finding_data.get('details')
+                if isinstance(structured, dict):
+                    result.set_structured_data(structured)
+
+                db.session.add(result)
+                tool_counts[result.tool_name] = tool_counts.get(result.tool_name, 0) + 1
+                sev_bucket = tool_severity.setdefault(result.tool_name, {})
+                sev_bucket[severity_raw] = sev_bucket.get(severity_raw, 0) + 1
+
             logger.debug(f"Stored {len(findings)} findings for task {task.task_id}")
+
+            # Emit per-tool completion summary events (lightweight – no DB commit dependency)
+            for tool, count in tool_counts.items():
+                emit_task_event(
+                    "task.tool.completed",
+                    {
+                        "task_id": task.task_id,
+                        "tool": tool,
+                        "findings_count": count,
+                        "total_findings_for_task": len(findings),
+                        "severity_breakdown": tool_severity.get(tool, {}),
+                    },
+                )
             
         except Exception as e:
             logger.error(f"Error storing findings for task {task.task_id}: {e}")
