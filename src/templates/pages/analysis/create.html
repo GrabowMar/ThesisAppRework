@@ -31,10 +31,38 @@
               <div class="progress-bar bg-primary" role="progressbar" style="width:25%" id="wizard-progress-bar"></div>
             </div>
             <div class="row text-center">
-              <div class="col-3"><div class="wizard-step active" data-step="1"><div class="wizard-step-icon"><i class="fas fa-brain"></i></div><div class="wizard-step-label">Select Model</div></div></div>
-              <div class="col-3"><div class="wizard-step" data-step="2"><div class="wizard-step-icon"><i class="fas fa-rocket"></i></div><div class="wizard-step-label">Choose Application</div></div></div>
-              <div class="col-3"><div class="wizard-step" data-step="3"><div class="wizard-step-icon"><i class="fas fa-cogs"></i></div><div class="wizard-step-label">Configure Analysis</div></div></div>
-              <div class="col-3"><div class="wizard-step" data-step="4"><div class="wizard-step-icon"><i class="fas fa-check-circle"></i></div><div class="wizard-step-label">Review & Launch</div></div></div>
+              <div class="col-3">
+                <div class="wizard-step active" data-step="1" _="on click call goToStep(1)">
+                  <div class="wizard-step-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-brain" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M15.5 13a3.5 3.5 0 0 0 -3.5 3.5v1a3.5 3.5 0 0 0 7 0v-1.8" /><path d="M8.5 13a3.5 3.5 0 0 1 3.5 3.5v1a3.5 3.5 0 0 1 -7 0v-1.8" /><path d="M17.5 16a3.5 3.5 0 0 0 0 -7h-.5" /><path d="M19 9.3v-2.8a3.5 3.5 0 0 0 -7 0" /><path d="M6.5 16a3.5 3.5 0 0 1 0 -7h.5" /><path d="M5 9.3v-2.8a3.5 3.5 0 0 1 7 0v10" /></svg>
+                  </div>
+                  <div class="wizard-step-label">Select Model</div>
+                </div>
+              </div>
+              <div class="col-3">
+                <div class="wizard-step" data-step="2" _="on click call goToStep(2)">
+                  <div class="wizard-step-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-rocket" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M4 13a8 8 0 0 1 7 7a6 6 0 0 0 3 -5a9 9 0 0 0 6 -8a3 3 0 0 0 -3 -3a9 9 0 0 0 -8 6a6 6 0 0 0 -5 3" /><path d="M7 14a6 6 0 0 0 3 6a6 6 0 0 0 6 -3" /><circle cx="15" cy="9" r="1" /></svg>
+                  </div>
+                  <div class="wizard-step-label">Choose Application</div>
+                </div>
+              </div>
+              <div class="col-3">
+                <div class="wizard-step" data-step="3" _="on click call goToStep(3)">
+                  <div class="wizard-step-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-settings" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1.042 .435 2.12 .435 2.573 1.066z" /><circle cx="12" cy="12" r="3" /></svg>
+                  </div>
+                  <div class="wizard-step-label">Configure Analysis</div>
+                </div>
+              </div>
+              <div class="col-3">
+                <div class="wizard-step" data-step="4" _="on click call goToStep(4)">
+                  <div class="wizard-step-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-check" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" /></svg>
+                  </div>
+                  <div class="wizard-step-label">Review & Launch</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -48,9 +76,35 @@
             <div class="card-body">
               <p class="text-muted">Choose the AI model you want to analyze. Each model has different capabilities and pricing.</p>
               <div class="row mb-4">
-                <div class="col-md-4"><label class="form-label">Provider</label><select class="form-select" id="provider-filter" onchange="filterModels()"><option value="">All Providers</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="google">Google</option><option value="meta">Meta</option></select></div>
-                <div class="col-md-4"><label class="form-label">Capability</label><select class="form-select" id="capability-filter" onchange="filterModels()"><option value="">All Capabilities</option><option value="coding">Coding</option><option value="analysis">Analysis</option><option value="reasoning">Reasoning</option><option value="multimodal">Multimodal</option></select></div>
-                <div class="col-md-4"><label class="form-label">Price Range</label><select class="form-select" id="price-filter" onchange="filterModels()"><option value="">All Prices</option><option value="low">Low ($0-$0.01)</option><option value="medium">Medium ($0.01-$0.05)</option><option value="high">High ($0.05+)</option></select></div>
+                <div class="col-md-4">
+                  <label class="form-label">Provider</label>
+                  <select class="form-select" id="provider-filter" _="on change call filterModels()">
+                    <option value="">All Providers</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
+                    <option value="google">Google</option>
+                    <option value="meta">Meta</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Capability</label>
+                  <select class="form-select" id="capability-filter" _="on change call filterModels()">
+                    <option value="">All Capabilities</option>
+                    <option value="coding">Coding</option>
+                    <option value="analysis">Analysis</option>
+                    <option value="reasoning">Reasoning</option>
+                    <option value="multimodal">Multimodal</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Price Range</label>
+                  <select class="form-select" id="price-filter" _="on change call filterModels()">
+                    <option value="">All Prices</option>
+                    <option value="low">Low ($0-$0.01)</option>
+                    <option value="medium">Medium ($0.01-$0.05)</option>
+                    <option value="high">High ($0.05+)</option>
+                  </select>
+                </div>
               </div>
               <div id="model-selection-grid" hx-get="/api/models/grid?selectable=true" hx-trigger="load"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading models...</span></div></div></div>
               <div id="selected-model-preview" class="mt-4 u-5790ff" style="display:none;"><div class="alert alert-info"><h6 class="alert-heading">Selected Model</h6><div id="selected-model-details"></div></div></div>
@@ -64,12 +118,80 @@
             <div class="mb-4"><label class="form-label">Analysis Type <span class="text-danger">*</span></label>
               <div class="row">
                 <div class="col-lg-6"><div class="list-group">
-                  <div class="list-group-item"><div class="form-check"><input class="form-check-input" type="radio" name="analysis_type" value="security" onchange="updateAnalysisConfig()"><label class="form-check-label w-100"><h6 class="mb-1"><i class="fas fa-shield-alt text-danger me-2"></i>Security Analysis</h6><p class="mb-1 text-muted small">Comprehensive security scanning including vulnerability detection, dependency analysis, and security best practices validation.</p><small class="text-muted"><i class="fas fa-clock me-1"></i>~5-10 minutes <i class="fas fa-dollar-sign ms-2 me-1"></i>$0.05-$0.15</small></label></div></div>
-                  <div class="list-group-item"><div class="form-check"><input class="form-check-input" type="radio" name="analysis_type" value="performance" onchange="updateAnalysisConfig()"><label class="form-check-label w-100"><h6 class="mb-1"><i class="fas fa-tachometer-alt text-info me-2"></i>Performance Analysis</h6><p class="mb-1 text-muted small">Load testing, response time analysis, resource utilization, and scalability assessment.</p><small class="text-muted"><i class="fas fa-clock me-1"></i>~3-8 minutes <i class="fas fa-dollar-sign ms-2 me-1"></i>$0.03-$0.12</small></label></div></div>
+                  <div class="list-group-item">
+                    <div class="form-check">
+                      <input class="form-check-input" type="radio" name="analysis_type" value="security" _="on change call updateAnalysisConfig()">
+                      <label class="form-check-label w-100">
+                        <h6 class="mb-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-shield-check text-danger me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M11.46 20.846a12 12 0 0 1 -7.96 -14.846a3 3 0 0 1 8.5 -2a3 3 0 0 1 8.5 2a12 12 0 0 1 -.09 1.254" /><path d="M15 19l2 2l4 -4" /></svg>
+                          Security Analysis
+                        </h6>
+                        <p class="mb-1 text-secondary small">Comprehensive security scanning including vulnerability detection, dependency analysis, and security best practices validation.</p>
+                        <small class="text-secondary">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><polyline points="12,7 12,12 15,15" /></svg>
+                          ~5-10 minutes
+                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-currency-dollar ms-2" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M16.7 8a3 3 0 0 0 -2.7 -2h-4a3 3 0 0 0 0 6h4a3 3 0 0 1 0 6h-4a3 3 0 0 1 -2.7 -2" /><path d="M12 3v3m0 12v3" /></svg>
+                          $0.05-$0.15
+                        </small>
+                      </label>
+                    </div>
+                  </div>
+                  <div class="list-group-item">
+                    <div class="form-check">
+                      <input class="form-check-input" type="radio" name="analysis_type" value="performance" _="on change call updateAnalysisConfig()">
+                      <label class="form-check-label w-100">
+                        <h6 class="mb-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-dashboard text-info me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><circle cx="12" cy="13" r="2" /><path d="M13.45 11.55l2.05 -2.05" /><path d="M6.4 20a9 9 0 1 1 11.2 0z" /></svg>
+                          Performance Analysis
+                        </h6>
+                        <p class="mb-1 text-secondary small">Load testing, response time analysis, resource utilization, and scalability assessment.</p>
+                        <small class="text-secondary">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><polyline points="12,7 12,12 15,15" /></svg>
+                          ~3-8 minutes
+                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-currency-dollar ms-2" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M16.7 8a3 3 0 0 0 -2.7 -2h-4a3 3 0 0 0 0 6h4a3 3 0 0 1 0 6h-4a3 3 0 0 1 -2.7 -2" /><path d="M12 3v3m0 12v3" /></svg>
+                          $0.03-$0.12
+                        </small>
+                      </label>
+                    </div>
+                  </div>
                 </div></div>
                 <div class="col-lg-6"><div class="list-group">
-                  <div class="list-group-item"><div class="form-check"><input class="form-check-input" type="radio" name="analysis_type" value="dynamic" onchange="updateAnalysisConfig()"><label class="form-check-label w-100"><h6 class="mb-1"><i class="fas fa-play text-warning me-2"></i>Dynamic Analysis</h6><p class="mb-1 text-muted small">Runtime behavior analysis, API interaction testing, and functional verification.</p><small class="text-muted"><i class="fas fa-clock me-1"></i>~7-15 minutes <i class="fas fa-dollar-sign ms-2 me-1"></i>$0.08-$0.25</small></label></div></div>
-                  <div class="list-group-item"><div class="form-check"><input class="form-check-input" type="radio" name="analysis_type" value="comprehensive" onchange="updateAnalysisConfig()"><label class="form-check-label w-100"><h6 class="mb-1"><i class="fas fa-chart-line text-success me-2"></i>Comprehensive Analysis</h6><p class="mb-1 text-muted small">Full security, performance, and dynamic analysis combined with detailed reporting.</p><small class="text-muted"><i class="fas fa-clock me-1"></i>~15-30 minutes <i class="fas fa-dollar-sign ms-2 me-1"></i>$0.15-$0.45</small></label></div></div>
+                  <div class="list-group-item">
+                    <div class="form-check">
+                      <input class="form-check-input" type="radio" name="analysis_type" value="dynamic" _="on change call updateAnalysisConfig()">
+                      <label class="form-check-label w-100">
+                        <h6 class="mb-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-player-play text-warning me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M7 4v16l13 -8z" /></svg>
+                          Dynamic Analysis
+                        </h6>
+                        <p class="mb-1 text-secondary small">Runtime behavior analysis, API interaction testing, and functional verification.</p>
+                        <small class="text-secondary">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><polyline points="12,7 12,12 15,15" /></svg>
+                          ~7-15 minutes
+                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-currency-dollar ms-2" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M16.7 8a3 3 0 0 0 -2.7 -2h-4a3 3 0 0 0 0 6h4a3 3 0 0 1 0 6h-4a3 3 0 0 1 -2.7 -2" /><path d="M12 3v3m0 12v3" /></svg>
+                          $0.08-$0.25
+                        </small>
+                      </label>
+                    </div>
+                  </div>
+                  <div class="list-group-item">
+                    <div class="form-check">
+                      <input class="form-check-input" type="radio" name="analysis_type" value="comprehensive" _="on change call updateAnalysisConfig()">
+                      <label class="form-check-label w-100">
+                        <h6 class="mb-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chart-line text-success me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M4 19l16 0" /><path d="M4 15l4 -6l4 2l4 -5l4 4" /></svg>
+                          Comprehensive Analysis
+                        </h6>
+                        <p class="mb-1 text-secondary small">Full security, performance, and dynamic analysis combined with detailed reporting.</p>
+                        <small class="text-secondary">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><polyline points="12,7 12,12 15,15" /></svg>
+                          ~15-30 minutes
+                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-currency-dollar ms-2" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M16.7 8a3 3 0 0 0 -2.7 -2h-4a3 3 0 0 0 0 6h4a3 3 0 0 1 0 6h-4a3 3 0 0 1 -2.7 -2" /><path d="M12 3v3m0 12v3" /></svg>
+                          $0.15-$0.45
+                        </small>
+                      </label>
+                    </div>
+                  </div>
                 </div></div>
               </div></div>
             <div id="analysis-config-options" class="u-5790ff" style="display:none;">
@@ -95,7 +217,32 @@
           </div>
         </div>
       </div>
-      <div class="card mt-4"><div class="card-body"><div class="d-flex justify-content-between"><button type="button" class="btn btn-outline-secondary" id="prev-btn" onclick="previousStep()" disabled><i class="fas fa-chevron-left me-1"></i>Previous</button><div class="wizard-info text-muted small">Step <span id="current-step">1</span> of 4</div><div><button type="button" class="btn btn-primary" id="next-btn" onclick="nextStep()" disabled>Next <i class="fas fa-chevron-right ms-1"></i></button><button type="submit" class="btn btn-success u-5790ff" id="launch-btn" style="display:none;"><i class="fas fa-rocket me-1"></i>Launch Analysis</button><button type="button" class="btn btn-success u-5790ff" id="launch-btn-loading" style="display:none;" disabled><i class="fas fa-spinner fa-spin me-1"></i>Launching...</button></div></div></div></div>
+      <div class="card mt-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <button type="button" class="btn" id="prev-btn" _="on click call previousStep()" disabled>
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chevron-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="m15 6l-6 6l6 6" /></svg>
+              Previous
+            </button>
+            <div class="text-muted">
+              <small>Step <span id="current-step" class="fw-bold text-primary">1</span> of <span class="fw-bold">4</span></small>
+            </div>
+            <div>
+              <button type="button" class="btn btn-primary" id="next-btn" _="on click call nextStep()" disabled>
+                Complete this step to continue
+              </button>
+              <button type="submit" class="btn btn-success" id="launch-btn" style="display:none;">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-rocket" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M4 13a8 8 0 0 1 7 7a6 6 0 0 0 3 -5a9 9 0 0 0 6 -8a3 3 0 0 0 -3 -3a9 9 0 0 0 -8 6a6 6 0 0 0 -5 3" /><path d="M7 14a6 6 0 0 0 3 6a6 6 0 0 0 6 -3" /><circle cx="15" cy="9" r="1" /></svg>
+                Launch Analysis
+              </button>
+              <button type="button" class="btn btn-success" id="launch-btn-loading" style="display:none;" disabled>
+                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                Launching...
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </form>
   </div>
 </div>
@@ -103,6 +250,54 @@
 
 {% block scripts %}
   {{ super() }}
+  <style>
+    /* Wizard Panel Visibility */
+    .wizard-panel {
+      display: none;
+    }
+    
+    .wizard-panel.active {
+      display: block;
+    }
+    
+    /* Wizard Step Styling - Tabler aligned */
+    .wizard-step {
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border-radius: var(--tblr-border-radius);
+      padding: 0.5rem;
+    }
+    
+    .wizard-step:hover {
+      background-color: var(--tblr-hover-bg);
+    }
+    
+    .wizard-step.active {
+      background-color: rgba(var(--tblr-primary-rgb), 0.1);
+      color: var(--tblr-primary);
+    }
+    
+    .wizard-step.completed {
+      background-color: rgba(var(--tblr-success-rgb), 0.1);
+      color: var(--tblr-success);
+    }
+    
+    .wizard-step-icon {
+      font-size: 1.25rem;
+      margin-bottom: 0.25rem;
+    }
+    
+    .wizard-step-label {
+      font-size: 0.75rem;
+      font-weight: var(--tblr-font-weight-medium);
+    }
+    
+    /* Selection styling */
+    .model-card.selected, .app-card.selected {
+      border-color: var(--tblr-primary) !important;
+      box-shadow: 0 0 0 0.125rem rgba(var(--tblr-primary-rgb), 0.25);
+    }
+  </style>
   <script>
 // Analysis Creation Wizard JavaScript
 let currentStep = 1;
@@ -113,97 +308,231 @@ let selectedAnalysisType = null;
 // Wizard navigation functions
 function nextStep() {
     if (validateCurrentStep() && currentStep < 4) {
+        // Mark current step as completed
+        const currentStepEl = document.querySelector(`.wizard-step[data-step="${currentStep}"]`);
+        if (currentStepEl) {
+            currentStepEl.classList.remove('active');
+            currentStepEl.classList.add('completed');
+        }
+        
         currentStep++;
         updateWizardStep();
+        showValidationFeedback(currentStep - 1, true, 'Step completed successfully!');
+    } else if (!validateCurrentStep()) {
+        showValidationFeedback(currentStep, false, getValidationMessage(currentStep));
     }
 }
 
 function previousStep() {
     if (currentStep > 1) {
+        // Mark current step as not active
+        const currentStepEl = document.querySelector(`.wizard-step[data-step="${currentStep}"]`);
+        if (currentStepEl) {
+            currentStepEl.classList.remove('active');
+        }
+        
         currentStep--;
+        
+        // Mark previous step as active again (remove completed status)
+        const prevStepEl = document.querySelector(`.wizard-step[data-step="${currentStep}"]`);
+        if (prevStepEl) {
+            prevStepEl.classList.remove('completed');
+            prevStepEl.classList.add('active');
+        }
+        
         updateWizardStep();
+        hideValidationFeedback();
+    }
+}
+
+function goToStep(stepNumber) {
+    if (stepNumber >= 1 && stepNumber <= 4) {
+        // Validate all previous steps
+        let canProceed = true;
+        for (let i = 1; i < stepNumber; i++) {
+            if (!isStepValid(i)) {
+                canProceed = false;
+                break;
+            }
+        }
+        
+        if (canProceed || stepNumber <= currentStep) {
+            // Update step classes
+            document.querySelectorAll('.wizard-step').forEach((step, index) => {
+                step.classList.remove('active', 'completed');
+                if (index + 1 < stepNumber) {
+                    step.classList.add('completed');
+                } else if (index + 1 === stepNumber) {
+                    step.classList.add('active');
+                }
+            });
+            
+            currentStep = stepNumber;
+            updateWizardStep();
+            hideValidationFeedback();
+        }
     }
 }
 
 function updateWizardStep() {
-    // Update progress bar
+    // Update progress bar with smooth animation
     const progressPercent = (currentStep / 4) * 100;
-    document.getElementById('wizard-progress-bar').style.width = progressPercent + '%';
+    const progressBar = document.getElementById('wizard-progress-bar');
+    progressBar.style.width = progressPercent + '%';
     
-    // Update step indicators
-    document.querySelectorAll('.wizard-step').forEach((step, index) => {
-        step.classList.remove('active', 'completed');
-        if (index + 1 < currentStep) {
-            step.classList.add('completed');
-        } else if (index + 1 === currentStep) {
-            step.classList.add('active');
-        }
+    // Hide all panels first
+    document.querySelectorAll('.wizard-panel').forEach(panel => {
+        panel.classList.remove('active');
     });
     
-    // Show/hide panels
-    document.querySelectorAll('.wizard-panel').forEach(panel => panel.classList.remove('active'));
-    document.querySelector(`[data-panel="${currentStep}"]`).classList.add('active');
+  // Show current panel (no fade complexity to avoid timing issues)
+  const currentPanel = document.querySelector(`[data-panel="${currentStep}"]`);
+  if (currentPanel) {
+    currentPanel.classList.add('active');
+  }
     
     // Update help content
     document.querySelectorAll('.help-content').forEach(help => help.classList.remove('active'));
-    document.querySelector(`[data-help="${currentStep}"]`).classList.add('active');
+    const currentHelp = document.querySelector(`[data-help="${currentStep}"]`);
+    if (currentHelp) {
+        currentHelp.classList.add('active');
+    }
     
     // Update navigation buttons
-    document.getElementById('prev-btn').disabled = currentStep === 1;
+    updateNavigationButtons();
+    
+    // Update step counter
     document.getElementById('current-step').textContent = currentStep;
     
+    // Special handling for final step
+    if (currentStep === 4) {
+        updateAnalysisSummary();
+    }
+    
+  // Scroll to active panel safely (guard against null)
+  try {
+    const activePanel = document.querySelector('.wizard-panel.active');
+    if (activePanel) {
+      activePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  } catch (e) {
+    console.warn('Scroll into view failed:', e);
+  }
+}
+
+function updateNavigationButtons() {
+    const prevBtn = document.getElementById('prev-btn');
     const nextBtn = document.getElementById('next-btn');
     const launchBtn = document.getElementById('launch-btn');
     
-    nextBtn.style.display = currentStep === 4 ? 'none' : 'inline-block';
-    launchBtn.style.display = currentStep === 4 ? 'inline-block' : 'none';
+    // Previous button
+    prevBtn.disabled = currentStep === 1;
     
-    nextBtn.disabled = !canProceedFromStep(currentStep);
-    
+    // Next/Launch button logic
     if (currentStep === 4) {
-        updateAnalysisSummary();
+        nextBtn.style.display = 'none';
+        launchBtn.style.display = 'inline-block';
+    } else {
+        nextBtn.style.display = 'inline-block';
+        launchBtn.style.display = 'none';
+        nextBtn.disabled = !canProceedFromStep(currentStep);
+        
+        // Update button text based on validation
+    if (canProceedFromStep(currentStep)) {
+      nextBtn.innerHTML = 'Next <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chevron-right ms-1" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="m9 6l6 6l-6 6" /></svg>';
+            nextBtn.classList.remove('btn-outline-primary');
+            nextBtn.classList.add('btn-primary');
+        } else {
+            nextBtn.innerHTML = 'Complete this step to continue';
+            nextBtn.classList.remove('btn-primary');
+            nextBtn.classList.add('btn-outline-primary');
+        }
     }
 }
 
 function validateCurrentStep() {
-    switch (currentStep) {
+    return isStepValid(currentStep);
+}
+
+function isStepValid(step) {
+    switch (step) {
         case 1:
-            const errorEl1 = document.getElementById('step1-error');
-            if (!selectedModel) {
-                errorEl1.classList.remove('d-none');
-                return false;
-            } else {
-                errorEl1.classList.add('d-none');
-                return true;
-            }
+            return !!selectedModel;
         case 2:
-            const errorEl2 = document.getElementById('step2-error');
-            if (!selectedApp) {
-                errorEl2.classList.remove('d-none');
-                return false;
-            } else {
-                errorEl2.classList.add('d-none');
-                return true;
-            }
+            return !!selectedApp;
         case 3:
-            const errorEl3 = document.getElementById('step3-error');
-            if (!selectedAnalysisType) {
-                errorEl3.classList.remove('d-none');
-                return false;
-            } else {
-                errorEl3.classList.add('d-none');
-                return true;
-            }
+            return !!selectedAnalysisType;
+        case 4:
+            return true; // Review step is always valid
         default:
-            return true;
+            return false;
     }
 }
 
+function getValidationMessage(step) {
+    switch (step) {
+        case 1:
+            return 'Please select an AI model to continue.';
+        case 2:
+            return 'Please select an application to analyze.';
+        case 3:
+            return 'Please choose an analysis type to proceed.';
+        default:
+            return 'Please complete this step to continue.';
+    }
+}
+
+function showValidationFeedback(step, isSuccess, message) {
+    hideValidationFeedback(); // Remove any existing feedback
+    
+    const panel = document.querySelector(`[data-panel="${step}"]`);
+    if (!panel) return;
+    
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert ${isSuccess ? 'alert-success' : 'alert-danger'} alert-dismissible mt-3`;
+    alertDiv.innerHTML = `
+        <div class="d-flex">
+            <div>
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon ${isSuccess ? 'alert-icon' : 'alert-icon'}" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    ${isSuccess 
+                        ? '<path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" />'
+                        : '<path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4v.01" /><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" />'
+                    }
+                </svg>
+            </div>
+            <div class="ms-2">
+                <h4 class="alert-title">${isSuccess ? 'Success!' : 'Validation Error'}</h4>
+                <div class="text-secondary">${message}</div>
+            </div>
+        </div>
+        <a class="btn-close" data-bs-dismiss="alert" aria-label="close"></a>
+    `;
+    
+    const cardBody = panel.querySelector('.card-body');
+    if (cardBody) {
+        cardBody.appendChild(alertDiv);
+        
+        // Auto-hide success messages
+        if (isSuccess) {
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.remove();
+                }
+            }, 3000);
+        }
+    }
+}
+
+function hideValidationFeedback() {
+    document.querySelectorAll('.alert[class*="alert-"]').forEach(el => {
+        if (el.querySelector('.alert-title')) {
+            el.remove();
+        }
+    });
+}
+
 function canProceedFromStep(step) {
-    if (step === 1) return !!selectedModel;
-    if (step === 2) return !!selectedApp;
-    if (step === 3) return !!selectedAnalysisType;
-    return true;
+    return isStepValid(step);
 }
 
 // Model selection functions
@@ -244,8 +573,9 @@ function selectModel(slug, name) {
         console.error('Error calling loadApplicationsForModel:', error);
     }
     
-    // Update navigation
-    document.getElementById('next-btn').disabled = !canProceedFromStep(currentStep);
+    // Update navigation and show success feedback
+    updateNavigationButtons();
+    showValidationFeedback(1, true, `Model "${name}" selected successfully!`);
 }
 
 function loadApplicationsForModel(model) {
@@ -255,6 +585,7 @@ function loadApplicationsForModel(model) {
         return;
     }
     
+    // Show loading state
     listContainer.innerHTML = `
         <div class="text-center py-4">
             <div class="spinner-border text-primary" role="status">
@@ -264,33 +595,37 @@ function loadApplicationsForModel(model) {
         </div>
     `;
     
-    // Function to attempt HTMX request
-    function attemptLoad() {
-        if (window.htmx) {
-            console.log(`Loading applications for model: ${model.slug}`);
-            console.log(`API URL: /api/models/${encodeURIComponent(model.slug)}/applications`);
-            htmx.ajax('GET', `/api/models/${encodeURIComponent(model.slug)}/applications`, {
-                target: '#application-selection-list',
-                swap: 'innerHTML'
-            }).then(() => {
-                console.log('Applications loaded successfully');
-            }).catch((error) => {
-                console.error('Error loading applications:', error);
-                listContainer.innerHTML = `
-                    <div class="alert alert-danger">
-                        <h6>Error Loading Applications</h6>
-                        <p class="mb-0">Failed to load applications for this model. Please try again.</p>
-                    </div>
-                `;
-            });
-        } else {
-            console.warn('HTMX not ready yet, retrying in 100ms...');
-            setTimeout(attemptLoad, 100);
-        }
-    }
-    
-    // Try immediately, or wait for HTMX if not ready
-    attemptLoad();
+  // Use HTMX to load applications (fallback to fetch if needed)
+  if (window.htmx && htmx.ajax) {
+    htmx.ajax('GET', `/api/models/${encodeURIComponent(model.slug)}/applications`, {
+      target: '#application-selection-list',
+      swap: 'innerHTML'
+    }).catch((error) => {
+      console.error('Error loading applications via htmx:', error);
+      listContainer.innerHTML = `
+        <div class="alert alert-danger">
+          <h4 class="alert-title">Error Loading Applications</h4>
+          <div class="text-secondary">Failed to load applications for this model. Please try again or select a different model.</div>
+        </div>
+      `;
+    });
+  } else {
+    console.warn('HTMX not available, falling back to fetch');
+    fetch(`/api/models/${encodeURIComponent(model.slug)}/applications`)
+      .then(r => r.text())
+      .then(html => {
+        listContainer.innerHTML = html;
+      })
+      .catch(error => {
+        console.error('Error loading applications via fetch:', error);
+        listContainer.innerHTML = `
+          <div class="alert alert-danger">
+            <h4 class="alert-title">Error Loading Applications</h4>
+            <div class="text-secondary">Failed to load applications for this model. Please try again later.</div>
+          </div>
+        `;
+      });
+  }
 }
 
 // Application selection functions
@@ -323,8 +658,9 @@ function selectApp(appNumber, appInfo) {
     document.getElementById('selected-app-details').innerHTML = 
         `<strong>Application #${appNumber}</strong> selected for analysis`;
     
-    // Update navigation
-    document.getElementById('next-btn').disabled = !canProceedFromStep(currentStep);
+    // Update navigation and show success feedback
+    updateNavigationButtons();
+    showValidationFeedback(2, true, `Application #${appNumber} selected successfully!`);
 }
 
 // Analysis configuration functions
@@ -357,8 +693,10 @@ function updateAnalysisConfig() {
             document.getElementById('estimate-cost').textContent = estimates[selectedAnalysisType].cost;
         }
         
-        // Update navigation
-        document.getElementById('next-btn').disabled = !canProceedFromStep(currentStep);
+        // Update navigation and show success feedback
+        updateNavigationButtons();
+        const typeName = selectedAnalysisType.charAt(0).toUpperCase() + selectedAnalysisType.slice(1);
+        showValidationFeedback(3, true, `${typeName} analysis type selected!`);
     }
 }
 
@@ -432,7 +770,94 @@ function escapeHtml(text) {
     };
     return text.replace(/[&<>"']/g, function(m) { return map[m]; });
 }
-// advanced toggle
- document.addEventListener('DOMContentLoaded',()=>{const advToggle=document.getElementById('advanced-options-toggle');const adv=document.getElementById('advanced-options');advToggle.addEventListener('change',function(){const collapse=new bootstrap.Collapse(adv,{toggle:false});this.checked?collapse.show():collapse.hide();});const form=document.getElementById('analysis-wizard-form');form.addEventListener('submit',()=>{document.getElementById('launch-btn').style.display='none';document.getElementById('launch-btn-loading').style.display='inline-block';});});
+// Initialize wizard on page load
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize wizard state
+    currentStep = 1;
+    updateWizardStep();
+    
+    // Advanced options toggle
+    const advToggle = document.getElementById('advanced-options-toggle');
+    const adv = document.getElementById('advanced-options');
+    if (advToggle && adv) {
+        advToggle.addEventListener('change', function() {
+            if (typeof bootstrap !== 'undefined' && bootstrap.Collapse) {
+                const collapse = new bootstrap.Collapse(adv, {toggle: false});
+                this.checked ? collapse.show() : collapse.hide();
+            } else {
+                // Fallback if Bootstrap JS not available
+                adv.style.display = this.checked ? 'block' : 'none';
+            }
+        });
+    }
+    
+    // Form submission handling
+    const form = document.getElementById('analysis-wizard-form');
+    if (form) {
+        form.addEventListener('submit', (e) => {
+            // Validate all steps before submission
+            for (let i = 1; i <= 3; i++) {
+                if (!isStepValid(i)) {
+                    e.preventDefault();
+                    goToStep(i);
+                    showValidationFeedback(i, false, getValidationMessage(i));
+                    return;
+                }
+            }
+            
+            // Show loading state
+            const launchBtn = document.getElementById('launch-btn');
+            const loadingBtn = document.getElementById('launch-btn-loading');
+            if (launchBtn) launchBtn.style.display = 'none';
+            if (loadingBtn) loadingBtn.style.display = 'inline-block';
+        });
+    }
+    
+    // Restore selections from session storage if available
+    try {
+        const savedModel = sessionStorage.getItem('analysis_selected_model');
+        const savedApp = sessionStorage.getItem('analysis_selected_app');
+        const savedType = sessionStorage.getItem('analysis_selected_type');
+        
+        if (savedModel) {
+            selectedModel = JSON.parse(savedModel);
+            console.log('Restored model selection:', selectedModel);
+        }
+        if (savedApp) {
+            selectedApp = JSON.parse(savedApp);
+            console.log('Restored app selection:', selectedApp);
+        }
+        if (savedType) {
+            selectedAnalysisType = savedType;
+            console.log('Restored analysis type:', selectedAnalysisType);
+        }
+    } catch (e) {
+        console.warn('Could not restore selections from sessionStorage:', e);
+    }
+    
+    // Initialize HTMX if available
+    if (typeof htmx !== 'undefined') {
+        console.log('HTMX initialized and ready');
+    } else {
+        console.warn('HTMX not found - some functionality may not work');
+    }
+
+  // Delegated click for dynamically loaded application cards
+  document.addEventListener('click', (e) => {
+    const appCard = e.target.closest('.app-card[data-app]');
+    if (appCard) {
+      const num = appCard.getAttribute('data-app');
+      if (!num) return;
+      // If backend doesn't pass extra info, provide minimal object
+      selectApp(num, {});
+    }
+    const modelCard = e.target.closest('.model-card[data-model-slug]');
+    if (modelCard && modelCard.dataset.modelSlug) {
+      const slug = modelCard.dataset.modelSlug;
+      const name = modelCard.dataset.modelName || slug;
+      selectModel(slug, name);
+    }
+  });
+});
   </script>
 {% endblock %}
