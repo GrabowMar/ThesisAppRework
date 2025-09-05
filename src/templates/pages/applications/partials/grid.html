@@ -21,7 +21,7 @@
               <i class="fas fa-chevron-down"></i>
             </button>
             <div>
-              <div class="fw-semibold">{{ entry.model.display_name or entry.model.model_name or entry.model.canonical_slug }}</div>
+              <div class="fw-semibold">{{ entry.model.model_name or entry.model.canonical_slug }}</div>
               <div class="text-muted small">{{ entry.apps_count }} apps • Provider: {{ entry.model.provider }}</div>
             </div>
           </div>

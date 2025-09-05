@@ -68,7 +68,7 @@
         <select class="form-select" name="model">
           <option value="">All models</option>
           {% for m in available_models %}
-          <option value="{{ m.slug }}" {% if current_filters.model==m.slug %}selected{% endif %}>{{ m.display_name }}</option>
+          <option value="{{ m.canonical_slug }}" {% if current_filters.model==m.canonical_slug %}selected{% endif %}>{{ m.model_name }}</option>
           {% endfor %}
         </select>
       </div>
@@ -123,7 +123,7 @@
             <select class="form-select" name="model_slug" required>
               <option value="" disabled selected>Select model</option>
               {% for m in available_models %}
-              <option value="{{ m.slug }}">{{ m.display_name }}</option>
+              <option value="{{ m.canonical_slug }}">{{ m.model_name }}</option>
               {% endfor %}
             </select>
           </div>

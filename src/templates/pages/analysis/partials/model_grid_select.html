@@ -2,34 +2,58 @@
 <div class="row g-3" data-page="{{ page }}" data-page-size="{{ page_size }}" data-total="{{ total }}">
   {% for m in models %}
   <div class="col-md-4">
-    <div class="card model-card h-100" onclick="selectModel('{{ m.slug }}')" style="cursor:pointer;">
+    <div class="card model-card h-100" data-model-slug="{{ m.canonical_slug }}" style="cursor:pointer;" onclick="selectModel('{{ m.canonical_slug }}', '{{ m.model_name }}')">
       <div class="card-body">
-        <h5 class="card-title">{{ m.display_name or m.slug }}</h5>
-        <div class="mb-2 text-muted small">Provider: {{ m.provider }}</div>
-        <div class="mb-2">Capabilities:
-          {% for cap in m.capabilities %}
-            <span class="badge bg-info text-dark me-1">{{ cap }}</span>
-          {% endfor %}
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <h5 class="card-title mb-0">{{ m.model_name }}</h5>
+          <span class="badge bg-primary">{{ m.provider }}</span>
         </div>
-        <div class="mb-2">Price: <span class="badge bg-secondary">${{ '%.4f'|format(m.input_price_per_token) }}/1k tokens</span></div>
+        <div class="mb-2 text-muted small">Provider: {{ m.provider }}</div>
+        <div class="mb-2">
+          <small class="text-muted">Capabilities:</small><br>
+          {% set caps = m.get_capabilities() %}
+          {% if caps and caps.values() %}
+            {% for cap_key, cap_value in caps.items() %}
+              {% if cap_value and cap_value != false %}
+                <span class="badge bg-info text-dark me-1">{{ cap_key|replace('_', ' ')|title }}</span>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <span class="text-muted small">No capabilities listed</span>
+          {% endif %}
+        </div>
+        <div class="mb-2">
+          <small class="text-muted">Price:</small>
+          <span class="badge bg-secondary">${{ '%.4f'|format(m.input_price_per_token or 0) }}/1k tokens</span>
+        </div>
+        <div class="mb-2">
+          <small class="text-muted">Context:</small>
+          <span class="badge bg-info">{{ m.context_window or 'Unknown' }} tokens</span>
+        </div>
         {% if selectable %}
-        <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="selectModel('{{ m.slug }}')">Select</button>
+        <div class="mt-auto">
+          <button type="button" class="btn btn-outline-primary btn-sm w-100" onclick="event.stopPropagation(); selectModel('{{ m.canonical_slug }}', '{{ m.model_name }}')">Select Model</button>
+        </div>
         {% endif %}
       </div>
     </div>
   </div>
   {% endfor %}
   {% if has_next %}
-  <div class="col-12 mt-2">
+  <div class="col-12 mt-3">
     <button class="btn btn-outline-primary w-100" 
-            hx-get="/analysis/api/models/grid?selectable={{ 'true' if selectable else 'false' }}&page={{ page + 1 }}&page_size={{ page_size }}" 
+            hx-get="/api/models/grid?selectable={{ 'true' if selectable else 'false' }}&page={{ page + 1 }}&page_size={{ page_size }}{{ '&provider=' + request.args.get('provider', '') if request.args.get('provider') }}{{ '&capability=' + request.args.get('capability', '') if request.args.get('capability') }}{{ '&price=' + request.args.get('price', '') if request.args.get('price') }}" 
             hx-target="#model-selection-grid" 
-            hx-swap="afterend">
-      Load More Models
+            hx-swap="beforeend">
+      <i class="fas fa-plus me-1"></i>Load More Models
     </button>
   </div>
   {% endif %}
 </div>
 {% else %}
-<div class="p-4 text-center text-muted">No models found for selected filters.</div>
+<div class="p-4 text-center text-muted">
+  <i class="fas fa-info-circle fa-2x mb-2"></i>
+  <p class="mb-0">No models found for selected filters.</p>
+  <small class="text-muted">Try adjusting your filter criteria above.</small>
+</div>
 {% endif %}

@@ -104,19 +104,334 @@
 {% block scripts %}
   {{ super() }}
   <script>
-// JS logic (trimmed from provided long script but functionally equivalent)
-let currentStep=1,selectedModel=null,selectedApp=null,selectedAnalysisType=null;
-function nextStep(){if(validateCurrentStep()&&currentStep<4){currentStep++;updateWizardStep();}}
-function previousStep(){if(currentStep>1){currentStep--;updateWizardStep();}}
-function updateWizardStep(){const p=(currentStep/4)*100;document.getElementById('wizard-progress-bar').style.width=p+'%';document.querySelectorAll('.wizard-step').forEach((s,i)=>{s.classList.remove('active','completed');if(i+1<currentStep)s.classList.add('completed');else if(i+1===currentStep)s.classList.add('active');});document.querySelectorAll('.wizard-panel').forEach(p=>p.classList.remove('active'));document.querySelector(`[data-panel="${currentStep}"]`).classList.add('active');document.querySelectorAll('.help-content').forEach(h=>h.classList.remove('active'));document.querySelector(`[data-help="${currentStep}"]`).classList.add('active');document.getElementById('prev-btn').disabled=currentStep===1;document.getElementById('current-step').textContent=currentStep;const nextBtn=document.getElementById('next-btn');const launchBtn=document.getElementById('launch-btn');nextBtn.style.display=currentStep===4?'none':'inline-block';launchBtn.style.display=currentStep===4?'inline-block':'none';nextBtn.disabled=!canProceedFromStep(currentStep);if(currentStep===4)updateAnalysisSummary();}
-function validateCurrentStep(){switch(currentStep){case 1:const e1=document.getElementById('step1-error');if(!selectedModel){e1.classList.remove('d-none');return false}else e1.classList.add('d-none');loadApplicationsForModel(selectedModel);return true;case 2:const e2=document.getElementById('step2-error');if(!selectedApp){e2.classList.remove('d-none');return false}else e2.classList.add('d-none');return true;case 3:const e3=document.getElementById('step3-error');if(!selectedAnalysisType){e3.classList.remove('d-none');return false}else e3.classList.add('d-none');return true;default:return true;}}
-function canProceedFromStep(s){if(s===1)return!!selectedModel;if(s===2)return!!selectedApp;if(s===3)return!!selectedAnalysisType;return true;}
-function selectModel(slug,name){selectedModel={slug:slug,name:name};try{sessionStorage.setItem('analysis_selected_model',JSON.stringify(selectedModel));}catch(e){}const inp=document.getElementById('input-model-slug');if(inp)inp.value=slug;document.querySelectorAll('.model-card').forEach(c=>c.classList.remove('border-primary','selected'));const card=document.querySelector(`.model-card[data-model-slug="${slug}"]`);if(card)card.classList.add('border-primary','selected');const preview=document.getElementById('selected-model-preview');preview.style.display='block';document.getElementById('selected-model-details').innerHTML=`<strong>${name}</strong> selected for analysis`;document.getElementById('next-btn').disabled=!canProceedFromStep(currentStep);}
-function loadApplicationsForModel(model){const list=document.getElementById('application-selection-list');list.innerHTML='<div class="text-center py-3"><div class="spinner-border" role="status"></div></div>';if(window.htmx){htmx.ajax('GET',`/api/models/${model.slug}/applications`,{target:'#application-selection-list'});}}
-function selectApp(num,info){selectedApp={number:num,info:info};try{sessionStorage.setItem('analysis_selected_app',JSON.stringify(selectedApp));}catch(e){}const inp=document.getElementById('input-app-number');if(inp)inp.value=String(num);document.querySelectorAll('.app-card').forEach(c=>c.classList.remove('border-success','selected'));const card=document.querySelector(`[data-app="${num}"]`);if(card)card.classList.add('border-success','selected');const p=document.getElementById('selected-app-preview');p.style.display='block';document.getElementById('selected-app-details').innerHTML=`<strong>Application #${num}</strong> selected for analysis`;document.getElementById('next-btn').disabled=!canProceedFromStep(currentStep);}
-function updateAnalysisConfig(){const sel=document.querySelector('input[name="analysis_type"]:checked');if(sel){selectedAnalysisType=sel.value;document.getElementById('analysis-config-options').style.display='block';document.getElementById('live-estimate').style.display='block';try{sessionStorage.setItem('analysis_selected_type',selectedAnalysisType);}catch(e){}const est={security:{time:'5-10 minutes',cost:'$0.05-$0.15'},performance:{time:'3-8 minutes',cost:'$0.03-$0.12'},dynamic:{time:'7-15 minutes',cost:'$0.08-$0.25'},comprehensive:{time:'15-30 minutes',cost:'$0.15-$0.45'}};if(est[selectedAnalysisType]){document.getElementById('estimate-time').textContent=est[selectedAnalysisType].time;document.getElementById('estimate-cost').textContent=est[selectedAnalysisType].cost;}document.getElementById('next-btn').disabled=!canProceedFromStep(currentStep);}}
-function updateAnalysisSummary(){if(selectedModel)document.getElementById('summary-model').textContent=selectedModel.name;if(selectedApp)document.getElementById('summary-app').textContent=`Application #${selectedApp.number}`;if(selectedAnalysisType)document.getElementById('summary-type').textContent=selectedAnalysisType.charAt(0).toUpperCase()+selectedAnalysisType.slice(1);const pr=document.querySelector('select[name="priority"]').value;document.getElementById('summary-priority').textContent=pr.charAt(0).toUpperCase()+pr.slice(1);const est={security:{time:'5-10 minutes',cost:'$0.05-$0.15'},performance:{time:'3-8 minutes',cost:'$0.03-$0.12'},dynamic:{time:'7-15 minutes',cost:'$0.08-$0.25'},comprehensive:{time:'15-30 minutes',cost:'$0.15-$0.45'}};if(selectedAnalysisType&&est[selectedAnalysisType]){document.getElementById('summary-time').textContent=est[selectedAnalysisType].time;document.getElementById('summary-cost').textContent=est[selectedAnalysisType].cost;}}
-function filterModels(){const provider=document.getElementById('provider-filter').value;const capability=document.getElementById('capability-filter').value;const price=document.getElementById('price-filter').value;const params=new URLSearchParams();if(provider)params.append('provider',provider);if(capability)params.append('capability',capability);if(price)params.append('price',price);params.append('selectable','true');if(window.htmx){htmx.ajax('GET',`/api/models/grid?${params.toString()}`,{target:'#model-selection-grid'});}}
+// Analysis Creation Wizard JavaScript
+let currentStep = 1;
+let selectedModel = null;
+let selectedApp = null;
+let selectedAnalysisType = null;
+
+// Wizard navigation functions
+function nextStep() {
+    if (validateCurrentStep() && currentStep < 4) {
+        currentStep++;
+        updateWizardStep();
+    }
+}
+
+function previousStep() {
+    if (currentStep > 1) {
+        currentStep--;
+        updateWizardStep();
+    }
+}
+
+function updateWizardStep() {
+    // Update progress bar
+    const progressPercent = (currentStep / 4) * 100;
+    document.getElementById('wizard-progress-bar').style.width = progressPercent + '%';
+    
+    // Update step indicators
+    document.querySelectorAll('.wizard-step').forEach((step, index) => {
+        step.classList.remove('active', 'completed');
+        if (index + 1 < currentStep) {
+            step.classList.add('completed');
+        } else if (index + 1 === currentStep) {
+            step.classList.add('active');
+        }
+    });
+    
+    // Show/hide panels
+    document.querySelectorAll('.wizard-panel').forEach(panel => panel.classList.remove('active'));
+    document.querySelector(`[data-panel="${currentStep}"]`).classList.add('active');
+    
+    // Update help content
+    document.querySelectorAll('.help-content').forEach(help => help.classList.remove('active'));
+    document.querySelector(`[data-help="${currentStep}"]`).classList.add('active');
+    
+    // Update navigation buttons
+    document.getElementById('prev-btn').disabled = currentStep === 1;
+    document.getElementById('current-step').textContent = currentStep;
+    
+    const nextBtn = document.getElementById('next-btn');
+    const launchBtn = document.getElementById('launch-btn');
+    
+    nextBtn.style.display = currentStep === 4 ? 'none' : 'inline-block';
+    launchBtn.style.display = currentStep === 4 ? 'inline-block' : 'none';
+    
+    nextBtn.disabled = !canProceedFromStep(currentStep);
+    
+    if (currentStep === 4) {
+        updateAnalysisSummary();
+    }
+}
+
+function validateCurrentStep() {
+    switch (currentStep) {
+        case 1:
+            const errorEl1 = document.getElementById('step1-error');
+            if (!selectedModel) {
+                errorEl1.classList.remove('d-none');
+                return false;
+            } else {
+                errorEl1.classList.add('d-none');
+                return true;
+            }
+        case 2:
+            const errorEl2 = document.getElementById('step2-error');
+            if (!selectedApp) {
+                errorEl2.classList.remove('d-none');
+                return false;
+            } else {
+                errorEl2.classList.add('d-none');
+                return true;
+            }
+        case 3:
+            const errorEl3 = document.getElementById('step3-error');
+            if (!selectedAnalysisType) {
+                errorEl3.classList.remove('d-none');
+                return false;
+            } else {
+                errorEl3.classList.add('d-none');
+                return true;
+            }
+        default:
+            return true;
+    }
+}
+
+function canProceedFromStep(step) {
+    if (step === 1) return !!selectedModel;
+    if (step === 2) return !!selectedApp;
+    if (step === 3) return !!selectedAnalysisType;
+    return true;
+}
+
+// Model selection functions
+function selectModel(slug, name) {
+    selectedModel = { slug: slug, name: name };
+    
+    // Store selection in session storage
+    try {
+        sessionStorage.setItem('analysis_selected_model', JSON.stringify(selectedModel));
+    } catch (e) {
+        console.warn('Could not store model selection in sessionStorage:', e);
+    }
+    
+    // Update form field
+    const input = document.getElementById('input-model-slug');
+    if (input) input.value = slug;
+    
+    // Update visual selection
+    document.querySelectorAll('.model-card').forEach(card => {
+        card.classList.remove('border-primary', 'selected');
+    });
+    const selectedCard = document.querySelector(`.model-card[data-model-slug="${slug}"]`);
+    if (selectedCard) {
+        selectedCard.classList.add('border-primary', 'selected');
+    }
+    
+    // Show preview
+    const preview = document.getElementById('selected-model-preview');
+    preview.style.display = 'block';
+    document.getElementById('selected-model-details').innerHTML = 
+        `<strong>${escapeHtml(name)}</strong> selected for analysis`;
+    
+    // Load applications immediately - with debugging
+    console.log('About to load applications for model:', selectedModel);
+    try {
+        loadApplicationsForModel(selectedModel);
+    } catch (error) {
+        console.error('Error calling loadApplicationsForModel:', error);
+    }
+    
+    // Update navigation
+    document.getElementById('next-btn').disabled = !canProceedFromStep(currentStep);
+}
+
+function loadApplicationsForModel(model) {
+    const listContainer = document.getElementById('application-selection-list');
+    if (!listContainer) {
+        console.error('Application selection list container not found');
+        return;
+    }
+    
+    listContainer.innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading applications...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading applications for ${escapeHtml(model.name)}...</p>
+        </div>
+    `;
+    
+    // Function to attempt HTMX request
+    function attemptLoad() {
+        if (window.htmx) {
+            console.log(`Loading applications for model: ${model.slug}`);
+            console.log(`API URL: /api/models/${encodeURIComponent(model.slug)}/applications`);
+            htmx.ajax('GET', `/api/models/${encodeURIComponent(model.slug)}/applications`, {
+                target: '#application-selection-list',
+                swap: 'innerHTML'
+            }).then(() => {
+                console.log('Applications loaded successfully');
+            }).catch((error) => {
+                console.error('Error loading applications:', error);
+                listContainer.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h6>Error Loading Applications</h6>
+                        <p class="mb-0">Failed to load applications for this model. Please try again.</p>
+                    </div>
+                `;
+            });
+        } else {
+            console.warn('HTMX not ready yet, retrying in 100ms...');
+            setTimeout(attemptLoad, 100);
+        }
+    }
+    
+    // Try immediately, or wait for HTMX if not ready
+    attemptLoad();
+}
+
+// Application selection functions
+function selectApp(appNumber, appInfo) {
+    selectedApp = { number: appNumber, info: appInfo };
+    
+    // Store selection in session storage
+    try {
+        sessionStorage.setItem('analysis_selected_app', JSON.stringify(selectedApp));
+    } catch (e) {
+        console.warn('Could not store app selection in sessionStorage:', e);
+    }
+    
+    // Update form field
+    const input = document.getElementById('input-app-number');
+    if (input) input.value = String(appNumber);
+    
+    // Update visual selection
+    document.querySelectorAll('.app-card').forEach(card => {
+        card.classList.remove('border-success', 'selected');
+    });
+    const selectedCard = document.querySelector(`[data-app="${appNumber}"]`);
+    if (selectedCard) {
+        selectedCard.classList.add('border-success', 'selected');
+    }
+    
+    // Show preview
+    const preview = document.getElementById('selected-app-preview');
+    preview.style.display = 'block';
+    document.getElementById('selected-app-details').innerHTML = 
+        `<strong>Application #${appNumber}</strong> selected for analysis`;
+    
+    // Update navigation
+    document.getElementById('next-btn').disabled = !canProceedFromStep(currentStep);
+}
+
+// Analysis configuration functions
+function updateAnalysisConfig() {
+    const selectedRadio = document.querySelector('input[name="analysis_type"]:checked');
+    if (selectedRadio) {
+        selectedAnalysisType = selectedRadio.value;
+        
+        // Show configuration options
+        document.getElementById('analysis-config-options').style.display = 'block';
+        document.getElementById('live-estimate').style.display = 'block';
+        
+        // Store selection
+        try {
+            sessionStorage.setItem('analysis_selected_type', selectedAnalysisType);
+        } catch (e) {
+            console.warn('Could not store analysis type in sessionStorage:', e);
+        }
+        
+        // Update live estimates
+        const estimates = {
+            security: { time: '5-10 minutes', cost: '$0.05-$0.15' },
+            performance: { time: '3-8 minutes', cost: '$0.03-$0.12' },
+            dynamic: { time: '7-15 minutes', cost: '$0.08-$0.25' },
+            comprehensive: { time: '15-30 minutes', cost: '$0.15-$0.45' }
+        };
+        
+        if (estimates[selectedAnalysisType]) {
+            document.getElementById('estimate-time').textContent = estimates[selectedAnalysisType].time;
+            document.getElementById('estimate-cost').textContent = estimates[selectedAnalysisType].cost;
+        }
+        
+        // Update navigation
+        document.getElementById('next-btn').disabled = !canProceedFromStep(currentStep);
+    }
+}
+
+function updateAnalysisSummary() {
+    if (selectedModel) {
+        document.getElementById('summary-model').textContent = selectedModel.name;
+    }
+    if (selectedApp) {
+        document.getElementById('summary-app').textContent = `Application #${selectedApp.number}`;
+    }
+    if (selectedAnalysisType) {
+        document.getElementById('summary-type').textContent = 
+            selectedAnalysisType.charAt(0).toUpperCase() + selectedAnalysisType.slice(1);
+    }
+    
+    const priority = document.querySelector('select[name="priority"]').value;
+    document.getElementById('summary-priority').textContent = 
+        priority.charAt(0).toUpperCase() + priority.slice(1);
+    
+    // Update estimates in summary
+    const estimates = {
+        security: { time: '5-10 minutes', cost: '$0.05-$0.15' },
+        performance: { time: '3-8 minutes', cost: '$0.03-$0.12' },
+        dynamic: { time: '7-15 minutes', cost: '$0.08-$0.25' },
+        comprehensive: { time: '15-30 minutes', cost: '$0.15-$0.45' }
+    };
+    
+    if (selectedAnalysisType && estimates[selectedAnalysisType]) {
+        document.getElementById('summary-time').textContent = estimates[selectedAnalysisType].time;
+        document.getElementById('summary-cost').textContent = estimates[selectedAnalysisType].cost;
+    }
+}
+
+// Filter functions
+function filterModels() {
+    const provider = document.getElementById('provider-filter').value;
+    const capability = document.getElementById('capability-filter').value;
+    const price = document.getElementById('price-filter').value;
+    
+    const params = new URLSearchParams();
+    if (provider) params.append('provider', provider);
+    if (capability) params.append('capability', capability);
+    if (price) params.append('price', price);
+    params.append('selectable', 'true');
+    
+    // Show loading state
+    const gridContainer = document.getElementById('model-selection-grid');
+    gridContainer.innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Filtering models...</span>
+            </div>
+        </div>
+    `;
+    
+    if (window.htmx) {
+        htmx.ajax('GET', `/api/models/grid?${params.toString()}`, {
+            target: '#model-selection-grid'
+        });
+    }
+}
+
+// Utility functions
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+}
 // advanced toggle
  document.addEventListener('DOMContentLoaded',()=>{const advToggle=document.getElementById('advanced-options-toggle');const adv=document.getElementById('advanced-options');advToggle.addEventListener('change',function(){const collapse=new bootstrap.Collapse(adv,{toggle:false});this.checked?collapse.show():collapse.hide();});const form=document.getElementById('analysis-wizard-form');form.addEventListener('submit',()=>{document.getElementById('launch-btn').style.display='none';document.getElementById('launch-btn-loading').style.display='inline-block';});});
   </script>

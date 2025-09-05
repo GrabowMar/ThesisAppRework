@@ -4,7 +4,7 @@
     <h3 class="card-title mb-0"><i class="fas fa-database me-2"></i>Metadata</h3>
   </div>
   <div class="card-body">
-    {% set meta = app_data.metadata %}
+    {% set meta = app_data.get_metadata() if app_data.get_metadata is callable else app_data.metadata %}
     {% if meta %}
       {% if meta is mapping %}
         <div class="table-responsive mb-3">

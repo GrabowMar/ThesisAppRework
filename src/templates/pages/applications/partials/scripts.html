@@ -1,14 +1,73 @@
 <script src="/static/js/applications.js"></script>
 <script>
 function expandAll(){
-  document.querySelectorAll('#grid-section .collapse').forEach(c=>{if(!c.classList.contains('show')){new bootstrap.Collapse(c,{toggle:true});}});
+  document.querySelectorAll('#grid-section .collapse').forEach(c=>{
+    if(!c.classList.contains('show')){
+      new bootstrap.Collapse(c,{toggle:true});
+    }
+  });
 }
+
 function collapseAll(){
-  document.querySelectorAll('#grid-section .collapse.show').forEach(c=>{new bootstrap.Collapse(c,{toggle:true});});
+  document.querySelectorAll('#grid-section .collapse.show').forEach(c=>{
+    new bootstrap.Collapse(c,{toggle:true});
+  });
 }
+
 function syncModel(modelSlug, target){
   if(window.htmx){
-    htmx.ajax('POST', `/api/model/${modelSlug}/containers/sync-status?format=html`, {target: target});
+    htmx.ajax('POST', `/api/model/${modelSlug}/containers/sync-status?format=html`, {
+      target: target,
+      indicator: '#operation-status'
+    });
   }
 }
+
+// Enhanced form submission with visual feedback
+document.addEventListener('DOMContentLoaded', function() {
+  // Auto-submit filters form on change
+  const filtersForm = document.getElementById('filters-form');
+  if (filtersForm) {
+    filtersForm.addEventListener('change', function() {
+      if (window.htmx) {
+        htmx.trigger(filtersForm, 'submit');
+      }
+    });
+  }
+  
+  // Refresh grid button functionality
+  const refreshBtn = document.getElementById('refreshGridBtn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', function() {
+      if (window.htmx) {
+        htmx.trigger(document.body, 'refresh-grid');
+        // Show temporary feedback
+        const icon = refreshBtn.querySelector('i');
+        const originalClass = icon.className;
+        icon.className = 'fas fa-spinner fa-spin me-1';
+        setTimeout(() => {
+          icon.className = originalClass;
+        }, 1500);
+      }
+    });
+  }
+  
+  // Enhance collapse toggle icons
+  document.addEventListener('click', function(e) {
+    if (e.target.matches('[data-bs-toggle="collapse"] i, [data-bs-toggle="collapse"]')) {
+      const button = e.target.closest('[data-bs-toggle="collapse"]');
+      const icon = button.querySelector('i');
+      if (icon) {
+        setTimeout(() => {
+          const target = document.querySelector(button.dataset.bsTarget);
+          if (target && target.classList.contains('show')) {
+            icon.className = 'fas fa-chevron-up';
+          } else {
+            icon.className = 'fas fa-chevron-down';
+          }
+        }, 100);
+      }
+    }
+  });
+});
 </script>
