@@ -1,0 +1,35 @@
+{% if models and models|length > 0 %}
+<div class="row g-3" data-page="{{ page }}" data-page-size="{{ page_size }}" data-total="{{ total }}">
+  {% for m in models %}
+  <div class="col-md-4">
+    <div class="card model-card h-100" onclick="selectModel('{{ m.slug }}')" style="cursor:pointer;">
+      <div class="card-body">
+        <h5 class="card-title">{{ m.display_name or m.slug }}</h5>
+        <div class="mb-2 text-muted small">Provider: {{ m.provider }}</div>
+        <div class="mb-2">Capabilities:
+          {% for cap in m.capabilities %}
+            <span class="badge bg-info text-dark me-1">{{ cap }}</span>
+          {% endfor %}
+        </div>
+        <div class="mb-2">Price: <span class="badge bg-secondary">${{ '%.4f'|format(m.input_price_per_token) }}/1k tokens</span></div>
+        {% if selectable %}
+        <button type="button" class="btn btn-outline-primary btn-sm mt-2" onclick="selectModel('{{ m.slug }}')">Select</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+  {% if has_next %}
+  <div class="col-12 mt-2">
+    <button class="btn btn-outline-primary w-100" 
+            hx-get="/analysis/api/models/grid?selectable={{ 'true' if selectable else 'false' }}&page={{ page + 1 }}&page_size={{ page_size }}" 
+            hx-target="#model-selection-grid" 
+            hx-swap="afterend">
+      Load More Models
+    </button>
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<div class="p-4 text-center text-muted">No models found for selected filters.</div>
+{% endif %}

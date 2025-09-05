@@ -1,30 +1,59 @@
 {% extends 'layouts/base.html' %}
-{% block title %}Analysis Hub{% endblock %}
+
+{% block title %}Analysis Hub - {{ super() }}{% endblock %}
+
+{% block page_icon %}fas fa-tachometer-alt{% endblock %}
+{% block page_title %}Analysis Hub{% endblock %}
+{% block page_subtitle %}Unified view of analyses, tasks, and quick actions{% endblock %}
+{% block page_actions %}
+  <a href="/analysis/create" class="btn btn-primary"><i class="fas fa-plus me-1"></i>New Analysis</a>
+  <a href="/analysis/create" class="btn btn-outline-secondary"><i class="fas fa-magic me-1"></i>Wizard</a>
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid py-3">
-  <h1 class="h3 mb-3">Analysis Hub</h1>
-  <div class="row g-3">
-    <div class="col-lg-4">
-      <div class="card h-100">
-        <div class="card-header"><h5 class="card-title mb-0">Security Analyses</h5></div>
-        <div class="card-body small" id="security-analyses-panel">
-          <div class="text-muted">No data yet.</div>
+<div class="container-fluid analysis-hub">
+  <div class="row mb-4">
+    <div class="col-md-8">
+  <div class="card h-100" id="recent-tasks-panel" hx-get="/analysis/api/tasks/recent" hx-trigger="load, every 15s" hx-target="#recent-tasks-panel .card-body" hx-swap="innerHTML">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="fas fa-tasks me-2"></i>Recent Analysis Tasks</h5>
+          <span class="text-muted small">Showing last {{ tasks|length if tasks else 0 }}</span>
+        </div>
+        <div class="card-body p-0">
+          {% include 'pages/analysis/partials/tasks_list.html' %}
         </div>
       </div>
     </div>
-    <div class="col-lg-4">
-      <div class="card h-100">
-        <div class="card-header"><h5 class="card-title mb-0">Performance Tests</h5></div>
-        <div class="card-body small" id="performance-tests-panel">
-          <div class="text-muted">No data yet.</div>
+    <div class="col-md-4">
+      <div class="card mb-4">
+        <div class="card-header"><i class="fas fa-bolt me-2"></i>Quick Actions</div>
+        <div class="list-group list-group-flush">
+          <a href="/analysis/create" class="list-group-item list-group-item-action"><i class="fas fa-plus-circle me-2 text-primary"></i>Create New Analysis</a>
+          <a href="/analysis/create#step1" class="list-group-item list-group-item-action"><i class="fas fa-brain me-2 text-info"></i>Select Model</a>
+          <a href="/analysis/create#step2" class="list-group-item list-group-item-action"><i class="fas fa-rocket me-2 text-success"></i>Pick Application</a>
         </div>
       </div>
-    </div>
-    <div class="col-lg-4">
-      <div class="card h-100">
-        <div class="card-header"><h5 class="card-title mb-0">Recent Activity</h5></div>
-        <div class="card-body small" id="recent-activity-panel">
-          <div class="text-muted">No activity.</div>
+      <div class="card">
+        <div class="card-header"><i class="fas fa-chart-line me-2"></i>Summary Stats</div>
+        <div class="card-body">
+          <div class="row text-center small">
+            <div class="col-6 mb-3">
+              <div class="fw-bold">Total Tasks</div>
+              <div class="h5 mb-0">{{ stats.total_tasks if stats else 0 }}</div>
+            </div>
+            <div class="col-6 mb-3">
+              <div class="fw-bold">Active</div>
+              <div class="h5 text-warning mb-0">{{ stats.active_tasks if stats else 0 }}</div>
+            </div>
+            <div class="col-6">
+              <div class="fw-bold">Completed</div>
+              <div class="h5 text-success mb-0">{{ stats.completed_tasks if stats else 0 }}</div>
+            </div>
+            <div class="col-6">
+              <div class="fw-bold">Failed</div>
+              <div class="h5 text-danger mb-0">{{ stats.failed_tasks if stats else 0 }}</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

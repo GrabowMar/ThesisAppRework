@@ -26,7 +26,7 @@ class DataInitializationService:
         src_path = current_file.parent.parent.parent  # Go up from services -> app -> src
         self.base_path = src_path.parent  # Go up one more to get project root
         self.misc_path = self.base_path / "src" / "misc"
-        self.models_path = self.base_path / "generated"
+        self.models_path = self.base_path / "src" / "generated" / "apps"
         
         logger.info("Data initialization paths:")
         logger.info(f"  Base path: {self.base_path}")
@@ -156,12 +156,12 @@ class DataInitializationService:
         return results
     
     def load_applications_from_generated(self) -> Dict[str, Any]:
-        """Load applications from the generated folder structure."""
+        """Load applications from the generated/apps folder structure."""
         results = {'loaded': 0, 'errors': []}
         
         try:
             if not self.models_path.exists():
-                results['errors'].append("generated folder not found")
+                results['errors'].append("src/generated/apps folder not found")
                 return results
             
             # Iterate through model folders
@@ -494,7 +494,7 @@ class DataInitializationService:
             'applications_count': GeneratedApplication.query.count(),
             'port_config_count': PortConfiguration.query.count(),
             'last_model_update': self._get_last_model_update(),
-            'misc_folder_exists': self.models_path.exists(),
+            'apps_folder_exists': self.models_path.exists(),
             'model_capabilities_file_exists': (self.misc_path / "model_capabilities.json").exists(),
             'models_summary_file_exists': (self.misc_path / "models_summary.json").exists(),
             'port_config_file_exists': (self.misc_path / "port_config.json").exists()
@@ -508,14 +508,14 @@ class DataInitializationService:
         return latest.updated_at.isoformat() if latest and latest.updated_at else None
 
     def mark_installed_models(self, reset_first: bool = True) -> Dict[str, Any]:
-        """Scan the generated folder and set ModelCapability.installed=True for matching slugs.
+        """Scan the generated/apps folder and set ModelCapability.installed=True for matching slugs.
 
         Returns a dict with success, updated count, and scanned_folders count or errors on failure.
         """
         results = {'success': True, 'updated': 0, 'scanned_folders': 0, 'errors': []}
         try:
             if not self.models_path.exists():
-                results.update({'success': False, 'errors': ['generated folder not found']})
+                results.update({'success': False, 'errors': ['src/generated/apps folder not found']})
                 return results
 
             dirs = [d.name for d in self.models_path.iterdir() if d.is_dir()]

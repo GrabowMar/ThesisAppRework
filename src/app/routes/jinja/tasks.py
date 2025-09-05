@@ -14,30 +14,11 @@ tasks_bp = Blueprint('tasks', __name__, url_prefix='/tasks')
 
 @tasks_bp.route('/')
 def tasks_overview():
-    """Unified tasks overview."""
+    """Delegate tasks overview to analysis hub (embedded tasks list)."""
     try:
-        # Placeholder data - in real implementation this would fetch actual task data
-        context = {
-            'active': [],
-            'queued': [],
-            'recent': [],
-            'metrics': {
-                'active_count': 0,
-                'queued_count': 0,
-                'recent_24h': 0,
-                'completed_today': 0,
-            }
-        }
-        return render_template(
-            'layouts/single-page.html',
-            page_title='Tasks Overview',
-            page_icon='fa-tasks',
-            main_partial='pages/tasks/overview.html',
-            **context
-        )
-    except Exception as e:
+        from app.services.task_service import AnalysisTaskService
+        tasks = AnalysisTaskService.get_recent_tasks(limit=25)
+        return render_template('pages/analysis/hub_main.html', tasks=tasks)
+    except Exception as e:  # pragma: no cover
         current_app.logger.error(f"Error loading tasks overview: {e}")
-        return render_template(
-            'pages/errors/errors_main.html',
-            error=str(e)
-        ), 500
+        return render_template('pages/errors/errors_main.html', error=str(e)), 500

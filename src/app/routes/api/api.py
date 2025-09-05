@@ -28,6 +28,7 @@ from app.services.statistics_service import (
 )
 from app.services import application_service as app_service
 from app.utils.generated_apps import list_generated_models, load_model_capabilities
+ # (ModelService, AnalysisTaskService not required directly for fragment aliases)
 
 # Import shared utilities
 from ..shared_utils import _upsert_openrouter_models, _norm_caps
@@ -87,6 +88,36 @@ def create_error_response_with_status(error, status=500, error_type=None, **kwar
 
 # Create blueprint
 api_bp = Blueprint('api', __name__, url_prefix='/api')
+# -----------------------------------------------------------------
+# Wizard / Analysis fragments aliases (HTML responses via Jinja)
+# -----------------------------------------------------------------
+
+@api_bp.route('/models/grid')
+def api_models_grid_fragment_alias():
+    """Alias to analysis model grid fragment for wizard (HTML).
+
+    If the analysis blueprint view isn't registered yet, return 503.
+    """
+    view = current_app.view_functions.get('analysis.htmx_model_grid_fragment')
+    if not view:
+        return "<div class='alert alert-warning'>Model grid unavailable</div>", 503
+    return view()
+
+@api_bp.route('/models/<model_slug>/applications')
+def api_model_apps_fragment_alias(model_slug):
+    """Alias to analysis model applications fragment (HTML)."""
+    view = current_app.view_functions.get('analysis.htmx_model_applications_fragment')
+    if not view:
+        return "<div class='alert alert-warning'>Applications list unavailable</div>", 503
+    return view(model_slug)
+
+@api_bp.route('/tasks/recent')
+def api_recent_tasks_fragment_alias():
+    """Alias for recent tasks fragment (HTML)."""
+    view = current_app.view_functions.get('analysis.htmx_recent_tasks_fragment')
+    if not view:
+        return "<div class='alert alert-warning'>Tasks fragment unavailable</div>", 503
+    return view()
 
 # Global exception handler for API routes
 @api_bp.app_errorhandler(Exception)

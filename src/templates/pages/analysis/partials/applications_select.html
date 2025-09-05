@@ -1,0 +1,19 @@
+{% if applications and applications|length > 0 %}
+<div class="row g-3">
+  {% for app in applications %}
+  <div class="col-md-6">
+    <div class="card app-card h-100" onclick="selectApp('{{ app.app_number }}')" style="cursor:pointer;">
+      <div class="card-body">
+        <h5 class="card-title">App #{{ app.app_number }}</h5>
+        <div class="mb-2 text-muted small">Status: <span class="badge bg-{{ 'success' if app.container_status=='running' else 'secondary' }}">{{ app.container_status }}</span></div>
+        <div class="mb-2">Created: {{ app.created_at.strftime('%Y-%m-%d %H:%M') if app.created_at else '' }}</div>
+        <div class="mb-2">Description: {{ app.description or 'No description' }}</div>
+        <button type="button" class="btn btn-outline-success btn-sm mt-2" onclick="selectApp('{{ app.app_number }}')">Select</button>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="p-4 text-center text-muted">No applications found for this model.</div>
+{% endif %}
