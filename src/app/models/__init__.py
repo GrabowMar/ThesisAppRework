@@ -127,6 +127,31 @@ class ModelCapability(db.Model):
         return f'<ModelCapability {self.model_id}>'
 
 
+# --- Auto-population hooks for ModelCapability ---------------------------------
+from sqlalchemy import event  # placed here to avoid circular import at module load
+
+@event.listens_for(ModelCapability, 'before_insert')
+def _modelcap_before_insert(mapper, connection, target):  # pragma: no cover - simple field default
+    """Ensure model_id is populated.
+
+    Some test fixtures create ModelCapability rows providing only canonical_slug.
+    The database requires model_id (NOT NULL, unique). We default model_id to the
+    canonical_slug when it's missing or blank. If both are missing we raise a
+    ValueError early to provide a clearer failure than an IntegrityError.
+    """
+    if not getattr(target, 'canonical_slug', None):
+        # Nothing we can derive -> explicit early error
+        raise ValueError("ModelCapability.canonical_slug is required for auto-generation of model_id")
+    if not getattr(target, 'model_id', None):
+        target.model_id = target.canonical_slug
+
+@event.listens_for(ModelCapability, 'before_update')
+def _modelcap_before_update(mapper, connection, target):  # pragma: no cover
+    """Maintain invariant: model_id always set (mirrors insert logic)."""
+    if not getattr(target, 'model_id', None) and getattr(target, 'canonical_slug', None):
+        target.model_id = target.canonical_slug
+
+
 class PortConfiguration(db.Model):
     """Model for storing Docker port configurations."""
     __tablename__ = 'port_configurations'

@@ -8,9 +8,13 @@ API endpoints that return JSON responses.
 import os
 import psutil
 import subprocess
+import importlib
+import traceback
+from pathlib import Path  # noqa: F401 (may still be used elsewhere dynamically)
+from app.services.maintenance_service import MaintenanceService
 from datetime import datetime, timezone, timedelta
 
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, abort
 
 from app.extensions import db
 from app.models import (
@@ -979,8 +983,11 @@ def api_model_start_containers(model_slug):
         result = app_service.start_model_containers(model_slug)
         response = create_success_response(result, message=f'Model {model_slug} applications started')
         # Trigger front-end grid refresh if HTMX
-        response.headers['HX-Trigger'] = 'refresh-grid'
-        return response
+        try:
+            response.headers['HX-Trigger'] = 'refresh-grid'  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return response  # type: ignore[return-value]
     except Exception as e:  # pragma: no cover - unexpected
         return create_error_response(f'Failed to start containers for model {model_slug}: {e}', code=500)
 
@@ -994,8 +1001,11 @@ def api_model_stop_containers(model_slug):
     try:
         result = app_service.stop_model_containers(model_slug)
         response = create_success_response(result, message=f'Model {model_slug} applications stopped')
-        response.headers['HX-Trigger'] = 'refresh-grid'
-        return response
+        try:
+            response.headers['HX-Trigger'] = 'refresh-grid'  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return response  # type: ignore[return-value]
     except Exception as e:  # pragma: no cover
         return create_error_response(f'Failed to stop containers for model {model_slug}: {e}', code=500)
 
@@ -1082,8 +1092,11 @@ def api_application_start(app_id):
     try:
         result = app_service.start_application(app_id)
         response = create_success_response(result, message=f'Application {app_id} started successfully')
-        response.headers['HX-Trigger'] = 'refresh-grid'
-        return response
+        try:
+            response.headers['HX-Trigger'] = 'refresh-grid'  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return response  # type: ignore[return-value]
     except app_service.NotFoundError:
         return create_error_response(f'Application {app_id} not found', code=404)
 
@@ -1093,8 +1106,11 @@ def api_application_stop(app_id):
     try:
         result = app_service.stop_application(app_id)
         response = create_success_response(result, message=f'Application {app_id} stopped successfully')
-        response.headers['HX-Trigger'] = 'refresh-grid'
-        return response
+        try:
+            response.headers['HX-Trigger'] = 'refresh-grid'  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return response  # type: ignore[return-value]
     except app_service.NotFoundError:
         return create_error_response(f'Application {app_id} not found', code=404)
 
@@ -1104,8 +1120,11 @@ def api_application_restart(app_id):
     try:
         result = app_service.restart_application(app_id)
         response = create_success_response(result, message=f'Application {app_id} restarted successfully')
-        response.headers['HX-Trigger'] = 'refresh-grid'
-        return response
+        try:
+            response.headers['HX-Trigger'] = 'refresh-grid'  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        return response  # type: ignore[return-value]
     except app_service.NotFoundError:
         return create_error_response(f'Application {app_id} not found', code=404)
 
@@ -1536,6 +1555,78 @@ def api_uptime():
             error="UptimeError",
             details={"reason": str(e), "uptime_formatted": '--'}
         )), 500
+
+# =================================================================
+# DASHBOARD MANAGEMENT / ACTION ENDPOINTS (lightweight auth via token)
+# =================================================================
+
+def _require_admin_token():
+    token = request.headers.get('X-Admin-Token') or request.args.get('admin_token')
+    expected = current_app.config.get('DASHBOARD_ADMIN_TOKEN') or os.environ.get('DASHBOARD_ADMIN_TOKEN')
+    if expected and token != expected:
+        abort(401)
+
+def _json_success(message: str, **extra):
+    return jsonify({"success": True, "message": message, **extra})
+
+def _json_error(message: str, status: int = 500, **extra):
+    return jsonify({"success": False, "error": message, **extra}), status
+
+def _run_script_function(description: str, import_path: str, func_name: str = 'main'):
+    start = datetime.now(timezone.utc)
+    try:
+        module = importlib.import_module(import_path)
+        fn = getattr(module, func_name)
+        result = fn()
+        return True, {"description": description, "runtime_ms": int((datetime.now(timezone.utc) - start).total_seconds()*1000), "result": result}
+    except SystemExit as se:  # scripts may sys.exit
+        code = int(getattr(se, 'code', 0) or 0)
+        return code == 0, {"description": description, "runtime_ms": int((datetime.now(timezone.utc) - start).total_seconds()*1000), "exit_code": code}
+    except Exception as e:  # pragma: no cover
+        current_app.logger.error(f"Dashboard action {description} failed: {e}\n{traceback.format_exc()}")
+        return False, {"description": description, "runtime_ms": int((datetime.now(timezone.utc) - start).total_seconds()*1000), "error": str(e)}
+
+@api_bp.route('/dashboard/actions/<action>', methods=['POST'])
+def dashboard_action_dispatch(action: str):
+    """Unified maintenance action endpoint (service-backed)."""
+    _require_admin_token()
+    svc = MaintenanceService(current_app)
+    result = svc.run_action(action)
+    if result.get('ok'):
+        return jsonify({"success": True, **result})
+    return jsonify({"success": False, **result}), 400
+
+@api_bp.route('/dashboard/system-stats')
+def dashboard_system_stats():
+    try:
+        counts = {
+            'models': db.session.query(ModelCapability).count(),
+            'applications': db.session.query(GeneratedApplication).count(),
+            'security_analyses': db.session.query(SecurityAnalysis).count(),
+            'performance_tests': db.session.query(PerformanceTest).count(),
+            'batches_running': db.session.query(BatchAnalysis).filter(BatchAnalysis.status == 'running').count()
+        }
+        cpu_percent = psutil.cpu_percent(interval=0.15)
+        mem = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+        boot_time = psutil.boot_time()
+        uptime_seconds = int(datetime.now(timezone.utc).timestamp() - boot_time)
+        data = {
+            'counts': counts,
+            'resources': {
+                'cpu_percent': cpu_percent,
+                'memory_percent': mem.percent,
+                'disk_percent': disk.percent,
+                'memory_gb': round(mem.total / 1024**3, 2),
+                'disk_free_gb': round(disk.free / 1024**3, 2)
+            },
+            'uptime_seconds': uptime_seconds,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }
+        return jsonify(data)
+    except Exception as e:  # pragma: no cover
+        current_app.logger.error(f"Error building dashboard system stats: {e}")
+        return jsonify({'error': 'Failed to gather system stats', 'details': str(e)}), 500
 
 @api_bp.route('/header/summary')
 def api_header_summary():

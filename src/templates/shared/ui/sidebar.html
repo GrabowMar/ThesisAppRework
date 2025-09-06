@@ -115,29 +115,7 @@
           </a>
         </li>
 
-        {# System Status #}
-        <li class="nav-item mb-2">
-          <a href="{{ url_for('main.system_status') }}" 
-             class="nav-link text-white d-flex align-items-center" 
-             hx-boost="true" 
-             title="System Status"
-             data-nav-target="system">
-            <i class="fa-solid fa-server me-3 nav-icon" aria-hidden="true"></i>
-            <span class="sidebar-text">System Status</span>
-          </a>
-        </li>
-
-        {# Tasks #}
-        <li class="nav-item mb-2">
-          <a href="{{ url_for('tasks.tasks_overview') }}" 
-             class="nav-link text-white d-flex align-items-center" 
-             hx-boost="true" 
-             title="Tasks"
-             data-nav-target="tasks">
-            <i class="fa-solid fa-list-check me-3 nav-icon" aria-hidden="true"></i>
-            <span class="sidebar-text">Tasks</span>
-          </a>
-        </li>
+        {# (System Status & Tasks removed - functionality merged into Dashboard) #}
       </ul>
     </nav>
 

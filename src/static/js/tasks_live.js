@@ -1,4 +1,4 @@
-// Live Tasks Dashboard Client
+// Live Tasks Dashboard Client (migrated to index page)
 // Connects to Socket.IO (if available) and falls back to polling /api/tasks/events
 
 (function(){
@@ -24,7 +24,8 @@
       tr = document.createElement('tr');
       tr.dataset.taskId = taskId;
       rows.set(taskId, tr);
-      tableBody().appendChild(tr);
+      const body = tableBody();
+      if(body) body.appendChild(tr);
     }
     return tr;
   }
@@ -106,7 +107,6 @@
     } else if(evt.event === 'task.tool.completed'){
       handleToolCompleted(d);
     } else if(evt.event.startsWith('task.')){
-      // generic task event
       upsertRow(d);
     } else if(evt.event === 'queue.status'){
       if(queueSummaryEl()){
@@ -115,7 +115,6 @@
     }
   }
 
-  // Polling fallback
   async function poll(){
     try{
       const url = '/api/tasks/events' + (eventsSince? `?since=${encodeURIComponent(eventsSince)}`:'');
@@ -158,6 +157,8 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    initSocket();
+    if(document.getElementById('tasks-live-table')){
+      initSocket();
+    }
   });
 })();

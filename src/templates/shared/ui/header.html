@@ -54,9 +54,9 @@
             <small class="text-muted">OK</small>
           </span>
 
-          <a class="text-muted d-flex align-items-center me-3" href="{{ url_for('tasks.tasks_overview') }}" title="Active tasks">
+          <a class="text-muted d-flex align-items-center me-3" href="{{ url_for('main.dashboard') }}#live-tasks" title="Active tasks">
             <i class="fa-solid fa-list-check me-1" aria-hidden="true"></i>
-            <small class="text-muted">0</small>
+            <small class="text-muted" id="active-task-count">0</small>
           </a>
 
           <div class="text-muted me-3 d-flex align-items-center" title="Uptime">
@@ -100,3 +100,40 @@
       <span class="status-indicator" aria-hidden="true"></span><small class="text-muted">OK</small>
     </div>
   </noscript>
+  <script>
+  (function(){
+    function setCount(n){
+      var el = document.getElementById('active-task-count');
+      if(el) el.textContent = n;
+    }
+    var active = 0;
+    function handle(evt){
+      if(!evt || !evt.event) return;
+      var d = evt.data || {};
+      if(evt.event === 'queue.status'){
+        setCount(d.total_running || 0);
+      } else if(evt.event.startsWith('task.')){
+        // heuristic: recalc via polling endpoint (lightweight) when a task event occurs
+        refreshCount();
+      }
+    }
+    function refreshCount(){
+      fetch('/api/tasks/events?limit=1')
+        .then(r=>r.ok?r.json():null)
+        .then(j=>{
+          if(!j) return;
+          // Optionally add dedicated count API later; for now skip
+        }).catch(()=>{});
+    }
+    function initSocket(){
+      if(window.io){
+        try {
+          var socket = io('/', {transports:['websocket','polling']});
+          ['task.created','task.updated','task.progress','task.completed','queue.status']
+            .forEach(ev=> socket.on(ev, handle));
+        } catch(e){ /* ignore */ }
+      }
+    }
+    document.addEventListener('DOMContentLoaded', initSocket);
+  })();
+  </script>

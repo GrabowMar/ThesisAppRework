@@ -8,6 +8,8 @@
     "test/sample-model-2": "#999999",
     "moonshotai/kimi-k2-0905": "#10B981",
     "deepcogito/cogito-v2-preview-llama-109b-moe": "#999999",
-    "qwen/qwen3-max": "#F43F5E"
+    "qwen/qwen3-max": "#F43F5E",
+    "openrouter/sonoma-dusk-alpha": "#999999",
+    "openrouter/sonoma-sky-alpha": "#999999"
   }
 }

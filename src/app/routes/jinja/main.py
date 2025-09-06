@@ -110,23 +110,9 @@ def spa_applications():
 
 @main_bp.route('/system-status')
 def system_status():
-    """System status / runtime health page."""
-    try:
-        stats = {
-            'models': ModelCapability.query.count(),
-            'applications': GeneratedApplication.query.count(),
-            'security_scans': SecurityAnalysis.query.count(),
-            'performance_tests': PerformanceTest.query.count()
-        }
-        return render_template('views/system/status.html', stats=stats)
-    except Exception as e:
-        current_app.logger.error(f"Error loading system status: {e}")
-        flash('Error loading system status', 'error')
-        return render_template(
-            'pages/errors/errors_main.html',
-            error=str(e),
-            page_title='System Status Error'
-        ), 500
+    """Deprecated: redirect to dashboard where system stats now live."""
+    from flask import redirect, url_for
+    return redirect(url_for('main.dashboard'))
 
 @main_bp.route('/test-platform')
 def testing():

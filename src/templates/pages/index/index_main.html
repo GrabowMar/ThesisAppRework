@@ -151,10 +151,35 @@
                         </a>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <a href="{{ url_for('main.system_status') }}" class="btn btn-outline-warning w-100">
-                            <i class="fas fa-server me-2"></i>System Status
+                        <a href="#live-tasks" class="btn btn-outline-warning w-100">
+                            <i class="fas fa-tasks me-2"></i>Live Tasks
                         </a>
                     </div>
+                </div>
+                <hr/>
+                <div class="row g-3 align-items-end" id="dashboard-actions">
+                    <div class="col-md-2 col-6">
+                        <button class="btn btn-sm btn-primary w-100" data-action="init-db"><i class="fas fa-database me-1"></i> Init DB</button>
+                    </div>
+                    <div class="col-md-2 col-6">
+                        <button class="btn btn-sm btn-secondary w-100" data-action="populate-db" id="populate-db-btn">
+                            <span class="btn-label"><i class="fas fa-seedling me-1"></i> Populate DB</span>
+                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                        </button>
+                    </div>
+                    <div class="col-md-2 col-6">
+                        <button class="btn btn-sm btn-outline-danger w-100" data-action="log-cleanup"><i class="fas fa-broom me-1"></i> Logs Cleanup</button>
+                    </div>
+                    <div class="col-md-3 col-6">
+                        <button class="btn btn-sm btn-outline-success w-100" data-action="sample-generation-smoke"><i class="fas fa-vial me-1"></i> Sample Gen Smoke</button>
+                    </div>
+                    <div class="col-md-3 col-12">
+                        <button class="btn btn-sm btn-outline-info w-100" data-action="http-smoke"><i class="fas fa-plug me-1"></i> HTTP Smoke</button>
+                    </div>
+                    <div class="col-12">
+                        <div class="small text-muted" id="dashboard-action-status">Select an action above to run a maintenance or diagnostic task.</div>
+                    </div>
+                    <div class="col-12 mt-2 d-none" id="action-detailed-result"></div>
                 </div>
             </div>
         </div>
@@ -193,6 +218,40 @@
     </div>
 </div>
 {% endif %}
+
+<!-- Live Tasks (migrated from /tasks) -->
+<div class="row mt-4" id="live-tasks">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0"><i class="fas fa-tasks me-2"></i>Live Tasks</h5>
+                <small class="text-muted" id="queue-summary">Queue summary loading...</small>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0" id="tasks-live-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Task ID</th>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Progress</th>
+                                <th>Model</th>
+                                <th>App</th>
+                                <th>Started</th>
+                                <th>Completed</th>
+                                <th>Tools</th>
+                                <th>Severities</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="p-2 small text-muted">Realtime events via Socket.IO; falls back to polling if unavailable.</div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -202,5 +261,116 @@ setInterval(function() {
     // Could add AJAX calls here to refresh stats
     console.log('Dashboard refresh check...');
 }, 30000);
+
+// New dynamic system stats polling
+function fetchSystemStats(){
+    fetch('/api/dashboard/system-stats')
+        .then(r=>r.json())
+        .then(data=>{
+                const el = document.getElementById('live-system-stats');
+                if(!el) return;
+                if(data.error){ el.innerHTML = '<span class="text-danger">Stats unavailable</span>'; return; }
+                const uptimeMins = Math.floor((data.uptime_seconds||0)/60);
+                el.innerHTML = `
+                    <div class="row g-2">
+                        <div class="col-md-2 col-6"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${data.counts.models}</div><small class="text-muted">Models</small></div></div>
+                        <div class="col-md-2 col-6"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${data.counts.applications}</div><small class="text-muted">Apps</small></div></div>
+                        <div class="col-md-2 col-6"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${data.counts.security_analyses}</div><small class="text-muted">Security</small></div></div>
+                        <div class="col-md-2 col-6"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${data.counts.performance_tests}</div><small class="text-muted">Perf</small></div></div>
+                        <div class="col-md-2 col-6"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${data.resources.cpu_percent}%</div><small class="text-muted">CPU</small></div></div>
+                        <div class="col-md-2 col-6"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${data.resources.memory_percent}%</div><small class="text-muted">Mem</small></div></div>
+                        <div class="col-12 mt-2"><small class="text-muted">Uptime ~ ${uptimeMins}m | Disk ${data.resources.disk_percent}% used</small></div>
+                    </div>`;
+        })
+        .catch(()=>{
+                const el = document.getElementById('live-system-stats');
+                if(el) el.innerHTML = '<span class="text-danger">Failed to load stats</span>';
+        });
+}
+document.addEventListener('DOMContentLoaded', function(){
+    // Insert container if not present
+    if(!document.getElementById('live-system-stats')){
+        const firstRow = document.querySelector('.row');
+        if(firstRow){
+            const wrap = document.createElement('div');
+            wrap.className='col-12 mb-3';
+            wrap.innerHTML = '<div class="card"><div class="card-header d-flex justify-content-between align-items-center"><h5 class="mb-0"><i class="fas fa-chart-area me-2"></i>Live System Stats</h5><button class="btn btn-sm btn-outline-primary" id="refresh-stats-btn"><i class="fas fa-sync"></i></button></div><div class="card-body" id="live-system-stats"><div class="text-muted">Loading...</div></div></div>';
+            firstRow.parentNode.insertBefore(wrap, firstRow.nextSibling);
+            document.getElementById('refresh-stats-btn').addEventListener('click', fetchSystemStats);
+            fetchSystemStats();
+            setInterval(fetchSystemStats, 30000);
+        }
+    }
+
+    // Action buttons
+    function renderDetailedResult(data){
+        const ctn = document.getElementById('action-detailed-result');
+        if(!ctn) return;
+        ctn.classList.remove('d-none');
+        const safe = (v)=> typeof v === 'string' ? v.replace(/</g,'&lt;') : JSON.stringify(v, null, 2);
+        if(data.result && data.result.operation === 'populate_database'){
+            const vr = data.result.verification || {};
+            ctn.innerHTML = `
+              <div class="card border-success">
+                <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                  <span class="fw-bold text-success">Population Summary</span>
+                  <button class="btn btn-sm btn-outline-secondary" id="toggle-raw-json">Raw</button>
+                </div>
+                <div class="card-body py-2">
+                  <div class="row g-2 small">
+                    <div class="col-6 col-md-2"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${vr.models||0}</div><div class="text-muted">Models</div></div></div>
+                    <div class="col-6 col-md-2"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${vr.ports||0}</div><div class="text-muted">Ports</div></div></div>
+                    <div class="col-6 col-md-2"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${vr.applications||0}</div><div class="text-muted">Apps</div></div></div>
+                    <div class="col-12 mt-2"><small class="text-muted">Providers: ${Object.keys(vr.providers||{}).length}</small></div>
+                  </div>
+                  <pre class="mt-2 small bg-dark text-white p-2 d-none" id="raw-json-block"></pre>
+                </div>
+              </div>`;
+            document.getElementById('toggle-raw-json')?.addEventListener('click', ()=>{
+                const block = document.getElementById('raw-json-block');
+                block.classList.toggle('d-none');
+                block.textContent = JSON.stringify(data, null, 2);
+            });
+        } else {
+            ctn.innerHTML = `<div class='alert alert-info small mb-0'>${safe(data.result || data.error || 'No details')}</div>`;
+        }
+    }
+
+    document.getElementById('dashboard-actions')?.addEventListener('click', function(e){
+        const btn = e.target.closest('button[data-action]');
+        if(!btn) return;
+        const action = btn.getAttribute('data-action');
+        if(action === 'populate-db'){
+            if(!confirm('Populate database? This may insert or update many rows.')) return;
+            btn.querySelector('.btn-label').classList.add('d-none');
+            btn.querySelector('.spinner-border').classList.remove('d-none');
+        }
+        btn.disabled = true;
+        const statusEl = document.getElementById('dashboard-action-status');
+        statusEl.innerHTML = `<span class='text-info'>Running ${action}...</span>`;
+        fetch(`/api/dashboard/actions/${action}`, {method:'POST'})
+            .then(r=>r.json())
+            .then(data=>{
+                if(data.success || data.ok){
+                    statusEl.innerHTML = `<span class='text-success'>${data.message || 'Success'} (${(data.result?.result?.runtime_ms || data.result?.runtime_ms || 0)} ms)</span>`;
+                    renderDetailedResult(data);
+                } else {
+                    statusEl.innerHTML = `<span class='text-danger'>${data.error || 'Failed'}</span>`;
+                }
+            })
+            .catch(err=>{
+                statusEl.innerHTML = `<span class='text-danger'>Error: ${err}</span>`;
+            })
+            .finally(()=>{
+                btn.disabled=false;
+                if(action==='populate-db'){
+                    btn.querySelector('.btn-label').classList.remove('d-none');
+                    btn.querySelector('.spinner-border').classList.add('d-none');
+                }
+            });
+    });
+});
 </script>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js" integrity="sha384-x" crossorigin="anonymous"></script>
+<script src="/static/js/tasks_live.js"></script>
 {% endblock %}

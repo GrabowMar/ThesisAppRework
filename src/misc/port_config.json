@@ -644,6 +644,20 @@
     "frontend_port": 8269
   },
   {
+    "model": "openrouter/sonoma-dusk-alpha",
+    "model_index": 0,
+    "app_number": 1,
+    "backend_port": 5001,
+    "frontend_port": 8001
+  },
+  {
+    "model": "openrouter/sonoma-sky-alpha",
+    "model_index": 1,
+    "app_number": 1,
+    "backend_port": 5013,
+    "frontend_port": 8013
+  },
+  {
     "model": "qwen/qwen3-max",
     "model_index": 0,
     "app_number": 1,
