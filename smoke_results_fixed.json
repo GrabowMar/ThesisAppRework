@@ -1,3 +1,7 @@
+[tasks] No disabled analysis models configured
+ * Serving Flask app 'app.factory'
+ * Debug mode: off
+SMOKE_OUT: C:\Users\grabowmar\Desktop\ThesisAppRework\smoke_results.json
 {
   "base": "http://127.0.0.1:5005",
   "results": {

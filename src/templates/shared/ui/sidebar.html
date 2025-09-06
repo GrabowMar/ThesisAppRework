@@ -115,6 +115,18 @@
           </a>
         </li>
 
+        {# Documentation #}
+        <li class="nav-item mb-2">
+          <a href="{{ url_for('docs.docs_index') }}" 
+             class="nav-link text-white d-flex align-items-center" 
+             hx-boost="true" 
+             title="Documentation & About"
+             data-nav-target="docs">
+            <i class="fa-solid fa-book me-3 nav-icon" aria-hidden="true"></i>
+            <span class="sidebar-text">Documentation</span>
+          </a>
+        </li>
+
         {# (System Status & Tasks removed - functionality merged into Dashboard) #}
       </ul>
     </nav>

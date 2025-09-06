@@ -129,11 +129,11 @@ class TestBasicRoutes:
         assert 'text/html' in response.content_type
 
     def test_about_route(self, client):
-        """Test about route is accessible."""
+        """Test about route redirects to docs."""
         response = client.get('/about')
         
-        assert response.status_code == 200
-        assert 'text/html' in response.content_type
+        assert response.status_code == 302
+        assert '/docs' in response.location
 
     def test_models_route(self, client):
         """Test models overview route."""
@@ -214,12 +214,13 @@ class TestTemplateRendering:
         assert b'<!DOCTYPE html>' in response.data or b'<html' in response.data
 
     def test_about_template_renders(self, client):
-        """Test about template renders without errors."""
-        response = client.get('/about')
+        """Test docs page contains about content since about is now consolidated there."""
+        response = client.get('/docs')
         
         assert response.status_code == 200
         assert response.data is not None
         assert len(response.data) > 0
+        assert b'About the Platform' in response.data
 
     @patch('app.utils.template_paths.render_template_compat')
     def test_template_error_handling(self, mock_render, client):

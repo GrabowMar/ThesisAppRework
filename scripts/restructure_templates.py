@@ -17,7 +17,7 @@ Features:
 - Idempotent: running again will skip already-moved files unless `--force` provided
 
 Heuristics:
-- Domain list: analysis, applications, models, batch, statistics, system, about
+- Domain list: analysis, applications, models, batch, statistics, system
 - If original path starts with views/<domain>/ => page template root becomes pages/<domain>/<filename>
 - Domain-specific components / partials / fragments containing domain keyword and not also used by another domain => pages/<domain>/partials/<filename>
 - Shared reusable (navigation, forms, common, statistics widgets, model widgets, etc.) => ui/elements/<subfolder>/<filename>
@@ -43,7 +43,7 @@ from typing import Dict, List, Tuple, Iterable
 TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "src" / "templates"
 BACKUP_ROOT = TEMPLATE_ROOT / "template_backups"
 REPORT_FILE = TEMPLATE_ROOT / "RESTRUCTURE_MAPPING.json"
-DOMAINS = ["analysis", "applications", "models", "batch", "statistics", "system", "about"]
+DOMAINS = ["analysis", "applications", "models", "batch", "statistics", "system"]
 SHARED_FOLDERS = {
     "navigation": "navigation",
     "forms": "forms",
@@ -125,7 +125,7 @@ def target_path_for(path: Path, usage_index: Dict[str, List[str]]) -> MappingEnt
         if domain:
             new_rel = f"pages/{domain}/{path.name}"
         else:
-            # views/about.html -> pages/about/<file>
+            # views/<file>.html -> pages/<file>/<file>.html
             new_rel = f"pages/{path.stem}/{path.name}"
         return MappingEntry(r, new_rel, "page view", domain)
     # components / fragments / partials

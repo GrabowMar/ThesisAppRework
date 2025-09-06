@@ -69,8 +69,8 @@ def dashboard():
 
 @main_bp.route('/about')
 def about():
-    """About page with project information."""
-    return render_template('pages/about/about_main.html')
+    """About page - redirects to docs since about content is now consolidated there."""
+    return redirect(url_for('docs.docs_index'))
 
 @main_bp.route('/spa/dashboard')
 def spa_dashboard():

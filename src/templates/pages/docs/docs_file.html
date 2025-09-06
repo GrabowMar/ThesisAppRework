@@ -165,9 +165,9 @@
                         <i class="fas fa-arrow-left me-1"></i>
                         Back to Docs
                     </a>
-                    <a href="{{ url_for('main.about') }}" class="btn btn-light btn-sm">
+                    <a href="{{ url_for('main.dashboard') }}" class="btn btn-light btn-sm">
                         <i class="fas fa-home me-1"></i>
-                        About
+                        Dashboard
                     </a>
                 </div>
             </div>
@@ -182,9 +182,6 @@
             <ol class="breadcrumb breadcrumb-nav mb-0">
                 <li class="breadcrumb-item">
                     <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
-                </li>
-                <li class="breadcrumb-item">
-                    <a href="{{ url_for('main.about') }}">About</a>
                 </li>
                 <li class="breadcrumb-item">
                     <a href="{{ url_for('docs.docs_index') }}">Documentation</a>
@@ -221,9 +218,9 @@
                         </a>
                     </div>
                     <div class="col-md-4 mb-3">
-                        <a href="{{ url_for('main.about') }}" class="btn btn-outline-success btn-lg w-100">
-                            <i class="fas fa-info-circle me-2"></i>
-                            About Platform
+                        <a href="{{ url_for('main.models_overview') }}" class="btn btn-outline-success btn-lg w-100">
+                            <i class="fas fa-robot me-2"></i>
+                            Models Overview
                         </a>
                     </div>
                     <div class="col-md-4 mb-3">

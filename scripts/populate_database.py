@@ -12,9 +12,14 @@ import logging
 from pathlib import Path
 
 # Add src to path
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent  # Go up to project root
 src_path = project_root / "src"
 sys.path.insert(0, str(src_path))
+
+# Verify the path exists
+if not src_path.exists():
+    print(f"Error: src directory not found at {src_path}")
+    sys.exit(1)
 
 # Configure logging
 logging.basicConfig(
