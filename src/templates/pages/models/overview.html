@@ -30,4 +30,15 @@
 {% block scripts %}
   {{ super() }}
   <script src="{{ url_for('static', filename='js/models.js') }}" defer></script>
+  <style>
+    /* Mini stats + sidebar styling (shared pattern with applications page) */
+    #models-sidebar.analysis-sidebar { position: sticky; }
+    .mini-stats .stat-icon { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:4px; font-size:10px; }
+    .mini-stats .stat-value { font-weight:600; }
+    .mini-stats .stat-item { background:var(--tblr-bg-surface,#f8f9fa); padding:4px 6px; border-radius:4px; line-height:1; }
+    .mini-stats ul { gap:6px !important; }
+    @media (max-width: 991.98px) {
+      #models-sidebar.analysis-sidebar { position: static; }
+    }
+  </style>
 {% endblock %}

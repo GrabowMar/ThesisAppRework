@@ -1,73 +1,61 @@
 <script src="/static/js/applications.js"></script>
 <script>
+// Legacy helpers kept (no-ops now referencing new table layout selectors)
 function expandAll(){
-  document.querySelectorAll('#grid-section .collapse').forEach(c=>{
-    if(!c.classList.contains('show')){
-      new bootstrap.Collapse(c,{toggle:true});
-    }
+  document.querySelectorAll('#applications-accordion .collapse').forEach(c=>{
+    if(!c.classList.contains('show')) new bootstrap.Collapse(c,{toggle:true});
   });
 }
-
 function collapseAll(){
-  document.querySelectorAll('#grid-section .collapse.show').forEach(c=>{
-    new bootstrap.Collapse(c,{toggle:true});
-  });
+  document.querySelectorAll('#applications-accordion .collapse.show').forEach(c=> new bootstrap.Collapse(c,{toggle:true}));
 }
-
 function syncModel(modelSlug, target){
   if(window.htmx){
-    htmx.ajax('POST', `/api/model/${modelSlug}/containers/sync-status?format=html`, {
-      target: target,
-      indicator: '#operation-status'
-    });
+    htmx.ajax('POST', `/api/model/${modelSlug}/containers/sync-status?format=html`, { target: target, indicator: '#apps-operation-status' });
   }
 }
 
-// Enhanced form submission with visual feedback
 document.addEventListener('DOMContentLoaded', function() {
-  // Auto-submit filters form on change
   const filtersForm = document.getElementById('filters-form');
   if (filtersForm) {
-    filtersForm.addEventListener('change', function() {
-      if (window.htmx) {
-        htmx.trigger(filtersForm, 'submit');
-      }
-    });
+    filtersForm.addEventListener('change', () => window.htmx && htmx.trigger(filtersForm,'submit'));
   }
-  
-  // Refresh grid button functionality
-  const refreshBtn = document.getElementById('refreshGridBtn');
+
+  const refreshBtn = document.getElementById('refreshGridBtn'); // same id to avoid breaking existing selectors
   if (refreshBtn) {
-    refreshBtn.addEventListener('click', function() {
-      if (window.htmx) {
-        htmx.trigger(document.body, 'refresh-grid');
-        // Show temporary feedback
+    refreshBtn.addEventListener('click', () => {
+      if(window.htmx){
+        htmx.trigger(document.body,'refresh-apps-table');
         const icon = refreshBtn.querySelector('i');
-        const originalClass = icon.className;
-        icon.className = 'fas fa-spinner fa-spin me-1';
-        setTimeout(() => {
-          icon.className = originalClass;
-        }, 1500);
+        if(icon){
+          const orig = icon.className; icon.className='fas fa-spinner fa-spin me-1';
+          setTimeout(()=> icon.className=orig, 1200);
+        }
       }
     });
   }
-  
-  // Enhance collapse toggle icons
-  document.addEventListener('click', function(e) {
-    if (e.target.matches('[data-bs-toggle="collapse"] i, [data-bs-toggle="collapse"]')) {
-      const button = e.target.closest('[data-bs-toggle="collapse"]');
-      const icon = button.querySelector('i');
-      if (icon) {
-        setTimeout(() => {
-          const target = document.querySelector(button.dataset.bsTarget);
-          if (target && target.classList.contains('show')) {
-            icon.className = 'fas fa-chevron-up';
-          } else {
-            icon.className = 'fas fa-chevron-down';
-          }
-        }, 100);
-      }
+
+  // Group select logic
+  document.addEventListener('change', function(e){
+    if(e.target.classList.contains('select-group')){
+      const collapseId = e.target.getAttribute('data-group');
+      document.querySelectorAll(`#${collapseId} .app-select`).forEach(cb=>{ cb.checked = e.target.checked; });
     }
   });
 });
 </script>
+<style>
+  #applications-sidebar { position: sticky; top: 90px; }
+  @media (max-width: 991.98px){ #applications-sidebar { position: static; top:auto; } }
+  #applications-sidebar .card { box-shadow:none; }
+  #applications-sidebar .card .avatar { width:38px; height:38px; display:flex; align-items:center; justify-content:center; font-size:1rem; }
+  #applications-sidebar { max-height: calc(100vh - 110px); overflow-y:auto; scrollbar-width: thin; }
+  #applications-sidebar::-webkit-scrollbar { width: 6px; }
+  #applications-sidebar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius:3px; }
+  .mini-stats .stat-icon { width:26px; height:26px; display:inline-flex; align-items:center; justify-content:center; border-radius:4px; font-size:.75rem; }
+  .mini-stats .stat-value { font-weight:600; font-size:.9rem; }
+  .mini-stats .stat-label { font-size:.65rem; text-transform:uppercase; letter-spacing:.5px; }
+  .mini-stats ul { row-gap:.35rem !important; }
+  .mini-stats .stat-item { background:var(--tblr-bg-surface,#fff); padding:2px 6px 2px 4px; border:1px solid var(--tblr-border-color); border-radius:6px; line-height:1; }
+  .mini-stats .stat-item:hover { background:var(--tblr-bg-surface-hover,#f8f9fa); }
+</style>

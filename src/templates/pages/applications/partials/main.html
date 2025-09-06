@@ -1,111 +1,104 @@
-{# Applications Main Content #}
-
-<div class="row row-cards mb-4">
-  <!-- Stats Cards -->
-  <div class="col-sm-6 col-lg-3">
-    <div class="card card-sm">
-      <div class="card-body">
-        <div class="d-flex align-items-center">
-          <span class="avatar me-3 bg-primary text-white"><i class="fas fa-cubes"></i></span>
-          <div>
-            <div class="h1" id="stat-total-apps">{{ stats.total_applications if stats else total_apps }}</div>
-            <div class="text-muted">Applications</div>
+{# Applications Main Content - with sidebar layout #}
+<div class="row">
+  <div class="col-lg-8 order-2 order-lg-1">
+    <!-- Table (new layout) -->
+    <div id="apps-table-section">
+      <div id="apps-table-refresher" hx-get="/applications" hx-select="#apps-table-section" hx-target="#apps-table-section" hx-trigger="refresh-apps-table from:body" hx-swap="outerHTML"></div>
+      {% include 'pages/applications/partials/table.html' %}
+    </div>
+  </div>
+  <div class="col-lg-4 order-1 order-lg-2 mb-4">
+    <div class="analysis-sidebar" id="applications-sidebar" style="top:90px;">
+      <!-- Compact Stats -->
+      <div class="card mb-3 mini-stats">
+        <div class="card-body p-2">
+          <ul class="list-unstyled mb-0 d-flex flex-wrap gap-2 small">
+            <li class="d-flex align-items-center gap-1 stat-item">
+              <span class="stat-icon bg-primary text-white"><i class="fas fa-cubes"></i></span>
+              <span id="stat-total-apps" class="stat-value">{{ stats.total_applications if stats else total_apps }}</span>
+              <span class="text-muted stat-label">Apps</span>
+            </li>
+            <li class="d-flex align-items-center gap-1 stat-item">
+              <span class="stat-icon bg-success text-white"><i class="fas fa-play"></i></span>
+              <span id="stat-running" class="stat-value">{{ stats.running_applications if stats else running_containers }}</span>
+              <span class="text-muted stat-label">Running</span>
+            </li>
+            <li class="d-flex align-items-center gap-1 stat-item">
+              <span class="stat-icon bg-info text-white"><i class="fas fa-chart-bar"></i></span>
+              <span id="stat-analyzed" class="stat-value">{{ stats.analyzed_applications if stats else 0 }}</span>
+              <span class="text-muted stat-label">Analyzed</span>
+            </li>
+            <li class="d-flex align-items-center gap-1 stat-item">
+              <span class="stat-icon bg-secondary text-white"><i class="fas fa-robot"></i></span>
+              <span id="stat-models" class="stat-value">{{ stats.unique_models if stats else total_models }}</span>
+              <span class="text-muted stat-label">Models</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <!-- Filters -->
+      <div class="card mb-3">
+        <div class="card-header py-2 d-flex align-items-center justify-content-between">
+          <h3 class="card-title h6 mb-0"><i class="fas fa-filter me-1"></i>Filters</h3>
+          <button class="btn btn-sm btn-outline-secondary" id="refreshGridBtn" type="button" title="Refresh"><i class="fas fa-rotate"></i></button>
+        </div>
+        <div class="card-body py-2">
+          <form id="filters-form" hx-get="/applications" hx-target="#apps-table-section" hx-select="#apps-table-section" hx-push-url="true" class="small">
+            <div class="mb-2">
+              <label class="form-label small mb-1">Model</label>
+              <select class="form-select form-select-sm" name="model">
+                <option value="">All models</option>
+                {% for m in available_models %}
+                  <option value="{{ m.canonical_slug }}" {% if current_filters.model==m.canonical_slug %}selected{% endif %}>{{ m.model_name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small mb-1">Provider</label>
+              <select class="form-select form-select-sm" name="provider">
+                <option value="">All providers</option>
+                {% for p in providers %}
+                  <option value="{{ p }}" {% if current_filters.provider==p %}selected{% endif %}>{{ p }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small mb-1">Search</label>
+              <input type="text" class="form-control form-control-sm" name="search" placeholder="model name…" value="{{ current_filters.search }}" />
+            </div>
+            <div class="d-grid gap-2 mt-2">
+              <button class="btn btn-primary btn-sm" type="submit"><i class="fas fa-filter me-1"></i>Apply</button>
+              <a class="btn btn-outline-secondary btn-sm" href="/applications"><i class="fas fa-xmark me-1"></i>Reset</a>
+            </div>
+          </form>
+        </div>
+      </div>
+      <!-- Actions -->
+      <div class="card mb-3">
+        <div class="card-header py-2">
+          <h3 class="card-title h6 mb-0"><i class="fas fa-bolt me-1"></i>Actions</h3>
+        </div>
+        <div class="card-body py-2">
+          <div class="d-grid gap-2">
+            <button class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#generateAppModal"><i class="fas fa-plus me-1"></i>Generate App</button>
+            <button class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#bulkActionsModal"><i class="fas fa-layer-group me-1"></i>Batch Ops</button>
           </div>
+        </div>
+      </div>
+      <!-- Legend -->
+      <div class="card">
+        <div class="card-header py-2">
+          <h3 class="card-title h6 mb-0"><i class="fas fa-circle-info me-1"></i>Legend</h3>
+        </div>
+        <div class="card-body small py-2">
+          <div class="mb-1"><span class="badge bg-success">Running</span> active container</div>
+          <div class="mb-1"><span class="badge bg-warning">Pending</span> starting/building</div>
+          <div class="mb-1"><span class="badge bg-danger">Error</span> start failed</div>
+          <div class="mb-1"><span class="badge bg-secondary">Other</span> stopped/unknown</div>
         </div>
       </div>
     </div>
   </div>
-  <div class="col-sm-6 col-lg-3">
-    <div class="card card-sm">
-      <div class="card-body">
-        <div class="d-flex align-items-center">
-          <span class="avatar me-3 bg-success text-white"><i class="fas fa-play"></i></span>
-          <div>
-            <div class="h1" id="stat-running">{{ stats.running_applications if stats else running_containers }}</div>
-            <div class="text-muted">Running</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-sm-6 col-lg-3">
-    <div class="card card-sm">
-      <div class="card-body">
-        <div class="d-flex align-items-center">
-          <span class="avatar me-3 bg-info text-white"><i class="fas fa-chart-bar"></i></span>
-          <div>
-            <div class="h1" id="stat-analyzed">{{ stats.analyzed_applications if stats else 0 }}</div>
-            <div class="text-muted">Analyzed</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-sm-6 col-lg-3">
-    <div class="card card-sm">
-      <div class="card-body">
-        <div class="d-flex align-items-center">
-          <span class="avatar me-3 bg-secondary text-white"><i class="fas fa-robot"></i></span>
-          <div>
-            <div class="h1" id="stat-models">{{ stats.unique_models if stats else total_models }}</div>
-            <div class="text-muted">Models</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Filters & Actions -->
-<div class="card mb-4">
-  <div class="card-header">
-    <h3 class="card-title"><i class="fas fa-filter me-2"></i>Filters & Actions</h3>
-  </div>
-  <div class="card-body">
-    <form class="row g-3 mb-3" id="filters-form" hx-get="/applications" hx-target=".page-body .container-xl" hx-push-url="true">
-      <div class="col-md-3">
-        <label class="form-label">Model</label>
-        <select class="form-select" name="model">
-          <option value="">All models</option>
-          {% for m in available_models %}
-          <option value="{{ m.canonical_slug }}" {% if current_filters.model==m.canonical_slug %}selected{% endif %}>{{ m.model_name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">Provider</label>
-        <select class="form-select" name="provider">
-          <option value="">All providers</option>
-          {% for p in providers %}
-          <option value="{{ p }}" {% if current_filters.provider==p %}selected{% endif %}>{{ p }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">Search</label>
-        <input type="text" class="form-control" name="search" placeholder="model name…" value="{{ current_filters.search }}" />
-      </div>
-      <div class="col-md-2 d-flex align-items-end">
-        <button class="btn btn-primary w-100" type="submit"><i class="fas fa-filter me-1"></i>Apply</button>
-      </div>
-    </form>
-    <div class="d-flex justify-content-between flex-wrap gap-2">
-      <div class="btn-list">
-        <button class="btn btn-outline-primary" id="refreshGridBtn" type="button"><i class="fas fa-rotate me-1"></i>Refresh</button>
-        <a class="btn btn-outline-secondary" href="/applications"><i class="fas fa-xmark me-1"></i>Reset Filters</a>
-      </div>
-      <div class="btn-list">
-        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#generateAppModal"><i class="fas fa-plus me-1"></i>Generate App</button>
-        <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#bulkActionsModal"><i class="fas fa-layer-group me-1"></i>Batch Ops</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Grid -->
-<div id="grid-section">
-  <div id="grid-refresher" hx-get="/applications" hx-select="#grid-section" hx-target="#grid-section" hx-trigger="refresh-grid from:body" hx-swap="outerHTML"></div>
-  {% include 'pages/applications/partials/grid.html' %}
 </div>
 
 <!-- Generate Application Modal -->

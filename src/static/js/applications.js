@@ -15,11 +15,19 @@
   }
   window.prefillAndShowGenerate = prefillAndShowGenerate; // expose global for template button
 
-  function triggerGridRefresh(){
-    if (window.htmx) {
-      window.htmx.trigger('#grid-refresher', 'refresh-grid');
+  function triggerAppsTableRefresh(){
+    if(window.htmx){
+      // New table refresher
+      if(document.querySelector('#apps-table-refresher')){
+        window.htmx.trigger('#apps-table-refresher','refresh-apps-table');
+      }
+      // Legacy grid support (safe no-op if removed)
+      if(document.querySelector('#grid-refresher')){
+        window.htmx.trigger('#grid-refresher','refresh-grid');
+      }
     }
   }
-  document.addEventListener('refresh-grid', triggerGridRefresh);
-  document.getElementById('refreshGridBtn')?.addEventListener('click', triggerGridRefresh);
+  document.addEventListener('refresh-apps-table', triggerAppsTableRefresh);
+  document.addEventListener('refresh-grid', triggerAppsTableRefresh); // backward compatibility
+  document.getElementById('refreshGridBtn')?.addEventListener('click', triggerAppsTableRefresh);
 })();
