@@ -75,9 +75,7 @@
                     <div class="d-flex justify-content-between align-items-center mb-2">
                       <h6 class="mb-0">All Applications From Selected Models</h6>
                       <div class="input-icon w-50">
-                        <span class="input-icon-addon">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-search" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><circle cx="10" cy="10" r="7" /><path d="M21 21l-6 -6" /></svg>
-                        </span>
+                        <span class="input-icon-addon"><i class="fas fa-search"></i></span>
                         <input type="text" class="form-control form-control-sm" id="batch-app-search" placeholder="Filter apps...">
                       </div>
                     </div>
@@ -106,17 +104,9 @@
                     <div class="form-check">
                       <input class="form-check-input" type="radio" name="analysis_type" value="security" _="on change call updateAnalysisConfig()">
                       <label class="form-check-label w-100">
-                        <h6 class="mb-1">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-shield-check text-danger me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M11.46 20.846a12 12 0 0 1 -7.96 -14.846a3 3 0 0 1 8.5 -2a3 3 0 0 1 8.5 2a12 12 0 0 1 -.09 1.254" /><path d="M15 19l2 2l4 -4" /></svg>
-                          Security Analysis
-                        </h6>
+                        <h6 class="mb-1"><i class="fas fa-shield-check text-danger me-2"></i>Security Analysis</h6>
                         <p class="mb-1 text-secondary small">Comprehensive security scanning including vulnerability detection, dependency analysis, and security best practices validation.</p>
-                        <small class="text-secondary">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><polyline points="12,7 12,12 15,15" /></svg>
-                          ~5-10 minutes
-                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-currency-dollar ms-2" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M16.7 8a3 3 0 0 0 -2.7 -2h-4a3 3 0 0 0 0 6h4a3 3 0 0 1 0 6h-4a3 3 0 0 1 -2.7 -2" /><path d="M12 3v3m0 12v3" /></svg>
-                          $0.05-$0.15
-                        </small>
+                        <small class="text-secondary"><i class="fas fa-clock me-1"></i> ~5-10 minutes <i class="fas fa-dollar-sign ms-2 me-1"></i> $0.05-$0.15</small>
                       </label>
                     </div>
                   </div>
@@ -124,17 +114,9 @@
                     <div class="form-check">
                       <input class="form-check-input" type="radio" name="analysis_type" value="performance" _="on change call updateAnalysisConfig()">
                       <label class="form-check-label w-100">
-                        <h6 class="mb-1">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-dashboard text-info me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><circle cx="12" cy="13" r="2" /><path d="M13.45 11.55l2.05 -2.05" /><path d="M6.4 20a9 9 0 1 1 11.2 0z" /></svg>
-                          Performance Analysis
-                        </h6>
+                        <h6 class="mb-1"><i class="fas fa-gauge-high text-info me-2"></i>Performance Analysis</h6>
                         <p class="mb-1 text-secondary small">Load testing, response time analysis, resource utilization, and scalability assessment.</p>
-                        <small class="text-secondary">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><polyline points="12,7 12,12 15,15" /></svg>
-                          ~3-8 minutes
-                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-currency-dollar ms-2" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M16.7 8a3 3 0 0 0 -2.7 -2h-4a3 3 0 0 0 0 6h4a3 3 0 0 1 0 6h-4a3 3 0 0 1 -2.7 -2" /><path d="M12 3v3m0 12v3" /></svg>
-                          $0.03-$0.12
-                        </small>
+                        <small class="text-secondary"><i class="fas fa-clock me-1"></i> ~3-8 minutes <i class="fas fa-dollar-sign ms-2 me-1"></i> $0.03-$0.12</small>
                       </label>
                     </div>
                   </div>
@@ -144,17 +126,9 @@
                     <div class="form-check">
                       <input class="form-check-input" type="radio" name="analysis_type" value="dynamic" _="on change call updateAnalysisConfig()">
                       <label class="form-check-label w-100">
-                        <h6 class="mb-1">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-player-play text-warning me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M7 4v16l13 -8z" /></svg>
-                          Dynamic Analysis
-                        </h6>
+                        <h6 class="mb-1"><i class="fas fa-play text-warning me-2"></i>Dynamic Analysis</h6>
                         <p class="mb-1 text-secondary small">Runtime behavior analysis, API interaction testing, and functional verification.</p>
-                        <small class="text-secondary">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><polyline points="12,7 12,12 15,15" /></svg>
-                          ~7-15 minutes
-                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-currency-dollar ms-2" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M16.7 8a3 3 0 0 0 -2.7 -2h-4a3 3 0 0 0 0 6h4a3 3 0 0 1 0 6h-4a3 3 0 0 1 -2.7 -2" /><path d="M12 3v3m0 12v3" /></svg>
-                          $0.08-$0.25
-                        </small>
+                        <small class="text-secondary"><i class="fas fa-clock me-1"></i> ~7-15 minutes <i class="fas fa-dollar-sign ms-2 me-1"></i> $0.08-$0.25</small>
                       </label>
                     </div>
                   </div>
@@ -162,17 +136,9 @@
                     <div class="form-check">
                       <input class="form-check-input" type="radio" name="analysis_type" value="comprehensive" _="on change call updateAnalysisConfig()">
                       <label class="form-check-label w-100">
-                        <h6 class="mb-1">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chart-line text-success me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M4 19l16 0" /><path d="M4 15l4 -6l4 2l4 -5l4 4" /></svg>
-                          Comprehensive Analysis
-                        </h6>
+                        <h6 class="mb-1"><i class="fas fa-chart-line text-success me-2"></i>Comprehensive Analysis</h6>
                         <p class="mb-1 text-secondary small">Full security, performance, and dynamic analysis combined with detailed reporting.</p>
-                        <small class="text-secondary">
-                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-clock" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><polyline points="12,7 12,12 15,15" /></svg>
-                          ~15-30 minutes
-                          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-currency-dollar ms-2" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M16.7 8a3 3 0 0 0 -2.7 -2h-4a3 3 0 0 0 0 6h4a3 3 0 0 1 0 6h-4a3 3 0 0 1 -2.7 -2" /><path d="M12 3v3m0 12v3" /></svg>
-                          $0.15-$0.45
-                        </small>
+                        <small class="text-secondary"><i class="fas fa-clock me-1"></i> ~15-30 minutes <i class="fas fa-dollar-sign ms-2 me-1"></i> $0.15-$0.45</small>
                       </label>
                     </div>
                   </div>
@@ -270,10 +236,7 @@
       <div class="card mt-4">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
-            <button type="button" class="btn" id="prev-btn" _="on click call previousStep()" disabled>
-              <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chevron-left" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="m15 6l-6 6l6 6" /></svg>
-              Previous
-            </button>
+            <button type="button" class="btn" id="prev-btn" _="on click call previousStep()" disabled><i class="fas fa-chevron-left me-1"></i>Previous</button>
             <div class="text-muted">
               <small>Step <span id="current-step" class="fw-bold text-primary">1</span> of <span class="fw-bold">4</span></small>
             </div>
@@ -281,10 +244,7 @@
               <button type="button" class="btn btn-primary" id="next-btn" _="on click call nextStep()" disabled>
                 Complete this step to continue
               </button>
-              <button type="submit" class="btn btn-success" id="launch-btn" style="display:none;">
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-rocket" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M4 13a8 8 0 0 1 7 7a6 6 0 0 0 3 -5a9 9 0 0 0 6 -8a3 3 0 0 0 -3 -3a9 9 0 0 0 -8 6a6 6 0 0 0 -5 3" /><path d="M7 14a6 6 0 0 0 3 6a6 6 0 0 0 6 -3" /><circle cx="15" cy="9" r="1" /></svg>
-                Launch Analysis
-              </button>
+              <button type="submit" class="btn btn-success" id="launch-btn" style="display:none;"><i class="fas fa-rocket icon me-1"></i>Launch Analysis</button>
               <button type="button" class="btn btn-success" id="launch-btn-loading" style="display:none;" disabled>
                 <div class="spinner-border spinner-border-sm me-2" role="status"></div>
                 Launching...
@@ -524,7 +484,7 @@ function updateNavigationButtons() {
         
         // Update button text based on validation
     if (canProceedFromStep(currentStep)) {
-      nextBtn.innerHTML = 'Next <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler icon-tabler-chevron-right ms-1" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="m9 6l6 6l-6 6" /></svg>';
+  nextBtn.innerHTML = 'Next <i class="fas fa-chevron-right ms-1"></i>';
             nextBtn.classList.remove('btn-outline-primary');
             nextBtn.classList.add('btn-primary');
         } else {
@@ -663,23 +623,18 @@ function showValidationFeedback(step, isSuccess, message) {
     
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert ${isSuccess ? 'alert-success' : 'alert-danger'} alert-dismissible mt-3`;
-    alertDiv.innerHTML = `
-        <div class="d-flex">
-            <div>
-                <svg xmlns="http://www.w3.org/2000/svg" class="icon ${isSuccess ? 'alert-icon' : 'alert-icon'}" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    ${isSuccess 
-                        ? '<path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" />'
-                        : '<path stroke="none" d="m0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4v.01" /><path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" />'
-                    }
-                </svg>
-            </div>
-            <div class="ms-2">
-                <h4 class="alert-title">${isSuccess ? 'Success!' : 'Validation Error'}</h4>
-                <div class="text-secondary">${message}</div>
-            </div>
-        </div>
-        <a class="btn-close" data-bs-dismiss="alert" aria-label="close"></a>
-    `;
+  alertDiv.innerHTML = `
+    <div class="d-flex">
+      <div class="flex-shrink-0 mt-1">
+        <i class="${isSuccess ? 'fas fa-check-circle text-success' : 'fas fa-triangle-exclamation text-danger'}"></i>
+      </div>
+      <div class="ms-2">
+        <h4 class="alert-title">${isSuccess ? 'Success!' : 'Validation Error'}</h4>
+        <div class="text-secondary">${message}</div>
+      </div>
+    </div>
+    <a class="btn-close" data-bs-dismiss="alert" aria-label="close"></a>
+  `;
     
     const cardBody = panel.querySelector('.card-body');
     if (cardBody) {

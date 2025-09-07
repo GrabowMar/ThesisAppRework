@@ -1,6 +1,6 @@
 # Component Style Standards
 
-**Standardized component styling patterns following Tabler design system for consistent UI across the application.**
+**Standardized component styling patterns using the unified Font Awesome icon system and Tabler-inspired layout / spacing for consistent UI across the application.**
 
 ---
 
@@ -32,29 +32,39 @@ This document outlines the standardized component styling patterns implemented a
 
 ### Icon Usage
 
-All buttons should use Tabler SVG icons with consistent sizing:
+All buttons now use Font Awesome (solid style) icons. Inline SVGs have been removed project‑wide.
+
+Sizing conventions are preserved via font size + existing spacing utilities:
 
 ```html
-<!-- Small buttons with 16x16 icons -->
+<!-- Small buttons (implicit ~14–16px icon) -->
 <button class="btn btn-sm btn-primary">
-  <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-    <path d="M12 5l0 14"/>
-    <path d="M5 12l14 0"/>
-  </svg>
+  <i class="fas fa-plus me-1"></i>
   Add Item
 </button>
 
-<!-- Regular buttons with 20x20 icons -->
+<!-- Regular buttons (inherit parent line-height) -->
 <button class="btn btn-primary">
-  <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="20" height="20" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-    <path d="M12 5l0 14"/>
-    <path d="M5 12l14 0"/>
-  </svg>
+  <i class="fas fa-plus me-1"></i>
   Add Item
 </button>
+
+<!-- Destructive -->
+<button class="btn btn-sm btn-danger" title="Delete">
+  <i class="fas fa-trash me-1"></i>
+  Delete
+</button>
+
+<!-- Icon only (supply aria-label for accessibility) -->
+<button class="btn btn-sm btn-outline-secondary" aria-label="Refresh" title="Refresh">
+  <i class="fas fa-sync"></i>
+</button>
 ```
+
+Notes:
+1. Retain the legacy `icon` class only when it influences layout in existing CSS; new code may omit it unless a rule depends on it.
+2. Always keep text accessible: if using an icon-only button, add `aria-label`.
+3. Prefer `fas` (solid) for consistency unless a clear semantic need exists for another style pack (not currently loaded by default).
 
 ### Button Layout Patterns
 
@@ -309,51 +319,58 @@ All buttons should use Tabler SVG icons with consistent sizing:
 
 ---
 
-## Icon Standards
+## Icon Standards (Font Awesome)
 
-### Tabler Icons Usage
+### Unified Icon Policy
 
-All icons should use Tabler Icons SVG format with consistent sizing:
+Inline SVGs have been removed. Font Awesome (currently the solid style set) is the single approved icon source. Do not reintroduce raw `<svg>` icons unless a compelling gap exists and it is documented.
 
-- **Small buttons**: 16x16px
-- **Regular buttons**: 20x20px  
-- **Headers/titles**: 24x24px
-- **Stat icons**: 12x12px
+### Sizing Guidance
+
+- Small buttons / compact UI: rely on default inline size (approx 14–16px rendered) with `btn-sm`
+- Regular buttons: same `<i>` element; sizing handled by font context
+- Headers / section titles: wrap icon in a flex container and optionally apply `fs-4` or utility sizing class
+- Stat / mini indicators: apply `small` or custom `.stat-icon` styling
 
 ### Common Icon Patterns
 
 ```html
-<!-- Refresh/Reload -->
-<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-  <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
-  <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
-</svg>
+<!-- Refresh -->
+<i class="fas fa-sync"></i>
 
-<!-- Add/Plus -->
-<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-  <path d="M12 5l0 14"/>
-  <path d="M5 12l14 0"/>
-</svg>
+<!-- Add / Plus -->
+<i class="fas fa-plus"></i>
 
-<!-- Delete/Remove -->
-<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-  <path d="M4 7l16 0"/>
-  <path d="M10 11l0 6"/>
-  <path d="M14 11l0 6"/>
-  <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/>
-  <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/>
-</svg>
+<!-- Delete / Remove -->
+<i class="fas fa-trash"></i>
 
-<!-- Close/Cancel -->
-<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-  <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-  <path d="M18 6l-12 12"/>
-  <path d="M6 6l12 12"/>
-</svg>
+<!-- Close / Cancel -->
+<i class="fas fa-times"></i>
+
+<!-- Play / Start -->
+<i class="fas fa-play"></i>
+
+<!-- Pause -->
+<i class="fas fa-pause"></i>
+
+<!-- Warning / Alert -->
+<i class="fas fa-triangle-exclamation text-warning"></i>
+
+<!-- Success / Confirmation -->
+<i class="fas fa-check-circle text-success"></i>
 ```
+
+### Accessibility
+
+Where an icon is the only content in an interactive element:
+
+```html
+<button class="btn btn-sm btn-outline-secondary" aria-label="Refresh results">
+  <i class="fas fa-sync"></i>
+</button>
+```
+
+Screen readers will announce the `aria-label`. Avoid adding visually hidden text unless a more complex description is needed.
 
 ---
 
@@ -409,18 +426,19 @@ The following CSS custom properties are available for consistent theming:
 
 ### When Creating New Components
 
-1. **Follow established patterns**: Use existing card/button/form structures
+1. **Follow established patterns**: Reuse existing card/button/form structures
 2. **Use consistent sizing**: `btn-sm`, `form-control-sm`, `py-2`, etc.
-3. **Include proper icons**: Tabler SVG icons with correct sizing
-4. **Apply semantic classes**: Use contextual colors appropriately
-5. **Maintain spacing**: Use standardized gap and margin classes
+3. **Use Font Awesome icons**: `<i class="fas fa-...">` only (no inline SVG)
+4. **Apply semantic classes**: Contextual text/background utilities as appropriate
+5. **Maintain spacing**: Standard gap + margin utility classes
 
 ### When Updating Existing Components
 
 1. **Check for consistency**: Ensure similar elements use same styling
-2. **Update icons**: Replace FontAwesome with Tabler SVG icons
+2. **Modernize icons**: Replace any legacy inline SVG that reappears with Font Awesome
 3. **Standardize sizing**: Apply consistent button and form sizing
 4. **Verify spacing**: Use standardized gap and padding classes
+5. **Remove dead `icon` classes** cautiously only after confirming no CSS dependency
 
 ### CSS Organization
 

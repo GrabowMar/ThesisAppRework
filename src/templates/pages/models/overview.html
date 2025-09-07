@@ -37,11 +37,7 @@
     <div class="card-header py-2 d-flex justify-content-between align-items-center">
       <strong>Filters</strong>
       <button class="btn btn-sm btn-outline-secondary" onclick="refreshModels()" title="Refresh">
-        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-          <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
-          <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
-        </svg>
+        <i class="fas fa-sync icon" aria-hidden="true"></i>
       </button>
     </div>
     <div class="card-body py-2 small">
@@ -50,11 +46,7 @@
         <div class="input-group input-group-sm">
           <input type="text" id="model-search" class="form-control" placeholder="Search models..." onkeyup="debounceSearch()" />
           <button class="btn btn-outline-secondary" onclick="clearSearch()" type="button" title="Clear search">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M18 6l-12 12"/>
-              <path d="M6 6l12 12"/>
-            </svg>
+            <i class="fas fa-xmark icon" aria-hidden="true"></i>
           </button>
         </div>
       </div>
@@ -63,10 +55,7 @@
         <div class="dropdown w-100">
           <button class="form-control form-control-sm d-flex justify-content-between align-items-center" data-bs-toggle="dropdown" type="button">
             <span id="providers-summary">All providers</span>
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M6 9l6 6l6 -6"/>
-            </svg>
+            <i class="fas fa-chevron-down icon" aria-hidden="true"></i>
           </button>
           <div class="dropdown-menu p-2 w-100">
             <div class="d-flex justify-content-between align-items-center mb-2 small text-muted">
@@ -91,10 +80,7 @@
         <div class="dropdown w-100">
           <button class="form-control form-control-sm d-flex justify-content-between align-items-center" data-bs-toggle="dropdown" type="button">
             <span id="capabilities-summary">All capabilities</span>
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="14" height="14" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M6 9l6 6l6 -6"/>
-            </svg>
+            <i class="fas fa-chevron-down icon" aria-hidden="true"></i>
           </button>
           <div class="dropdown-menu p-2 w-100">
             {% set capability_options = ['coding','analysis','reasoning','multimodal','language','vision','function_calling','json_mode','streaming'] %}
@@ -123,46 +109,23 @@
     <div class="card-header py-2"><strong>Actions</strong></div>
     <div class="card-body d-flex flex-column gap-2">
       <button class="btn btn-outline-primary btn-sm w-100" onclick="refreshModels()">
-        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-          <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
-          <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
-        </svg>
+        <i class="fas fa-sync me-1" aria-hidden="true"></i>
         Refresh
       </button>
       <button class="btn btn-outline-secondary btn-sm w-100" onclick="tagInstalledModels()" title="Scan misc/models and tag installed models">
-        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-          <path d="M7.5 7.5m-1 0a1 1 0 1 0 2 0a1 1 0 1 0 -2 0"/>
-          <path d="M20 8l-8.5 8.5l-5.5 -5.5"/>
-        </svg>
+        <i class="fas fa-tag me-1" aria-hidden="true"></i>
         Tag Installed
       </button>
       <button class="btn btn-outline-success btn-sm w-100" onclick="exportModelsData()">
-        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-          <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/>
-          <path d="M7 9l5 -5l5 5"/>
-          <path d="M12 4l0 12"/>
-        </svg>
+        <i class="fas fa-download me-1" aria-hidden="true"></i>
         Export
       </button>
       <button class="btn btn-outline-info btn-sm w-100" type="button" onclick="openComparison()">
-        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-          <path d="M14 3v4a1 1 0 0 0 1 1h4"/>
-          <path d="M5 8v-3a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2h-5"/>
-          <path d="M3 15h4v4h-4z"/>
-        </svg>
+        <i class="fas fa-file-code me-1" aria-hidden="true"></i>
         Compare
       </button>
       <a class="btn btn-primary btn-sm w-100" href="/models/import">
-        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-          <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-          <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/>
-          <path d="M7 9l5 -5l5 5"/>
-          <path d="M12 4l0 12"/>
-        </svg>
+        <i class="fas fa-upload me-1" aria-hidden="true"></i>
         Import
       </a>
     </div>

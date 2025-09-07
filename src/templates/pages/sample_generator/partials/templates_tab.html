@@ -5,31 +5,15 @@
       <div class="card-body">
         <div class="d-grid gap-2 mb-3">
           <button class="btn btn-sm btn-outline-primary" id="btn-refresh-templates">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/>
-              <path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
-            </svg>
+            <i class="fas fa-sync icon me-1"></i>
             Refresh
           </button>
           <button class="btn btn-sm btn-outline-success" id="btn-new-template">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M12 5l0 14"/>
-              <path d="M5 12l14 0"/>
-            </svg>
+            <i class="fas fa-plus icon me-1"></i>
             New Template
           </button>
           <button class="btn btn-sm btn-outline-secondary" id="btn-load-profiles">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M10 13a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/>
-              <path d="M8 21v-1a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v1"/>
-              <path d="M15 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/>
-              <path d="M17 10h2a2 2 0 0 1 2 2v1"/>
-              <path d="M5 5a2 2 0 1 0 4 0a2 2 0 0 0 -4 0"/>
-              <path d="M3 13v-1a2 2 0 0 1 2 -2h2"/>
-            </svg>
+            <i class="fas fa-users icon me-1"></i>
             Profiles
           </button>
         </div>
@@ -52,23 +36,11 @@
         <textarea id="template-editor-text" class="form-control" style="min-height:55vh; font-family:monospace; font-size:0.8rem;" placeholder="Select or create a template to begin editing..."></textarea>
         <div class="mt-2 d-flex gap-2">
           <button class="btn btn-sm btn-primary" id="btn-save-template" disabled>
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M6 4h10l4 4v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2"/>
-              <path d="M12 14m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/>
-              <path d="M14 4l0 4l-6 0l0 -4"/>
-            </svg>
+            <i class="fas fa-save icon me-1"></i>
             Save
           </button>
           <button class="btn btn-sm btn-outline-danger" id="btn-delete-template" disabled>
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="16" height="16" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-              <path d="M4 7l16 0"/>
-              <path d="M10 11l0 6"/>
-              <path d="M14 11l0 6"/>
-              <path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/>
-              <path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3"/>
-            </svg>
+            <i class="fas fa-trash icon me-1"></i>
             Delete
           </button>
           <div class="ms-auto small text-muted" id="template-status"></div>

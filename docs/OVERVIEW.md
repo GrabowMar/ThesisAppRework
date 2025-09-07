@@ -105,4 +105,9 @@ Every major doc begins with a navigation line for quick jumps. Add new documents
 - [Observability](OBSERVABILITY.md) – logs, metrics, health checks
 
 ---
-_Last updated: 2025-09-03._ 
+### Recent UI Standard Change
+
+As of 2025-09-07 all inline SVG (Tabler) icons were removed and replaced with Font Awesome (solid style) `<i>` elements for consistency, reduced template verbosity, and easier future theming. New contributions must use Font Awesome only; introducing raw `<svg>` requires documented justification.
+
+---
+_Last updated: 2025-09-07._ 
