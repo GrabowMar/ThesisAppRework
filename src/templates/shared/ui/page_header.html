@@ -11,12 +11,49 @@
    - Falls back to safe defaults if values missing.
    - Avoids rendering empty wrappers when no subtitle or actions.
 #}
-<div class="page-header mb-3">
-  <div class="d-flex justify-content-start flex-wrap gap-2 align-items-start">
-    <h2 class="page-title d-flex align-items-center gap-2 mb-1">
-      {% if page_icon %}<i class="{{ page_icon }}" aria-hidden="true"></i>{% endif %}
-      <span>{{ page_title or 'Untitled' }}</span>
-    </h2>
-    {% if page_subtitle %}<div class="w-100 text-muted small">{{ page_subtitle }}</div>{% endif %}
+{#
+  Updated visual style: "thinner + blue" header
+  ------------------------------------------------
+  Adds a compact bar with a subtle blue background and reduced vertical padding.
+  New utility classes:
+    .page-header-compact  -> layout + spacing
+    .page-header-accent   -> blue background / border treatment
+  Dark mode automatically adapts via CSS variables (see theme.css additions).
+
+  Backward compatibility:
+    - Existing include calls unchanged.
+    - If page_subtitle missing, layout stays single-row.
+    - Actions list (if provided) rendered on the right side.
+  Actions structure example (list of dicts):
+    actions = [
+      { 'label': 'Refresh', 'href': url_for('main.dashboard'), 'icon': 'fa-solid fa-rotate', 'class': 'btn-outline-light btn-sm' }
+    ]
+#}
+<div class="page-header page-header-compact page-header-accent mb-3 rounded-3">
+  <div class="page-header-inner d-flex align-items-center flex-wrap w-100">
+    <div class="d-flex align-items-center gap-2 me-auto py-1">
+      <h2 class="page-title h5 d-flex align-items-center gap-2 mb-0 fw-semibold text-white">
+        {% if page_icon %}<i class="{{ page_icon }} opacity-75" aria-hidden="true"></i>{% endif %}
+        <span>{{ page_title or 'Untitled' }}</span>
+      </h2>
+      {% if page_subtitle %}
+        <span class="small text-white-50 d-none d-sm-inline">{{ page_subtitle }}</span>
+      {% endif %}
+    </div>
+    {% if actions %}
+      <div class="page-header-actions d-flex align-items-center gap-2 py-1">
+        {% for a in actions %}
+          <a href="{{ a.href or '#' }}" class="btn {{ a.class or 'btn-light btn-sm' }} d-inline-flex align-items-center gap-1" {% if a.title %}title="{{ a.title }}"{% endif %} {% if a.id %}id="{{ a.id }}"{% endif %}>
+            {% if a.icon %}<i class="{{ a.icon }}" aria-hidden="true"></i>{% endif %}
+            <span class="d-none d-md-inline">{{ a.label }}</span>
+          </a>
+        {% endfor %}
+      </div>
+    {% endif %}
   </div>
+  {% if page_subtitle %}
+    <div class="w-100 d-sm-none mt-1">
+      <div class="small text-white-50">{{ page_subtitle }}</div>
+    </div>
+  {% endif %}
 </div>

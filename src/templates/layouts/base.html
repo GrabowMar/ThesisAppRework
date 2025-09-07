@@ -30,16 +30,7 @@
           <div class="spinner-border text-primary spinner-border-sm me-2" role="status"></div>
           <span class="small text-muted">Loading…</span>
         </div>
-        {# Unified Page Header (standardized across all pages)
-           Pages set optional variables before their blocks:
-             page_title, page_subtitle, page_icon, actions (or legacy page_actions)
-           To hide the header: set hide_page_header = true
-           Backward compat: if page_actions provided but actions not, remap.
-        #}
-        {% if actions is not defined and page_actions is defined %}{% set actions = page_actions %}{% endif %}
-        {% if not hide_page_header %}
-          {% include 'shared/ui/page_header.html' %}
-        {% endif %}
+        {# Page header removed per redesign. If individual pages need titles, they should render inline in their own content blocks. #}
         <div class="row gx-4 gy-4 align-items-start">
           <div class="col-12{% if has_right_sidebar %} col-lg-9 col-xl-9{% endif %}">
             {# Backward compatibility: support both 'main' and 'content' block names #}
