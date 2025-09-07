@@ -6,16 +6,15 @@
 {% from 'shared/ui/macros/nav_macros.html' import nav_link %}
 
 <!-- Desktop sidebar -->
-<aside class="sidebar bg-dark text-white d-flex flex-column flex-shrink-0 d-none d-lg-flex"
-       id="sidebar"
-       aria-label="Main navigation">
+<aside class="sidebar bg-dark text-white d-flex flex-column flex-shrink-0 d-none d-lg-flex" id="sidebar" aria-label="Main navigation">
   <div class="sidebar-content d-flex flex-column h-100">
     {# Brand/Logo Section with Toggle Button #}
-    <div class="sidebar-brand p-3 border-bottom border-secondary d-flex align-items-center justify-content-between">
+  <div class="sidebar-brand p-3 border-bottom border-secondary d-flex align-items-center justify-content-between sidebar-brand-height">
       <a href="{{ url_for('main.dashboard') }}" 
          class="d-flex align-items-center text-white text-decoration-none"
          hx-boost="true"
          title="Go to Dashboard">
+        <i class="fa-solid fa-chart-line me-2 nav-icon" aria-hidden="true"></i>
         <span class="fw-bold fs-5 sidebar-text">Thesis</span>
       </a>
       <button id="sidebar-toggle" 
@@ -30,9 +29,9 @@
 
     {# Navigation Menu #}
     <nav class="sidebar-nav flex-grow-1 py-3" role="navigation" aria-label="Main menu">
-      <ul class="nav nav-pills flex-column px-3">
+  <ul class="nav nav-pills flex-column px-3 pt-2">
         {# Dashboard #}
-        <li class="nav-item mb-2">
+  <li class="nav-item mb-1">
           <a href="{{ url_for('main.dashboard') }}" 
              class="nav-link text-white d-flex align-items-center" 
              hx-boost="true" 
@@ -44,7 +43,7 @@
         </li>
 
         {# Analysis Section #}
-        <li class="nav-item mb-2">
+  <li class="nav-item mb-1">
           <a href="{{ url_for('analysis.analysis_index') }}" 
              class="nav-link text-white d-flex align-items-center" 
              hx-boost="true" 
@@ -56,7 +55,7 @@
         </li>
 
         {# Models #}
-        <li class="nav-item mb-2">
+  <li class="nav-item mb-1">
           <a href="{{ url_for('main.models_overview') }}" 
              class="nav-link text-white d-flex align-items-center" 
              hx-boost="true" 
@@ -68,7 +67,7 @@
         </li>
 
         {# Applications #}
-        <li class="nav-item mb-2">
+  <li class="nav-item mb-1">
           <a href="{{ url_for('main.applications_index') }}" 
              class="nav-link text-white d-flex align-items-center" 
              hx-boost="true" 
@@ -80,7 +79,7 @@
         </li>
 
         {# Sample Generator #}
-        <li class="nav-item mb-2">
+  <li class="nav-item mb-1">
           <a href="{{ url_for('sample_generator.index') }}" 
              class="nav-link text-white d-flex align-items-center" 
              hx-boost="true" 
@@ -92,7 +91,7 @@
         </li>
 
         {# Reports #}
-        <li class="nav-item mb-2">
+  <li class="nav-item mb-1">
           <a href="{{ url_for('reports.reports_index') }}" 
              class="nav-link text-white d-flex align-items-center" 
              hx-boost="true" 
@@ -104,7 +103,7 @@
         </li>
 
         {# Statistics #}
-        <li class="nav-item mb-2">
+  <li class="nav-item mb-1">
           <a href="{{ url_for('statistics.statistics_overview') }}" 
              class="nav-link text-white d-flex align-items-center" 
              hx-boost="true" 
@@ -132,24 +131,18 @@
     </nav>
 
     {# Footer Section with System Info #}
-    <div class="sidebar-footer border-top border-secondary p-3 mt-auto">
+    <div class="sidebar-footer border-top border-secondary p-3 mt-auto small">
       <div class="d-flex flex-column gap-2">
         {# System Status #}
-        <div class="d-flex align-items-center justify-content-center">
-          <span class="status-indicator status-indicator-animated bg-green me-2" 
-                style="width: 8px; height: 8px;" 
-                aria-hidden="true"></span>
-          <small class="text-muted fw-medium sidebar-text">Online</small>
+        <div class="d-flex align-items-center justify-content-center gap-2">
+          <span class="status-indicator status-indicator-animated bg-success" style="width:10px;height:10px;" aria-hidden="true"></span>
+          <span class="text-muted fw-medium sidebar-text">Online</span>
         </div>
 
         {# Version & Copyright #}
         <div class="text-center sidebar-text">
-          <small class="text-muted d-block fw-medium">
-            <strong>Thesis Platform</strong> v1.0
-          </small>
-          <small class="text-muted d-block">
-            © 2024 All rights reserved
-          </small>
+          <div class="text-muted fw-medium"><strong>Thesis</strong> v1.0</div>
+          <div class="text-muted">© 2024</div>
         </div>
       </div>
     </div>
@@ -157,10 +150,9 @@
 </aside>
 
 <!-- Mobile sidebar toggle button (visible only on mobile) -->
-<button class="sidebar-toggle-mobile d-lg-none btn btn-outline-primary btn-sm position-fixed"
-        id="mobile-sidebar-toggle"
-        type="button"
-        style="top: 15px; left: 15px; z-index: 1055;"
+<button class="sidebar-toggle-mobile d-lg-none btn btn-outline-primary btn-sm position-fixed mobile-sidebar-toggle-pos"
+  id="mobile-sidebar-toggle"
+  type="button"
         data-bs-toggle="offcanvas" 
         data-bs-target="#mobile-sidebar"
         aria-controls="mobile-sidebar"

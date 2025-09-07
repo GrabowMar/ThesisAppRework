@@ -1,8 +1,14 @@
 {% extends "layouts/base.html" %}
 
 {% block title %}Dashboard - ThesisAppRework{% endblock %}
-
-{% block page_title %}Dashboard{% endblock %}
+{% set page_title = 'Dashboard' %}
+{% set page_subtitle = 'System overview, live tasks & quick actions' %}
+{% set page_icon = 'gauge-high' %}
+{% set page_actions = [
+  {'label':'Models','href': url_for('main.models_overview'),'icon':'cubes','class':'btn-outline-primary'},
+  {'label':'Analysis','href': url_for('analysis.analysis_index'),'icon':'chart-column','class':'btn-outline-success'},
+  {'label':'Reports','href': url_for('reports.reports_index'),'icon':'file-lines','class':'btn-outline-info'}
+] %}
 
 {% block content %}
 <div class="row">
@@ -86,7 +92,7 @@
     </div>
   </div>
   <div class="col-lg-4 order-1 order-lg-2 mb-4">
-    <div id="dashboard-sidebar" class="analysis-sidebar" style="top:90px;">
+    <div id="dashboard-sidebar" class="analysis-sidebar right-sticky-sidebar">
       <!-- Mini Stats -->
       <div class="card mb-3 mini-stats">
         <div class="card-body p-2">

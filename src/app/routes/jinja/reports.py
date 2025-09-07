@@ -22,8 +22,9 @@ def reports_index():
     analyses = _get_recent_analyses()
     files = _gather_file_reports(10)
 
+    # Template name adjusted after header removal refactor: index_main.html now holds the content.
     return render_template(
-        'pages/reports/index.html',
+        'pages/reports/index_main.html',
         analyses=analyses,
         files=files
     )

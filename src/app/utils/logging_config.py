@@ -154,7 +154,18 @@ class SmartLogFilter(logging.Filter):
         
     def filter(self, record: logging.LogRecord) -> bool:
         """Apply comprehensive filtering."""
-        message = record.getMessage()
+        # Defensive: record.msg may contain formatting placeholders with mismatched args.
+        try:
+            message = record.getMessage()
+        except TypeError:
+            # Normalize: fallback to raw msg string representation and clear args to prevent cascading errors.
+            try:
+                raw_msg = str(record.msg)
+            except Exception:  # pragma: no cover - extreme edge
+                raw_msg = '<unprintable log message>'
+            record.msg = raw_msg
+            record.args = ()
+            message = raw_msg
         
         # 1. Suppress known spam patterns
         for pattern in self._suppressed_patterns:
@@ -180,7 +191,13 @@ class SmartLogFilter(logging.Filter):
     
     def _is_rate_limited_message(self, record: logging.LogRecord) -> bool:
         """Check if message should be rate limited."""
-        message = record.getMessage().lower()
+        try:
+            message = record.getMessage().lower()
+        except TypeError:
+            # Same normalization safeguard as above
+            record.msg = str(record.msg)
+            record.args = ()
+            message = record.msg.lower()
         rate_limited_keywords = [
             'scheduler: sending due task',
             'mingle: searching for neighbors',
@@ -233,12 +250,17 @@ class ColoredSmartFormatter(logging.Formatter):
     
     def format(self, record: logging.LogRecord) -> str:
         """Format log record with color coding and smart contextual information."""
-        
-        # Base format
+        # Base format with defensive message retrieval
         timestamp = self.formatTime(record, '%H:%M:%S')
         level = record.levelname
         name = self._clean_logger_name(record.name)
-        message = record.getMessage()
+        try:
+            message = record.getMessage()
+        except TypeError:
+            # Normalize inconsistent formatting
+            record.msg = str(record.msg)
+            record.args = ()
+            message = record.msg
         
         # Apply colors if enabled
         if self.use_colors:

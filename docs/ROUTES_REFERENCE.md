@@ -186,6 +186,7 @@ Path | Function | BP | Methods | HTMX | Services | File
 `/model/<model_slug>/containers/start` | `start_model_containers` | `api_bp` | POST |  |  | `src\app\routes\api\applications.py`
 `/model/<model_slug>/containers/stop` | `stop_model_containers` | `api_bp` | POST |  |  | `src\app\routes\api\applications.py`
 `/model/<model_slug>/containers/sync-status` | `sync_model_status` | `api_bp` | POST |  |  | `src\app\routes\api\applications.py`
+`/models/<model_slug>/containers/sync-status` | `sync_model_status_alias` | `api_bp` | POST |  |  | `src\app\routes\api\api.py`
 `/model/<model_slug>/details` | `model_details` | `models_bp` | GET |  |  | `src\app\routes\models.py`
 `/model/<model_slug>/more-info` | `model_more_info` | `models_bp` | GET |  |  | `src\app\routes\models.py`
 `/model/<model_slug>/running-count` | `model_running_count` | `api_bp` | GET |  |  | `src\app\routes\api\models.py`

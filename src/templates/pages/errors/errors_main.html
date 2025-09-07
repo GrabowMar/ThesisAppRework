@@ -5,27 +5,19 @@
 #}
 {% extends 'layouts/base.html' %}
 
-{% block page_title %}{{ error_title or 'Error' }}{% endblock %}
+{% set page_title = (error_title or 'Error') %}
 
 {% block main %}
 <div class="page">
     {# Error Page Header #}
     {% if not hide_header %}
-    <div class="page-header d-print-none">
-      <div class="container-xl">
-        <div class="row g-2 align-items-center">
-          <div class="col">
-            <h2 class="page-title">
-              {% if error_icon %}
-              <i class="{{ error_icon }} me-2"></i>
-              {% endif %}
-              {{ error_title or 'Error' }}
-            </h2>
-            {% if error_subtitle %}
-            <div class="text-muted mt-1">{{ error_subtitle }}</div>
-            {% endif %}
-          </div>
-        </div>
+    <div class="row g-2 align-items-center mb-3">
+      <div class="col">
+        <h2 class="page-title">
+          {% if error_icon %}<i class="{{ error_icon }} me-2"></i>{% endif %}
+          {{ error_title or 'Error' }}
+        </h2>
+        {% if error_subtitle %}<div class="text-muted mt-1">{{ error_subtitle }}</div>{% endif %}
       </div>
     </div>
     {% endif %}

@@ -3,7 +3,7 @@
 {% block title %}Analysis Hub - {{ super() }}{% endblock %}
 
 {% block page_icon %}fas fa-tachometer-alt{% endblock %}
-{% block page_title %}Analysis Hub{% endblock %}
+{% set page_title = 'Analysis Hub' %}
 {% block page_subtitle %}Unified view of analyses, tasks, and quick actions{% endblock %}
 {% block page_actions %}
   <a href="/analysis/create" class="btn btn-primary"><i class="fas fa-plus me-1"></i>New Analysis</a>
@@ -20,40 +20,22 @@
           <span class="text-muted small">Showing last {{ tasks|length if tasks else 0 }}</span>
         </div>
         <div class="card-body p-0">
-          {% include 'pages/analysis/partials/tasks_list.html' %}
+          {# Use canonical partial path #}
+          {% include 'partials/analysis/tasks_list.html' %}
         </div>
       </div>
     </div>
     <div class="col-md-4">
       <div class="card mb-4">
         <div class="card-header"><i class="fas fa-bolt me-2"></i>Quick Actions</div>
-        <div class="list-group list-group-flush">
-          <a href="/analysis/create" class="list-group-item list-group-item-action"><i class="fas fa-plus-circle me-2 text-primary"></i>Create New Analysis</a>
-          <a href="/analysis/create#step1" class="list-group-item list-group-item-action"><i class="fas fa-brain me-2 text-info"></i>Select Model</a>
-          <a href="/analysis/create#step2" class="list-group-item list-group-item-action"><i class="fas fa-rocket me-2 text-success"></i>Pick Application</a>
+        <div hx-get="/analysis/api/quick-actions" hx-trigger="load" hx-target="this" hx-swap="innerHTML">
+          <div class="p-3 text-center text-muted small">Loading...</div>
         </div>
       </div>
       <div class="card">
         <div class="card-header"><i class="fas fa-chart-line me-2"></i>Summary Stats</div>
-        <div class="card-body">
-          <div class="row text-center small">
-            <div class="col-6 mb-3">
-              <div class="fw-bold">Total Tasks</div>
-              <div class="h5 mb-0">{{ stats.total_tasks if stats else 0 }}</div>
-            </div>
-            <div class="col-6 mb-3">
-              <div class="fw-bold">Active</div>
-              <div class="h5 text-warning mb-0">{{ stats.active_tasks if stats else 0 }}</div>
-            </div>
-            <div class="col-6">
-              <div class="fw-bold">Completed</div>
-              <div class="h5 text-success mb-0">{{ stats.completed_tasks if stats else 0 }}</div>
-            </div>
-            <div class="col-6">
-              <div class="fw-bold">Failed</div>
-              <div class="h5 text-danger mb-0">{{ stats.failed_tasks if stats else 0 }}</div>
-            </div>
-          </div>
+        <div class="card-body" hx-get="/analysis/api/stats" hx-trigger="load, every 30s" hx-target="this" hx-swap="innerHTML">
+          <div class="text-center text-muted small py-2">Loading stats...</div>
         </div>
       </div>
     </div>

@@ -1,24 +1,2 @@
-{# Shared UI Macros - Safe additive abstractions for common page elements #}
-{% macro page_header(title, subtitle='', buttons=None, icon_html='') %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-    <div class="row g-2 align-items-center">
-      <div class="col">
-        <h2 class="page-title">{{ icon_html|safe }}{{ title }}</h2>
-        {% if subtitle %}<div class="text-muted mt-1">{{ subtitle }}</div>{% endif %}
-      </div>
-      {% if buttons %}
-      <div class="col-auto ms-auto d-print-none">
-        <div class="btn-list">
-          {% for btn in buttons %}
-            {{ btn|safe }}
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-    </div>
-  </div>
-</div>
-{% endmacro %}
-
-{# NOTE: Additional macros (stat cards, tab groups, etc.) can be added later. Keeping scope minimal for safety. #}
+{# Shared UI Macros - currently empty after removal of deprecated page_header. #}
+{# Placeholder for future small, additive UI macros (stat cards, etc.). #}

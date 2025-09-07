@@ -1009,6 +1009,113 @@ def api_model_stop_containers(model_slug):
     except Exception as e:  # pragma: no cover
         return create_error_response(f'Failed to stop containers for model {model_slug}: {e}', code=500)
 
+# -----------------------------------------------------------------
+# Backward-compatible singular aliases for model container actions
+# (Templates currently call /api/model/<slug>/containers/...)
+# -----------------------------------------------------------------
+
+@api_bp.route('/model/<model_slug>/containers/start', methods=['POST'])
+def api_model_start_containers_alias(model_slug):  # pragma: no cover - thin wrapper
+    return api_model_start_containers(model_slug)
+
+@api_bp.route('/model/<model_slug>/containers/stop', methods=['POST'])
+def api_model_stop_containers_alias(model_slug):  # pragma: no cover - thin wrapper
+    return api_model_stop_containers(model_slug)
+
+@api_bp.route('/model/<model_slug>/containers/restart', methods=['POST'])
+def api_model_restart_containers_alias(model_slug):  # pragma: no cover - thin wrapper
+    # No dedicated restart batch op yet; emulate by stop then start for now
+    try:
+        api_model_stop_containers(model_slug)
+        return api_model_start_containers(model_slug)
+    except Exception as e:  # pragma: no cover
+        return create_error_response(f'Failed to restart containers for model {model_slug}: {e}', code=500)
+
+@api_bp.route('/model/<model_slug>/containers/build', methods=['POST'])
+def api_model_build_containers_alias(model_slug):  # pragma: no cover - placeholder
+    # Build action not implemented in service layer yet; respond success placeholder
+    try:
+        return create_success_response({'model_slug': model_slug, 'message': 'Build trigger placeholder'})
+    except Exception as e:  # pragma: no cover
+        return create_error_response(f'Failed to build containers for model {model_slug}: {e}', code=500)
+
+# -----------------------------------------------------------------
+# Sync Status Endpoint (HTML fragment or JSON)
+# -----------------------------------------------------------------
+
+def _render_model_apps_fragment(model_slug: str):
+    """Internal helper to render the applications fragment for a model.
+
+    Reuses the existing applications grid partial logic. We build a minimal
+    context structure (entry) matching what templates expect (model + apps list).
+    """
+    from app.utils.template_paths import render_template_compat as render_template
+    model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+    if not model:
+        return f"<div class='alert alert-warning mb-2'>Model {model_slug} not found</div>"
+    apps = GeneratedApplication.query.filter_by(model_slug=model_slug).order_by(GeneratedApplication.app_number.asc()).all()
+
+    # Build lightweight objects used in template loops (mirroring earlier structure)
+    entry = type('Entry', (), {})()
+    setattr(entry, 'model', model)
+    setattr(entry, 'apps', [
+        {
+            'app_number': a.app_number,
+            'app_type': a.app_type,
+            'status': a.container_status or 'unknown',
+            'ports': getattr(a, 'ports', None) or {},  # placeholder; port mapping service may fill later
+            'has_docker_compose': getattr(a, 'has_docker_compose', False),
+            'exists': True,  # presence in DB implies generated (filesystem existence checked elsewhere)
+        } for a in apps
+    ])
+    setattr(entry, 'apps_count', len(apps))
+
+    # Decide which variant to render based on requesting container: grid collapse vs table accordion
+    # The calling template targets either `.model-apps` (grid) or `.model-apps-table-body` (table)
+    # Provide raw rows/cards only to minimize payload size.
+    # For simplicity we re-render the appropriate inner structure.
+    # If request specifies variant parameter we can honor; else default to cards.
+    variant = request.args.get('variant')
+    target_selector = request.headers.get('HX-Target', '')
+    try:
+        if 'model-apps-table-body' in target_selector or variant == 'table':
+            # Render only <tr> rows
+            return render_template('pages/applications/partials/_model_apps_table_rows.html', entry=entry)
+        else:
+            # Render only cards inside the .row container
+            return render_template('pages/applications/partials/_model_apps_cards.html', entry=entry)
+    except Exception:
+        # Fallback: render full grid fragment section (heavier) if specialized partials not present
+        return render_template('pages/applications/partials/grid.html', application_grid=[entry])
+
+@api_bp.route('/model/<model_slug>/containers/sync-status', methods=['POST'])
+@api_bp.route('/models/<model_slug>/containers/sync-status', methods=['POST'])
+def api_model_containers_sync_status(model_slug):
+    """Return current application container statuses for a model.
+
+    Supports HTML fragment (?format=html) for HTMX targets or JSON (default).
+    """
+    try:
+        apps = GeneratedApplication.query.filter_by(model_slug=model_slug).order_by(GeneratedApplication.app_number.asc()).all()
+        if request.args.get('format') == 'html' or request.headers.get('HX-Request'):
+            html = _render_model_apps_fragment(model_slug)
+            return html
+        # JSON response: simplified list
+        return create_success_response({
+            'model_slug': model_slug,
+            'applications': [
+                {
+                    'app_number': a.app_number,
+                    'status': a.container_status,
+                    'app_type': a.app_type,
+                    'has_docker_compose': getattr(a, 'has_docker_compose', False)
+                } for a in apps
+            ],
+            'count': len(apps)
+        }, message='Container statuses synced')
+    except Exception as e:  # pragma: no cover
+        return create_error_response(f'Failed to sync container statuses for model {model_slug}: {e}', code=500)
+
 # =================================================================
 # APPLICATION API ROUTES
 # =================================================================

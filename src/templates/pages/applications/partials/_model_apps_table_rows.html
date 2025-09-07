@@ -1,0 +1,47 @@
+{# Fragment: table rows for a single model's applications (used by sync-status) #}
+{% for app in entry.apps %}
+  {% set sc = 'success' if app.status=='running' else ('danger' if app.status=='error' else ('warning' if app.status=='pending' else 'secondary')) %}
+  <tr data-model="{{ entry.model.canonical_slug }}" data-app="{{ app.app_number }}" data-status="{{ app.status }}">
+    <td><input type="checkbox" class="form-check-input app-select" value="{{ entry.model.canonical_slug }}:{{ app.app_number }}"></td>
+    <td><a href="/models/application/{{ entry.model.canonical_slug }}/{{ app.app_number }}" class="fw-semibold">#{{ app.app_number }}</a></td>
+    <td class="text-muted small">{{ app.app_type }}</td>
+    <td><span class="badge bg-{{ sc }}">{{ app.status.replace('_',' ').title() if app.status else 'Unknown' }}</span></td>
+    <td class="small">
+      {% if app.ports and (app.ports.frontend or app.ports.backend) %}
+        {% if app.ports.frontend %}<span class="badge bg-azure" title="Frontend">FE {{ app.ports.frontend }}</span>{% endif %}
+        {% if app.ports.backend %}<span class="badge bg-azure" title="Backend">BE {{ app.ports.backend }}</span>{% endif %}
+      {% else %}<span class="text-muted">—</span>{% endif %}
+    </td>
+    <td>
+      {% if app.has_docker_compose %}
+        <span class="badge bg-green"><i class="fas fa-hammer me-1"></i>Yes</span>
+      {% else %}
+        <span class="badge bg-secondary">No</span>
+      {% endif %}
+    </td>
+    <td>
+      {% if app.exists %}
+        <span class="badge bg-green"><i class="fas fa-code me-1"></i>Code</span>
+      {% else %}
+        <span class="badge bg-red">Missing</span>
+      {% endif %}
+    </td>
+    <td class="text-end">
+      <div class="btn-group btn-group-sm">
+        {% if app.exists %}
+          {% if app.status == 'running' %}
+            <button class="btn btn-outline-danger" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/stop" hx-swap="none" hx-indicator="#apps-operation-status" hx-on:htmx:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Stop"><i class="fas fa-stop"></i></button>
+          {% else %}
+            <button class="btn btn-outline-success" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/start" hx-swap="none" hx-indicator="#apps-operation-status" hx-on:htmx:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Start"><i class="fas fa-play"></i></button>
+          {% endif %}
+          <button class="btn btn-outline-warning" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/restart" hx-swap="none" hx-indicator="#apps-operation-status" hx-on:htmx:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Restart"><i class="fas fa-rotate"></i></button>
+          {% if app.has_docker_compose %}
+            <button class="btn btn-outline-primary" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/build" hx-swap="none" hx-indicator="#apps-operation-status" hx-on:htmx:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Build"><i class="fas fa-hammer"></i></button>
+          {% endif %}
+        {% else %}
+          <span class="text-muted small">Not created</span>
+        {% endif %}
+      </div>
+    </td>
+  </tr>
+{% endfor %}

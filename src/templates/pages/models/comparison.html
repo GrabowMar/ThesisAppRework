@@ -1,20 +1,13 @@
 {# Model Comparison migrated fully to pages/models #}
 {% extends 'layouts/base.html' %}
-{% block page_title %}Model C          </div>
-        {% endif %}
-      </div>
-{% endblock %}n{% endblock %}
+{% set page_title = 'Model Comparison' %}
 {% block main %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-        <div class="row g-2 align-items-center">
-          <div class="col">
-            <h2 class="page-title"><i class="fas fa-table-columns me-2"></i>Model Comparison</h2>
-            <div class="text-muted mt-1">Compare models side by side</div>
-          </div>
-        </div>
-      </div>
-    </div>
+<div class="row g-2 align-items-center mb-3">
+  <div class="col">
+    <h2 class="page-title"><i class="fas fa-table-columns me-2"></i>Model Comparison</h2>
+    <div class="text-muted mt-1">Compare models side by side</div>
+  </div>
+</div>
 
     <div class="card mb-3">
           <div class="card-header">
@@ -125,8 +118,6 @@
         </div>
       </div>
     </div>
-  </div>
-</div>
 {% endblock %}
 {% block scripts %}
 {{ super() }}

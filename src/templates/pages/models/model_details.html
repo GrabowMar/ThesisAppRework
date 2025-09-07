@@ -1,21 +1,17 @@
 {% extends 'layouts/base.html' %}
-{% block page_title %}Model: {{ model.model_name or model.get('model_name') or model_slug }}{% endblock %}
+{% set page_title = 'Model: ' ~ (model.model_name or model.get('model_name') or model_slug) %}
 {% block main %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-        <div class="row g-2 align-items-center">
-          <div class="col">
-            <h2 class="page-title"><i class="fas fa-robot me-2"></i>{{ model.model_name or model.get('model_name') or model_slug }}</h2>
-            <div class="text-muted mt-1">Model details and capabilities</div>
-          </div>
-          <div class="col-auto ms-auto d-print-none">
-            <div class="btn-list">
-              <a href="/models" class="btn btn-outline-secondary">Back to Models</a>
-            </div>
-          </div>
-        </div>
-      </div>
+<div class="row g-2 align-items-center mb-3">
+  <div class="col">
+    <h2 class="page-title"><i class="fas fa-robot me-2"></i>{{ model.model_name or model.get('model_name') or model_slug }}</h2>
+    <div class="text-muted mt-1">Model details and capabilities</div>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    <div class="btn-list">
+      <a href="/models" class="btn btn-outline-secondary">Back to Models</a>
     </div>
+  </div>
+</div>
 
-    {% include 'pages/models/partials/details.html' %}
+{% include 'pages/models/partials/details.html' %}
 {% endblock %}

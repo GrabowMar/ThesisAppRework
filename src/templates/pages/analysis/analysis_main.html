@@ -1,26 +1,7 @@
-{#
-  Standard wrapper for Analysis pages. Minimal shell that includes partials and HTMX-friendly fragment loading.
-#}
+{# Standard wrapper for Analysis pages. Clean layout without embedded headers. #}
 {% extends 'layouts/base.html' %}
-{% block page_title %}Analysis{% endblock %}
-{% block main %}
-<div class="page">
-    <div class="page-header d-print-none">
-      <div class="container-xl">
-        <div class="row g-2 align-items-center">
-          <div class="col">
-            <h2 class="page-title">Analysis</h2>
-            <div class="text-muted mt-1">Analysis pages and tools</div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="page-body">
-      <div class="container-xl">
-        {% include 'pages/analysis/partials/main.html' ignore missing %}
-      </div>
-    </div>
-</div>
+{% block content %}
+  {% include 'pages/analysis/partials/main.html' ignore missing %}
 {% endblock %}
 
 {% block scripts %}

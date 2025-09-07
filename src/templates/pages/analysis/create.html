@@ -1,19 +1,15 @@
 {# Analysis Creation Wizard Page #}
 {% extends 'layouts/base.html' %}
 
-{% block page_title %}Create Analysis{% endblock %}
+{% set page_title = 'Create Analysis' %}
 {% block main %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-    <div class="row g-2 align-items-center">
-      <div class="col">
-        <h2 class="page-title"><i class="fas fa-plus-circle text-primary me-2"></i>Create New Analysis</h2>
-        <div class="text-muted mt-1">Set up a comprehensive analysis for your AI-generated application</div>
-      </div>
-      <div class="col-auto ms-auto d-print-none">
-        <a href="/analysis" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Back to Analyses</a>
-      </div>
-    </div>
+<div class="row g-2 align-items-center mb-3">
+  <div class="col">
+    <h2 class="page-title"><i class="fas fa-plus-circle text-primary me-2"></i>Create New Analysis</h2>
+    <div class="text-muted mt-1">Set up a comprehensive analysis for your AI-generated application</div>
+  </div>
+  <div class="col-auto ms-auto d-print-none">
+    <a href="/analysis" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Back to Analyses</a>
   </div>
 </div>
 <div class="page-body">
@@ -202,7 +198,7 @@
           <div class="wizard-panel" data-panel="4"><div class="card"><div class="card-header"><h5 class="mb-0"><i class="fas fa-check-circle me-2"></i>Step 4: Review & Launch</h5></div><div class="card-body"><p class="text-muted">Review your analysis configuration before launching.</p><div id="analysis-summary"><div class="row"><div class="col-md-8"><h6 class="mb-3">Analysis Summary</h6><dl class="row"><dt class="col-sm-4">Model:</dt><dd class="col-sm-8" id="summary-model">-</dd><dt class="col-sm-4">Application:</dt><dd class="col-sm-8" id="summary-app">-</dd><dt class="col-sm-4">Analysis Type:</dt><dd class="col-sm-8" id="summary-type">-</dd><dt class="col-sm-4">Priority:</dt><dd class="col-sm-8" id="summary-priority">-</dd><dt class="col-sm-4">Estimated Time:</dt><dd class="col-sm-8" id="summary-time">-</dd><dt class="col-sm-4">Estimated Cost:</dt><dd class="col-sm-8" id="summary-cost">-</dd></dl></div><div class="col-md-4"><div class="card bg-light"><div class="card-body text-center"><h6 class="card-title">Ready to Launch</h6><p class="card-text small text-muted">Your analysis will be queued and executed automatically. You'll receive notifications based on your preferences.</p><div class="analysis-status-icon"><i class="fas fa-rocket fa-3x text-primary"></i></div></div></div></div></div></div></div></div></div>
         </div>
         <div class="col-lg-4">
-          <div class="analysis-sidebar sticky-top" style="top:90px;">
+          <div class="analysis-sidebar right-sticky-sidebar sticky-top">
             <div class="card mb-3">
               <div class="card-body py-3">
                 <div class="wizard-progress">

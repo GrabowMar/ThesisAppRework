@@ -10,21 +10,41 @@
   {% include 'shared/ui/header.html' %}
   
   <!-- Main Content -->
-  <div class="page-wrapper">
+  {#
+    Right Sidebar Support
+    ---------------------
+    Pages can enable an optional right sidebar by setting at the top of the template:
+        {% set has_right_sidebar = true %}
+    and providing a block:
+        {% block right_sidebar %} ... {% endblock %}
+
+    If not set, layout renders full-width content as before (backward compatible).
+  #}
+  {% set has_right_sidebar = has_right_sidebar|default(false) %}
+  <div class="page-wrapper{% if has_right_sidebar %} has-right-sidebar{% endif %}">
     <!-- Page body -->
-    <div class="page-body">
+    <div class="page-body py-3"> {# Add slight vertical padding for visual breathing room #}
       <div class="container-xl">
         <!-- Global HTMX spinner indicator -->
         <div id="global-spinner" class="htmx-indicator text-center mb-3" style="display:none;">
           <div class="spinner-border text-primary spinner-border-sm me-2" role="status"></div>
           <span class="small text-muted">Loading…</span>
         </div>
-        {# Backward compatibility: support both 'main' and 'content' block names #}
-        {% block main %}
-          {% block content %}
-          <!-- Content goes here -->
-          {% endblock %}
-        {% endblock %}
+        <div class="row gx-4 gy-4 align-items-start">
+          <div class="col-12{% if has_right_sidebar %} col-lg-9 col-xl-9{% endif %}">
+            {# Backward compatibility: support both 'main' and 'content' block names #}
+            {% block main %}
+              {% block content %}
+              <!-- Content goes here -->
+              {% endblock %}
+            {% endblock %}
+          </div>
+          {% if has_right_sidebar %}
+          <div class="col-12 col-lg-3 col-xl-3">
+            {% block right_sidebar %}{% endblock %}
+          </div>
+          {% endif %}
+        </div>
       </div>
     </div>
   </div>

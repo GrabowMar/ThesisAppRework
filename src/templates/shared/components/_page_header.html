@@ -1,0 +1,28 @@
+{# File intentionally left blank (deprecated page header removed). #}
+{% set _actions = page_actions or [] %}
+{% set _crumbs = page_breadcrumb or [] %}
+
+<div class="page-header d-flex flex-column gap-2 py-2 mb-3">
+  <div class="d-flex flex-column flex-md-row align-items-md-center gap-3 justify-content-between">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      {% if _icon %}
+        <span class="page-header-icon rounded bg-primary text-white d-inline-flex align-items-center justify-content-center">
+          <i class="fa-solid fa-{{ _icon }}" aria-hidden="true"></i>
+        </span>
+      {% endif %}
+      <div class="d-flex flex-column">
+        <h1 class="page-title h3 mb-0 fw-semibold">{{ _title }}</h1>
+        {% if _subtitle %}
+          <div class="page-subtitle text-muted small">{{ _subtitle }}</div>
+        {% endif %}
+        {% block page_header_extra %}{% endblock %}
+      </div>
+    </div>
+    <div class="d-flex flex-column align-items-stretch align-items-md-end gap-2 flex-grow-1">
+      {% if _crumbs and _crumbs|length > 0 %}
+        {% block page_header_breadcrumb %}
+          <nav aria-label="Breadcrumb" class="order-2 order-md-1">
+            <ol class="breadcrumb breadcrumb-sm mb-0">{# Each crumb: {label, url?} #}
+              {% for c in _crumbs %}
+                <li class="breadcrumb-item {% if loop.last %}active{% endif %}">
+                  {# Deprecated component stub: page header removed. Intentionally empty to avoid include errors. #}

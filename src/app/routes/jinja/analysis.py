@@ -5,8 +5,7 @@ Analysis routes for the Flask application
 Analysis-related web routes that render Jinja templates.
 """
 
-from flask import Blueprint, current_app
-from flask import request, redirect, url_for, flash
+from flask import Blueprint, current_app, request, redirect, url_for, flash
 
 from app.models import AnalysisTask
 from app.utils.template_paths import render_template_compat as render_template
@@ -59,19 +58,15 @@ def analysis_dashboard():
 
 @analysis_bp.route('/list')
 def analysis_list():
-    """Render analysis hub/list page with recent tasks."""
-    from app.services.task_service import AnalysisTaskService
+    """Render analysis hub/list page with recent tasks.
+
+    Full page render for non-HTMX; fragments are handled by /api/* endpoints.
+    """
     tasks = []
     stats = None
     try:
         tasks = AnalysisTaskService.get_recent_tasks(limit=25)
-        # Basic stats snapshot
-        stats = {
-            'total_tasks': AnalysisTask.query.count(),
-            'active_tasks': len([t for t in tasks if getattr(t.status, 'value', t.status) in ('running','pending')]),
-            'completed_tasks': len([t for t in tasks if getattr(t.status, 'value', t.status) == 'completed']),
-            'failed_tasks': len([t for t in tasks if getattr(t.status, 'value', t.status) == 'failed'])
-        }
+        stats = _build_stats_snapshot(tasks)
     except Exception as e:  # pragma: no cover
         current_app.logger.warning(f"Could not load tasks for hub: {e}")
     return render_template('pages/analysis/hub_main.html', tasks=tasks, stats=stats)
@@ -187,9 +182,25 @@ def htmx_model_applications_fragment(model_slug):
 
 @analysis_bp.route('/api/tasks/recent')
 def htmx_recent_tasks_fragment():
-    """Return recent tasks fragment for live refresh (HTMX)."""
+    """Return recent tasks fragment (HTMX)."""
     tasks = AnalysisTaskService.get_recent_tasks(limit=25)
-    return render_template('pages/analysis/partials/tasks_list.html', tasks=tasks)
+    return render_template('partials/analysis/tasks_list.html', tasks=tasks)
+
+@analysis_bp.route('/api/stats')
+def htmx_stats_fragment():
+    """Return stats summary fragment (HTMX)."""
+    try:
+        tasks = AnalysisTaskService.get_recent_tasks(limit=25)
+        stats = _build_stats_snapshot(tasks)
+    except Exception as e:  # pragma: no cover
+        current_app.logger.warning(f"Could not build stats: {e}")
+        stats = None
+    return render_template('partials/analysis/stats_summary.html', stats=stats)
+
+@analysis_bp.route('/api/quick-actions')
+def htmx_quick_actions_fragment():
+    """Return quick actions fragment (HTMX)."""
+    return render_template('partials/analysis/quick_actions.html')
 
 @analysis_bp.route('/api/list/combined')
 def htmx_analysis_list_combined():
@@ -204,11 +215,26 @@ def htmx_analysis_list_combined():
 
 @analysis_bp.route('/api/active-tasks')
 def htmx_active_tasks():
-    """Return active tasks fragment.
+    """Return active tasks fragment (HTMX). Future: real-time active list."""
+    return render_template('partials/analysis/active_tasks.html')
 
-    The unit tests include the template 'partials/analysis/list/active_tasks.html'.
-    We simply render that include through a tiny wrapper div; data model kept
-    trivial until real task manager integration is added.
-    """
-    # Return minimal inline fragment (template removed)
-    return '<div class="active-tasks-fragment"><div class="text-muted small">No active tasks</div></div>'
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _build_stats_snapshot(tasks):
+    """Derive stats summary dict from a list of task ORM objects."""
+    try:
+        return {
+            'total_tasks': AnalysisTask.query.count(),
+            'active_tasks': len([t for t in tasks if getattr(t.status, 'value', t.status) in ('running', 'pending')]),
+            'completed_tasks': len([t for t in tasks if getattr(t.status, 'value', t.status) == 'completed']),
+            'failed_tasks': len([t for t in tasks if getattr(t.status, 'value', t.status) == 'failed'])
+        }
+    except Exception:  # pragma: no cover - defensive
+        return {
+            'total_tasks': 0,
+            'active_tasks': 0,
+            'completed_tasks': 0,
+            'failed_tasks': 0
+        }
