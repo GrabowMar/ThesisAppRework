@@ -30,13 +30,13 @@
       <div class="btn-group btn-group-sm">
         {% if app.exists %}
           {% if app.status == 'running' %}
-            <button class="btn btn-outline-danger" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/stop" hx-swap="none" hx-indicator="#apps-operation-status" hx-on:htmx:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Stop"><i class="fas fa-stop"></i></button>
+            <button class="btn btn-outline-danger" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/stop" hx-swap="none" hx-on:htmx:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Stop"><i class="fas fa-stop"></i></button>
           {% else %}
-            <button class="btn btn-outline-success" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/start" hx-swap="none" hx-indicator="#apps-operation-status" hx-on:htmx:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Start"><i class="fas fa-play"></i></button>
+            <button class="btn btn-outline-success" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/start" hx-swap="none" hx-on:htmx:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Start"><i class="fas fa-play"></i></button>
           {% endif %}
-          <button class="btn btn-outline-warning" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/restart" hx-swap="none" hx-indicator="#apps-operation-status" hx-on:htmx:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Restart"><i class="fas fa-rotate"></i></button>
+          <button class="btn btn-outline-warning" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/restart" hx-swap="none" hx-on:htmx:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Restart"><i class="fas fa-rotate"></i></button>
           {% if app.has_docker_compose %}
-            <button class="btn btn-outline-primary" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/build" hx-swap="none" hx-indicator="#apps-operation-status" hx-on:htmx:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Build"><i class="fas fa-hammer"></i></button>
+            <button class="btn btn-outline-primary" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/build" hx-swap="none" hx-on:htmx:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Build"><i class="fas fa-hammer"></i></button>
           {% endif %}
         {% else %}
           <span class="text-muted small">Not created</span>

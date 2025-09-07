@@ -2,18 +2,10 @@
 {% extends 'layouts/base.html' %}
 
 {% set page_title = 'Create Analysis' %}
-{% block main %}
-<div class="row g-2 align-items-center mb-3">
-  <div class="col">
-    <h2 class="page-title"><i class="fas fa-plus-circle text-primary me-2"></i>Create New Analysis</h2>
-    <div class="text-muted mt-1">Set up a comprehensive analysis for your AI-generated application</div>
-  </div>
-  <div class="col-auto ms-auto d-print-none">
-    <a href="/analysis" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i>Back to Analyses</a>
-  </div>
-</div>
-<div class="page-body">
-  <div class="container-xl">
+{% set page_icon = 'fas fa-plus-circle text-primary' %}
+{% set page_subtitle = 'Set up a comprehensive analysis for your AI-generated application' %}
+{% set actions = [ {'label':'Back to Analyses','href':'/analysis','icon':'arrow-left','class':'btn-outline-secondary'} ] %}
+{% block content %}
 
     <form id="analysis-wizard-form" method="POST" action="/analysis/create">
       <input type="hidden" name="model_slug" id="input-model-slug" />

@@ -1,0 +1,22 @@
+{#
+ Reusable Page Header Partial
+ Usage:
+   {% include 'shared/ui/page_header.html' with context %}
+ Context variables (optional):
+   page_title (str) - main title
+   page_subtitle (str) - smaller subtitle text
+   page_icon (str) - font-awesome or tabler icon classes (without leading <i>)
+   actions (list[dict]) - optional list of action buttons: {label, href, icon, class}
+ Notes:
+   - Falls back to safe defaults if values missing.
+   - Avoids rendering empty wrappers when no subtitle or actions.
+#}
+<div class="page-header mb-3">
+  <div class="d-flex justify-content-start flex-wrap gap-2 align-items-start">
+    <h2 class="page-title d-flex align-items-center gap-2 mb-1">
+      {% if page_icon %}<i class="{{ page_icon }}" aria-hidden="true"></i>{% endif %}
+      <span>{{ page_title or 'Untitled' }}</span>
+    </h2>
+    {% if page_subtitle %}<div class="w-100 text-muted small">{{ page_subtitle }}</div>{% endif %}
+  </div>
+</div>

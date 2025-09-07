@@ -11,7 +11,7 @@ function collapseAll(){
 }
 function syncModel(modelSlug, target){
   if(window.htmx){
-    htmx.ajax('POST', `/api/model/${modelSlug}/containers/sync-status?format=html`, { target: target, indicator: '#apps-operation-status' });
+    htmx.ajax('POST', `/api/model/${modelSlug}/containers/sync-status?format=html`, { target: target });
   }
 }
 

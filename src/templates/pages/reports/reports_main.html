@@ -1,22 +1,11 @@
-{#
-  Standard wrapper for Reports pages.
-#}
+{# Reports Page Wrapper (standardized) #}
 {% extends 'layouts/base.html' %}
 {% set page_title = 'Reports' %}
-{% block main %}
-<div class="page">
-        <div class="row g-2 align-items-center mb-3">
-          <div class="col">
-            <h2 class="page-title"><i class="fas fa-file-lines me-2"></i>Reports</h2>
-            <div class="text-muted mt-1">Manage and view generated reports</div>
-          </div>
-        </div>
-    <div class="page-body">
-      <div class="container-xl">
-        {% include 'pages/reports/partials/main.html' ignore missing %}
-      </div>
-    </div>
-</div>
+{% set page_subtitle = 'Manage and view generated reports' %}
+{% set page_icon = 'fa-solid fa-file-lines' %}
+
+{% block content %}
+  {% include 'pages/reports/partials/main.html' ignore missing %}
 {% endblock %}
 
 {% block scripts %}

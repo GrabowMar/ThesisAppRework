@@ -9,8 +9,31 @@
   {'label':'Analysis','href': url_for('analysis.analysis_index'),'icon':'chart-column','class':'btn-outline-success'},
   {'label':'Reports','href': url_for('reports.reports_index'),'icon':'file-lines','class':'btn-outline-info'}
 ] %}
+{# Safe dashboard stats defaults accessible to all blocks #}
+{% if stats is not defined %}
+  {% set stats = {
+    'total_models': 0,
+    'total_applications': 0,
+    'total_security_analyses': 0,
+    'total_performance_tests': 0
+  } %}
+{% endif %}
 
 {% block content %}
+{% if stats is not defined %}
+  {% set stats = {
+    'total_models': 0,
+    'total_applications': 0,
+    'total_security_analyses': 0,
+    'total_performance_tests': 0
+  } %}
+{% endif %}
+{% set page_icon = 'fas fa-gauge-high' %}
+{% set actions = [
+  {'label':'Models','href': url_for('main.models_overview'),'icon':'cubes','class':'btn-outline-primary'},
+  {'label':'Analysis','href': url_for('analysis.analysis_index'),'icon':'chart-column','class':'btn-outline-success'},
+  {'label':'Reports','href': url_for('reports.reports_index'),'icon':'file-lines','class':'btn-outline-info'}
+] %}
 <div class="row">
   <div class="col-lg-8 order-2 order-lg-1">
     <!-- Recent Activity (Applications + Analyses) -->

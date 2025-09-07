@@ -1,5 +1,7 @@
 {# Standard wrapper for Statistics pages. Clean layout without embedded headers. #}
 {% extends 'layouts/base.html' %}
+{% set page_title = page_title or 'Statistics' %}
+{% set page_icon = page_icon or 'fas fa-chart-line' %}
 {% block content %}
   {% if main_partial %}
     {% include main_partial ignore missing %}

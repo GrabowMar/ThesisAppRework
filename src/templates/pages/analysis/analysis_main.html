@@ -1,5 +1,7 @@
 {# Standard wrapper for Analysis pages. Clean layout without embedded headers. #}
 {% extends 'layouts/base.html' %}
+{% set page_title = page_title or 'Analysis' %}
+{% set page_icon = page_icon or 'fas fa-chart-column' %}
 {% block content %}
   {% include 'pages/analysis/partials/main.html' ignore missing %}
 {% endblock %}

@@ -4,20 +4,14 @@
 {% extends 'layouts/base.html' %}
 {% set active_page = 'applications' %}
 {% set page_title = 'Application ' ~ app_data.app_number %}
-{% block main %}
-<div class="row g-2 align-items-center mb-3">
-    <div class="col">
-        <h2 class="page-title"><i class="fas fa-cube me-2"></i>Application {{ app_data.app_number }}</h2>
-        <div class="text-muted mt-1">{{ model.display_name }} · {{ app_data.model_slug }}</div>
-    </div>
-    <div class="col-auto ms-auto d-print-none">
-        <div class="btn-list">
-            <a class="btn btn-outline-secondary btn-sm" href="/models"><i class="fas fa-robot me-1"></i>Models</a>
-            <a class="btn btn-outline-primary btn-sm" href="/models/applications?model={{ app_data.model_slug }}"><i class="fas fa-cubes me-1"></i>Applications</a>
-            <a class="btn btn-outline-success btn-sm" href="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/export.csv"><i class="fas fa-file-csv me-1"></i>Export</a>
-        </div>
-    </div>
-</div>
+{% block content %}
+{% set page_icon = 'fas fa-cube' %}
+{% set page_subtitle = model.display_name ~ ' · ' ~ app_data.model_slug %}
+{% set actions = [
+  {'label':'Models','href':'/models','icon':'robot','class':'btn-outline-secondary'},
+  {'label':'Applications','href':'/models/applications?model=' ~ app_data.model_slug,'icon':'cubes','class':'btn-outline-primary'},
+  {'label':'Export','href':'/models/application/' ~ app_data.model_slug ~ '/' ~ app_data.app_number ~ '/export.csv','icon':'file-csv','class':'btn-outline-success'}
+] %}
 
         <div class="row g-3">
                     <!-- Sidebar (anchors) -->

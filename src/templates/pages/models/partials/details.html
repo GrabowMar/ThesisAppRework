@@ -1,14 +1,6 @@
 {# Placeholder for detailed model view partial (used by single_page layout) #}
 <div class="model-details-partial">
-  <div class="page-header">
-    <div class="row align-items-center">
-      <div class="col">
-        <h2 class="page-title">
-          <i class="fas fa-robot me-2"></i>{{ model.model_name or model.get('model_name') or model.get('name') }}
-        </h2>
-      </div>
-    </div>
-  </div>
+  {# Header removed: main page should set page_title/page_icon so unified header renders once #}
   
   <div class="row row-cards">
     <div class="col-md-4">

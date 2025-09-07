@@ -1,20 +1,27 @@
 {# AI Models Overview - layout refactored: actions moved to right sidebar #}
 {% extends 'layouts/base.html' %}
 {% set has_right_sidebar = true %}
+{% set page_title = 'Models' %}
+{% set page_icon = 'fas fa-brain' %}
+{% set page_subtitle = 'Interactive catalog of models' %}
+{# Global safe default so both content and right_sidebar blocks can see it #}
+{% if models_stats is not defined %}
+  {% set models_stats = {
+    'total_models': 0,
+    'active_models': 0,
+    'unique_providers': 0,
+    'avg_cost_per_1k': 0
+  } %}
+{% endif %}
 {% block content %}
-<div id="models-overview-root">
-  {% include 'pages/models/partials/_overview_content.html' %}
-</div>
+  <div id="models-overview-root">
+    {% include 'pages/models/partials/_overview_content.html' %}
+  </div>
 {% endblock %}
 
 {% block right_sidebar %}
 <div class="d-flex flex-column gap-3" id="models-sidebar">
-  <div class="card">
-    <div class="card-body pb-2">
-      <div class="d-flex align-items-center mb-2"><i class="fas fa-brain me-2 text-primary"></i><strong>AI Models Overview</strong></div>
-      <div class="text-muted small">Interactive catalog of models</div>
-    </div>
-  </div>
+  {# Header card removed (redundant with standardized header) #}
   <div class="card mini-stats">
     <div class="card-header py-2"><strong>Stats</strong></div>
     <div class="card-body p-2">

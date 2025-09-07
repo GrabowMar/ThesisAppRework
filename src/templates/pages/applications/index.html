@@ -4,7 +4,26 @@
 
 {% extends 'layouts/base.html' %}
 {% set has_right_sidebar = true %}
+{% set page_title = 'Applications' %}
+{% set page_icon = 'fas fa-cubes' %}
+{% set page_subtitle = 'Manage your AI-generated applications' %}
+{% if stats is not defined %}
+  {% set stats = {
+    'total_applications': 0,
+    'running_applications': 0,
+    'analyzed_applications': 0,
+    'unique_models': 0
+  } %}
+{% endif %}
 {% block content %}
+  {% if stats is not defined and (total_applications is not defined) %}
+    {% set stats = {
+      'total_applications': 0,
+      'running_applications': 0,
+      'analyzed_applications': 0,
+      'unique_models': 0
+    } %}
+  {% endif %}
   {% if main_partial %}
     {% include main_partial ignore missing %}
   {% else %}
@@ -14,12 +33,7 @@
 
 {% block right_sidebar %}
 <div class="d-flex flex-column gap-3">
-  <div class="card">
-    <div class="card-body pb-2">
-      <div class="d-flex align-items-center mb-2"><i class="fas fa-cubes me-2 text-primary"></i><strong>Applications</strong></div>
-      <div class="text-muted small">Manage your AI-generated applications</div>
-    </div>
-  </div>
+  {# Header card removed; standardized header at top #}
   <div class="card mini-stats">
     <div class="card-header py-2"><strong>Stats</strong></div>
     <div class="card-body p-2">

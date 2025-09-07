@@ -1,6 +1,9 @@
 {# Sample Code Generator Interface - actions moved to sidebar #}
 {% extends 'layouts/base.html' %}
 {% set has_right_sidebar = true %}
+{% set page_title = 'Sample Generator' %}
+{% set page_icon = 'fas fa-code' %}
+{% set page_subtitle = 'AI-powered code generation' %}
 
 {% block content %}
   {% include 'pages/sample_generator/partials/main.html' %}
