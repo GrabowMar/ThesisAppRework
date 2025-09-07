@@ -1,0 +1,47 @@
+{# Inspection table partial (migrated) #}
+{% if tasks and tasks|length > 0 %}
+<div class="table-responsive border rounded">
+  <table class="table table-sm table-hover mb-0 align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Status</th>
+        <th>Progress</th>
+        <th>Model</th>
+        <th>App</th>
+        <th>Priority</th>
+        <th>Created</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tasks %}
+      <tr class="small">
+        <td class="text-truncate" style="max-width:120px" title="{{ t.task_id }}">{{ t.task_id }}</td>
+        <td class="text-truncate" style="max-width:140px" title="{{ t.task_name }}">{{ t.task_name or '-' }}</td>
+        <td>{{ t.analysis_type.value if t.analysis_type else t.analysis_type }}</td>
+        <td>
+          <span class="badge bg-secondary text-uppercase">{{ t.status.value if t.status else t.status }}</span>
+        </td>
+        <td>
+          <div class="progress progress-xs" style="width:80px" title="{{ '%.0f'|format(t.progress_percentage or 0) }}%">
+            <div class="progress-bar" style="width: {{ t.progress_percentage or 0 }}%"></div>
+          </div>
+        </td>
+        <td>{{ t.target_model }}</td>
+        <td>{{ t.target_app_number }}</td>
+        <td><span class="badge bg-info text-dark">{{ t.priority.value if t.priority else t.priority }}</span></td>
+        <td class="text-muted" style="white-space:nowrap">{{ t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else '' }}</td>
+        <td class="text-end">
+          <a href="/analysis/tasks/{{ t.task_id }}" class="btn btn-outline-primary btn-sm" hx-boost="true"><i class="fa fa-magnifying-glass"></i></a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+  <div class="p-4 text-center text-muted">No tasks match filters.</div>
+{% endif %}

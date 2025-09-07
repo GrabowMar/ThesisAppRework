@@ -1,44 +1,12 @@
-{% extends 'layouts/base.html' %}
-
-{% block title %}Analysis Hub - {{ super() }}{% endblock %}
-
-{% set page_title = 'Analysis Hub' %}
-{% set page_icon = 'fas fa-tachometer-alt' %}
-{% set page_subtitle = 'Unified view of analyses, tasks, and quick actions' %}
-{% set actions = [
-  {'label':'New Analysis','href':'/analysis/create','icon':'plus','class':'btn-primary'},
-  {'label':'Wizard','href':'/analysis/create','icon':'magic','class':'btn-outline-secondary'}
-] %}
+{# DEPRECATED: hub_main.html retained only for backward compatibility.
+   The unified hub now lives in pages/analysis/analysis_main.html.
+   This template simply extends (includes) the new page so old links
+   or tests that still reference hub_main do not break. #}
+{% extends 'pages/analysis/analysis_main.html' %}
 
 {% block content %}
-<div class="container-fluid analysis-hub">
-  <div class="row mb-4">
-    <div class="col-md-8">
-  <div class="card h-100" id="recent-tasks-panel" hx-get="/analysis/api/tasks/recent" hx-trigger="load, every 15s" hx-target="#recent-tasks-panel .card-body" hx-swap="innerHTML">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="mb-0"><i class="fas fa-tasks me-2"></i>Recent Analysis Tasks</h5>
-          <span class="text-muted small">Showing last {{ tasks|length if tasks else 0 }}</span>
-        </div>
-        <div class="card-body p-0">
-          {# Use canonical partial path #}
-          {% include 'partials/analysis/tasks_list.html' %}
-        </div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card mb-4">
-        <div class="card-header"><i class="fas fa-bolt me-2"></i>Quick Actions</div>
-        <div hx-get="/analysis/api/quick-actions" hx-trigger="load" hx-target="this" hx-swap="innerHTML">
-          <div class="p-3 text-center text-muted small">Loading...</div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-header"><i class="fas fa-chart-line me-2"></i>Summary Stats</div>
-        <div class="card-body" hx-get="/analysis/api/stats" hx-trigger="load, every 30s" hx-target="this" hx-swap="innerHTML">
-          <div class="text-center text-muted small py-2">Loading stats...</div>
-        </div>
-      </div>
-    </div>
+  {{ super() }}
+  <div class="alert alert-warning small mt-3 mb-0">
+    <strong>Deprecation Notice:</strong> This legacy template (hub_main.html) will be removed; update links to /analysis/list.
   </div>
-</div>
 {% endblock %}

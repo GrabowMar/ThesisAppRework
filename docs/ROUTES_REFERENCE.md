@@ -259,6 +259,17 @@ Path | Function | BP | Methods | HTMX | Services | File
 `/statistics/export/<fmt>` | `statistics_export` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
 `/statistics/insights` | `statistics_insights` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
 `/statistics/model-rankings` | `statistics_model_rankings` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
+
+### Added (Task Inspection)
+The following endpoints were introduced for enhanced analysis task inspection:
+Path | Purpose
+--- | ---
+`/analysis/tasks` | Full task inspection UI (filters + list)
+`/analysis/tasks/<task_id>` | Individual task detail page
+`/analysis/api/tasks/inspect/list` | HTMX filtered list fragment (table)
+`/analysis/api/tasks/<task_id>/detail` | HTMX core metadata fragment
+`/analysis/api/tasks/<task_id>/results.json` | Pretty JSON (summary + first 50 findings)
+
 `/statistics/refresh` | `statistics_refresh` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
 `/statistics/summary` | `statistics_summary_html` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`
 `/statistics/test-results` | `statistics_test_results` | `api_bp` | GET |  |  | `src\app\routes\api\statistics.py`

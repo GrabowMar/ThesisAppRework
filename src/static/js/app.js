@@ -94,17 +94,20 @@ ThesisApp.layout = (function(){
         a.classList.remove('active');
       });
       
-      // Set active state based on current path
+      // Set active state using stricter segment-based matching to avoid spurious matches
+      const segments = path.split('/').filter(Boolean); // e.g. /analysis/tasks -> ['analysis','tasks']
       document.querySelectorAll('.sidebar .nav-link[data-nav-target], .offcanvas .nav-link[data-nav-target]').forEach(a => {
-        const href = a.getAttribute('href');
+        const href = a.getAttribute('href') || '';
         const target = a.getAttribute('data-nav-target');
-        if(!href) return;
-        
-        // Exact match or path starts with href (for sub-pages)
-        if(path === href || (href !== '/' && path.startsWith(href)) || 
-           (target && path.includes(target))) {
-          a.classList.add('active');
-        }
+        if(!target) return;
+        // Determine primary segment for current path
+        const primary = segments[0] || 'dashboard';
+        // Normalize href (ignore trailing slash)
+        const normHref = href.replace(/\/$/, '');
+        const normPath = path.replace(/\/$/, '');
+        const hrefPrimary = normHref.split('/').filter(Boolean)[0] || 'dashboard';
+        const isMatch = (primary === target) || (hrefPrimary === primary && target === primary);
+        if(isMatch){ a.classList.add('active'); }
       });
     }catch(e){
       console.warn('Active nav update failed:', e);

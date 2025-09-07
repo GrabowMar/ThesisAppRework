@@ -61,6 +61,11 @@ class ServiceLocator:
         except ImportError:
             SecurityService = None
 
+        try:
+            from .analysis_inspection_service import AnalysisInspectionService
+        except ImportError:  # pragma: no cover
+            AnalysisInspectionService = None  # type: ignore
+
         # Register available services
         cls.register('model_service', ModelService(app))
         if get_sample_generation_service:
@@ -74,6 +79,8 @@ class ServiceLocator:
             cls.register('batch_service', BatchAnalysisService())
         if SecurityService:
             cls.register('security_service', SecurityService())
+        if AnalysisInspectionService:
+            cls.register('analysis_inspection_service', AnalysisInspectionService())
 
         # Best-effort: ensure PortConfiguration is populated from misc/port_config.json
         # Only done outside tests to avoid slowing the suite.

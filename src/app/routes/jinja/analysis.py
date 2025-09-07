@@ -10,6 +10,7 @@ from flask import Blueprint, current_app, request, redirect, url_for, flash
 from app.models import AnalysisTask
 from app.utils.template_paths import render_template_compat as render_template
 from app.services.task_service import AnalysisTaskService
+from app.services.service_locator import ServiceLocator
 
 # Create blueprint
 analysis_bp = Blueprint('analysis', __name__, url_prefix='/analysis')
@@ -69,7 +70,7 @@ def analysis_list():
         stats = _build_stats_snapshot(tasks)
     except Exception as e:  # pragma: no cover
         current_app.logger.warning(f"Could not load tasks for hub: {e}")
-    return render_template('pages/analysis/hub_main.html', tasks=tasks, stats=stats)
+    return render_template('pages/analysis/analysis_main.html', tasks=tasks, stats=stats)
 
 @analysis_bp.route('/')
 def analysis_index():
@@ -184,7 +185,7 @@ def htmx_model_applications_fragment(model_slug):
 def htmx_recent_tasks_fragment():
     """Return recent tasks fragment (HTMX)."""
     tasks = AnalysisTaskService.get_recent_tasks(limit=25)
-    return render_template('partials/analysis/tasks_list.html', tasks=tasks)
+    return render_template('pages/analysis/partials/tasks_list.html', tasks=tasks)
 
 @analysis_bp.route('/api/stats')
 def htmx_stats_fragment():
@@ -195,12 +196,12 @@ def htmx_stats_fragment():
     except Exception as e:  # pragma: no cover
         current_app.logger.warning(f"Could not build stats: {e}")
         stats = None
-    return render_template('partials/analysis/stats_summary.html', stats=stats)
+    return render_template('pages/analysis/partials/stats_summary.html', stats=stats)
 
 @analysis_bp.route('/api/quick-actions')
 def htmx_quick_actions_fragment():
     """Return quick actions fragment (HTMX)."""
-    return render_template('partials/analysis/quick_actions.html')
+    return render_template('pages/analysis/partials/quick_actions.html')
 
 @analysis_bp.route('/api/list/combined')
 def htmx_analysis_list_combined():
@@ -216,7 +217,92 @@ def htmx_analysis_list_combined():
 @analysis_bp.route('/api/active-tasks')
 def htmx_active_tasks():
     """Return active tasks fragment (HTMX). Future: real-time active list."""
-    return render_template('partials/analysis/active_tasks.html')
+    return render_template('pages/analysis/partials/active_tasks.html')
+
+# ---------------------------------------------------------------------------
+# New: Task inspection list & detail views
+# ---------------------------------------------------------------------------
+
+@analysis_bp.route('/tasks')
+def tasks_inspection_index():
+    """Full page task inspection UI with filters and lazy HTMX reloads."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    # Basic first page load (limited)
+    tasks = []
+    if insp:
+        try:
+            tasks = insp.list_tasks(limit=25)  # type: ignore[attr-defined]
+        except Exception as e:  # pragma: no cover
+            current_app.logger.warning(f"Inspection list failed: {e}")
+    return render_template('pages/analysis/tasks_inspection.html', tasks=tasks)
+
+@analysis_bp.route('/tasks/<task_id>')
+def task_detail_page(task_id: str):
+    """Full page detail for a single analysis task."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    detail = None
+    if insp:
+        try:
+            detail = insp.get_task_detail(task_id)  # type: ignore[attr-defined]
+        except Exception:
+            detail = None
+    # Fallback: direct task fetch if inspection service missing or failed
+    if detail is None:
+        try:
+            task_obj = AnalysisTaskService.get_task(task_id)
+            if task_obj:
+                detail = task_obj.to_dict()
+            else:
+                return render_template('partials/common/error.html', error='Task not found'), 404
+        except Exception as e:  # pragma: no cover
+            return render_template('partials/common/error.html', error=f'Task error: {e}'), 500
+    return render_template('pages/analysis/task_detail.html', task=detail)
+
+@analysis_bp.route('/api/tasks/inspect/list')
+def htmx_tasks_inspection_list():
+    """HTMX fragment: filtered task list (table rows)."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="text-danger">Inspection service unavailable</div>'
+    # Extract filters
+    kwargs = {
+        'status': request.args.get('status') or None,
+        'analysis_type': request.args.get('analysis_type') or None,
+        'model': request.args.get('model') or None,
+        'priority': request.args.get('priority') or None,
+        'search': request.args.get('search') or None,
+    }
+    limit = int(request.args.get('limit', 25))
+    try:
+        tasks = insp.list_tasks(limit=limit, **kwargs)  # type: ignore[arg-type]
+    except Exception as e:  # pragma: no cover
+        current_app.logger.warning(f"Task list filter failed: {e}")
+        tasks = []
+    return render_template('pages/analysis/partials/inspection_tasks_table.html', tasks=tasks)
+
+@analysis_bp.route('/api/tasks/<task_id>/detail')
+def htmx_task_detail_fragment(task_id: str):
+    """HTMX fragment: core detail panel (metadata)."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="text-danger">Inspection service unavailable</div>'
+    try:
+        detail = insp.get_task_detail(task_id)  # type: ignore[attr-defined]
+    except Exception as e:  # pragma: no cover
+        return f'<div class="text-danger">Error: {e}</div>'
+    return render_template('pages/analysis/partials/task_detail_core.html', task=detail)
+
+@analysis_bp.route('/api/tasks/<task_id>/results.json')
+def task_results_json(task_id: str):
+    """Return pretty JSON for results preview (served as text/plain)."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return ('{"error":"service unavailable"}', 503, {'Content-Type': 'application/json'})
+    try:
+        json_payload = insp.get_task_results_json(task_id)  # type: ignore[attr-defined]
+    except Exception as e:  # pragma: no cover
+        return (f'{{"error":"{e}"}}', 404, {'Content-Type': 'application/json'})
+    return (json_payload, 200, {'Content-Type': 'application/json; charset=utf-8'})
 
 # ---------------------------------------------------------------------------
 # Internal helpers

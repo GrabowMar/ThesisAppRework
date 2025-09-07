@@ -114,5 +114,23 @@ User Action → Route → Service Validation → Celery Task Enqueue → Analyze
 - Dashboard fragments show running counts & performance trends.
 - Logs unify bridge + task events for forensic analysis.
 
+## 15. Task Inspection (New)
+
+Operational users can now inspect individual `AnalysisTask` records without leaving the analysis area:
+
+- Navigate to `/analysis/tasks` for a filterable list (status, type, priority, model, free-text search over ID/name).
+- Click a Task ID to reach `/analysis/tasks/<task_id>` displaying core metadata, progress, durations, issue counts, and any error message.
+- Results preview section loads lazily via `/analysis/api/tasks/<task_id>/results.json`, returning pretty JSON (summary + first 50 findings + counts) to avoid huge payloads.
+- Core panel is HTMX refreshable (`/analysis/api/tasks/<task_id>/detail`) supporting manual refresh or future polling.
+
+Fragments:
+| Endpoint | Purpose |
+|----------|---------|
+| `/analysis/api/tasks/inspect/list` | Filtered tasks table |
+| `/analysis/api/tasks/<task_id>/detail` | Core metadata (progress, timings, error) |
+| `/analysis/api/tasks/<task_id>/results.json` | Pretty JSON payload (non-HTML) |
+
+These endpoints are side-effect free and safe for polling.
+
 ---
-_Last updated: 2025-08-24._ 
+_Last updated: 2025-09-07._ 

@@ -1,0 +1,51 @@
+{% extends 'layouts/base.html' %}
+{% block content %}
+<div class="d-flex align-items-center mb-3 flex-wrap gap-2">
+  <h2 class="h4 mb-0 d-flex align-items-center gap-2"><i class="fa-solid fa-microscope"></i> Task Inspection</h2>
+  <a href="/analysis/list" class="btn btn-outline-secondary btn-sm"><i class="fa fa-arrow-left me-1"></i> Back to Hub</a>
+</div>
+<form id="task-filter-form" class="row g-2 align-items-end mb-3" hx-get="/analysis/api/tasks/inspect/list" hx-target="#inspection-table-wrapper" hx-trigger="change, keyup delay:400ms from:find input[name='search']">
+  <div class="col-auto">
+    <label class="form-label mb-0 small">Status</label>
+    <select name="status" class="form-select form-select-sm">
+      <option value="">All</option>
+      <option>pending</option><option>running</option><option>completed</option><option>failed</option><option>cancelled</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="form-label mb-0 small">Type</label>
+    <select name="analysis_type" class="form-select form-select-sm">
+      <option value="">All</option>
+      <option>security</option><option>performance</option><option>openrouter</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="form-label mb-0 small">Priority</label>
+    <select name="priority" class="form-select form-select-sm">
+      <option value="">All</option>
+      <option>urgent</option><option>high</option><option>normal</option><option>low</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="form-label mb-0 small">Model</label>
+    <input type="text" name="model" class="form-control form-control-sm" placeholder="model slug" />
+  </div>
+  <div class="col-auto">
+    <label class="form-label mb-0 small">Search</label>
+    <input type="text" name="search" class="form-control form-control-sm" placeholder="task id/name" />
+  </div>
+  <div class="col-auto">
+    <label class="form-label mb-0 small">Limit</label>
+    <select name="limit" class="form-select form-select-sm">
+      <option>25</option><option>50</option><option>100</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-primary btn-sm"><i class="fa fa-filter me-1"></i>Apply</button>
+    <button type="reset" class="btn btn-link btn-sm" onclick="this.form.reset(); htmx.trigger(this.form,'change')">Reset</button>
+  </div>
+</form>
+<div id="inspection-table-wrapper" class="htmx-indicator-parent" hx-indicator="#global-spinner">
+  {% include 'pages/analysis/partials/inspection_tasks_table.html' %}
+</div>
+{% endblock %}

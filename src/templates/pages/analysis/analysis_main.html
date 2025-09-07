@@ -1,12 +1,174 @@
-{# Standard wrapper for Analysis pages. Clean layout without embedded headers. #}
+{# Unified Analysis Hub Page (consolidated) #}
 {% extends 'layouts/base.html' %}
-{% set page_title = page_title or 'Analysis' %}
-{% set page_icon = page_icon or 'fas fa-chart-column' %}
+
+{% block title %}Analysis Hub - {{ super() }}{% endblock %}
+{% set page_title = 'Analysis Hub' %}
+{% set page_icon = 'fas fa-tachometer-alt' %}
+
 {% block content %}
-  {% include 'pages/analysis/partials/main.html' ignore missing %}
+<div class="container-fluid analysis-hub">
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <div class="card h-100" id="recent-tasks-panel" hx-get="/analysis/api/tasks/recent" hx-trigger="load, every 15s" hx-target="#recent-tasks-panel .card-body" hx-swap="innerHTML">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0"><i class="fas fa-tasks me-2"></i>Recent Analysis Tasks</h5>
+          <span class="text-muted small">Showing last {{ tasks|length if tasks else 0 }}</span>
+        </div>
+        <div class="card-body p-0">
+          {% include 'pages/analysis/partials/tasks_list.html' %}
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card mb-4">
+        <div class="card-header"><i class="fas fa-bolt me-2"></i>Quick Actions</div>
+        <div hx-get="/analysis/api/quick-actions" hx-trigger="load" hx-target="this" hx-swap="innerHTML">
+          <div class="p-3 text-center text-muted small">Loading...</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><i class="fas fa-chart-line me-2"></i>Summary Stats</div>
+        <div class="card-body" hx-get="/analysis/api/stats" hx-trigger="load, every 30s" hx-target="this" hx-swap="innerHTML">
+          <div class="text-center text-muted small py-2">Loading stats...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="row mb-4">
+    <div class="col-lg-6 mb-4 mb-lg-0">
+      <div class="card h-100" id="active-tasks-card">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <h5 class="mb-0"><i class="fas fa-list-check me-2"></i>Active Tasks</h5>
+          <a href="/analysis/tasks" class="small" hx-boost="true" title="Inspect All Tasks">Inspect All</a>
+        </div>
+        <div class="card-body p-0" hx-get="/analysis/api/active-tasks" hx-trigger="load, every 15s" hx-target="this" hx-swap="innerHTML">
+          <div class="text-center text-muted py-3 small">Loading active tasks…</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card h-100" id="quick-start-card">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <h5 class="mb-0"><i class="fas fa-rocket me-2"></i>Quick Start</h5>
+          <a href="/analysis/create" class="btn btn-sm btn-primary" hx-boost="true"><i class="fas fa-plus me-1"></i>Full Wizard</a>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="border rounded p-2 h-100 d-flex flex-column" id="qs-model-box">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <h6 class="mb-0 small"><i class="fas fa-brain me-1"></i>Model</h6>
+                  <button class="btn btn-link p-0 small text-danger d-none" id="qs-clear-model" type="button" aria-label="Clear model">clear</button>
+                </div>
+                <div id="qs-model-grid" class="flex-grow-1 small" style="max-height:190px;overflow:auto;" hx-get="/analysis/api/models/grid?selectable=true&page_size=6" hx-trigger="load" hx-target="this" hx-swap="innerHTML">
+                  <div class="text-center text-muted py-4 small">Loading models…</div>
+                </div>
+                <div id="qs-selected-model" class="mt-2 small text-muted d-none"></div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="border rounded p-2 h-100 d-flex flex-column" id="qs-app-box">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <h6 class="mb-0 small"><i class="fas fa-box me-1"></i>Application</h6>
+                  <button class="btn btn-link p-0 small text-danger d-none" id="qs-clear-app" type="button" aria-label="Clear application">clear</button>
+                </div>
+                <div id="qs-app-list" class="flex-grow-1 small" style="max-height:190px;overflow:auto;">
+                  <div class="text-center text-muted py-4 small">Select a model first…</div>
+                </div>
+                <div id="qs-selected-app" class="mt-2 small text-muted d-none"></div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 d-flex justify-content-end">
+            <form id="qs-launch-form" method="POST" action="/analysis/create" class="d-flex gap-2">
+              <input type="hidden" name="model_slug" id="qs-input-model">
+              <input type="hidden" name="app_number" id="qs-input-app">
+              <input type="hidden" name="analysis_type" value="security">
+              <button type="submit" class="btn btn-success btn-sm" id="qs-launch-btn" disabled><i class="fas fa-rocket me-1"></i>Launch Security</button>
+            </form>
+          </div>
+          <small class="text-muted d-block mt-2">Quick start defaults to a security analysis. Use the full wizard for other types.</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
   {{ super() }}
-  {% include 'pages/analysis/partials/scripts.html' ignore missing %}
+  <script>
+  // Lightweight quick start helpers (isolated from wizard logic)
+  (function(){
+    const modelGrid = document.getElementById('qs-model-grid');
+    const appList = document.getElementById('qs-app-list');
+    const selectedModelEl = document.getElementById('qs-selected-model');
+    const selectedAppEl = document.getElementById('qs-selected-app');
+    const inputModel = document.getElementById('qs-input-model');
+    const inputApp = document.getElementById('qs-input-app');
+    const launchBtn = document.getElementById('qs-launch-btn');
+    const clearModelBtn = document.getElementById('qs-clear-model');
+    const clearAppBtn = document.getElementById('qs-clear-app');
+    let currentModel = null;
+    let currentApp = null;
+
+    function enableLaunch(){
+      if(currentModel && currentApp){
+        launchBtn.disabled = false;
+      } else {
+        launchBtn.disabled = true;
+      }
+    }
+
+    window.selectModel = function(slug, name){
+      currentModel = {slug, name};
+      inputModel.value = slug;
+      selectedModelEl.classList.remove('d-none');
+      selectedModelEl.innerHTML = `<span class="text-success"><i class="fas fa-check me-1"></i>${name}</span>`;
+      clearModelBtn.classList.remove('d-none');
+      // Reset app selection
+      currentApp = null;
+      inputApp.value = '';
+      selectedAppEl.classList.add('d-none');
+      selectedAppEl.innerHTML = '';
+      clearAppBtn.classList.add('d-none');
+      appList.innerHTML = '<div class="text-center text-muted py-3 small">Loading applications…</div>';
+      fetch(`/analysis/api/models/${encodeURIComponent(slug)}/applications`)
+        .then(r=>r.text())
+        .then(html=>{ appList.innerHTML = html; })
+        .catch(()=>{ appList.innerHTML = '<div class="text-danger small p-2">Failed to load apps.</div>'; });
+      enableLaunch();
+    };
+
+    window.selectApp = function(number){
+      currentApp = number;
+      inputApp.value = number;
+      selectedAppEl.classList.remove('d-none');
+      selectedAppEl.innerHTML = `<span class="text-success"><i class=\"fas fa-check me-1\"></i>App #${number}</span>`;
+      clearAppBtn.classList.remove('d-none');
+      enableLaunch();
+    };
+
+    if(clearModelBtn){
+      clearModelBtn.addEventListener('click', function(){
+        currentModel = null; inputModel.value='';
+        selectedModelEl.classList.add('d-none'); selectedModelEl.innerHTML='';
+        clearModelBtn.classList.add('d-none');
+        // Reset apps
+        currentApp = null; inputApp.value='';
+        appList.innerHTML = '<div class="text-center text-muted py-4 small">Select a model first…</div>';
+        clearAppBtn.classList.add('d-none'); selectedAppEl.classList.add('d-none'); selectedAppEl.innerHTML='';
+        enableLaunch();
+      });
+    }
+    if(clearAppBtn){
+      clearAppBtn.addEventListener('click', function(){
+        currentApp = null; inputApp.value='';
+        selectedAppEl.classList.add('d-none'); selectedAppEl.innerHTML='';
+        clearAppBtn.classList.add('d-none');
+        enableLaunch();
+      });
+    }
+  })();
+  </script>
 {% endblock %}
