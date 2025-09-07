@@ -6,251 +6,140 @@
 
 {% block content %}
 <div class="row">
-    <!-- Statistics Cards -->
-    <div class="col-md-3 mb-3">
-        <div class="card">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="me-3">
-                        <i class="fas fa-brain fa-2x text-primary"></i>
-                    </div>
-                    <div>
-                        <h3 class="h4 mb-0">{{ stats.total_models }}</h3>
-                        <p class="text-muted mb-0">Total Models</p>
-                    </div>
+  <div class="col-lg-8 order-2 order-lg-1">
+    <!-- Recent Activity (Applications + Analyses) -->
+    <div class="row">
+      <div class="col-md-6 mb-4">
+        <div class="card h-100">
+          <div class="card-header"><h5 class="card-title mb-0">Recent Applications</h5></div>
+          <div class="card-body">
+            {% if recent_apps %}
+              <div class="list-group list-group-flush">
+                {% for app in recent_apps %}
+                <div class="list-group-item px-0">
+                  <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">{{ app.app_number }} - {{ app.model_slug }}</h6>
+                    <small class="text-muted">{{ app.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                  </div>
+                  <p class="mb-1 text-muted">{{ app.status }}</p>
                 </div>
-            </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="text-muted">No recent applications</p>
+            {% endif %}
+          </div>
         </div>
+      </div>
+      <div class="col-md-6 mb-4">
+        <div class="card h-100">
+          <div class="card-header"><h5 class="card-title mb-0">Recent Security Analyses</h5></div>
+          <div class="card-body">
+            {% if recent_analyses %}
+              <div class="list-group list-group-flush">
+                {% for analysis in recent_analyses %}
+                <div class="list-group-item px-0">
+                  <div class="d-flex w-100 justify-content-between">
+                    <h6 class="mb-1">Analysis {{ analysis.id }}</h6>
+                    <small class="text-muted">{{ analysis.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                  </div>
+                  <p class="mb-1 text-muted">Status: {{ analysis.status }}</p>
+                </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="text-muted">No recent analyses</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="col-md-3 mb-3">
-        <div class="card">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="me-3">
-                        <i class="fas fa-cogs fa-2x text-success"></i>
-                    </div>
-                    <div>
-                        <h3 class="h4 mb-0">{{ stats.total_applications }}</h3>
-                        <p class="text-muted mb-0">Applications</p>
-                    </div>
-                </div>
-            </div>
+    <!-- Live Tasks -->
+    <div class="card" id="live-tasks">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0"><i class="fas fa-tasks me-2"></i>Live Tasks</h5>
+        <small class="text-muted" id="queue-summary">Queue summary loading...</small>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0" id="tasks-live-table">
+            <thead class="table-light">
+              <tr>
+                <th>Task ID</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Model</th>
+                <th>App</th>
+                <th>Started</th>
+                <th>Completed</th>
+                <th>Tools</th>
+                <th>Severities</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
         </div>
+        <div class="p-2 small text-muted">Realtime events via Socket.IO; falls back to polling if unavailable.</div>
+      </div>
     </div>
-
-    <div class="col-md-3 mb-3">
-        <div class="card">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="me-3">
-                        <i class="fas fa-shield-alt fa-2x text-warning"></i>
-                    </div>
-                    <div>
-                        <h3 class="h4 mb-0">{{ stats.total_security_analyses }}</h3>
-                        <p class="text-muted mb-0">Security Analyses</p>
-                    </div>
-                </div>
-            </div>
+  </div>
+  <div class="col-lg-4 order-1 order-lg-2 mb-4">
+    <div id="dashboard-sidebar" class="analysis-sidebar" style="top:90px;">
+      <!-- Mini Stats -->
+      <div class="card mb-3 mini-stats">
+        <div class="card-body p-2">
+          <ul class="list-unstyled mb-0 d-flex flex-wrap gap-2 small">
+            <li class="d-flex align-items-center gap-1 stat-item"><span class="stat-icon bg-primary text-white"><i class="fas fa-brain"></i></span><span class="stat-value">{{ stats.total_models }}</span><span class="text-muted stat-label">Models</span></li>
+            <li class="d-flex align-items-center gap-1 stat-item"><span class="stat-icon bg-success text-white"><i class="fas fa-cogs"></i></span><span class="stat-value">{{ stats.total_applications }}</span><span class="text-muted stat-label">Apps</span></li>
+            <li class="d-flex align-items-center gap-1 stat-item"><span class="stat-icon bg-warning text-white"><i class="fas fa-shield-alt"></i></span><span class="stat-value">{{ stats.total_security_analyses }}</span><span class="text-muted stat-label">Security</span></li>
+            <li class="d-flex align-items-center gap-1 stat-item"><span class="stat-icon bg-info text-white"><i class="fas fa-tachometer-alt"></i></span><span class="stat-value">{{ stats.total_performance_tests }}</span><span class="text-muted stat-label">Perf</span></li>
+          </ul>
         </div>
-    </div>
-
-    <div class="col-md-3 mb-3">
-        <div class="card">
-            <div class="card-body">
-                <div class="d-flex align-items-center">
-                    <div class="me-3">
-                        <i class="fas fa-tachometer-alt fa-2x text-info"></i>
-                    </div>
-                    <div>
-                        <h3 class="h4 mb-0">{{ stats.total_performance_tests }}</h3>
-                        <p class="text-muted mb-0">Performance Tests</p>
-                    </div>
-                </div>
-            </div>
+      </div>
+      <!-- Quick Actions -->
+      <div class="card mb-3">
+        <div class="card-header py-2"><h5 class="card-title h6 mb-0"><i class="fas fa-bolt me-1"></i>Quick Actions</h5></div>
+        <div class="card-body py-2">
+          <div class="row g-2 mb-2">
+            <div class="col-6"><a href="{{ url_for('models.models_overview') }}" class="btn btn-outline-primary btn-sm w-100"><i class="fas fa-brain me-1"></i>Models</a></div>
+            <div class="col-6"><a href="{{ url_for('analysis.analysis_dashboard') }}" class="btn btn-outline-success btn-sm w-100"><i class="fas fa-chart-line me-1"></i>Analysis</a></div>
+            <div class="col-6"><a href="/api/applications" class="btn btn-outline-info btn-sm w-100"><i class="fas fa-cogs me-1"></i>Apps</a></div>
+            <div class="col-6"><a href="#live-tasks" class="btn btn-outline-warning btn-sm w-100"><i class="fas fa-tasks me-1"></i>Tasks</a></div>
+          </div>
+          <div class="row g-2 align-items-end small" id="dashboard-actions">
+            <div class="col-6"><button class="btn btn-sm btn-primary w-100" data-action="init-db"><i class="fas fa-database me-1"></i>Init DB</button></div>
+            <div class="col-6"><button class="btn btn-sm btn-secondary w-100" data-action="populate-db" id="populate-db-btn"><span class="btn-label"><i class="fas fa-seedling me-1"></i>Populate</span><span class="spinner-border spinner-border-sm d-none" role="status"></span></button></div>
+            <div class="col-6"><button class="btn btn-sm btn-outline-danger w-100" data-action="log-cleanup"><i class="fas fa-broom me-1"></i>Logs</button></div>
+            <div class="col-6"><button class="btn btn-sm btn-outline-success w-100" data-action="sample-generation-smoke"><i class="fas fa-vial me-1"></i>Sample</button></div>
+            <div class="col-12"><button class="btn btn-sm btn-outline-info w-100" data-action="http-smoke"><i class="fas fa-plug me-1"></i>HTTP Smoke</button></div>
+            <div class="col-12"><div class="small text-muted" id="dashboard-action-status">Select an action to run a maintenance or diagnostic task.</div></div>
+            <div class="col-12 mt-2 d-none" id="action-detailed-result"></div>
+          </div>
         </div>
-    </div>
-</div>
-
-<div class="row mt-4">
-    <!-- Recent Activity -->
-    <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Recent Applications</h5>
+      </div>
+      <!-- Running Batches -->
+      {% if running_batches %}
+      <div class="card mb-3 border-warning">
+        <div class="card-header py-2 bg-warning text-white"><h5 class="card-title h6 mb-0"><i class="fas fa-play-circle me-1"></i>Running Batches</h5></div>
+        <div class="card-body py-2 small">
+          {% for batch in running_batches %}
+          <div class="mb-2 p-2 rounded border">
+            <div class="d-flex justify-content-between"><span class="fw-bold">Batch {{ batch.id }}</span><span class="text-muted">{{ batch.progress }}%</span></div>
+            <div class="progress mt-1" style="height:6px;">
+              <div class="progress-bar" role="progressbar" style="width: {{ batch.progress }}%"></div>
             </div>
-            <div class="card-body">
-                {% if recent_apps %}
-                    <div class="list-group list-group-flush">
-                        {% for app in recent_apps %}
-                            <div class="list-group-item px-0">
-                                <div class="d-flex w-100 justify-content-between">
-                                    <h6 class="mb-1">{{ app.app_number }} - {{ app.model_slug }}</h6>
-                                    <small class="text-muted">{{ app.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
-                                </div>
-                                <p class="mb-1 text-muted">{{ app.status }}</p>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <p class="text-muted">No recent applications</p>
-                {% endif %}
-            </div>
+            <div class="text-muted small mt-1">{{ batch.description or 'No description' }}</div>
+          </div>
+          {% endfor %}
         </div>
+      </div>
+      {% endif %}
+      <!-- Live System Stats placeholder (JS inserts) -->
+      <div id="live-system-stats-wrapper"></div>
     </div>
-
-    <!-- Recent Analyses -->
-    <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Recent Security Analyses</h5>
-            </div>
-            <div class="card-body">
-                {% if recent_analyses %}
-                    <div class="list-group list-group-flush">
-                        {% for analysis in recent_analyses %}
-                            <div class="list-group-item px-0">
-                                <div class="d-flex w-100 justify-content-between">
-                                    <h6 class="mb-1">Analysis {{ analysis.id }}</h6>
-                                    <small class="text-muted">{{ analysis.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
-                                </div>
-                                <p class="mb-1 text-muted">Status: {{ analysis.status }}</p>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <p class="text-muted">No recent analyses</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Quick Actions -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Quick Actions</h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-3 mb-3">
-                        <a href="{{ url_for('models.models_overview') }}" class="btn btn-outline-primary w-100">
-                            <i class="fas fa-brain me-2"></i>View Models
-                        </a>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <a href="{{ url_for('analysis.analysis_dashboard') }}" class="btn btn-outline-success w-100">
-                            <i class="fas fa-chart-line me-2"></i>Analysis Hub
-                        </a>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <a href="/api/applications" class="btn btn-outline-info w-100">
-                            <i class="fas fa-cogs me-2"></i>Applications
-                        </a>
-                    </div>
-                    <div class="col-md-3 mb-3">
-                        <a href="#live-tasks" class="btn btn-outline-warning w-100">
-                            <i class="fas fa-tasks me-2"></i>Live Tasks
-                        </a>
-                    </div>
-                </div>
-                <hr/>
-                <div class="row g-3 align-items-end" id="dashboard-actions">
-                    <div class="col-md-2 col-6">
-                        <button class="btn btn-sm btn-primary w-100" data-action="init-db"><i class="fas fa-database me-1"></i> Init DB</button>
-                    </div>
-                    <div class="col-md-2 col-6">
-                        <button class="btn btn-sm btn-secondary w-100" data-action="populate-db" id="populate-db-btn">
-                            <span class="btn-label"><i class="fas fa-seedling me-1"></i> Populate DB</span>
-                            <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
-                        </button>
-                    </div>
-                    <div class="col-md-2 col-6">
-                        <button class="btn btn-sm btn-outline-danger w-100" data-action="log-cleanup"><i class="fas fa-broom me-1"></i> Logs Cleanup</button>
-                    </div>
-                    <div class="col-md-3 col-6">
-                        <button class="btn btn-sm btn-outline-success w-100" data-action="sample-generation-smoke"><i class="fas fa-vial me-1"></i> Sample Gen Smoke</button>
-                    </div>
-                    <div class="col-md-3 col-12">
-                        <button class="btn btn-sm btn-outline-info w-100" data-action="http-smoke"><i class="fas fa-plug me-1"></i> HTTP Smoke</button>
-                    </div>
-                    <div class="col-12">
-                        <div class="small text-muted" id="dashboard-action-status">Select an action above to run a maintenance or diagnostic task.</div>
-                    </div>
-                    <div class="col-12 mt-2 d-none" id="action-detailed-result"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Running Batch Jobs -->
-{% if running_batches %}
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card border-warning">
-            <div class="card-header bg-warning text-white">
-                <h5 class="card-title mb-0">
-                    <i class="fas fa-play-circle me-2"></i>Running Batch Jobs
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    {% for batch in running_batches %}
-                        <div class="col-md-4 mb-3">
-                            <div class="card">
-                                <div class="card-body">
-                                    <h6 class="card-title">Batch {{ batch.id }}</h6>
-                                    <p class="card-text text-muted">{{ batch.description or 'No description' }}</p>
-                                    <div class="progress mb-2">
-                                        <div class="progress-bar" role="progressbar" style="width: {{ batch.progress }}%">{{ batch.progress }}%</div>
-                                    </div>
-                                    <small class="text-muted">Started: {{ batch.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
-                                </div>
-                            </div>
-                        </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Live Tasks (migrated from /tasks) -->
-<div class="row mt-4" id="live-tasks">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0"><i class="fas fa-tasks me-2"></i>Live Tasks</h5>
-                <small class="text-muted" id="queue-summary">Queue summary loading...</small>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-sm mb-0" id="tasks-live-table">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Task ID</th>
-                                <th>Type</th>
-                                <th>Status</th>
-                                <th>Progress</th>
-                                <th>Model</th>
-                                <th>App</th>
-                                <th>Started</th>
-                                <th>Completed</th>
-                                <th>Tools</th>
-                                <th>Severities</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-                <div class="p-2 small text-muted">Realtime events via Socket.IO; falls back to polling if unavailable.</div>
-            </div>
-        </div>
-    </div>
+  </div>
 </div>
 {% endblock %}
 
@@ -288,18 +177,13 @@ function fetchSystemStats(){
         });
 }
 document.addEventListener('DOMContentLoaded', function(){
-    // Insert container if not present
-    if(!document.getElementById('live-system-stats')){
-        const firstRow = document.querySelector('.row');
-        if(firstRow){
-            const wrap = document.createElement('div');
-            wrap.className='col-12 mb-3';
-            wrap.innerHTML = '<div class="card"><div class="card-header d-flex justify-content-between align-items-center"><h5 class="mb-0"><i class="fas fa-chart-area me-2"></i>Live System Stats</h5><button class="btn btn-sm btn-outline-primary" id="refresh-stats-btn"><i class="fas fa-sync"></i></button></div><div class="card-body" id="live-system-stats"><div class="text-muted">Loading...</div></div></div>';
-            firstRow.parentNode.insertBefore(wrap, firstRow.nextSibling);
-            document.getElementById('refresh-stats-btn').addEventListener('click', fetchSystemStats);
-            fetchSystemStats();
-            setInterval(fetchSystemStats, 30000);
-        }
+    // Insert live system stats card inside sidebar placeholder if not present
+    const holder = document.getElementById('live-system-stats-wrapper');
+    if(holder && !document.getElementById('live-system-stats')){
+        holder.innerHTML = '<div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center py-2"><h5 class="mb-0 h6"><i class="fas fa-chart-area me-1"></i>Live System Stats</h5><button class="btn btn-sm btn-outline-primary" id="refresh-stats-btn"><i class="fas fa-sync"></i></button></div><div class="card-body py-2" id="live-system-stats"><div class="text-muted">Loading...</div></div></div>';
+        document.getElementById('refresh-stats-btn').addEventListener('click', fetchSystemStats);
+        fetchSystemStats();
+        setInterval(fetchSystemStats, 30000);
     }
 
     // Action buttons
@@ -373,4 +257,12 @@ document.addEventListener('DOMContentLoaded', function(){
 </script>
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js" integrity="sha384-x" crossorigin="anonymous"></script>
 <script src="/static/js/tasks_live.js"></script>
+<style>
+    #dashboard-sidebar.analysis-sidebar { position: sticky; }
+    .mini-stats .stat-icon { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:4px; font-size:10px; }
+    .mini-stats .stat-item { background:var(--tblr-bg-surface,#f8f9fa); padding:4px 6px; border-radius:4px; line-height:1; }
+    .mini-stats .stat-value { font-weight:600; }
+    .mini-stats ul { gap:6px !important; }
+    @media (max-width: 991.98px) { #dashboard-sidebar.analysis-sidebar { position: static; } }
+</style>
 {% endblock %}
