@@ -1057,7 +1057,7 @@
                 return;
             }
             const apm = parseInt(document.getElementById('scaffold-apps-per-model')?.value) || undefined;
-            const compose = !!document.getElementById('scaffold-compose-toggle')?.checked;
+            const compose = true; // always generate docker-compose.yml per app (toggle removed)
             try {
                 const res = await this.postScaffold('/generate', { models: this._scaffoldModels, dry_run: dryRun, apps_per_model: apm, compose });
                 if (!res.success) throw new Error(res.error || 'Generation failed');

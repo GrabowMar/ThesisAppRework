@@ -249,18 +249,20 @@ class AppScaffoldingService:
                 try:
                     self._materialize_backend(backend_dir, plan.name, app_num, ports)
                     self._materialize_frontend(frontend_dir, plan.name, app_num, ports)
+                    # ALWAYS create a per-app docker-compose.yml from template
+                    self._write_app_compose(app_dir, plan.name, app_num, ports)
                     apps_created += 1
                 except Exception as e:  # noqa: BLE001
                     err = f"Failed generating app {plan.name}#{app_num}: {e}"
                     logger.exception(err)
                     errors.append(err)
 
-            # docker-compose at model root (one compose referencing all apps for model)
-            if compose:
+            # (Optional legacy aggregated compose generation retained only if explicitly requested)
+            if compose and False:  # Disabled: per-user requirement now mandates per-app compose only
                 try:
-                    self._generate_docker_compose(model_dir, plan)
+                    self._generate_docker_compose(model_dir, plan)  # pragma: no cover
                 except Exception as e:  # noqa: BLE001
-                    err = f"Failed docker-compose for {plan.name}: {e}"
+                    err = f"Failed aggregated docker-compose for {plan.name}: {e}"
                     logger.exception(err)
                     errors.append(err)
 
@@ -361,6 +363,27 @@ class AppScaffoldingService:
             )
         compose_content = compose_tpl.replace('{{services}}', '\n'.join(services_entries))
         (model_dir / 'docker-compose.generated.yml').write_text(compose_content, encoding='utf-8')
+
+    def _write_app_compose(self, app_dir: Path, model_name: str, app_num: int, ports: PortAssignment):
+        """Generate docker-compose.yml inside an individual app folder using template.
+
+        The template expects (at minimum):
+          - {{model_prefix}}
+          - {{backend_port}}
+          - {{frontend_port}}
+        """
+        compose_tpl = self._read_template('docker-compose.yml.template')
+        if not compose_tpl:
+            return  # silently skip; already logged in validate
+        substitutions = {
+            'model_prefix': model_name.replace('/', '_').lower(),
+            'backend_port': ports.backend,
+            'frontend_port': ports.frontend,
+            'model_name': model_name,
+            'app_number': app_num,
+        }
+        content = self._template_subs(compose_tpl, substitutions)
+        (app_dir / 'docker-compose.yml').write_text(content, encoding='utf-8')
 
     def _write_config_files(self, models: List[str], apps_per_model: int):
         colors = self._generate_color_mapping(models)
