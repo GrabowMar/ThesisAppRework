@@ -15,6 +15,12 @@
                         var de = document.documentElement;
                         de.setAttribute('data-bs-theme', t);
                         de.setAttribute('data-theme', t); // legacy attr kept for older selectors
+                            // Apply early sidebar collapsed state to avoid layout shift
+                            var sp = localStorage.getItem('sidebarPref');
+                            if(sp === 'collapsed'){
+                                document.documentElement.classList.add('sidebar-init');
+                                document.body.classList.add('sidebar-collapsed');
+                            }
                 } catch(_) { /* ignore */ }
             })();
         </script>
@@ -46,6 +52,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta19/dist/js/tabler.min.js"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
+    <script src="{{ url_for('static', filename='js/sidebar.js') }}"></script>
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     
