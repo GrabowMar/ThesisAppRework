@@ -12,7 +12,12 @@
       </label>
       <button class="btn btn-outline-primary btn-sm" id="apps-refresh-btn" hx-get="/applications" hx-target="#apps-table-section" hx-select="#apps-table-section" title="Refresh applications"><i class="fas fa-sync"></i></button>
       <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#generateAppModal" title="Generate application"><i class="fas fa-plus"></i></button>
-      <button class="btn btn-outline-secondary btn-sm" id="apps-batch-btn" data-bs-toggle="modal" data-bs-target="#bulkActionsModal" title="Batch operations"><i class="fas fa-layer-group"></i></button>
+      <div class="btn-group" role="group" aria-label="Batch docker actions">
+        <button class="btn btn-outline-success btn-sm" type="button" title="Start selected" onclick="batchDockerOp('start')"><i class="fas fa-play"></i></button>
+        <button class="btn btn-outline-danger btn-sm" type="button" title="Stop selected" onclick="batchDockerOp('stop')"><i class="fas fa-stop"></i></button>
+        <button class="btn btn-outline-warning btn-sm" type="button" title="Restart selected" onclick="batchDockerOp('restart')"><i class="fas fa-rotate"></i></button>
+        <button class="btn btn-outline-primary btn-sm" type="button" title="Build selected" onclick="batchDockerOp('build')"><i class="fas fa-hammer"></i></button>
+      </div>
     </div>
     <div class="d-flex align-items-center gap-2">
       <span class="text-muted" id="applications-selection-indicator"></span>
@@ -138,6 +143,37 @@
     {% endif %}
   </div>
 </div>
+</div>
+<script>
+function getSelectedApps(){
+  return Array.from(document.querySelectorAll('#applications-table-body input.app-select:checked')).map(c=>c.value);
+}
+function batchDockerOp(op){
+  const selected = getSelectedApps();
+  if(!selected.length){
+    htmx?.notify && htmx.notify('Select at least one application', 'warning');
+    return;
+  }
+  const form = new FormData();
+  form.append('operation', op);
+  selected.forEach(v=>form.append('items', v));
+  const btns = document.querySelectorAll('[onclick^="batchDockerOp"]');
+  btns.forEach(b=>b.disabled=true);
+  fetch('/api/apps/bulk/docker', {method:'POST', body: form, headers:{'HX-Request':'true'}})
+    .then(r=>r.text())
+    .then(html=>{
+      // Insert temporary results toast area
+      let host = document.getElementById('applications-selection-indicator');
+      if(host){ host.innerHTML = html; }
+      // Trigger table refresh after short delay
+      setTimeout(()=>{ htmx.trigger(document.body,'refresh-apps-table'); }, 500);
+    })
+    .catch(err=>{
+      alert('Bulk '+op+' failed: '+err);
+    })
+    .finally(()=>{ btns.forEach(b=>b.disabled=false); });
+}
+</script>
 
 <style>
   #applications-table-wrapper .badge.bg-azure { background:#206bc4; }

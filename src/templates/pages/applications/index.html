@@ -124,6 +124,10 @@
         <i class="fas fa-gears me-1" aria-hidden="true"></i>
         Batch Ops
       </button>
+      <button class="btn btn-outline-primary btn-sm w-100" data-bs-toggle="modal" data-bs-target="#bulkDockerModal">
+        <i class="fab fa-docker me-1" aria-hidden="true"></i>
+        Bulk Docker
+      </button>
     </div>
   </div>
   <div class="card">
@@ -141,4 +145,5 @@
 {% block scripts %}
   {{ super() }}
   {% include 'pages/applications/partials/scripts.html' ignore missing %}
+  {% include 'pages/applications/partials/bulk_operations.html' ignore missing %}
 {% endblock %}

@@ -2569,3 +2569,130 @@ def api_app_log_download(model_slug, app_number):
         )
     except Exception as e:  # pragma: no cover
         return create_error_response_with_status(str(e), status=500, error_type='DownloadError')
+
+# ================================================================
+# BULK DOCKER OPERATIONS
+# ================================================================
+
+@api_bp.route('/apps/bulk/list', methods=['GET'])
+def api_bulk_apps_list():
+    """Return HTML checkbox list of all generated applications (for modal).
+
+    HTMX-friendly: returns raw HTML (no JSON envelope)."""
+    try:
+        apps = GeneratedApplication.query.order_by(GeneratedApplication.model_slug, GeneratedApplication.app_number).all()
+        parts = [
+            '<div class="bulk-app-list small" style="max-height:300px; overflow:auto">'
+        ]
+        if not apps:
+            parts.append('<div class="text-muted">No applications available.</div>')
+        else:
+            for a in apps:
+                label = f"{a.model_slug} / app{a.app_number}"
+                value = f"{a.model_slug}:{a.app_number}"
+                status_badge = f"<span class='badge bg-secondary ms-1'>{a.container_status or 'unknown'}</span>"
+                parts.append(
+                    f"<label class='d-flex align-items-center gap-2 py-1 border-bottom small'>"
+                    f"<input type='checkbox' class='form-check-input' name='items' value='{value}' />"
+                    f"<span>{label}</span>{status_badge}"
+                    "</label>"
+                )
+        parts.append('</div>')
+        return ''.join(parts)
+    except Exception as e:  # pragma: no cover
+        return f"<div class='text-danger small'>Error loading applications: {e}</div>", 500
+
+@api_bp.route('/apps/bulk/docker', methods=['POST'])
+def api_bulk_docker():
+    """Perform a bulk docker operation across selected applications.
+
+    Form fields:
+      operation: start|stop|restart|build
+      items: repeated checkbox values "model_slug:app_number"
+    Returns JSON (if non-HTMX) or HTML summary (if HTMX request).
+    """
+    operation = request.form.get('operation', '').lower().strip()
+    valid_ops = {'start', 'stop', 'restart', 'build'}
+    if operation not in valid_ops:
+        return create_error_response_with_status('Invalid or missing operation', status=400, error_type='BadRequest')
+    raw_items = request.form.getlist('items')
+    if not raw_items:
+        return create_error_response_with_status('No applications selected', status=400, error_type='BadRequest')
+
+    from app.services.service_locator import ServiceLocator
+    docker_mgr = ServiceLocator.get_docker_manager()
+    results = []
+    success_count = 0
+    for item in raw_items:
+        try:
+            model_slug, app_number_s = item.split(':', 1)
+            app_number = int(app_number_s)
+        except Exception:
+            results.append({'item': item, 'success': False, 'error': 'Invalid format'})
+            continue
+        app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number).first()
+        if not app:
+            results.append({'item': item, 'success': False, 'error': 'App not found'})
+            continue
+        op_result = {'item': item, 'model_slug': model_slug, 'app_number': app_number, 'operation': operation}
+        try:
+            docker_result = None
+            if docker_mgr:
+                if operation == 'start':
+                    docker_result = docker_mgr.start_containers(model_slug, app_number)
+                elif operation == 'stop':
+                    docker_result = docker_mgr.stop_containers(model_slug, app_number)
+                elif operation == 'restart':
+                    docker_result = docker_mgr.restart_containers(model_slug, app_number)
+                elif operation == 'build':
+                    docker_result = docker_mgr.build_containers(model_slug, app_number, no_cache=False)
+            # Update DB state using application service for consistency
+            from app.services import application_service as _app_service
+            if operation == 'start':
+                _app_service.start_application(app.id)
+            elif operation == 'stop':
+                _app_service.stop_application(app.id)
+            elif operation == 'restart':
+                _app_service.restart_application(app.id)
+            elif operation == 'build':
+                if docker_result and docker_result.get('success'):
+                    app.container_status = 'running'
+                else:
+                    app.container_status = 'error'
+                db.session.commit()
+            op_result['docker'] = docker_result
+            op_result['success'] = (docker_result or {}).get('success', True)
+            if op_result['success']:
+                success_count += 1
+        except Exception as e:  # pragma: no cover
+            op_result['success'] = False
+            op_result['error'] = str(e)
+        results.append(op_result)
+
+    summary = {
+        'operation': operation,
+        'total': len(raw_items),
+        'succeeded': success_count,
+        'failed': len(raw_items) - success_count
+    }
+
+    # HTMX: return HTML fragment summary
+    if request.headers.get('HX-Request'):
+        rows = []
+        for r in results:
+            badge = '<span class="badge bg-success">OK</span>' if r.get('success') else '<span class="badge bg-danger">Fail</span>'
+            err = f"<div class='text-danger small'>{r.get('error')}</div>" if r.get('error') else ''
+            rows.append(
+                f"<tr><td>{r.get('model_slug')}</td><td>app{r.get('app_number')}</td><td>{r.get('operation')}</td><td>{badge}{err}</td></tr>"
+            )
+        html = (
+            '<div class="bulk-results">'
+            f"<div class='mb-2'><strong>{summary['operation'].title()} Summary:</strong> {summary['succeeded']}/{summary['total']} succeeded" \
+            f" ({summary['failed']} failed)</div>"  # noqa: E501
+            '<div class="table-responsive" style="max-height:240px; overflow:auto">'
+            '<table class="table table-sm table-striped mb-0"><thead><tr><th>Model</th><th>App</th><th>Op</th><th>Result</th></tr></thead><tbody>'
+            + ''.join(rows) + '</tbody></table></div></div>'
+        )
+        return html
+
+    return create_success_response_with_status({'summary': summary, 'results': results})

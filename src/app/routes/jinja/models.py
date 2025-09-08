@@ -1238,7 +1238,9 @@ def model_actions(model_slug=None):
                 }
             )
         else:
-            return render_template('partials/bulk_operations.html')
+            # Bulk operations modal (legacy path expected 'partials/bulk_operations.html')
+            # Updated to new canonical location under pages/applications/partials
+            return render_template('pages/applications/partials/bulk_operations.html')
 
     except Exception as e:
         current_app.logger.error(f"Error loading model actions for {model_slug}: {e}")
