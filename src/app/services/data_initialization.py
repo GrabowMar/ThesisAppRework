@@ -38,6 +38,7 @@ class DataInitializationService:
         results = {
             'models_loaded': 0,
             'applications_loaded': 0,
+            'ports_loaded': 0,
             'errors': [],
             'success': True,
             'timestamp': datetime.now(timezone.utc).isoformat()
@@ -54,10 +55,15 @@ class DataInitializationService:
             results['applications_loaded'] = app_results['loaded']
             results['errors'].extend(app_results['errors'])
             
+            # Load port configurations
+            port_results = self.load_port_config()
+            results['ports_loaded'] = port_results['created'] + port_results['updated']
+            results['errors'].extend(port_results['errors'])
+            
             # Commit all changes
             db.session.commit()
             
-            logger.info(f"Data initialization completed: {results['models_loaded']} models, {results['applications_loaded']} apps")
+            logger.info(f"Data initialization completed: {results['models_loaded']} models, {results['applications_loaded']} apps, {results['ports_loaded']} ports")
             
         except Exception as e:
             logger.error(f"Data initialization failed: {e}")
@@ -269,7 +275,7 @@ class DataInitializationService:
 
     def load_port_config(self) -> Dict[str, Any]:
         """Load port configurations from port_config.json into PortConfiguration table (upsert)."""
-        results: Dict[str, Any] = {'loaded': 0, 'created': 0, 'updated': 0, 'errors': []}
+        results: Dict[str, Any] = {'loaded': 0, 'created': 0, 'updated': 0, 'skipped': 0, 'errors': []}
 
         try:
             port_file = self.misc_path / "port_config.json"
@@ -284,6 +290,16 @@ class DataInitializationService:
                 results['errors'].append("port_config.json must be a list of objects")
                 return results
 
+            # Track used ports to detect duplicates
+            used_backend_ports = set()
+            used_frontend_ports = set()
+            
+            # Pre-load existing ports from database
+            existing_ports = db.session.query(PortConfiguration).all()
+            for existing in existing_ports:
+                used_backend_ports.add(existing.backend_port)
+                used_frontend_ports.add(existing.frontend_port)
+
             for entry in entries:
                 try:
                     model_name = entry.get('model_name') or entry.get('model')
@@ -294,22 +310,44 @@ class DataInitializationService:
                     if not model_name:
                         continue
 
-                    existing = PortConfiguration.query.filter_by(model=model_name, app_num=app_number).first()
+                    # Normalize model name: convert / to _ for database storage
+                    normalized_model = model_name.replace('/', '_')
+
+                    # Check for port conflicts
+                    if backend_port in used_backend_ports:
+                        results['errors'].append(f"Duplicate backend_port {backend_port} for {normalized_model}/app{app_number} - skipping")
+                        results['skipped'] += 1
+                        continue
+                        
+                    if frontend_port in used_frontend_ports:
+                        results['errors'].append(f"Duplicate frontend_port {frontend_port} for {normalized_model}/app{app_number} - skipping")
+                        results['skipped'] += 1
+                        continue
+
+                    existing = PortConfiguration.query.filter_by(model=normalized_model, app_num=app_number).first()
                     if existing:
                         # Update ports if changed
                         changed = False
                         if existing.backend_port != backend_port:
+                            # Remove old port from tracking
+                            used_backend_ports.discard(existing.backend_port)
                             existing.backend_port = backend_port
                             changed = True
                         if existing.frontend_port != frontend_port:
+                            # Remove old port from tracking
+                            used_frontend_ports.discard(existing.frontend_port)
                             existing.frontend_port = frontend_port
                             changed = True
                         if changed:
                             existing.updated_at = datetime.now(timezone.utc)
                             results['updated'] += 1
+                        
+                        # Add ports to tracking (whether changed or not)
+                        used_backend_ports.add(existing.backend_port)
+                        used_frontend_ports.add(existing.frontend_port)
                     else:
                         pc = PortConfiguration()
-                        pc.model = model_name
+                        pc.model = normalized_model
                         pc.app_num = app_number
                         pc.backend_port = backend_port
                         pc.frontend_port = frontend_port
@@ -317,6 +355,10 @@ class DataInitializationService:
                         pc.updated_at = datetime.now(timezone.utc)
                         db.session.add(pc)
                         results['created'] += 1
+                        
+                        # Add ports to tracking
+                        used_backend_ports.add(backend_port)
+                        used_frontend_ports.add(frontend_port)
 
                     results['loaded'] += 1
                 except Exception as e:

@@ -40,18 +40,21 @@ def main():
             init_db()
             logger.info("Database tables created successfully!")
             
-            # Check if we already have data
-            existing_models = ModelCapability.query.count()
-            if existing_models > 0:
-                logger.info("Database already has %d models. Skipping data load.", existing_models)
-                return
-            
-            # Load model capabilities
-            logger.info("Loading model capabilities from JSON files...")
+            # Initialize all data from JSON files
+            logger.info("Loading all data from JSON files...")
             service = DataInitializationService()
-            result = service.load_model_capabilities()
+            result = service.initialize_all_data()
             
-            logger.info("Model capabilities loaded: %s", result)
+            if result['success']:
+                logger.info("✅ Data loading completed successfully!")
+                logger.info("   Models loaded: %d", result['models_loaded'])
+                logger.info("   Applications loaded: %d", result['applications_loaded'])
+                logger.info("   Ports loaded: %d", result['ports_loaded'])
+                if result['errors']:
+                    logger.warning("   Warnings: %s", result['errors'])
+            else:
+                logger.error("❌ Data loading had errors: %s", result['errors'])
+                sys.exit(1)
             
             # Verify the data
             total_models = ModelCapability.query.count()

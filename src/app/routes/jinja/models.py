@@ -785,46 +785,74 @@ def application_section_logs(model_slug, app_number):
 def _render_application_section(model_slug: str, app_number: int, section: str):
     """Shared loader for application detail sections."""
     try:
+        # --- Resolve model record robustly ----------------------------------
+        def _cands(slug: str):
+            base = {slug, slug.replace('-', '_'), slug.replace('_', '-'), slug.replace(' ', '_'), slug.replace(' ', '-')}
+            also = set()
+            for s in list(base):  # collapse doubles that sometimes occur in user input
+                also.add(s.replace('__', '_'))
+                also.add(s.replace('--', '-'))
+            return {c for c in (base | also) if c}
+
         model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
         if not model:
-            # Attempt fallback slug normalization to locate a model even if canonical slug differs
             try:
-                def _cands(slug: str):
-                    base = {slug, slug.replace('-', '_'), slug.replace('_', '-'), slug.replace(' ', '_'), slug.replace(' ', '-')}
-                    also = set()
-                    for s in list(base):
-                        also.add(s.replace('__','_'))
-                        also.add(s.replace('--','-'))
-                    return {c for c in (base | also) if c}
-                candidates = _cands(model_slug)
-                # Try canonical_slug first
-                model = ModelCapability.query.filter(ModelCapability.canonical_slug.in_(list(candidates))).first()
+                candidates = list(_cands(model_slug))
                 if not model:
-                    # Try model_name
-                    model = ModelCapability.query.filter(ModelCapability.model_name.in_(list(candidates))).first()
+                    model = ModelCapability.query.filter(ModelCapability.canonical_slug.in_(candidates)).first()
                 if not model:
-                    # Final normalization: compare alphanumeric forms
+                    model = ModelCapability.query.filter(ModelCapability.model_name.in_(candidates)).first()
+                if not model:  # final fuzzy normalisation (alnum compare)
                     import re
                     def _norm(s: str):
-                        return re.sub(r'[^0-9a-z]+','', (s or '').lower())
+                        return re.sub(r'[^0-9a-z]+', '', (s or '').lower())
                     target_norm = _norm(model_slug)
                     if target_norm:
-                        for m in ModelCapability.query.all():  # pragma: no cover (rare path)
+                        for m in ModelCapability.query.all():  # pragma: no cover (fallback path)
                             if _norm(m.canonical_slug) == target_norm or _norm(getattr(m, 'model_name', '')) == target_norm:
                                 model = m
                                 break
-            except Exception:  # pragma: no cover
+            except Exception:  # pragma: no cover - defensive, never fail section render entirely
                 pass
-        if not model:
-            # Provide a synthetic minimal object so templates still render
+        if not model:  # Synthetic placeholder so template doesn't explode (logs will show placeholders)
             class _SyntheticModel:
                 canonical_slug = model_slug
                 model_name = model_slug
                 provider = (model_slug.split('_')[0] if '_' in model_slug else model_slug.split('-')[0]) or 'local'
                 display_name = model_slug
+                def get_metadata(self):
+                    return {}
             model = _SyntheticModel()
+
+        # --- Resolve application record with same normalization strategies ---
         app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number).first()
-        app_path = get_app_directory(model_slug, app_number)
+        if not app and getattr(model, 'canonical_slug', None) and model.canonical_slug != model_slug:
+            app = GeneratedApplication.query.filter_by(model_slug=model.canonical_slug, app_number=app_number).first()
+        if not app and getattr(model, 'model_name', None):
+            app = GeneratedApplication.query.filter_by(model_slug=model.model_name, app_number=app_number).first()
+        if not app:
+            # broaden search across candidate slugs
+            for cand in _cands(model_slug):
+                app = GeneratedApplication.query.filter_by(model_slug=cand, app_number=app_number).first()
+                if app:
+                    break
+        if not app:
+            # final ultra-fuzzy pass: normalised alphanumeric compare across all matching app_number
+            try:  # pragma: no cover (rare path for corrupted/migrated data)
+                import re
+                def _norm(s: str):
+                    return re.sub(r'[^0-9a-z]+', '', (s or '').lower())
+                target_norm = _norm(model_slug)
+                if target_norm:
+                    for candidate in GeneratedApplication.query.filter_by(app_number=app_number).all():
+                        if _norm(candidate.model_slug) == target_norm:
+                            app = candidate
+                            break
+            except Exception:
+                pass
+
+        fs_slug = app.model_slug if app else (getattr(model, 'canonical_slug', None) or model_slug)
+        app_path = get_app_directory(fs_slug, app_number)
 
         # Build app_data similar to full detail route
         if not app:
@@ -834,12 +862,19 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
                 'exists_in_db': False,
                 'status': 'not_created',
                 'app_type': 'unknown',
+                'provider': getattr(model, 'provider', 'unknown'),
                 'has_backend': False,
                 'has_frontend': False,
                 'has_docker_compose': False,
                 'generation_status': 'pending',
-                'container_status': 'not_created'
+                'container_status': 'not_created',
+                'backend_framework': None,
+                'frontend_framework': None,
+                'created_at': None,
+                'metadata': {}
             }
+            # Add get_metadata method to app_data dict for template compatibility
+            app_data['get_metadata'] = lambda: app_data['metadata']
         else:
             app_data = {
                 'id': app.id,
@@ -848,7 +883,8 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
                 'exists_in_db': True,
                 'app_type': app.app_type,
                 'provider': app.provider,
-                'generation_status': app.generation_status,
+                # ensure enum converted to simple value for templates / JSON hx responses
+                'generation_status': (app.generation_status.value if getattr(app, 'generation_status', None) else None),
                 'container_status': app.container_status,
                 'has_backend': app.has_backend,
                 'has_frontend': app.has_frontend,
@@ -858,6 +894,8 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
                 'created_at': app.created_at,
                 'metadata': app.get_metadata() if hasattr(app, 'get_metadata') else {}
             }
+            # Add get_metadata method to app_data dict for template compatibility
+            app_data['get_metadata'] = lambda: app_data['metadata']
 
         # Files + code stats (lightweight for section use)
         files_info = {
@@ -905,10 +943,58 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
                     entry['files'] += 1
                     entry['loc'] += loc
 
+        # Framework detection from filesystem if missing from DB
+        if not app_data.get('backend_framework') or not app_data.get('frontend_framework'):
+            try:
+                # Simple framework detection based on key files
+                backend_dir = app_path / 'backend'
+                frontend_dir = app_path / 'frontend'
+                
+                if not app_data.get('backend_framework') and backend_dir.exists():
+                    if (backend_dir / 'app.py').exists() or (backend_dir / 'main.py').exists():
+                        app_data['backend_framework'] = 'Flask'
+                    elif (backend_dir / 'manage.py').exists():
+                        app_data['backend_framework'] = 'Django'
+                    elif (backend_dir / 'package.json').exists():
+                        app_data['backend_framework'] = 'Node.js'
+                
+                if not app_data.get('frontend_framework') and frontend_dir.exists():
+                    package_json = frontend_dir / 'package.json'
+                    if package_json.exists():
+                        try:
+                            import json
+                            pkg_data = json.loads(package_json.read_text(encoding='utf-8', errors='ignore'))
+                            deps = {**pkg_data.get('dependencies', {}), **pkg_data.get('devDependencies', {})}
+                            if 'react' in deps:
+                                app_data['frontend_framework'] = 'React'
+                            elif 'vue' in deps:
+                                app_data['frontend_framework'] = 'Vue'
+                            elif 'angular' in deps:
+                                app_data['frontend_framework'] = 'Angular'
+                            elif 'svelte' in deps:
+                                app_data['frontend_framework'] = 'Svelte'
+                            else:
+                                app_data['frontend_framework'] = 'JavaScript'
+                        except Exception:
+                            app_data['frontend_framework'] = 'JavaScript'
+                    elif (frontend_dir / 'index.html').exists():
+                        app_data['frontend_framework'] = 'HTML/CSS/JS'
+            except Exception:
+                pass
+
         # Ports via centralized resolver
         ports = resolve_ports(model_slug, app_number, include_attempts=True)
+        # If no ports found, provide fallback default structure for display
+        if not ports:
+            ports = {
+                'backend': None,
+                'frontend': None,
+                'source': 'none',
+                'attempts': [],
+                'error': 'No PortConfiguration found'
+            }
         try:
-            if ports:
+            if ports and ports.get('backend'):
                 current_app.logger.debug(
                     f"[ports-lookup] {model_slug}/app{app_number} attempts={'|'.join(ports.get('attempts', []))} result=found source={ports.get('source')}"
                 )
@@ -920,7 +1006,7 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
         # Prompts
         prompts = {'backend': '', 'frontend': ''}
         template_files = {'backend_file': '', 'frontend_file': ''}
-        tmpl_dir = _project_root() / 'misc' / 'app_templates'
+        tmpl_dir = _project_root() / 'src' / 'misc' / 'app_templates'
         try:
             backend_md = sorted(tmpl_dir.glob(f'app_{app_number}_backend_*.md'))
             frontend_md = sorted(tmpl_dir.glob(f'app_{app_number}_frontend_*.md'))
@@ -972,9 +1058,13 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
             'templates_dir': str(tmpl_dir),
             'app_base_dir': str(app_path),
         }
+        
+        # Ensure model has display_name for templates
+        if not hasattr(model, 'display_name'):
+            model.display_name = getattr(model, 'model_name', None) or getattr(model, 'canonical_slug', model_slug)
         # Optional manifest
         try:
-            manifest_path = _project_root() / 'generated' / 'indices' / 'generation_manifest.json'
+            manifest_path = _project_root() / 'src' / 'generated' / 'indices' / 'generation_manifest.json'
             if manifest_path.exists():
                 import json
                 ctx['generation_manifest'] = json.loads(manifest_path.read_text(encoding='utf-8', errors='ignore'))
@@ -1010,9 +1100,17 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
         # Debug log summarizing context keys for troubleshooting missing sections
         try:
             current_app.logger.debug(
-                f"[app-section-debug] {model_slug}/app{app_number} section={section} "
-                f"ports={'yes' if ports else 'no'} prompts_back={(len(prompts.get('backend', '')) if prompts else 0)} "
-                f"metadata_keys={list((app_data.get('metadata') or {}).keys())[:6]}"
+                "[app-section-debug] model_param=%s resolved_model=%s app_model=%s section=%s found_app=%s fs_slug=%s ports=%s prompts_len=%s metadata_keys=%s" % (
+                    model_slug,
+                    getattr(model, 'canonical_slug', None),
+                    getattr(app, 'model_slug', None),
+                    section,
+                    bool(app),
+                    fs_slug,
+                    'yes' if ports else 'no',
+                    len((prompts or {}).get('backend', '')),
+                    list((app_data.get('metadata') or {}).keys())[:6]
+                )
             )
         except Exception:
             pass

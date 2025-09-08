@@ -63,8 +63,9 @@
             </div>
           </div>
         </div>
-    </div>
-    <div class="col-12">
+      </div> {# /card h-100 #}
+    </div> {# /col-12 (file browser) #}
+    <div class="col-12"> {# separate row for stats + artifacts #}
       <div class="row row-cards">
         <div class="col-12 col-lg-6">
           <div class="card h-100">
@@ -100,7 +101,7 @@
               <h3 class="card-title mb-0"><i class="fas fa-link me-2"></i>Artifacts</h3>
             </div>
             <div class="card-body">
-              {% include 'pages/applications/partials/artifacts.html' %}
+              {% include 'pages/applications/partials/artifacts_inner.html' %}
             </div>
           </div>
         </div>
