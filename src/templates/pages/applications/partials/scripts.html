@@ -1,47 +1,26 @@
 <script src="/static/js/applications.js"></script>
+<script src="/static/js/applications_table.js"></script>
 <script>
-// Legacy helpers kept (no-ops now referencing new table layout selectors)
-function expandAll(){
-  document.querySelectorAll('#applications-accordion .collapse').forEach(c=>{
-    if(!c.classList.contains('show')) new bootstrap.Collapse(c,{toggle:true});
-  });
-}
-function collapseAll(){
-  document.querySelectorAll('#applications-accordion .collapse.show').forEach(c=> new bootstrap.Collapse(c,{toggle:true}));
-}
-function syncModel(modelSlug, target){
-  if(window.htmx){
-    htmx.ajax('POST', `/api/model/${modelSlug}/containers/sync-status?format=html`, { target: target });
-  }
-}
-
+// Minimal refresh hook for flat table
 document.addEventListener('DOMContentLoaded', function() {
-  const filtersForm = document.getElementById('filters-form');
-  if (filtersForm) {
-    filtersForm.addEventListener('change', () => window.htmx && htmx.trigger(filtersForm,'submit'));
-  }
-
-  const refreshBtn = document.getElementById('refreshGridBtn'); // same id to avoid breaking existing selectors
+  const refreshBtn = document.getElementById('apps-refresh-btn') || document.getElementById('refreshGridBtn');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
       if(window.htmx){
         htmx.trigger(document.body,'refresh-apps-table');
         const icon = refreshBtn.querySelector('i');
         if(icon){
-          const orig = icon.className; icon.className='fas fa-spinner fa-spin me-1';
-          setTimeout(()=> icon.className=orig, 1200);
+          const orig = icon.className; icon.classList.add('fa-spin');
+          setTimeout(()=> icon.classList.remove('fa-spin'), 800);
         }
       }
     });
   }
 
-  // Group select logic
-  document.addEventListener('change', function(e){
-    if(e.target.classList.contains('select-group')){
-      const collapseId = e.target.getAttribute('data-group');
-      document.querySelectorAll(`#${collapseId} .app-select`).forEach(cb=>{ cb.checked = e.target.checked; });
-    }
-  });
+  const filtersForm = document.getElementById('filters-form');
+  if (filtersForm) {
+    filtersForm.addEventListener('change', () => window.htmx && htmx.trigger(filtersForm,'submit'));
+  }
 });
 </script>
 <style>
@@ -49,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
   @media (max-width: 991.98px){ #applications-sidebar { position: static; top:auto; } }
   #applications-sidebar .card { box-shadow:none; }
   #applications-sidebar .card .avatar { width:38px; height:38px; display:flex; align-items:center; justify-content:center; font-size:1rem; }
-  #applications-sidebar { max-height: calc(100vh - 110px); overflow-y:auto; scrollbar-width: thin; }
+  #applications-sidebar { max-height: calc(100vh - 110px); overflow-y:auto; }
   #applications-sidebar::-webkit-scrollbar { width: 6px; }
   #applications-sidebar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius:3px; }
   .mini-stats .stat-icon { width:26px; height:26px; display:inline-flex; align-items:center; justify-content:center; border-radius:4px; font-size:.75rem; }
