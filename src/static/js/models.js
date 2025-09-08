@@ -15,6 +15,7 @@
 //    times we don't redeclare top-level let bindings (which causes errors)
 // ------------------------------------------------------------
 
+// models.js (post-trimming) – legacy bulk client table logic retained until fully replaced.
 if (window.__MODELS_JS_LOADED__) {
   console.debug('models.js already loaded – skipping re‑init');
 } else { // SINGLE EXECUTION BLOCK

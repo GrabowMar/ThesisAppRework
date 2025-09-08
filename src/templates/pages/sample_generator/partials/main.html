@@ -8,32 +8,7 @@
         <h3 class="card-title">Generation Status</h3>
       </div>
       <div class="card-body">
-        <div class="row" id="status-display">
-          <div class="col-md-3">
-            <div class="statcard">
-              <div class="h1 m-0" id="in-flight-count">-</div>
-              <div class="text-muted">In Flight</div>
-            </div>
-          </div>
-          <div class="col-md-3">
-            <div class="statcard">
-              <div class="h1 m-0" id="available-slots">-</div>
-              <div class="text-muted">Available Slots</div>
-            </div>
-          </div>
-          <div class="col-md-3">
-            <div class="statcard">
-              <div class="h1 m-0" id="total-templates">-</div>
-              <div class="text-muted">Templates</div>
-            </div>
-          </div>
-          <div class="col-md-3">
-            <div class="statcard">
-              <div class="h1 m-0" id="total-results">-</div>
-              <div class="text-muted">Results</div>
-            </div>
-          </div>
-        </div>
+        {% include 'pages/sample_generator/partials/_status_metrics.html' %}
       </div>
     </div>
   </div>

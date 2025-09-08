@@ -5,27 +5,39 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>{% block title %}ThesisAppRework{% endblock %}</title>
+        <!-- Early theme application to avoid flash of incorrect theme on navigation / HTMX swaps -->
+        <script>
+            (function(){
+                try {
+                    var stored = localStorage.getItem('app_theme');
+                    var prefers = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                        var t = stored || (prefers ? 'dark' : 'light');
+                        var de = document.documentElement;
+                        de.setAttribute('data-bs-theme', t);
+                        de.setAttribute('data-theme', t); // legacy attr kept for older selectors
+                } catch(_) { /* ignore */ }
+            })();
+        </script>
     
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     
+    <!-- Performance: preconnect & preload critical CSS/font -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://rsms.me">
+    <link rel="preload" as="style" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta19/dist/css/tabler.min.css" />
+    <link rel="preload" as="style" href="https://rsms.me/inter/inter.css" />
     <!-- CSS files -->
+    <!-- NOTE: Removed placeholder integrity attribute that was preventing stylesheet load. -->
     <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta19/dist/css/tabler.min.css" rel="stylesheet">
-    <!-- Font Awesome Icons -->
+    <!-- Font / Icon libs -->
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link href="{{ url_for('static', filename='css/theme.css') }}" rel="stylesheet">
     
     {% block head_styles %}{% endblock %}
     
-    <style>
-        @import url('https://rsms.me/inter/inter.css');
-        :root {
-            --tbl-font-sans-serif: 'Inter Var', -apple-system, BlinkMacSystemFont, San Francisco, Segoe UI, Roboto, Helvetica Neue, sans-serif;
-        }
-        body {
-            font-feature-settings: "cv03", "cv04", "cv11";
-        }
-    </style>
+    <!-- Removed inline @import; font-face loaded via link above; overrides moved to theme.css -->
 </head>
 <body id="app-body">
     {% block body %}{% endblock %}
@@ -34,6 +46,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta19/dist/js/tabler.min.js"></script>
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     
     {% block scripts %}{% endblock %}

@@ -1,7 +1,11 @@
 (function() {
-    // If the class is already defined, we don't need to do anything.
-    // This prevents "Identifier has already been declared" errors with HTMX.
-    if (window.SampleGeneratorApp) {
+    // Simple (htmx) mode: if root div has data-simple-sample-gen we bypass heavy JS
+    const SIMPLE_MODE = !!document.getElementById('sample-generator')?.hasAttribute('data-simple-sample-gen');
+    if (window.SampleGeneratorApp || SIMPLE_MODE) {
+        if (SIMPLE_MODE && !window.__SG_SIMPLE_NOTICE) {
+            window.__SG_SIMPLE_NOTICE = true;
+            console.info('[SampleGenerator] Simple mode active – skipping full SampleGeneratorApp class load.');
+        }
         return;
     }
 
@@ -1175,8 +1179,8 @@ SampleGeneratorApp.prototype.updateGenerateButtonState = function() {
 };
 
 function initializeSampleGeneratorApp() {
-    // If an instance already exists, it means HTMX has swapped in new content.
-    // We need to re-run init() to bind events to the new elements.
+    const root = document.getElementById('sample-generator');
+    if (root?.hasAttribute('data-simple-sample-gen')) return; // simple mode: no JS needed
     if (window.sampleGeneratorAppInstance) {
         window.sampleGeneratorAppInstance.init();
     } else {

@@ -1,0 +1,15 @@
+{# HTMX fragment: recent generation results table body rows #}
+{% if recent and recent|length %}
+  {% for r in recent %}
+  <tr>
+    <td>{{ r.timestamp.strftime('%Y-%m-%d %H:%M:%S') if r.timestamp else '-' }}</td>
+    <td>{{ r.template }}</td>
+    <td>{{ r.model }}</td>
+    <td><span class="badge {{ 'bg-success' if r.success else 'bg-danger' }}">{{ 'Success' if r.success else 'Fail' }}</span></td>
+    <td>{{ '%.1fs'|format(r.duration) if r.duration else '-' }}</td>
+    <td><button class="btn btn-sm btn-outline-primary" disabled title="View coming soon">View</button></td>
+  </tr>
+  {% endfor %}
+{% else %}
+  <tr><td colspan="6" class="text-center text-muted py-4">No recent generations</td></tr>
+{% endif %}

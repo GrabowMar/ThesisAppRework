@@ -19,7 +19,7 @@ from collections import defaultdict
 
 # Color coding dependencies
 try:
-    from colorama import init, Fore, Style
+    from colorama import init, Fore, Style  # type: ignore
     init(autoreset=True)
     COLORS_AVAILABLE = True
 except ImportError:
@@ -29,6 +29,51 @@ except ImportError:
         RED = BLUE = GREEN = YELLOW = MAGENTA = CYAN = WHITE = RESET = ""
     class Style:
         BRIGHT = DIM = RESET_ALL = ""
+
+# NOTE: We intentionally avoid monkey-patching LogRecord.getMessage.
+# Malformed printf-style logs are normalized via a lightweight LogRecordFactory
+# installed during setup; developer guidance: prefer f-strings or supply all
+# printf args. See _install_safe_record_factory.
+
+# Custom Logger class ensuring malformed printf-style messages are sanitized
+_original_logger_class = logging.getLoggerClass()
+
+class ThesisLogger(_original_logger_class):  # type: ignore[misc]
+    def makeRecord(self, *args, **kwargs):  # pragma: no cover - behavior tested indirectly
+        record = super().makeRecord(*args, **kwargs)
+        # Lightweight early probe; if we fail here a later SafeLogRecord.getMessage
+        # still provides a final safety net. This double layer guards against
+        # third-party factories swapping ours out after setup.
+        if record.args:
+            try:
+                _ = record.msg % record.args  # probe only
+            except TypeError:
+                try:
+                    raw_msg = str(record.msg)
+                except Exception:
+                    raw_msg = '<unprintable log message>'
+                record.msg = raw_msg
+                record.args = ()
+                setattr(record, "_malformed_format", True)
+        return record
+
+    def _log(self, level, msg, args, exc_info=None, extra=None, stack_info=False, stacklevel=1):  # type: ignore[override]
+        # Pre-sanitize before delegating to avoid malformed args propagating.
+        if args:
+            try:
+                # Probe formatting (discard result)
+                msg % args  # type: ignore[operator]
+            except TypeError:
+                try:
+                    msg = str(msg)
+                except Exception:
+                    msg = '<unprintable log message>'
+                args = ()
+        super()._log(level, msg, args, exc_info, extra, stack_info, stacklevel)  # pragma: no cover
+
+# Install logger class early (idempotent)
+if not isinstance(logging.getLoggerClass(), ThesisLogger):  # pragma: no cover
+    logging.setLoggerClass(ThesisLogger)
 
 
 def _safe_get_message(record: logging.LogRecord) -> str:
@@ -50,6 +95,8 @@ def _safe_get_message(record: logging.LogRecord) -> str:
             raw_msg = '<unprintable log message>'
         record.msg = raw_msg
         record.args = ()
+        # Mark record so filters know this originated from malformed printf-style usage
+        setattr(record, "_malformed_format", True)
         # Emit a one-time stderr hint (not via logging to avoid recursion)
         if not getattr(_safe_get_message, "_warned", False):  # type: ignore[attr-defined]
             try:
@@ -58,6 +105,84 @@ def _safe_get_message(record: logging.LogRecord) -> str:
                 pass
             setattr(_safe_get_message, "_warned", True)  # type: ignore[attr-defined]
         return raw_msg
+
+
+class _SafeLogRecord(logging.LogRecord):  # pragma: no cover - exercised indirectly via logging
+    """LogRecord subclass whose getMessage never raises on bad printf formatting."""
+    def getMessage(self):  # type: ignore[override]
+        msg = str(self.msg)
+        if self.args:
+            try:
+                msg = msg % self.args
+            except TypeError:
+                # Normalize: keep original template, drop args so future calls safe
+                self.args = ()
+                setattr(self, "_malformed_format", True)
+            except Exception:
+                # Extremely defensive; return best-effort string
+                self.args = ()
+        return msg
+
+
+def _install_safe_record_factory():
+    """Install idempotent factory producing _SafeLogRecord instances.
+
+    This guarantees pytest's caplog (which calls record.getMessage) will never
+    trigger a TypeError for malformed printf-style usage. We retain earlier
+    probes in ThesisLogger for defense-in-depth but rely on the subclass for
+    definitive safety.
+    """
+    if getattr(logging, "_thesis_safe_record_factory_v3", False):
+        return
+    orig_factory = logging.getLogRecordFactory()
+
+    def factory(*args, **kwargs):  # pragma: no cover
+        record = orig_factory(*args, **kwargs)
+        # Re-wrap into _SafeLogRecord preserving attributes (cannot just cast; recreate)
+        safe = _SafeLogRecord(
+            record.name, record.levelno, record.pathname, record.lineno,
+            record.msg, record.args, record.exc_info, record.funcName,
+            record.__dict__.get('sinfo')
+        )
+        # Preserve stack_info if present (attribute; not constructor arg)
+        if hasattr(record, 'stack_info'):
+            try:
+                safe.stack_info = record.stack_info  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        # Copy any custom attributes already set
+        for k, v in record.__dict__.items():
+            if k not in safe.__dict__:
+                try:
+                    setattr(safe, k, v)
+                except Exception:
+                    pass
+        return safe
+
+    logging.setLogRecordFactory(factory)
+    setattr(logging, "_thesis_safe_record_factory_v3", True)
+
+
+class MalformedFormatSanitizerFilter(logging.Filter):
+    """Filter attached to root logger to defensively sanitize any malformed
+    printf-style logging records prior to handler formatting. Non-invasive and
+    idempotent; complements the safe record factory for environments that
+    might swap factories after our setup (e.g., test harnesses)."""
+    def filter(self, record: logging.LogRecord) -> bool:  # pragma: no cover
+        if getattr(record, "_malformed_format", False):
+            return True
+        if record.args:
+            try:
+                _ = record.msg % record.args
+            except TypeError:
+                try:
+                    raw_msg = str(record.msg)
+                except Exception:
+                    raw_msg = '<unprintable log message>'
+                record.msg = raw_msg
+                record.args = ()
+                setattr(record, "_malformed_format", True)
+        return True
 
 
 class StackTraceFilter(logging.Filter):
@@ -189,6 +314,10 @@ class SmartLogFilter(logging.Filter):
         """Apply comprehensive filtering."""
         # Defensive: record.msg may contain formatting placeholders with mismatched args.
         message = _safe_get_message(record)
+
+        # Always allow malformed format records (we want visibility + tests rely on presence)
+        if getattr(record, "_malformed_format", False):
+            return True
         
         # 1. Suppress known spam patterns
         for pattern in self._suppressed_patterns:
@@ -363,10 +492,28 @@ class LoggingConfig:
     def setup_logging(self) -> logging.Logger:
         """Setup centralized logging configuration."""
         
-        # Get root logger and clear existing handlers
+        # Get root logger. IMPORTANT: Do NOT blindly clear all handlers because
+        # pytest's caplog installs a capturing handler before tests run. If we
+        # clear it, tests that assert on log content (e.g. malformed format
+        # normalization) will see empty results. Instead only remove handlers
+        # we previously attached (marked with _thesis_app flag). This makes
+        # setup idempotent while remaining test-friendly.
         root_logger = logging.getLogger()
-        root_logger.handlers.clear()
+        preserved_handlers = []
+        for h in list(root_logger.handlers):
+            if getattr(h, "_thesis_app", False):
+                root_logger.removeHandler(h)
+            else:
+                preserved_handlers.append(h)
         root_logger.setLevel(self.log_level)
+        # Ensure a root safety filter is present exactly once
+        # Install safe record factory (idempotent)
+        _install_safe_record_factory()
+        # Attach sanitizer filter once
+        if not any(isinstance(f, MalformedFormatSanitizerFilter) for f in root_logger.filters):
+            root_logger.addFilter(MalformedFormatSanitizerFilter())
+
+        # Previous v1/v2 factories replaced by subclass-based factory v3 above.
         
         # Create formatters
         console_formatter = ColoredSmartFormatter(
@@ -398,6 +545,7 @@ class LoggingConfig:
         console_handler.setFormatter(console_formatter)
         console_handler.addFilter(SmartLogFilter())
         console_handler.addFilter(req_filter)
+        console_handler._thesis_app = True  # type: ignore[attr-defined]
         
         # Setup file handler with rotation
         log_file = self.log_dir / "app.log"
@@ -410,6 +558,7 @@ class LoggingConfig:
         file_handler.setLevel(logging.DEBUG)  # Always log everything to file
         file_handler.setFormatter(file_formatter)
         file_handler.addFilter(req_filter)
+        file_handler._thesis_app = True  # type: ignore[attr-defined]
         
         # Add handlers to root logger
         root_logger.addHandler(console_handler)
@@ -420,6 +569,39 @@ class LoggingConfig:
         
         # Get application logger
         app_logger = logging.getLogger(self.app_name)
+        # Ensure we are using ThesisLogger (tests may have created earlier instance)
+        if not isinstance(app_logger, ThesisLogger):  # pragma: no cover - exercised in tests
+            try:
+                logging.Logger.manager.loggerDict.pop(self.app_name, None)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            app_logger = logging.getLogger(self.app_name)
+
+        # Attach sanitizer filter directly to app logger so its Logger.filter
+        # executes prior to handler formatting (root-level filters do NOT run
+        # for child loggers before formatting).
+        if not any(isinstance(f, MalformedFormatSanitizerFilter) for f in app_logger.filters):
+            app_logger.addFilter(MalformedFormatSanitizerFilter())
+
+        # Final safety: wrap current factory so every created record is sanitized
+        # even if earlier mechanisms were bypassed by third-parties.
+        if not getattr(logging, "_thesis_final_factory", False):
+            base_factory = logging.getLogRecordFactory()
+            def _final_factory(*a, **kw):  # pragma: no cover - indirect
+                rec = base_factory(*a, **kw)
+                if rec.args:
+                    try:
+                        rec.msg % rec.args  # type: ignore[operator]
+                    except TypeError:
+                        try:
+                            rec.msg = str(rec.msg)
+                        except Exception:
+                            rec.msg = '<unprintable log message>'
+                        rec.args = ()
+                        setattr(rec, '_malformed_format', True)
+                return rec
+            logging.setLogRecordFactory(_final_factory)
+            setattr(logging, "_thesis_final_factory", True)
         app_logger.info(f"Logging configured - Level: {logging.getLevelName(self.log_level)}")
         
         return app_logger
@@ -436,7 +618,12 @@ class LoggingConfig:
         warnings.filterwarnings('ignore', category=DeprecationWarning, module='celery')
         warnings.filterwarnings('ignore', message='.*broker_connection_retry.*')
         warnings.filterwarnings('ignore', message='.*CPendingDeprecationWarning.*')
-        
+
+        # Suppress known upcoming websockets deprecations (until library upgrade)
+        warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'websockets\.legacy.*')
+        warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'websockets\.exceptions\.InvalidStatusCode.*')
+        warnings.filterwarnings('ignore', category=DeprecationWarning, message=r'websockets\.WebSocketServerProtocol.*')
+
         # Redirect warnings to logging
         logging.captureWarnings(True)
         

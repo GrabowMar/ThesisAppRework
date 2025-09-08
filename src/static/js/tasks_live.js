@@ -1,5 +1,8 @@
-// Live Tasks Dashboard Client (migrated to index page)
-// Connects to Socket.IO (if available) and falls back to polling /api/tasks/events
+// Live Tasks Dashboard Client
+// Minimal bespoke JS retained (cannot trivially express via htmx/hyperscript due to
+// incremental, streaming style updates + websocket). Feature flag:
+//   Add data-disable-live-tasks to body (or #tasks-live-table parent) to skip init.
+// Falls back to polling /api/tasks/events when Socket.IO not present.
 
 (function(){
   const log = (...args) => console.debug('[tasks-live]', ...args);
@@ -157,7 +160,8 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    if(document.getElementById('tasks-live-table')){
+    const table = document.getElementById('tasks-live-table');
+    if(table && !table.closest('[data-disable-live-tasks]') && !document.body.hasAttribute('data-disable-live-tasks')){
       initSocket();
     }
   });

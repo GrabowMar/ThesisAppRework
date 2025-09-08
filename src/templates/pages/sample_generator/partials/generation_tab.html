@@ -104,7 +104,7 @@
       </div>
       <div class="card-body">
         <div class="table-responsive">
-          <table class="table table-vcenter" id="recent-generations-table">
+          <table class="table table-vcenter" id="recent-generations-table" hx-get="/sample-generator/fragments/recent" hx-trigger="load, every 15s" hx-target="#recent-generations-table tbody" hx-swap="innerHTML">
             <thead>
               <tr>
                 <th>Timestamp</th>
@@ -116,9 +116,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td colspan="6" class="text-center text-muted py-4">No recent generations</td>
-              </tr>
+              <tr><td colspan="6" class="text-center text-muted py-4">Loading…</td></tr>
             </tbody>
           </table>
         </div>

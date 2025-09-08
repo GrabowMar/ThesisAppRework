@@ -1,33 +1,23 @@
-// applications.js - behavior for Applications page (extracted from inline script)
-// Handles: prefill generate modal, manual refresh triggers
-
 (function(){
-  function prefillAndShowGenerate(modelSlug, appNumber) {
-    const modelSelect = document.querySelector('#generateAppForm select[name="model_slug"]');
-    if (modelSelect) modelSelect.value = modelSlug;
-    const appInput = document.querySelector('#generateAppForm input[name="app_number"]');
-    if (appInput) appInput.value = appNumber;
-    const modalEl = document.getElementById('generateAppModal');
-    if (modalEl && window.bootstrap) {
-      const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-      modal.show();
-    }
+  // Single refresh dispatcher: listens for custom event OR button click with data-action
+  function refresh(){
+    if(!window.htmx) return;
+    // Prefer unified refresher target
+    const refresher = document.querySelector('#apps-table-refresher, #grid-refresher');
+    if(refresher){ window.htmx.trigger(refresher, 'refresh-apps-table'); }
   }
-  window.prefillAndShowGenerate = prefillAndShowGenerate; // expose global for template button
 
-  function triggerAppsTableRefresh(){
-    if(window.htmx){
-      // New table refresher
-      if(document.querySelector('#apps-table-refresher')){
-        window.htmx.trigger('#apps-table-refresher','refresh-apps-table');
-      }
-      // Legacy grid support (safe no-op if removed)
-      if(document.querySelector('#grid-refresher')){
-        window.htmx.trigger('#grid-refresher','refresh-grid');
-      }
-    }
+  document.addEventListener('refresh-apps-table', refresh, { passive:true });
+  // Backwards compatibility
+  document.addEventListener('refresh-grid', refresh, { passive:true });
+  // Delegate button clicks
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('[data-action="refresh-apps"]');
+    if(btn){ e.preventDefault(); refresh(); }
+  });
+  // Soft notice once
+  if(!window.__APPS_JS_NOTICE){
+    window.__APPS_JS_NOTICE = true;
+    console.info('[applications.js] Legacy generate prefill helper removed; use hyperscript instead.');
   }
-  document.addEventListener('refresh-apps-table', triggerAppsTableRefresh);
-  document.addEventListener('refresh-grid', triggerAppsTableRefresh); // backward compatibility
-  document.getElementById('refreshGridBtn')?.addEventListener('click', triggerAppsTableRefresh);
 })();
