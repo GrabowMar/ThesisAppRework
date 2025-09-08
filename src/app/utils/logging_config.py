@@ -31,6 +31,35 @@ except ImportError:
         BRIGHT = DIM = RESET_ALL = ""
 
 
+def _safe_get_message(record: logging.LogRecord) -> str:
+    """Safely retrieve a log record's message without raising formatting errors.
+
+    Normalizes the record in-place if a formatting TypeError occurs so that
+    downstream filters/formatters do not repeatedly trigger the same error.
+    """
+    try:
+        # NOTE: Always use this helper instead of record.getMessage() directly
+        # inside filters/formatters to avoid re-raising TypeError when a log
+        # call used printf-style formatting with mismatched / missing args.
+        return record.getMessage()
+    except TypeError:
+        # Fallback to raw msg; clear args so future getMessage calls succeed
+        try:
+            raw_msg = str(record.msg)
+        except Exception:  # pragma: no cover - extreme edge
+            raw_msg = '<unprintable log message>'
+        record.msg = raw_msg
+        record.args = ()
+        # Emit a one-time stderr hint (not via logging to avoid recursion)
+        if not getattr(_safe_get_message, "_warned", False):  # type: ignore[attr-defined]
+            try:
+                sys.stderr.write("[logging] Normalized malformed log format (future occurrences suppressed)\n")
+            except Exception:  # pragma: no cover
+                pass
+            setattr(_safe_get_message, "_warned", True)  # type: ignore[attr-defined]
+        return raw_msg
+
+
 class StackTraceFilter(logging.Filter):
     """Filter to compress and group stack traces."""
     
@@ -55,7 +84,9 @@ class StackTraceFilter(logging.Filter):
                 if (current_time - last_time).seconds < 300:
                     # Replace with summary message
                     count = self._stack_count[stack_key]
-                    record.msg = f"{record.getMessage()} (repeated {count}x - stack trace suppressed)"
+                    # Use safe retrieval; reset args so future formatting is safe
+                    record.msg = f"{_safe_get_message(record)} (repeated {count}x - stack trace suppressed)"
+                    record.args = ()
                     record.exc_info = None
                     record.stack_info = None
                     return True
@@ -65,12 +96,13 @@ class StackTraceFilter(logging.Filter):
         return True
     
     def _get_stack_key(self, record: logging.LogRecord) -> str:
-        """Create a key to identify similar stack traces."""
+        """Create a key to identify similar stack traces (defensive)."""
         if record.exc_info:
             exc_type = record.exc_info[0].__name__ if record.exc_info[0] else "Unknown"
             exc_msg = str(record.exc_info[1])[:100] if record.exc_info[1] else ""
             return f"{exc_type}:{exc_msg}"
-        return f"stack:{record.getMessage()[:50]}"
+        message = _safe_get_message(record)
+        return f"stack:{message[:50]}"
 
 
 class LogGrouper:
@@ -95,7 +127,8 @@ class LogGrouper:
                 return False, None
             else:
                 # Time to summarize
-                summary = f"[GROUPED] {record.getMessage()} (repeated {group['count']}x in {self.group_window}s)"
+                # Build summary defensively
+                summary = f"[GROUPED] {_safe_get_message(record)} (repeated {group['count']}x in {self.group_window}s)"
                 # Reset the group
                 del self.message_groups[message_pattern]
                 return True, summary
@@ -110,8 +143,8 @@ class LogGrouper:
             return True, None
     
     def _get_message_pattern(self, record: logging.LogRecord) -> str:
-        """Extract pattern from log message for grouping."""
-        message = record.getMessage()
+        """Extract pattern from log message for grouping (defensive)."""
+        message = _safe_get_message(record)
         
         # Patterns for common repetitive messages
         patterns = [
@@ -155,17 +188,7 @@ class SmartLogFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         """Apply comprehensive filtering."""
         # Defensive: record.msg may contain formatting placeholders with mismatched args.
-        try:
-            message = record.getMessage()
-        except TypeError:
-            # Normalize: fallback to raw msg string representation and clear args to prevent cascading errors.
-            try:
-                raw_msg = str(record.msg)
-            except Exception:  # pragma: no cover - extreme edge
-                raw_msg = '<unprintable log message>'
-            record.msg = raw_msg
-            record.args = ()
-            message = raw_msg
+        message = _safe_get_message(record)
         
         # 1. Suppress known spam patterns
         for pattern in self._suppressed_patterns:
@@ -191,13 +214,7 @@ class SmartLogFilter(logging.Filter):
     
     def _is_rate_limited_message(self, record: logging.LogRecord) -> bool:
         """Check if message should be rate limited."""
-        try:
-            message = record.getMessage().lower()
-        except TypeError:
-            # Same normalization safeguard as above
-            record.msg = str(record.msg)
-            record.args = ()
-            message = record.msg.lower()
+        message = _safe_get_message(record).lower()
         rate_limited_keywords = [
             'scheduler: sending due task',
             'mingle: searching for neighbors',
@@ -208,14 +225,15 @@ class SmartLogFilter(logging.Filter):
     
     def _should_allow_rate_limited(self, record: logging.LogRecord) -> bool:
         """Rate limit repetitive messages."""
-        message_key = f"{record.name}:{record.getMessage()[:50]}"
+        # Use safe message retrieval to avoid TypeError
+        message_key = f"{record.name}:{_safe_get_message(record)[:50]}"
         current_time = datetime.now().timestamp()
-        
+
         if message_key in self._rate_limited_messages:
             last_time = self._rate_limited_messages[message_key]
             if current_time - last_time < self._rate_limit_window:
                 return False
-        
+
         self._rate_limited_messages[message_key] = current_time
         return True
 
@@ -254,13 +272,8 @@ class ColoredSmartFormatter(logging.Formatter):
         timestamp = self.formatTime(record, '%H:%M:%S')
         level = record.levelname
         name = self._clean_logger_name(record.name)
-        try:
-            message = record.getMessage()
-        except TypeError:
-            # Normalize inconsistent formatting
-            record.msg = str(record.msg)
-            record.args = ()
-            message = record.msg
+        # Always retrieve the message defensively (normalizes mismatched args)
+        message = _safe_get_message(record)
         
         # Apply colors if enabled
         if self.use_colors:

@@ -1,12 +1,14 @@
 {# DEPRECATED: hub_main.html retained only for backward compatibility.
-   The unified hub now lives in pages/analysis/analysis_main.html.
-   This template simply extends (includes) the new page so old links
+   The analysis hub has been redesigned as a task-focused management page 
+   in pages/analysis/analysis_main.html (no longer a dashboard-style hub).
+   This template simply extends the new task management page so old links
    or tests that still reference hub_main do not break. #}
 {% extends 'pages/analysis/analysis_main.html' %}
 
 {% block content %}
   {{ super() }}
-  <div class="alert alert-warning small mt-3 mb-0">
-    <strong>Deprecation Notice:</strong> This legacy template (hub_main.html) will be removed; update links to /analysis/list.
+  <div class="alert alert-info small mt-3 mb-0">
+    <strong>Legacy Route:</strong> You're viewing the legacy hub route. The analysis page is now task-focused. 
+    Update bookmarks to <a href="/analysis/" class="alert-link">/analysis/</a> for the main tasks view.
   </div>
 {% endblock %}

@@ -63,14 +63,13 @@ def analysis_list():
 
     Full page render for non-HTMX; fragments are handled by /api/* endpoints.
     """
-    tasks = []
-    stats = None
+    # Simplified page: server-render initial recent tasks so page is not empty before HTMX filtering
     try:
         tasks = AnalysisTaskService.get_recent_tasks(limit=25)
-        stats = _build_stats_snapshot(tasks)
     except Exception as e:  # pragma: no cover
-        current_app.logger.warning(f"Could not load tasks for hub: {e}")
-    return render_template('pages/analysis/analysis_main.html', tasks=tasks, stats=stats)
+        current_app.logger.warning(f"Could not load initial tasks: {e}")
+        tasks = []
+    return render_template('pages/analysis/analysis_main.html', tasks=tasks)
 
 @analysis_bp.route('/')
 def analysis_index():
@@ -279,6 +278,9 @@ def htmx_tasks_inspection_list():
         current_app.logger.warning(f"Task list filter failed: {e}")
         tasks = []
     return render_template('pages/analysis/partials/inspection_tasks_table.html', tasks=tasks)
+
+## Removed legacy /api/tasks/table endpoint (complex pagination table) during simplification.
+## Reason: Replaced by existing stable inspection list (/api/tasks/inspect/list) to reduce maintenance surface.
 
 @analysis_bp.route('/api/tasks/<task_id>/detail')
 def htmx_task_detail_fragment(task_id: str):
