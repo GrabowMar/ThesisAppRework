@@ -804,6 +804,222 @@ def api_models_filtered():
         current_app.logger.error(f"Error building models/filtered payload: {e}")
         return jsonify({'models': [], 'statistics': {'total_models': 0, 'active_models': 0, 'unique_providers': 0, 'avg_cost_per_1k': 0}})
 
+@api_bp.route('/models/paginated')
+def api_models_paginated():
+    """Paginated & filterable models list.
+
+    Query params:
+      page: page number (default 1)
+      per_page: page size (default 25, max 200)
+      search, providers, capabilities, price: same semantics as /models/filtered
+      source: db|openrouter (default db) – when openrouter, pulls fresh (or cached) list from OpenRouterService
+    Response JSON keys:
+      models: list (current page slice)
+      statistics: aggregation over FULL filtered result set
+      pagination: envelope {current_page, per_page, total_items, total_pages, has_prev, has_next}
+      source: 'db' | 'openrouter'
+    """
+    # Import inside function to avoid circular dependency during app init
+    try:
+        from ..shared_utils import openrouter_service  # type: ignore
+    except Exception:
+        openrouter_service = None  # type: ignore
+
+    try:
+        # Pagination params
+        page = request.args.get('page', type=int) or 1
+        per_page = request.args.get('per_page', type=int) or 25
+        per_page = max(1, min(per_page, 200))
+        if page < 1:
+            page = 1
+
+        # Source: db | openrouter
+        source = (request.args.get('source') or 'db').lower()
+        if source not in {'db', 'openrouter'}:
+            source = 'db'
+
+        # Filters
+        search = (request.args.get('search') or '').strip().lower()
+        providers_filter = {p.lower() for p in request.args.getlist('providers') if p.strip()}
+        caps_filter = {c.lower() for c in request.args.getlist('capabilities') if c.strip()}
+        price_tier = (request.args.get('price') or '').lower()
+        installed_param = request.args.get('installed') or request.args.get('installed_only') or request.args.get('used')
+        installed_only = str(installed_param).lower() in {'1', 'true', 'yes', 'on'}
+
+        # Acquire base list
+        base_models: list = []
+        synthetic_mode = False
+        if source == 'openrouter' and openrouter_service and getattr(openrouter_service, 'api_key', None):
+            try:
+                or_models = openrouter_service.fetch_all_models() or []
+                class _ORWrap:
+                    __slots__ = ('canonical_slug','model_id','model_name','provider','input_price_per_token','output_price_per_token','context_window','max_output_tokens','cost_efficiency','_caps','_meta','installed')
+                    def __init__(self, raw: dict):
+                        mid = raw.get('id') or ''
+                        self.model_id = mid
+                        self.canonical_slug = (mid.replace('/', '_')) if mid else raw.get('name','unknown')
+                        self.model_name = raw.get('name') or mid or 'unknown'
+                        self.provider = mid.split('/')[0] if '/' in mid else (raw.get('provider') or 'unknown')
+                        pricing = raw.get('pricing') or {}
+                        try:
+                            self.input_price_per_token = float(pricing.get('prompt') or 0) / 1000.0
+                            self.output_price_per_token = float(pricing.get('completion') or 0) / 1000.0
+                        except Exception:
+                            self.input_price_per_token = 0.0; self.output_price_per_token = 0.0
+                        self.context_window = raw.get('context_length') or (raw.get('top_provider') or {}).get('context_length') or 0
+                        self.max_output_tokens = (raw.get('top_provider') or {}).get('max_completion_tokens') or 0
+                        self.cost_efficiency = 0.0
+                        arch = raw.get('architecture') or {}
+                        caps = []
+                        for k in ('modality','input_modalities','output_modalities'):
+                            v = arch.get(k)
+                            if isinstance(v, str):
+                                caps.append(v)
+                            elif isinstance(v, list):
+                                caps.extend(v)
+                        if raw.get('supports_tool_calls'):
+                            caps.append('function_calling')
+                        self._caps = {'capabilities': list({c for c in caps if c})}
+                        self._meta = {
+                            'openrouter_description': raw.get('description'),
+                            'openrouter_model_id': mid,
+                            'openrouter_name': raw.get('name'),
+                            'openrouter_canonical_slug': raw.get('canonical_slug'),
+                        }
+                        self.installed = False
+                    def get_capabilities(self):
+                        return self._caps
+                    def get_metadata(self):
+                        return self._meta
+                base_models = [_ORWrap(m) for m in or_models if isinstance(m, dict)]
+            except Exception as e:  # pragma: no cover
+                current_app.logger.warning(f"OpenRouter pagination source failed: {e}")
+                base_models = []
+        else:
+            base_models = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+            if not base_models:
+                try:
+                    fs_slugs = list_generated_models()
+                    cap_json = load_model_capabilities().get('data') or {}
+                    syn = []
+                    for slug in fs_slugs:
+                        entry = cap_json.get(slug) if isinstance(cap_json, dict) else {}
+                        class _Synthetic:
+                            canonical_slug = slug
+                            model_id = slug
+                            model_name = slug
+                            provider = slug.split('_')[0]
+                            input_price_per_token = 0.0
+                            output_price_per_token = 0.0
+                            context_window = 0
+                            max_output_tokens = 0
+                            cost_efficiency = 0.0
+                            installed = True
+                            def get_capabilities(self):
+                                if isinstance(entry, dict) and 'capabilities' in entry:
+                                    return entry
+                                return {'capabilities': entry if isinstance(entry, (list, dict)) else []}
+                            def get_metadata(self):
+                                return {}
+                        syn.append(_Synthetic())
+                    if syn:
+                        base_models = syn
+                        synthetic_mode = True
+                except Exception:
+                    pass
+
+        def price_bucket(val: float) -> str:
+            if val == 0:
+                return 'free'
+            if val < 0.001:
+                return 'low'
+            if val < 0.005:
+                return 'mid'
+            return 'high'
+
+        # Filtering
+        filtered = []
+        for m in base_models:
+            name_l = (getattr(m, 'model_name', '') or '').lower()
+            slug_l = (getattr(m, 'canonical_slug', '') or '').lower()
+            if search and search not in name_l and search not in slug_l:
+                continue
+            if providers_filter and (getattr(m, 'provider', '').lower() not in providers_filter):
+                continue
+            caps_raw = m.get_capabilities() or {}
+            caps_list = _norm_caps(caps_raw.get('capabilities') if isinstance(caps_raw, dict) else caps_raw)
+            caps_lower = {c.lower() for c in caps_list}
+            if caps_filter and not caps_filter.issubset(caps_lower):
+                continue
+            if price_tier:
+                bucket = price_bucket(getattr(m, 'input_price_per_token', 0.0) or 0.0)
+                if bucket != price_tier:
+                    continue
+            if installed_only:
+                if not bool(getattr(m, 'installed', False)):
+                    try:
+                        from app.utils.generated_apps import list_generated_models as _lgm
+                        if getattr(m, 'canonical_slug', None) not in set(_lgm()):
+                            continue
+                    except Exception:
+                        continue
+            filtered.append(m)
+
+        total_items = len(filtered)
+        total_pages = (total_items + per_page - 1) // per_page if total_items else 1
+        if page > total_pages:
+            page = total_pages
+        start = (page - 1) * per_page
+        end = start + per_page
+        page_items = filtered[start:end]
+
+        def map_model(m):
+            caps_raw = m.get_capabilities() or {}
+            caps_list = _norm_caps(caps_raw.get('capabilities') if isinstance(caps_raw, dict) else caps_raw)
+            meta = m.get_metadata() or {}
+            return {
+                'slug': getattr(m, 'canonical_slug', None),
+                'model_id': getattr(m, 'model_id', None),
+                'name': getattr(m, 'model_name', None),
+                'provider': getattr(m, 'provider', None),
+                'capabilities': caps_list,
+                'input_price_per_1k': round((getattr(m, 'input_price_per_token', 0.0) or 0.0) * 1000, 6),
+                'output_price_per_1k': round((getattr(m, 'output_price_per_token', 0.0) or 0.0) * 1000, 6),
+                'context_length': getattr(m, 'context_window', 0) or 0,
+                'max_output_tokens': getattr(m, 'max_output_tokens', 0) or 0,
+                'performance_score': int((getattr(m, 'cost_efficiency', 0.0) or 0.0) * 10) if (getattr(m, 'cost_efficiency', 0.0) or 0) <= 1 else int(getattr(m, 'cost_efficiency', 0.0) or 0),
+                'status': 'active',
+                'installed': bool(getattr(m, 'installed', False)),
+                'description': meta.get('openrouter_description') or meta.get('description') or None,
+            }
+
+        mapped_page = [map_model(m) for m in page_items]
+        all_mapped_for_stats = [map_model(m) for m in filtered]
+        providers_set = {m['provider'] for m in all_mapped_for_stats}
+        stats = {
+            'total_models': len(all_mapped_for_stats),
+            'active_models': len(all_mapped_for_stats),
+            'unique_providers': len(providers_set),
+            'avg_cost_per_1k': round(sum(x['input_price_per_1k'] for x in all_mapped_for_stats) / max(len(all_mapped_for_stats), 1), 6),
+            'source': 'openrouter' if source == 'openrouter' else ('synthetic' if synthetic_mode else 'database')
+        }
+        return jsonify({
+            'models': mapped_page,
+            'statistics': stats,
+            'pagination': {
+                'current_page': page,
+                'per_page': per_page,
+                'total_items': total_items,
+                'total_pages': total_pages,
+                'has_prev': page > 1,
+                'has_next': page < total_pages
+            },
+            'source': stats['source']
+        })
+    except Exception as e:  # pragma: no cover
+        current_app.logger.error(f"Error building models/paginated payload: {e}")
+        return jsonify({'models': [], 'statistics': {'total_models': 0}, 'pagination': {'current_page': 1, 'per_page': 25, 'total_items': 0, 'total_pages': 1, 'has_prev': False, 'has_next': False}, 'source': 'error'})
+
 @api_bp.route('/models/comparison/refresh', methods=['POST'])
 def models_comparison_refresh():
     """Compute lightweight comparison metrics for provided models.

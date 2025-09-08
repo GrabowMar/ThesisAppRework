@@ -38,15 +38,24 @@ if (window.__MODELS_JS_LOADED__) {
   // Placeholder for future sort state
   let currentSort = { field: null, direction: 'asc' };
   /** @type {number|undefined} */ let searchTimeout;
+  // Pagination + source state
+  let currentPage = 1;
+  let perPage = 25;
+  let totalPages = 1;
+  let currentSource = 'db'; // 'db' | 'openrouter' | 'used'
 
   document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('models-table-body')) {
-      // First, trigger a lightweight filesystem -> DB sync so newly generated
-      // apps/models appear without manual intervention. Fire-and-forget; if it
-      // fails we still proceed to load existing DB state.
-      fetch('/api/models/sync', { method: 'POST' })
-        .catch(() => {})
-        .finally(() => loadModels());
+      // Attempt to restore persisted UI state
+      try {
+        const st = JSON.parse(localStorage.getItem('models_ui_state')||'{}');
+        if (st.perPage) perPage = st.perPage;
+        if (st.source) currentSource = st.source;
+        const sel = document.getElementById('models-per-page');
+        if (sel) sel.value = String(perPage);
+        updateSourceButtons();
+      } catch(e) {}
+      fetch('/api/models/sync', { method: 'POST' }).catch(()=>{}).finally(()=> loadModelsPaginated());
       setupMultiselects();
     }
   });
@@ -62,8 +71,35 @@ function clearSearch() {
   if (el) el.value = '';
   applyFilters();
 }
-function getDataSource() {
-  return document.getElementById('source-openrouter')?.checked ? 'openrouter' : 'db';
+function persistUiState() {
+  try { localStorage.setItem('models_ui_state', JSON.stringify({ perPage, source: currentSource })); } catch(e) {}
+}
+function setModelsSource(src) {
+  if (!src || (src !== 'db' && src !== 'openrouter' && src !== 'used')) return;
+  currentSource = src;
+  currentPage = 1; // reset page
+  updateSourceButtons();
+  persistUiState();
+  loadModelsPaginated();
+}
+function updateSourceButtons() {
+  const dbBtn = document.getElementById('src-db');
+  const usedBtn = document.getElementById('src-used');
+  const orBtn = document.getElementById('src-openrouter');
+  if (dbBtn && orBtn) {
+    dbBtn.classList.toggle('active', currentSource === 'db');
+    if (usedBtn) usedBtn.classList.toggle('active', currentSource === 'used');
+    orBtn.classList.toggle('active', currentSource === 'openrouter');
+  }
+  const ind = document.getElementById('models-source-indicator');
+  if (ind) {
+    ind.textContent = currentSource === 'openrouter' ? 'OpenRouter catalog'
+      : currentSource === 'used' ? 'Installed / used models'
+      : 'All database models';
+  }
+}
+function changePerPage(v) {
+  const n = parseInt(v,10); if (!isNaN(n) && n>0) { perPage = n; currentPage = 1; persistUiState(); loadModelsPaginated(); }
 }
 /** Build current filter query params */
 function buildFilterParams() {
@@ -81,34 +117,32 @@ function showLoading(s) {
   if (sp) sp.style.display = s ? 'block' : 'none';
 }
 /** Load complete model list (unfiltered) */
-function loadModels() {
+function loadModelsPaginated() {
   if (!window.fetch) return;
   showLoading(true);
-  fetch('/api/models/all')
+  const params = buildFilterParams();
+  params.append('page', String(currentPage));
+  params.append('per_page', String(perPage));
+  if (currentSource === 'used') {
+    params.append('source', 'db');
+    params.append('installed_only', '1');
+  } else {
+    params.append('source', currentSource);
+  }
+  fetch('/api/models/paginated?' + params.toString())
     .then(r => r.json())
     .then(d => {
       modelsData = d.models || [];
       updateStatistics(d.statistics || {});
+      totalPages = (d.pagination && d.pagination.total_pages) || 1;
       renderModelsTable(modelsData);
+      renderPagination(d.pagination || {});
     })
     .catch(e => console.error(e))
     .finally(() => showLoading(false));
 }
 /** Fetch filtered models using current UI selections */
-function applyFilters() {
-  if (!window.fetch) return;
-  showLoading(true);
-  const params = buildFilterParams();
-  fetch('/api/models/filtered?' + params.toString())
-    .then(r => r.json())
-    .then(d => {
-      modelsData = d.models || [];
-      updateStatistics(d.statistics || {});
-      renderModelsTable(modelsData);
-    })
-    .catch(e => console.error(e))
-    .finally(() => showLoading(false));
-}
+function applyFilters() { currentPage = 1; loadModelsPaginated(); }
 /** Update KPI counters */
 function updateStatistics(stats) {
   const tm = document.getElementById('total-models');
@@ -194,7 +228,7 @@ function viewModelDetails(slug) {
     })
     .catch(() => target.innerHTML = '<div class="alert alert-danger m-0">Failed to load.</div>');
 }
-function refreshModels() { loadModels(); }
+function refreshModels() { loadModelsPaginated(); }
 function openComparison() {
   // Load from current in-memory selection (fallback to localStorage)
   if (!selectedModels.length) {
@@ -218,6 +252,41 @@ function setupMultiselects() {
   document.querySelectorAll('.provider-option').forEach(cb => cb.addEventListener('change', applyFilters));
   document.querySelectorAll('.capability-option').forEach(cb => cb.addEventListener('change', applyFilters));
 }
+function renderPagination(p) {
+  const ul = document.getElementById('models-pagination');
+  const summary = document.getElementById('models-page-summary');
+  if (!ul) return;
+  const page = p.current_page || 1;
+  const pages = p.total_pages || 1;
+  currentPage = page; totalPages = pages;
+  if (summary) {
+    const total = p.total_items || modelsData.length;
+    const start = (page-1)* (p.per_page||perPage) + 1;
+    const end = Math.min(start + (p.per_page||perPage) -1, total);
+    summary.textContent = `Showing ${start}-${end} of ${total}`;
+  }
+  const mk = (label, targetPage, disabled=false, active=false) => `<li class="page-item ${disabled?'disabled':''} ${active?'active':''}"><a class="page-link" href="#" onclick="return gotoModelsPage(${targetPage})">${label}</a></li>`;
+  let html = '';
+  html += mk('&laquo;', page-1, page<=1);
+  // show limited window
+  const windowSize = 5;
+  let startP = Math.max(1, page - Math.floor(windowSize/2));
+  let endP = startP + windowSize - 1;
+  if (endP > pages) { endP = pages; startP = Math.max(1, endP - windowSize +1); }
+  for (let i=startP;i<=endP;i++) html += mk(String(i), i, false, i===page);
+  html += mk('&raquo;', page+1, page>=pages);
+  ul.innerHTML = html;
+}
+function gotoModelsPage(p) {
+  if (p<1 || p> totalPages) return false;
+  currentPage = p;
+  loadModelsPaginated();
+  return false;
+}
+function updateBatchSelectionCount() {
+  const el = document.getElementById('selected-models-count');
+  if (el) el.textContent = selectedModels.length;
+}
 
 // Expose functions if needed globally
   window.debounceSearch = debounceSearch;
@@ -229,4 +298,8 @@ function setupMultiselects() {
   window.openComparison = openComparison;
   window.exportModelsData = exportModelsData;
   window.tagInstalledModels = tagInstalledModels;
+  window.setModelsSource = setModelsSource;
+  window.changePerPage = changePerPage;
+  window.gotoModelsPage = gotoModelsPage;
+  window.updateBatchSelectionCount = updateBatchSelectionCount;
 }
