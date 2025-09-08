@@ -14,7 +14,7 @@ from pathlib import Path  # noqa: F401 (may still be used elsewhere dynamically)
 from app.services.maintenance_service import MaintenanceService
 from datetime import datetime, timezone, timedelta
 
-from flask import Blueprint, request, jsonify, current_app, abort
+from flask import Blueprint, request, jsonify, current_app, abort, url_for, Response  # noqa: F401 (Response used in dynamic download endpoint)
 
 from app.extensions import db
 from app.models import (
@@ -865,7 +865,8 @@ def api_models_paginated():
                             self.input_price_per_token = float(pricing.get('prompt') or 0) / 1000.0
                             self.output_price_per_token = float(pricing.get('completion') or 0) / 1000.0
                         except Exception:
-                            self.input_price_per_token = 0.0; self.output_price_per_token = 0.0
+                            self.input_price_per_token = 0.0
+                            self.output_price_per_token = 0.0
                         self.context_window = raw.get('context_length') or (raw.get('top_provider') or {}).get('context_length') or 0
                         self.max_output_tokens = (raw.get('top_provider') or {}).get('max_completion_tokens') or 0
                         self.cost_efficiency = 0.0
@@ -2455,3 +2456,116 @@ def api_app_diagnose(model_slug, app_number):
         return create_success_response_with_status(diag, message='Compose diagnostics')
     except Exception as e:
         return create_error_response_with_status(str(e), status=500, error_type='DiagnoseError')
+
+@api_bp.route('/app/<model_slug>/<int:app_number>/status', methods=['GET'])
+def api_app_status(model_slug, app_number):
+    """Return current application & container status (lightweight, pollable).
+
+    Response structure:
+      - model_slug / app_number
+      - db_status: value from GeneratedApplication.container_status
+      - containers: list of discovered docker containers (may be empty)
+      - containers_found: count
+      - warnings: list (e.g. running status but no containers discovered)
+      - docker_connected: bool (whether Docker client currently available)
+    """
+    app, err = _get_app_or_404(model_slug, app_number)
+    if err:
+        return err
+    try:
+        from app.services.service_locator import ServiceLocator
+        docker_mgr = ServiceLocator.get_docker_manager()
+        containers = []
+        docker_connected = False
+        if docker_mgr:
+            try:
+                containers = docker_mgr.get_project_containers(model_slug, app_number) or []
+                docker_connected = bool(docker_mgr.client)
+            except Exception as _dock_err:  # pragma: no cover
+                current_app.logger.debug(f"Status container discovery failed for {model_slug}/app{app_number}: {_dock_err}")
+        warnings = []
+        if app.container_status == 'running' and not containers:
+            warnings.append('Application marked running but no containers discovered')
+        payload = {
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'db_status': app.container_status,
+            'containers_found': len(containers),
+            'containers': containers,
+            'warnings': warnings,
+            'docker_connected': docker_connected
+        }
+        return create_success_response_with_status(payload, message='Application status')
+    except Exception as e:  # pragma: no cover
+        return create_error_response_with_status(str(e), status=500, error_type='StatusError')
+
+@api_bp.route('/app/<model_slug>/<int:app_number>/logs/tails', methods=['GET'])
+def api_app_log_tails(model_slug, app_number):
+    """Return HTML fragment with recent backend & frontend log tails.
+
+    This is an HTMX-friendly endpoint (returns raw HTML, not JSON) so the
+    applications page can periodically refresh lightweight log previews.
+    """
+    app, err = _get_app_or_404(model_slug, app_number)
+    if err:
+        return err
+    from markupsafe import escape
+    try:
+        from app.services.service_locator import ServiceLocator
+        docker_mgr = ServiceLocator.get_docker_manager()
+        if not docker_mgr:
+            return ('<div class="text-warning small">Docker manager unavailable – cannot fetch live logs.</div>')
+        lines = request.args.get('lines', default=120, type=int)
+        services = ['backend', 'frontend']
+        parts = []
+        for svc in services:
+            try:
+                text = docker_mgr.get_container_logs(model_slug, app_number, svc, tail=lines)
+            except Exception as _log_err:  # pragma: no cover
+                text = f"Error retrieving {svc} logs: {_log_err}"
+            safe = escape(text)
+            download_url = url_for('api.api_app_log_download', model_slug=model_slug, app_number=app_number, service=svc)
+            parts.append(
+                f'<div class="mb-3">'
+                f'<div class="d-flex justify-content-between align-items-center mb-1">'
+                f'<h6 class="m-0">{svc.title()} Log Tail <small class="text-muted">(last {lines} lines)</small></h6>'
+                f'<a class="btn btn-sm btn-outline-secondary" href="{download_url}"><i class="fas fa-download me-1"></i>Download</a>'
+                f'</div>'
+                f'<pre class="small bg-body-tertiary rounded p-2 mb-0" style="max-height:160px; overflow:auto; font-family:var(--tblr-font-monospace);">{safe}</pre>'
+                f'</div>'
+            )
+        return ''.join(parts)
+    except Exception as e:  # pragma: no cover
+        return (f'<div class="text-danger small">Error loading log tails: {escape(e)}</div>'), 500
+
+@api_bp.route('/app/<model_slug>/<int:app_number>/logs/download', methods=['GET'])
+def api_app_log_download(model_slug, app_number):
+    """Download (tail) of a specific service's logs from the running container.
+
+    For now we tail a large number of lines (default 5000) to avoid streaming
+    entire container output while still giving useful history.
+    """
+    service = request.args.get('service', 'backend').lower()
+    lines = request.args.get('lines', default=5000, type=int)
+    if service not in ('backend', 'frontend'):
+        return create_error_response_with_status('Invalid service parameter', status=400, error_type='BadRequest')
+    _, err = _get_app_or_404(model_slug, app_number)
+    if err:
+        return err
+    try:
+        from app.services.service_locator import ServiceLocator
+        docker_mgr = ServiceLocator.get_docker_manager()
+        if not docker_mgr:
+            return create_error_response_with_status('Docker manager unavailable', status=503, error_type='ServiceUnavailable')
+        content = docker_mgr.get_container_logs(model_slug, app_number, service, tail=lines)
+        from flask import Response
+        filename = f"{model_slug}_app{app_number}_{service}_logs.txt".replace('/', '_')
+        return Response(
+            content,
+            mimetype='text/plain; charset=utf-8',
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"'
+            }
+        )
+    except Exception as e:  # pragma: no cover
+        return create_error_response_with_status(str(e), status=500, error_type='DownloadError')
