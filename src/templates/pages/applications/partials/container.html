@@ -8,10 +8,10 @@
       </div>
       <div class="card-body">
         <div class="btn-list">
-          <button class="btn btn-outline-primary" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/start" hx-swap="none" hx-on:htmx:afterRequest="location.reload()"><i class="fas fa-play me-1"></i>Start</button>
-          <button class="btn btn-outline-warning" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/stop" hx-swap="none" hx-on:htmx:afterRequest="location.reload()"><i class="fas fa-stop me-1"></i>Stop</button>
-          <button class="btn btn-outline-info" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/restart" hx-swap="none" hx-on:htmx:afterRequest="location.reload()"><i class="fas fa-redo me-1"></i>Restart</button>
-          <button class="btn btn-outline-secondary" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/build" hx-swap="none" hx-on:htmx:afterRequest="location.reload()"><i class="fas fa-hammer me-1"></i>Build</button>
+          <button class="btn btn-outline-primary" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/start" hx-swap="none" hx-on:afterRequest="location.reload()"><i class="fas fa-play me-1"></i>Start</button>
+          <button class="btn btn-outline-warning" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/stop" hx-swap="none" hx-on:afterRequest="location.reload()"><i class="fas fa-stop me-1"></i>Stop</button>
+          <button class="btn btn-outline-info" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/restart" hx-swap="none" hx-on:afterRequest="location.reload()"><i class="fas fa-redo me-1"></i>Restart</button>
+          <button class="btn btn-outline-secondary" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/build" hx-swap="none" hx-on:afterRequest="location.reload()"><i class="fas fa-hammer me-1"></i>Build</button>
         </div>
         <hr>
         <div class="btn-list">

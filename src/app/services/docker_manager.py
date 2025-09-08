@@ -6,6 +6,7 @@ Provides container lifecycle management, health monitoring, and log retrieval.
 """
 
 import logging
+import shutil
 import time
 import docker
 from docker.errors import NotFound as DockerNotFound
@@ -13,7 +14,10 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
-logger = logging.getLogger(__name__)
+"""NOTE: Use 'svc.docker_manager' logger name to align with existing log format.
+This ensures compose command execution lines show up in app.log alongside
+earlier Docker client connection diagnostics."""
+logger = logging.getLogger('svc.docker_manager')
 
 
 class DockerStatus:
@@ -36,12 +40,34 @@ class DockerStatus:
 
 class DockerManager:
     """Docker container management service for Celery-based app."""
-    
+
     def __init__(self):
         self.logger = logger
         self.client = self._create_docker_client()
-        self.project_root = Path(__file__).parent.parent.parent.parent
-        self.models_dir = self.project_root / "misc" / "models"
+        # Determine project root robustly (expect docker_manager at: <root>/src/app/services/docker_manager.py)
+        # parents[0]=services, [1]=app, [2]=src, [3]=<project root>
+        try:
+            self.project_root = Path(__file__).resolve().parents[3]
+        except Exception:
+            # Fallback: climb until we find pytest.ini or docs folder
+            p = Path(__file__).resolve()
+            candidate = None
+            for parent in p.parents:
+                if (parent / 'pytest.ini').exists() or (parent / 'docs').exists():
+                    candidate = parent
+                    break
+            self.project_root = candidate or Path.cwd()
+        # Candidate roots where generated apps may live (migration friendly)
+        self.generated_roots: List[Path] = [
+            self.project_root / 'generated',                     # legacy expectation
+            self.project_root / 'src' / 'generated',             # current path variant
+            self.project_root / 'src' / 'generated' / 'apps',    # nested apps folder (current provided)
+        ]
+        # Filter existing for faster lookups, but keep original list order for attempts logging
+        self._existing_generated_roots = [r for r in self.generated_roots if r.exists()]
+        # Default models_dir (first existing or first candidate for path echoes)
+        self.models_dir = (self._existing_generated_roots[0]
+                           if self._existing_generated_roots else self.generated_roots[0])
     
     def _create_docker_client(self) -> Optional[docker.DockerClient]:
         """Create Docker client with retries and diagnostics.
@@ -150,32 +176,69 @@ class DockerManager:
             return DockerStatus(False, 'error', f'Error checking container: {e}')
     
     def get_project_containers(self, model: str, app_num: int) -> List[Dict[str, Any]]:
-        """Get all containers for a specific model/app project."""
+        """Get containers for a model/app with resilient fallbacks.
+
+        Fallback order:
+          1. Compose project label (standard case)
+          2. Explicit container_name entries parsed from compose file
+          3. Heuristic name prefix scan (model[_|-]{backend|frontend}_)
+        """
         if not self.client:
             return []
-        
+        import re
+        project_name = self._get_project_name(model, app_num)
+        results: List[Dict[str, Any]] = []
+
+        def _c_dict(c):
+            try:
+                ports = c.ports
+            except Exception:
+                ports = {}
+            return {
+                'id': c.id[:12],
+                'name': c.name,
+                'status': getattr(c, 'status', 'unknown'),
+                'image': c.image.tags[0] if getattr(c.image, 'tags', []) else 'unknown',
+                'ports': ports,
+                'labels': getattr(c, 'labels', {})
+            }
         try:
-            project_name = self._get_project_name(model, app_num)
-            containers = self.client.containers.list(
-                all=True,
-                filters={'label': f'com.docker.compose.project={project_name}'}
-            )
-            
-            result = []
-            for container in containers:
-                result.append({
-                    'id': container.id,
-                    'name': container.name,
-                    'status': container.status,
-                    'image': container.image.tags[0] if container.image.tags else 'unknown',
-                    'ports': container.ports,
-                    'labels': container.labels
-                })
-            
-            return result
-        except Exception as e:
-            self.logger.error(f"Error getting project containers: {e}")
-            return []
+            # 1) Label-based
+            labeled = self.client.containers.list(all=True, filters={'label': f'com.docker.compose.project={project_name}'})
+            if labeled:
+                return [_c_dict(c) for c in labeled]
+
+            # 2) Explicit names from compose file
+            compose_path = self._get_compose_path(model, app_num)
+            explicit = []
+            if compose_path.exists():
+                try:
+                    for line in compose_path.read_text(encoding='utf-8', errors='ignore').splitlines():
+                        m = re.search(r'container_name:\s*([A-Za-z0-9_.\-]+)', line)
+                        if m:
+                            explicit.append(m.group(1).strip())
+                except Exception:
+                    pass
+            if explicit:
+                for c in self.client.containers.list(all=True):
+                    if c.name in explicit:
+                        results.append(_c_dict(c))
+                if results:
+                    self.logger.debug("Containers resolved via explicit container_name entries: %s", explicit)
+                    return results
+
+            # 3) Heuristic prefixes
+            variants = {model, model.replace('-', '_'), model.replace('_', '-')}
+            prefixes = []
+            for v in variants:
+                prefixes.extend([f"{v}_backend_", f"{v}_frontend_"])
+            for c in self.client.containers.list(all=True):
+                if any(c.name.startswith(p) for p in prefixes):
+                    results.append(_c_dict(c))
+            return results
+        except Exception as e:  # pragma: no cover
+            self.logger.error("Error getting project containers: %s", e)
+            return results
     
     def start_containers(self, model: str, app_num: int) -> Dict[str, Any]:
         """Start containers for a model/app using docker-compose."""
@@ -213,8 +276,12 @@ class DockerManager:
         # Then start
         return self.start_containers(model, app_num)
     
-    def build_containers(self, model: str, app_num: int, no_cache: bool = True) -> Dict[str, Any]:
-        """Build containers for a model/app using docker-compose."""
+    def build_containers(self, model: str, app_num: int, no_cache: bool = True, start_after: bool = True) -> Dict[str, Any]:
+        """Build containers for a model/app using docker-compose.
+
+        If start_after=True (default) and build succeeds, will run 'up -d' to
+        bring containers online so UI reflects a running state immediately.
+        """
         compose_path = self._get_compose_path(model, app_num)
         if not compose_path.exists():
             return {
@@ -226,9 +293,23 @@ class DockerManager:
         if no_cache:
             cmd.append('--no-cache')
         
-        return self._execute_compose_command(
+        build_result = self._execute_compose_command(
             compose_path, cmd, model, app_num, timeout=600  # 10 minutes for build
         )
+        if not build_result.get('success') or not start_after:
+            return build_result
+
+        # Start containers (docker compose up -d)
+        up_result = self._execute_compose_command(
+            compose_path, ['up', '-d'], model, app_num, timeout=300
+        )
+        # Merge summaries
+        merged = {
+            'success': build_result.get('success') and up_result.get('success'),
+            'build': build_result,
+            'up': up_result
+        }
+        return merged
     
     def get_container_logs(self, model: str, app_num: int,
                           container_type: str = 'backend', tail: int = 100) -> str:
@@ -258,18 +339,18 @@ class DockerManager:
 
             # 2) Fallback: name prefix search (handles -1/_1 suffix)
             if target is None:
+                # Include explicit container_name patterns
                 name_prefixes = [
-                    f"{project_name}_{desired_service}",  # e.g., proj_backend
-                    f"{project_name}-{desired_service}",  # e.g., proj-backend
+                    f"{project_name}_{desired_service}",
+                    f"{project_name}-{desired_service}",
+                    f"{model}_{desired_service}_",  # explicit generated form
+                    f"{model.replace('-', '_')}_{desired_service}_",
                 ]
                 for c in self.client.containers.list(all=True):
-                    try:
-                        nm = c.name
-                        if any(nm.startswith(pref) for pref in name_prefixes):
-                            target = c
-                            break
-                    except Exception:
-                        continue
+                    nm = getattr(c, 'name', '')
+                    if any(nm.startswith(pref) for pref in name_prefixes):
+                        target = c
+                        break
 
             # 3) Legacy direct get (may fail depending on suffix differences)
             if target is None:
@@ -291,8 +372,62 @@ class DockerManager:
             return f"Error getting logs: {e}"
     
     def _get_compose_path(self, model: str, app_num: int) -> Path:
-        """Get path to docker-compose.yml for model/app."""
-        return self.models_dir / model / f"app{app_num}" / "docker-compose.yml"
+        """Resolve docker-compose.yml path for a model/app.
+
+        Tries multiple layout variants (see playbook §4):
+          1) <root>/generated/{model}/appN/docker-compose.yml (legacy)
+          2) <root>/src/generated/{model}/appN/docker-compose.yml (transitional)
+          3) <root>/src/generated/apps/{model}/appN/docker-compose.yml (current)
+
+        Returns the first existing path; if none exist, returns the path
+        for variant (3) so callers have a deterministic expected location.
+        """
+        candidates: List[Path] = [
+            self.project_root / 'generated' / model / f'app{app_num}' / 'docker-compose.yml',
+            self.project_root / 'src' / 'generated' / model / f'app{app_num}' / 'docker-compose.yml',
+            self.project_root / 'src' / 'generated' / 'apps' / model / f'app{app_num}' / 'docker-compose.yml',
+        ]
+        for c in candidates:
+            if c.exists():
+                return c
+        # Return last candidate (current layout) even if missing for error messaging
+        return candidates[-1]
+
+    def debug_compose_resolution(self, model: str, app_num: int) -> Dict[str, Any]:
+        """Provide detailed diagnostics for compose path resolution.
+
+        Returns structured data enumerating candidate paths, which exist,
+        chosen path, and basic docker connectivity/engine info.
+        """
+        chosen = self._get_compose_path(model, app_num)
+        variants = [
+            {
+                'path': str(self.project_root / 'generated' / model / f'app{app_num}' / 'docker-compose.yml'),
+                'exists': (self.project_root / 'generated' / model / f'app{app_num}' / 'docker-compose.yml').exists(),
+                'variant': 'legacy-root-generated'
+            },
+            {
+                'path': str(self.project_root / 'src' / 'generated' / model / f'app{app_num}' / 'docker-compose.yml'),
+                'exists': (self.project_root / 'src' / 'generated' / model / f'app{app_num}' / 'docker-compose.yml').exists(),
+                'variant': 'src-generated'
+            },
+            {
+                'path': str(self.project_root / 'src' / 'generated' / 'apps' / model / f'app{app_num}' / 'docker-compose.yml'),
+                'exists': (self.project_root / 'src' / 'generated' / 'apps' / model / f'app{app_num}' / 'docker-compose.yml').exists(),
+                'variant': 'src-generated-apps'
+            },
+        ]
+        diag = self.diagnose()
+        return {
+            'project_root': str(self.project_root),
+            'models_dir_selected': str(self.models_dir),
+            'candidate_roots_existing': [str(r) for r in self._existing_generated_roots],
+            'compose_variants': variants,
+            'chosen_compose_path': str(chosen),
+            'chosen_exists': chosen.exists(),
+            'docker_connected': diag.get('connected'),
+            'docker_engine': diag.get('engine_info'),
+        }
     
     def _get_project_name(self, model: str, app_num: int) -> str:
         """Get Docker Compose project name for model/app."""
@@ -302,39 +437,45 @@ class DockerManager:
     
     def _execute_compose_command(self, compose_path: Path, command: List[str], 
                                 model: str, app_num: int, timeout: int = 300) -> Dict[str, Any]:
-        """Execute a docker-compose command."""
-        import subprocess
-        import shutil
-        
-        cmd = []  # Initialize cmd variable
-        
-        try:
-            project_name = self._get_project_name(model, app_num)
-            
-            # Prefer modern 'docker compose', fallback to legacy 'docker-compose'
-            if shutil.which('docker'):
-                base_cmd = ['docker', 'compose']
-            elif shutil.which('docker-compose'):
-                base_cmd = ['docker-compose']
-            else:
-                return {
-                    'success': False,
-                    'error': 'Neither docker nor docker-compose CLI is available in PATH',
-                    'command': ''
-                }
+        """Execute a docker compose command (v2 preferred, v1 fallback).
 
-            # Build the full command
-            cmd = base_cmd + [
-                '-f', str(compose_path),
-                '-p', project_name
-            ] + command
-            
-            self.logger.info(f"Executing: {' '.join(cmd)}")
-            
-            # Change to the directory containing docker-compose.yml
-            cwd = compose_path.parent
-            
-            # Execute the command
+        Adds richer logging so we can debug why UI build/start buttons may
+        appear to do nothing. Returns structured result including stdout/stderr.
+        """
+        import subprocess
+
+        docker_path = shutil.which('docker')
+        docker_compose_path = shutil.which('docker-compose')
+        if docker_path:
+            base_cmd = ['docker', 'compose']
+            compose_variant = 'docker compose'
+        elif docker_compose_path:
+            base_cmd = ['docker-compose']
+            compose_variant = 'docker-compose'
+        else:
+            self.logger.error("No docker CLI found in PATH; cannot execute compose command")
+            return {
+                'success': False,
+                'error': 'Neither docker nor docker-compose CLI is available in PATH',
+                'command': '',
+                'compose_variant': None
+            }
+
+        project_name = self._get_project_name(model, app_num)
+        cmd = base_cmd + ['-f', str(compose_path), '-p', project_name] + command
+        cwd = compose_path.parent
+        self.logger.info(
+            "Compose exec variant=%s docker_path=%s compose_path=%s project=%s action=%s cwd=%s",
+            compose_variant,
+            docker_path or docker_compose_path,
+            compose_path,
+            project_name,
+            ' '.join(command),
+            cwd
+        )
+
+        start_ts = time.time()
+        try:
             result = subprocess.run(
                 cmd,
                 cwd=cwd,
@@ -342,29 +483,40 @@ class DockerManager:
                 text=True,
                 timeout=timeout
             )
-            
+            duration = time.time() - start_ts
             success = result.returncode == 0
-            
+            # Trim stdout/stderr for logging
+            trimmed_stdout = (result.stdout[:400] + '...') if len(result.stdout) > 400 else result.stdout
+            trimmed_stderr = (result.stderr[:400] + '...') if len(result.stderr) > 400 else result.stderr
+            level = self.logger.info if success else self.logger.error
+            level(
+                "Compose result rc=%s success=%s duration=%.2fs action=%s stdout_snip=%r stderr_snip=%r",
+                result.returncode, success, duration, ' '.join(command), trimmed_stdout, trimmed_stderr
+            )
             return {
                 'success': success,
                 'returncode': result.returncode,
                 'stdout': result.stdout,
                 'stderr': result.stderr,
-                'command': ' '.join(cmd)
+                'command': ' '.join(cmd),
+                'compose_variant': compose_variant,
+                'duration_seconds': duration
             }
-            
         except subprocess.TimeoutExpired:
+            self.logger.error("Compose command timeout after %ss: %s", timeout, ' '.join(cmd))
             return {
                 'success': False,
                 'error': f'Command timed out after {timeout} seconds',
-                'command': ' '.join(cmd)
+                'command': ' '.join(cmd),
+                'compose_variant': compose_variant
             }
-        except Exception as e:
-            self.logger.error(f"Error executing compose command: {e}")
+        except Exception as e:  # pragma: no cover (environment dependent)
+            self.logger.exception("Compose command failed: %s", ' '.join(cmd))
             return {
                 'success': False,
                 'error': str(e),
-                'command': ' '.join(cmd)
+                'command': ' '.join(cmd),
+                'compose_variant': compose_variant
             }
     
     def list_all_containers(self) -> List[Dict[str, Any]]:

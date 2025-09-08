@@ -21,13 +21,13 @@
                   {% endif %}
                   {% if app.exists %}
                     {% if app.status == 'running' %}
-                      <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/stop" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="syncModel('{{ entry.model.canonical_slug }}', '#model-{{ make_safe_dom_id(entry.model.canonical_slug) }} .model-apps')"><i class="fas fa-stop me-2"></i>Stop</a></li>
+                      <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/stop" hx-swap="none" hx-indicator="#operation-status" hx-on:afterRequest="syncModel('{{ entry.model.canonical_slug }}', '#model-{{ make_safe_dom_id(entry.model.canonical_slug) }} .model-apps')"><i class="fas fa-stop me-2"></i>Stop</a></li>
                     {% else %}
-                      <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/start" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="syncModel('{{ entry.model.canonical_slug }}', '#model-{{ make_safe_dom_id(entry.model.canonical_slug) }} .model-apps')"><i class="fas fa-play me-2"></i>Start</a></li>
+                      <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/start" hx-swap="none" hx-indicator="#operation-status" hx-on:afterRequest="syncModel('{{ entry.model.canonical_slug }}', '#model-{{ make_safe_dom_id(entry.model.canonical_slug) }} .model-apps')"><i class="fas fa-play me-2"></i>Start</a></li>
                     {% endif %}
-                    <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/restart" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="syncModel('{{ entry.model.canonical_slug }}', '#model-{{ make_safe_dom_id(entry.model.canonical_slug) }} .model-apps')"><i class="fas fa-rotate me-2"></i>Restart</a></li>
+                    <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/restart" hx-swap="none" hx-indicator="#operation-status" hx-on:afterRequest="syncModel('{{ entry.model.canonical_slug }}', '#model-{{ make_safe_dom_id(entry.model.canonical_slug) }} .model-apps')"><i class="fas fa-rotate me-2"></i>Restart</a></li>
                     {% if app.has_docker_compose %}
-                      <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/build" hx-swap="none" hx-indicator="#operation-status" hx-on:htmx:afterRequest="syncModel('{{ entry.model.canonical_slug }}', '#model-{{ make_safe_dom_id(entry.model.canonical_slug) }} .model-apps')"><i class="fas fa-hammer me-2"></i>Build</a></li>
+                      <li><a class="dropdown-item" href="#" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/build" hx-swap="none" hx-indicator="#operation-status" hx-on:afterRequest="syncModel('{{ entry.model.canonical_slug }}', '#model-{{ make_safe_dom_id(entry.model.canonical_slug) }} .model-apps')"><i class="fas fa-hammer me-2"></i>Build</a></li>
                     {% endif %}
                   {% else %}
                     <li><span class="dropdown-item-text text-muted"><i class="fas fa-ban me-2"></i>Not created</span></li>

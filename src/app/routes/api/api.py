@@ -2325,9 +2325,21 @@ def api_app_start(model_slug, app_number):
         return err
     try:
         assert app is not None
+        # Attempt real container start via DockerManager if available
+        from app.services.service_locator import ServiceLocator
+        docker_mgr = ServiceLocator.get_docker_manager()
+        docker_result = None
+        compose_diag = None
+        if docker_mgr:
+            try:
+                docker_result = docker_mgr.start_containers(model_slug, app_number)
+                compose_diag = docker_mgr.debug_compose_resolution(model_slug, app_number)
+            except Exception as _dock_err:  # pragma: no cover
+                current_app.logger.warning(f"Docker start failed for {model_slug}/app{app_number}: {_dock_err}")
         from app.services.application_service import start_application
-        result = start_application(app.id)
-        return create_success_response_with_status({'status': result['status']}, message='Application started')
+        result = start_application(app.id)  # flips DB state
+        payload = {'status': result['status'], 'docker': docker_result, 'compose': compose_diag}
+        return create_success_response_with_status(payload, message='Application started')
     except Exception as e:
         db.session.rollback()
         return create_error_response_with_status(str(e), status=500, error_type='StartError')
@@ -2339,9 +2351,20 @@ def api_app_stop(model_slug, app_number):
         return err
     try:
         assert app is not None
+        from app.services.service_locator import ServiceLocator
+        docker_mgr = ServiceLocator.get_docker_manager()
+        docker_result = None
+        compose_diag = None
+        if docker_mgr:
+            try:
+                docker_result = docker_mgr.stop_containers(model_slug, app_number)
+                compose_diag = docker_mgr.debug_compose_resolution(model_slug, app_number)
+            except Exception as _dock_err:  # pragma: no cover
+                current_app.logger.warning(f"Docker stop failed for {model_slug}/app{app_number}: {_dock_err}")
         from app.services.application_service import stop_application
         result = stop_application(app.id)
-        return create_success_response_with_status({'status': result['status']}, message='Application stopped')
+        payload = {'status': result['status'], 'docker': docker_result, 'compose': compose_diag}
+        return create_success_response_with_status(payload, message='Application stopped')
     except Exception as e:
         db.session.rollback()
         return create_error_response_with_status(str(e), status=500, error_type='StopError')
@@ -2353,9 +2376,20 @@ def api_app_restart(model_slug, app_number):
         return err
     try:
         assert app is not None
+        from app.services.service_locator import ServiceLocator
+        docker_mgr = ServiceLocator.get_docker_manager()
+        docker_result = None
+        compose_diag = None
+        if docker_mgr:
+            try:
+                docker_result = docker_mgr.restart_containers(model_slug, app_number)
+                compose_diag = docker_mgr.debug_compose_resolution(model_slug, app_number)
+            except Exception as _dock_err:  # pragma: no cover
+                current_app.logger.warning(f"Docker restart failed for {model_slug}/app{app_number}: {_dock_err}")
         from app.services.application_service import restart_application
         result = restart_application(app.id)
-        return create_success_response_with_status({'status': result['status']}, message='Application restarted')
+        payload = {'status': result['status'], 'docker': docker_result, 'compose': compose_diag}
+        return create_success_response_with_status(payload, message='Application restarted')
     except Exception as e:
         db.session.rollback()
         return create_error_response_with_status(str(e), status=500, error_type='RestartError')
@@ -2366,11 +2400,28 @@ def api_app_build(model_slug, app_number):
     if err:
         return err
     try:
-        # Simulate build state
         assert app is not None
-        app.container_status = 'building'
+        from app.services.service_locator import ServiceLocator
+        docker_mgr = ServiceLocator.get_docker_manager()
+        docker_result = None
+        compose_diag = None
+        if docker_mgr:
+            try:
+                docker_result = docker_mgr.build_containers(model_slug, app_number, no_cache=True)
+                compose_diag = docker_mgr.debug_compose_resolution(model_slug, app_number)
+            except Exception as _dock_err:  # pragma: no cover
+                current_app.logger.error(f"Docker build failed for {model_slug}/app{app_number}: {_dock_err}")
+                docker_result = {'success': False, 'error': str(_dock_err)}
+        else:
+            docker_result = {'success': False, 'error': 'DockerManager unavailable'}
+
+        # Update DB status according to outcome
+        if docker_result and docker_result.get('success'):
+            app.container_status = 'running'
+        else:
+            app.container_status = 'error'
         db.session.commit()
-        return create_success_response_with_status({'status': 'building'}, message='Build triggered')
+        return create_success_response_with_status({'status': app.container_status, 'docker': docker_result, 'compose': compose_diag}, message='Build attempted')
     except Exception as e:
         db.session.rollback()
         return create_error_response_with_status(str(e), status=500, error_type='BuildError')
@@ -2388,3 +2439,19 @@ def api_app_logs(model_slug, app_number):
         return jsonify({'html': html})
     except Exception as e:
         return create_error_response_with_status(str(e), status=500, error_type='LogsError')
+
+@api_bp.route('/app/<model_slug>/<int:app_number>/diagnose', methods=['GET'])
+def api_app_diagnose(model_slug, app_number):
+    """Return detailed diagnostics for compose path & docker environment.
+
+    Helps explain why build/start may fail (missing compose file vs docker not running).
+    """
+    try:
+        from app.services.service_locator import ServiceLocator
+        docker_mgr = ServiceLocator.get_docker_manager()
+        if not docker_mgr:
+            return create_error_response_with_status('DockerManager unavailable', status=503, error_type='ServiceUnavailable')
+        diag = docker_mgr.debug_compose_resolution(model_slug, app_number)
+        return create_success_response_with_status(diag, message='Compose diagnostics')
+    except Exception as e:
+        return create_error_response_with_status(str(e), status=500, error_type='DiagnoseError')
