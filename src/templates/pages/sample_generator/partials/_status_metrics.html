@@ -1,8 +1,20 @@
-{# HTMX fragment: Sample Generator status metrics #}
+{# HTMX fragment: Sample Generator status metrics (compact Tabler-style) #}
 {% set s = status or {'in_flight_count':0,'available_slots':0,'max_concurrent':0,'in_flight_keys':[]} %}
-<div class="row" id="status-display" hx-get="/sample-generator/fragments/status" hx-trigger="every 6s" hx-swap="outerHTML">
-  <div class="col-md-3"><div class="statcard"><div class="h1 m-0">{{ s.in_flight_count }}</div><div class="text-muted">In Flight</div></div></div>
-  <div class="col-md-3"><div class="statcard"><div class="h1 m-0">{{ s.available_slots }}</div><div class="text-muted">Available Slots</div></div></div>
-  <div class="col-md-3"><div class="statcard"><div class="h1 m-0">{{ s.max_concurrent }}</div><div class="text-muted">Max Concurrent</div></div></div>
-  <div class="col-md-3"><div class="statcard"><div class="h1 m-0">{{ s.in_flight_keys|length }}</div><div class="text-muted">Keys</div></div></div>
+<div class="sg-stats-inline" id="status-display" hx-get="/sample-generator/fragments/status" hx-trigger="every 6s" hx-swap="outerHTML" aria-label="Generation status metrics">
+  <div class="sg-stat" data-bs-toggle="tooltip" title="In Flight operations">
+    <div class="sg-stat-number text-primary" id="sg-in-flight">{{ s.in_flight_count }}</div>
+    <div class="sg-stat-label">In Flight</div>
+  </div>
+  <div class="sg-stat" data-bs-toggle="tooltip" title="Slots available for new tasks">
+    <div class="sg-stat-number text-success" id="sg-available-slots">{{ s.available_slots }}</div>
+    <div class="sg-stat-label">Slots</div>
+  </div>
+  <div class="sg-stat" data-bs-toggle="tooltip" title="Maximum concurrent tasks allowed">
+    <div class="sg-stat-number text-info" id="sg-max-concurrent">{{ s.max_concurrent }}</div>
+    <div class="sg-stat-label">Max</div>
+  </div>
+  <div class="sg-stat" data-bs-toggle="tooltip" title="Active key count">
+    <div class="sg-stat-number text-warning" id="sg-keys">{{ s.in_flight_keys|length }}</div>
+    <div class="sg-stat-label">Keys</div>
+  </div>
 </div>

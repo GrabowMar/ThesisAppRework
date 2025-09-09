@@ -10,29 +10,87 @@
 {% endblock %}
 
 {% block right_sidebar %}
-<div class="d-flex flex-column gap-3">
-  <div class="card">
-    <div class="card-body pb-2">
-      <div class="d-flex align-items-center mb-2">
-        <i class="fas fa-code-branch me-2" aria-hidden="true"></i>
-        <strong>Sample Generator</strong>
+<aside class="d-flex flex-column gap-3" id="sample-generator-sidebar" aria-label="Sample Generator Sidebar">
+  <!-- Status Card -->
+  <div class="card card-sm shadow-sm" id="sg-stats-card">
+    <div class="card-header py-1 px-2 d-flex justify-content-between align-items-center small text-uppercase letter-spacing-tight">
+      <span class="fw-semibold">Status</span>
+      <div class="btn-group btn-group-sm" role="group">
+        <button class="btn btn-icon btn-outline-secondary" id="sg-refresh-status" data-bs-toggle="tooltip" data-bs-title="Refresh status" aria-label="Refresh status" onclick="window.dispatchEvent(new CustomEvent('sg:refresh-status'))">
+          <i class="fas fa-rotate"></i>
+        </button>
       </div>
-      <div class="text-muted small">AI-powered code generation</div>
+    </div>
+    <div class="card-body py-2 px-2" aria-live="polite" aria-atomic="true">
+      {% with sidebar_mode=true %}
+        {% include 'pages/sample_generator/partials/_status_metrics.html' %}
+      {% endwith %}
     </div>
   </div>
-  <div class="card">
-    <div class="card-header py-2"><strong>Actions</strong></div>
-    <div class="card-body d-flex flex-column gap-2">
-      <button class="btn btn-outline-secondary btn-sm w-100" id="global-refresh-btn">
-        <i class="fas fa-sync icon" aria-hidden="true"></i>
-        Refresh All
-      </button>
+
+  <!-- Actions Card -->
+  <div class="card card-sm shadow-sm" id="sg-actions-card">
+    <div class="card-header py-1 px-2 d-flex justify-content-between align-items-center small text-uppercase letter-spacing-tight">
+      <span class="fw-semibold">Actions</span>
+      <div class="btn-toolbar" role="toolbar" aria-label="Generator actions">
+        <div class="btn-group btn-group-sm flex-wrap gap-1" role="group">
+          <button class="btn btn-icon btn-outline-primary" id="global-refresh-btn" data-bs-toggle="tooltip" data-bs-title="Refresh all panels" aria-label="Refresh all panels">
+            <i class="fas fa-sync"></i>
+          </button>
+          <button class="btn btn-icon btn-outline-success" data-bs-toggle="tooltip" data-bs-title="Start generation" aria-label="Start generation" onclick="window.dispatchEvent(new CustomEvent('sg:start'))">
+            <i class="fas fa-play"></i>
+          </button>
+            <button class="btn btn-icon btn-outline-warning" data-bs-toggle="tooltip" data-bs-title="Pause generation" aria-label="Pause generation" onclick="window.dispatchEvent(new CustomEvent('sg:pause'))">
+            <i class="fas fa-pause"></i>
+          </button>
+          <button class="btn btn-icon btn-outline-danger" data-bs-toggle="tooltip" data-bs-title="Stop generation" aria-label="Stop generation" onclick="window.dispatchEvent(new CustomEvent('sg:stop'))">
+            <i class="fas fa-stop"></i>
+          </button>
+          <button class="btn btn-icon btn-outline-info" data-bs-toggle="tooltip" data-bs-title="Show progress modal" aria-label="Show progress" data-bs-toggle-second="modal" data-bs-target="#progress-modal">
+            <i class="fas fa-barcode"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="card-body pt-1 pb-2 px-2">
+      <small class="text-secondary d-block fst-italic">Controls are disabled automatically while requests are in flight.</small>
     </div>
   </div>
-</div>
+
+  <!-- Legend Card -->
+  <div class="card card-sm shadow-sm" id="sg-legend-card">
+    <div class="card-header py-1 px-2 d-flex align-items-center small text-uppercase letter-spacing-tight">
+      <span class="fw-semibold">Legend</span>
+    </div>
+    <div class="card-body py-2 px-2 small">
+  <ul class="list-unstyled mb-0 d-grid gap-1 legend-grid">
+        <li class="d-flex align-items-center gap-1"><span class="badge bg-primary">IF</span><span class="text-muted">In Flight</span></li>
+        <li class="d-flex align-items-center gap-1"><span class="badge bg-success">AS</span><span class="text-muted">Available Slots</span></li>
+        <li class="d-flex align-items-center gap-1"><span class="badge bg-info">MC</span><span class="text-muted">Max Concurrent</span></li>
+        <li class="d-flex align-items-center gap-1"><span class="badge bg-warning text-dark">K</span><span class="text-muted">Keys</span></li>
+      </ul>
+    </div>
+  </div>
+</aside>
 {% endblock %}
 
 {% block scripts %}
   {{ super() }}
   {% include 'pages/sample_generator/partials/scripts.html' ignore missing %}
+  <style>
+  #sample-generator-sidebar { position:sticky; top:.75rem; }
+  #sample-generator-sidebar .card-header { background:var(--tblr-bg-surface,#f8f9fa); }
+  #sample-generator-sidebar .btn-icon { width:32px; height:32px; display:flex; align-items:center; justify-content:center; padding:0; }
+  #sample-generator-sidebar .btn-icon i { font-size:.8rem; }
+  #sample-generator-sidebar .letter-spacing-tight { letter-spacing:.5px; }
+  #sample-generator-sidebar #sg-legend-card .badge { font-size:.55rem; }
+  /* Compact metric styling retained (partial relies on these hooks) */
+  #sample-generator-sidebar .sg-stats-inline { display:flex; justify-content:space-between; gap:.25rem; }
+  #sample-generator-sidebar #sg-legend-card .legend-grid { grid-template-columns:1fr; }
+  #sample-generator-sidebar .sg-stats-inline .sg-stat { flex:1 1 0; text-align:center; padding:.35rem .25rem; border-right:1px solid var(--tblr-border-color,#e3e5e8); }
+  #sample-generator-sidebar .sg-stats-inline .sg-stat:last-child { border-right:none; }
+  #sample-generator-sidebar .sg-stats-inline .sg-stat-number { font-size:1.05rem; font-weight:600; line-height:1; }
+  #sample-generator-sidebar .sg-stats-inline .sg-stat-label { font-size:.55rem; text-transform:uppercase; letter-spacing:.5px; color:var(--tblr-muted,#6c757d); margin-top:.15rem; }
+  @media (max-width:991.98px){ #sample-generator-sidebar { position:static; margin-top:1rem; } }
+  </style>
 {% endblock %}

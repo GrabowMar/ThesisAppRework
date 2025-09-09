@@ -1,5 +1,5 @@
 {# Applications table content - enhanced with more action buttons #}
-<div class="card mb-3">
+<div class="card mb-3 applications-table-card d-flex flex-column">
   <div class="card-header py-2 d-flex flex-wrap gap-2 align-items-center justify-content-between small">
     <div class="d-flex flex-wrap align-items-center gap-2">
       <label class="d-flex align-items-center gap-1 mb-0">Per page:
@@ -33,8 +33,8 @@
       <span class="text-muted small" id="applications-selection-indicator"></span>
     </div>
   </div>
-  <div class="card-body p-0">
-    <div class="table-responsive apps-table-scroll">
+  <div class="card-body p-0 d-flex flex-column flex-grow-1">
+    <div class="table-responsive apps-table-scroll flex-grow-1" id="applications-table-scroll">
       <table class="table table-sm table-hover table-striped table-vcenter mb-0" id="applications-table">
         <thead>
           <tr>
@@ -270,7 +270,7 @@
         </tbody>
       </table>
     </div>
-    <div class="d-flex flex-wrap justify-content-between align-items-center p-2 border-top small gap-2" id="applications-pagination-bar">
+  <div class="d-flex flex-wrap justify-content-between align-items-center p-2 border-top small gap-2 mt-auto" id="applications-pagination-bar">
       <div id="applications-page-summary" class="text-muted">
         Showing {{ applications|length }} of {{ total_applications }} applications
       </div>
@@ -549,10 +549,10 @@ document.addEventListener('change', function(evt) {
   box-shadow: var(--tblr-shadow, 0 1px 2px rgba(0,0,0,.04)); 
 }
 
-.apps-table-scroll { 
-  max-height: 70vh; 
-  overflow: auto; 
-}
+.applications-table-card { min-height: 40vh; }
+.apps-table-scroll { overflow:auto; }
+body, html { height:100%; }
+/* Dynamic height will be applied with JS; fallback keeps natural flow */
 
 .d-none { 
   display: none !important; 
@@ -591,3 +591,22 @@ document.addEventListener('change', function(evt) {
   }
 }
 </style>
+
+<script>
+// Dynamic table height: fill available viewport minus offsets.
+function resizeApplicationsTable() {
+  const scroll = document.getElementById('applications-table-scroll');
+  if (!scroll) return;
+  const rect = scroll.getBoundingClientRect();
+  const viewportH = window.innerHeight;
+  // Allow 16px breathing room
+  const desired = viewportH - rect.top - 16; 
+  if (desired > 200) {
+    scroll.style.maxHeight = desired + 'px';
+  }
+}
+window.addEventListener('resize', resizeApplicationsTable);
+document.addEventListener('DOMContentLoaded', resizeApplicationsTable);
+// Also after HTMX swaps
+document.body.addEventListener('htmx:afterSwap', function(evt){ if (evt.target.id === 'applications-table-section') setTimeout(resizeApplicationsTable,10); });
+</script>

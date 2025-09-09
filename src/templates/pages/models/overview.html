@@ -21,80 +21,69 @@
 
 {% block right_sidebar %}
 <div class="d-flex flex-column gap-3" id="models-sidebar">
-  {# Header card removed (redundant with standardized header) #}
-  <div class="card mini-stats">
-    <div class="card-header py-2"><strong>Stats</strong></div>
-    <div class="card-body p-2">
-      <ul class="list-unstyled mb-0 d-flex flex-wrap gap-2 small">
-        <li class="d-flex align-items-center gap-1 stat-item"><span class="stat-icon bg-primary text-white"><i class="fas fa-brain"></i></span><span id="total-models" class="stat-value">{{ models_stats.total_models }}</span><span class="text-muted stat-label">Models</span></li>
-        <li class="d-flex align-items-center gap-1 stat-item"><span class="stat-icon bg-success text-white"><i class="fas fa-check-circle"></i></span><span id="active-models" class="stat-value">{{ models_stats.active_models }}</span><span class="text-muted stat-label">Active</span></li>
-        <li class="d-flex align-items-center gap-1 stat-item"><span class="stat-icon bg-info text-white"><i class="fas fa-building"></i></span><span id="unique-providers" class="stat-value">{{ models_stats.unique_providers }}</span><span class="text-muted stat-label">Providers</span></li>
-        <li class="d-flex align-items-center gap-1 stat-item"><span class="stat-icon bg-warning text-white"><i class="fas fa-dollar-sign"></i></span><span id="avg-cost" class="stat-value">$<span>{{ models_stats.avg_cost_per_1k|round(4) }}</span></span><span class="text-muted stat-label">Avg/1K</span></li>
-      </ul>
+  <div class="card mini-stats compact-card">
+    <div class="card-header py-1"><strong class="fw-semibold small">Stats</strong></div>
+    <div class="card-body p-1">
+      <div class="stats-icons-row d-flex justify-content-between align-items-center gap-1" role="list">
+        <div class="stat-icon-btn bg-primary text-white" role="listitem" data-bs-toggle="tooltip" title="Models: {{ models_stats.total_models }}">
+          <i class="fas fa-brain"></i>
+          <span class="stat-badge badge bg-dark" id="total-models">{{ models_stats.total_models }}</span>
+        </div>
+        <div class="stat-icon-btn bg-success text-white" role="listitem" data-bs-toggle="tooltip" title="Active: {{ models_stats.active_models }}">
+          <i class="fas fa-check-circle"></i>
+          <span class="stat-badge badge bg-dark" id="active-models">{{ models_stats.active_models }}</span>
+        </div>
+        <div class="stat-icon-btn bg-info text-white" role="listitem" data-bs-toggle="tooltip" title="Providers: {{ models_stats.unique_providers }}">
+          <i class="fas fa-building"></i>
+          <span class="stat-badge badge bg-dark" id="unique-providers">{{ models_stats.unique_providers }}</span>
+        </div>
+        <div class="stat-icon-btn bg-warning text-white" role="listitem" data-bs-toggle="tooltip" title="Avg Cost /1K: ${{ models_stats.avg_cost_per_1k|round(4) }}">
+          <i class="fas fa-dollar-sign"></i>
+          <span class="stat-badge badge bg-dark" id="avg-cost">{{ models_stats.avg_cost_per_1k|round(2) }}</span>
+        </div>
+      </div>
     </div>
   </div>
-  <div class="card">
-    <div class="card-header py-2 d-flex justify-content-between align-items-center">
-      <strong>Filters</strong>
-      <button class="btn btn-sm btn-outline-secondary" onclick="refreshModels()" title="Refresh">
-        <i class="fas fa-sync icon" aria-hidden="true"></i>
-      </button>
+  <div class="card compact-card" id="models-filters-card">
+    <div class="card-header py-1 px-2 d-flex justify-content-between align-items-center small">
+      <strong class="fw-semibold">Filters</strong>
+      <button class="btn btn-sm btn-outline-secondary" onclick="refreshModels()" title="Refresh"><i class="fas fa-sync icon"></i></button>
     </div>
-    <div class="card-body py-2 small">
-      <div class="mb-2">
+    <div class="card-body py-1 px-2 small compact-filters">
+      <div class="mb-1">
         <label class="form-label small mb-1">Search</label>
         <div class="input-group input-group-sm">
           <input type="text" id="model-search" class="form-control" placeholder="Search models..." onkeyup="debounceSearch()" />
-          <button class="btn btn-outline-secondary" onclick="clearSearch()" type="button" title="Clear search">
-            <i class="fas fa-xmark icon" aria-hidden="true"></i>
-          </button>
+          <button class="btn btn-outline-secondary" onclick="clearSearch()" type="button" title="Clear search"><i class="fas fa-xmark icon"></i></button>
         </div>
       </div>
-      <div class="mb-2">
+      <div class="mb-1">
         <label class="form-label small mb-1">Providers</label>
         <div class="dropdown w-100">
-          <button class="form-control form-control-sm d-flex justify-content-between align-items-center" data-bs-toggle="dropdown" type="button">
-            <span id="providers-summary">All providers</span>
-            <i class="fas fa-chevron-down icon" aria-hidden="true"></i>
-          </button>
+          <button class="form-control form-control-sm d-flex justify-content-between align-items-center" data-bs-toggle="dropdown" type="button"><span id="providers-summary">All providers</span><i class="fas fa-chevron-down icon"></i></button>
           <div class="dropdown-menu p-2 w-100">
-            <div class="d-flex justify-content-between align-items-center mb-2 small text-muted">
-              <span>Select providers</span>
-              <div>
-                <button class="btn btn-link btn-sm p-0" onclick="toggleProviders(true)">All</button>
-                <button class="btn btn-link btn-sm p-0" onclick="toggleProviders(false)">None</button>
-              </div>
-            </div>
+            <div class="d-flex justify-content-between align-items-center mb-1 small text-muted"><span>Select providers</span><div><button class="btn btn-link btn-sm p-0" onclick="toggleProviders(true)">All</button><button class="btn btn-link btn-sm p-0" onclick="toggleProviders(false)">None</button></div></div>
             {% for provider in available_providers %}
-            <label class="dropdown-item form-check">
-              <input class="form-check-input provider-option" type="checkbox" value="{{ provider.id }}" id="provider-{{ provider.id }}">
-              <span class="form-check-label">{{ provider.name }}</span>
-            </label>
+            <label class="dropdown-item form-check"><input class="form-check-input provider-option" type="checkbox" value="{{ provider.id }}" id="provider-{{ provider.id }}"><span class="form-check-label">{{ provider.name }}</span></label>
             {% endfor %}
           </div>
           <input type="hidden" id="provider-filter" value="" />
         </div>
       </div>
-      <div class="mb-2">
+      <div class="mb-1">
         <label class="form-label small mb-1">Capabilities</label>
         <div class="dropdown w-100">
-          <button class="form-control form-control-sm d-flex justify-content-between align-items-center" data-bs-toggle="dropdown" type="button">
-            <span id="capabilities-summary">All capabilities</span>
-            <i class="fas fa-chevron-down icon" aria-hidden="true"></i>
-          </button>
+          <button class="form-control form-control-sm d-flex justify-content-between align-items-center" data-bs-toggle="dropdown" type="button"><span id="capabilities-summary">All capabilities</span><i class="fas fa-chevron-down icon"></i></button>
           <div class="dropdown-menu p-2 w-100">
             {% set capability_options = ['coding','analysis','reasoning','multimodal','language','vision','function_calling','json_mode','streaming'] %}
             {% for cap in capability_options %}
-            <label class="dropdown-item form-check">
-              <input class="form-check-input capability-option" type="checkbox" value="{{ cap }}" id="cap-{{ cap }}">
-              <span class="form-check-label text-capitalize">{{ cap.replace('_',' ') }}</span>
-            </label>
+            <label class="dropdown-item form-check"><input class="form-check-input capability-option" type="checkbox" value="{{ cap }}" id="cap-{{ cap }}"><span class="form-check-label text-capitalize">{{ cap.replace('_',' ') }}</span></label>
             {% endfor %}
           </div>
         </div>
       </div>
-      <div class="mb-2">
-        <label class="form-label small mb-1">Price</label>
+      <div class="mb-0">
+  <label class="form-label small mb-1" for="price-filter">Price</label>
         <select class="form-select form-select-sm" id="price-filter" onchange="applyFilters()">
           <option value="">All</option>
           <option value="free">Free</option>
@@ -105,37 +94,26 @@
       </div>
     </div>
   </div>
-  <div class="card">
-    <div class="card-header py-2"><strong>Actions</strong></div>
-    <div class="card-body d-flex flex-column gap-2">
-      <button class="btn btn-outline-primary btn-sm w-100" onclick="refreshModels()">
-        <i class="fas fa-sync me-1" aria-hidden="true"></i>
-        Refresh
-      </button>
-      <button class="btn btn-outline-secondary btn-sm w-100" onclick="tagInstalledModels()" title="Scan misc/models and tag installed models">
-        <i class="fas fa-tag me-1" aria-hidden="true"></i>
-        Tag Installed
-      </button>
-      <button class="btn btn-outline-success btn-sm w-100" onclick="exportModelsData()">
-        <i class="fas fa-download me-1" aria-hidden="true"></i>
-        Export
-      </button>
-      <button class="btn btn-outline-info btn-sm w-100" type="button" onclick="openComparison()">
-        <i class="fas fa-file-code me-1" aria-hidden="true"></i>
-        Compare
-      </button>
-      <a class="btn btn-primary btn-sm w-100" href="/models/import">
-        <i class="fas fa-upload me-1" aria-hidden="true"></i>
-        Import
-      </a>
+  <div class="card compact-card" id="models-actions-card">
+    <div class="card-header py-1 px-2 d-flex justify-content-between align-items-center small">
+      <strong class="fw-semibold">Actions</strong>
+      <div class="btn-toolbar gap-1">
+        <button class="btn btn-sm btn-outline-primary p-1 icon-only" onclick="refreshModels()" data-bs-toggle="tooltip" title="Refresh"><i class="fas fa-sync"></i></button>
+        <button class="btn btn-sm btn-outline-secondary p-1 icon-only" onclick="tagInstalledModels()" data-bs-toggle="tooltip" title="Tag Installed"><i class="fas fa-tag"></i></button>
+        <button class="btn btn-sm btn-outline-success p-1 icon-only" onclick="exportModelsData()" data-bs-toggle="tooltip" title="Export"><i class="fas fa-download"></i></button>
+        <button class="btn btn-sm btn-outline-info p-1 icon-only" onclick="openComparison()" data-bs-toggle="tooltip" title="Compare"><i class="fas fa-file-code"></i></button>
+        <a class="btn btn-sm btn-primary p-1 icon-only" href="/models/import" data-bs-toggle="tooltip" title="Import"><i class="fas fa-upload"></i></a>
+      </div>
     </div>
   </div>
-  <div class="card">
-    <div class="card-header py-2"><strong>Legend</strong></div>
-    <div class="card-body small py-2">
-      <div class="mb-1"><span class="badge bg-success">free</span> zero pricing</div>
-      <div class="mb-1"><span class="badge bg-info">cap</span> capability badge</div>
-      <div class="mb-1"><span class="badge bg-secondary">status</span> model status</div>
+  <div class="card compact-card" id="models-legend-card">
+    <div class="card-header py-1 px-2 d-flex justify-content-between align-items-center small"><strong class="fw-semibold">Legend</strong></div>
+    <div class="card-body py-1 px-2 small legend-body">
+      <div class="d-flex flex-wrap gap-1">
+        <span class="badge bg-success" title="Free pricing">free</span>
+        <span class="badge bg-info" title="Capability badge">cap</span>
+        <span class="badge bg-secondary" title="Model status">status</span>
+      </div>
     </div>
   </div>
 </div>
@@ -145,9 +123,18 @@
   {{ super() }}
   <script src="{{ url_for('static', filename='js/models.js') }}" defer></script>
   <style>
-    #models-sidebar { position: sticky; top: 0.75rem; }
-    .mini-stats .stat-item { background:var(--tblr-bg-surface,#f8f9fa); padding:4px 6px; border-radius:4px; line-height:1; }
-    .mini-stats ul { gap:6px !important; }
+    #models-sidebar { position: sticky; top: .75rem; }
+    #models-sidebar .compact-card { border-radius:.4rem; }
+    #models-sidebar .mini-stats .stats-icons-row { width:100%; }
+    #models-sidebar .mini-stats .stat-icon-btn { position:relative; flex:1 1 0; display:flex; align-items:center; justify-content:center; height:34px; border-radius:4px; font-size:.9rem; }
+    #models-sidebar .mini-stats .stat-badge { position:absolute; bottom:0; right:2px; transform:translateY(50%); font-size:.55rem; padding:.15rem .3rem; }
+    #models-sidebar .mini-stats .stat-icon-btn.bg-warning { color:#000; }
+    #models-sidebar #models-filters-card .form-select, #models-sidebar #models-filters-card .form-control { padding:.15rem .35rem; }
+    #models-sidebar #models-filters-card .dropdown-menu { max-height:240px; overflow:auto; }
+    #models-sidebar .compact-filters .mb-1, #models-sidebar .compact-filters .mb-0 { margin-bottom:.45rem !important; }
+    #models-sidebar .compact-filters label.form-label { font-size:.65rem; }
+    #models-sidebar .icon-only i { font-size:.8rem; }
+    #models-sidebar .legend-body { line-height:1; }
     @media (max-width: 991.98px) { #models-sidebar { position: static; } }
   </style>
 {% endblock %}
