@@ -2340,6 +2340,21 @@ def api_app_start(model_slug, app_number):
         from app.services.application_service import start_application
         result = start_application(app.id)  # flips DB state
         payload = {'status': result['status'], 'docker': docker_result, 'compose': compose_diag}
+        # HTMX request -> return refreshed container section HTML instead of JSON envelope
+        if request.headers.get('HX-Request'):
+            try:
+                from app.routes.jinja.models import _render_application_section  # type: ignore
+                section = _render_application_section(model_slug, app_number, 'container')
+                if isinstance(section, tuple):
+                    body, status = section
+                else:
+                    body, status = section, 200
+                from flask import make_response
+                resp = make_response(body, status)
+                resp.headers['HX-Trigger'] = '{"app-operation": {"operation": "start", "status": "success"}}'
+                return resp
+            except Exception as _htmx_err:  # pragma: no cover
+                current_app.logger.warning(f"HTMX container section render failed: {_htmx_err}")
         return create_success_response_with_status(payload, message='Application started')
     except Exception as e:
         db.session.rollback()
@@ -2365,6 +2380,20 @@ def api_app_stop(model_slug, app_number):
         from app.services.application_service import stop_application
         result = stop_application(app.id)
         payload = {'status': result['status'], 'docker': docker_result, 'compose': compose_diag}
+        if request.headers.get('HX-Request'):
+            try:
+                from app.routes.jinja.models import _render_application_section  # type: ignore
+                section = _render_application_section(model_slug, app_number, 'container')
+                if isinstance(section, tuple):
+                    body, status = section
+                else:
+                    body, status = section, 200
+                from flask import make_response
+                resp = make_response(body, status)
+                resp.headers['HX-Trigger'] = '{"app-operation": {"operation": "stop", "status": "success"}}'
+                return resp
+            except Exception as _htmx_err:  # pragma: no cover
+                current_app.logger.warning(f"HTMX container section render failed: {_htmx_err}")
         return create_success_response_with_status(payload, message='Application stopped')
     except Exception as e:
         db.session.rollback()
@@ -2390,6 +2419,20 @@ def api_app_restart(model_slug, app_number):
         from app.services.application_service import restart_application
         result = restart_application(app.id)
         payload = {'status': result['status'], 'docker': docker_result, 'compose': compose_diag}
+        if request.headers.get('HX-Request'):
+            try:
+                from app.routes.jinja.models import _render_application_section  # type: ignore
+                section = _render_application_section(model_slug, app_number, 'container')
+                if isinstance(section, tuple):
+                    body, status = section
+                else:
+                    body, status = section, 200
+                from flask import make_response
+                resp = make_response(body, status)
+                resp.headers['HX-Trigger'] = '{"app-operation": {"operation": "restart", "status": "success"}}'
+                return resp
+            except Exception as _htmx_err:  # pragma: no cover
+                current_app.logger.warning(f"HTMX container section render failed: {_htmx_err}")
         return create_success_response_with_status(payload, message='Application restarted')
     except Exception as e:
         db.session.rollback()
@@ -2422,6 +2465,22 @@ def api_app_build(model_slug, app_number):
         else:
             app.container_status = 'error'
         db.session.commit()
+        if request.headers.get('HX-Request'):
+            try:
+                from app.routes.jinja.models import _render_application_section  # type: ignore
+                section = _render_application_section(model_slug, app_number, 'container')
+                if isinstance(section, tuple):
+                    body, status = section
+                else:
+                    body, status = section, 200
+                from flask import make_response
+                resp = make_response(body, status)
+                # include outcome (success/fail) in trigger
+                outcome = 'success' if (docker_result or {}).get('success') else 'error'
+                resp.headers['HX-Trigger'] = f'{{"app-operation": {{"operation": "build", "status": "{outcome}"}}}}'
+                return resp
+            except Exception as _htmx_err:  # pragma: no cover
+                current_app.logger.warning(f"HTMX container section render failed: {_htmx_err}")
         return create_success_response_with_status({'status': app.container_status, 'docker': docker_result, 'compose': compose_diag}, message='Build attempted')
     except Exception as e:
         db.session.rollback()
@@ -2446,58 +2505,198 @@ def api_app_diagnose(model_slug, app_number):
     """Return detailed diagnostics for compose path & docker environment.
 
     Helps explain why build/start may fail (missing compose file vs docker not running).
+    Returns HTML fragment suitable for HTMX injection.
     """
     try:
         from app.services.service_locator import ServiceLocator
         docker_mgr = ServiceLocator.get_docker_manager()
         if not docker_mgr:
-            return create_error_response_with_status('DockerManager unavailable', status=503, error_type='ServiceUnavailable')
+            return '''
+            <div class="alert alert-warning">
+                <h5><i class="fas fa-exclamation-triangle me-2"></i>DockerManager Unavailable</h5>
+                <p>The Docker management service is not available. This could mean:</p>
+                <ul class="mb-0">
+                    <li>Docker Desktop is not running</li>
+                    <li>Service initialization failed</li>
+                    <li>Configuration issue</li>
+                </ul>
+            </div>
+            ''', 503
+
         diag = docker_mgr.debug_compose_resolution(model_slug, app_number)
-        return create_success_response_with_status(diag, message='Compose diagnostics')
+        
+        # Build HTML response
+        html_parts = []
+        
+        # Docker connection status
+        if diag.get('docker_connected'):
+            html_parts.append(f'''
+            <div class="alert alert-success">
+                <h5><i class="fas fa-check-circle me-2"></i>Docker Connected</h5>
+                <p class="mb-1">Successfully connected to Docker engine</p>
+                {f"<small>Engine: {diag.get('docker_engine', {}).get('server_version', 'Unknown')}</small>" if diag.get('docker_engine') else ""}
+            </div>
+            ''')
+        else:
+            html_parts.append('''
+            <div class="alert alert-danger">
+                <h5><i class="fas fa-times-circle me-2"></i>Docker Not Connected</h5>
+                <p class="mb-1">Cannot connect to Docker daemon</p>
+                <small>Ensure Docker Desktop is running and accessible</small>
+            </div>
+            ''')
+
+        # Compose file resolution
+        chosen_exists = diag.get('chosen_exists', False)
+        chosen_path = diag.get('chosen_compose_path', 'Unknown')
+        
+        if chosen_exists:
+            html_parts.append(f'''
+            <div class="alert alert-success">
+                <h5><i class="fas fa-file-check me-2"></i>Compose File Found</h5>
+                <code class="small">{chosen_path}</code>
+            </div>
+            ''')
+        else:
+            html_parts.append(f'''
+            <div class="alert alert-warning">
+                <h5><i class="fas fa-file-times me-2"></i>Compose File Missing</h5>
+                <p class="mb-1">Expected location: <code class="small">{chosen_path}</code></p>
+                <small>You may need to generate the application first or check the model slug.</small>
+            </div>
+            ''')
+            
+        # Show candidate paths
+        variants = diag.get('compose_variants', [])
+        if variants:
+            existing_variants = [v for v in variants if v.get('exists')]
+            if existing_variants:
+                html_parts.append('<div class="alert alert-info">')
+                html_parts.append('<h6><i class="fas fa-info-circle me-2"></i>Available Compose Files</h6>')
+                html_parts.append('<ul class="mb-0">')
+                for v in existing_variants:
+                    html_parts.append(f'<li><code class="small">{v["path"]}</code> <span class="badge bg-secondary">{v["variant"]}</span></li>')
+                html_parts.append('</ul></div>')
+
+        # Project root info
+        project_root = diag.get('project_root', 'Unknown')
+        html_parts.append(f'''
+        <div class="card card-sm">
+            <div class="card-body">
+                <h6 class="card-title">Path Resolution</h6>
+                <div class="small">
+                    <div><strong>Project Root:</strong> <code>{project_root}</code></div>
+                    <div><strong>Model:</strong> <code>{model_slug}</code></div>
+                    <div><strong>App Number:</strong> <code>{app_number}</code></div>
+                </div>
+            </div>
+        </div>
+        ''')
+
+        return ''.join(html_parts)
     except Exception as e:
-        return create_error_response_with_status(str(e), status=500, error_type='DiagnoseError')
+        return f'''
+        <div class="alert alert-danger">
+            <h5><i class="fas fa-exclamation-triangle me-2"></i>Diagnostic Error</h5>
+            <p class="mb-0">Failed to run diagnostics: {e}</p>
+        </div>
+        ''', 500
+
+@api_bp.route('/app/<model_slug>/<int:app_number>/test-port/<int:port>', methods=['GET'])
+def api_app_test_port(model_slug, app_number, port):
+    """Test TCP connectivity to localhost:port.
+
+    Returns JSON envelope with accessible flag. Fast timeout (1s) to keep UI snappy.
+    """
+    import socket
+    accessible = False
+    try:
+        with socket.create_connection(('localhost', port), timeout=1.0):
+            accessible = True
+    except Exception:  # pragma: no cover
+        accessible = False
+    return create_success_response_with_status({'port': port, 'accessible': accessible})
 
 @api_bp.route('/app/<model_slug>/<int:app_number>/status', methods=['GET'])
 def api_app_status(model_slug, app_number):
     """Return current application & container status (lightweight, pollable).
 
-    Response structure:
-      - model_slug / app_number
-      - db_status: value from GeneratedApplication.container_status
-      - containers: list of discovered docker containers (may be empty)
-      - containers_found: count
-      - warnings: list (e.g. running status but no containers discovered)
-      - docker_connected: bool (whether Docker client currently available)
+    Returns HTML fragment with current container status for HTMX updates.
     """
-    app, err = _get_app_or_404(model_slug, app_number)
-    if err:
-        return err
     try:
         from app.services.service_locator import ServiceLocator
+        
+        # Get DB application
+        app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number).first()
+        db_status = app.container_status if app else 'not_found'
+        
+        # Get Docker information
         docker_mgr = ServiceLocator.get_docker_manager()
         containers = []
         docker_connected = False
+        
         if docker_mgr:
             try:
-                containers = docker_mgr.get_project_containers(model_slug, app_number) or []
-                docker_connected = bool(docker_mgr.client)
-            except Exception as _dock_err:  # pragma: no cover
-                current_app.logger.debug(f"Status container discovery failed for {model_slug}/app{app_number}: {_dock_err}")
-        warnings = []
-        if app.container_status == 'running' and not containers:
-            warnings.append('Application marked running but no containers discovered')
-        payload = {
-            'model_slug': model_slug,
-            'app_number': app_number,
-            'db_status': app.container_status,
-            'containers_found': len(containers),
-            'containers': containers,
-            'warnings': warnings,
-            'docker_connected': docker_connected
-        }
-        return create_success_response_with_status(payload, message='Application status')
-    except Exception as e:  # pragma: no cover
-        return create_error_response_with_status(str(e), status=500, error_type='StatusError')
+                containers = docker_mgr.get_project_containers(model_slug, app_number)
+                docker_connected = True
+            except Exception as e:
+                current_app.logger.warning(f"Failed to get containers for {model_slug}/app{app_number}: {e}")
+        
+        # Build status HTML
+        html_parts = []
+        
+        # Container discovery status
+        if containers:
+            html_parts.append(f'''
+            <div class="alert alert-success alert-dismissible">
+                <h6><i class="fas fa-check-circle me-2"></i>Containers Found ({len(containers)})</h6>
+                <div class="small">
+            ''')
+            for container in containers:
+                status_badge = 'success' if container.get('status') == 'running' else 'secondary'
+                html_parts.append(f'''
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span><code>{container.get('name', 'unknown')}</code></span>
+                        <span class="badge bg-{status_badge}">{container.get('status', 'unknown')}</span>
+                    </div>
+                ''')
+            html_parts.append('</div></div>')
+        else:
+            html_parts.append(f'''
+            <div class="alert alert-warning">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>No Containers Found</h6>
+                <p class="mb-1">No Docker containers discovered for this application</p>
+                <small>DB Status: <span class="badge bg-secondary">{db_status}</span> | Docker Connected: {"Yes" if docker_connected else "No"}</small>
+            </div>
+            ''')
+        
+        # Status mismatch warning
+        running_containers = sum(1 for c in containers if c.get('status') == 'running')
+        if db_status == 'running' and running_containers == 0:
+            html_parts.append('''
+            <div class="alert alert-warning">
+                <h6><i class="fas fa-exclamation-triangle me-2"></i>Status Mismatch</h6>
+                <p class="mb-0">Database shows 'running' but no running containers found</p>
+            </div>
+            ''')
+        elif db_status != 'running' and running_containers > 0:
+            html_parts.append('''
+            <div class="alert alert-info">
+                <h6><i class="fas fa-info-circle me-2"></i>Status Mismatch</h6>
+                <p class="mb-0">Found running containers but database shows different status</p>
+            </div>
+            ''')
+        
+        return ''.join(html_parts)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error getting app status for {model_slug}/app{app_number}: {e}")
+        return f'''
+        <div class="alert alert-danger">
+            <h6><i class="fas fa-times-circle me-2"></i>Status Check Failed</h6>
+            <p class="mb-0">Error: {e}</p>
+        </div>
+        ''', 500
 
 @api_bp.route('/app/<model_slug>/<int:app_number>/logs/tails', methods=['GET'])
 def api_app_log_tails(model_slug, app_number):
@@ -2569,6 +2768,34 @@ def api_app_log_download(model_slug, app_number):
         )
     except Exception as e:  # pragma: no cover
         return create_error_response_with_status(str(e), status=500, error_type='DownloadError')
+
+# ================================================================
+# FILES UTILITIES
+# ================================================================
+
+@api_bp.route('/app/<model_slug>/<int:app_number>/scan-files', methods=['POST'])
+def api_app_scan_files(model_slug, app_number):
+    """Force a rescan of the application directory and return updated files section.
+
+    Heavy scan logic already performed inside _render_application_section when section == 'files'.
+    We simply re-render and return HTML if HTMX; otherwise JSON success stub.
+    """
+    try:
+        if request.headers.get('HX-Request'):
+            from app.routes.jinja.models import _render_application_section  # type: ignore
+            section = _render_application_section(model_slug, app_number, 'files')
+            if isinstance(section, tuple):
+                body, status = section
+            else:
+                body, status = section, 200
+            from flask import make_response
+            resp = make_response(body, status)
+            resp.headers['HX-Trigger'] = '{"files-scan": {"status": "completed"}}'
+            return resp
+        # Non-HTMX safeguard
+        return create_success_response_with_status({'message': 'Scan complete'}, message='Scan complete')
+    except Exception as e:  # pragma: no cover
+        return create_error_response_with_status(str(e), status=500, error_type='ScanFilesError')
 
 # ================================================================
 # BULK DOCKER OPERATIONS

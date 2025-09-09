@@ -279,7 +279,7 @@
         <ul class="pagination pagination-sm mb-0" id="applications-pagination">
           {% if pagination.has_prev %}
           <li class="page-item">
-            <button class="page-link" onclick="changeApplicationsPage({{ pagination.prev_num }})">Previous</button>
+            <button class="page-link" onclick="changeApplicationsPage('{{ pagination.prev_num }}')">Previous</button>
           </li>
           {% endif %}
           
@@ -287,7 +287,7 @@
             {% if page_num %}
               {% if page_num != pagination.page %}
               <li class="page-item">
-                <button class="page-link" onclick="changeApplicationsPage({{ page_num }})">{{ page_num }}</button>
+                <button class="page-link" onclick="changeApplicationsPage('{{ page_num }}')">{{ page_num }}</button>
               </li>
               {% else %}
               <li class="page-item active">
@@ -303,7 +303,7 @@
           
           {% if pagination.has_next %}
           <li class="page-item">
-            <button class="page-link" onclick="changeApplicationsPage({{ pagination.next_num }})">Next</button>
+            <button class="page-link" onclick="changeApplicationsPage('{{ pagination.next_num }}')">Next</button>
           </li>
           {% endif %}
         </ul>
@@ -325,40 +325,59 @@
 // Application action functions
 function performAppAction(modelSlug, appNumber, action) {
   const button = event.target.closest('button, a');
+  if (!button) return;
   const originalHtml = button.innerHTML;
-  
-  // Show loading state
   button.disabled = true;
   button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-  
-  // Prefer id-based API if present (data-app-id attribute on row)
-  const row = button.closest('tr');
-  const appId = row ? row.getAttribute('data-app-id') : null;
-  const url = appId ? `/api/applications/${appId}/${action}` : `/api/applications/${modelSlug}/${appNumber}/${action}`;
-  fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    }
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      // Refresh the table to show updated status
-      refreshApplications();
-      showNotification(`${action.charAt(0).toUpperCase() + action.slice(1)} completed successfully`, 'success');
-    } else {
-      showNotification(`${action} failed: ${data.error}`, 'danger');
-    }
-  })
-  .catch(error => {
-    showNotification(`${action} failed: ${error.message}`, 'danger');
-  })
-  .finally(() => {
-    button.disabled = false;
-    button.innerHTML = originalHtml;
-  });
+  // Map UI actions to API endpoints (build vs rebuild naming)
+  const apiAction = action === 'rebuild' ? 'build' : action;
+  const url = `/api/app/${modelSlug}/${appNumber}/${apiAction}`;
+  fetch(url, { method: 'POST', headers: { 'HX-Request': 'true' } })
+    .then(resp => {
+      // For HTMX-friendly endpoints we expect HTML; if JSON was returned fallback to table refresh
+      const contentType = resp.headers.get('Content-Type') || '';
+      if (contentType.includes('text/html')) {
+        return resp.text().then(html => ({ html, resp }));
+      }
+      return resp.json().then(data => ({ data, resp }));
+    })
+    .then(({ html, data, resp }) => {
+      if (html) {
+        // Optionally update a lightweight status column if present
+        // Simpler: just trigger a full table refresh to sync statuses
+        refreshApplications();
+        showNotification(`${action} executed`, 'success');
+      } else if (data) {
+        if (data.success) {
+          refreshApplications();
+          showNotification(`${action} completed successfully`, 'success');
+        } else {
+          showNotification(`${action} failed: ${data.error || 'unknown error'}`, 'danger');
+        }
+      }
+    })
+    .catch(err => {
+      showNotification(`${action} failed: ${err.message}`, 'danger');
+    })
+    .finally(() => {
+      button.disabled = false;
+      button.innerHTML = originalHtml;
+    });
 }
+
+// Event delegation for inline row action buttons (data-action)
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-action]');
+  if (!btn) return;
+  const row = btn.closest('tr');
+  const modelSlug = row?.getAttribute('data-model');
+  const appNumber = row?.getAttribute('data-app-number');
+  const action = btn.getAttribute('data-action');
+  if (modelSlug && appNumber && action) {
+    e.preventDefault();
+    performAppAction(modelSlug, appNumber, action);
+  }
+});
 
 function runAnalysis(modelSlug, appNumber, analysisType) {
   const button = event.target.closest('button');

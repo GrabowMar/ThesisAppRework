@@ -223,28 +223,28 @@ function copyAdjacentPre(btn) {
 
 // Application-specific actions
 function startApplication() {
-  htmx.ajax('POST', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/start', {
+  htmx.ajax('POST', '/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/start', {
     target: '#section-container',
     swap: 'innerHTML'
   });
 }
 
 function stopApplication() {
-  htmx.ajax('POST', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/stop', {
+  htmx.ajax('POST', '/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/stop', {
     target: '#section-container',
     swap: 'innerHTML'
   });
 }
 
 function restartApplication() {
-  htmx.ajax('POST', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/restart', {
+  htmx.ajax('POST', '/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/restart', {
     target: '#section-container',
     swap: 'innerHTML'
   });
 }
 
 function buildApplication() {
-  htmx.ajax('POST', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/build', {
+  htmx.ajax('POST', '/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/build', {
     target: '#section-container',
     swap: 'innerHTML'
   });

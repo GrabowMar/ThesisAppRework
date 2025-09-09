@@ -382,10 +382,11 @@ class DockerManager:
         Returns the first existing path; if none exist, returns the path
         for variant (3) so callers have a deterministic expected location.
         """
+        # Prefer current layout first (src/generated/apps), then transitional, then legacy root
         candidates: List[Path] = [
-            self.project_root / 'generated' / model / f'app{app_num}' / 'docker-compose.yml',
-            self.project_root / 'src' / 'generated' / model / f'app{app_num}' / 'docker-compose.yml',
             self.project_root / 'src' / 'generated' / 'apps' / model / f'app{app_num}' / 'docker-compose.yml',
+            self.project_root / 'src' / 'generated' / model / f'app{app_num}' / 'docker-compose.yml',
+            self.project_root / 'generated' / model / f'app{app_num}' / 'docker-compose.yml',
         ]
         for c in candidates:
             if c.exists():
@@ -402,19 +403,19 @@ class DockerManager:
         chosen = self._get_compose_path(model, app_num)
         variants = [
             {
-                'path': str(self.project_root / 'generated' / model / f'app{app_num}' / 'docker-compose.yml'),
-                'exists': (self.project_root / 'generated' / model / f'app{app_num}' / 'docker-compose.yml').exists(),
-                'variant': 'legacy-root-generated'
+                'path': str(self.project_root / 'src' / 'generated' / 'apps' / model / f'app{app_num}' / 'docker-compose.yml'),
+                'exists': (self.project_root / 'src' / 'generated' / 'apps' / model / f'app{app_num}' / 'docker-compose.yml').exists(),
+                'variant': 'src-generated-apps (preferred)'
             },
             {
                 'path': str(self.project_root / 'src' / 'generated' / model / f'app{app_num}' / 'docker-compose.yml'),
                 'exists': (self.project_root / 'src' / 'generated' / model / f'app{app_num}' / 'docker-compose.yml').exists(),
-                'variant': 'src-generated'
+                'variant': 'src-generated (transitional)'
             },
             {
-                'path': str(self.project_root / 'src' / 'generated' / 'apps' / model / f'app{app_num}' / 'docker-compose.yml'),
-                'exists': (self.project_root / 'src' / 'generated' / 'apps' / model / f'app{app_num}' / 'docker-compose.yml').exists(),
-                'variant': 'src-generated-apps'
+                'path': str(self.project_root / 'generated' / model / f'app{app_num}' / 'docker-compose.yml'),
+                'exists': (self.project_root / 'generated' / model / f'app{app_num}' / 'docker-compose.yml').exists(),
+                'variant': 'legacy-root-generated'
             },
         ]
         diag = self.diagnose()

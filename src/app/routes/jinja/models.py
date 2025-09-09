@@ -6,6 +6,7 @@ Model-related web routes that render Jinja templates.
 """
 
 import os
+from pathlib import Path
 from datetime import timedelta
 from flask import Blueprint, request, flash, current_app, Response
 
@@ -895,7 +896,8 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
                 'metadata': app.get_metadata() if hasattr(app, 'get_metadata') else {}
             }
 
-        # Files and stats
+        # Files and stats (raw scan used by overview + files section). We build a generic
+        # code_stats plus (when files section requested) a richer structure.
         app_path = get_app_directory(model_slug, app_number)
         files_info = {
             'app_exists': app_path.exists(),
@@ -905,16 +907,26 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
             'other_files': []
         }
         code_stats = {'total_files': 0, 'total_loc': 0, 'by_language': {}}
+        # Only assemble heavy file list if directory exists
+        scanned_files: list[dict] = []
         if app_path.exists():
-            for item in app_path.rglob('*'):
-                if item.is_file():
+            try:
+                for item in app_path.rglob('*'):
+                    if not item.is_file():
+                        continue
                     rel_path = item.relative_to(app_path)
+                    size = 0
+                    try:
+                        size = item.stat().st_size
+                    except Exception:
+                        pass
                     info = {
                         'name': item.name,
                         'path': str(rel_path),
-                        'size': item.stat().st_size,
-                        'modified': item.stat().st_mtime,
+                        'size': size,
+                        'is_directory': False,
                     }
+                    scanned_files.append(info)
                     lower = str(rel_path).lower()
                     if 'backend' in lower:
                         files_info['backend_files'].append(info)
@@ -922,12 +934,12 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
                         files_info['frontend_files'].append(info)
                     else:
                         files_info['other_files'].append(info)
-                    # LOC
+                    # LOC + language stats
                     ext = item.suffix.lower()
                     lang_map = {
-                        '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript',
-                        '.tsx': 'TypeScript', '.jsx': 'JavaScript', '.html': 'HTML',
-                        '.css': 'CSS', '.md': 'Markdown', '.json': 'JSON', '.yml': 'YAML', '.yaml': 'YAML'
+                        '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript', '.tsx': 'TypeScript',
+                        '.jsx': 'JavaScript', '.html': 'HTML', '.css': 'CSS', '.md': 'Markdown',
+                        '.json': 'JSON', '.yml': 'YAML', '.yaml': 'YAML'
                     }
                     lang = lang_map.get(ext, 'Other')
                     try:
@@ -940,6 +952,36 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
                     entry['loc'] += loc
                     code_stats['total_files'] += 1
                     code_stats['total_loc'] += loc
+            except Exception as _scan_err:  # pragma: no cover
+                current_app.logger.warning(f"File scan failed for {model_slug}/app{app_number}: {_scan_err}")
+
+        # Build files section specific aggregates when needed
+        files_list = None
+        file_stats = None
+        if section == 'files':
+            files_list = scanned_files
+            # Aggregate stats
+            total_size = sum(f.get('size', 0) for f in scanned_files)
+            code_exts = {'.py', '.js', '.ts', '.tsx', '.jsx'}
+            config_exts = {'.json', '.yml', '.yaml', '.toml', '.cfg', '.ini'}
+            code_files = sum(1 for f in scanned_files if Path(f['path']).suffix.lower() in code_exts)
+            config_files = sum(1 for f in scanned_files if Path(f['path']).suffix.lower() in config_exts)
+            by_extension: dict[str, dict] = {}
+            for f in scanned_files:
+                ext = Path(f['path']).suffix.lower()
+                entry = by_extension.setdefault(ext, {'count': 0, 'size': 0})
+                entry['count'] += 1
+                entry['size'] += f.get('size', 0)
+            # Percentage
+            for ext, entry in by_extension.items():
+                entry['percentage'] = (entry['size'] / total_size * 100.0) if total_size else 0.0
+            file_stats = {
+                'total_files': len(scanned_files),
+                'total_size': total_size,
+                'code_files': code_files,
+                'config_files': config_files,
+                'by_extension': by_extension
+            }
 
         # Ports
         try:
@@ -996,6 +1038,9 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
             },
             'app_data': app_data,
             'files_info': files_info,
+            # Files section context (None for other sections to keep template simple)
+            'files': files_list,
+            'file_stats': file_stats,
             'analyses': analyses,
             'model': model,
             'ports': ports,
@@ -1010,6 +1055,61 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
             'templates_dir': str(tmpl_dir),
             'app_base_dir': str(app_path),
         }
+
+        # Add Docker-specific context for container section
+        if section == 'container':
+            try:
+                from app.services.service_locator import ServiceLocator
+                docker_mgr = ServiceLocator.get_docker_manager()
+                if docker_mgr:
+                    # Get container information
+                    containers = docker_mgr.get_project_containers(model_slug, app_number)
+                    docker_diag = docker_mgr.debug_compose_resolution(model_slug, app_number)
+                    ctx['container_info'] = {
+                        'containers': containers,
+                        'containers_found': len(containers),
+                        'docker_diagnostics': docker_diag
+                    }
+                else:
+                    ctx['container_info'] = {
+                        'containers': [],
+                        'containers_found': 0,
+                        'docker_diagnostics': {'error': 'DockerManager unavailable'}
+                    }
+            except Exception as e:
+                current_app.logger.warning(f"Failed to get Docker info for {model_slug}/app{app_number}: {e}")
+                ctx['container_info'] = {
+                    'containers': [],
+                    'containers_found': 0,
+                    'docker_diagnostics': {'error': str(e)}
+                }
+
+        # Normalize ports structure for ports section (template expects iterable of rich port objects)
+        if section == 'ports':
+            try:
+                raw_ports = ctx.get('ports')
+                # Only transform simple dict shape {'backend': int, 'frontend': int}
+                if isinstance(raw_ports, dict):
+                    port_objs = []
+                    seen = set()
+                    def _add(role: str, val: int | None):
+                        if not val or val in seen:
+                            return
+                        seen.add(val)
+                        port_objs.append({
+                            'role': role,
+                            'container_port': val,
+                            'host_port': val,
+                            'protocol': 'tcp',
+                            'is_accessible': True,  # optimistic; detailed probe can enhance later
+                            'description': f'{role.capitalize()} service',
+                            'is_exposed': True
+                        })
+                    _add('backend', raw_ports.get('backend'))
+                    _add('frontend', raw_ports.get('frontend'))
+                    ctx['ports'] = port_objs
+            except Exception as _port_norm_err:  # pragma: no cover
+                current_app.logger.warning(f"Failed to normalize ports for {model_slug}/app{app_number}: {_port_norm_err}")
 
         template_map = {
             'overview': 'pages/applications/partials/overview.html',

@@ -1,3 +1,6 @@
+/* Diagnostics status shell to prevent layout shift during refreshes */
+.diagnostics-status-shell { min-height:120px; }
+.logs-scroll { max-height:200px; overflow-y:auto; }
 /* Sidebar Theme Styles (extracted & pared down) */
 
 /* Root variables needed for sidebar & layout offsets */

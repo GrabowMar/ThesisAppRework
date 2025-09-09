@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+
 from app.services.docker_manager import DockerManager
 m=DockerManager()
 print('project_root', m.project_root)

@@ -180,8 +180,8 @@
         <h4>No Ports Configured</h4>
         <p>This application doesn't have any exposed ports or the container is not running.</p>
         {% if app_data.container_status != 'running' %}
-        <button class="btn btn-primary" 
-                hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/start"
+  <button class="btn btn-primary" 
+    hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/start"
                 hx-target="#section-container"
                 hx-swap="innerHTML">
           <i class="fas fa-play me-1"></i>Start Application
@@ -200,7 +200,7 @@ function testPort(port) {
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
   
-  fetch(`/api/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/test-port/${port}`)
+  fetch(`/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/test-port/${port}`)
     .then(response => response.json())
     .then(data => {
       if (data.accessible) {
@@ -233,7 +233,7 @@ function testAllPorts() {
   showPortNotification('Testing all ports...', 'info');
   
   Promise.all(ports.map(port => 
-    fetch(`/api/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/test-port/${port}`)
+  fetch(`/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/test-port/${port}`)
       .then(response => response.json())
   )).then(results => {
     const accessible = results.filter(r => r.accessible).length;
@@ -242,7 +242,7 @@ function testAllPorts() {
     
     // Refresh ports section to update status
     setTimeout(() => {
-      htmx.ajax('GET', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/ports', {
+  htmx.ajax('GET', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/ports', {  // alias still valid
         target: '#section-ports',
         swap: 'innerHTML'
       });

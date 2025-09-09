@@ -1,6 +1,6 @@
 <!-- Table rows for HTMX sync status updates -->
 {% for app in entry.apps %}
-<tr>
+<tr data-model="{{ entry.model.canonical_slug }}" data-app-number="{{ app.app_number }}">
   <td>
     <input type="checkbox" class="form-check-input" name="selected_apps" value="{{ app.app_number }}">
   </td>
@@ -22,15 +22,15 @@
         <i class="ti ti-eye"></i>
       </a>
       {% if app.status != 'running' %}
-      <button class="btn btn-outline-success btn-sm" data-action="start" data-app="{{ app.app_number }}" title="Start">
+  <button class="btn btn-outline-success btn-sm" data-action="start" data-app="{{ app.app_number }}" title="Start">
         <i class="ti ti-play"></i>
       </button>
       {% else %}
-      <button class="btn btn-outline-danger btn-sm" data-action="stop" data-app="{{ app.app_number }}" title="Stop">
+  <button class="btn btn-outline-danger btn-sm" data-action="stop" data-app="{{ app.app_number }}" title="Stop">
         <i class="ti ti-square"></i>
       </button>
       {% endif %}
-      <button class="btn btn-outline-info btn-sm" data-action="logs" data-app="{{ app.app_number }}" title="View Logs">
+  <button class="btn btn-outline-info btn-sm" data-action="logs" data-app="{{ app.app_number }}" title="View Logs">
         <i class="ti ti-file-text"></i>
       </button>
     </div>
