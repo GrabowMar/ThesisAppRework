@@ -929,6 +929,22 @@ def api_models_paginated():
                 except Exception:
                     pass
 
+        # If we are focusing on installed/used models, optionally pre-fetch OpenRouter catalog
+        or_index_by_slug: dict[str, dict] = {}
+        if installed_only and source != 'openrouter' and openrouter_service and getattr(openrouter_service, 'api_key', None):
+            try:
+                _or_models = openrouter_service.fetch_all_models() or []  # type: ignore[attr-defined]
+                for _raw in _or_models:
+                    if not isinstance(_raw, dict):
+                        continue
+                    _mid = _raw.get('id') or ''
+                    if not _mid:
+                        continue
+                    _canon = _mid.replace('/', '_')
+                    or_index_by_slug[_canon] = _raw
+            except Exception as _e:  # pragma: no cover - best effort enrichment
+                current_app.logger.warning(f"OpenRouter enrichment (installed_only) failed: {_e}")
+
         def price_bucket(val: float) -> str:
             if val == 0:
                 return 'free'
@@ -978,7 +994,8 @@ def api_models_paginated():
             caps_raw = m.get_capabilities() or {}
             caps_list = _norm_caps(caps_raw.get('capabilities') if isinstance(caps_raw, dict) else caps_raw)
             meta = m.get_metadata() or {}
-            return {
+            base_slug = getattr(m, 'canonical_slug', None)
+            result = {
                 'slug': getattr(m, 'canonical_slug', None),
                 'model_id': getattr(m, 'model_id', None),
                 'name': getattr(m, 'model_name', None),
@@ -993,6 +1010,34 @@ def api_models_paginated():
                 'installed': bool(getattr(m, 'installed', False)),
                 'description': meta.get('openrouter_description') or meta.get('description') or None,
             }
+            # Enrich with OpenRouter catalog details if we have them (for installed_only views)
+            if base_slug and base_slug in or_index_by_slug:
+                _raw = or_index_by_slug[base_slug]
+                _pricing = _raw.get('pricing') or {}
+                try:
+                    prompt_price = float(_pricing.get('prompt') or 0)
+                    completion_price = float(_pricing.get('completion') or 0)
+                except Exception:
+                    prompt_price = 0.0
+                    completion_price = 0.0
+                # Keep existing numeric prices (per 1k tokens) but also surface explicit OpenRouter fields
+                result.update({
+                    'openrouter_model_id': _raw.get('id'),
+                    'openrouter_name': _raw.get('name'),
+                    'openrouter_canonical_slug': _raw.get('canonical_slug'),
+                    'openrouter_prompt_price': prompt_price,  # raw price per 1 token? (OpenRouter returns per 1M in some cases; here we store raw)
+                    'openrouter_completion_price': completion_price,
+                    'openrouter_description': _raw.get('description'),
+                    'openrouter_architecture': _raw.get('architecture'),
+                    'openrouter_top_provider': _raw.get('top_provider'),
+                    'openrouter_features': {
+                        'supports_tool_calls': _raw.get('supports_tool_calls'),
+                        'supports_json_mode': _raw.get('supports_json_mode'),
+                        'supports_streaming': _raw.get('supports_streaming'),
+                        'supports_vision': _raw.get('supports_vision'),
+                    },
+                })
+            return result
 
         mapped_page = [map_model(m) for m in page_items]
         all_mapped_for_stats = [map_model(m) for m in filtered]

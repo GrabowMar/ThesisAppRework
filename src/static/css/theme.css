@@ -1,6 +1,8 @@
 /* Diagnostics status shell to prevent layout shift during refreshes */
 .diagnostics-status-shell { min-height:120px; }
 .logs-scroll { max-height:200px; overflow-y:auto; }
+/* Utility: constrained vertical scroll region (models modal) */
+.scroll-y-220 { max-height:220px; overflow:auto; }
 /* Sidebar Theme Styles (extracted & pared down) */
 
 /* Root variables needed for sidebar & layout offsets */
@@ -60,6 +62,7 @@ body.sidebar-collapsed.ready .page-wrapper {
 	transition: left 0.3s ease, background .25s ease, border-color .25s ease;
 	margin: 0;
 	border-left: none;
+	-webkit-backdrop-filter: blur(4px);
 	backdrop-filter: blur(4px);
 }
 body.sidebar-collapsed .navbar.navbar-expand-md { left: var(--sidebar-collapsed-width); }

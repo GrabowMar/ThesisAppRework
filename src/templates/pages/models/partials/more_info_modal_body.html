@@ -33,6 +33,25 @@
     {% set features=[('Tool Use', model.tool_use or model.get('tool_use') or model.get('supports_tool_calling')),('JSON Mode', model.supports_json or model.get('supports_json') or model.get('supports_json_mode')),('Streaming', model.streaming or model.get('streaming') or model.get('supports_streaming')),('Vision', model.vision or model.get('vision') or model.get('supports_vision'))] %}
     {% for label,val in features %}<span class="badge bg-{{ 'success' if val else 'secondary' }}">{{ label }}</span>{% endfor %}
   </div>
+  {% if model.openrouter_features or model.get('openrouter_features') %}
+  <h6 class="mb-2">OpenRouter Features</h6>
+  {% set feats = model.openrouter_features or model.get('openrouter_features') %}
+  <ul class="small mb-3">
+    {% for k,v in feats.items() if v is not none %}
+      <li><span><code>{{ k }}</code>: <span class="text-{{ 'success' if v else 'muted' }}">{{ v }}</span></span></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  <h6 class="mb-2">All Fields</h6>
+  <div class="table-responsive mb-3 scroll-y-220">
+    <table class="table table-sm table-striped align-middle mb-0">
+      <tbody>
+      {% for k,v in model.items() if k not in ['architecture','openrouter_architecture','openrouter_top_provider'] %}
+        <tr><th class="small text-nowrap">{{ k }}</th><td class="small">{{ v if v is not mapping else v|length ~ ' keys' }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
   <details class="mt-2"><summary class="text-muted">Raw JSON</summary><pre class="bg-light p-2 small border rounded mt-2">{{ model | tojson(indent=2) }}</pre></details>
   <hr/>
   <div class="small text-muted">OpenRouter data may be cached. Some fields may be unavailable.</div>

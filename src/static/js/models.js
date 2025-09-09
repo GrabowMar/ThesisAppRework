@@ -60,6 +60,15 @@ if (window.__MODELS_JS_LOADED__) {
     }
   });
 
+  // Handle pageshow (when using bfcache/back navigation) to force a refresh if stale > 60s
+  window.addEventListener('pageshow', (ev) => {
+    if (ev.persisted || (performance && performance.now() > 60000)) {
+      if (document.getElementById('models-table-body')) {
+        loadModelsPaginated();
+      }
+    }
+  });
+
 /** Debounced text search trigger */
 function debounceSearch() {
   clearTimeout(searchTimeout);
@@ -218,7 +227,9 @@ function viewModelDetails(slug) {
   const target = document.getElementById('model-details-modal-content');
   if (!target) return;
   target.innerHTML = '<div class="p-3">Loading...</div>';
-  fetch(`/models/model/${encodeURIComponent(slug)}/more-info`)
+  // Include timestamp cache-buster to ensure latest details in case of recent sync
+  const ts = Date.now();
+  fetch(`/models/model/${encodeURIComponent(slug)}/more-info?ts=${ts}`)
     .then(r => r.text())
     .then(html => {
       target.innerHTML = html;
