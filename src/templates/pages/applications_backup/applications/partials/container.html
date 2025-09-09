@@ -1,0 +1,114 @@
+{# container partial migrated #}
+<div class="row row-cards">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title mb-0"><i class="fab fa-docker me-2"></i>Container Controls</h3>
+        <span class="badge bg-{{ 'success' if app_data.container_status == 'running' else ('danger' if app_data.container_status == 'error' else 'secondary') }}">{{ app_data.container_status|default('unknown')|title }}</span>
+      </div>
+      <div class="card-body">
+        <div class="btn-list">
+          <button class="btn btn-outline-primary" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/start" hx-swap="none" hx-on:afterRequest="location.reload()"><i class="fas fa-play me-1"></i>Start</button>
+          <button class="btn btn-outline-warning" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/stop" hx-swap="none" hx-on:afterRequest="location.reload()"><i class="fas fa-stop me-1"></i>Stop</button>
+          <button class="btn btn-outline-info" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/restart" hx-swap="none" hx-on:afterRequest="location.reload()"><i class="fas fa-redo me-1"></i>Restart</button>
+          <button class="btn btn-outline-secondary" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/build" hx-swap="none" hx-on:afterRequest="location.reload()"><i class="fas fa-hammer me-1"></i>Build</button>
+        </div>
+        <hr>
+        <div class="btn-list">
+          <a class="btn btn-outline-info open-frontend-btn" target="_blank"
+             data-port="{{ (ports.frontend if ports else (ports.get('frontend') if ports and ports.get('frontend') else '') ) }}"
+             href="#"
+             onclick="(function(e){ e.preventDefault(); var port=this.getAttribute('data-port'); if(!port){ return; } var host=window.location.hostname || 'localhost'; var url='http://'+host+':'+port; window.open(url, '_blank'); }).call(this,event)">
+            <i class="fas fa-external-link-alt me-1"></i>Open Frontend
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100" id="app-status-card"
+         hx-get="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/status"
+         hx-trigger="load, every 6s"
+         hx-target="#app-status-body"
+         hx-swap="innerHTML">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title mb-0"><i class="fas fa-file-alt me-2"></i>Logs & Status</h3>
+        <div class="btn-group">
+          <button class="btn btn-outline-secondary"
+            hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/modal"
+            hx-target="#modal-container" hx-swap="innerHTML"
+            hx-on::afterOnLoad="(function(){var m=document.getElementById('logsModal'); if(m && window.bootstrap){ var inst=new bootstrap.Modal(m); inst.show(); }})();">
+            <i class="fas fa-external-link-alt me-1"></i>Modal
+          </button>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div id="app-status-body" class="p-3 small text-muted d-flex align-items-center justify-content-center" style="min-height:220px;">
+          <div class="text-center w-100">
+            <div class="spinner-border text-secondary mb-2" role="status" style="width:1.75rem;height:1.75rem;"></div>
+            <div>Loading status…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<template id="app-status-success-template">
+  <div class="status-wrapper">
+    <div class="d-flex flex-wrap gap-2 mb-2">
+      <span class="badge bg-primary">DB: <span data-field="db_status"></span></span>
+      <span class="badge bg-info">Docker: <span data-field="docker_connected"></span></span>
+      <span class="badge bg-dark">Containers: <span data-field="containers_found"></span></span>
+    </div>
+    <div data-field="warnings" class="mb-2"></div>
+    <div class="logs-preview border rounded bg-body-tertiary p-2" style="font-family: var(--tblr-font-monospace); max-height:150px; overflow:auto;">
+      <pre class="m-0 small" data-field="preview">(fetching…)</pre>
+    </div>
+    <div class="mt-2 text-end">
+      <button class="btn btn-sm btn-outline-secondary" onclick="(function(btn){ var card=document.getElementById('app-status-card'); if(card){ card.dispatchEvent(new Event('htmx:trigger')); } })(this)"><i class="fas fa-rotate me-1"></i>Refresh Now</button>
+    </div>
+  </div>
+</template>
+
+<script>
+// Enhance status polling rendering using returned JSON envelope from /status
+document.addEventListener('htmx:afterSwap', function(ev){
+  if(ev.target && ev.target.id === 'app-status-body'){
+    // Expect JSON response structure with { success, data: { ...payload } }
+    try {
+      var raw = ev.detail.xhr.responseText;
+      if(raw.trim().startsWith('{')){
+        var json = JSON.parse(raw);
+        if(json && json.success && json.data){
+          var data = json.data;
+          // Build fragment from template
+            var tpl = document.getElementById('app-status-success-template');
+            if(tpl){
+              var frag = tpl.content.cloneNode(true);
+              frag.querySelector('[data-field="db_status"]').textContent = data.db_status;
+              frag.querySelector('[data-field="docker_connected"]').textContent = data.docker_connected ? 'Yes' : 'No';
+              frag.querySelector('[data-field="containers_found"]').textContent = data.containers_found;
+              var warnHost = frag.querySelector('[data-field="warnings"]');
+              if(data.warnings && data.warnings.length){
+                warnHost.innerHTML = data.warnings.map(function(w){return '<div class="alert alert-warning py-1 px-2 mb-1 small">'+w+'</div>';}).join('');
+              }
+              // Optionally show first container name(s)
+              var previewLines = [];
+              if(data.containers && data.containers.length){
+                previewLines.push('# Containers');
+                data.containers.slice(0,4).forEach(function(c){ previewLines.push(c.name + ' [' + c.status + ']'); });
+              } else {
+                previewLines.push('(no containers found)');
+              }
+              frag.querySelector('[data-field="preview"]').textContent = previewLines.join('\n');
+              ev.target.innerHTML='';
+              ev.target.appendChild(frag);
+            }
+        }
+      }
+    } catch(e){ /* swallow */ }
+  }
+});
+</script>
+</div>

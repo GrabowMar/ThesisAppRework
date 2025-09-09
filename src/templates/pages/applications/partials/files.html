@@ -1,111 +1,186 @@
-{# files partial migrated #}
-{% if not files_info.app_exists %}
-  <div class="card">
-    <div class="card-header d-flex align-items-center justify-content-between">
-      <h3 class="card-title mb-0"><i class="fas fa-folder-open me-2"></i>Files</h3>
-      <span class="badge bg-info">{{ code_stats.total_files }} total</span>
-    </div>
-    <div class="card-body">
-      <div class="alert alert-warning">
-        <h4 class="alert-title">Application folder not found</h4>
-        <div class="text-muted">
-          No application folder found at generated/apps/{{ app_data.model_slug }}/app{{ app_data.app_number }}
-          {% if app_base_dir %}<br/><code>Resolved path: {{ app_base_dir }}</code>{% endif %}
-        </div>
-      </div>
+{# Files and structure partial #}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-folder-open me-2"></i>Application Files
+    </h3>
+    <div class="card-actions">
+      <button class="btn btn-outline-secondary btn-sm" 
+              hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/files"
+              hx-target="#section-files"
+              hx-swap="innerHTML"
+              title="Refresh files">
+        <i class="fas fa-sync"></i>
+      </button>
     </div>
   </div>
-{% else %}
-  <div class="row row-cards">
-    <div class="col-12">
-      <div class="card h-100">
-        <div class="card-header d-flex align-items-center justify-content-between">
-          <h3 class="card-title mb-0"><i class="fas fa-folder-open me-2"></i>Files</h3>
-          <span class="badge bg-info">{{ code_stats.total_files }} total</span>
+  <div class="card-body">
+    {% if files %}
+      <div class="row g-3">
+        <div class="col-md-4">
+          <h4>File Structure</h4>
+          <div class="file-tree" style="max-height: 400px; overflow-y: auto;">
+            {% for file in files %}
+            <div class="file-item d-flex align-items-center py-1" data-file-path="{{ file.path }}">
+              <i class="fas fa-{{ 'folder' if file.is_directory else 'file' }} me-2 text-muted"></i>
+              <span class="file-name">{{ file.name }}</span>
+              {% if not file.is_directory %}
+                <span class="badge bg-secondary ms-auto">{{ file.size }}</span>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
         </div>
-        <div class="card-body p-0">
-          <div class="row g-0">
-            <div class="col-md-4 col-lg-3 border-end">
-              <div class="list-group list-group-flush">
-                {% for f in files_info.backend_files %}
-                <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                   hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/file?path={{ f.path | urlencode }}"
-                   hx-target="#file-preview-panel" hx-swap="innerHTML" title="{{ f.path }}">
-                  <span class="text-truncate"><i class="fas fa-server me-2 text-muted"></i>{{ f.path }}</span>
-                  <span class="badge bg-light text-dark ms-2">{{ f.size }} B</span>
-                </a>
-                {% endfor %}
-                {% for f in files_info.frontend_files %}
-                <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                   hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/file?path={{ f.path | urlencode }}"
-                   hx-target="#file-preview-panel" hx-swap="innerHTML" title="{{ f.path }}">
-                  <span class="text-truncate"><i class="fas fa-desktop me-2 text-muted"></i>{{ f.path }}</span>
-                  <span class="badge bg-light text-dark ms-2">{{ f.size }} B</span>
-                </a>
-                {% endfor %}
-                {% for f in files_info.other_files %}
-                <a class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
-                   hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/file?path={{ f.path | urlencode }}"
-                   hx-target="#file-preview-panel" hx-swap="innerHTML" title="{{ f.path }}">
-                  <span class="text-truncate"><i class="fas fa-file me-2 text-muted"></i>{{ f.path }}</span>
-                  <span class="badge bg-light text-dark ms-2">{{ f.size }} B</span>
-                </a>
-                {% endfor %}
-                {% if not (files_info.backend_files or files_info.frontend_files or files_info.other_files) %}
-                <div class="list-group-item text-muted">No files found</div>
-                {% endif %}
+        
+        <div class="col-md-8">
+          <h4>File Details</h4>
+          <div id="file-details">
+            <div class="text-center text-muted py-4">
+              <i class="fas fa-mouse-pointer fa-2x mb-2"></i>
+              <p>Click on a file to view its details</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- File Statistics -->
+      <div class="mt-4">
+        <h4>Statistics</h4>
+        <div class="row g-2">
+          <div class="col-md-3">
+            <div class="card card-sm bg-primary-lt">
+              <div class="card-body text-center">
+                <div class="h3 m-0 text-primary">{{ file_stats.total_files }}</div>
+                <div class="text-muted small">Total Files</div>
               </div>
             </div>
-            <div class="col-md-8 col-lg-9">
-              <div id="file-preview-panel" class="p-3">
-                <div class="text-muted">Select a file on the left to preview its content.</div>
+          </div>
+          <div class="col-md-3">
+            <div class="card card-sm bg-success-lt">
+              <div class="card-body text-center">
+                <div class="h3 m-0 text-success">{{ file_stats.total_size }}</div>
+                <div class="text-muted small">Total Size</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card card-sm bg-info-lt">
+              <div class="card-body text-center">
+                <div class="h3 m-0 text-info">{{ file_stats.code_files }}</div>
+                <div class="text-muted small">Code Files</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card card-sm bg-warning-lt">
+              <div class="card-body text-center">
+                <div class="h3 m-0 text-warning">{{ file_stats.config_files }}</div>
+                <div class="text-muted small">Config Files</div>
               </div>
             </div>
           </div>
         </div>
-      </div> {# /card h-100 #}
-    </div> {# /col-12 (file browser) #}
-    <div class="col-12"> {# separate row for stats + artifacts #}
-      <div class="row row-cards">
-        <div class="col-12 col-lg-6">
-          <div class="card h-100">
-            <div class="card-header">
-              <h3 class="card-title mb-0"><i class="fas fa-chart-bar me-2"></i>Code Stats</h3>
-            </div>
-            <div class="card-body">
-              <div class="btn-list mb-3">
-                <span class="badge bg-secondary">Files: {{ code_stats.total_files }}</span>
-                <span class="badge bg-secondary">LOC: {{ code_stats.total_loc }}</span>
-              </div>
-              <div class="list-separated">
-                {% for lang, data in code_stats.by_language.items() %}
-                <div class="list-separated-item">
-                  <div class="row align-items-center">
-                    <div class="col-auto">
-                      <span class="badge bg-azure">{{ lang }}</span>
-                    </div>
-                    <div class="col text-truncate">
-                      <div class="text-reset d-block">{{ data.files }} files</div>
-                      <div class="text-muted text-truncate mt-n1">{{ data.loc }} LOC</div>
-                    </div>
+      </div>
+      
+      <!-- File Type Distribution -->
+      {% if file_stats.by_extension %}
+      <div class="mt-4">
+        <h4>File Types</h4>
+        <div class="table-responsive">
+          <table class="table table-sm">
+            <thead>
+              <tr>
+                <th>Extension</th>
+                <th>Count</th>
+                <th>Size</th>
+                <th>Percentage</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ext, stats in file_stats.by_extension.items() %}
+              <tr>
+                <td>
+                  <span class="badge bg-secondary">{{ ext or 'No extension' }}</span>
+                </td>
+                <td>{{ stats.count }}</td>
+                <td>{{ stats.size }}</td>
+                <td>
+                  <div class="progress progress-sm">
+                    <div class="progress-bar" role="progressbar" 
+                         aria-valuenow="{{ stats.percentage }}" 
+                         aria-valuemin="0" 
+                         aria-valuemax="100"
+                         title="{{ stats.percentage }}%"></div>
                   </div>
-                </div>
-                {% endfor %}
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="col-12 col-lg-6">
-          <div class="card h-100">
-            <div class="card-header">
-              <h3 class="card-title mb-0"><i class="fas fa-link me-2"></i>Artifacts</h3>
-            </div>
-            <div class="card-body">
-              {% include 'pages/applications/partials/artifacts_inner.html' %}
-            </div>
-          </div>
+                  {{ "%.1f"|format(stats.percentage) }}%
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
       </div>
-    </div>
+      {% endif %}
+      
+    {% else %}
+      <div class="text-center text-muted py-4">
+        <i class="fas fa-folder-open fa-3x mb-3"></i>
+        <h4>No Files Found</h4>
+        <p>The application directory appears to be empty or inaccessible.</p>
+        <button class="btn btn-primary" 
+                hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/scan-files"
+                hx-target="#section-files"
+                hx-swap="innerHTML">
+          <i class="fas fa-search me-1"></i>Scan for Files
+        </button>
+      </div>
+    {% endif %}
   </div>
-{% endif %}
+</div>
+
+<script>
+// File tree interaction
+document.addEventListener('click', function(evt) {
+  if (evt.target.closest('.file-item') && !evt.target.closest('.file-item').dataset.filePath.endsWith('/')) {
+    const fileItem = evt.target.closest('.file-item');
+    const filePath = fileItem.dataset.filePath;
+    
+    // Highlight selected file
+    document.querySelectorAll('.file-item').forEach(item => item.classList.remove('bg-primary-lt'));
+    fileItem.classList.add('bg-primary-lt');
+    
+    // Load file details
+    htmx.ajax('GET', `/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/file?path=${encodeURIComponent(filePath)}`, {
+      target: '#file-details',
+      swap: 'innerHTML'
+    });
+  }
+});
+</script>
+
+<style>
+.file-tree {
+  border: 1px solid var(--tblr-border-color);
+  border-radius: 0.375rem;
+  padding: 0.5rem;
+}
+
+.file-item {
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  transition: background-color 0.15s ease-in-out;
+}
+
+.file-item:hover {
+  background-color: var(--tblr-bg-surface-secondary);
+}
+
+.file-item.bg-primary-lt {
+  background-color: rgba(32, 107, 196, 0.1) !important;
+}
+
+.progress-bar[title] {
+  width: var(--progress-width, 0%);
+}
+</style>

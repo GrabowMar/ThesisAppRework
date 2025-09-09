@@ -1,0 +1,83 @@
+{# migrated overview partial #}
+<div class="row row-cards">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title mb-0"><i class="fas fa-cube me-2"></i>Application</h3>
+        <span class="badge bg-{{ 'success' if app_data.container_status == 'running' else ('warning' if app_data.container_status == 'building' else 'secondary') }}">{{ app_data.container_status|default('unknown')|title }}</span>
+      </div>
+      <div class="card-body">
+        <div class="datagrid">
+          <div class="datagrid-item">
+            <div class="datagrid-title">Model</div>
+            <div class="datagrid-content">{{ app_data.model_slug }}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Provider</div>
+            <div class="datagrid-content"><span class="badge" style="background: {{ get_provider_color(app_data.provider or model.provider) }}">{{ app_data.provider or model.provider }}</span></div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">App #</div>
+            <div class="datagrid-content">{{ app_data.app_number }}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Type</div>
+            <div class="datagrid-content">{{ app_data.app_type or 'unknown' }}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Frameworks</div>
+            <div class="datagrid-content">{{ app_data.backend_framework or '—' }} / {{ app_data.frontend_framework or '—' }}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Created</div>
+            <div class="datagrid-content">{{ app_data.created_at.strftime('%Y-%m-%d %H:%M') if app_data.created_at else '—' }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title mb-0"><i class="fas fa-chart-bar me-2"></i>Generation Stats</h3>
+        <span class="badge bg-info">{{ code_stats.total_files }} files</span>
+      </div>
+      <div class="card-body">
+        <div class="row row-cards">
+          <div class="col-6">
+            <div class="card card-sm">
+              <div class="card-body text-center">
+                <div class="text-muted">Total LOC</div>
+                <div class="h1 m-0">{{ code_stats.total_loc }}</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card card-sm">
+              <div class="card-body">
+                <div class="text-muted mb-2">By Language</div>
+                <div class="list-separated">
+                  {% for lang, data in code_stats.by_language.items() %}
+                  <div class="list-separated-item">
+                    <div class="row align-items-center">
+                      <div class="col-auto">
+                        <span class="badge bg-secondary">{{ lang }}</span>
+                      </div>
+                      <div class="col text-truncate">
+                        <div class="text-reset d-block">{{ data.files }} files</div>
+                        <div class="text-muted text-truncate mt-n1">{{ data.loc }} LOC</div>
+                      </div>
+                    </div>
+                  </div>
+                  {% else %}
+                  <div class="text-muted">No code detected</div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

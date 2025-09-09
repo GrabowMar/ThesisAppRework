@@ -1,114 +1,195 @@
-{# container partial migrated #}
-<div class="row row-cards">
-  <div class="col-lg-6">
-    <div class="card h-100">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="card-title mb-0"><i class="fab fa-docker me-2"></i>Container Controls</h3>
-        <span class="badge bg-{{ 'success' if app_data.container_status == 'running' else ('danger' if app_data.container_status == 'error' else 'secondary') }}">{{ app_data.container_status|default('unknown')|title }}</span>
-      </div>
-      <div class="card-body">
-        <div class="btn-list">
-          <button class="btn btn-outline-primary" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/start" hx-swap="none" hx-on:afterRequest="location.reload()"><i class="fas fa-play me-1"></i>Start</button>
-          <button class="btn btn-outline-warning" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/stop" hx-swap="none" hx-on:afterRequest="location.reload()"><i class="fas fa-stop me-1"></i>Stop</button>
-          <button class="btn btn-outline-info" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/restart" hx-swap="none" hx-on:afterRequest="location.reload()"><i class="fas fa-redo me-1"></i>Restart</button>
-          <button class="btn btn-outline-secondary" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/build" hx-swap="none" hx-on:afterRequest="location.reload()"><i class="fas fa-hammer me-1"></i>Build</button>
-        </div>
-        <hr>
-        <div class="btn-list">
-          <a class="btn btn-outline-info open-frontend-btn" target="_blank"
-             data-port="{{ (ports.frontend if ports else (ports.get('frontend') if ports and ports.get('frontend') else '') ) }}"
-             href="#"
-             onclick="(function(e){ e.preventDefault(); var port=this.getAttribute('data-port'); if(!port){ return; } var host=window.location.hostname || 'localhost'; var url='http://'+host+':'+port; window.open(url, '_blank'); }).call(this,event)">
-            <i class="fas fa-external-link-alt me-1"></i>Open Frontend
-          </a>
-        </div>
-      </div>
+{# Container control partial #}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fab fa-docker me-2"></i>Container Management
+    </h3>
+    <div class="card-actions">
+      <span class="badge bg-{{ 'success' if container_status == 'running' else ('warning' if container_status == 'building' else 'secondary') }}">
+        {{ container_status|default('unknown')|title }}
+      </span>
     </div>
   </div>
-  <div class="col-lg-6">
-    <div class="card h-100" id="app-status-card"
-         hx-get="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/status"
-         hx-trigger="load, every 6s"
-         hx-target="#app-status-body"
-         hx-swap="innerHTML">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="card-title mb-0"><i class="fas fa-file-alt me-2"></i>Logs & Status</h3>
-        <div class="btn-group">
-          <button class="btn btn-outline-secondary"
-            hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/modal"
-            hx-target="#modal-container" hx-swap="innerHTML"
-            hx-on::afterOnLoad="(function(){var m=document.getElementById('logsModal'); if(m && window.bootstrap){ var inst=new bootstrap.Modal(m); inst.show(); }})();">
-            <i class="fas fa-external-link-alt me-1"></i>Modal
-          </button>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <h4>Container Status</h4>
+        <div class="datagrid">
+          <div class="datagrid-item">
+            <div class="datagrid-title">Status</div>
+            <div class="datagrid-content">
+              <span class="badge bg-{{ 'success' if container_status == 'running' else ('warning' if container_status == 'building' else 'secondary') }}">
+                {{ container_status|default('unknown')|title }}
+              </span>
+            </div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Image</div>
+            <div class="datagrid-content">
+              <code>{{ container_info.image|default('Not built') }}</code>
+            </div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Container ID</div>
+            <div class="datagrid-content">
+              {% if container_info.id %}
+                <code>{{ container_info.id[:12] }}</code>
+                <button class="btn btn-ghost-secondary btn-sm ms-2" onclick="copyAdjacentPre(this)" title="Copy container ID">
+                  <i class="fas fa-copy"></i>
+                </button>
+              {% else %}
+                <span class="text-muted">Not created</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Uptime</div>
+            <div class="datagrid-content">
+              {% if container_info.uptime %}
+                {{ container_info.uptime }}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </div>
+          </div>
         </div>
       </div>
-      <div class="card-body p-0">
-        <div id="app-status-body" class="p-3 small text-muted d-flex align-items-center justify-content-center" style="min-height:220px;">
-          <div class="text-center w-100">
-            <div class="spinner-border text-secondary mb-2" role="status" style="width:1.75rem;height:1.75rem;"></div>
-            <div>Loading status…</div>
+      
+      <div class="col-md-6">
+        <h4>Resource Usage</h4>
+        {% if container_stats %}
+        <div class="datagrid">
+          <div class="datagrid-item">
+            <div class="datagrid-title">CPU Usage</div>
+            <div class="datagrid-content">
+              <div class="progress progress-sm">
+                <div class="progress-bar" style="width: {{ container_stats.cpu_percent }}%"></div>
+              </div>
+              <span class="small text-muted">{{ "%.1f"|format(container_stats.cpu_percent) }}%</span>
+            </div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Memory Usage</div>
+            <div class="datagrid-content">
+              <div class="progress progress-sm">
+                <div class="progress-bar bg-warning" style="width: {{ container_stats.memory_percent }}%"></div>
+              </div>
+              <span class="small text-muted">{{ container_stats.memory_usage }} / {{ container_stats.memory_limit }}</span>
+            </div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Network I/O</div>
+            <div class="datagrid-content">
+              <div class="small">
+                <div>↓ {{ container_stats.network_rx }}</div>
+                <div>↑ {{ container_stats.network_tx }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-3">
+          <i class="fas fa-chart-bar fa-2x mb-2"></i>
+          <div>No resource statistics available</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- Control Actions -->
+    <div class="mt-4">
+      <h4>Container Actions</h4>
+      <div class="btn-list">
+        {% if container_status != 'running' %}
+        <button class="btn btn-success" 
+                hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/start"
+                hx-target="#section-container"
+                hx-swap="innerHTML">
+          <i class="fas fa-play me-1"></i>Start Container
+        </button>
+        {% else %}
+        <button class="btn btn-danger" 
+                hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/stop"
+                hx-target="#section-container"
+                hx-swap="innerHTML">
+          <i class="fas fa-stop me-1"></i>Stop Container
+        </button>
+        {% endif %}
+        
+        <button class="btn btn-warning" 
+                hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/restart"
+                hx-target="#section-container"
+                hx-swap="innerHTML">
+          <i class="fas fa-rotate me-1"></i>Restart
+        </button>
+        
+        <button class="btn btn-primary" 
+                hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/build"
+                hx-target="#section-container"
+                hx-swap="innerHTML"
+                hx-confirm="This will rebuild the container. Continue?">
+          <i class="fas fa-hammer me-1"></i>Rebuild
+        </button>
+        
+        <button class="btn btn-outline-secondary" 
+                hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/container"
+                hx-target="#section-container"
+                hx-swap="innerHTML">
+          <i class="fas fa-sync me-1"></i>Refresh Status
+        </button>
+        
+        {% if container_status == 'running' %}
+        <button class="btn btn-outline-info" onclick="openContainerShell()">
+          <i class="fas fa-terminal me-1"></i>Shell Access
+        </button>
+        {% endif %}
+        
+        <button class="btn btn-outline-danger" 
+                hx-delete="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/container"
+                hx-target="#section-container"
+                hx-swap="innerHTML"
+                hx-confirm="This will permanently delete the container and all its data. Continue?">
+          <i class="fas fa-trash me-1"></i>Delete Container
+        </button>
+      </div>
+    </div>
+    
+    <!-- Container Logs Preview -->
+    {% if container_logs %}
+    <div class="mt-4">
+      <h4>Recent Logs <small class="text-muted">(last 20 lines)</small></h4>
+      <div class="card card-sm">
+        <div class="card-body p-2">
+          <pre class="bg-dark text-light p-2 rounded small" style="max-height: 200px; overflow-y: auto;">{{ container_logs }}</pre>
+          <div class="mt-2">
+            <button class="btn btn-outline-secondary btn-sm" onclick="copyAdjacentPre(this)">
+              <i class="fas fa-copy me-1"></i>Copy Logs
+            </button>
+            <a href="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs" class="btn btn-outline-primary btn-sm">
+              <i class="fas fa-file-lines me-1"></i>View Full Logs
+            </a>
           </div>
         </div>
       </div>
     </div>
+    {% endif %}
   </div>
 </div>
-
-<template id="app-status-success-template">
-  <div class="status-wrapper">
-    <div class="d-flex flex-wrap gap-2 mb-2">
-      <span class="badge bg-primary">DB: <span data-field="db_status"></span></span>
-      <span class="badge bg-info">Docker: <span data-field="docker_connected"></span></span>
-      <span class="badge bg-dark">Containers: <span data-field="containers_found"></span></span>
-    </div>
-    <div data-field="warnings" class="mb-2"></div>
-    <div class="logs-preview border rounded bg-body-tertiary p-2" style="font-family: var(--tblr-font-monospace); max-height:150px; overflow:auto;">
-      <pre class="m-0 small" data-field="preview">(fetching…)</pre>
-    </div>
-    <div class="mt-2 text-end">
-      <button class="btn btn-sm btn-outline-secondary" onclick="(function(btn){ var card=document.getElementById('app-status-card'); if(card){ card.dispatchEvent(new Event('htmx:trigger')); } })(this)"><i class="fas fa-rotate me-1"></i>Refresh Now</button>
-    </div>
-  </div>
-</template>
 
 <script>
-// Enhance status polling rendering using returned JSON envelope from /status
-document.addEventListener('htmx:afterSwap', function(ev){
-  if(ev.target && ev.target.id === 'app-status-body'){
-    // Expect JSON response structure with { success, data: { ...payload } }
-    try {
-      var raw = ev.detail.xhr.responseText;
-      if(raw.trim().startsWith('{')){
-        var json = JSON.parse(raw);
-        if(json && json.success && json.data){
-          var data = json.data;
-          // Build fragment from template
-            var tpl = document.getElementById('app-status-success-template');
-            if(tpl){
-              var frag = tpl.content.cloneNode(true);
-              frag.querySelector('[data-field="db_status"]').textContent = data.db_status;
-              frag.querySelector('[data-field="docker_connected"]').textContent = data.docker_connected ? 'Yes' : 'No';
-              frag.querySelector('[data-field="containers_found"]').textContent = data.containers_found;
-              var warnHost = frag.querySelector('[data-field="warnings"]');
-              if(data.warnings && data.warnings.length){
-                warnHost.innerHTML = data.warnings.map(function(w){return '<div class="alert alert-warning py-1 px-2 mb-1 small">'+w+'</div>';}).join('');
-              }
-              // Optionally show first container name(s)
-              var previewLines = [];
-              if(data.containers && data.containers.length){
-                previewLines.push('# Containers');
-                data.containers.slice(0,4).forEach(function(c){ previewLines.push(c.name + ' [' + c.status + ']'); });
-              } else {
-                previewLines.push('(no containers found)');
-              }
-              frag.querySelector('[data-field="preview"]').textContent = previewLines.join('\n');
-              ev.target.innerHTML='';
-              ev.target.appendChild(frag);
-            }
-        }
-      }
-    } catch(e){ /* swallow */ }
-  }
-});
+function openContainerShell() {
+  // Open container shell in new window/tab
+  const url = `/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/shell`;
+  window.open(url, '_blank', 'width=800,height=600');
+}
+
+// Auto-refresh container stats every 5 seconds if container is running
+{% if container_status == 'running' %}
+setInterval(function() {
+  htmx.ajax('GET', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/stats', {
+    target: '#section-container .datagrid',
+    swap: 'outerHTML'
+  });
+}, 5000);
+{% endif %}
 </script>
-</div>

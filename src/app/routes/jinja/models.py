@@ -15,13 +15,50 @@ from app.models import (
     ModelCapability, GeneratedApplication, SecurityAnalysis, PerformanceTest,
     PortConfiguration, ExternalModelInfoCache
 )
-from app.utils.generated_apps import list_generated_apps, list_generated_models
+from app.utils.generated_apps import list_generated_apps  # noqa: F401 (may be used elsewhere)
 from app.utils.template_paths import render_template_compat as render_template
 from app.utils.helpers import get_app_directory
 from app.utils.port_resolution import resolve_ports
 
 # Import shared utilities
 from ..shared_utils import openrouter_service, _project_root
+
+
+class SimplePagination:
+    """Simple pagination class to provide iter_pages() method for templates."""
+    
+    def __init__(self, page, per_page, total, items):
+        self.page = page
+        self.per_page = per_page
+        self.total = total
+        self.items = items
+        self.pages = max(1, (total + per_page - 1) // per_page)
+    
+    @property
+    def has_prev(self):
+        return self.page > 1
+    
+    @property
+    def prev_num(self):
+        return self.page - 1 if self.has_prev else None
+    
+    @property
+    def has_next(self):
+        return self.page < self.pages
+    
+    @property
+    def next_num(self):
+        return self.page + 1 if self.has_next else None
+    
+    def iter_pages(self, left_edge=2, left_current=2, right_current=3, right_edge=2):
+        """Iterate over page numbers."""
+        last = self.pages
+        for num in range(1, last + 1):
+            if num <= left_edge or \
+               (self.page - left_current - 1 < num < self.page + right_current) or \
+               num > last - right_edge:
+                yield num
+
 
 # Create blueprint
 models_bp = Blueprint('models', __name__, url_prefix='/models')
@@ -49,77 +86,43 @@ def _enrich_model(model: ModelCapability):
 def models_overview():
     """Static models overview page showing table of AI models with OpenRouter data."""
     try:
-        # Get all models from database
-        models = ModelCapability.query.order_by(
-            ModelCapability.provider,
-            ModelCapability.model_name
-        ).all()
-        # Fallback: if DB empty but generated app folders exist, synthesize transient entries
-        if not models:
-            fs_models = list_generated_models()
-            synthetic = []
-            for slug in fs_models:
-                mc = ModelCapability()
-                mc.canonical_slug = slug
-                mc.model_name = slug
-                mc.provider = slug.split('_')[0]
-                mc.installed = True
-                synthetic.append(mc)
-            if synthetic:
-                models = synthetic
-
-        # Enrich models with OpenRouter data
-        enriched_models = []
-        for model in models:
-            enriched_data = _enrich_model(model)
-            app_count = GeneratedApplication.query.filter_by(model_slug=model.canonical_slug).count()
-            if app_count == 0:
-                # Fallback to filesystem count
-                app_count = len(list_generated_apps(model.canonical_slug))
-            enriched_data['apps_count'] = app_count
-            enriched_models.append(enriched_data)
-
-        # Get summary statistics
-        providers = db.session.query(ModelCapability.provider.distinct()).all()
-        providers = [p[0] for p in providers if p[0]]
-        available_providers = [
-            {'id': prov, 'name': (prov or '').title()}
-            for prov in providers
-        ]
-
-        total_models = len(models)
-        free_models = sum(1 for m in models if m.is_free)
-        paid_models = total_models - free_models
-        avg_cost = 0.001  # Default placeholder
+        # Basic stats for sidebar
+        try:
+            total_models = ModelCapability.query.count()
+            unique_providers = db.session.query(ModelCapability.provider).distinct().count()
+        except Exception:
+            total_models = 0
+            unique_providers = 0
 
         models_stats = {
             'total_models': total_models,
-            'active_models': total_models,
-            'unique_providers': len(providers),
-            'avg_cost_per_1k': avg_cost
+            'active_models': total_models,  # placeholder; refine if a flag exists
+            'unique_providers': unique_providers,
+            'avg_cost_per_1k': 0,
         }
 
-        context = {
-            'models': enriched_models,
-            'models_stats': models_stats,
-            'providers': providers,
-            'available_providers': available_providers,
-            'total_models': total_models,
-            'providers_count': len(providers),
-            'free_models': free_models,
-            'paid_models': paid_models,
-            'page_title': 'AI Models Overview',
-            'show_openrouter_data': bool(openrouter_service.api_key)
-        }
-        return render_template('pages/models/overview.html', **context)
+        # Providers for filter dropdown (optional in template)
+        try:
+            providers = db.session.query(ModelCapability.provider.distinct()).all()
+            available_providers = [
+                {'id': p[0], 'name': p[0]}
+                for p in providers if p and p[0]
+            ]
+        except Exception:
+            available_providers = []
 
+        return render_template(
+            'pages/models/overview.html',
+            models_stats=models_stats,
+            available_providers=available_providers,
+        )
     except Exception as e:
         current_app.logger.error(f"Error loading models overview: {e}")
-        flash(f"Error loading models: {e}", "error")
         return render_template(
             'pages/errors/errors_main.html',
-            error=str(e),
-            page_title='Models Overview Error'
+            error_code=500,
+            error_title='Models Overview Error',
+            error_message=str(e)
         ), 500
 
 @models_bp.route('/model/<model_slug>/details')
@@ -242,16 +245,17 @@ def _render_applications_page():
         except Exception as e:
             current_app.logger.warning(f"Failed to load PortConfiguration from DB: {e}")
 
-        # Get filter parameters
+        # Get filter & table state parameters
         model_filter = request.args.get('model')
         provider_filter = request.args.get('provider')
         search_filter = request.args.get('search')
+        status_filter = request.args.get('status')  # running|stopped|error|pending
+        sort_field = request.args.get('sort', 'model')  # model|provider|running_desc etc.
+        page = max(1, int(request.args.get('page', 1) or 1))
+        per_page = min(100, max(5, int(request.args.get('per_page', 25) or 25)))
 
         # Get all models to create app grid
-        models_query = ModelCapability.query.order_by(
-            ModelCapability.provider,
-            ModelCapability.model_name
-        )
+        models_query = ModelCapability.query
 
         # Apply filters
         if provider_filter:
@@ -268,6 +272,18 @@ def _render_applications_page():
                 ModelCapability.model_name.contains(search_filter) |
                 ModelCapability.provider.contains(search_filter)
             )
+
+        # Apply simple sorting
+        if sort_field == 'model':
+            models_query = models_query.order_by(ModelCapability.model_name.asc())
+        elif sort_field == 'model_desc':
+            models_query = models_query.order_by(ModelCapability.model_name.desc())
+        elif sort_field == 'provider':
+            models_query = models_query.order_by(ModelCapability.provider.asc())
+        elif sort_field == 'provider_desc':
+            models_query = models_query.order_by(ModelCapability.provider.desc())
+        else:
+            models_query = models_query.order_by(ModelCapability.provider.asc(), ModelCapability.model_name.asc())
 
         models = models_query.all()
 
@@ -296,11 +312,11 @@ def _render_applications_page():
         running_containers = 0
         stopped_containers = 0
 
-        from app.utils.helpers import get_app_directory
         try:
             current_app.logger.debug(f"[apps-grid] models_count={len(models)} total_apps_db={GeneratedApplication.query.count()}")
         except Exception:
             pass
+        filtered_models = []
         for model in models:
             db_apps = GeneratedApplication.query.filter_by(
                 model_slug=model.canonical_slug
@@ -327,8 +343,8 @@ def _render_applications_page():
                     'id': app.id if app else None,
                     'app_number': i,
                     'exists': exists_flag,
-                    'status': app.container_status if app else ('running' if getattr(app, 'container_status', '') == 'running' else ('filesystem' if fs_exists else 'not_created')),
-                    'app_type': app.app_type if app else 'web_app' if fs_exists else 'unknown',
+                    'status': app.container_status if app else ('filesystem' if fs_exists else 'not_created'),
+                    'app_type': app.app_type if app else ('web_app' if fs_exists else 'unknown'),
                     'has_backend': app.has_backend if app else fs_exists,
                     'has_frontend': app.has_frontend if app else fs_exists,
                     'has_docker_compose': app.has_docker_compose if app else False,
@@ -348,6 +364,12 @@ def _render_applications_page():
                     total_apps += 1
                     stopped_containers += 1
 
+            # Optional status filtering: include model row only if any app matches
+            if status_filter:
+                status_match = any(a.get('status') and status_filter in a.get('status') for a in model_apps)
+                if not status_match:
+                    continue
+            filtered_models.append(model)
             application_grid.append({
                 'model': model,
                 'apps': model_apps,
@@ -386,7 +408,7 @@ def _render_applications_page():
                 'slug': m.canonical_slug,
                 'display_name': getattr(m, 'display_name', None) or m.model_name or m.canonical_slug
             }
-            for m in models
+            for m in filtered_models or models
         ]
 
         try:
@@ -398,32 +420,52 @@ def _render_applications_page():
             'total_applications': total_apps,
             'running_applications': running_containers,
             'analyzed_applications': analyzed_count,
-            'unique_models': len(models)
+            'unique_models': len(filtered_models or models)
         }
 
+        # Pagination (on model rows)
+        total_models_count = len(application_grid)
+        start = (page - 1) * per_page
+        end = start + per_page
+        paged_grid = application_grid[start:end]
+        page_count = max(1, (total_models_count + per_page - 1) // per_page)
+
+        # Create pagination object with iter_pages() method
+        pagination = SimplePagination(page, per_page, total_models_count, paged_grid)
+
+        # Unified context for applications overview. Ensures new base layout flags are present
+        # even if older code paths forget to set them.
         context = {
-            'application_grid': application_grid,
+            'application_grid': paged_grid,
             'total_apps': total_apps,
             'running_containers': running_containers,
             'stopped_containers': stopped_containers,
-            'total_models': len(models),
+            'total_models': total_models_count,
             'providers': providers,
             'applications': applications_list,
             'total_count': total_apps,
             'available_models': available_models,
             'stats': stats,
+            'applications_stats': stats,  # Template compatibility alias
             'current_filters': {
                 'model': model_filter,
                 'provider': provider_filter,
-                'search': search_filter
-            }
+                'search': search_filter,
+                'status': status_filter,
+                'sort': sort_field,
+                'page': page,
+                'per_page': per_page,
+                'page_count': page_count
+            },
+            'pagination': pagination,
+            'active_page': 'applications',  # navbar highlight
+            'has_right_sidebar': True       # required for correct two-column layout
         }
-        # Updated template path to new unified pages namespace
         try:
             current_app.logger.debug(f"[apps-grid] final_stats total_apps={total_apps} models={len(models)}")
         except Exception:
             pass
-        return render_template('pages/applications/index.html', **context)
+        return render_template('pages/applications/applications_main.html', **context)
 
     except Exception as e:
         current_app.logger.error(f"Error loading applications: {e}")
@@ -783,13 +825,13 @@ def application_section_logs(model_slug, app_number):
     return _render_application_section(model_slug, app_number, 'logs')
 
 def _render_application_section(model_slug: str, app_number: int, section: str):
-    """Shared loader for application detail sections."""
+    """Shared loader for application detail sections (partials)."""
     try:
-        # --- Resolve model record robustly ----------------------------------
+        # Resolve model robustly
         def _cands(slug: str):
             base = {slug, slug.replace('-', '_'), slug.replace('_', '-'), slug.replace(' ', '_'), slug.replace(' ', '-')}
             also = set()
-            for s in list(base):  # collapse doubles that sometimes occur in user input
+            for s in list(base):
                 also.add(s.replace('__', '_'))
                 also.add(s.replace('--', '-'))
             return {c for c in (base | also) if c}
@@ -798,23 +840,11 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
         if not model:
             try:
                 candidates = list(_cands(model_slug))
-                if not model:
-                    model = ModelCapability.query.filter(ModelCapability.canonical_slug.in_(candidates)).first()
-                if not model:
-                    model = ModelCapability.query.filter(ModelCapability.model_name.in_(candidates)).first()
-                if not model:  # final fuzzy normalisation (alnum compare)
-                    import re
-                    def _norm(s: str):
-                        return re.sub(r'[^0-9a-z]+', '', (s or '').lower())
-                    target_norm = _norm(model_slug)
-                    if target_norm:
-                        for m in ModelCapability.query.all():  # pragma: no cover (fallback path)
-                            if _norm(m.canonical_slug) == target_norm or _norm(getattr(m, 'model_name', '')) == target_norm:
-                                model = m
-                                break
-            except Exception:  # pragma: no cover - defensive, never fail section render entirely
+                model = ModelCapability.query.filter(ModelCapability.canonical_slug.in_(candidates)).first() or model
+                model = ModelCapability.query.filter(ModelCapability.model_name.in_(candidates)).first() or model
+            except Exception:
                 pass
-        if not model:  # Synthetic placeholder so template doesn't explode (logs will show placeholders)
+        if not model:
             class _SyntheticModel:
                 canonical_slug = model_slug
                 model_name = model_slug
@@ -824,37 +854,14 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
                     return {}
             model = _SyntheticModel()
 
-        # --- Resolve application record with same normalization strategies ---
+        # Resolve application
         app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number).first()
         if not app and getattr(model, 'canonical_slug', None) and model.canonical_slug != model_slug:
             app = GeneratedApplication.query.filter_by(model_slug=model.canonical_slug, app_number=app_number).first()
         if not app and getattr(model, 'model_name', None):
             app = GeneratedApplication.query.filter_by(model_slug=model.model_name, app_number=app_number).first()
-        if not app:
-            # broaden search across candidate slugs
-            for cand in _cands(model_slug):
-                app = GeneratedApplication.query.filter_by(model_slug=cand, app_number=app_number).first()
-                if app:
-                    break
-        if not app:
-            # final ultra-fuzzy pass: normalised alphanumeric compare across all matching app_number
-            try:  # pragma: no cover (rare path for corrupted/migrated data)
-                import re
-                def _norm(s: str):
-                    return re.sub(r'[^0-9a-z]+', '', (s or '').lower())
-                target_norm = _norm(model_slug)
-                if target_norm:
-                    for candidate in GeneratedApplication.query.filter_by(app_number=app_number).all():
-                        if _norm(candidate.model_slug) == target_norm:
-                            app = candidate
-                            break
-            except Exception:
-                pass
 
-        fs_slug = app.model_slug if app else (getattr(model, 'canonical_slug', None) or model_slug)
-        app_path = get_app_directory(fs_slug, app_number)
-
-        # Build app_data similar to full detail route
+        # Build app_data
         if not app:
             app_data = {
                 'model_slug': model_slug,
@@ -862,19 +869,13 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
                 'exists_in_db': False,
                 'status': 'not_created',
                 'app_type': 'unknown',
-                'provider': getattr(model, 'provider', 'unknown'),
                 'has_backend': False,
                 'has_frontend': False,
                 'has_docker_compose': False,
                 'generation_status': 'pending',
                 'container_status': 'not_created',
-                'backend_framework': None,
-                'frontend_framework': None,
-                'created_at': None,
-                'metadata': {}
+                'provider': getattr(model, 'provider', 'local')
             }
-            # Add get_metadata method to app_data dict for template compatibility
-            app_data['get_metadata'] = lambda: app_data['metadata']
         else:
             app_data = {
                 'id': app.id,
@@ -882,9 +883,8 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
                 'app_number': app.app_number,
                 'exists_in_db': True,
                 'app_type': app.app_type,
-                'provider': app.provider,
-                # ensure enum converted to simple value for templates / JSON hx responses
-                'generation_status': (app.generation_status.value if getattr(app, 'generation_status', None) else None),
+                'provider': app.provider or getattr(model, 'provider', None),
+                'generation_status': app.generation_status,
                 'container_status': app.container_status,
                 'has_backend': app.has_backend,
                 'has_frontend': app.has_frontend,
@@ -894,10 +894,9 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
                 'created_at': app.created_at,
                 'metadata': app.get_metadata() if hasattr(app, 'get_metadata') else {}
             }
-            # Add get_metadata method to app_data dict for template compatibility
-            app_data['get_metadata'] = lambda: app_data['metadata']
 
-        # Files + code stats (lightweight for section use)
+        # Files and stats
+        app_path = get_app_directory(model_slug, app_number)
         files_info = {
             'app_exists': app_path.exists(),
             'docker_compose': (app_path / 'docker-compose.yml').exists(),
@@ -905,108 +904,54 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
             'frontend_files': [],
             'other_files': []
         }
-        code_stats = { 'total_files': 0, 'total_loc': 0, 'by_language': {} }
-        artifacts = {
-            'project_index': (app_path / 'PROJECT_INDEX.md') if app_path.exists() else None,
-            'readme': (app_path / 'README.md') if app_path.exists() else None,
-            'compose_path': (app_path / 'docker-compose.yml') if app_path.exists() else None,
-        }
+        code_stats = {'total_files': 0, 'total_loc': 0, 'by_language': {}}
         if app_path.exists():
-            # Limit enumeration for performance (but still enough for stats & listing)
-            for item in list(app_path.rglob('*'))[:2000]:  # safety cap
+            for item in app_path.rglob('*'):
                 if item.is_file():
                     rel_path = item.relative_to(app_path)
-                    file_info = {
+                    info = {
                         'name': item.name,
                         'path': str(rel_path),
                         'size': item.stat().st_size,
-                        'modified': item.stat().st_mtime
+                        'modified': item.stat().st_mtime,
                     }
-                    lower_rel = str(rel_path).lower()
-                    if 'backend' in lower_rel:
-                        files_info['backend_files'].append(file_info)
-                    elif 'frontend' in lower_rel:
-                        files_info['frontend_files'].append(file_info)
+                    lower = str(rel_path).lower()
+                    if 'backend' in lower:
+                        files_info['backend_files'].append(info)
+                    elif 'frontend' in lower:
+                        files_info['frontend_files'].append(info)
                     else:
-                        files_info['other_files'].append(file_info)
+                        files_info['other_files'].append(info)
+                    # LOC
                     ext = item.suffix.lower()
-                    lang_map = { '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript', '.tsx': 'TypeScript', '.jsx': 'JavaScript', '.html': 'HTML', '.css': 'CSS', '.md': 'Markdown', '.json': 'JSON', '.yml': 'YAML', '.yaml': 'YAML' }
+                    lang_map = {
+                        '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript',
+                        '.tsx': 'TypeScript', '.jsx': 'JavaScript', '.html': 'HTML',
+                        '.css': 'CSS', '.md': 'Markdown', '.json': 'JSON', '.yml': 'YAML', '.yaml': 'YAML'
+                    }
                     lang = lang_map.get(ext, 'Other')
                     try:
                         text = item.read_text(encoding='utf-8', errors='ignore')
                         loc = text.count('\n') + 1 if text else 0
                     except Exception:
                         loc = 0
-                    code_stats['total_files'] += 1
-                    code_stats['total_loc'] += loc
                     entry = code_stats['by_language'].setdefault(lang, {'files': 0, 'loc': 0})
                     entry['files'] += 1
                     entry['loc'] += loc
+                    code_stats['total_files'] += 1
+                    code_stats['total_loc'] += loc
 
-        # Framework detection from filesystem if missing from DB
-        if not app_data.get('backend_framework') or not app_data.get('frontend_framework'):
-            try:
-                # Simple framework detection based on key files
-                backend_dir = app_path / 'backend'
-                frontend_dir = app_path / 'frontend'
-                
-                if not app_data.get('backend_framework') and backend_dir.exists():
-                    if (backend_dir / 'app.py').exists() or (backend_dir / 'main.py').exists():
-                        app_data['backend_framework'] = 'Flask'
-                    elif (backend_dir / 'manage.py').exists():
-                        app_data['backend_framework'] = 'Django'
-                    elif (backend_dir / 'package.json').exists():
-                        app_data['backend_framework'] = 'Node.js'
-                
-                if not app_data.get('frontend_framework') and frontend_dir.exists():
-                    package_json = frontend_dir / 'package.json'
-                    if package_json.exists():
-                        try:
-                            import json
-                            pkg_data = json.loads(package_json.read_text(encoding='utf-8', errors='ignore'))
-                            deps = {**pkg_data.get('dependencies', {}), **pkg_data.get('devDependencies', {})}
-                            if 'react' in deps:
-                                app_data['frontend_framework'] = 'React'
-                            elif 'vue' in deps:
-                                app_data['frontend_framework'] = 'Vue'
-                            elif 'angular' in deps:
-                                app_data['frontend_framework'] = 'Angular'
-                            elif 'svelte' in deps:
-                                app_data['frontend_framework'] = 'Svelte'
-                            else:
-                                app_data['frontend_framework'] = 'JavaScript'
-                        except Exception:
-                            app_data['frontend_framework'] = 'JavaScript'
-                    elif (frontend_dir / 'index.html').exists():
-                        app_data['frontend_framework'] = 'HTML/CSS/JS'
-            except Exception:
-                pass
-
-        # Ports via centralized resolver
-        ports = resolve_ports(model_slug, app_number, include_attempts=True)
-        # If no ports found, provide fallback default structure for display
-        if not ports:
-            ports = {
-                'backend': None,
-                'frontend': None,
-                'source': 'none',
-                'attempts': [],
-                'error': 'No PortConfiguration found'
-            }
+        # Ports
         try:
-            if ports and ports.get('backend'):
-                current_app.logger.debug(
-                    f"[ports-lookup] {model_slug}/app{app_number} attempts={'|'.join(ports.get('attempts', []))} result=found source={ports.get('source')}"
-                )
-            else:
-                current_app.logger.debug(f"[ports-lookup] {model_slug}/app{app_number} result=none")
+            pc = db.session.query(PortConfiguration).filter_by(model=model_slug, app_num=app_number).first()
+            ports = {'backend': pc.backend_port, 'frontend': pc.frontend_port} if pc else None
         except Exception:
-            pass
+            ports = None
 
         # Prompts
         prompts = {'backend': '', 'frontend': ''}
         template_files = {'backend_file': '', 'frontend_file': ''}
-        tmpl_dir = _project_root() / 'src' / 'misc' / 'app_templates'
+        tmpl_dir = _project_root() / 'misc' / 'app_templates'
         try:
             backend_md = sorted(tmpl_dir.glob(f'app_{app_number}_backend_*.md'))
             frontend_md = sorted(tmpl_dir.glob(f'app_{app_number}_frontend_*.md'))
@@ -1019,101 +964,53 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
         except Exception:
             pass
 
-        # Analyses + stats
-        analyses = {'security': [], 'performance': [], 'zap': []}
-        stats = {
-            'total_security_analyses': 0,
-            'total_performance_tests': 0,
-            'total_zap_analyses': 0,
-            'total_openrouter_analyses': 0
-        }
+        # Analyses (lightweight list)
+        analyses = {}
         if app:
-            try:
-                from app.models import ZAPAnalysis, OpenRouterAnalysis
-                analyses['security'] = SecurityAnalysis.query.filter_by(application_id=app.id).order_by(SecurityAnalysis.created_at.desc()).all()
-                analyses['performance'] = PerformanceTest.query.filter_by(application_id=app.id).order_by(PerformanceTest.created_at.desc()).all()
-                analyses['zap'] = ZAPAnalysis.query.filter_by(application_id=app.id).order_by(ZAPAnalysis.created_at.desc()).all()
-                openrouter_list = OpenRouterAnalysis.query.filter_by(application_id=app.id).order_by(OpenRouterAnalysis.created_at.desc()).all()
-                stats.update({
-                    'total_security_analyses': len(analyses['security']),
-                    'total_performance_tests': len(analyses['performance']),
-                    'total_zap_analyses': len(analyses['zap']),
-                    'total_openrouter_analyses': len(openrouter_list),
-                })
-            except Exception:
-                pass
+            from app.models import ZAPAnalysis, OpenRouterAnalysis
+            analyses = {
+                'security': SecurityAnalysis.query.filter_by(application_id=app.id).order_by(SecurityAnalysis.created_at.desc()).all(),
+                'performance': PerformanceTest.query.filter_by(application_id=app.id).order_by(PerformanceTest.created_at.desc()).all(),
+                'zap': ZAPAnalysis.query.filter_by(application_id=app.id).order_by(ZAPAnalysis.created_at.desc()).all(),
+                'openrouter': OpenRouterAnalysis.query.filter_by(application_id=app.id).order_by(OpenRouterAnalysis.created_at.desc()).all()
+            }
 
+        # Context
         ctx = {
-            'model': model,
-            'app': app,
+            'application': {
+                'id': getattr(app, 'id', None) if app else None,
+                'model_slug': model_slug,
+                'app_number': app_number,
+                'status': getattr(app, 'container_status', None) or 'not_created',
+                'created_at': getattr(app, 'created_at', None) if app else None,
+                'backend_port': (ports or {}).get('backend') if isinstance(ports, dict) else None,
+                'frontend_port': (ports or {}).get('frontend') if isinstance(ports, dict) else None,
+                'is_running': (getattr(app, 'container_status', None) == 'running') if app else False,
+                'last_started': None,
+                'file_count': code_stats.get('total_files', 0),
+                'total_size': None,
+                'environment_variables': {},
+                'analyses': [],
+                'generation_log': None,
+                'versions': [],
+            },
             'app_data': app_data,
             'files_info': files_info,
-            'code_stats': code_stats,
-            'artifacts': artifacts,
+            'analyses': analyses,
+            'model': model,
             'ports': ports,
+            'code_stats': code_stats,
             'prompts': prompts,
             'template_files': template_files,
-            'analyses': analyses,
-            'stats': stats,
+            'artifacts': {
+                'project_index': (app_path / 'PROJECT_INDEX.md') if app_path.exists() else None,
+                'readme': (app_path / 'README.md') if app_path.exists() else None,
+                'compose_path': (app_path / 'docker-compose.yml') if app_path.exists() else None,
+            },
             'templates_dir': str(tmpl_dir),
             'app_base_dir': str(app_path),
         }
-        
-        # Ensure model has display_name for templates
-        if not hasattr(model, 'display_name'):
-            model.display_name = getattr(model, 'model_name', None) or getattr(model, 'canonical_slug', model_slug)
-        # Optional manifest
-        try:
-            manifest_path = _project_root() / 'src' / 'generated' / 'indices' / 'generation_manifest.json'
-            if manifest_path.exists():
-                import json
-                ctx['generation_manifest'] = json.loads(manifest_path.read_text(encoding='utf-8', errors='ignore'))
-                # Attempt to enrich metadata from manifest if empty
-                if app_data.get('metadata') in (None, {}, []):
-                    gm = ctx.get('generation_manifest') or {}
-                    # manifest structure may be list or dict; try both patterns
-                    manifest_entry = None
-                    if isinstance(gm, dict):
-                        # try exact then fuzzy key match
-                        manifest_entry = gm.get(model_slug)
-                        if not manifest_entry:
-                            for k, v in gm.items():
-                                if k.replace('-','').replace('_','') == model_slug.replace('-','').replace('_',''):
-                                    manifest_entry = v
-                                    break
-                    elif isinstance(gm, list):
-                        for entry in gm:
-                            if not isinstance(entry, dict):
-                                continue
-                            slug_val = entry.get('model_slug') or entry.get('slug') or ''
-                            if slug_val == model_slug or slug_val.replace('-','').replace('_','') == model_slug.replace('-','').replace('_',''):
-                                manifest_entry = entry
-                                break
-                    if manifest_entry:
-                        # store under metadata so template can render
-                        try:
-                            app_data['metadata'] = manifest_entry if isinstance(manifest_entry, dict) else {'manifest_entry': manifest_entry}
-                        except Exception:
-                            pass
-        except Exception:
-            ctx['generation_manifest'] = {}
-        # Debug log summarizing context keys for troubleshooting missing sections
-        try:
-            current_app.logger.debug(
-                "[app-section-debug] model_param=%s resolved_model=%s app_model=%s section=%s found_app=%s fs_slug=%s ports=%s prompts_len=%s metadata_keys=%s" % (
-                    model_slug,
-                    getattr(model, 'canonical_slug', None),
-                    getattr(app, 'model_slug', None),
-                    section,
-                    bool(app),
-                    fs_slug,
-                    'yes' if ports else 'no',
-                    len((prompts or {}).get('backend', '')),
-                    list((app_data.get('metadata') or {}).keys())[:6]
-                )
-            )
-        except Exception:
-            pass
+
         template_map = {
             'overview': 'pages/applications/partials/overview.html',
             'prompts': 'pages/applications/partials/prompts.html',
@@ -1128,10 +1025,6 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
         tpl = template_map.get(section)
         if not tpl:
             return f'<div class="alert alert-warning">Unknown section: {section}</div>', 404
-        try:
-            current_app.logger.debug(f"[app-section] {model_slug}/app{app_number} section={section} path={app_path}")
-        except Exception:
-            pass
         return render_template(tpl, **ctx)
     except Exception as e:
         current_app.logger.error(f"Error rendering section {section} for {model_slug}/app{app_number}: {e}")
@@ -1280,7 +1173,7 @@ def model_apps(model_slug):
         apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
 
         return render_template(
-            'pages/applications/index.html',
+            # Removed legacy 'pages/applications/index.html' reference (deprecated layout)
             model=model,
             apps=apps,
             page_title=f"{model.display_name} Applications"

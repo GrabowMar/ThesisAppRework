@@ -1,0 +1,9 @@
+{# Applications main page - follows models page pattern #}
+{# Provide safe defaults so templates don't fail when rendered directly #}
+{% set applications_stats = applications_stats if applications_stats is defined else {
+	'total_applications': 0,
+	'running_applications': 0,
+	'analyzed_applications': 0,
+	'unique_models': 0
+} %}
+{% extends 'pages/applications/overview.html' %}

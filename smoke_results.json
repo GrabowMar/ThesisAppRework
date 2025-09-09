@@ -8,12 +8,12 @@
       "body": {
         "data": {
           "status": "healthy",
-          "timestamp": "2025-09-06T13:54:38.302578+00:00",
+          "timestamp": "2025-09-09T10:09:12.152740+00:00",
           "version": "1.0"
         },
         "message": "Success",
         "success": true,
-        "timestamp": "2025-09-06T15:54:38.302578"
+        "timestamp": "2025-09-09T12:09:12.152740"
       }
     },
     "health": {
@@ -37,21 +37,14 @@
       "body": {
         "models": [
           {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis",
-              "multilingual"
-            ],
-            "context_length": 200000,
+            "capabilities": [],
+            "context_length": 0,
             "description": null,
-            "input_price_per_1k": 0.003,
-            "installed": false,
-            "max_output_tokens": 16384,
-            "model_id": "anthropic_claude-3.7-sonnet",
-            "name": "Claude 3.7 Sonnet",
+            "input_price_per_1k": 0.0,
+            "installed": true,
+            "max_output_tokens": 0,
+            "model_id": "nousresearch_hermes-4-405b",
+            "name": "nousresearch_hermes-4-405b",
             "openrouter": {
               "canonical_slug": null,
               "created": null,
@@ -60,418 +53,22 @@
               "pricing": null,
               "top_provider": null
             },
-            "output_price_per_1k": 0.015,
-            "performance_score": 8,
-            "provider": "anthropic",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "anthropic_claude-3.7-sonnet",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis",
-              "multilingual"
-            ],
-            "context_length": 200000,
-            "description": null,
-            "input_price_per_1k": 0.003,
-            "installed": false,
-            "max_output_tokens": 16384,
-            "model_id": "anthropic_claude-sonnet-4",
-            "name": "Claude Sonnet 4",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.015,
-            "performance_score": 8,
-            "provider": "anthropic",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "anthropic_claude-sonnet-4",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis"
-            ],
-            "context_length": 32768,
-            "description": null,
-            "input_price_per_1k": 0.001,
-            "installed": false,
-            "max_output_tokens": 8192,
-            "model_id": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
-            "name": "Dolphin Mistral 24B Venice Edition",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.001,
-            "performance_score": 8,
-            "provider": "cognitivecomputations",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "cognitivecomputations_dolphin-mistral-24b-venice-edition",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis"
-            ],
-            "context_length": 128000,
-            "description": null,
-            "input_price_per_1k": 0.00014,
-            "installed": false,
-            "max_output_tokens": 16384,
-            "model_id": "deepseek_deepseek-chat-v3-0324",
-            "name": "DeepSeek Chat v3 0324",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.00028,
-            "performance_score": 9,
-            "provider": "deepseek",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "deepseek_deepseek-chat-v3-0324",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "analysis"
-            ],
-            "context_length": 128000,
-            "description": null,
-            "input_price_per_1k": 0.00055,
-            "installed": false,
-            "max_output_tokens": 32768,
-            "model_id": "deepseek_deepseek-r1-0528",
-            "name": "DeepSeek R1 0528",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.00055,
-            "performance_score": 9,
-            "provider": "deepseek",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "deepseek_deepseek-r1-0528",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "analysis"
-            ],
-            "context_length": 128000,
-            "description": null,
-            "input_price_per_1k": 0.00014,
-            "installed": false,
-            "max_output_tokens": 32768,
-            "model_id": "deepseek_deepseek-r1-0528-qwen3-8b",
-            "name": "DeepSeek R1 0528 Qwen3 8B",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.00028,
-            "performance_score": 9,
-            "provider": "deepseek",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "deepseek_deepseek-r1-0528-qwen3-8b",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "creative_writing"
-            ],
-            "context_length": 32768,
-            "description": null,
-            "input_price_per_1k": 0.009,
-            "installed": false,
-            "max_output_tokens": 8192,
-            "model_id": "featherless_qwerky-72b",
-            "name": "Qwerky 72B",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.009,
-            "performance_score": 7,
-            "provider": "featherless",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "featherless_qwerky-72b",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis",
-              "multilingual"
-            ],
-            "context_length": 1000000,
-            "description": null,
-            "input_price_per_1k": 0.000125,
-            "installed": false,
-            "max_output_tokens": 8192,
-            "model_id": "google_gemini-2.5-flash",
-            "name": "Gemini 2.5 Flash",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.000375,
-            "performance_score": 9,
-            "provider": "google",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "google_gemini-2.5-flash",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis",
-              "multilingual"
-            ],
-            "context_length": 2000000,
-            "description": null,
-            "input_price_per_1k": 0.003,
-            "installed": false,
-            "max_output_tokens": 32768,
-            "model_id": "google_gemini-2.5-pro",
-            "name": "Gemini 2.5 Pro",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.015,
-            "performance_score": 8,
-            "provider": "google",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "google_gemini-2.5-pro",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis",
-              "multilingual"
-            ],
-            "context_length": 128000,
-            "description": null,
-            "input_price_per_1k": 0.005,
-            "installed": false,
-            "max_output_tokens": 8192,
-            "model_id": "minimax_minimax-m1",
-            "name": "MiniMax M1",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.015,
-            "performance_score": 8,
-            "provider": "minimax",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "minimax_minimax-m1",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "analysis"
-            ],
-            "context_length": 128000,
-            "description": null,
-            "input_price_per_1k": 0.002,
-            "installed": false,
-            "max_output_tokens": 8192,
-            "model_id": "mistralai_devstral-medium",
-            "name": "Devstral Medium",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.006,
-            "performance_score": 8,
-            "provider": "mistralai",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "mistralai_devstral-medium",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis",
-              "multilingual"
-            ],
-            "context_length": 128000,
-            "description": null,
-            "input_price_per_1k": 0.002,
-            "installed": false,
-            "max_output_tokens": 8192,
-            "model_id": "mistralai_mistral-small-3.2-24b-instruct",
-            "name": "Mistral Small 3.2 24B Instruct",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.006,
-            "performance_score": 8,
-            "provider": "mistralai",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "mistralai_mistral-small-3.2-24b-instruct",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis",
-              "multilingual"
-            ],
-            "context_length": 200000,
-            "description": null,
-            "input_price_per_1k": 0.012,
-            "installed": false,
-            "max_output_tokens": 16384,
-            "model_id": "moonshotai_kimi-dev-72b",
-            "name": "Kimi Dev 72B",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.036,
-            "performance_score": 7,
-            "provider": "moonshotai",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "moonshotai_kimi-dev-72b",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis"
-            ],
-            "context_length": 128000,
-            "description": null,
-            "input_price_per_1k": 0.00018,
-            "installed": false,
-            "max_output_tokens": 8192,
-            "model_id": "nousresearch_deephermes-3-llama-3-8b-preview",
-            "name": "DeepHermes 3 Llama 3 8B Preview",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.00018,
-            "performance_score": 9,
+            "output_price_per_1k": 0.0,
+            "performance_score": 0,
             "provider": "nousresearch",
             "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "nousresearch_deephermes-3-llama-3-8b-preview",
+            "slug": "nousresearch_hermes-4-405b",
             "status": "active"
           },
           {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis",
-              "multilingual"
-            ],
-            "context_length": 128000,
+            "capabilities": [],
+            "context_length": 0,
             "description": null,
-            "input_price_per_1k": 0.018,
-            "installed": false,
-            "max_output_tokens": 16384,
-            "model_id": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
-            "name": "Llama 3.1 Nemotron Ultra 253B v1",
+            "input_price_per_1k": 0.0,
+            "installed": true,
+            "max_output_tokens": 0,
+            "model_id": "qwen_qwen3-30b-a3b-thinking-2507",
+            "name": "qwen_qwen3-30b-a3b-thinking-2507",
             "openrouter": {
               "canonical_slug": null,
               "created": null,
@@ -480,120 +77,22 @@
               "pricing": null,
               "top_provider": null
             },
-            "output_price_per_1k": 0.072,
-            "performance_score": 6,
-            "provider": "nvidia",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "nvidia_llama-3.1-nemotron-ultra-253b-v1",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis",
-              "multilingual"
-            ],
-            "context_length": 128000,
-            "description": null,
-            "input_price_per_1k": 0.01,
-            "installed": false,
-            "max_output_tokens": 16384,
-            "model_id": "openai_gpt-4.1",
-            "name": "GPT-4.1",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.03,
-            "performance_score": 8,
-            "provider": "openai",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "openai_gpt-4.1",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "analysis"
-            ],
-            "context_length": 128000,
-            "description": null,
-            "input_price_per_1k": 0.06,
-            "installed": false,
-            "max_output_tokens": 65536,
-            "model_id": "openai_o3",
-            "name": "O3",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.24,
-            "performance_score": 7,
-            "provider": "openai",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "openai_o3",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis",
-              "multilingual"
-            ],
-            "context_length": 128000,
-            "description": null,
-            "input_price_per_1k": 0.0027,
-            "installed": false,
-            "max_output_tokens": 8192,
-            "model_id": "qwen_qwen3-14b",
-            "name": "Qwen3 14B",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.0027,
-            "performance_score": 9,
+            "output_price_per_1k": 0.0,
+            "performance_score": 0,
             "provider": "qwen",
             "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "qwen_qwen3-14b",
+            "slug": "qwen_qwen3-30b-a3b-thinking-2507",
             "status": "active"
           },
           {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis",
-              "multilingual"
-            ],
-            "context_length": 128000,
+            "capabilities": [],
+            "context_length": 0,
             "description": null,
-            "input_price_per_1k": 0.008,
-            "installed": false,
-            "max_output_tokens": 16384,
-            "model_id": "qwen_qwen3-235b-a22b-2507",
-            "name": "Qwen3 235B A22B 2507",
+            "input_price_per_1k": 0.0,
+            "installed": true,
+            "max_output_tokens": 0,
+            "model_id": "x-ai_grok-code-fast-1",
+            "name": "x-ai_grok-code-fast-1",
             "openrouter": {
               "canonical_slug": null,
               "created": null,
@@ -602,202 +101,20 @@
               "pricing": null,
               "top_provider": null
             },
-            "output_price_per_1k": 0.008,
-            "performance_score": 7,
-            "provider": "qwen",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "qwen_qwen3-235b-a22b-2507",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis",
-              "multilingual"
-            ],
-            "context_length": 128000,
-            "description": null,
-            "input_price_per_1k": 0.00018,
-            "installed": false,
-            "max_output_tokens": 8192,
-            "model_id": "qwen_qwen3-8b",
-            "name": "Qwen3 8B",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.00018,
-            "performance_score": 9,
-            "provider": "qwen",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "qwen_qwen3-8b",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "analysis"
-            ],
-            "context_length": 128000,
-            "description": null,
-            "input_price_per_1k": 0.00027,
-            "installed": false,
-            "max_output_tokens": 8192,
-            "model_id": "qwen_qwen3-coder",
-            "name": "Qwen3 Coder",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.00027,
-            "performance_score": 9,
-            "provider": "qwen",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "qwen_qwen3-coder",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis",
-              "multilingual"
-            ],
-            "context_length": 32768,
-            "description": null,
-            "input_price_per_1k": 0.0008,
-            "installed": false,
-            "max_output_tokens": 8192,
-            "model_id": "tencent_hunyuan-a13b-instruct",
-            "name": "Hunyuan A13B Instruct",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.0008,
-            "performance_score": 9,
-            "provider": "tencent",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "tencent_hunyuan-a13b-instruct",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis",
-              "multilingual"
-            ],
-            "context_length": 128000,
-            "description": null,
-            "input_price_per_1k": 0.005,
-            "installed": false,
-            "max_output_tokens": 8192,
-            "model_id": "thudm_glm-4-32b",
-            "name": "GLM-4 32B",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.015,
-            "performance_score": 8,
-            "provider": "thudm",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "thudm_glm-4-32b",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "analysis"
-            ],
-            "context_length": 128000,
-            "description": null,
-            "input_price_per_1k": 0.002,
-            "installed": false,
-            "max_output_tokens": 16384,
-            "model_id": "tngtech_deepseek-r1t2-chimera",
-            "name": "DeepSeek R1T2 Chimera",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.004,
-            "performance_score": 8,
-            "provider": "tngtech",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "tngtech_deepseek-r1t2-chimera",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "reasoning",
-              "coding",
-              "math",
-              "creative_writing",
-              "analysis",
-              "multilingual"
-            ],
-            "context_length": 128000,
-            "description": null,
-            "input_price_per_1k": 0.005,
-            "installed": false,
-            "max_output_tokens": 16384,
-            "model_id": "x-ai_grok-4",
-            "name": "Grok-4",
-            "openrouter": {
-              "canonical_slug": null,
-              "created": null,
-              "model_id": null,
-              "name": null,
-              "pricing": null,
-              "top_provider": null
-            },
-            "output_price_per_1k": 0.015,
-            "performance_score": 8,
+            "output_price_per_1k": 0.0,
+            "performance_score": 0,
             "provider": "x-ai",
             "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "x-ai_grok-4",
+            "slug": "x-ai_grok-code-fast-1",
             "status": "active"
           }
         ],
         "statistics": {
-          "active_models": 25,
-          "avg_cost_per_1k": 0.006123,
+          "active_models": 3,
+          "avg_cost_per_1k": 0.0,
           "source": "database",
-          "total_models": 25,
-          "unique_providers": 16
+          "total_models": 3,
+          "unique_providers": 3
         }
       }
     },
@@ -807,332 +124,187 @@
       "ok": true,
       "body": {
         "counts": {
-          "applications": 0,
-          "models": 25,
+          "applications": 90,
+          "models": 3,
           "performance_tests": 0,
           "security_tests": 0
         },
-        "frameworks": [],
+        "frameworks": [
+          {
+            "count": 90,
+            "name": "Flask"
+          }
+        ],
         "providers": [
-          {
-            "count": 2,
-            "name": "anthropic"
-          },
-          {
-            "count": 1,
-            "name": "cognitivecomputations"
-          },
-          {
-            "count": 3,
-            "name": "deepseek"
-          },
-          {
-            "count": 1,
-            "name": "featherless"
-          },
-          {
-            "count": 2,
-            "name": "google"
-          },
-          {
-            "count": 1,
-            "name": "minimax"
-          },
-          {
-            "count": 2,
-            "name": "mistralai"
-          },
-          {
-            "count": 1,
-            "name": "moonshotai"
-          },
           {
             "count": 1,
             "name": "nousresearch"
           },
           {
             "count": 1,
-            "name": "nvidia"
-          },
-          {
-            "count": 2,
-            "name": "openai"
-          },
-          {
-            "count": 4,
             "name": "qwen"
-          },
-          {
-            "count": 1,
-            "name": "tencent"
-          },
-          {
-            "count": 1,
-            "name": "thudm"
-          },
-          {
-            "count": 1,
-            "name": "tngtech"
           },
           {
             "count": 1,
             "name": "x-ai"
           }
         ],
-        "recent_apps": [],
-        "recent_models": [
+        "recent_apps": [
           {
-            "canonical_slug": "qwen_qwen3-coder",
-            "capabilities": {
-              "capabilities": {
-                "analysis": true,
-                "coding": true,
-                "creative_writing": false,
-                "math": true,
-                "multilingual": false,
-                "reasoning": true
-              },
-              "input_modalities": [],
-              "output_modalities": [],
-              "supported_parameters": []
-            },
-            "context_window": 128000,
-            "cost_efficiency": 9.5,
-            "created_at": "Sat, 06 Sep 2025 13:27:17 GMT",
-            "id": 23,
-            "input_price_per_token": 2.7e-07,
-            "is_free": false,
-            "max_output_tokens": 8192,
-            "metadata": {
-              "architecture": {
-                "base_architecture": "Qwen",
-                "parameter_count": "Unknown",
-                "training_cutoff": "2024-04"
-              },
-              "last_updated": "2025-09-06T13:27:17.870085+00:00",
-              "performance": {
-                "cost_efficiency": 9.5
-              },
-              "provider_info": {},
-              "quality_metrics": {
-                "safety": 8.5
-              },
-              "rate_limits": {},
-              "usage_stats": {}
-            },
-            "model_id": "qwen_qwen3-coder",
-            "model_name": "Qwen3 Coder",
-            "output_price_per_token": 2.7e-07,
-            "provider": "qwen",
-            "safety_score": 8.5,
-            "supports_function_calling": true,
-            "supports_json_mode": true,
-            "supports_streaming": true,
-            "supports_vision": false,
-            "updated_at": "Sat, 06 Sep 2025 13:27:17 GMT"
-          },
-          {
-            "canonical_slug": "qwen_qwen3-235b-a22b-2507",
-            "capabilities": {
-              "capabilities": {
-                "analysis": true,
-                "coding": true,
-                "creative_writing": true,
-                "math": true,
-                "multilingual": true,
-                "reasoning": true
-              },
-              "input_modalities": [],
-              "output_modalities": [],
-              "supported_parameters": []
-            },
-            "context_window": 128000,
-            "cost_efficiency": 7.5,
-            "created_at": "Sat, 06 Sep 2025 13:27:17 GMT",
-            "id": 24,
-            "input_price_per_token": 8e-06,
-            "is_free": false,
-            "max_output_tokens": 16384,
-            "metadata": {
-              "architecture": {
-                "base_architecture": "Qwen",
-                "parameter_count": "235B",
-                "training_cutoff": "2024-07"
-              },
-              "last_updated": "2025-09-06T13:27:17.871089+00:00",
-              "performance": {
-                "cost_efficiency": 7.5
-              },
-              "provider_info": {},
-              "quality_metrics": {
-                "safety": 8.5
-              },
-              "rate_limits": {},
-              "usage_stats": {}
-            },
-            "model_id": "qwen_qwen3-235b-a22b-2507",
-            "model_name": "Qwen3 235B A22B 2507",
-            "output_price_per_token": 8e-06,
-            "provider": "qwen",
-            "safety_score": 8.5,
-            "supports_function_calling": true,
-            "supports_json_mode": true,
-            "supports_streaming": true,
-            "supports_vision": true,
-            "updated_at": "Sat, 06 Sep 2025 13:27:17 GMT"
-          },
-          {
-            "canonical_slug": "minimax_minimax-m1",
-            "capabilities": {
-              "capabilities": {
-                "analysis": true,
-                "coding": true,
-                "creative_writing": true,
-                "math": true,
-                "multilingual": true,
-                "reasoning": true
-              },
-              "input_modalities": [],
-              "output_modalities": [],
-              "supported_parameters": []
-            },
-            "context_window": 128000,
-            "cost_efficiency": 8.0,
-            "created_at": "Sat, 06 Sep 2025 13:27:17 GMT",
-            "id": 25,
-            "input_price_per_token": 5e-06,
-            "is_free": false,
-            "max_output_tokens": 8192,
-            "metadata": {
-              "architecture": {
-                "base_architecture": "Transformer",
-                "parameter_count": "Unknown",
-                "training_cutoff": "2024-03"
-              },
-              "last_updated": "2025-09-06T13:27:17.871089+00:00",
-              "performance": {
-                "cost_efficiency": 8.0
-              },
-              "provider_info": {},
-              "quality_metrics": {
-                "safety": 8.5
-              },
-              "rate_limits": {},
-              "usage_stats": {}
-            },
-            "model_id": "minimax_minimax-m1",
-            "model_name": "MiniMax M1",
-            "output_price_per_token": 1.5e-05,
-            "provider": "minimax",
-            "safety_score": 8.5,
-            "supports_function_calling": true,
-            "supports_json_mode": true,
-            "supports_streaming": true,
-            "supports_vision": false,
-            "updated_at": "Sat, 06 Sep 2025 13:27:17 GMT"
-          },
-          {
-            "canonical_slug": "mistralai_devstral-medium",
-            "capabilities": {
-              "capabilities": {
-                "analysis": true,
-                "coding": true,
-                "creative_writing": false,
-                "math": true,
-                "multilingual": false,
-                "reasoning": true
-              },
-              "input_modalities": [],
-              "output_modalities": [],
-              "supported_parameters": []
-            },
-            "context_window": 128000,
-            "cost_efficiency": 8.5,
-            "created_at": "Sat, 06 Sep 2025 13:27:17 GMT",
-            "id": 21,
-            "input_price_per_token": 2e-06,
-            "is_free": false,
-            "max_output_tokens": 8192,
-            "metadata": {
-              "architecture": {
-                "base_architecture": "Mistral",
-                "parameter_count": "Unknown",
-                "training_cutoff": "2024-06"
-              },
-              "last_updated": "2025-09-06T13:27:17.870085+00:00",
-              "performance": {
-                "cost_efficiency": 8.5
-              },
-              "provider_info": {},
-              "quality_metrics": {
-                "safety": 9.0
-              },
-              "rate_limits": {},
-              "usage_stats": {}
-            },
-            "model_id": "mistralai_devstral-medium",
-            "model_name": "Devstral Medium",
-            "output_price_per_token": 6e-06,
-            "provider": "mistralai",
-            "safety_score": 9.0,
-            "supports_function_calling": true,
-            "supports_json_mode": true,
-            "supports_streaming": true,
-            "supports_vision": false,
-            "updated_at": "Sat, 06 Sep 2025 13:27:17 GMT"
-          },
-          {
-            "canonical_slug": "x-ai_grok-4",
-            "capabilities": {
-              "capabilities": {
-                "analysis": true,
-                "coding": true,
-                "creative_writing": true,
-                "math": true,
-                "multilingual": true,
-                "reasoning": true
-              },
-              "input_modalities": [],
-              "output_modalities": [],
-              "supported_parameters": []
-            },
-            "context_window": 128000,
-            "cost_efficiency": 8.0,
-            "created_at": "Sat, 06 Sep 2025 13:27:17 GMT",
-            "id": 22,
-            "input_price_per_token": 5e-06,
-            "is_free": false,
-            "max_output_tokens": 16384,
-            "metadata": {
-              "architecture": {
-                "base_architecture": "Grok",
-                "parameter_count": "Unknown",
-                "training_cutoff": "2024-06"
-              },
-              "last_updated": "2025-09-06T13:27:17.870085+00:00",
-              "performance": {
-                "cost_efficiency": 8.0
-              },
-              "provider_info": {},
-              "quality_metrics": {
-                "safety": 7.5
-              },
-              "rate_limits": {},
-              "usage_stats": {}
-            },
-            "model_id": "x-ai_grok-4",
-            "model_name": "Grok-4",
-            "output_price_per_token": 1.5e-05,
+            "app_number": 9,
+            "app_type": "web_app",
+            "backend_framework": "Flask",
+            "container_status": "stopped",
+            "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
+            "frontend_framework": "React",
+            "generation_status": "completed",
+            "has_backend": true,
+            "has_docker_compose": true,
+            "has_frontend": true,
+            "id": 90,
+            "metadata": {},
+            "model_slug": "x-ai_grok-code-fast-1",
             "provider": "x-ai",
-            "safety_score": 7.5,
-            "supports_function_calling": true,
-            "supports_json_mode": true,
-            "supports_streaming": true,
-            "supports_vision": true,
-            "updated_at": "Sat, 06 Sep 2025 13:27:17 GMT"
+            "updated_at": "Mon, 08 Sep 2025 21:19:01 GMT"
+          },
+          {
+            "app_number": 7,
+            "app_type": "web_app",
+            "backend_framework": "Flask",
+            "container_status": "stopped",
+            "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
+            "frontend_framework": "React",
+            "generation_status": "completed",
+            "has_backend": true,
+            "has_docker_compose": true,
+            "has_frontend": true,
+            "id": 88,
+            "metadata": {},
+            "model_slug": "x-ai_grok-code-fast-1",
+            "provider": "x-ai",
+            "updated_at": "Mon, 08 Sep 2025 21:19:01 GMT"
+          },
+          {
+            "app_number": 8,
+            "app_type": "web_app",
+            "backend_framework": "Flask",
+            "container_status": "stopped",
+            "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
+            "frontend_framework": "React",
+            "generation_status": "completed",
+            "has_backend": true,
+            "has_docker_compose": true,
+            "has_frontend": true,
+            "id": 89,
+            "metadata": {},
+            "model_slug": "x-ai_grok-code-fast-1",
+            "provider": "x-ai",
+            "updated_at": "Mon, 08 Sep 2025 21:19:01 GMT"
+          },
+          {
+            "app_number": 6,
+            "app_type": "web_app",
+            "backend_framework": "Flask",
+            "container_status": "stopped",
+            "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
+            "frontend_framework": "React",
+            "generation_status": "completed",
+            "has_backend": true,
+            "has_docker_compose": true,
+            "has_frontend": true,
+            "id": 87,
+            "metadata": {},
+            "model_slug": "x-ai_grok-code-fast-1",
+            "provider": "x-ai",
+            "updated_at": "Mon, 08 Sep 2025 21:19:01 GMT"
+          },
+          {
+            "app_number": 28,
+            "app_type": "web_app",
+            "backend_framework": "Flask",
+            "container_status": "stopped",
+            "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
+            "frontend_framework": "React",
+            "generation_status": "completed",
+            "has_backend": true,
+            "has_docker_compose": true,
+            "has_frontend": true,
+            "id": 81,
+            "metadata": {},
+            "model_slug": "x-ai_grok-code-fast-1",
+            "provider": "x-ai",
+            "updated_at": "Mon, 08 Sep 2025 21:19:01 GMT"
           }
         ],
-        "timestamp": "2025-09-06T13:54:40.371341+00:00"
+        "recent_models": [
+          {
+            "canonical_slug": "x-ai_grok-code-fast-1",
+            "capabilities": {},
+            "context_window": 0,
+            "cost_efficiency": 0.0,
+            "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
+            "id": 3,
+            "input_price_per_token": 0.0,
+            "is_free": false,
+            "max_output_tokens": 0,
+            "metadata": {},
+            "model_id": "x-ai_grok-code-fast-1",
+            "model_name": "x-ai_grok-code-fast-1",
+            "output_price_per_token": 0.0,
+            "provider": "x-ai",
+            "safety_score": 0.0,
+            "supports_function_calling": false,
+            "supports_json_mode": false,
+            "supports_streaming": false,
+            "supports_vision": false,
+            "updated_at": "Mon, 08 Sep 2025 20:46:23 GMT"
+          },
+          {
+            "canonical_slug": "qwen_qwen3-30b-a3b-thinking-2507",
+            "capabilities": {},
+            "context_window": 0,
+            "cost_efficiency": 0.0,
+            "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
+            "id": 2,
+            "input_price_per_token": 0.0,
+            "is_free": false,
+            "max_output_tokens": 0,
+            "metadata": {},
+            "model_id": "qwen_qwen3-30b-a3b-thinking-2507",
+            "model_name": "qwen_qwen3-30b-a3b-thinking-2507",
+            "output_price_per_token": 0.0,
+            "provider": "qwen",
+            "safety_score": 0.0,
+            "supports_function_calling": false,
+            "supports_json_mode": false,
+            "supports_streaming": false,
+            "supports_vision": false,
+            "updated_at": "Mon, 08 Sep 2025 20:46:23 GMT"
+          },
+          {
+            "canonical_slug": "nousresearch_hermes-4-405b",
+            "capabilities": {},
+            "context_window": 0,
+            "cost_efficiency": 0.0,
+            "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
+            "id": 1,
+            "input_price_per_token": 0.0,
+            "is_free": false,
+            "max_output_tokens": 0,
+            "metadata": {},
+            "model_id": "nousresearch_hermes-4-405b",
+            "model_name": "nousresearch_hermes-4-405b",
+            "output_price_per_token": 0.0,
+            "provider": "nousresearch",
+            "safety_score": 0.0,
+            "supports_function_calling": false,
+            "supports_json_mode": false,
+            "supports_streaming": false,
+            "supports_vision": false,
+            "updated_at": "Mon, 08 Sep 2025 20:46:23 GMT"
+          }
+        ],
+        "timestamp": "2025-09-09T10:09:13.234462+00:00"
       }
     },
     "system_health": {
@@ -1145,31 +317,31 @@
           "healthy": true
         },
         "docker": {
-          "available": false,
-          "containers_running": 0,
+          "available": true,
+          "containers_running": 12,
           "error": null
         },
         "issues": [],
         "status": "healthy",
         "system": {
-          "cpu_percent": 2.7,
-          "disk_percent": 69.1,
-          "memory_percent": 55.7
+          "cpu_percent": 1.0,
+          "disk_percent": 68.3,
+          "memory_percent": 57.6
         },
-        "timestamp": "2025-09-06T13:54:50.415275+00:00"
+        "timestamp": "2025-09-09T10:09:14.313161+00:00"
       }
     },
     "analysis_stats": {
       "url": "http://127.0.0.1:5005/analysis/api/stats",
-      "status": 404,
+      "status": 200,
       "ok": true,
-      "body": "\n\n<!doctype html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\">\n    <title>ThesisAppRework</title>\n    \n    <!-- Favicon -->\n    <link rel=\"icon\" type=\"image/x-icon\" href=\"/static/favicon.ico\">\n    \n    <!-- CSS files -->\n    <link href=\"https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta19/dist/css/tabler.min.css\" rel=\"stylesheet\">\n    <!--"
+      "body": "\n<div class=\"row text-center small\">\n  <div class=\"col-6 mb-3\">\n    <div class=\"fw-bold\">Total Tasks</div>\n    <div class=\"h5 mb-0\">1</div>\n  </div>\n  <div class=\"col-6 mb-3\">\n    <div class=\"fw-bold\">Active</div>\n    <div class=\"h5 text-warning mb-0\">0</div>\n  </div>\n  <div class=\"col-6\">\n    <div class=\"fw-bold\">Completed</div>\n    <div class=\"h5 text-success mb-0\">1</div>\n  </div>\n  <div class=\"col-6\">\n    <div class=\"fw-bold\">Failed</div>\n    <div class=\"h5 text-danger mb-0\">0</div>\n  </div>"
     },
     "analysis_start": {
       "url": "http://127.0.0.1:5005/advanced/api/analysis/start",
       "status": 404,
       "ok": true,
-      "body": "\n\n<!doctype html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\">\n    <title>ThesisAppRework</title>\n    \n    <!-- Favicon -->\n    <link rel=\"icon\" type=\"image/x-icon\" href=\"/static/favicon.ico\">\n    \n    <!-- CSS files -->\n    <link href=\"https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta19/dist/css/tabler.min.css\" rel=\"stylesheet\">\n    <!--"
+      "body": "\n\n<!doctype html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">\n    <meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\">\n    <title>ThesisAppRework</title>\n        <!-- Early theme application to avoid flash of incorrect theme on navigation / HTMX swaps -->\n        <script>\n            (function(){\n                try {\n                    var stored = localStorage.getItem('app_theme');\n           "
     },
     "ws_status": {
       "url": "http://127.0.0.1:5005/api/websocket/status",
@@ -1181,7 +353,7 @@
           "data": {
             "active_analyses": 0,
             "connected": true,
-            "last_update": "2025-09-06T13:54:50.469160+00:00",
+            "last_update": "2025-09-09T10:09:14.365985+00:00",
             "service": "celery_websocket"
           },
           "preference": "celery",
@@ -1199,12 +371,12 @@
       "ok": true,
       "body": {
         "error": "Page Not Found",
-        "error_id": "dd090bea47d047ec9010c37e3f2ddbed",
+        "error_id": "cd881437cdcc47a0b888fe50624fb422",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/events/clear",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-06T13:54:50.472120+00:00"
+        "timestamp": "2025-09-09T10:09:14.365985+00:00"
       }
     },
     "ws_start": {
@@ -1213,12 +385,12 @@
       "ok": true,
       "body": {
         "error": "Page Not Found",
-        "error_id": "3f487448d4354530ac7f7e2157e4180a",
+        "error_id": "f5e7f537e9f540bd9a9cfb51e5365d14",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/analysis/start",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-06T13:54:50.474812+00:00"
+        "timestamp": "2025-09-09T10:09:14.373999+00:00"
       }
     },
     "ws_analyses": {
@@ -1227,12 +399,12 @@
       "ok": true,
       "body": {
         "error": "Page Not Found",
-        "error_id": "eabf11c971d4459490826a098b6fce79",
+        "error_id": "211ddf786fc64774ac1af115b3690523",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/analyses",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-06T13:54:51.477086+00:00"
+        "timestamp": "2025-09-09T10:09:15.400701+00:00"
       }
     },
     "ws_events": {
@@ -1241,19 +413,19 @@
       "ok": true,
       "body": {
         "error": "Page Not Found",
-        "error_id": "5d85a045f0f54afcbda51c84c1a1bfd2",
+        "error_id": "b8da1c30b8944e339128611271381831",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/events",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-06T13:54:51.480852+00:00"
+        "timestamp": "2025-09-09T10:09:15.415760+00:00"
       }
     },
     "active_tasks": {
       "url": "http://127.0.0.1:5005/analysis/api/active-tasks",
       "status": 200,
       "ok": true,
-      "body": "<div class=\"active-tasks-fragment\"><div class=\"text-muted small\">No active tasks</div></div>"
+      "body": "\n<div class=\"active-tasks-fragment\">\n  <div class=\"text-muted small\">No active tasks</div>\n</div>"
     }
   }
 }

@@ -1,0 +1,47 @@
+{# metadata partial migrated #}
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title mb-0"><i class="fas fa-database me-2"></i>Metadata</h3>
+  </div>
+  <div class="card-body">
+    {% set meta = app_data.get_metadata() if app_data.get_metadata is callable else app_data.metadata %}
+    {% if meta %}
+      {% if meta is mapping %}
+        <div class="table-responsive mb-3">
+          <table class="table table-vcenter">
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+            {% for k, v in meta.items() %}
+              <tr>
+                <td class="text-muted align-top w-25">{{ k }}</td>
+                <td>
+                  {% if v is mapping or v is sequence and v is not string %}
+                    <pre class="mb-0 bg-light p-2 rounded" style="max-height:220px;overflow:auto;white-space:pre-wrap"><code>{{ v | tojson(indent=2) }}</code></pre>
+                  {% else %}
+                    <code>{{ v }}</code>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="text-muted">Source: application metadata{% if generation_manifest %}, merged with generation manifest if available{% endif %}.</div>
+      {% else %}
+        <pre class="bg-light p-3 rounded" style="max-height:260px;overflow:auto;white-space:pre-wrap"><code>{{ meta | tojson(indent=2) }}</code></pre>
+      {% endif %}
+    {% else %}
+      <div class="alert alert-warning">
+        <h4 class="alert-title">No metadata available</h4>
+        <div class="text-muted">
+          If the application was generated on disk only, metadata may exist in <code>generated/indices/generation_manifest.json</code> but did not match the slug <code>{{ app_data.model_slug }}</code>.
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>

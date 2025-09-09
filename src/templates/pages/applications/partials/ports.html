@@ -1,53 +1,276 @@
-{# ports partial migrated #}
+{# Ports and networking partial #}
 <div class="card">
-  <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
-    <h3 class="card-title mb-0"><i class="fas fa-network-wired me-2"></i>Ports</h3>
-    <div class="btn-list">
-      {% if ports %}
-        <span class="badge bg-success">Assigned</span>
-        {% if ports.source %}
-          {% set src = ports.source %}
-          {% if 'exact' in src %}<span class="badge bg-primary" title="Exact model slug match">exact</span>{% endif %}
-          {% if 'model_attr' in src %}<span class="badge bg-info" title="Matched via model attribute">attr</span>{% endif %}
-          {% if 'normalized' in src %}<span class="badge bg-warning" title="Matched via separator normalization">normalized</span>{% endif %}
-          {% if 'fuzzy_tokens' in src %}<span class="badge bg-secondary" title="Matched via token set fuzzy compare">fuzzy</span>{% endif %}
-          {% if 'alnum_norm' in src %}<span class="badge bg-dark" title="Matched via alphanumeric normalization">alnum</span>{% endif %}
-        {% endif %}
-      {% else %}
-        <span class="badge bg-secondary">Not assigned</span>
-      {% endif %}
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-network-wired me-2"></i>Ports & Networking
+    </h3>
+    <div class="card-actions">
+      <button class="btn btn-outline-secondary btn-sm" 
+              hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/ports"
+              hx-target="#section-ports"
+              hx-swap="innerHTML"
+              title="Refresh ports">
+        <i class="fas fa-sync"></i>
+      </button>
     </div>
   </div>
   <div class="card-body">
-    {% set backend = (ports.backend_port if ports and (ports.backend_port is defined) else (ports.backend if ports and (ports.backend is defined) else (ports.get('backend_port') if ports and ports.get('backend_port') is not none else (ports.get('backend') if ports and ports.get('backend') is not none else None)))) %}
-    {% set frontend = (ports.frontend_port if ports and (ports.frontend_port is defined) else (ports.frontend if ports and (ports.frontend is defined) else (ports.get('frontend_port') if ports and ports.get('frontend_port') is not none else (ports.get('frontend') if ports and ports.get('frontend') is not none else None)))) %}
-    <div class="row row-cards">
-      <div class="col-md-6">
-        <div class="card card-sm">
-          <div class="card-body text-center">
-            <div class="text-muted">Backend</div>
-            <div class="h1">{{ backend if backend else '—' }}</div>
+    {% if ports %}
+      <div class="table-responsive">
+        <table class="table table-sm table-vcenter">
+          <thead>
+            <tr>
+              <th>Container Port</th>
+              <th>Host Port</th>
+              <th>Protocol</th>
+              <th>Status</th>
+              <th>Description</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for port in ports %}
+            <tr>
+              <td>
+                <code>{{ port.container_port }}</code>
+              </td>
+              <td>
+                <code>{{ port.host_port }}</code>
+              </td>
+              <td>
+                <span class="badge bg-{{ 'primary' if port.protocol == 'tcp' else 'secondary' }}-lt">
+                  {{ port.protocol|upper }}
+                </span>
+              </td>
+              <td>
+                {% if port.is_accessible %}
+                  <span class="badge bg-success-lt">
+                    <i class="fas fa-check me-1"></i>Accessible
+                  </span>
+                {% else %}
+                  <span class="badge bg-danger-lt">
+                    <i class="fas fa-times me-1"></i>Not Accessible
+                  </span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="text-muted">{{ port.description|default('—') }}</span>
+              </td>
+              <td>
+                <div class="btn-group" role="group">
+                  {% if port.is_accessible %}
+                  <a href="http://localhost:{{ port.host_port }}" 
+                     target="_blank" 
+                     rel="noopener"
+                     class="btn btn-success btn-sm" 
+                     title="Open in browser">
+                    <i class="fas fa-external-link-alt"></i>
+                  </a>
+                  {% endif %}
+                  
+                  <button class="btn btn-outline-info btn-sm" 
+                          onclick="testPort({{ port.host_port }})"
+                          title="Test connectivity">
+                    <i class="fas fa-plug"></i>
+                  </button>
+                  
+                  <button class="btn btn-outline-secondary btn-sm"
+                          onclick="copyPortUrl({{ port.host_port }})"
+                          title="Copy URL">
+                    <i class="fas fa-copy"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Port Configuration -->
+      <div class="mt-4">
+        <h4>Port Configuration</h4>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="card card-sm">
+              <div class="card-header py-2">
+                <h5 class="card-title mb-0">Exposed Ports</h5>
+              </div>
+              <div class="card-body">
+                {% set exposed_ports = ports|selectattr('is_exposed', 'equalto', true)|list %}
+                {% if exposed_ports %}
+                  <div class="list-group list-group-flush">
+                    {% for port in exposed_ports %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                      <div>
+                        <strong>{{ port.container_port }}</strong>
+                        <span class="text-muted">→ {{ port.host_port }}</span>
+                      </div>
+                      <span class="badge bg-{{ 'success' if port.is_accessible else 'danger' }}-lt">
+                        {{ 'Active' if port.is_accessible else 'Inactive' }}
+                      </span>
+                    </div>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <div class="text-center text-muted py-2">
+                    <i class="fas fa-lock me-1"></i>No exposed ports
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          
+          <div class="col-md-6">
+            <div class="card card-sm">
+              <div class="card-header py-2">
+                <h5 class="card-title mb-0">Internal Ports</h5>
+              </div>
+              <div class="card-body">
+                {% set internal_ports = ports|selectattr('is_exposed', 'equalto', false)|list %}
+                {% if internal_ports %}
+                  <div class="list-group list-group-flush">
+                    {% for port in internal_ports %}
+                    <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                      <div>
+                        <strong>{{ port.container_port }}</strong>
+                        <span class="text-muted">({{ port.protocol|upper }})</span>
+                      </div>
+                      <span class="badge bg-info-lt">Internal</span>
+                    </div>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <div class="text-center text-muted py-2">
+                    <i class="fas fa-server me-1"></i>No internal ports
+                  </div>
+                {% endif %}
+              </div>
+            </div>
           </div>
         </div>
       </div>
-      <div class="col-md-6">
-        <div class="card card-sm">
-          <div class="card-body text-center">
-            <div class="text-muted">Frontend</div>
-            <div class="h1">{{ frontend if frontend else '—' }}</div>
-          </div>
+      
+      <!-- Quick Actions -->
+      <div class="mt-4">
+        <h4>Quick Actions</h4>
+        <div class="btn-list">
+          {% for port in ports if port.is_accessible %}
+          <a href="http://localhost:{{ port.host_port }}" 
+             target="_blank" 
+             rel="noopener"
+             class="btn btn-outline-primary">
+            <i class="fas fa-external-link-alt me-1"></i>Open Port {{ port.host_port }}
+          </a>
+          {% endfor %}
+          
+          <button class="btn btn-outline-info" onclick="testAllPorts()">
+            <i class="fas fa-network-wired me-1"></i>Test All Ports
+          </button>
+          
+          <button class="btn btn-outline-secondary" onclick="generatePortsReport()">
+            <i class="fas fa-file-alt me-1"></i>Generate Report
+          </button>
         </div>
       </div>
-    </div>
-    {% if not ports %}
-    <div class="mt-3">
-      <div class="alert alert-warning">
-        <h4 class="alert-title">Ports not available</h4>
-        <div class="text-muted">Ensure PortConfiguration is populated or run the data initializer.</div>
-      </div>
-    </div>
+      
     {% else %}
-    <div class="mt-3 text-muted">Ports are retrieved from PortConfiguration in the database.</div>
+      <div class="text-center text-muted py-4">
+        <i class="fas fa-network-wired fa-3x mb-3"></i>
+        <h4>No Ports Configured</h4>
+        <p>This application doesn't have any exposed ports or the container is not running.</p>
+        {% if app_data.container_status != 'running' %}
+        <button class="btn btn-primary" 
+                hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/start"
+                hx-target="#section-container"
+                hx-swap="innerHTML">
+          <i class="fas fa-play me-1"></i>Start Application
+        </button>
+        {% endif %}
+      </div>
     {% endif %}
   </div>
 </div>
+
+<script>
+function testPort(port) {
+  const btn = event.target.closest('button');
+  const originalHtml = btn.innerHTML;
+  
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  
+  fetch(`/api/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/test-port/${port}`)
+    .then(response => response.json())
+    .then(data => {
+      if (data.accessible) {
+        showPortNotification(`Port ${port} is accessible`, 'success');
+      } else {
+        showPortNotification(`Port ${port} is not accessible`, 'warning');
+      }
+    })
+    .catch(error => {
+      showPortNotification(`Failed to test port ${port}: ${error.message}`, 'danger');
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    });
+}
+
+function copyPortUrl(port) {
+  const url = `http://localhost:${port}`;
+  navigator.clipboard.writeText(url).then(() => {
+    showPortNotification('URL copied to clipboard', 'success');
+  }).catch(() => {
+    prompt('Copy this URL:', url);
+  });
+}
+
+function testAllPorts() {
+  const ports = {{ ports|map(attribute='host_port')|list|tojson if ports else '[]' }};
+  
+  showPortNotification('Testing all ports...', 'info');
+  
+  Promise.all(ports.map(port => 
+    fetch(`/api/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/test-port/${port}`)
+      .then(response => response.json())
+  )).then(results => {
+    const accessible = results.filter(r => r.accessible).length;
+    showPortNotification(`${accessible} of ${ports.length} ports are accessible`, 
+                        accessible === ports.length ? 'success' : 'warning');
+    
+    // Refresh ports section to update status
+    setTimeout(() => {
+      htmx.ajax('GET', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/ports', {
+        target: '#section-ports',
+        swap: 'innerHTML'
+      });
+    }, 1000);
+  });
+}
+
+function generatePortsReport() {
+  window.open('/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/ports-report', '_blank');
+}
+
+function showPortNotification(message, type = 'info') {
+  // Create a temporary notification element
+  const notification = document.createElement('div');
+  notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+  notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+  notification.innerHTML = `
+    ${message}
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+  `;
+  
+  document.body.appendChild(notification);
+  
+  // Auto-remove after 5 seconds
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.parentNode.removeChild(notification);
+    }
+  }, 5000);
+}
+</script>

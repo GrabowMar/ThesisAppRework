@@ -1,79 +1,177 @@
-{# migrated overview partial #}
-<div class="row row-cards">
-  <div class="col-lg-6">
-    <div class="card h-100">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="card-title mb-0"><i class="fas fa-cube me-2"></i>Application</h3>
-        <span class="badge bg-{{ 'success' if app_data.container_status == 'running' else ('warning' if app_data.container_status == 'building' else 'secondary') }}">{{ app_data.container_status|default('unknown')|title }}</span>
+{# Application overview partial - shows key information about the application #}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h3 class="card-title mb-0">
+      <i class="fas fa-cube me-2"></i>Application Overview
+    </h3>
+    <div class="card-actions">
+      <button class="btn btn-outline-primary btn-sm" onclick="refreshSection('overview')">
+        <i class="fas fa-sync"></i>
+      </button>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="row row-cards">
+      <div class="col-lg-6">
+        <div class="card card-sm">
+          <div class="card-header py-2">
+            <h4 class="card-title mb-0">Application Details</h4>
+            <span class="badge bg-{{ 'success' if app_data.container_status == 'running' else ('warning' if app_data.container_status == 'building' else 'secondary') }}">
+              {{ app_data.container_status|default('unknown')|title }}
+            </span>
+          </div>
+          <div class="card-body">
+            <div class="datagrid">
+              <div class="datagrid-item">
+                <div class="datagrid-title">Model</div>
+                <div class="datagrid-content">
+                  <span class="fw-medium">{{ app_data.model_slug }}</span>
+                </div>
+              </div>
+              <div class="datagrid-item">
+                <div class="datagrid-title">Provider</div>
+                <div class="datagrid-content">
+                  <span class="badge bg-azure-lt">{{ app_data.provider or model.provider }}</span>
+                </div>
+              </div>
+              <div class="datagrid-item">
+                <div class="datagrid-title">App Number</div>
+                <div class="datagrid-content">
+                  <span class="badge bg-primary-lt">{{ app_data.app_number }}</span>
+                </div>
+              </div>
+              <div class="datagrid-item">
+                <div class="datagrid-title">Type</div>
+                <div class="datagrid-content">
+                  <span class="badge bg-info-lt">{{ app_data.app_type|default('unknown')|replace('_', ' ')|title }}</span>
+                </div>
+              </div>
+              <div class="datagrid-item">
+                <div class="datagrid-title">Frameworks</div>
+                <div class="datagrid-content">
+                  {% if app_data.backend_framework or app_data.frontend_framework %}
+                    <div class="d-flex gap-1 flex-wrap">
+                      {% if app_data.backend_framework %}
+                        <span class="badge bg-success-lt">{{ app_data.backend_framework }}</span>
+                      {% endif %}
+                      {% if app_data.frontend_framework %}
+                        <span class="badge bg-warning-lt">{{ app_data.frontend_framework }}</span>
+                      {% endif %}
+                    </div>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="datagrid-item">
+                <div class="datagrid-title">Created</div>
+                <div class="datagrid-content">
+                  {% if app_data.created_at %}
+                    <span title="{{ app_data.created_at.isoformat() }}">
+                      {{ app_data.created_at.strftime('%Y-%m-%d %H:%M') }}
+                    </span>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="card-body">
-        <div class="datagrid">
-          <div class="datagrid-item">
-            <div class="datagrid-title">Model</div>
-            <div class="datagrid-content">{{ app_data.model_slug }}</div>
+      
+      <div class="col-lg-6">
+        <div class="card card-sm">
+          <div class="card-header py-2">
+            <h4 class="card-title mb-0">Code Statistics</h4>
+            <span class="badge bg-info">{{ code_stats.total_files }} files</span>
           </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">Provider</div>
-            <div class="datagrid-content"><span class="badge" style="background: {{ get_provider_color(app_data.provider or model.provider) }}">{{ app_data.provider or model.provider }}</span></div>
-          </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">App #</div>
-            <div class="datagrid-content">{{ app_data.app_number }}</div>
-          </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">Type</div>
-            <div class="datagrid-content">{{ app_data.app_type or 'unknown' }}</div>
-          </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">Frameworks</div>
-            <div class="datagrid-content">{{ app_data.backend_framework or '—' }} / {{ app_data.frontend_framework or '—' }}</div>
-          </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">Created</div>
-            <div class="datagrid-content">{{ app_data.created_at.strftime('%Y-%m-%d %H:%M') if app_data.created_at else '—' }}</div>
+          <div class="card-body">
+            <div class="row g-2 mb-3">
+              <div class="col-6">
+                <div class="card card-sm bg-primary-lt">
+                  <div class="card-body text-center">
+                    <div class="h3 m-0 text-primary">{{ code_stats.total_loc }}</div>
+                    <div class="text-muted small">Total Lines</div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-6">
+                <div class="card card-sm bg-success-lt">
+                  <div class="card-body text-center">
+                    <div class="h3 m-0 text-success">{{ code_stats.total_files }}</div>
+                    <div class="text-muted small">Files</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {% if code_stats.by_language %}
+            <div class="mb-2">
+              <h5 class="mb-2">By Language</h5>
+              <div class="list-group list-group-flush">
+                {% for lang, data in code_stats.by_language.items() %}
+                <div class="list-group-item d-flex justify-content-between align-items-center px-0">
+                  <div class="d-flex align-items-center">
+                    <span class="badge bg-secondary me-2">{{ lang }}</span>
+                    <span class="text-muted">{{ data.files }} files</span>
+                  </div>
+                  <span class="fw-medium">{{ data.loc }} LOC</span>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+            {% else %}
+            <div class="text-center text-muted py-3">
+              <i class="fas fa-code fa-2x mb-2"></i>
+              <div>No code statistics available</div>
+            </div>
+            {% endif %}
           </div>
         </div>
       </div>
     </div>
-  </div>
-  <div class="col-lg-6">
-    <div class="card h-100">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h3 class="card-title mb-0"><i class="fas fa-chart-bar me-2"></i>Generation Stats</h3>
-        <span class="badge bg-info">{{ code_stats.total_files }} files</span>
-      </div>
-      <div class="card-body">
-        <div class="row row-cards">
-          <div class="col-6">
-            <div class="card card-sm">
-              <div class="card-body text-center">
-                <div class="text-muted">Total LOC</div>
-                <div class="h1 m-0">{{ code_stats.total_loc }}</div>
-              </div>
-            </div>
+    
+    <!-- Quick Actions -->
+    <div class="row mt-3">
+      <div class="col-12">
+        <div class="card card-sm">
+          <div class="card-header py-2">
+            <h4 class="card-title mb-0">Quick Actions</h4>
           </div>
-          <div class="col-6">
-            <div class="card card-sm">
-              <div class="card-body">
-                <div class="text-muted mb-2">By Language</div>
-                <div class="list-separated">
-                  {% for lang, data in code_stats.by_language.items() %}
-                  <div class="list-separated-item">
-                    <div class="row align-items-center">
-                      <div class="col-auto">
-                        <span class="badge bg-secondary">{{ lang }}</span>
-                      </div>
-                      <div class="col text-truncate">
-                        <div class="text-reset d-block">{{ data.files }} files</div>
-                        <div class="text-muted text-truncate mt-n1">{{ data.loc }} LOC</div>
-                      </div>
-                    </div>
-                  </div>
-                  {% else %}
-                  <div class="text-muted">No code detected</div>
-                  {% endfor %}
-                </div>
-              </div>
+          <div class="card-body">
+            <div class="btn-list">
+              {% if app_data.container_status != 'running' %}
+              <button class="btn btn-success" onclick="startApplication()">
+                <i class="fas fa-play me-1"></i>Start
+              </button>
+              {% else %}
+              <button class="btn btn-danger" onclick="stopApplication()">
+                <i class="fas fa-stop me-1"></i>Stop
+              </button>
+              {% endif %}
+              
+              <button class="btn btn-warning" onclick="restartApplication()">
+                <i class="fas fa-rotate me-1"></i>Restart
+              </button>
+              
+              <button class="btn btn-primary" onclick="buildApplication()">
+                <i class="fas fa-hammer me-1"></i>Rebuild
+              </button>
+              
+              {% if app_data.container_status == 'running' and app_data.ports %}
+              <a href="http://localhost:{{ app_data.ports[0].host_port }}" target="_blank" rel="noopener" class="btn btn-outline-success">
+                <i class="fas fa-external-link-alt me-1"></i>Visit App
+              </a>
+              {% endif %}
+              
+              <button class="btn btn-info" onclick="analyzeApplication('full')">
+                <i class="fas fa-flask me-1"></i>Analyze
+              </button>
+              
+              <a href="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/export.csv" class="btn btn-outline-secondary">
+                <i class="fas fa-file-csv me-1"></i>Export
+              </a>
             </div>
           </div>
         </div>
@@ -81,3 +179,12 @@
     </div>
   </div>
 </div>
+
+<script>
+function refreshSection(section) {
+  htmx.ajax('GET', `/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/${section}`, {
+    target: `#section-${section}`,
+    swap: 'innerHTML'
+  });
+}
+</script>

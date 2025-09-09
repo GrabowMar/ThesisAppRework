@@ -1,128 +1,347 @@
-{# pages/applications/detail.html - new implementation migrated from backup/applications/detail.html #}
-{# This page shows a single generated application with lazy-loaded HTMX sections. #}
+{# pages/applications/detail.html - Application detail page with lazy-loaded HTMX sections #}
 
 {% extends 'layouts/base.html' %}
 {% set active_page = 'applications' %}
 {% set page_title = 'Application ' ~ app_data.app_number %}
-{% block content %}
 {% set page_icon = 'fas fa-cube' %}
 {% set page_subtitle = model.display_name ~ ' · ' ~ app_data.model_slug %}
-{% set actions = [
-  {'label':'Models','href':'/models','icon':'robot','class':'btn-outline-secondary'},
-  {'label':'Applications','href':'/models/applications?model=' ~ app_data.model_slug,'icon':'cubes','class':'btn-outline-primary'},
-  {'label':'Export','href':'/models/application/' ~ app_data.model_slug ~ '/' ~ app_data.app_number ~ '/export.csv','icon':'file-csv','class':'btn-outline-success'}
-] %}
 
-        <div class="row g-3">
-                    <!-- Sidebar (anchors) -->
-                    <div class="col-12 col-md-3 col-xl-2">
-                        <div class="position-sticky" style="top: var(--sidebar-top, 68px);">
-                            <nav id="app-sidebar" class="sidebar-inner nav nav-pills flex-column gap-1">
-                                <a href="#section-overview" class="nav-link"><i class="fas fa-info-circle me-2"></i>Overview</a>
-                                <a href="#section-prompts" class="nav-link"><i class="fas fa-lightbulb me-2"></i>Prompts</a>
-                                <a href="#section-files" class="nav-link"><i class="fas fa-folder-open me-2"></i>Files</a>
-                                <a href="#section-ports" class="nav-link"><i class="fas fa-network-wired me-2"></i>Ports</a>
-                                <a href="#section-container" class="nav-link"><i class="fab fa-docker me-2"></i>Container</a>
-                                <a href="#section-analyses" class="nav-link"><i class="fas fa-flask me-2"></i>Analyses</a>
-                                <a href="#section-metadata" class="nav-link"><i class="fas fa-database me-2"></i>Metadata</a>
-                                <a href="#section-artifacts" class="nav-link"><i class="fas fa-book me-2"></i>Artifacts</a>
-                                <a href="#section-logs" class="nav-link"><i class="fas fa-file-lines me-2"></i>Logs</a>
-                                <a href="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/export.csv" class="nav-link"><i class="fas fa-file-csv me-2"></i>Export CSV</a>
-                            </nav>
-                        </div>
-                    </div>
-                    <!-- Main content -->
-                    <div class="col-12 col-md-9 col-xl-10">
-                        <section id="section-overview" class="mb-4"
-                                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/overview"
-                                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
-                            <div class="card"><div class="card-body text-muted">Loading overview</div></div>
-                        </section>
-                        <section id="section-prompts" class="mb-4"
-                                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/prompts"
-                                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
-                            <div class="card"><div class="card-body text-muted">Loading prompts</div></div>
-                        </section>
-                        <section id="section-files" class="mb-4"
-                                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/files"
-                                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
-                            <div class="card"><div class="card-body text-muted">Loading files</div></div>
-                        </section>
-                        <section id="section-ports" class="mb-4"
-                                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/ports"
-                                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
-                            <div class="card"><div class="card-body text-muted">Loading ports</div></div>
-                        </section>
-                        <section id="section-container" class="mb-4"
-                                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/container"
-                                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
-                            <div class="card"><div class="card-body text-muted">Loading container controls</div></div>
-                        </section>
-                        <section id="section-analyses" class="mb-4"
-                                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/analyses"
-                                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
-                            <div class="card"><div class="card-body text-muted">Loading analyses</div></div>
-                        </section>
-                        <section id="section-metadata" class="mb-4"
-                                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/metadata"
-                                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
-                            <div class="card"><div class="card-body text-muted">Loading metadata</div></div>
-                        </section>
-                        <section id="section-artifacts" class="mb-4"
-                                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/artifacts"
-                                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
-                            <div class="card"><div class="card-body text-muted">Loading artifacts</div></div>
-                        </section>
-                        <section id="section-logs" class="mb-4"
-                                         hx-get="/models/application/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/logs"
-                                         hx-trigger="revealed once" hx-swap="innerHTML" hx-indicator="#global-spinner">
-                            <div class="card"><div class="card-body text-muted">Loading logs</div></div>
-                        </section>
-                        <div id="modal-container"></div>
-                    </div>
-                </div>
+{% block content %}
+<div class="row g-3">
+  <!-- Sidebar (navigation) -->
+  <div class="col-12 col-md-3 col-xl-2">
+    <div class="position-sticky" style="top: var(--sidebar-top, 68px);">
+      <nav id="app-sidebar" class="sidebar-inner nav nav-pills flex-column gap-1">
+        <a href="#section-overview" class="nav-link">
+          <i class="fas fa-info-circle me-2"></i>Overview
+        </a>
+        <a href="#section-prompts" class="nav-link">
+          <i class="fas fa-lightbulb me-2"></i>Prompts
+        </a>
+        <a href="#section-files" class="nav-link">
+          <i class="fas fa-folder-open me-2"></i>Files
+        </a>
+        <a href="#section-ports" class="nav-link">
+          <i class="fas fa-network-wired me-2"></i>Ports
+        </a>
+        <a href="#section-container" class="nav-link">
+          <i class="fab fa-docker me-2"></i>Container
+        </a>
+        <a href="#section-analyses" class="nav-link">
+          <i class="fas fa-flask me-2"></i>Analyses
+        </a>
+        <a href="#section-metadata" class="nav-link">
+          <i class="fas fa-database me-2"></i>Metadata
+        </a>
+        <a href="#section-artifacts" class="nav-link">
+          <i class="fas fa-book me-2"></i>Artifacts
+        </a>
+        <a href="#section-logs" class="nav-link">
+          <i class="fas fa-file-lines me-2"></i>Logs
+        </a>
+        <hr class="my-2">
+        <a href="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/export.csv" class="nav-link">
+          <i class="fas fa-file-csv me-2"></i>Export CSV
+        </a>
+        <a href="/applications" class="nav-link">
+          <i class="fas fa-arrow-left me-2"></i>Back to List
+        </a>
+      </nav>
+    </div>
+  </div>
+  
+  <!-- Main content -->
+  <div class="col-12 col-md-9 col-xl-10">
+    <!-- Overview Section -->
+    <section id="section-overview" class="mb-4"
+             hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/overview"
+             hx-trigger="revealed once" 
+             hx-swap="innerHTML" 
+             hx-indicator="#global-spinner">
+      <div class="card">
+        <div class="card-body text-muted">
+          <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm me-2"></div>
+            Loading overview...
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Prompts Section -->
+    <section id="section-prompts" class="mb-4"
+             hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/prompts"
+             hx-trigger="revealed once" 
+             hx-swap="innerHTML" 
+             hx-indicator="#global-spinner">
+      <div class="card">
+        <div class="card-body text-muted">
+          <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm me-2"></div>
+            Loading prompts...
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Files Section -->
+    <section id="section-files" class="mb-4"
+             hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/files"
+             hx-trigger="revealed once" 
+             hx-swap="innerHTML" 
+             hx-indicator="#global-spinner">
+      <div class="card">
+        <div class="card-body text-muted">
+          <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm me-2"></div>
+            Loading files...
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Ports Section -->
+    <section id="section-ports" class="mb-4"
+             hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/ports"
+             hx-trigger="revealed once" 
+             hx-swap="innerHTML" 
+             hx-indicator="#global-spinner">
+      <div class="card">
+        <div class="card-body text-muted">
+          <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm me-2"></div>
+            Loading ports...
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Container Section -->
+    <section id="section-container" class="mb-4"
+             hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/container"
+             hx-trigger="revealed once" 
+             hx-swap="innerHTML" 
+             hx-indicator="#global-spinner">
+      <div class="card">
+        <div class="card-body text-muted">
+          <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm me-2"></div>
+            Loading container controls...
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Analyses Section -->
+    <section id="section-analyses" class="mb-4"
+             hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/analyses"
+             hx-trigger="revealed once" 
+             hx-swap="innerHTML" 
+             hx-indicator="#global-spinner">
+      <div class="card">
+        <div class="card-body text-muted">
+          <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm me-2"></div>
+            Loading analyses...
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Metadata Section -->
+    <section id="section-metadata" class="mb-4"
+             hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/metadata"
+             hx-trigger="revealed once" 
+             hx-swap="innerHTML" 
+             hx-indicator="#global-spinner">
+      <div class="card">
+        <div class="card-body text-muted">
+          <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm me-2"></div>
+            Loading metadata...
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Artifacts Section -->
+    <section id="section-artifacts" class="mb-4"
+             hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/artifacts"
+             hx-trigger="revealed once" 
+             hx-swap="innerHTML" 
+             hx-indicator="#global-spinner">
+      <div class="card">
+        <div class="card-body text-muted">
+          <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm me-2"></div>
+            Loading artifacts...
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Logs Section -->
+    <section id="section-logs" class="mb-4"
+             hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/logs"
+             hx-trigger="revealed once" 
+             hx-swap="innerHTML" 
+             hx-indicator="#global-spinner">
+      <div class="card">
+        <div class="card-body text-muted">
+          <div class="d-flex align-items-center">
+            <div class="spinner-border spinner-border-sm me-2"></div>
+            Loading logs...
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Modal Container for dynamic modals -->
+    <div id="modal-container"></div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-function copyAdjacentPre(btn){
-        const pre = btn.closest('.card, .mb-3')?.querySelector('pre');
-        if(!pre) return;
-        const text = pre.innerText;
-        navigator.clipboard.writeText(text).then(()=>{
-                btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied';
-                setTimeout(()=>{ btn.innerHTML = '<i class="fas fa-copy me-1"></i>Copy'; }, 1200);
-        });
+// Copy functionality for code blocks
+function copyAdjacentPre(btn) {
+  const pre = btn.closest('.card, .mb-3')?.querySelector('pre');
+  if (!pre) return;
+  
+  const text = pre.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied';
+    setTimeout(() => { 
+      btn.innerHTML = originalHtml; 
+    }, 1200);
+  }).catch(err => {
+    console.error('Failed to copy text: ', err);
+  });
 }
-(function(){
-        function headerHeight(){
-                const h = document.querySelector('header.navbar');
-                return h ? h.offsetHeight : 56;
-        }
-        let t;
-        function applyLayout(){
-                const top = headerHeight() + 12;
-                document.documentElement.style.setProperty('--sidebar-top', top + 'px');
-                if (window.bootstrap) {
-                        try {
-                                const inst = bootstrap.ScrollSpy.getInstance(document.body);
-                                if (inst) inst.dispose();
-                                new bootstrap.ScrollSpy(document.body, { target: '#app-sidebar', offset: top + 8 });
-                        } catch(e) {}
-                }
-        }
-        window.addEventListener('load', applyLayout);
-        window.addEventListener('resize', function(){ clearTimeout(t); t = setTimeout(applyLayout, 150); });
-        document.addEventListener('activate.bs.scrollspy', function(e){
-                const link = document.querySelector('#app-sidebar .nav-link.active');
-                const scroller = document.querySelector('#app-sidebar');
-                if (!link || !scroller) return;
-                const linkRect = link.getBoundingClientRect();
-                const contRect = scroller.getBoundingClientRect();
-                if (linkRect.top < contRect.top || linkRect.bottom > contRect.bottom) {
-                        scroller.scrollTo({ top: scroller.scrollTop + (linkRect.top - contRect.top - 32), behavior: 'smooth' });
-                }
+
+// Application-specific actions
+function startApplication() {
+  htmx.ajax('POST', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/start', {
+    target: '#section-container',
+    swap: 'innerHTML'
+  });
+}
+
+function stopApplication() {
+  htmx.ajax('POST', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/stop', {
+    target: '#section-container',
+    swap: 'innerHTML'
+  });
+}
+
+function restartApplication() {
+  htmx.ajax('POST', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/restart', {
+    target: '#section-container',
+    swap: 'innerHTML'
+  });
+}
+
+function buildApplication() {
+  htmx.ajax('POST', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/build', {
+    target: '#section-container',
+    swap: 'innerHTML'
+  });
+}
+
+function analyzeApplication(analysisType) {
+  htmx.ajax('POST', `/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/analyze/${analysisType}`, {
+    target: '#section-analyses',
+    swap: 'innerHTML'
+  });
+}
+
+// Scrollspy and sidebar setup
+(function() {
+  function headerHeight() {
+    const h = document.querySelector('header.navbar');
+    return h ? h.offsetHeight : 56;
+  }
+  
+  let resizeTimeout;
+  function applyLayout() {
+    const top = headerHeight() + 12;
+    document.documentElement.style.setProperty('--sidebar-top', top + 'px');
+    
+    // Initialize Bootstrap ScrollSpy
+    if (window.bootstrap) {
+      try {
+        const existingInstance = bootstrap.ScrollSpy.getInstance(document.body);
+        if (existingInstance) existingInstance.dispose();
+        
+        new bootstrap.ScrollSpy(document.body, { 
+          target: '#app-sidebar', 
+          offset: top + 8 
         });
+      } catch(e) {
+        console.warn('ScrollSpy initialization failed:', e);
+      }
+    }
+  }
+  
+  window.addEventListener('load', applyLayout);
+  window.addEventListener('resize', function() { 
+    clearTimeout(resizeTimeout); 
+    resizeTimeout = setTimeout(applyLayout, 150); 
+  });
+  
+  // Smooth scroll to active sidebar item
+  document.addEventListener('activate.bs.scrollspy', function(e) {
+    const activeLink = document.querySelector('#app-sidebar .nav-link.active');
+    const sidebar = document.querySelector('#app-sidebar');
+    
+    if (!activeLink || !sidebar) return;
+    
+    const linkRect = activeLink.getBoundingClientRect();
+    const sidebarRect = sidebar.getBoundingClientRect();
+    
+    if (linkRect.top < sidebarRect.top || linkRect.bottom > sidebarRect.bottom) {
+      sidebar.scrollTo({ 
+        top: sidebar.scrollTop + (linkRect.top - sidebarRect.top - 32), 
+        behavior: 'smooth' 
+      });
+    }
+  });
 })();
+
+// Handle HTMX events for better UX
+document.addEventListener('htmx:beforeRequest', function(evt) {
+  // Show loading indicator on the target element
+  const target = document.querySelector(evt.detail.target);
+  if (target) {
+    target.style.opacity = '0.7';
+  }
+});
+
+document.addEventListener('htmx:afterRequest', function(evt) {
+  // Remove loading indicator
+  const target = document.querySelector(evt.detail.target);
+  if (target) {
+    target.style.opacity = '1';
+  }
+});
+
+document.addEventListener('htmx:responseError', function(evt) {
+  // Handle errors gracefully
+  const target = document.querySelector(evt.detail.target);
+  if (target) {
+    target.innerHTML = `
+      <div class="card">
+        <div class="card-body text-center text-muted">
+          <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+          Failed to load content. 
+          <button class="btn btn-link btn-sm" onclick="location.reload()">Retry</button>
+        </div>
+      </div>
+    `;
+    target.style.opacity = '1';
+  }
+});
 </script>
 {% endblock %}

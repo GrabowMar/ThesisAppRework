@@ -1,0 +1,187 @@
+{# Applications Overview Content - matches models page structure #}
+<div id="applications-table-section">
+  <div id="applications-table-refresher"
+       hx-get="/applications/table"
+       hx-target="#applications-table-section"
+       hx-trigger="load, refresh-applications-table from:body"
+       hx-swap="outerHTML"></div>
+  {# Initial server-side include ensures content when JS/HTMX disabled; soon after load the refresher replaces it with dynamic block #}
+  {% include 'pages/applications/partials/table_block.html' %}
+</div>
+
+<!-- Generate Application Modal -->
+<div class="modal fade" id="generateAppModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-plus me-2"></i>Generate Application
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="generateAppForm" 
+              hx-post="/applications/generate" 
+              hx-target="#generateAppResult" 
+              hx-swap="innerHTML">
+          <div class="mb-3">
+            <label class="form-label">Model</label>
+            <select class="form-select" name="model_slug" required title="Select a model">
+              <option value="" disabled selected>Select model</option>
+              {% for model in available_models %}
+              <option value="{{ model.slug }}">{{ model.display_name }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-hint">Choose the AI model to generate the application</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Application Number</label>
+            <input type="number" 
+                   name="app_number" 
+                   class="form-control" 
+                   min="1" 
+                   max="30" 
+                   required 
+                   title="Application number (1-30)" />
+            <div class="form-hint">Range 1-30 maps to different prompt templates</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Application Type</label>
+            <select class="form-select" name="app_type" title="Select application type">
+              <option value="web_app" selected>Web App</option>
+              <option value="api_service">API Service</option>
+              <option value="frontend_only">Frontend Only</option>
+              <option value="cli_tool">CLI Tool</option>
+              <option value="desktop_app">Desktop App</option>
+            </select>
+            <div class="form-hint">Type determines the application structure and dependencies</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-check">
+              <input class="form-check-input" type="checkbox" name="auto_start" />
+              <span class="form-check-label">Auto-start container after generation</span>
+            </label>
+          </div>
+          <div class="mb-3">
+            <label class="form-check">
+              <input class="form-check-input" type="checkbox" name="auto_analyze" />
+              <span class="form-check-label">Run analysis after generation</span>
+            </label>
+          </div>
+          <div id="generateAppResult" class="small"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" form="generateAppForm" class="btn btn-primary">
+          <i class="fas fa-hammer me-1"></i>Generate
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Application Details Modal (for quick view) -->
+<div class="modal fade" id="applicationDetailsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" id="application-details-modal-content">
+      <!-- Content loaded dynamically -->
+    </div>
+  </div>
+</div>
+
+<!-- Batch Operations Modal -->
+<div class="modal fade" id="batchApplicationsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-layer-group me-2"></i>Batch Operations
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted mb-3">
+          Perform operations on <span id="selected-applications-count">0</span> selected applications.
+        </p>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <h6>Container Operations</h6>
+            <div class="list-group">
+              <button class="list-group-item list-group-item-action" onclick="batchDockerOp('start')">
+                <i class="fas fa-play me-2 text-success"></i>Start All
+              </button>
+              <button class="list-group-item list-group-item-action" onclick="batchDockerOp('stop')">
+                <i class="fas fa-stop me-2 text-danger"></i>Stop All
+              </button>
+              <button class="list-group-item list-group-item-action" onclick="batchDockerOp('restart')">
+                <i class="fas fa-rotate me-2 text-warning"></i>Restart All
+              </button>
+              <button class="list-group-item list-group-item-action" onclick="batchDockerOp('build')">
+                <i class="fas fa-hammer me-2 text-primary"></i>Build All
+              </button>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <h6>Analysis & Export</h6>
+            <div class="list-group">
+              <button class="list-group-item list-group-item-action" onclick="batchAnalyze()">
+                <i class="fas fa-flask me-2 text-info"></i>Run Analysis
+              </button>
+              <button class="list-group-item list-group-item-action" onclick="batchExport()">
+                <i class="fas fa-download me-2 text-secondary"></i>Export Selected
+              </button>
+              <button class="list-group-item list-group-item-action text-warning" onclick="batchUpdateStatus()">
+                <i class="fas fa-edit me-2"></i>Update Status
+              </button>
+              <button class="list-group-item list-group-item-action text-danger" onclick="batchDelete()">
+                <i class="fas fa-trash me-2"></i>Delete Selected
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="batchOperationResult" class="mt-3"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Application generation handling
+document.getElementById('generateAppForm').addEventListener('htmx:afterRequest', function(evt) {
+  if (evt.detail.xhr.status === 200) {
+    // Close modal and refresh table after successful generation
+    setTimeout(() => {
+      bootstrap.Modal.getInstance(document.getElementById('generateAppModal')).hide();
+      refreshApplications();
+    }, 2000);
+  }
+});
+
+// Update batch selection count
+function updateBatchSelectionCount() {
+  const count = getSelectedApplications().length;
+  document.getElementById('selected-applications-count').textContent = count;
+}
+
+// Update selection count when checkboxes change
+document.addEventListener('change', function(evt) {
+  if (evt.target.classList.contains('app-checkbox')) {
+    updateBatchSelectionCount();
+  }
+});
+
+// Quick view application details
+function viewApplicationDetails(modelSlug, appNumber) {
+  htmx.ajax('GET', `/applications/${modelSlug}/${appNumber}/quick-view`, {
+    target: '#application-details-modal-content',
+    swap: 'innerHTML'
+  });
+  
+  const modal = new bootstrap.Modal(document.getElementById('applicationDetailsModal'));
+  modal.show();
+}
+</script>

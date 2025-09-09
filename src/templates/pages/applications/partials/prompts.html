@@ -1,61 +1,48 @@
-{# prompts partial migrated #}
-<div class="card">
-  <div class="card-header d-flex align-items-center justify-content-between">
-    <h3 class="card-title mb-0"><i class="fas fa-lightbulb me-2"></i>Prompts</h3>
-    <div class="text-muted">Templates dir: {{ templates_dir or 'misc/app_templates' }}</div>
-  </div>
-  <div class="card-body">
-  {# Correct Jinja conditional expression syntax #}
-  {% set backend_len = (prompts.backend|length if (prompts and prompts.backend) else 0) %}
-  {% set frontend_len = (prompts.frontend|length if (prompts and prompts.frontend) else 0) %}
-    <div class="row row-cards">
-      <div class="col-md-6">
-        <div class="card card-sm">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <h4 class="card-title">Backend Prompt</h4>
-            {% if template_files.backend_file %}
-            <span class="badge bg-secondary">{{ template_files.backend_file }}</span>
-            {% elif backend_len == 0 %}
-            <span class="badge bg-warning">Missing</span>
-            {% endif %}
-          </div>
-          <div class="card-body">
-            <pre class="bg-light rounded p-3" style="max-height: 320px; overflow:auto; white-space: pre-wrap"><code>{{ prompts.backend or 'No backend prompt found.' }}</code></pre>
-            <div class="btn-list">
-              <button class="btn btn-sm btn-outline-primary" onclick="copyAdjacentPre(this)" {% if backend_len == 0 %}disabled{% endif %}><i class="fas fa-copy me-1"></i>Copy</button>
-            </div>
-            {% if backend_len == 0 %}
-            <div class="text-muted mt-2">
-              Looking in: <code>{{ templates_dir }}</code><br>
-              Expected pattern: <code>app_{{ app_data.app_number }}_backend_*.md</code>
-            </div>
-            {% endif %}
-          </div>
-        </div>
+{# Application Prompts Section Partial #}
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-terminal me-2"></i>Generation Prompts
+        </h5>
       </div>
-      <div class="col-md-6">
-        <div class="card card-sm">
-          <div class="card-header d-flex justify-content-between align-items-center">
-            <h4 class="card-title">Frontend Prompt</h4>
-            {% if template_files.frontend_file %}
-            <span class="badge bg-secondary">{{ template_files.frontend_file }}</span>
-            {% elif frontend_len == 0 %}
-            <span class="badge bg-warning">Missing</span>
-            {% endif %}
-          </div>
-          <div class="card-body">
-            <pre class="bg-light rounded p-3" style="max-height: 320px; overflow:auto; white-space: pre-wrap"><code>{{ prompts.frontend or 'No frontend prompt found.' }}</code></pre>
-            <div class="btn-list">
-              <button class="btn btn-sm btn-outline-primary" onclick="copyAdjacentPre(this)" {% if frontend_len == 0 %}disabled{% endif %}><i class="fas fa-copy me-1"></i>Copy</button>
-            </div>
-            {% if frontend_len == 0 %}
-            <div class="text-muted mt-2">
-              Looking in: <code>{{ templates_dir }}</code><br>
-              Expected pattern: <code>app_{{ app_data.app_number }}_frontend_*.md</code>
+      <div class="card-body">
+        {% if prompts.backend or prompts.frontend %}
+          <div class="row">
+            {% if prompts.backend %}
+            <div class="col-md-6">
+              <h6 class="text-muted mb-2">Backend Prompt</h6>
+              {% if template_files.backend_file %}
+                <p class="small text-muted mb-2">
+                  <i class="fas fa-file-code me-1"></i>{{ template_files.backend_file }}
+                </p>
+              {% endif %}
+              <div class="border rounded p-3 bg-light">
+                <pre class="mb-0 small" style="max-height: 300px; overflow-y: auto;">{{ prompts.backend }}</pre>
+              </div>
             </div>
             {% endif %}
+            {% if prompts.frontend %}
+            <div class="col-md-6">
+              <h6 class="text-muted mb-2">Frontend Prompt</h6>
+              {% if template_files.frontend_file %}
+                <p class="small text-muted mb-2">
+                  <i class="fas fa-file-code me-1"></i>{{ template_files.frontend_file }}
+                </p>
+              {% endif %}
+              <div class="border rounded p-3 bg-light">
+                <pre class="mb-0 small" style="max-height: 300px; overflow-y: auto;">{{ prompts.frontend }}</pre>
+              </div>
+            </div>
+            {% endif %}
           </div>
-        </div>
+        {% else %}
+          <div class="text-center text-muted py-3">
+            <i class="fas fa-file-code fa-2x mb-2"></i>
+            <p>No prompt templates found for this application number.</p>
+          </div>
+        {% endif %}
       </div>
     </div>
   </div>

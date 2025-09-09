@@ -170,3 +170,160 @@ def applications_generate():
             '<div class="alert alert-danger">Error generating application.</div>',
             500,
         )
+
+@main_bp.route('/applications/table')
+def applications_table():
+    """HTMX partial: Applications table with current filters."""
+    try:
+        # Real (lightweight) pagination + filtering implementation for the applications table
+        from flask import request
+        from app.routes.jinja.models import db, GeneratedApplication, PortConfiguration, SimplePagination, ModelCapability  # type: ignore
+        search = (request.args.get('search') or '').strip().lower()
+        # Multi-select filters come in as comma-separated lists
+        model_filter_raw = (request.args.get('model') or '').strip().lower()
+        model_filters = [m for m in model_filter_raw.split(',') if m]
+        provider_filter = (request.args.get('provider') or '').strip().lower()
+        status_filter_raw = (request.args.get('status') or '').strip().lower()
+        status_filters = [s for s in status_filter_raw.split(',') if s]
+        page = max(1, int(request.args.get('page', 1) or 1))
+        per_page = min(100, max(5, int(request.args.get('per_page', 25) or 25)))
+
+        query = GeneratedApplication.query
+        if model_filters:
+            if len(model_filters) == 1:
+                query = query.filter(GeneratedApplication.model_slug == model_filters[0])
+            else:
+                query = query.filter(GeneratedApplication.model_slug.in_(model_filters))
+        if provider_filter:
+            query = query.filter(GeneratedApplication.provider.ilike(f"%{provider_filter}%"))
+        if status_filters:
+            if len(status_filters) == 1:
+                query = query.filter(GeneratedApplication.container_status == status_filters[0])
+            else:
+                query = query.filter(GeneratedApplication.container_status.in_(status_filters))
+        if search:
+            like = f"%{search}%"
+            from sqlalchemy import or_
+            query = query.filter(or_(
+                GeneratedApplication.model_slug.ilike(like),
+                GeneratedApplication.provider.ilike(like),
+                GeneratedApplication.app_type.ilike(like)
+            ))
+
+        total = query.count()
+        # Ordering: model then app number for determinism
+        page_items = (query
+                       .order_by(GeneratedApplication.model_slug.asc(), GeneratedApplication.app_number.asc())
+                       .offset((page - 1) * per_page)
+                       .limit(per_page)
+                       .all())
+
+        # Preload port configurations for the page set only
+        app_keys = [(a.model_slug, a.app_number) for a in page_items]
+        ports_map: dict[tuple[str,int], dict] = {}
+        if app_keys:
+            pcs = (db.session.query(PortConfiguration)
+                   .filter(PortConfiguration.model.in_([k[0] for k in app_keys]))
+                   .all())
+            for pc in pcs:
+                ports_map[(pc.model, pc.app_num)] = {
+                    'backend': pc.backend_port,
+                    'frontend': pc.frontend_port
+                }
+
+        # Fetch model metadata for provider/display name enrichment (single query)
+        models_map = {}
+        try:
+            model_slugs = {a.model_slug for a in page_items}
+            if model_slugs:
+                rows = db.session.query(ModelCapability).filter(ModelCapability.canonical_slug.in_(model_slugs)).all()
+                for m in rows:
+                    models_map[m.canonical_slug] = m
+        except Exception:
+            pass
+
+        applications_list = []
+        for app in page_items:
+            ports_cfg = ports_map.get((app.model_slug, app.app_number)) or {}
+            # Represent ports as a list for template compatibility
+            ports_list = []
+            if ports_cfg.get('backend'):
+                ports_list.append({'host_port': ports_cfg['backend'], 'role': 'backend'})
+            if ports_cfg.get('frontend') and ports_cfg.get('frontend') != ports_cfg.get('backend'):
+                ports_list.append({'host_port': ports_cfg['frontend'], 'role': 'frontend'})
+
+            model_meta = models_map.get(app.model_slug)
+            applications_list.append({
+                'id': app.id,
+                'model_slug': app.model_slug,
+                'model_provider': getattr(app, 'provider', None) or getattr(model_meta, 'provider', 'local'),
+                'model_display_name': getattr(model_meta, 'display_name', None) or app.model_slug,
+                'app_number': app.app_number,
+                'app_type': app.app_type or 'web_app',
+                'status': app.container_status or 'unknown',
+                'ports': ports_list,
+                'container_size': None,  # Placeholder; could be populated by a metrics service
+                'analysis_status': None  # Placeholder; real aggregation can be added later
+            })
+
+        pagination = SimplePagination(page, per_page, total, applications_list)
+
+        # Always return wrapped section so HTMX swaps keep a stable target
+        return render_template(
+            'pages/applications/partials/table_block.html',
+            applications=applications_list,
+            total_applications=total,
+            pagination=pagination
+        )
+    except Exception as e:  # pragma: no cover - defensive
+        current_app.logger.error(f"Error loading applications table: {e}")
+        return (
+            '<div class="alert alert-danger">Error loading applications table.</div>',
+            500,
+        )
+
+@main_bp.route('/applications/stats')
+def applications_stats():
+    """HTMX partial: refreshed mini stats numbers for Applications sidebar."""
+    try:
+        from app.routes.jinja.models import db, GeneratedApplication, SecurityAnalysis  # type: ignore
+        total_apps = GeneratedApplication.query.count()
+        running = GeneratedApplication.query.filter_by(container_status='running').count()
+        try:
+            analyzed = db.session.query(SecurityAnalysis).count()
+        except Exception:
+            analyzed = 0
+        try:
+            from sqlalchemy import func
+            unique_models = db.session.query(func.count(func.distinct(GeneratedApplication.model_slug))).scalar() or 0
+        except Exception:
+            unique_models = 0
+        return render_template('pages/applications/partials/_stats_numbers.html',
+                               total_applications=total_apps,
+                               running_applications=running,
+                               analyzed_applications=analyzed,
+                               unique_models=unique_models)
+    except Exception as e:  # pragma: no cover
+        current_app.logger.error(f"Error loading applications stats: {e}")
+        # Return safe fallback blank list
+        return '<ul class="list-unstyled mb-0 d-flex flex-wrap gap-2 small"></ul>'
+
+@main_bp.route('/applications/<model_slug>/<int:app_number>')
+def applications_detail_alias(model_slug, app_number):
+    """Alias route matching new applications URL scheme that delegates to legacy models blueprint detail renderer."""
+    try:
+        from app.routes.jinja.models import application_detail  # type: ignore
+        return application_detail(model_slug, app_number)
+    except Exception as e:  # pragma: no cover
+        current_app.logger.error(f"Error loading application detail alias: {e}")
+        return ('<div class="alert alert-danger">Failed to load application detail.</div>', 500)
+
+@main_bp.route('/applications/<model_slug>/<int:app_number>/section/<section>')
+def applications_detail_section_alias(model_slug, app_number, section):
+    """Alias for HTMX section endpoints using /applications path instead of /models/application."""
+    try:
+        from app.routes.jinja.models import _render_application_section  # type: ignore
+        return _render_application_section(model_slug, app_number, section)
+    except Exception as e:  # pragma: no cover
+        current_app.logger.error(f"Error loading application section alias: {e}")
+        return f'<div class="alert alert-danger">Failed to load section: {section}</div>', 500

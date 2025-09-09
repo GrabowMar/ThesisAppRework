@@ -1,186 +1,574 @@
-{# Applications Table View - consistent styling with models overview table #}
-<div id="applications-table-wrapper" class="card mb-3">
+{# Applications table content - enhanced with more action buttons #}
+<div class="card mb-3">
   <div class="card-header py-2 d-flex flex-wrap gap-2 align-items-center justify-content-between small">
     <div class="d-flex flex-wrap align-items-center gap-2">
       <label class="d-flex align-items-center gap-1 mb-0">Per page:
-        <select id="apps-per-page" class="form-select form-select-sm w-auto" onchange="changeAppsPerPage(this.value)">
+        <select id="apps-per-page" class="form-select form-select-sm w-auto" onchange="changeApplicationsPerPage(this.value)">
           <option value="10">10</option>
           <option value="25" selected>25</option>
           <option value="50">50</option>
           <option value="100">100</option>
         </select>
       </label>
-      <button class="btn btn-outline-primary btn-sm" id="apps-refresh-btn" hx-get="/applications" hx-target="#apps-table-section" hx-select="#apps-table-section" title="Refresh applications"><i class="fas fa-sync"></i></button>
-      <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#generateAppModal" title="Generate application"><i class="fas fa-plus"></i></button>
-      <div class="btn-group" role="group" aria-label="Batch docker actions">
-        <button class="btn btn-outline-success btn-sm" type="button" title="Start selected" onclick="batchDockerOp('start')"><i class="fas fa-play"></i></button>
-        <button class="btn btn-outline-danger btn-sm" type="button" title="Stop selected" onclick="batchDockerOp('stop')"><i class="fas fa-stop"></i></button>
-        <button class="btn btn-outline-warning btn-sm" type="button" title="Restart selected" onclick="batchDockerOp('restart')"><i class="fas fa-rotate"></i></button>
-        <button class="btn btn-outline-primary btn-sm" type="button" title="Build selected" onclick="batchDockerOp('build')"><i class="fas fa-hammer"></i></button>
+      <div class="btn-group btn-group-sm" role="group" aria-label="View mode">
+        <button type="button" class="btn btn-outline-secondary active" id="view-table" onclick="setApplicationsView('table')">
+          <i class="fas fa-table"></i> Table
+        </button>
+        <button type="button" class="btn btn-outline-secondary" id="view-grid" onclick="setApplicationsView('grid')">
+          <i class="fas fa-th"></i> Grid
+        </button>
       </div>
+      <span class="text-muted" id="applications-source-indicator"></span>
     </div>
     <div class="d-flex align-items-center gap-2">
-      <span class="text-muted" id="applications-selection-indicator"></span>
+      <button class="btn btn-outline-primary btn-sm" onclick="refreshApplications()" title="Refresh applications">
+        <i class="fas fa-sync"></i>
+      </button>
+      <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#generateAppModal" title="Generate application">
+        <i class="fas fa-plus"></i>
+      </button>
+      <button class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#batchApplicationsModal" title="Batch operations" onclick="updateBatchSelectionCount()">
+        <i class="fas fa-layer-group"></i>
+      </button>
+      <span class="text-muted small" id="applications-selection-indicator"></span>
     </div>
   </div>
   <div class="card-body p-0">
-    {% if application_grid or applications %}
-  <div class="table-responsive apps-scroll-region">
-        <table class="table table-sm table-hover table-striped table-vcenter mb-0" id="applications-table">
-      <thead>
-            <tr>
-              <th class="w-1">
-                <label class="form-check mb-0" for="select-all-apps">
-                  <input type="checkbox" id="select-all-apps" class="form-check-input" onchange="toggleSelectAllApps()" title="Select all applications" aria-label="Select all applications" />
-                </label>
-              </th>
-        <th class="text-nowrap">Model</th>
-        <th class="text-nowrap">App</th>
-        <th class="text-nowrap">Type</th>
-        <th class="text-nowrap">Status</th>
-        <th class="text-nowrap">Ports</th>
-        <th class="text-nowrap">Cmp</th>
-        <th class="text-nowrap">Code</th>
-        <th class="w-1 text-nowrap">Act</th>
-            </tr>
-          </thead>
-          <tbody id="applications-table-body">
-            {# If backend provided flat list #}
-            {% if applications %}
-              {% for app in applications %}
-                {% set sc = 'success' if app.status=='running' else ('danger' if app.status=='error' else ('warning' if app.status=='pending' else 'secondary')) %}
-                <tr data-model="{{ app.model_slug }}" data-app="{{ app.app_number }}" data-status="{{ app.status }}">
-                  <td>
-                    <input type="checkbox" class="form-check-input app-select" value="{{ app.model_slug }}:{{ app.app_number }}" title="Select application {{ app.model_slug }} #{{ app.app_number }}" aria-label="Select application {{ app.model_slug }} #{{ app.app_number }}" />
-                  </td>
-                  <td class="text-nowrap">{{ app.model_slug }}</td>
-                  <td class="text-nowrap"><a href="/models/application/{{ app.model_slug }}/{{ app.app_number }}" class="fw-semibold">#{{ app.app_number }}</a></td>
-                  <td class="text-muted small text-nowrap">{{ app.app_type }}</td>
-                  <td><span class="badge bg-{{ sc }}">{{ app.status.replace('_',' ').title() if app.status else 'Unknown' }}</span></td>
-                  <td class="small">
-                    {% if app.ports and (app.ports.frontend or app.ports.backend) %}
-                      {% if app.ports.frontend %}<span class="badge bg-azure" title="Frontend">FE {{ app.ports.frontend }}</span>{% endif %}
-                      {% if app.ports.backend %}<span class="badge bg-azure" title="Backend">BE {{ app.ports.backend }}</span>{% endif %}
-                    {% else %}<span class="text-muted">—</span>{% endif %}
-                  </td>
-                  <td>{% if app.has_docker_compose %}<span class="badge bg-green"><i class="fas fa-hammer me-1"></i>Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
-                  <td>{% if app.exists %}<span class="badge bg-green"><i class="fas fa-code me-1"></i>Code</span>{% else %}<span class="badge bg-red">Missing</span>{% endif %}</td>
-                  <td class="text-end">
-                    <div class="btn-group btn-group-sm">
-                      {% if app.exists %}
-                        {% if app.status == 'running' %}
-                          <button class="btn btn-outline-danger" hx-post="/api/app/{{ app.model_slug }}/{{ app.app_number }}/stop" hx-swap="none" hx-on:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Stop"><i class="fas fa-stop"></i></button>
-                        {% else %}
-                          <button class="btn btn-outline-success" hx-post="/api/app/{{ app.model_slug }}/{{ app.app_number }}/start" hx-swap="none" hx-on:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Start"><i class="fas fa-play"></i></button>
-                        {% endif %}
-                        <button class="btn btn-outline-warning" hx-post="/api/app/{{ app.model_slug }}/{{ app.app_number }}/restart" hx-swap="none" hx-on:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Restart"><i class="fas fa-rotate"></i></button>
-                        {% if app.has_docker_compose %}
-                          <button class="btn btn-outline-primary" hx-post="/api/app/{{ app.model_slug }}/{{ app.app_number }}/build" hx-swap="none" hx-on:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Build"><i class="fas fa-hammer"></i></button>
-                        {% endif %}
-                      {% else %}
-                        <span class="text-muted small">Not created</span>
-                      {% endif %}
-                    </div>
-                  </td>
-                </tr>
-              {% endfor %}
-            {% elif application_grid %}
-              {# Fallback: flatten grid data #}
-              {% for entry in application_grid %}
-                {% for app in entry.apps %}
-                  {% set sc = 'success' if app.status=='running' else ('danger' if app.status=='error' else ('warning' if app.status=='pending' else 'secondary')) %}
-                  <tr data-model="{{ entry.model.canonical_slug }}" data-app="{{ app.app_number }}" data-status="{{ app.status }}">
-                    <td><input type="checkbox" class="form-check-input app-select" value="{{ entry.model.canonical_slug }}:{{ app.app_number }}" title="Select application {{ entry.model.canonical_slug }} #{{ app.app_number }}" aria-label="Select application {{ entry.model.canonical_slug }} #{{ app.app_number }}" /></td>
-                    <td class="text-nowrap">{{ entry.model.canonical_slug }}</td>
-                    <td class="text-nowrap"><a href="/models/application/{{ entry.model.canonical_slug }}/{{ app.app_number }}" class="fw-semibold">#{{ app.app_number }}</a></td>
-                    <td class="text-muted small text-nowrap">{{ app.app_type }}</td>
-                    <td><span class="badge bg-{{ sc }}">{{ app.status.replace('_',' ').title() if app.status else 'Unknown' }}</span></td>
-                    <td class="small">
-                      {% if app.ports and (app.ports.frontend or app.ports.backend) %}
-                        {% if app.ports.frontend %}<span class="badge bg-azure" title="Frontend">FE {{ app.ports.frontend }}</span>{% endif %}
-                        {% if app.ports.backend %}<span class="badge bg-azure" title="Backend">BE {{ app.ports.backend }}</span>{% endif %}
-                      {% else %}<span class="text-muted">—</span>{% endif %}
-                    </td>
-                    <td>{% if app.has_docker_compose %}<span class="badge bg-green"><i class="fas fa-hammer me-1"></i>Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
-                    <td>{% if app.exists %}<span class="badge bg-green"><i class="fas fa-code me-1"></i>Code</span>{% else %}<span class="badge bg-red">Missing</span>{% endif %}</td>
-                    <td class="text-end">
-                      <div class="btn-group btn-group-sm">
-                        {% if app.exists %}
-                          {% if app.status == 'running' %}
-                            <button class="btn btn-outline-danger" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/stop" hx-swap="none" hx-on:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Stop"><i class="fas fa-stop"></i></button>
-                          {% else %}
-                            <button class="btn btn-outline-success" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/start" hx-swap="none" hx-on:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Start"><i class="fas fa-play"></i></button>
-                          {% endif %}
-                          <button class="btn btn-outline-warning" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/restart" hx-swap="none" hx-on:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Restart"><i class="fas fa-rotate"></i></button>
-                          {% if app.has_docker_compose %}
-                            <button class="btn btn-outline-primary" hx-post="/api/app/{{ entry.model.canonical_slug }}/{{ app.app_number }}/build" hx-swap="none" hx-on:afterRequest="htmx.trigger(document.body,'refresh-apps-table')" title="Build"><i class="fas fa-hammer"></i></button>
-                          {% endif %}
-                        {% else %}
-                          <span class="text-muted small">Not created</span>
-                        {% endif %}
-                      </div>
-                    </td>
-                  </tr>
+    <div class="table-responsive apps-table-scroll">
+      <table class="table table-sm table-hover table-striped table-vcenter mb-0" id="applications-table">
+        <thead>
+          <tr>
+            <th class="w-1">
+              <label class="form-check">
+                <input type="checkbox" id="select-all-apps" class="form-check-input" onchange="toggleSelectAllApplications()" title="Select all applications" aria-label="Select all applications"/>
+              </label>
+            </th>
+            <th class="text-nowrap">Model</th>
+            <th class="text-nowrap">App</th>
+            <th class="text-nowrap">Type</th>
+            <th class="text-nowrap">Status</th>
+            <th class="text-nowrap">Ports</th>
+            <th class="text-nowrap">Size</th>
+            <th class="text-nowrap">Analysis</th>
+            <th class="w-1 text-nowrap">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="applications-table-body">
+          {% for app in applications %}
+          <tr data-model="{{ app.model_slug }}" data-app="{{ app.app_number }}" {% if app.id %}data-app-id="{{ app.id }}"{% endif %}>
+            <td>
+              <label class="form-check">
+                <input type="checkbox" class="form-check-input app-checkbox" value="{{ app.model_slug }}-{{ app.app_number }}" aria-label="Select application" />
+              </label>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <span class="badge bg-azure-lt me-1">{{ app.model_provider|upper }}</span>
+                <span class="fw-medium">{{ app.model_display_name|truncate(20) }}</span>
+              </div>
+            </td>
+            <td>
+              <div class="d-flex align-items-center">
+                <i class="fas fa-cube text-muted me-1"></i>
+                <span class="fw-medium">App {{ app.app_number }}</span>
+              </div>
+            </td>
+            <td>
+              <span class="badge bg-info-lt">{{ app.app_type|replace('_', ' ')|title }}</span>
+            </td>
+            <td>
+              {% if app.status == 'running' %}
+                <span class="badge bg-success-lt">
+                  <i class="fas fa-play me-1"></i>Running
+                </span>
+              {% elif app.status == 'stopped' %}
+                <span class="badge bg-secondary-lt">
+                  <i class="fas fa-stop me-1"></i>Stopped
+                </span>
+              {% elif app.status == 'error' %}
+                <span class="badge bg-danger-lt">
+                  <i class="fas fa-exclamation-triangle me-1"></i>Error
+                </span>
+              {% elif app.status == 'building' %}
+                <span class="badge bg-warning-lt">
+                  <i class="fas fa-hammer me-1"></i>Building
+                </span>
+              {% else %}
+                <span class="badge bg-muted-lt">
+                  <i class="fas fa-question me-1"></i>{{ app.status|title }}
+                </span>
+              {% endif %}
+            </td>
+            <td>
+              {% if app.ports %}
+                {% for port in app.ports[:2] %}
+                  <a href="http://localhost:{{ port.host_port }}" target="_blank" rel="noopener" class="badge bg-primary-lt me-1" title="Open port {{ port.host_port }}">
+                    {{ port.host_port }}
+                  </a>
                 {% endfor %}
-              {% endfor %}
+                {% if app.ports|length > 2 %}
+                  <span class="badge bg-muted-lt">+{{ app.ports|length - 2 }}</span>
+                {% endif %}
+              {% else %}
+                <span class="text-muted small">No ports</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if app.container_size %}
+                <span class="small text-muted">{{ app.container_size }}</span>
+              {% else %}
+                <span class="text-muted small">Unknown</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if app.analysis_status == 'completed' %}
+                <span class="badge bg-success-lt">
+                  <i class="fas fa-check me-1"></i>Done
+                </span>
+              {% elif app.analysis_status == 'running' %}
+                <span class="badge bg-warning-lt">
+                  <i class="fas fa-spinner fa-spin me-1"></i>Running
+                </span>
+              {% elif app.analysis_status == 'failed' %}
+                <span class="badge bg-danger-lt">
+                  <i class="fas fa-times me-1"></i>Failed
+                </span>
+              {% else %}
+                <span class="badge bg-muted-lt">None</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="btn-group" role="group">
+                <!-- Details button -->
+                <a href="/applications/{{ app.model_slug }}/{{ app.app_number }}" class="btn btn-outline-primary btn-sm" title="View details">
+                  <i class="fas fa-eye"></i>
+                </a>
+                
+                <!-- Quick view button -->
+                <button class="btn btn-outline-info btn-sm" onclick="viewApplicationDetails('{{ app.model_slug }}', '{{ app.app_number }}')" title="Quick view">
+                  <i class="fas fa-search"></i>
+                </button>
+                
+                <!-- Container control dropdown -->
+                <div class="btn-group" role="group">
+                  <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" title="Container actions">
+                    <i class="fab fa-docker"></i>
+                  </button>
+                  <ul class="dropdown-menu">
+                    {% if app.status != 'running' %}
+                    <li>
+                      <button class="dropdown-item" onclick="performAppAction('{{ app.model_slug }}', '{{ app.app_number }}', 'start')">
+                        <i class="fas fa-play text-success me-2"></i>Start
+                      </button>
+                    </li>
+                    {% endif %}
+                    {% if app.status == 'running' %}
+                    <li>
+                      <button class="dropdown-item" onclick="performAppAction('{{ app.model_slug }}', '{{ app.app_number }}', 'stop')">
+                        <i class="fas fa-stop text-danger me-2"></i>Stop
+                      </button>
+                    </li>
+                    {% endif %}
+                    <li>
+                      <button class="dropdown-item" onclick="performAppAction('{{ app.model_slug }}', '{{ app.app_number }}', 'restart')">
+                        <i class="fas fa-rotate text-warning me-2"></i>Restart
+                      </button>
+                    </li>
+                    <li>
+                      <button class="dropdown-item" onclick="performAppAction('{{ app.model_slug }}', '{{ app.app_number }}', 'rebuild')">
+                        <i class="fas fa-hammer text-primary me-2"></i>Rebuild
+                      </button>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                      <button class="dropdown-item" onclick="viewAppLogs('{{ app.model_slug }}', '{{ app.app_number }}')">
+                        <i class="fas fa-file-lines text-info me-2"></i>View Logs
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+                
+                <!-- Visit/Run button -->
+                {% if app.status == 'running' and app.ports %}
+                  <a href="http://localhost:{{ app.ports[0].host_port }}" target="_blank" rel="noopener" class="btn btn-success btn-sm" title="Visit application">
+                    <i class="fas fa-external-link-alt"></i>
+                  </a>
+                {% else %}
+                  <button class="btn btn-outline-success btn-sm" onclick="performAppAction('{{ app.model_slug }}', '{{ app.app_number }}', 'start')" title="Start application" {% if app.status == 'running' %}disabled{% endif %}>
+                    <i class="fas fa-play"></i>
+                  </button>
+                {% endif %}
+                
+                <!-- Analysis dropdown -->
+                <div class="btn-group" role="group">
+                  <button class="btn btn-outline-info btn-sm dropdown-toggle" data-bs-toggle="dropdown" title="Analysis actions">
+                    <i class="fas fa-flask"></i>
+                  </button>
+                  <ul class="dropdown-menu">
+                    <li>
+                      <button class="dropdown-item" onclick="runAnalysis('{{ app.model_slug }}', '{{ app.app_number }}', 'security')">
+                        <i class="fas fa-shield-alt text-warning me-2"></i>Security
+                      </button>
+                    </li>
+                    <li>
+                      <button class="dropdown-item" onclick="runAnalysis('{{ app.model_slug }}', '{{ app.app_number }}', 'performance')">
+                        <i class="fas fa-tachometer-alt text-info me-2"></i>Performance
+                      </button>
+                    </li>
+                    <li>
+                      <button class="dropdown-item" onclick="runAnalysis('{{ app.model_slug }}', '{{ app.app_number }}', 'quality')">
+                        <i class="fas fa-code text-primary me-2"></i>Code Quality
+                      </button>
+                    </li>
+                    <li>
+                      <button class="dropdown-item" onclick="runAnalysis('{{ app.model_slug }}', '{{ app.app_number }}', 'dependencies')">
+                        <i class="fas fa-sitemap text-secondary me-2"></i>Dependencies
+                      </button>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                      <button class="dropdown-item" onclick="runAnalysis('{{ app.model_slug }}', '{{ app.app_number }}', 'full')">
+                        <i class="fas fa-microscope text-success me-2"></i>Full Analysis
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+                
+                <!-- More actions dropdown -->
+                <div class="btn-group" role="group">
+                  <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" title="More actions">
+                    <i class="fas fa-ellipsis-h"></i>
+                  </button>
+                  <ul class="dropdown-menu">
+                    <li>
+                      <a class="dropdown-item" href="/applications/{{ app.model_slug }}/{{ app.app_number }}/export.csv">
+                        <i class="fas fa-file-csv text-success me-2"></i>Export CSV
+                      </a>
+                    </li>
+                    <li>
+                      <button class="dropdown-item" onclick="cloneApplication('{{ app.model_slug }}', '{{ app.app_number }}')">
+                        <i class="fas fa-copy text-info me-2"></i>Clone
+                      </button>
+                    </li>
+                    <li>
+                      <button class="dropdown-item" onclick="shareApplication('{{ app.model_slug }}', '{{ app.app_number }}')">
+                        <i class="fas fa-share text-primary me-2"></i>Share
+                      </button>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                      <button class="dropdown-item text-danger" onclick="deleteApplication('{{ app.model_slug }}', '{{ app.app_number }}')">
+                        <i class="fas fa-trash me-2"></i>Delete
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="d-flex flex-wrap justify-content-between align-items-center p-2 border-top small gap-2" id="applications-pagination-bar">
+      <div id="applications-page-summary" class="text-muted">
+        Showing {{ applications|length }} of {{ total_applications }} applications
+      </div>
+      <nav aria-label="Applications pagination" class="ms-auto">
+        {% if pagination is defined and pagination %}
+        <ul class="pagination pagination-sm mb-0" id="applications-pagination">
+          {% if pagination.has_prev %}
+          <li class="page-item">
+            <button class="page-link" onclick="changeApplicationsPage({{ pagination.prev_num }})">Previous</button>
+          </li>
+          {% endif %}
+          
+          {% for page_num in pagination.iter_pages() %}
+            {% if page_num %}
+              {% if page_num != pagination.page %}
+              <li class="page-item">
+                <button class="page-link" onclick="changeApplicationsPage({{ page_num }})">{{ page_num }}</button>
+              </li>
+              {% else %}
+              <li class="page-item active">
+                <span class="page-link">{{ page_num }}</span>
+              </li>
+              {% endif %}
+            {% else %}
+            <li class="page-item disabled">
+              <span class="page-link">…</span>
+            </li>
             {% endif %}
-          </tbody>
-        </table>
-      </div>
-      <div class="d-flex flex-wrap justify-content-between align-items-center p-2 border-top small gap-2" id="applications-pagination-bar">
-        <div id="applications-page-summary" class="text-muted">Page 1</div>
-        <nav aria-label="Applications pagination" class="ms-auto">
-          <ul class="pagination pagination-sm mb-0" id="applications-pagination"></ul>
-        </nav>
-      </div>
-    {% else %}
-      <div class="p-4 text-center">
-        <div class="empty-icon mb-2"><i class="fas fa-magnifying-glass fa-2x"></i></div>
-        <p class="mb-1 fw-semibold">No Applications Found</p>
-        <p class="text-muted small mb-2">Adjust filters or generate a new application.</p>
-        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#generateAppModal"><i class="fas fa-plus me-1"></i>Generate</button>
-      </div>
-    {% endif %}
+          {% endfor %}
+          
+          {% if pagination.has_next %}
+          <li class="page-item">
+            <button class="page-link" onclick="changeApplicationsPage({{ pagination.next_num }})">Next</button>
+          </li>
+          {% endif %}
+        </ul>
+        {% endif %}
+      </nav>
+    </div>
   </div>
 </div>
+
+<div id="applications-comparison-panel" class="mt-3"></div>
+<div id="applications-loading-spinner" class="text-center py-4 d-none">
+  <div class="spinner-border text-primary" role="status">
+    <span class="visually-hidden">Loading...</span>
+  </div>
+  <p class="text-muted mt-2">Loading applications...</p>
 </div>
+
 <script>
-function getSelectedApps(){
-  return Array.from(document.querySelectorAll('#applications-table-body input.app-select:checked')).map(c=>c.value);
+// Application action functions
+function performAppAction(modelSlug, appNumber, action) {
+  const button = event.target.closest('button, a');
+  const originalHtml = button.innerHTML;
+  
+  // Show loading state
+  button.disabled = true;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  
+  // Prefer id-based API if present (data-app-id attribute on row)
+  const row = button.closest('tr');
+  const appId = row ? row.getAttribute('data-app-id') : null;
+  const url = appId ? `/api/applications/${appId}/${action}` : `/api/applications/${modelSlug}/${appNumber}/${action}`;
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      // Refresh the table to show updated status
+      refreshApplications();
+      showNotification(`${action.charAt(0).toUpperCase() + action.slice(1)} completed successfully`, 'success');
+    } else {
+      showNotification(`${action} failed: ${data.error}`, 'danger');
+    }
+  })
+  .catch(error => {
+    showNotification(`${action} failed: ${error.message}`, 'danger');
+  })
+  .finally(() => {
+    button.disabled = false;
+    button.innerHTML = originalHtml;
+  });
 }
-function batchDockerOp(op){
-  const selected = getSelectedApps();
-  if(!selected.length){
-    htmx?.notify && htmx.notify('Select at least one application', 'warning');
+
+function runAnalysis(modelSlug, appNumber, analysisType) {
+  const button = event.target.closest('button');
+  const originalHtml = button.innerHTML;
+  
+  button.disabled = true;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Running...';
+  
+  const row = button.closest('tr');
+  const appId = row ? row.getAttribute('data-app-id') : null;
+  const url = appId ? `/api/applications/${appId}/analyze` : `/api/applications/${modelSlug}/${appNumber}/analyze`;
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ analysis_type: analysisType })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showNotification(`${analysisType} analysis started`, 'success');
+      // Refresh to show updated analysis status
+      setTimeout(() => refreshApplications(), 1000);
+    } else {
+      showNotification(`Analysis failed: ${data.error}`, 'danger');
+    }
+  })
+  .catch(error => {
+    showNotification(`Analysis failed: ${error.message}`, 'danger');
+  })
+  .finally(() => {
+    button.disabled = false;
+    button.innerHTML = originalHtml;
+  });
+}
+
+function viewAppLogs(modelSlug, appNumber) {
+  window.open(`/applications/${modelSlug}/${appNumber}/logs`, '_blank');
+}
+
+function cloneApplication(modelSlug, appNumber) {
+  const newAppNumber = prompt('Enter new application number (1-30):');
+  if (!newAppNumber || isNaN(newAppNumber) || newAppNumber < 1 || newAppNumber > 30) {
     return;
   }
-  const form = new FormData();
-  form.append('operation', op);
-  selected.forEach(v=>form.append('items', v));
-  const btns = document.querySelectorAll('[onclick^="batchDockerOp"]');
-  btns.forEach(b=>b.disabled=true);
-  fetch('/api/apps/bulk/docker', {method:'POST', body: form, headers:{'HX-Request':'true'}})
-    .then(r=>r.text())
-    .then(html=>{
-      // Insert temporary results toast area
-      let host = document.getElementById('applications-selection-indicator');
-      if(host){ host.innerHTML = html; }
-      // Trigger table refresh after short delay
-      setTimeout(()=>{ htmx.trigger(document.body,'refresh-apps-table'); }, 500);
-    })
-    .catch(err=>{
-      alert('Bulk '+op+' failed: '+err);
-    })
-    .finally(()=>{ btns.forEach(b=>b.disabled=false); });
+  
+  fetch(`/api/applications/${modelSlug}/${appNumber}/clone`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ new_app_number: parseInt(newAppNumber) })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showNotification('Application cloned successfully', 'success');
+      refreshApplications();
+    } else {
+      showNotification(`Clone failed: ${data.error}`, 'danger');
+    }
+  })
+  .catch(error => {
+    showNotification(`Clone failed: ${error.message}`, 'danger');
+  });
 }
+
+function shareApplication(modelSlug, appNumber) {
+  const url = `${window.location.origin}/applications/${modelSlug}/${appNumber}`;
+  navigator.clipboard.writeText(url).then(() => {
+    showNotification('Application URL copied to clipboard', 'success');
+  }).catch(() => {
+    prompt('Copy this URL:', url);
+  });
+}
+
+function deleteApplication(modelSlug, appNumber) {
+  if (!confirm(`Are you sure you want to delete ${modelSlug} App ${appNumber}? This action cannot be undone.`)) {
+    return;
+  }
+  
+  fetch(`/api/applications/${modelSlug}/${appNumber}`, {
+    method: 'DELETE'
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showNotification('Application deleted successfully', 'success');
+      refreshApplications();
+    } else {
+      showNotification(`Delete failed: ${data.error}`, 'danger');
+    }
+  })
+  .catch(error => {
+    showNotification(`Delete failed: ${error.message}`, 'danger');
+  });
+}
+
+// Selection functions
+function toggleSelectAllApplications() {
+  const selectAll = document.getElementById('select-all-apps');
+  const checkboxes = document.querySelectorAll('.app-checkbox');
+  
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = selectAll.checked;
+  });
+  
+  updateBatchSelectionCount();
+  updateSelectionIndicator();
+}
+
+function updateSelectionIndicator() {
+  const selected = getSelectedApplications();
+  const indicator = document.getElementById('applications-selection-indicator');
+  
+  if (selected.length > 0) {
+    indicator.textContent = `${selected.length} selected`;
+  } else {
+    indicator.textContent = '';
+  }
+}
+
+// View mode functions
+function setApplicationsView(viewMode) {
+  // Toggle button states
+  document.getElementById('view-table').classList.toggle('active', viewMode === 'table');
+  document.getElementById('view-grid').classList.toggle('active', viewMode === 'grid');
+  
+  // TODO: Implement grid view
+  if (viewMode === 'grid') {
+    showNotification('Grid view coming soon', 'info');
+  }
+}
+
+// Pagination functions
+function changeApplicationsPage(page) { if (window.applyApplicationFilters) { applyApplicationFilters({page}); } }
+function changeApplicationsPerPage(perPage) { if (window.applyApplicationFilters) { applyApplicationFilters({per_page: perPage}); } }
+
+// Notification function
+function showNotification(message, type = 'info') {
+  // You can integrate with your existing notification system
+  // For now, just show an alert or update a status area
+  const statusArea = document.getElementById('applications-selection-indicator');
+  if (statusArea) {
+    statusArea.innerHTML = `<span class="text-${type}">${message}</span>`;
+    setTimeout(() => {
+      statusArea.innerHTML = '';
+    }, 3000);
+  }
+}
+
+// Listen for checkbox changes to update selection
+document.addEventListener('change', function(evt) {
+  if (evt.target.classList.contains('app-checkbox')) {
+    updateSelectionIndicator();
+    updateBatchSelectionCount();
+  }
+});
 </script>
 
 <style>
-  #applications-table-wrapper .badge.bg-azure { background:#206bc4; }
-  #applications-table-wrapper { box-shadow: var(--tblr-shadow,0 1px 2px rgba(0,0,0,.04)); }
-  #applications-table-wrapper .apps-scroll-region { max-height:70vh; overflow:auto; }
-  #applications-table thead th { position:sticky; top:0; background:var(--tblr-bg-surface,#fff); z-index:5; }
-  @media (max-width: 991.98px){
-    #applications-table-wrapper .text-nowrap { white-space:normal !important; }
+#applications-table .badge.bg-azure-lt { 
+  background: rgba(32, 107, 196, 0.1); 
+  color: #206bc4; 
+}
+
+#applications-table { 
+  box-shadow: var(--tblr-shadow, 0 1px 2px rgba(0,0,0,.04)); 
+}
+
+.apps-table-scroll { 
+  max-height: 70vh; 
+  overflow: auto; 
+}
+
+.d-none { 
+  display: none !important; 
+}
+
+.btn-group .dropdown-menu {
+  min-width: 160px;
+}
+
+.btn-group .btn {
+  border-radius: 0;
+}
+
+.btn-group .btn:first-child {
+  border-top-left-radius: 0.375rem;
+  border-bottom-left-radius: 0.375rem;
+}
+
+.btn-group .btn:last-child {
+  border-top-right-radius: 0.375rem;
+  border-bottom-right-radius: 0.375rem;
+}
+
+@media (max-width: 991.98px) {
+  #applications-table .text-nowrap { 
+    white-space: normal !important; 
   }
+  
+  .btn-group {
+    flex-direction: column;
+  }
+  
+  .btn-group .btn {
+    border-radius: 0.375rem;
+    margin-bottom: 2px;
+  }
+}
 </style>

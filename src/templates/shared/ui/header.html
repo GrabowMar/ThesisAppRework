@@ -24,13 +24,13 @@
       </button>
       {# Left: Brand + breadcrumb (kept visually) #}
       <div class="d-flex align-items-center me-auto gap-2">
-  <a class="navbar-brand d-none d-lg-flex align-items-center py-0" href="{{ url_for('main.dashboard') }}" aria-label="Go to dashboard">
+  <a class="navbar-brand d-flex align-items-center py-0" href="{{ url_for('main.dashboard') }}" aria-label="Go to dashboard">
           <i class="fa-solid fa-chart-line me-2" aria-hidden="true"></i>
           <span class="fw-semibold d-none d-xl-inline">Thesis Platform</span>
         </a>
 
         {# Breadcrumb: small and unobtrusive on desktop #}
-        <div class="ms-3 d-none d-md-block">
+  <div class="ms-3">
           {% from 'shared/ui/macros/nav_macros.html' import breadcrumb %}
           {% set _bs = [] %}
           {% set _ = _bs.append({'label': 'Dashboard', 'url': url_for('main.dashboard')}) %}
@@ -66,13 +66,13 @@
         </div>
 
         {# Theme, search, notifications, user menu preserved but compact #}
-        <div class="nav-item d-none d-md-flex">
+  <div class="nav-item d-flex">
           <button class="btn btn-outline-secondary btn-sm" id="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle light/dark">
             <i class="fa-solid fa-moon" id="theme-toggle-icon" aria-hidden="true"></i>
           </button>
         </div>
 
-        <div class="nav-item d-none d-md-flex">
+  <div class="nav-item d-flex">
           <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#search-modal" aria-label="Open search"><i class="fa-solid fa-magnifying-glass"></i></button>
         </div>
 
