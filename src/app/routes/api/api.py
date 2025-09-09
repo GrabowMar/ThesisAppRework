@@ -940,8 +940,15 @@ def api_models_paginated():
                     _mid = _raw.get('id') or ''
                     if not _mid:
                         continue
-                    _canon = _mid.replace('/', '_')
-                    or_index_by_slug[_canon] = _raw
+                    # Canonical with variant (replace / and :)
+                    _canon_full = _mid.replace('/', '_').replace(':', '_')
+                    or_index_by_slug[_canon_full] = _raw
+                    # Base (strip variant after colon)
+                    if ':' in _mid:
+                        _base_mid = _mid.split(':', 1)[0]
+                        _canon_base = _base_mid.replace('/', '_')
+                        # Don't overwrite a full exact entry, but add if missing
+                        or_index_by_slug.setdefault(_canon_base, _raw)
             except Exception as _e:  # pragma: no cover - best effort enrichment
                 current_app.logger.warning(f"OpenRouter enrichment (installed_only) failed: {_e}")
 
@@ -1047,7 +1054,8 @@ def api_models_paginated():
             'active_models': len(all_mapped_for_stats),
             'unique_providers': len(providers_set),
             'avg_cost_per_1k': round(sum(x['input_price_per_1k'] for x in all_mapped_for_stats) / max(len(all_mapped_for_stats), 1), 6),
-            'source': 'openrouter' if source == 'openrouter' else ('synthetic' if synthetic_mode else 'database')
+            'source': 'openrouter' if source == 'openrouter' else ('synthetic' if synthetic_mode else 'database'),
+            'openrouter_enriched_installed': bool(or_index_by_slug)
         }
         return jsonify({
             'models': mapped_page,

@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional
 
 from ..extensions import db
 from ..models import ModelCapability, GeneratedApplication, PortConfiguration
+from flask import current_app
 
 logger = get_logger('data_init')
 
@@ -554,7 +555,7 @@ class DataInitializationService:
 
         Returns a dict with success, updated count, and scanned_folders count or errors on failure.
         """
-        results = {'success': True, 'updated': 0, 'scanned_folders': 0, 'errors': []}
+        results = {'success': True, 'updated': 0, 'scanned_folders': 0, 'errors': [], 'openrouter_enriched': 0}
         try:
             if not self.models_path.exists():
                 results.update({'success': False, 'errors': ['src/generated/apps folder not found']})
@@ -563,13 +564,11 @@ class DataInitializationService:
             dirs = [d.name for d in self.models_path.iterdir() if d.is_dir()]
             results['scanned_folders'] = len(dirs)
 
-            # Optionally reset existing flags
             if reset_first:
                 try:
                     db.session.query(ModelCapability).update({ModelCapability.installed: False})
                     db.session.flush()
                 except Exception:
-                    # If flush fails, continue to try marking individual rows
                     db.session.rollback()
 
             updated = 0
@@ -582,6 +581,114 @@ class DataInitializationService:
                 except Exception as e:
                     results['errors'].append(f"Error marking {d}: {str(e)}")
 
+            # Enrichment
+            enriched = 0
+            try:
+                from app.services.openrouter_service import OpenRouterService
+                ors = OpenRouterService()
+                if ors.api_key:
+                    raw_models = ors.fetch_all_models() or []
+                    index: dict[str, dict] = {}
+                    for rm in raw_models:
+                        if not isinstance(rm, dict):
+                            continue
+                        mid = rm.get('id')
+                        if not mid:
+                            continue
+                        index[mid] = rm
+                        if ':' in mid:
+                            base_mid = mid.split(':', 1)[0]
+                            index.setdefault(base_mid, rm)
+                    installed_models = ModelCapability.query.filter_by(installed=True).all()
+                    for m in installed_models:
+                        try:
+                            if '_' not in m.canonical_slug:
+                                continue
+                            provider, rest = m.canonical_slug.split('_', 1)
+                            candidate_ids = [f"{provider}/{rest}"]
+                            if ':' in candidate_ids[0]:
+                                candidate_ids.append(candidate_ids[0].split(':', 1)[0])
+                            raw = None
+                            for cid in candidate_ids:
+                                raw = index.get(cid)
+                                if raw:
+                                    break
+                            if not raw:
+                                continue
+                            pricing = raw.get('pricing') or {}
+                            try:
+                                p_prompt = float(pricing.get('prompt') or pricing.get('prompt_tokens') or 0)
+                                m.input_price_per_token = p_prompt if p_prompt <= 5 else p_prompt / 1000.0
+                            except Exception:
+                                pass
+                            try:
+                                p_comp = float(pricing.get('completion') or pricing.get('completion_tokens') or 0)
+                                m.output_price_per_token = p_comp if p_comp <= 5 else p_comp / 1000.0
+                            except Exception:
+                                pass
+                            ctx = raw.get('context_length') or (raw.get('top_provider') or {}).get('context_length')
+                            if ctx:
+                                try:
+                                    m.context_window = int(ctx)
+                                except Exception:
+                                    pass
+                            max_out = (raw.get('top_provider') or {}).get('max_completion_tokens')
+                            if max_out:
+                                try:
+                                    m.max_output_tokens = int(max_out)
+                                except Exception:
+                                    pass
+                            m.supports_function_calling = bool(raw.get('supports_tool_calls'))
+                            m.supports_json_mode = bool(raw.get('supports_json_mode'))
+                            m.supports_streaming = bool(raw.get('supports_streaming'))
+                            m.supports_vision = bool(raw.get('supports_vision'))
+                            m.is_free = (
+                                (pricing.get('prompt') in (0, '0', '0.0', None, '')) and
+                                (pricing.get('completion') in (0, '0', '0.0', None, ''))
+                            )
+                            arch = raw.get('architecture') or {}
+                            caps: list[str] = []
+                            for key in ('modality', 'input_modalities', 'output_modalities'):
+                                val = arch.get(key)
+                                if isinstance(val, str):
+                                    caps.append(val)
+                                elif isinstance(val, list):
+                                    caps.extend([v for v in val if v])
+                            caps_dict = {
+                                'capabilities': list({c for c in caps if c}),
+                                'supports_tool_calls': raw.get('supports_tool_calls'),
+                                'supports_json_mode': raw.get('supports_json_mode'),
+                                'supports_streaming': raw.get('supports_streaming'),
+                                'supports_vision': raw.get('supports_vision')
+                            }
+                            try:
+                                m.set_capabilities(caps_dict)
+                            except Exception:
+                                pass
+                            meta_subset = {
+                                'openrouter_id': raw.get('id'),
+                                'openrouter_name': raw.get('name'),
+                                'openrouter_canonical_slug': raw.get('canonical_slug'),
+                                'openrouter_description': raw.get('description'),
+                                'openrouter_top_provider': raw.get('top_provider'),
+                                'openrouter_architecture': raw.get('architecture'),
+                                'openrouter_pricing': pricing,
+                                'openrouter_variants': raw.get('variants') or raw.get('static_variants')
+                            }
+                            try:
+                                existing_meta = m.get_metadata()
+                                existing_meta.update({k: v for k, v in meta_subset.items() if v is not None})
+                                m.set_metadata(existing_meta)
+                            except Exception:
+                                pass
+                            enriched += 1
+                        except Exception:
+                            continue
+                else:
+                    current_app.logger.info('OpenRouter enrichment skipped: API key missing')
+            except Exception as _e:
+                current_app.logger.warning(f'OpenRouter enrichment failure: {_e}')
+            results['openrouter_enriched'] = enriched
             db.session.commit()
             results['updated'] = updated
             return results
