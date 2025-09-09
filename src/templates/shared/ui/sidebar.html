@@ -1,9 +1,18 @@
 {#
-  Component: Robust Collapsible Sidebar Navigation
+  Component: Robust Collapsible Sidebar Navigation (Refined)
   Purpose: Mobile-friendly sidebar with proper collapse, HTMX compatibility, and responsive behavior
-  Features: Auto-collapse on mobile, persistent state, proper ARIA support
+  Enhancements (2025-09):
+    - Active link detection + aria-current
+    - Reduced padding + subtle accent bar for active state
+    - Accessible labels & roles alignment
+    - Data attributes for JS (future) + cleaner markup
+  Notes:
+    - Active heuristics use request.endpoint prefix matching where sensible.
+    - Keep icon-only tooltips handled by existing CSS when collapsed.
+    - No hard-coded colors here; styling handled in theme.css.
 #}
 {% from 'shared/ui/macros/nav_macros.html' import nav_link %}
+{% set ep = request.endpoint or '' %}
 
 <!-- Desktop sidebar -->
 <aside class="sidebar bg-dark text-white d-flex flex-column flex-shrink-0" id="sidebar" aria-label="Main navigation">
@@ -11,10 +20,9 @@
     {# Brand/Logo Section with Toggle Button #}
   <div class="sidebar-brand p-3 border-bottom border-secondary d-flex align-items-center justify-content-between sidebar-brand-height">
       <a href="{{ url_for('main.dashboard') }}" 
-         class="d-flex align-items-center text-white text-decoration-none"
+         class="d-flex align-items-center text-white text-decoration-none brand-link"
          hx-boost="true"
          title="Go to Dashboard">
-        <i class="fa-solid fa-chart-line me-2 nav-icon" aria-hidden="true"></i>
         <span class="fw-bold fs-5 sidebar-text">Thesis</span>
       </a>
       <button id="sidebar-toggle" 
@@ -29,14 +37,16 @@
 
     {# Navigation Menu #}
     <nav class="sidebar-nav flex-grow-1 py-3" role="navigation" aria-label="Main menu">
-  <ul class="nav nav-pills flex-column px-3 pt-2">
+  <ul class="nav nav-pills flex-column px-3 pt-2" data-nav-root>
         {# Dashboard #}
   <li class="nav-item mb-1">
           <a href="{{ url_for('main.dashboard') }}" 
-             class="nav-link text-white d-flex align-items-center" 
+             class="nav-link text-white d-flex align-items-center {% if ep == 'main.dashboard' %}active{% endif %}" 
              hx-boost="true" 
              title="Dashboard"
-             data-nav-target="dashboard">
+             data-nav-target="dashboard"
+             data-active="{{ 'true' if ep == 'main.dashboard' else 'false' }}"
+             {% if ep == 'main.dashboard' %}aria-current="page"{% endif %}>
             <i class="fa-solid fa-gauge-high me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">Dashboard</span>
           </a>
@@ -45,10 +55,12 @@
         {# Analysis Section #}
   <li class="nav-item mb-1">
           <a href="{{ url_for('analysis.analysis_index') }}" 
-             class="nav-link text-white d-flex align-items-center" 
+             class="nav-link text-white d-flex align-items-center {% if ep.startswith('analysis.') %}active{% endif %}" 
              hx-boost="true" 
              title="Analysis Hub"
-             data-nav-target="analysis">
+             data-nav-target="analysis"
+             data-active="{{ 'true' if ep.startswith('analysis.') else 'false' }}"
+             {% if ep.startswith('analysis.') %}aria-current="page"{% endif %}>
             <i class="fa-solid fa-chart-column me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">Analysis Hub</span>
           </a>
@@ -57,10 +69,12 @@
         {# Models #}
   <li class="nav-item mb-1">
           <a href="{{ url_for('main.models_overview') }}" 
-             class="nav-link text-white d-flex align-items-center" 
+             class="nav-link text-white d-flex align-items-center {% if ep.startswith('main.models') %}active{% endif %}" 
              hx-boost="true" 
              title="Models"
-             data-nav-target="models">
+             data-nav-target="models"
+             data-active="{{ 'true' if ep.startswith('main.models') else 'false' }}"
+             {% if ep.startswith('main.models') %}aria-current="page"{% endif %}>
             <i class="fa-solid fa-cubes-stacked me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">Models</span>
           </a>
@@ -69,10 +83,12 @@
         {# Applications #}
   <li class="nav-item mb-1">
           <a href="{{ url_for('main.applications_index') }}" 
-             class="nav-link text-white d-flex align-items-center" 
+             class="nav-link text-white d-flex align-items-center {% if ep.startswith('main.applications') %}active{% endif %}" 
              hx-boost="true" 
              title="Applications"
-             data-nav-target="applications">
+             data-nav-target="applications"
+             data-active="{{ 'true' if ep.startswith('main.applications') else 'false' }}"
+             {% if ep.startswith('main.applications') %}aria-current="page"{% endif %}>
             <i class="fa-solid fa-laptop-code me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">Applications</span>
           </a>
@@ -81,10 +97,12 @@
         {# Sample Generator #}
   <li class="nav-item mb-1">
           <a href="{{ url_for('sample_generator.index') }}" 
-             class="nav-link text-white d-flex align-items-center" 
+             class="nav-link text-white d-flex align-items-center {% if ep.startswith('sample_generator.') %}active{% endif %}" 
              hx-boost="true" 
              title="Sample Generator"
-             data-nav-target="sample-generator">
+             data-nav-target="sample-generator"
+             data-active="{{ 'true' if ep.startswith('sample_generator.') else 'false' }}"
+             {% if ep.startswith('sample_generator.') %}aria-current="page"{% endif %}>
             <i class="fa-solid fa-code me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">Sample Generator</span>
           </a>
@@ -93,10 +111,12 @@
         {# Reports #}
   <li class="nav-item mb-1">
           <a href="{{ url_for('reports.reports_index') }}" 
-             class="nav-link text-white d-flex align-items-center" 
+             class="nav-link text-white d-flex align-items-center {% if ep.startswith('reports.') %}active{% endif %}" 
              hx-boost="true" 
              title="Reports"
-             data-nav-target="reports">
+             data-nav-target="reports"
+             data-active="{{ 'true' if ep.startswith('reports.') else 'false' }}"
+             {% if ep.startswith('reports.') %}aria-current="page"{% endif %}>
             <i class="fa-solid fa-file-lines me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">Reports</span>
           </a>
@@ -105,10 +125,12 @@
         {# Statistics #}
   <li class="nav-item mb-1">
           <a href="{{ url_for('statistics.statistics_overview') }}" 
-             class="nav-link text-white d-flex align-items-center" 
+             class="nav-link text-white d-flex align-items-center {% if ep.startswith('statistics.') %}active{% endif %}" 
              hx-boost="true" 
              title="Statistics"
-             data-nav-target="statistics">
+             data-nav-target="statistics"
+             data-active="{{ 'true' if ep.startswith('statistics.') else 'false' }}"
+             {% if ep.startswith('statistics.') %}aria-current="page"{% endif %}>
             <i class="fa-solid fa-chart-line me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">Statistics</span>
           </a>
@@ -117,10 +139,12 @@
         {# Documentation #}
         <li class="nav-item mb-2">
           <a href="{{ url_for('docs.docs_index') }}" 
-             class="nav-link text-white d-flex align-items-center" 
+             class="nav-link text-white d-flex align-items-center {% if ep.startswith('docs.') %}active{% endif %}" 
              hx-boost="true" 
              title="Documentation & About"
-             data-nav-target="docs">
+             data-nav-target="docs"
+             data-active="{{ 'true' if ep.startswith('docs.') else 'false' }}"
+             {% if ep.startswith('docs.') %}aria-current="page"{% endif %}>
             <i class="fa-solid fa-book me-3 nav-icon" aria-hidden="true"></i>
             <span class="sidebar-text">Documentation</span>
           </a>
@@ -135,7 +159,7 @@
       <div class="d-flex flex-column gap-2">
         {# System Status #}
         <div class="d-flex align-items-center justify-content-center gap-2">
-          <span class="status-indicator status-indicator-animated bg-success" style="width:10px;height:10px;" aria-hidden="true"></span>
+          <span class="status-indicator status-indicator-animated bg-success status-dot-sm" aria-hidden="true"></span>
           <span class="text-muted fw-medium sidebar-text">Online</span>
         </div>
 
@@ -154,8 +178,8 @@
   id="mobile-sidebar-toggle"
   type="button"
         data-bs-toggle="offcanvas" 
-        data-bs-target="#mobile-sidebar"
-        aria-controls="mobile-sidebar"
+        data-bs-target="#sidebar"{# reuse existing sidebar for accessibility context #}
+        aria-controls="sidebar"
         aria-label="Open mobile menu"
         title="Open navigation menu">
   <i class="fa-solid fa-bars" aria-hidden="true"></i>

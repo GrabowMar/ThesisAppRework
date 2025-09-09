@@ -29,10 +29,10 @@
       { 'label': 'Refresh', 'href': url_for('main.dashboard'), 'icon': 'fa-solid fa-rotate', 'class': 'btn-outline-light btn-sm' }
     ]
 #}
-<div class="page-header page-header-compact page-header-accent mb-3 rounded-3">
+<div class="page-header page-header-compact page-header-accent mb-3 rounded-3 shadow-sm">
   <div class="page-header-inner d-flex align-items-center flex-wrap w-100">
     <div class="d-flex align-items-center gap-2 me-auto py-1">
-      <h2 class="page-title h5 d-flex align-items-center gap-2 mb-0 fw-semibold text-white">
+  <h2 class="page-title h5 d-flex align-items-center gap-2 mb-0 fw-semibold text-white tracking-tight">
         {% if page_icon %}<i class="{{ page_icon }} opacity-75" aria-hidden="true"></i>{% endif %}
         <span>{{ page_title or 'Untitled' }}</span>
       </h2>
@@ -41,7 +41,7 @@
       {% endif %}
     </div>
     {% if actions %}
-      <div class="page-header-actions d-flex align-items-center gap-2 py-1">
+  <div class="page-header-actions d-flex align-items-center gap-2 py-1 flex-wrap justify-content-end">
         {% for a in actions %}
           <a href="{{ a.href or '#' }}" class="btn {{ a.class or 'btn-light btn-sm' }} d-inline-flex align-items-center gap-1" {% if a.title %}title="{{ a.title }}"{% endif %} {% if a.id %}id="{{ a.id }}"{% endif %}>
             {% if a.icon %}<i class="{{ a.icon }}" aria-hidden="true"></i>{% endif %}

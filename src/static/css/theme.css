@@ -123,7 +123,7 @@ body.sidebar-collapsed footer.footer { margin-left: var(--sidebar-collapsed-widt
 .sidebar-content { height:100%; }
 
 /* Brand / header area */
-.sidebar-brand { border-bottom:1px solid #495057 !important; transition:background-color .15s ease; padding:1rem !important; display:flex; align-items:center; justify-content:space-between; padding-left:var(--sidebar-icon-offset) !important; }
+.sidebar-brand { border-bottom:1px solid #495057 !important; transition:background-color .15s ease; padding:.85rem .9rem !important; display:flex; align-items:center; justify-content:space-between; }
 .sidebar-brand:hover { background:rgba(255,255,255,0.05); }
 .sidebar-brand a { color:#fff !important; text-decoration:none; display:flex; align-items:center; min-width:0; }
 .sidebar-brand a:hover { color:#fff !important; }
@@ -145,11 +145,53 @@ body.sidebar-collapsed footer.footer { margin-left: var(--sidebar-collapsed-widt
 .sidebar-nav .nav-link .nav-icon { font-size:18px; }
 :root[data-bs-theme='dark'] .sidebar-nav .nav-link { color:#868e96; }
 :root[data-bs-theme='dark'] .sidebar-nav .nav-link:hover { background:#2c3034; color:#fff; }
-:root[data-bs-theme='dark'] .sidebar-nav .nav-link.active { background:#0d6efd; color:#fff; }
+/* Remove dark mode solid highlight for active; color handled later */
+:root[data-bs-theme='dark'] .sidebar-nav .nav-link.active { background:transparent; color:#fff; }
 .sidebar-nav .nav-link:hover { background:#495057; color:#fff; transform:translateX(2px); }
 .sidebar.collapsed .nav-link:hover { transform:none; }
-.sidebar-nav .nav-link:focus { outline:2px solid #0d6efd; outline-offset:2px; background:#495057; color:#fff; }
-.sidebar-nav .nav-link.active { background:#0d6efd; color:#fff; box-shadow:0 2px 4px rgba(13,110,253,.3); }
+.sidebar-nav .nav-link:focus { outline:2px solid var(--color-accent); outline-offset:2px; background:#3e4449; color:#fff; box-shadow:0 0 0 2px rgba(13,110,253,0.25); }
+/* New active styling: underline when expanded, halo when collapsed */
+.sidebar-nav .nav-link.active { background:transparent !important; color:#fff; box-shadow:none; position:relative; }
+.sidebar-nav .nav-link.active::before { display:none; }
+.sidebar:not(.collapsed) .sidebar-nav .nav-link.active::after {
+	content:'';
+	position:absolute;
+	left: var(--sidebar-icon-offset);
+	right: 10px;
+	bottom: 4px;
+	height:2px;
+	background: var(--color-accent);
+	border-radius:2px;
+	opacity:.9;
+}
+.sidebar.collapsed .sidebar-nav .nav-link.active .nav-icon { position:relative; z-index:1; }
+.sidebar.collapsed .sidebar-nav .nav-link.active .nav-icon::after {
+	content:'';
+	position:absolute;
+	top:50%; left:50%;
+	transform:translate(-50%,-50%);
+	width:36px; height:36px;
+	border-radius:50%;
+	background:rgba(13,110,253,.15);
+	box-shadow:0 0 0 2px var(--color-accent), 0 0 8px rgba(13,110,253,.45);
+	z-index:-1;
+}
+/* Compact hover lift subtle */
+.sidebar-nav .nav-link { padding:.5rem .65rem .5rem var(--sidebar-icon-offset); }
+.sidebar-nav .nav-link .nav-icon { font-size:17px; transition:color .15s ease, background .15s ease; }
+.sidebar.collapsed .nav-link { padding:.9rem 0; }
+/* Status dot size utility */
+.status-dot-sm { width:8px; height:8px; display:inline-block; }
+
+/* Center icons perfectly when collapsed (flex alignment already, adjust spacing) */
+.sidebar.collapsed .nav-link { gap:0 !important; position:relative; }
+.sidebar.collapsed .nav-link .nav-icon { margin-right:0 !important; width:100%; text-align:center; font-size:19px; }
+.sidebar.collapsed .nav-link::after { content:''; position:absolute; bottom:0; left:50%; transform:translateX(-50%); width:28px; height:1px; background:rgba(255,255,255,0.05); }
+.sidebar.collapsed .nav-link:last-child::after { display:none; }
+.sidebar.collapsed .sidebar-nav { padding-left:0 !important; padding-right:0 !important; }
+.sidebar.collapsed .sidebar-nav .nav-link { width:100%; justify-content:center; }
+/* Remove previous centered bar when collapsed (legacy) */
+
 
 /* Icons */
 .sidebar-nav .nav-icon { flex-shrink:0; width:var(--sidebar-icon-size); text-align:left; margin-right:.75rem !important; }
@@ -211,6 +253,10 @@ body.sidebar-collapsed footer.footer { margin-left: var(--sidebar-collapsed-widt
 :root[data-bs-theme='dark'] #mobile-burger:hover { background:#303336; }
 #mobile-burger:focus { outline:2px solid #0d6efd; outline-offset:2px; }
 @media (min-width: 992px){ #mobile-burger { display:none !important; } }
+
+/* Larger toggle icons */
+#sidebar-toggle i, #mobile-sidebar-toggle i { font-size:20px; }
+@media (max-width: 991.98px){ #mobile-sidebar-toggle i { font-size:22px; } }
 
 /* Dark mode general adjustments */
 :root[data-bs-theme='dark'] body { background:#1f2123; color:var(--color-text); }

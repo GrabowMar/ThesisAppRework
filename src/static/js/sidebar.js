@@ -54,8 +54,19 @@
     } catch(e){ /* silent */ }
   }
 
+  function reapplyPersisted(){
+    var pref = readPref();
+    if(pref === 'collapsed'){ apply(true); }
+    else if(pref === 'expanded'){ apply(false); }
+  }
+
   function init(){
-    if(INIT_DONE){ highlight(); return; }
+    if(INIT_DONE){
+      // Re-highlight & ensure persisted state re-applied (template may have been swapped)
+      reapplyPersisted();
+      highlight();
+      return;
+    }
     INIT_DONE = true;
     auto();
     highlight();
@@ -68,8 +79,14 @@
   });
   window.addEventListener('resize', auto);
   // HTMX lifecycle: afterSettle handles fragment swaps; also cover afterSwap for safety
-  document.addEventListener('htmx:afterSettle', highlight);
-  document.addEventListener('htmx:afterSwap', highlight);
+  function onHtmxUpdate(){
+    // Ensure classes restored if sidebar fragment re-rendered
+    reapplyPersisted();
+    highlight();
+  }
+  document.addEventListener('htmx:afterSettle', onHtmxUpdate);
+  document.addEventListener('htmx:afterSwap', onHtmxUpdate);
+  document.addEventListener('htmx:afterOnLoad', onHtmxUpdate);
 
   // Public API
   window.ThesisSidebar = { __v:2, init:init, toggle:toggle, highlight:highlight, auto:auto, _test: { apply:apply } };
