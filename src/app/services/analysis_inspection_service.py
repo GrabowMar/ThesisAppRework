@@ -106,23 +106,77 @@ class AnalysisInspectionService:
         For large result sets we only include counts (caller can page future route).
         """
         task = self.get_task(task_id)
-        summary = task.get_result_summary() if hasattr(task, 'get_result_summary') else {}
-        severity = task.get_severity_breakdown() if hasattr(task, 'get_severity_breakdown') else {}
+        
+        # Extract analysis results from task metadata
+        metadata = task.get_metadata()
+        analysis_data = metadata.get('analysis', {})
+        
+        # Build summary from metadata
+        summary = analysis_data.get('summary', {})
+        
+        # Extract severity breakdown
+        severity = summary.get('severity_breakdown', {})
+        
+        # Extract findings from the nested analysis results structure
         findings: List[Dict[str, Any]] = []
-        # Only include up to 50 findings inline to prevent huge HTML payloads
-        for r in (task.results or [])[:50]:  # type: ignore[attr-defined]
-            try:
-                findings.append({
-                    'id': r.id,
-                    'result_id': r.result_id,
-                    'tool': r.tool_name,
-                    'severity': getattr(r.severity, 'value', r.severity),
-                    'title': r.title,
-                    'category': r.category,
-                    'file_path': r.file_path,
-                })
-            except Exception:
-                pass
+        total_issues = 0
+        
+        if 'results' in analysis_data:
+            results = analysis_data['results']
+            
+            # Process Python tool results (bandit, pylint, etc.)
+            if 'python' in results:
+                python_results = results['python']
+                
+                # Process Bandit issues
+                if 'bandit' in python_results and 'issues' in python_results['bandit']:
+                    for issue in python_results['bandit']['issues'][:25]:  # Limit to first 25
+                        findings.append({
+                            'tool': 'bandit',
+                            'severity': issue.get('issue_severity', 'unknown').lower(),
+                            'title': issue.get('issue_text', 'Security issue'),
+                            'category': issue.get('test_name', 'security'),
+                            'file_path': issue.get('filename', '').replace('/app/sources/', ''),
+                            'line_number': issue.get('line_number'),
+                            'message': issue.get('issue_text', ''),
+                            'test_id': issue.get('test_id'),
+                            'confidence': issue.get('issue_confidence', 'unknown').lower()
+                        })
+                
+                # Process PyLint issues  
+                if 'pylint' in python_results and 'issues' in python_results['pylint']:
+                    for issue in python_results['pylint']['issues'][:25]:  # Limit to first 25
+                        findings.append({
+                            'tool': 'pylint',
+                            'severity': issue.get('type', 'unknown').lower(),
+                            'title': issue.get('message', 'Code quality issue'),
+                            'category': issue.get('symbol', 'code-quality'),
+                            'file_path': issue.get('path', ''),
+                            'line_number': issue.get('line'),
+                            'message': issue.get('message', ''),
+                            'symbol': issue.get('symbol'),
+                            'message_id': issue.get('message-id')
+                        })
+            
+            # Process JavaScript tool results
+            if 'javascript' in results:
+                js_results = results['javascript']
+                if 'eslint' in js_results and 'issues' in js_results['eslint']:
+                    for issue in js_results['eslint']['issues'][:25]:
+                        findings.append({
+                            'tool': 'eslint',
+                            'severity': issue.get('severity', 'unknown').lower(),
+                            'title': issue.get('message', 'JavaScript issue'),
+                            'category': issue.get('ruleId', 'javascript'),
+                            'file_path': issue.get('filePath', ''),
+                            'line_number': issue.get('line'),
+                            'message': issue.get('message', ''),
+                            'rule_id': issue.get('ruleId')
+                        })
+        
+        # Calculate total issues from summary or count findings
+        total_issues = summary.get('total_issues_found', len(findings))
+        
         payload = {
             'task_id': task.task_id,
             'status': getattr(task.status, 'value', task.status),
@@ -130,7 +184,7 @@ class AnalysisInspectionService:
             'summary': summary,
             'severity_breakdown': severity,
             'findings_preview': findings,
-            'findings_total': len(task.results or [])  # type: ignore[attr-defined]
+            'findings_total': total_issues
         }
         return payload
 
