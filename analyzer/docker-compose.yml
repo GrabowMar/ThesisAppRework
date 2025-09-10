@@ -47,7 +47,7 @@ services:
       - WEBSOCKET_PORT=2001
       - PYTHONPATH=/app
     volumes:
-      - ../misc/models:/app/sources:ro
+      - ../src/generated/apps:/app/sources:ro
       - static-results:/app/results
     healthcheck:
       test: ["CMD", "python", "health_check.py"]
@@ -144,7 +144,7 @@ services:
       - PYTHONPATH=/app
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
     volumes:
-      - ../misc/models:/app/sources:ro
+      - ../src/generated/apps:/app/sources:ro
       - ai-results:/app/results
     healthcheck:
       test: ["CMD", "python", "health_check.py"]

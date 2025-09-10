@@ -9,26 +9,30 @@
   <div class="d-flex align-items-center mb-3 flex-wrap gap-2">
     <h2 class="h4 mb-0 d-flex align-items-center gap-2"><i class="fa-solid fa-tasks"></i> Analysis Tasks</h2>
     <a href="/analysis/create" class="btn btn-primary btn-sm"><i class="fa fa-plus me-1"></i> New Analysis</a>
-    <a href="/analysis/tasks" class="btn btn-outline-secondary btn-sm"><i class="fa fa-microscope me-1"></i> Inspection View</a>
   </div>
+  {% if show_legacy_notice %}
+  <div class="alert alert-info py-2 small">
+    <strong>Unified View:</strong> The dedicated inspection page was merged into this tasks hub. Update any old bookmarks.
+  </div>
+  {% endif %}
   <form id="main-task-filter-form" class="row g-2 align-items-end mb-3" hx-get="/analysis/api/tasks/inspect/list" hx-target="#main-tasks-table-wrapper" hx-trigger="change, keyup delay:400ms from:find input[name='search']">
     <div class="col-auto">
       <label class="form-label mb-0 small">Status</label>
-      <select name="status" class="form-select form-select-sm">
+  <select name="status" class="form-select form-select-sm" title="Filter by status">
         <option value="">All</option>
         <option>pending</option><option>running</option><option>completed</option><option>failed</option><option>cancelled</option>
       </select>
     </div>
     <div class="col-auto">
       <label class="form-label mb-0 small">Type</label>
-      <select name="analysis_type" class="form-select form-select-sm">
+  <select name="analysis_type" class="form-select form-select-sm" title="Filter by analysis type">
         <option value="">All</option>
         <option>security</option><option>performance</option><option>openrouter</option>
       </select>
     </div>
     <div class="col-auto">
       <label class="form-label mb-0 small">Priority</label>
-      <select name="priority" class="form-select form-select-sm">
+  <select name="priority" class="form-select form-select-sm" title="Filter by priority">
         <option value="">All</option>
         <option>urgent</option><option>high</option><option>normal</option><option>low</option>
       </select>
@@ -43,7 +47,7 @@
     </div>
     <div class="col-auto">
       <label class="form-label mb-0 small">Limit</label>
-      <select name="limit" class="form-select form-select-sm">
+  <select name="limit" class="form-select form-select-sm" title="Result limit">
         <option>25</option><option>50</option><option>100</option>
       </select>
     </div>
@@ -52,7 +56,12 @@
       <button type="reset" class="btn btn-link btn-sm" onclick="this.form.reset(); htmx.trigger(this.form,'change')">Reset</button>
     </div>
   </form>
-  <div id="main-tasks-table-wrapper" class="htmx-indicator-parent" hx-indicator="#global-spinner">
-    {% include 'pages/analysis/partials/inspection_tasks_table.html' %}
+  <div id="main-tasks-table-wrapper" class="htmx-indicator-parent" hx-indicator="#global-spinner"
+       {% if not tasks or tasks|length == 0 %}hx-get="/analysis/api/tasks/inspect/list" hx-trigger="load" hx-swap="innerHTML"{% endif %}>
+    {% if tasks and tasks|length > 0 %}
+      {% include 'pages/analysis/partials/inspection_tasks_table.html' %}
+    {% else %}
+      <div class="p-4 text-center text-muted">Loading tasks…</div>
+    {% endif %}
   </div>
 {% endblock %}

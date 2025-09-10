@@ -224,16 +224,18 @@ def htmx_active_tasks():
 
 @analysis_bp.route('/tasks')
 def tasks_inspection_index():
-    """Full page task inspection UI with filters and lazy HTMX reloads."""
-    insp = ServiceLocator.get('analysis_inspection_service')
-    # Basic first page load (limited)
-    tasks = []
-    if insp:
-        try:
-            tasks = insp.list_tasks(limit=25)  # type: ignore[attr-defined]
-        except Exception as e:  # pragma: no cover
-            current_app.logger.warning(f"Inspection list failed: {e}")
-    return render_template('pages/analysis/tasks_inspection.html', tasks=tasks)
+    """Legacy inspection route now unified with main analysis list.
+
+    Retained so old bookmarks/tests keep working. Renders the same unified
+    task management page and shows a small legacy notice banner.
+    """
+    # Prefer recent tasks for fast initial paint; fall back gracefully.
+    try:
+        tasks = AnalysisTaskService.get_recent_tasks(limit=25)
+    except Exception as e:  # pragma: no cover
+        current_app.logger.warning(f"Could not load initial tasks (legacy route): {e}")
+        tasks = []
+    return render_template('pages/analysis/analysis_main.html', tasks=tasks, show_legacy_notice=True)
 
 @analysis_bp.route('/tasks/<task_id>')
 def task_detail_page(task_id: str):
@@ -259,11 +261,14 @@ def task_detail_page(task_id: str):
 
 @analysis_bp.route('/api/tasks/inspect/list')
 def htmx_tasks_inspection_list():
-    """HTMX fragment: filtered task list (table rows)."""
+    """HTMX fragment: filtered task list (table rows).
+
+    Falls back to simple recent task listing if the dedicated inspection
+    service is unavailable (e.g., during initialization) so the UI does not
+    appear empty.
+    """
     insp = ServiceLocator.get('analysis_inspection_service')
-    if not insp:
-        return '<div class="text-danger">Inspection service unavailable</div>'
-    # Extract filters
+    # Extract filters (shared between inspection and fallback path)
     kwargs = {
         'status': request.args.get('status') or None,
         'analysis_type': request.args.get('analysis_type') or None,
@@ -272,11 +277,20 @@ def htmx_tasks_inspection_list():
         'search': request.args.get('search') or None,
     }
     limit = int(request.args.get('limit', 25))
-    try:
-        tasks = insp.list_tasks(limit=limit, **kwargs)  # type: ignore[arg-type]
-    except Exception as e:  # pragma: no cover
-        current_app.logger.warning(f"Task list filter failed: {e}")
-        tasks = []
+    tasks = []
+    if insp:
+        try:
+            tasks = insp.list_tasks(limit=limit, **kwargs)  # type: ignore[arg-type]
+        except Exception as e:  # pragma: no cover
+            current_app.logger.warning(f"Task list filter failed (insp): {e}")
+            tasks = []
+    # Fallback if insp missing OR returned nothing and filters not applied
+    if (not insp) and not tasks:
+        try:
+            tasks = AnalysisTaskService.get_recent_tasks(limit=limit)
+        except Exception as e:  # pragma: no cover
+            current_app.logger.warning(f"Fallback recent tasks failed: {e}")
+            tasks = []
     return render_template('pages/analysis/partials/inspection_tasks_table.html', tasks=tasks)
 
 ## Removed legacy /api/tasks/table endpoint (complex pagination table) during simplification.

@@ -114,31 +114,27 @@ class TaskExecutionService:
                             pass
                         logger.info("Task %s started", task_db.task_id)
 
-                        simulated_steps = 3
-                        for i in range(1, simulated_steps + 1):
-                            task_db.progress_percentage = (i / simulated_steps) * 100.0
-                            db.session.commit()
-                            try:  # Emit throttled progress (only final step will also mark completed later)
-                                from app.realtime.task_events import emit_task_event
-                                if i == simulated_steps:  # only emit final progress before completion
-                                    emit_task_event(
-                                        "task.progress",
-                                        {
-                                            "task_id": task_db.task_id,
-                                            "id": task_db.id,
-                                            "progress_percentage": task_db.progress_percentage,
-                                            "status": task_db.status.value if task_db.status else None,
-                                        },
-                                    )
-                            except Exception:
-                                pass
-                            time.sleep(0.05 if self._is_test_mode() else 0.3)
+                        # Execute real analysis instead of simulation
+                        try:
+                            result = self._execute_real_analysis(task_db)
+                            success = result.get('status') == 'success'
+                        except Exception as e:
+                            logger.error("Analysis execution failed for task %s: %s", task_db.task_id, e)
+                            success = False
+                            result = {'status': 'error', 'error': str(e)}
 
-                        # Ensure completion sets progress to 100 (model.complete_execution would do this
-                        # but we manipulate fields directly here for speed & isolation)
-                        task_db.status = AnalysisStatus.COMPLETED
+                        # Set final status based on analysis result
+                        task_db.status = AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED
                         task_db.progress_percentage = 100.0
                         task_db.completed_at = datetime.utcnow()
+                        
+                        # Store analysis results if available
+                        if result and result.get('payload'):
+                            try:
+                                task_db.set_metadata(result['payload'])
+                            except Exception as e:
+                                logger.warning("Failed to store analysis results for task %s: %s", task_db.task_id, e)
+                        
                         try:
                             if task_db.started_at and task_db.completed_at:
                                 task_db.actual_duration = (task_db.completed_at - task_db.started_at).total_seconds()
@@ -172,6 +168,53 @@ class TaskExecutionService:
         except Exception:  # pragma: no cover
             return False
 
+    def _execute_real_analysis(self, task: AnalysisTask) -> dict:
+        """Execute real analysis using the analysis engines."""
+        try:
+            # Get the analysis type
+            analysis_type = task.analysis_type.value if hasattr(task.analysis_type, 'value') else str(task.analysis_type)
+            
+            # Update progress to indicate analysis starting
+            task.progress_percentage = 20.0
+            db.session.commit()
+            
+            # Import and get the appropriate engine
+            from app.services.analysis_engines import get_engine
+            engine = get_engine(analysis_type)
+            
+            logger.info("Executing %s analysis for task %s", analysis_type, task.task_id)
+            
+            # Update progress
+            task.progress_percentage = 40.0
+            db.session.commit()
+            
+            # Execute the analysis
+            result = engine.run(
+                model_slug=task.target_model,
+                app_number=task.target_app_number,
+                tools=['bandit', 'safety', 'pylint']  # Default tools for security
+            )
+            
+            # Update progress
+            task.progress_percentage = 80.0
+            db.session.commit()
+            
+            logger.info("Analysis completed for task %s with status: %s", task.task_id, result.status)
+            
+            return {
+                'status': result.status,
+                'payload': result.payload,
+                'error': result.error
+            }
+            
+        except Exception as e:
+            logger.error("Failed to execute analysis for task %s: %s", task.task_id, e)
+            return {
+                'status': 'error',
+                'error': str(e),
+                'payload': {}
+            }
+
     # --- Synchronous helper for tests ------------------------------------
     def process_once(self, limit: int | None = None) -> int:
         """Advance a single batch of pending tasks synchronously.
@@ -200,15 +243,78 @@ class TaskExecutionService:
                     task_db.started_at = datetime.utcnow()
                     db.session.commit()
 
-                    # Simulated quick progress
-                    simulated_steps = 3
-                    for i in range(1, simulated_steps + 1):
-                        task_db.progress_percentage = (i / simulated_steps) * 100.0
-                        db.session.commit()
-                    # Explicitly force 100% completion for deterministic test expectations
-                    task_db.status = AnalysisStatus.COMPLETED
+                    # Execute real analysis instead of simulation
+                    try:
+                        result = self._execute_real_analysis(task_db)
+                        success = result.get('status') == 'success'
+                    except Exception as e:
+                        logger.error("Analysis execution failed for task %s: %s", task_db.task_id, e)
+                        success = False
+                        result = {'status': 'error', 'error': str(e)}
+
+                    # Set final status based on analysis result  
+                    task_db.status = AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED
                     task_db.progress_percentage = 100.0
                     task_db.completed_at = datetime.utcnow()
+                    
+                    # Store analysis results if available
+                    if result and result.get('payload'):
+                        try:
+                            task_db.set_metadata(result['payload'])
+                            
+                            # Extract summary information and update task fields
+                            payload = result['payload']
+                            if isinstance(payload, dict):
+                                analysis_data = payload.get('analysis', {})
+                                summary = analysis_data.get('summary', {})
+                                
+                                # Update issues count
+                                task_db.issues_found = summary.get('total_issues_found', 0)
+                                
+                                # Store result summary
+                                if summary:
+                                    task_db.set_result_summary(summary)
+                                
+                                # Calculate and store severity breakdown
+                                severity_counts = {'error': 0, 'warning': 0, 'info': 0, 'medium': 0, 'high': 0, 'low': 0}
+                                
+                                if 'results' in analysis_data:
+                                    results_data = analysis_data['results']
+                                    
+                                    # Count Python tool issues
+                                    if 'python' in results_data:
+                                        python_results = results_data['python']
+                                        
+                                        # Count Bandit issues
+                                        if 'bandit' in python_results and 'issues' in python_results['bandit']:
+                                            for issue in python_results['bandit']['issues']:
+                                                severity = issue.get('issue_severity', 'unknown').lower()
+                                                if severity in severity_counts:
+                                                    severity_counts[severity] += 1
+                                        
+                                        # Count PyLint issues
+                                        if 'pylint' in python_results and 'issues' in python_results['pylint']:
+                                            for issue in python_results['pylint']['issues']:
+                                                issue_type = issue.get('type', 'unknown').lower()
+                                                if issue_type in severity_counts:
+                                                    severity_counts[issue_type] += 1
+                                    
+                                    # Count JavaScript tool issues
+                                    if 'javascript' in results_data:
+                                        js_results = results_data['javascript']
+                                        if 'eslint' in js_results and 'issues' in js_results['eslint']:
+                                            for issue in js_results['eslint']['issues']:
+                                                severity = issue.get('severity', 'unknown').lower()
+                                                if severity in severity_counts:
+                                                    severity_counts[severity] += 1
+                                
+                                # Store severity breakdown as JSON
+                                import json
+                                task_db.severity_breakdown = json.dumps(severity_counts)
+                                
+                        except Exception as e:
+                            logger.warning("Failed to store analysis results for task %s: %s", task_db.task_id, e)
+                    
                     try:
                         if task_db.started_at and task_db.completed_at:
                             task_db.actual_duration = (task_db.completed_at - task_db.started_at).total_seconds()
