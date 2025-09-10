@@ -527,6 +527,101 @@ class AnalysisExecutor:
             logger.error(f"Error cancelling analysis for task {task_id}: {e}")
             return False
 
+    # Subprocess bridge methods for engine compatibility
+    def run_security_analysis(self, model_slug: str, app_number: int, tools: Optional[List[str]] = None, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Run security analysis via subprocess bridge to analyzer_manager.py."""
+        return self._run_analyzer_subprocess('security', model_slug, app_number, tools=tools, options=options)
+    
+    def run_performance_test(self, model_slug: str, app_number: int, test_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Run performance test via subprocess bridge to analyzer_manager.py."""
+        return self._run_analyzer_subprocess('performance', model_slug, app_number, config=test_config)
+    
+    def run_static_analysis(self, model_slug: str, app_number: int, tools: Optional[List[str]] = None, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Run static analysis via subprocess bridge to analyzer_manager.py."""
+        return self._run_analyzer_subprocess('static', model_slug, app_number, tools=tools, options=options)
+    
+    def run_dynamic_analysis(self, model_slug: str, app_number: int, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Run dynamic analysis via subprocess bridge to analyzer_manager.py."""
+        return self._run_analyzer_subprocess('dynamic', model_slug, app_number, options=options)
+    
+    def _run_analyzer_subprocess(self, analysis_type: str, model_slug: str, app_number: int, **kwargs) -> Dict[str, Any]:
+        """Run analyzer_manager.py via subprocess with proper UTF-8 handling."""
+        import subprocess
+        import os
+        import json
+        import sys
+        
+        try:
+            # Build command - use absolute path to Python executable
+            analyzer_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'analyzer')
+            
+            # Get the same Python executable that's running the worker
+            python_exe = sys.executable
+            
+            cmd = [
+                python_exe, 'analyzer_manager.py', 'analyze',
+                model_slug, str(app_number), analysis_type
+            ]
+            
+            # Add tools if specified
+            if 'tools' in kwargs and kwargs['tools']:
+                cmd.extend(['--tools'] + kwargs['tools'])
+            
+            logger.info(f"Running analyzer subprocess: {' '.join(cmd)}")
+            
+            # Set up environment with UTF-8 encoding and JSON mode
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+            env['PYTHONLEGACYWINDOWSSTDIO'] = '0'  # Force UTF-8 on Windows
+            env['ANALYZER_JSON'] = '1'  # Enable JSON output mode
+            
+            # Run with proper UTF-8 encoding
+            result = subprocess.run(
+                cmd,
+                cwd=analyzer_dir,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                env=env,
+                timeout=300  # 5 minute timeout
+            )
+            
+            if result.returncode != 0:
+                logger.error(f"Analyzer subprocess failed: {result.stderr}")
+                return {
+                    'status': 'error',
+                    'error': f"Analyzer process failed: {result.stderr}",
+                    'stdout': result.stdout,
+                    'stderr': result.stderr
+                }
+            
+            # Parse JSON output
+            try:
+                output = json.loads(result.stdout)
+                logger.info("Analyzer subprocess completed successfully")
+                return output
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse analyzer output as JSON: {e}")
+                return {
+                    'status': 'error',
+                    'error': f"Failed to parse JSON output: {e}",
+                    'stdout': result.stdout,
+                    'stderr': result.stderr
+                }
+                
+        except subprocess.TimeoutExpired:
+            logger.error("Analyzer subprocess timed out")
+            return {
+                'status': 'error',
+                'error': 'Analysis timed out after 5 minutes'
+            }
+        except Exception as e:
+            logger.error(f"Analyzer subprocess error: {e}")
+            return {
+                'status': 'error',
+                'error': str(e)
+            }
+
 
 class AnalyzerHealthMonitor:
     """Monitors health of analyzer services."""

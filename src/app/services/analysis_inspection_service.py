@@ -23,6 +23,13 @@ from .service_base import NotFoundError, ValidationError
 from ..models import AnalysisTask, AnalysisResult
 
 
+def _ensure_timezone_aware(dt: datetime) -> datetime:
+    """Ensure a datetime is timezone-aware by adding UTC if naive."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 class AnalysisInspectionService:
     """Read-only inspection utilities for analysis tasks."""
 
@@ -71,13 +78,18 @@ class AnalysisInspectionService:
         task = self.get_task(task_id)
         data = task.to_dict()
         now = datetime.now(timezone.utc)
-        # Derived durations
+        
+        # Derived durations - ensure all datetimes are timezone-aware
         if task.started_at and not task.completed_at:
-            data['elapsed_seconds'] = (now - task.started_at).total_seconds()
+            started_aware = _ensure_timezone_aware(task.started_at)
+            data['elapsed_seconds'] = (now - started_aware).total_seconds()
         if task.started_at and task.completed_at:
-            data['elapsed_seconds'] = (task.completed_at - task.started_at).total_seconds()
+            started_aware = _ensure_timezone_aware(task.started_at)
+            completed_aware = _ensure_timezone_aware(task.completed_at)
+            data['elapsed_seconds'] = (completed_aware - started_aware).total_seconds()
         if task.created_at:
-            data['age_seconds'] = (now - task.created_at).total_seconds()
+            created_aware = _ensure_timezone_aware(task.created_at)
+            data['age_seconds'] = (now - created_aware).total_seconds()
         # Provide simplified status flags
         status_val = data.get('status') or ''
         data['is_active'] = status_val in ('running', 'pending')

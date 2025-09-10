@@ -24,9 +24,11 @@ logger = logging.getLogger(__name__)
 def create_worker_app():
     """Create Flask app for Celery worker context."""
     
-    # Add project root to path
+    # Add both project root and src to path
     project_root = Path(__file__).parent.parent
+    src_dir = Path(__file__).parent
     sys.path.insert(0, str(project_root))
+    sys.path.insert(0, str(src_dir))
     
     # Import after path setup
     from app.factory import create_app, get_celery_app

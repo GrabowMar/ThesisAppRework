@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "model_slug": "nousresearch_hermes-4-405b",
+    "app_number": 1,
+    "analysis_type": "security",
+    "timestamp": "2025-09-10T12:32:17.259693",
+    "analyzer_version": "1.0.0"
+  },
+  "results": {
+    "type": "static_analysis_result",
+    "status": "success",
+    "service": "static-analyzer",
+    "analysis": {
+      "status": "error",
+      "error": "Model path not found: /app/sources/nousresearch_hermes-4-405b/app1"
+    },
+    "timestamp": "2025-09-10T10:32:16.578712"
+  }
+}
