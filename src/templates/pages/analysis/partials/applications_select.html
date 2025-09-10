@@ -1,83 +1,81 @@
 {% if applications and applications|length > 0 %}
-<div class="row g-3">
-  {% for app in applications %}
-  <div class="col-md-6">
-    <div class="card app-card h-100" data-app="{{ app.app_number }}" style="cursor:pointer;" onclick="selectApp('{{ app.app_number }}', { description: {{ (app.get_metadata().get('description', 'No description') | tojson) }}, status: '{{ app.container_status }}', created: '{{ app.created_at.strftime('%Y-%m-%d %H:%M') if app.created_at else 'Unknown' }}' })">
-      <div class="card-body d-flex flex-column">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <h5 class="card-title mb-0">Application #{{ app.app_number }}</h5>
-          <span class="badge bg-{{ 'success' if app.container_status=='running' else 'warning' if app.container_status=='stopped' else 'secondary' }}">
-            {% if app.container_status == 'running' %}
-              <i class="fas fa-play me-1"></i>{{ app.container_status }}
-            {% elif app.container_status == 'stopped' %}
-              <i class="fas fa-stop me-1"></i>{{ app.container_status }}
-            {% else %}
-              <i class="fas fa-question me-1"></i>{{ app.container_status or 'unknown' }}
-            {% endif %}
-          </span>
-        </div>
-        <div class="mb-2">
-          <small class="text-muted"><i class="fas fa-calendar me-1"></i>Created:</small>
-          <small>{{ app.created_at.strftime('%Y-%m-%d %H:%M') if app.created_at else 'Unknown' }}</small>
-        </div>
-        <div class="mb-2">
-          <small class="text-muted"><i class="fas fa-cogs me-1"></i>Type:</small>
-          <span class="badge bg-secondary">{{ app.app_type or 'Unknown' }}</span>
-        </div>
-        {% set app_metadata = app.get_metadata() %}
-        {% if app_metadata.get('description') %}
-        <div class="mb-2 flex-grow-1">
-          <small class="text-muted"><i class="fas fa-info-circle me-1"></i>Description:</small>
-          <p class="small mb-0">{{ app_metadata.get('description')[:120] }}{% if app_metadata.get('description')|length > 120 %}...{% endif %}</p>
-        </div>
-        {% endif %}
-        {% if app.backend_framework or app.frontend_framework %}
-        <div class="mb-2">
-          <small class="text-muted"><i class="fas fa-code me-1"></i>Framework:</small>
-          {% if app.backend_framework %}
-            <span class="badge bg-info text-dark me-1">{{ app.backend_framework }}</span>
-          {% endif %}
-          {% if app.frontend_framework %}
-            <span class="badge bg-success text-dark">{{ app.frontend_framework }}</span>
-          {% endif %}
-        </div>
-        {% endif %}
-        {% set ports = app.get_ports() %}
-        {% if ports and (ports.get('frontend') or ports.get('backend')) %}
-        <div class="mb-2">
-          <small class="text-muted"><i class="fas fa-plug me-1"></i>Ports:</small>
-          {% if ports.get('frontend') %}
-            <span class="badge bg-primary me-1">FE: {{ ports.get('frontend') }}</span>
-          {% endif %}
-          {% if ports.get('backend') %}
-            <span class="badge bg-secondary">BE: {{ ports.get('backend') }}</span>
-          {% endif %}
-        </div>
-        {% endif %}
-        <div class="mt-auto">
-          <button type="button" class="btn btn-outline-success btn-sm w-100" 
-                  onclick="event.stopPropagation(); selectApp('{{ app.app_number }}', { description: {{ (app_metadata.get('description', 'No description') | tojson) }}, status: '{{ app.container_status }}', created: '{{ app.created_at.strftime('%Y-%m-%d %H:%M') if app.created_at else 'Unknown' }}' })">
-            <i class="fas fa-check me-1"></i>Select Application
-          </button>
-        </div>
-      </div>
-    </div>
+  <div class="card mb-2">
+    <div class="table-responsive">
+    <table class="table table-sm table-hover table-striped table-vcenter card-table mb-0" aria-label="Applications for selected model" id="applications-selection-table">
+      <thead>
+        <tr>
+          <th aria-hidden="true"></th>
+          <th class="text-nowrap">App #</th>
+          <th>Status</th>
+          <th>Type</th>
+          <th>Framework</th>
+          <th>Description</th>
+          <th>Ports</th>
+          <th class="text-nowrap text-end">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for app in applications %}
+          {% set app_metadata = app.get_metadata() %}
+          {% set ports = app.get_ports() %}
+          <tr class="app-row app-card" data-app="{{ app.app_number }}" onclick="selectApp('{{ app.app_number }}', {})">
+            <td class="text-muted"><i class="fa-solid fa-window-maximize"></i></td>
+            <td class="fw-semibold text-nowrap">#{{ app.app_number }}</td>
+            <td>
+              <span class="badge bg-{{ 'success' if app.container_status=='running' else 'warning' if app.container_status=='stopped' else 'secondary' }} text-uppercase">
+                {% if app.container_status == 'running' %}
+                  <i class="fas fa-play me-1"></i>{{ app.container_status }}
+                {% elif app.container_status == 'stopped' %}
+                  <i class="fas fa-stop me-1"></i>{{ app.container_status }}
+                {% else %}
+                  <i class="fas fa-question me-1"></i>{{ app.container_status or 'unknown' }}
+                {% endif %}
+              </span>
+            </td>
+            <td><span class="badge bg-secondary-lt text-secondary">{{ app.app_type or 'Unknown' }}</span></td>
+            <td class="small">
+              {% if app.backend_framework %}
+                <span class="badge bg-info text-dark me-1">{{ app.backend_framework }}</span>
+              {% endif %}
+              {% if app.frontend_framework %}
+                <span class="badge bg-success text-dark">{{ app.frontend_framework }}</span>
+              {% endif %}
+              {% if not app.backend_framework and not app.frontend_framework %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="small">
+              {% if app_metadata.get('description') %}
+                {{ app_metadata.get('description')[:120] }}{% if app_metadata.get('description')|length > 120 %}…{% endif %}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="small">
+              {% if ports and (ports.get('frontend') or ports.get('backend')) %}
+                {% if ports.get('frontend') %}<span class="badge bg-primary-lt text-primary me-1">FE {{ ports.get('frontend') }}</span>{% endif %}
+                {% if ports.get('backend') %}<span class="badge bg-secondary-lt text-secondary">BE {{ ports.get('backend') }}</span>{% endif %}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <button type="button" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation(); selectApp('{{ app.app_number }}', {})">Select</button>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+  </table>
   </div>
-  {% endfor %}
-</div>
-<div class="mt-3 text-center">
-  <small class="text-muted">
-    <i class="fas fa-info-circle me-1"></i>Showing {{ applications|length }} application{{ 's' if applications|length != 1 else '' }} for this model.
+  </div>
+  <div class="mt-1 small text-muted">
     {% set running_count = applications|selectattr('container_status', 'equalto', 'running')|list|length %}
-    {% if running_count > 0 %}
-      <span class="text-success">{{ running_count }} running</span>
-    {% endif %}
-  </small>
-</div>
+    Showing {{ applications|length }} application{{ 's' if applications|length != 1 else '' }}{% if running_count > 0 %}, <span class="text-success">{{ running_count }} running</span>{% endif %}.
+  </div>
 {% else %}
-<div class="p-4 text-center text-muted">
-  <i class="fas fa-info-circle fa-2x mb-2"></i>
-  <p class="mb-0">No applications found for this model.</p>
-  <small class="text-muted">Applications may not have been generated yet, or may have been removed.</small>
-</div>
+  <div class="p-4 text-center text-muted">
+    <i class="fas fa-info-circle fa-2x mb-2"></i>
+    <p class="mb-0">No applications found for this model.</p>
+    <small class="text-muted">Applications may not have been generated yet, or may have been removed.</small>
+  </div>
 {% endif %}
