@@ -23,13 +23,6 @@ from .service_base import NotFoundError, ValidationError
 from ..models import AnalysisTask, AnalysisResult
 
 
-def _ensure_timezone_aware(dt: datetime) -> datetime:
-    """Ensure a datetime is timezone-aware by adding UTC if naive."""
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt
-
-
 class AnalysisInspectionService:
     """Read-only inspection utilities for analysis tasks."""
 
@@ -78,18 +71,13 @@ class AnalysisInspectionService:
         task = self.get_task(task_id)
         data = task.to_dict()
         now = datetime.now(timezone.utc)
-        
-        # Derived durations - ensure all datetimes are timezone-aware
+        # Derived durations
         if task.started_at and not task.completed_at:
-            started_aware = _ensure_timezone_aware(task.started_at)
-            data['elapsed_seconds'] = (now - started_aware).total_seconds()
+            data['elapsed_seconds'] = (now - task.started_at).total_seconds()
         if task.started_at and task.completed_at:
-            started_aware = _ensure_timezone_aware(task.started_at)
-            completed_aware = _ensure_timezone_aware(task.completed_at)
-            data['elapsed_seconds'] = (completed_aware - started_aware).total_seconds()
+            data['elapsed_seconds'] = (task.completed_at - task.started_at).total_seconds()
         if task.created_at:
-            created_aware = _ensure_timezone_aware(task.created_at)
-            data['age_seconds'] = (now - created_aware).total_seconds()
+            data['age_seconds'] = (now - task.created_at).total_seconds()
         # Provide simplified status flags
         status_val = data.get('status') or ''
         data['is_active'] = status_val in ('running', 'pending')
@@ -106,77 +94,23 @@ class AnalysisInspectionService:
         For large result sets we only include counts (caller can page future route).
         """
         task = self.get_task(task_id)
-        
-        # Extract analysis results from task metadata
-        metadata = task.get_metadata()
-        analysis_data = metadata.get('analysis', {})
-        
-        # Build summary from metadata
-        summary = analysis_data.get('summary', {})
-        
-        # Extract severity breakdown
-        severity = summary.get('severity_breakdown', {})
-        
-        # Extract findings from the nested analysis results structure
+        summary = task.get_result_summary() if hasattr(task, 'get_result_summary') else {}
+        severity = task.get_severity_breakdown() if hasattr(task, 'get_severity_breakdown') else {}
         findings: List[Dict[str, Any]] = []
-        total_issues = 0
-        
-        if 'results' in analysis_data:
-            results = analysis_data['results']
-            
-            # Process Python tool results (bandit, pylint, etc.)
-            if 'python' in results:
-                python_results = results['python']
-                
-                # Process Bandit issues
-                if 'bandit' in python_results and 'issues' in python_results['bandit']:
-                    for issue in python_results['bandit']['issues'][:25]:  # Limit to first 25
-                        findings.append({
-                            'tool': 'bandit',
-                            'severity': issue.get('issue_severity', 'unknown').lower(),
-                            'title': issue.get('issue_text', 'Security issue'),
-                            'category': issue.get('test_name', 'security'),
-                            'file_path': issue.get('filename', '').replace('/app/sources/', ''),
-                            'line_number': issue.get('line_number'),
-                            'message': issue.get('issue_text', ''),
-                            'test_id': issue.get('test_id'),
-                            'confidence': issue.get('issue_confidence', 'unknown').lower()
-                        })
-                
-                # Process PyLint issues  
-                if 'pylint' in python_results and 'issues' in python_results['pylint']:
-                    for issue in python_results['pylint']['issues'][:25]:  # Limit to first 25
-                        findings.append({
-                            'tool': 'pylint',
-                            'severity': issue.get('type', 'unknown').lower(),
-                            'title': issue.get('message', 'Code quality issue'),
-                            'category': issue.get('symbol', 'code-quality'),
-                            'file_path': issue.get('path', ''),
-                            'line_number': issue.get('line'),
-                            'message': issue.get('message', ''),
-                            'symbol': issue.get('symbol'),
-                            'message_id': issue.get('message-id')
-                        })
-            
-            # Process JavaScript tool results
-            if 'javascript' in results:
-                js_results = results['javascript']
-                if 'eslint' in js_results and 'issues' in js_results['eslint']:
-                    for issue in js_results['eslint']['issues'][:25]:
-                        findings.append({
-                            'tool': 'eslint',
-                            'severity': issue.get('severity', 'unknown').lower(),
-                            'title': issue.get('message', 'JavaScript issue'),
-                            'category': issue.get('ruleId', 'javascript'),
-                            'file_path': issue.get('filePath', ''),
-                            'line_number': issue.get('line'),
-                            'message': issue.get('message', ''),
-                            'rule_id': issue.get('ruleId')
-                        })
-        
-        # Calculate total issues from summary or count findings
-        total_issues = summary.get('total_issues_found', len(findings))
-        
+        # Only include up to 50 findings inline to prevent huge HTML payloads
+        for r in (task.results or [])[:50]:  # type: ignore[attr-defined]
+            try:
+                findings.append({
+                    'id': r.id,
+                    'result_id': r.result_id,
+                    'tool': r.tool_name,
+                    'severity': getattr(r.severity, 'value', r.severity),
+                    'title': r.title,
+                    'category': r.category,
+                    'file_path': r.file_path,
+                })
+            except Exception:
+                pass
         payload = {
             'task_id': task.task_id,
             'status': getattr(task.status, 'value', task.status),
@@ -184,7 +118,7 @@ class AnalysisInspectionService:
             'summary': summary,
             'severity_breakdown': severity,
             'findings_preview': findings,
-            'findings_total': total_issues
+            'findings_total': len(task.results or [])  # type: ignore[attr-defined]
         }
         return payload
 

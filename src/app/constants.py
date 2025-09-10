@@ -162,7 +162,6 @@ class OperationType(BaseEnum):
 
 class AnalysisType(BaseEnum):
     """Types of analysis that can be performed."""
-    SECURITY = "security"  # General security analysis (maps to backend by default)
     SECURITY_BACKEND = "security_backend"
     SECURITY_FRONTEND = "security_frontend"
     SECURITY_COMBINED = "security_combined"
