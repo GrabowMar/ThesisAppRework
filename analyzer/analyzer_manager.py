@@ -90,7 +90,7 @@ class AnalysisRequest:
         if self.options is None:
             self.options = {}
         if not self.source_path:
-            self.source_path = f"../generated/{self.model_slug}/app{self.app_number}"
+            self.source_path = f"/app/sources/{self.model_slug}/app{self.app_number}"
 
 
 @dataclass
@@ -182,15 +182,27 @@ class AnalyzerManager:
         Falls back to None if not found so caller can choose defaults.
         """
         try:
+            # Try multiple model name variations to handle slug differences
+            model_variations = [
+                model_slug,  # exact match
+                model_slug.replace('_', '/'),  # filesystem underscore to JSON slash
+                model_slug.replace('-', '/'),  # hyphens to slash
+                model_slug.replace('_', '-'),  # underscores to hyphens
+                model_slug.replace('-', '_'),  # hyphens to underscores
+            ]
+            
             for entry in self._load_port_config():
-                if (entry.get('model_name') == model_slug and
-                        int(entry.get('app_number', -1)) == int(app_number)):
-                    b = entry.get('backend_port')
-                    f = entry.get('frontend_port')
-                    if isinstance(b, int) and isinstance(f, int):
-                        return b, f
-        except Exception:
-            pass
+                for model_variant in model_variations:
+                    if (entry.get('model') == model_variant and  # changed from model_name to model
+                            int(entry.get('app_number', -1)) == int(app_number)):
+                        b = entry.get('backend_port')
+                        f = entry.get('frontend_port')
+                        if isinstance(b, int) and isinstance(f, int):
+                            logger.debug(f"Resolved ports for {model_slug} app {app_number}: backend={b}, frontend={f} (matched as {model_variant})")
+                            return b, f
+            logger.warning(f"No port configuration found for {model_slug} app {app_number}")
+        except Exception as e:
+            logger.error(f"Error resolving ports for {model_slug} app {app_number}: {e}")
         return None
 
     def _resolve_compose_cmd(self) -> List[str]:
@@ -530,12 +542,20 @@ class AnalyzerManager:
             ports = self._resolve_app_ports(model_slug, app_number)
             if ports:
                 backend_port, frontend_port = ports
-                resolved_urls = [f"http://localhost:{backend_port}", f"http://localhost:{frontend_port}"]
+                # Use host.docker.internal for container-to-container communication from analyzer containers
+                resolved_urls = [
+                    f"http://host.docker.internal:{backend_port}", 
+                    f"http://host.docker.internal:{frontend_port}"
+                ]
+            else:
+                # Fallback to localhost if ports not resolved
+                resolved_urls = [f"http://host.docker.internal:300{app_number}"]
+        
         message = {
             "type": "dynamic_analyze",
             "model_slug": model_slug,
             "app_number": app_number,
-            "target_urls": resolved_urls,  # empty list acceptable; service will fallback
+            "target_urls": resolved_urls,
             "timestamp": datetime.now().isoformat(),
             "id": str(uuid.uuid4())
         }
@@ -555,9 +575,17 @@ class AnalyzerManager:
             ports = self._resolve_app_ports(model_slug, app_number)
             if ports:
                 backend_port, frontend_port = ports
-                urls = [f"http://localhost:{backend_port}", f"http://localhost:{frontend_port}"]
+                # Use host.docker.internal for container-to-container communication from analyzer containers
+                urls = [
+                    f"http://host.docker.internal:{backend_port}", 
+                    f"http://host.docker.internal:{frontend_port}"
+                ]
+            else:
+                # Fallback to localhost if ports not resolved
+                urls = [f"http://host.docker.internal:300{app_number}"]
+        
         # Backwards compatible: we still include legacy 'target_url' key (first url or None)
-        legacy_single = urls[0] if urls else (target_url or f"http://localhost:300{app_number}")
+        legacy_single = urls[0] if urls else (target_url or f"http://host.docker.internal:300{app_number}")
         message = {
             "type": "performance_test",
             "model_slug": model_slug,

@@ -1,0 +1,162 @@
+{
+  "metadata": {
+    "model_slug": "nousresearch_hermes-4-405b",
+    "app_number": 2,
+    "analysis_type": "performance",
+    "timestamp": "2025-09-10T21:38:25.949595",
+    "analyzer_version": "1.0.0"
+  },
+  "results": {
+    "type": "performance_test_result",
+    "status": "success",
+    "service": "performance-tester",
+    "analysis": {
+      "model_slug": "nousresearch_hermes-4-405b",
+      "app_number": 2,
+      "analysis_time": "2025-09-10T19:36:33.507470",
+      "tools_used": [
+        "curl",
+        "ab",
+        "wget",
+        "aiohttp",
+        "locust"
+      ],
+      "target_urls": [
+        "http://host.docker.internal:5143",
+        "http://host.docker.internal:8143"
+      ],
+      "results": {
+        "url_1": {
+          "response_time": {
+            "status": "success",
+            "url": "http://host.docker.internal:5143",
+            "total_requests": 10,
+            "successful_requests": 10,
+            "failed_requests": 0,
+            "response_times": {
+              "min": 2.819,
+              "max": 17916.363,
+              "avg": 1794.5529000000001,
+              "median": 3.1550000000000002,
+              "p95": 9855.862649999981,
+              "p99": 16304.262930000004
+            },
+            "status_codes": [
+              200
+            ],
+            "success_rate": 100.0,
+            "sample_errors": [],
+            "attempted_fallback": true,
+            "fallback_used": false,
+            "early_fallback_triggered": false
+          },
+          "effective_url": "http://host.docker.internal:5143",
+          "load_test": {
+            "status": "success",
+            "tool": "aiohttp_concurrent",
+            "url": "http://host.docker.internal:5143",
+            "test_parameters": {
+              "total_requests": 20,
+              "concurrency": 3
+            },
+            "results": {
+              "successful_requests": 20,
+              "failed_requests": 0,
+              "success_rate": 100.0,
+              "response_times": {
+                "min": 2.436,
+                "max": 28110.766000000003,
+                "avg": 4219.79955,
+                "median": 3.972,
+                "p95": 28110.6596
+              },
+              "status_codes": [
+                200
+              ],
+              "avg_content_length": 67
+            }
+          },
+          "apache_bench": {
+            "status": "error",
+            "tool": "apache_bench",
+            "error": "invalid literal for int() with base 10: '2.0'"
+          },
+          "locust": {
+            "status": "error",
+            "tool": "locust",
+            "exit_code": 1,
+            "stderr": "Could not find 'locustfile.py'. Ensure your locustfile ends with '.py' or is a directory with locustfiles. See --help for available options.\n"
+          }
+        },
+        "url_2": {
+          "response_time": {
+            "status": "success",
+            "url": "http://host.docker.internal:8143",
+            "total_requests": 10,
+            "successful_requests": 10,
+            "failed_requests": 0,
+            "response_times": {
+              "min": 1.123,
+              "max": 23132.782,
+              "avg": 2314.5209,
+              "median": 1.452,
+              "p95": 12723.774849999976,
+              "p99": 21050.980570000003
+            },
+            "status_codes": [
+              403
+            ],
+            "success_rate": 100.0,
+            "sample_errors": [],
+            "attempted_fallback": true,
+            "fallback_used": false,
+            "early_fallback_triggered": false
+          },
+          "effective_url": "http://host.docker.internal:8143",
+          "load_test": {
+            "status": "success",
+            "tool": "aiohttp_concurrent",
+            "url": "http://host.docker.internal:8143",
+            "test_parameters": {
+              "total_requests": 20,
+              "concurrency": 3
+            },
+            "results": {
+              "successful_requests": 20,
+              "failed_requests": 0,
+              "success_rate": 100.0,
+              "response_times": {
+                "min": 0.8270000000000001,
+                "max": 28148.39,
+                "avg": 4223.14085,
+                "median": 1.075,
+                "p95": 28148.124
+              },
+              "status_codes": [
+                403
+              ],
+              "avg_content_length": 158
+            }
+          },
+          "apache_bench": {
+            "status": "error",
+            "tool": "apache_bench",
+            "error": "invalid literal for int() with base 10: '0.6'"
+          }
+        }
+      },
+      "summary": {
+        "total_urls_tested": 2,
+        "successful_tests": 2,
+        "average_response_time": 2054.5369,
+        "best_performing_url": "url_1",
+        "worst_performing_url": "url_2",
+        "fallback_attempts": 2,
+        "fallback_successes": 0,
+        "early_fallback_triggers": 0,
+        "urls_with_fallback": []
+      }
+    },
+    "timestamp": "2025-09-10T19:38:25.946541"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "metadata": {
+    "model_slug": "nousresearch-hermes-4-405b",
+    "app_number": 2,
+    "analysis_type": "ai",
+    "timestamp": "2025-09-10T20:28:48.021586",
+    "analyzer_version": "1.0.0"
+  },
+  "results": {
+    "type": "ai_analysis_result",
+    "status": "success",
+    "service": "ai-analyzer",
+    "analysis": {
+      "status": "error",
+      "error": "No source files found in ../generated/nousresearch-hermes-4-405b/app2",
+      "model_slug": "nousresearch-hermes-4-405b",
+      "app_number": 2,
+      "config_used": {}
+    },
+    "timestamp": "2025-09-10T18:28:47.999747"
+  }
+}

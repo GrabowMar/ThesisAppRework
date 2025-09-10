@@ -1,0 +1,74 @@
+{
+  "metadata": {
+    "model_slug": "qwen_qwen3-30b-a3b-thinking-2507",
+    "app_number": 3,
+    "analysis_type": "dynamic",
+    "timestamp": "2025-09-10T20:36:56.997480",
+    "analyzer_version": "1.0.0"
+  },
+  "results": {
+    "type": "dynamic_analysis_result",
+    "status": "success",
+    "service": "dynamic-analyzer",
+    "analysis": {
+      "model_slug": "qwen_qwen3-30b-a3b-thinking-2507",
+      "app_number": 3,
+      "analysis_time": "2025-09-10T18:36:56.917824",
+      "tools_used": [
+        "curl",
+        "wget",
+        "nmap",
+        "zap"
+      ],
+      "target_urls": [
+        "http://localhost:6030",
+        "http://localhost:6031"
+      ],
+      "results": {
+        "connectivity": [
+          {
+            "status": "success",
+            "analysis": {
+              "url": "http://localhost:6030",
+              "reachable": false,
+              "curl_exit_code": 7,
+              "error": "% Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\ncurl: (7) Failed to connect to localhost port 6030 after 0 ms: Could not connect to server"
+            }
+          },
+          {
+            "status": "success",
+            "analysis": {
+              "url": "http://localhost:6031",
+              "reachable": false,
+              "curl_exit_code": 7,
+              "error": "% Total    % Received % Xferd  Average Speed   Time    Time     Time  Current\n                                 Dload  Upload   Total   Spent    Left  Speed\n\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\n  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\ncurl: (7) Failed to connect to localhost port 6031 after 0 ms: Could not connect to server"
+            }
+          }
+        ],
+        "port_scan": {
+          "status": "success",
+          "host": "localhost",
+          "scanned_ports": [
+            8000,
+            5000,
+            6030,
+            6031,
+            80,
+            8080,
+            3000,
+            443
+          ],
+          "open_ports": [],
+          "total_open": 0
+        }
+      },
+      "summary": {
+        "total_urls_tested": 2,
+        "reachable_urls": 0,
+        "vulnerabilities_found": 0,
+        "analysis_status": "completed"
+      }
+    },
+    "timestamp": "2025-09-10T18:36:56.992067"
+  }
+}
