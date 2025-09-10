@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 import json
 
 from .service_base import NotFoundError, ValidationError
-from ..models import AnalysisTask, AnalysisResult
+from ..models import AnalysisTask
 
 
 def _ensure_timezone_aware(dt: datetime) -> datetime:
@@ -300,6 +300,33 @@ class AnalysisInspectionService:
                                 'raw_data': issue
                             }
                             findings.append(finding)
+
+        # If unified raw tool JSON blocks exist, attempt standardized parsing augmentation.
+        try:
+            from .analysis_result_parser import (
+                parse_bandit_results,
+                parse_pylint_messages,
+                merge_findings,
+            )
+            # Only enrich if we have top-level tool raw blocks and haven't already parsed them.
+            # Bandit: if 'bandit' block exists but we have zero bandit findings identified above.
+            if 'security' in results:
+                security_block = results['security']
+                bandit_block = security_block.get('bandit') if isinstance(security_block, dict) else None
+                if isinstance(bandit_block, dict):
+                    existing_bandit = any(f.get('tool') == 'bandit' for f in findings)
+                    if not existing_bandit:
+                        findings = merge_findings(findings, parse_bandit_results(bandit_block))
+
+            if 'python' in results:
+                python_block = results['python']
+                pylint_block = python_block.get('pylint') if isinstance(python_block, dict) else None
+                if isinstance(pylint_block, dict) and 'issues' in pylint_block:
+                    existing_pylint = any(f.get('tool') == 'pylint' for f in findings)
+                    if not existing_pylint:
+                        findings = merge_findings(findings, parse_pylint_messages(pylint_block.get('issues', [])))
+        except Exception:  # pragma: no cover - enrichment is best effort
+            pass
         
         # Calculate total issues from summary or count findings
         total_issues = summary.get('total_issues_found', len(findings))

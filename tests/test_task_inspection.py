@@ -6,7 +6,7 @@ class TestTaskInspection:
     def test_tasks_inspection_page(self, client, app):
         resp = client.get('/analysis/tasks')
         assert resp.status_code == 200
-        assert b'Task Inspection' in resp.data
+        assert b'Analysis Tasks' in resp.data
 
     def test_tasks_inspection_fragment_empty(self, client):
         resp = client.get('/analysis/api/tasks/inspect/list', headers={'HX-Request': 'true'})

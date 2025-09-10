@@ -1,47 +1,136 @@
-{# Inspection table partial (migrated) #}
-{% if tasks and tasks|length > 0 %}
-<div class="table-responsive border rounded">
-  <table class="table table-sm table-hover mb-0 align-middle">
-    <thead class="table-light">
-      <tr>
-        <th>ID</th>
-        <th>Name</th>
-        <th>Type</th>
-        <th>Status</th>
-        <th>Progress</th>
-        <th>Model</th>
-        <th>App</th>
-        <th>Priority</th>
-        <th>Created</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for t in tasks %}
-      <tr class="small">
-        <td class="text-truncate" style="max-width:120px" title="{{ t.task_id }}">{{ t.task_id }}</td>
-        <td class="text-truncate" style="max-width:140px" title="{{ t.task_name }}">{{ t.task_name or '-' }}</td>
-        <td>{{ t.analysis_type.value if t.analysis_type else t.analysis_type }}</td>
-        <td>
-          <span class="badge bg-secondary text-uppercase">{{ t.status.value if t.status else t.status }}</span>
-        </td>
-        <td>
-          <div class="progress progress-xs" style="width:80px" title="{{ '%.0f'|format(t.progress_percentage or 0) }}%">
-            <div class="progress-bar" style="width: {{ t.progress_percentage or 0 }}%"></div>
-          </div>
-        </td>
-        <td>{{ t.target_model }}</td>
-        <td>{{ t.target_app_number }}</td>
-        <td><span class="badge bg-info text-dark">{{ t.priority.value if t.priority else t.priority }}</span></td>
-        <td class="text-muted" style="white-space:nowrap">{{ t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else '' }}</td>
-        <td class="text-end">
-          <a href="/analysis/tasks/{{ t.task_id }}" class="btn btn-outline-primary btn-sm" hx-boost="true"><i class="fa fa-magnifying-glass"></i></a>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{# Unified Analysis Tasks Table with batch actions #}
+<div class="card mb-3 analysis-table-card d-flex flex-column">
+  <div class="card-header py-2 d-flex flex-wrap gap-2 align-items-center justify-content-between small">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <span class="fw-medium">Tasks</span>
+      <span class="text-muted" id="analysis-selection-indicator"></span>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-outline-primary btn-sm" onclick="htmx.trigger('#main-task-filter-form','submit')" title="Refresh tasks"><i class="fas fa-sync"></i></button>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Batch actions">
+        <button type="button" class="btn btn-outline-danger" id="analysis-batch-delete-btn" disabled
+                onclick="batchDeleteSelectedTasks()" title="Delete selected completed/failed tasks">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="card-body p-0 d-flex flex-column flex-grow-1">
+    {% if tasks and tasks|length > 0 %}
+    <div class="table-responsive flex-grow-1" id="analysis-tasks-table-scroll">
+      <table class="table table-sm table-hover table-striped table-vcenter mb-0" id="analysis-tasks-table">
+        <thead>
+          <tr>
+            <th class="w-1">
+              <label class="form-check mb-0">
+                <input type="checkbox" class="form-check-input" id="select-all-analysis-tasks" onchange="toggleSelectAllAnalysisTasks()" title="Select all tasks" aria-label="Select all tasks" />
+              </label>
+            </th>
+            <th class="text-nowrap">ID</th>
+            <th class="text-nowrap">Name</th>
+            <th class="text-nowrap">Type</th>
+            <th class="text-nowrap">Status</th>
+            <th class="text-nowrap">Progress</th>
+            <th class="text-nowrap">Model</th>
+            <th class="text-nowrap">App</th>
+            <th class="text-nowrap">Priority</th>
+            <th class="text-nowrap">Created</th>
+            <th class="w-1 text-nowrap">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tasks %}
+          <tr data-task-id="{{ t.task_id }}" data-status="{{ t.status.value if t.status else t.status }}" class="small">
+            <td>
+              <label class="form-check mb-0">
+                <input type="checkbox" class="form-check-input analysis-task-checkbox" value="{{ t.task_id }}" aria-label="Select task" onchange="updateAnalysisTaskSelection()" />
+              </label>
+            </td>
+            <td class="text-truncate task-id-col" title="{{ t.task_id }}">{{ t.task_id }}</td>
+            <td class="text-truncate task-name-col" title="{{ t.task_name }}">{{ t.task_name or '-' }}</td>
+            <td><span class="badge bg-info-lt">{{ t.analysis_type.value if t.analysis_type else t.analysis_type }}</span></td>
+            <td>
+              {% set st = t.status.value if t.status else t.status %}
+              {% if st == 'running' %}
+                <span class="badge bg-warning-lt"><i class="fas fa-spinner fa-spin me-1"></i>Running</span>
+              {% elif st == 'pending' %}
+                <span class="badge bg-secondary-lt"><i class="fas fa-clock me-1"></i>Pending</span>
+              {% elif st == 'completed' %}
+                <span class="badge bg-success-lt"><i class="fas fa-check me-1"></i>Done</span>
+              {% elif st == 'failed' %}
+                <span class="badge bg-danger-lt"><i class="fas fa-times me-1"></i>Failed</span>
+              {% elif st == 'cancelled' %}
+                <span class="badge bg-muted-lt"><i class="fas fa-ban me-1"></i>Cancelled</span>
+              {% else %}
+                <span class="badge bg-muted-lt">{{ st }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="progress progress-xs progress-fixed" title="{{ '%.0f'|format(t.progress_percentage or 0) }}%" data-progress="{{ t.progress_percentage or 0 }}">
+                <div class="progress-bar" style="--pct: {{ t.progress_percentage or 0 }}%"></div>
+              </div>
+            </td>
+            <td>{{ t.target_model }}</td>
+            <td>{{ t.target_app_number }}</td>
+            <td><span class="badge bg-indigo-lt text-dark">{{ t.priority.value if t.priority else t.priority }}</span></td>
+            <td class="text-muted text-nowrap">{{ t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else '' }}</td>
+            <td class="text-end">
+              <div class="btn-group" role="group">
+                <a href="/analysis/tasks/{{ t.task_id }}" class="btn btn-outline-primary btn-sm" title="View details" hx-boost="true"><i class="fas fa-eye"></i></a>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="p-4 text-center text-muted">No tasks match filters.</div>
+    {% endif %}
+  </div>
 </div>
-{% else %}
-  <div class="p-4 text-center text-muted">No tasks match filters.</div>
-{% endif %}
+
+<script>
+// --- Batch selection logic (scoped) ---
+function updateAnalysisTaskSelection(){
+  var boxes = document.querySelectorAll('.analysis-task-checkbox');
+  var checked = Array.from(boxes).filter(b=>b.checked);
+  var indicator = document.getElementById('analysis-selection-indicator');
+  if(indicator){ indicator.textContent = checked.length ? checked.length + ' selected' : ''; }
+  var btn = document.getElementById('analysis-batch-delete-btn');
+  if(btn){
+    // Enable only if at least one and all are finished (not running/pending)
+    var can = checked.length>0 && checked.every(c=>{ var tr=c.closest('tr'); var st=tr?tr.getAttribute('data-status'):''; return ['completed','failed','cancelled'].includes(st); });
+    btn.disabled = !can;
+  }
+}
+function toggleSelectAllAnalysisTasks(){
+  var all = document.getElementById('select-all-analysis-tasks');
+  var boxes = document.querySelectorAll('.analysis-task-checkbox');
+  boxes.forEach(b=>{ b.checked = !!all.checked; });
+  updateAnalysisTaskSelection();
+}
+function batchDeleteSelectedTasks(){
+  var ids = Array.from(document.querySelectorAll('.analysis-task-checkbox:checked')).map(b=>b.value);
+  if(!ids.length) return;
+  var formData = new FormData();
+  ids.forEach(id=> formData.append('task_ids[]', id));
+  fetch('/analysis/api/tasks/batch/delete', {method:'POST', body: formData})
+    .then(r=>r.text())
+    .then(html=>{
+      // Show result message above table (replace header indicator)
+      var card = document.querySelector('.analysis-table-card');
+      if(card){
+        var existing = card.querySelector('.batch-result-msg');
+        if(existing) existing.remove();
+        var div = document.createElement('div');
+        div.className='batch-result-msg';
+        div.innerHTML = html;
+        card.insertBefore(div, card.firstChild.nextSibling); // after header
+      }
+      // Refresh list
+      htmx.trigger('#main-task-filter-form','submit');
+    })
+    .catch(()=>{});
+}
+</script>

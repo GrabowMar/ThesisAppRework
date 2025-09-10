@@ -293,6 +293,56 @@ def htmx_tasks_inspection_list():
             tasks = []
     return render_template('pages/analysis/partials/inspection_tasks_table.html', tasks=tasks)
 
+@analysis_bp.route('/api/tasks/batch/delete', methods=['POST'])
+def batch_delete_tasks():
+    """Batch delete (remove) analysis tasks.
+
+    Accepts either form-encoded `task_ids` (repeatable) or JSON body with
+    {"task_ids": ["task_123", ...]}. Running/pending tasks are skipped for
+    safety. Returns a lightweight HTML snippet indicating result which the
+    client can display, and triggers caller to refresh task list.
+    """
+    from app.extensions import db
+    # Parse IDs
+    task_ids = []
+    if request.is_json:
+        try:
+            payload = request.get_json(silent=True) or {}
+            task_ids = list(payload.get('task_ids') or [])
+        except Exception:
+            task_ids = []
+    if not task_ids:
+        # Accept both task_ids and task_ids[] naming
+        task_ids = request.form.getlist('task_ids') or request.form.getlist('task_ids[]')
+    task_ids = [tid for tid in (task_ids or []) if isinstance(tid, str) and tid.strip()]
+    if not task_ids:
+        return '<div class="text-danger small">No task ids provided</div>', 400
+    deleted = 0
+    skipped = 0
+    from app.constants import AnalysisStatus
+    for tid in task_ids[:200]:  # hard safety cap
+        try:
+            task = AnalysisTaskService.get_task(tid)
+            if not task:
+                skipped += 1
+                continue
+            # Skip active tasks (do not delete running/pending)
+            if task.status in (AnalysisStatus.PENDING, AnalysisStatus.RUNNING):
+                skipped += 1
+                continue
+            db.session.delete(task)
+            deleted += 1
+        except Exception:
+            skipped += 1
+    try:
+        if deleted:
+            db.session.commit()
+        else:
+            db.session.rollback()
+    except Exception:
+        pass
+    return f'<div class="alert alert-info py-2 mb-2 small">Removed {deleted} task(s); skipped {skipped}.</div>'
+
 ## Removed legacy /api/tasks/table endpoint (complex pagination table) during simplification.
 ## Reason: Replaced by existing stable inspection list (/api/tasks/inspect/list) to reduce maintenance surface.
 
@@ -319,6 +369,24 @@ def task_results_json(task_id: str):
     except Exception as e:  # pragma: no cover
         return (f'{{"error":"{e}"}}', 404, {'Content-Type': 'application/json'})
     return (json_payload, 200, {'Content-Type': 'application/json; charset=utf-8'})
+
+@analysis_bp.route('/api/tasks/<task_id>/results/summary')
+def task_results_summary_fragment(task_id: str):
+    """HTMX fragment: structured results summary (tools, severities, findings table).
+
+    Keeps preview lightweight (first 50 findings already enforced in service layer).
+    Future analyzers (performance, quality, license) can extend via template blocks.
+    """
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="text-danger small">Inspection service unavailable</div>'
+    try:
+        payload = insp.get_task_results_payload(task_id)  # type: ignore[attr-defined]
+    except Exception as e:  # pragma: no cover
+        return f'<div class="alert alert-danger small">Error loading results: {e}</div>'
+    # Limit findings to 50 for display safety (service may already do this)
+    findings = (payload.get('findings_preview') or [])[:50]
+    return render_template('pages/analysis/partials/task_results_summary.html', task_id=task_id, payload=payload, findings=findings)
 
 # ---------------------------------------------------------------------------
 # Internal helpers

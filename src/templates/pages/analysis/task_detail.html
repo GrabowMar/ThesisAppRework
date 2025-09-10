@@ -7,20 +7,5 @@
   <a class="btn btn-outline-info btn-sm" href="/analysis/api/tasks/{{ task.task_id }}/results.json" target="_blank"><i class="fa fa-file-code me-1"></i> Raw JSON</a>
 </div>
 <div id="task-core" hx-get="/analysis/api/tasks/{{ task.task_id }}/detail" hx-trigger="load" class="mb-4"></div>
-<div class="card">
-  <div class="card-header d-flex align-items-center justify-content-between py-2">
-    <strong class="small text-uppercase">Results Preview</strong>
-    <small class="text-muted">First 50 findings (if any)</small>
-  </div>
-  <div class="card-body small" id="results-json" hx-get="/analysis/api/tasks/{{ task.task_id }}/results.json" hx-trigger="load" hx-target="this" hx-swap="innerHTML">
-    <div class="text-muted">Loading results JSON…</div>
-  </div>
-</div>
-<script>
-  document.addEventListener('htmx:afterOnLoad', function(ev){
-    if(ev.detail.elt.id === 'results-json' && typeof ev.detail.xhr === 'object'){
-      try{ const txt = ev.detail.xhr.responseText; if(txt && txt.trim().startsWith('{')){ ev.detail.elt.textContent = txt; ev.detail.elt.classList.add('code-block'); } }catch(e){}
-    }
-  });
-</script>
+<div id="results-summary" hx-get="/analysis/api/tasks/{{ task.task_id }}/results/summary" hx-trigger="load" class="mb-4"></div>
 {% endblock %}
