@@ -1106,6 +1106,11 @@ def models_comparison_refresh():
             ).first()
             if q:
                 model_slugs.append(q.canonical_slug)
+            else:
+                # Preserve unknown slug so UI can still compare (placeholder metrics)
+                cleaned = ident.strip().replace(' ', '_')
+                if cleaned:
+                    model_slugs.append(cleaned)
         # Deduplicate & limit to 8 to keep payload small
         seen = set()
         deduped = []
@@ -1116,24 +1121,126 @@ def models_comparison_refresh():
             if len(deduped) >= 8:
                 break
         model_slugs = deduped
-        metrics = {}
-        for idx, slug in enumerate(model_slugs, start=1):
-            metrics[slug] = {
-                'throughput': 100 - idx,      # descending dummy
-                'latency_ms': 40 + idx * 5,    # ascending dummy
-                'cost_per_call': round(0.0005 * idx, 6)
-            }
-        if baseline_spec.startswith('model:'):
-            bslug = baseline_spec.split(':', 1)[1]
-            baseline_metrics = metrics.get(bslug) or (next(iter(metrics.values())) if metrics else {})
-        else:
-            # avg/median: just pick first for placeholder
-            baseline_metrics = next(iter(metrics.values())) if metrics else {}
+        # Build real metrics from ModelCapability where possible
+        from statistics import median
+        metrics: dict[str, dict[str, float | int | bool | None]] = {}
+        if model_slugs:
+            rows = ModelCapability.query.filter(ModelCapability.canonical_slug.in_(model_slugs)).all()
+            rows_by_slug = {r.canonical_slug: r for r in rows}
+            for idx, slug in enumerate(model_slugs, start=1):
+                r = rows_by_slug.get(slug)
+                # Fallback deterministic dummy metrics retained for backward compatibility
+                throughput = 100 - idx
+                latency_ms = 40 + idx * 5
+                cost_per_call = round(0.0005 * idx, 6)
+                if r:
+                    caps = r.get_capabilities() or {}
+                    caps_count = 0
+                    if isinstance(caps, dict):
+                        caps_count = sum(1 for v in caps.values() if bool(v))
+                    metrics[slug] = {
+                        'model_id': r.model_id,
+                        'provider': r.provider,
+                        'context_window': r.context_window or 0,
+                        'max_output_tokens': r.max_output_tokens or 0,
+                        'input_price_per_1k': round((r.input_price_per_token or 0.0) * 1000, 6),
+                        'output_price_per_1k': round((r.output_price_per_token or 0.0) * 1000, 6),
+                        'cost_efficiency': round(r.cost_efficiency or 0.0, 6),
+                        'safety_score': round(r.safety_score or 0.0, 6),
+                        'caps_count': caps_count,
+                        'supports_function_calling': bool(r.supports_function_calling),
+                        'supports_vision': bool(r.supports_vision),
+                        'supports_streaming': bool(r.supports_streaming),
+                        'supports_json_mode': bool(r.supports_json_mode),
+                        'is_free': bool(r.is_free),
+                        # Dummy / synthetic metrics retained
+                        'throughput': throughput,
+                        'latency_ms': latency_ms,
+                        'cost_per_call': cost_per_call
+                    }
+                else:  # slug resolved but row missing (edge case)
+                    metrics[slug] = {
+                        'model_id': slug,
+                        'provider': None,
+                        'context_window': 0,
+                        'max_output_tokens': 0,
+                        'input_price_per_1k': 0.0,
+                        'output_price_per_1k': 0.0,
+                        'cost_efficiency': 0.0,
+                        'safety_score': 0.0,
+                        'caps_count': 0,
+                        'supports_function_calling': False,
+                        'supports_vision': False,
+                        'supports_streaming': False,
+                        'supports_json_mode': False,
+                        'is_free': False,
+                        'throughput': throughput,
+                        'latency_ms': latency_ms,
+                        'cost_per_call': cost_per_call
+                    }
+
+        # Determine baseline metrics
+        numeric_keys = [
+            'context_window','max_output_tokens','input_price_per_1k','output_price_per_1k',
+            'cost_efficiency','safety_score','caps_count','throughput','latency_ms','cost_per_call'
+        ]
+        def _aggregate(kind: str):
+            vals_by_key: dict[str, list[float]] = {k: [] for k in numeric_keys}
+            for slug in model_slugs:
+                m = metrics.get(slug) or {}
+                for k in numeric_keys:
+                    v = m.get(k)
+                    if isinstance(v, (int, float)):
+                        vals_by_key[k].append(float(v))
+            out: dict[str, float] = {}
+            for k, arr in vals_by_key.items():
+                if not arr:
+                    out[k] = 0.0
+                    continue
+                if kind == 'avg':
+                    out[k] = round(sum(arr)/len(arr), 6)
+                elif kind == 'median':
+                    out[k] = round(median(arr), 6)
+                else:
+                    out[k] = 0.0
+            return out
+
+        baseline_kind = baseline_spec.lower()
+        baseline_metrics: dict[str, float | int | bool] = {}
+        if baseline_kind.startswith('model:'):
+            bslug = baseline_kind.split(':',1)[1]
+            baseline_metrics = metrics.get(bslug) or (metrics.get(model_slugs[0]) if model_slugs else {})
+        elif baseline_kind in ('avg','average'):
+            baseline_metrics = _aggregate('avg')
+        elif baseline_kind in ('median','med'):
+            baseline_metrics = _aggregate('median')
+        else:  # default avg
+            baseline_metrics = _aggregate('avg')
+
+        # Summary stats for research insight
+        summary = {}
+        for k in numeric_keys:
+            vals = [float(metrics[s][k]) for s in model_slugs if isinstance(metrics.get(s, {}).get(k), (int,float))]
+            if not vals:
+                continue
+            try:
+                summary[k] = {
+                    'avg': round(sum(vals)/len(vals), 6),
+                    'median': round(median(vals), 6),
+                    'min': min(vals),
+                    'max': max(vals),
+                    'min_slug': next((s for s in model_slugs if float(metrics[s][k]) == min(vals)), None),
+                    'max_slug': next((s for s in model_slugs if float(metrics[s][k]) == max(vals)), None),
+                }
+            except Exception:
+                continue
+
         return jsonify({
             'models': model_slugs,
             'baseline': baseline_spec,
             'baseline_metrics': baseline_metrics,
-            'metrics': metrics
+            'metrics': metrics,
+            'summary': summary
         })
     except Exception as e:
         current_app.logger.error(f"Model comparison refresh failed: {e}")
