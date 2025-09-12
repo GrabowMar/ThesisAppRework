@@ -10,7 +10,7 @@ import os
 import sys
 from pathlib import Path
 
-# Configure centralized logging
+# Configure centralized logging 
 from app.utils.logging_config import setup_application_logging
 
 logger = setup_application_logging()
