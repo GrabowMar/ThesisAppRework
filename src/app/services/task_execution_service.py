@@ -28,10 +28,12 @@ from __future__ import annotations
 
 import threading
 import time
+import json
 from datetime import datetime
 from typing import Optional
 
 from app.utils.logging_config import get_logger
+from app.config.config_manager import get_config
 from app.extensions import db, get_components
 from app.models import AnalysisTask
 from app.constants import AnalysisStatus
@@ -118,10 +120,49 @@ class TaskExecutionService:
                         try:
                             result = self._execute_real_analysis(task_db)
                             success = result.get('status') == 'success'
+                            
+                            # Save analysis results to database
+                            if success and result.get('payload'):
+                                # Store the full analysis payload as result summary
+                                task_db.set_result_summary(result['payload'])
+                                
+                                # Extract summary metrics for the task
+                                payload = result['payload']
+                                if isinstance(payload, dict):
+                                    analysis = payload.get('analysis', {})
+                                    summary = analysis.get('summary', {})
+                                    
+                                    # Update task summary fields
+                                    task_db.issues_found = summary.get('total_issues_found', 0)
+                                    
+                                    # Store severity breakdown if available
+                                    severity_breakdown = summary.get('severity_breakdown', {})
+                                    if severity_breakdown:
+                                        task_db.severity_breakdown = json.dumps(severity_breakdown)
+                                
+                                logger.info("Saved analysis results for task %s with %d issues", task_db.task_id, task_db.issues_found or 0)
+                            elif result.get('error'):
+                                # Save error details
+                                error_payload = {
+                                    'status': 'error',
+                                    'error': result['error'],
+                                    'timestamp': datetime.utcnow().isoformat()
+                                }
+                                task_db.set_result_summary(error_payload)
+                                task_db.error_message = result['error']
+                                
                         except Exception as e:
                             logger.error("Analysis execution failed for task %s: %s", task_db.task_id, e)
                             success = False
                             result = {'status': 'error', 'error': str(e)}
+                            # Save error to results
+                            error_payload = {
+                                'status': 'error',
+                                'error': str(e),
+                                'timestamp': datetime.utcnow().isoformat()
+                            }
+                            task_db.set_result_summary(error_payload)
+                            task_db.error_message = str(e)
 
                         # Set final status based on analysis result
                         task_db.status = AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED
@@ -171,35 +212,112 @@ class TaskExecutionService:
     def _execute_real_analysis(self, task: AnalysisTask) -> dict:
         """Execute real analysis using the analysis engines."""
         try:
-            # Get the analysis type
+            # Get the analysis type (string)
             analysis_type = task.analysis_type.value if hasattr(task.analysis_type, 'value') else str(task.analysis_type)
             
             # Update progress to indicate analysis starting
             task.progress_percentage = 20.0
             db.session.commit()
             
-            # Import and get the appropriate engine
-            from app.services.analysis_engines import get_engine
-            engine = get_engine(analysis_type)
+            # Import engine registry and resolve a valid engine name
+            from app.services.analysis_engines import get_engine, ENGINE_REGISTRY
+
+            engine_name = analysis_type
+            if engine_name not in ENGINE_REGISTRY:
+                # Fallback: treat unknown/custom types as security (static) analysis
+                engine_name = 'security'
+            engine = get_engine(engine_name)
             
-            logger.info("Executing %s analysis for task %s", analysis_type, task.task_id)
+            logger.info(
+                "Executing %s analysis for task %s",
+                analysis_type,
+                getattr(task, "task_id", "unknown")
+            )
             
             # Update progress
             task.progress_percentage = 40.0
             db.session.commit()
             
-            # Execute the analysis
+            # Resolve selected tools from task metadata; default only when None
+            resolved_tools = None
+            try:
+                meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
+            except Exception:
+                meta = {}
+
+            # Check direct key first, then custom_options nesting
+            cand = meta.get('selected_tools')
+            if not isinstance(cand, list):
+                cand = (meta.get('custom_options') or {}).get('selected_tools') if isinstance(meta.get('custom_options'), dict) else None
+            if isinstance(cand, list):
+                # Normalize: resolve tool IDs (ints or numeric strings) to names via ToolRegistryService
+                def _as_int_list(seq):
+                    vals: list[int] = []
+                    for v in seq:
+                        if isinstance(v, int):
+                            vals.append(v)
+                        elif isinstance(v, str):
+                            v2 = v.strip()
+                            if v2.isdigit():
+                                try:
+                                    vals.append(int(v2))
+                                except Exception:
+                                    pass
+                    return vals
+
+                id_list = _as_int_list(cand)
+                if id_list:
+                    try:
+                        from app.services.service_locator import ServiceLocator
+                        tool_service = ServiceLocator.get_tool_registry_service()
+                        names: list[str] = []
+                        if tool_service:
+                            for tid in id_list:
+                                try:
+                                    t = tool_service.get_tool(int(tid))  # type: ignore[attr-defined]
+                                    name = (t or {}).get('name') if isinstance(t, dict) else None
+                                    if name:
+                                        names.append(name)
+                                except Exception:
+                                    continue
+                        resolved_tools = names or None
+                    except Exception:
+                        resolved_tools = None
+                elif cand and all(isinstance(x, str) for x in cand):
+                    resolved_tools = cand  # already names
+                elif cand == []:
+                    resolved_tools = []  # explicit empty (should rarely happen due to form validation)
+
+            # Apply defaults only when no explicit selection present
+            if resolved_tools is None:
+                config = get_config()
+                resolved_tools = config.get_default_tools(engine_name)
+
+            # Execute the analysis with resolved tools
             result = engine.run(
                 model_slug=task.target_model,
                 app_number=task.target_app_number,
-                tools=['bandit', 'safety', 'pylint']  # Default tools for security
+                tools=resolved_tools
             )
+
+            try:
+                logger.debug(
+                    "Task %s resolved tools: %s",
+                    getattr(task, "task_id", "unknown"),
+                    resolved_tools,
+                )
+            except Exception:
+                pass
             
             # Update progress
             task.progress_percentage = 80.0
             db.session.commit()
             
-            logger.info("Analysis completed for task %s with status: %s", task.task_id, result.status)
+            logger.info(
+                "Analysis completed for task %s with status: %s",
+                getattr(task, "task_id", "unknown"),
+                result.status,
+            )
             
             return {
                 'status': result.status,
@@ -208,7 +326,11 @@ class TaskExecutionService:
             }
             
         except Exception as e:
-            logger.error("Failed to execute analysis for task %s: %s", task.task_id, e)
+            logger.error(
+                "Failed to execute analysis for task %s: %s",
+                getattr(task, "task_id", "unknown"),
+                e,
+            )
             return {
                 'status': 'error',
                 'error': str(e),

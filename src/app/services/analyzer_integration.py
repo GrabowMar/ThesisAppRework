@@ -7,6 +7,7 @@ Handles WebSocket connections, task execution, and result processing.
 """
 
 from app.utils.logging_config import get_logger
+from app.config.config_manager import get_config
 import asyncio
 import json
 import uuid
@@ -14,13 +15,11 @@ from typing import Dict, List, Optional, Any, Callable
 from datetime import datetime, timezone
 from enum import Enum
 import websockets
-from websockets.exceptions import ConnectionClosed, InvalidStatusCode
+from websockets.exceptions import ConnectionClosed
 
 from ..extensions import db
-from ..models import (
-    AnalysisTask, AnalysisResult
-)
-from ..constants import AnalysisStatus, AnalysisType
+from ..models import AnalysisResult
+from ..constants import AnalysisType
 
 
 logger = get_logger('analyzer_integration')
@@ -39,13 +38,14 @@ class ConnectionManager:
     """Manages WebSocket connections to analyzer services."""
     
     def __init__(self):
-        self.connections: Dict[str, websockets.WebSocketServerProtocol] = {}
+        self.connections: Dict[str, Any] = {}
+        config = get_config()
         self.service_urls = {
-            AnalyzerServiceType.SECURITY: "ws://localhost:2001",
-            AnalyzerServiceType.STATIC: "ws://localhost:2001",
-            AnalyzerServiceType.DYNAMIC: "ws://localhost:2002", 
-            AnalyzerServiceType.PERFORMANCE: "ws://localhost:2003",
-            AnalyzerServiceType.AI_REVIEW: "ws://localhost:2004"
+            AnalyzerServiceType.SECURITY: config.get_analyzer_service_url('static'),  # Security uses static service
+            AnalyzerServiceType.STATIC: config.get_analyzer_service_url('static'),
+            AnalyzerServiceType.DYNAMIC: config.get_analyzer_service_url('dynamic'), 
+            AnalyzerServiceType.PERFORMANCE: config.get_analyzer_service_url('performance'),
+            AnalyzerServiceType.AI_REVIEW: config.get_analyzer_service_url('ai')
         }
         self.connection_timeouts = {
             'connect': 10,  # seconds
@@ -53,7 +53,7 @@ class ConnectionManager:
             'heartbeat': 30  # seconds
         }
     
-    async def get_connection(self, service_type: AnalyzerServiceType) -> Optional[websockets.WebSocketServerProtocol]:
+    async def get_connection(self, service_type: AnalyzerServiceType) -> Optional[Any]:
         """Get or create WebSocket connection to analyzer service."""
         service_key = service_type.value
         
@@ -73,7 +73,7 @@ class ConnectionManager:
         # Create new connection
         return await self._create_connection(service_type)
     
-    async def _create_connection(self, service_type: AnalyzerServiceType) -> Optional[websockets.WebSocketServerProtocol]:
+    async def _create_connection(self, service_type: AnalyzerServiceType) -> Optional[Any]:
         """Create new WebSocket connection."""
         service_key = service_type.value
         service_url = self.service_urls[service_type]
@@ -99,7 +99,7 @@ class ConnectionManager:
         except asyncio.TimeoutError:
             logger.error(f"Timeout connecting to {service_key} analyzer")
             return None
-        except (ConnectionError, InvalidStatusCode) as e:
+        except ConnectionError as e:
             logger.error(f"Failed to connect to {service_key} analyzer: {e}")
             return None
         except Exception as e:
@@ -186,33 +186,62 @@ class AnalysisExecutor:
                 del self.active_analyses[task.task_id]
     
     def _get_service_type(self, analysis_type: str) -> Optional[AnalyzerServiceType]:
-        """Map analysis type to service type."""
-        mapping = {
-            AnalysisType.SECURITY.value: AnalyzerServiceType.SECURITY,
-            AnalysisType.STATIC.value: AnalyzerServiceType.STATIC,
-            AnalysisType.DYNAMIC.value: AnalyzerServiceType.DYNAMIC,
-            AnalysisType.PERFORMANCE.value: AnalyzerServiceType.PERFORMANCE,
-            AnalysisType.AI_REVIEW.value: AnalyzerServiceType.AI_REVIEW
+        """Map analysis type to service type.
+
+        Supports both plain string analysis types ("security", "static", "dynamic", "performance", "ai")
+        and any enum values present in AnalysisType. Avoids referencing missing enum members.
+        """
+        at = (analysis_type or '').lower()
+        # Base string mapping
+        mapping: Dict[str, AnalyzerServiceType] = {
+            'security': AnalyzerServiceType.SECURITY,
+            'static': AnalyzerServiceType.STATIC,
+            'dynamic': AnalyzerServiceType.DYNAMIC,
+            'performance': AnalyzerServiceType.PERFORMANCE,
+            'ai': AnalyzerServiceType.AI_REVIEW,
+            'ai_review': AnalyzerServiceType.AI_REVIEW,
         }
-        return mapping.get(analysis_type)
+        # Dynamically augment from AnalysisType enum if members exist
+        try:
+            enum_pairs = [
+                ('SECURITY', AnalyzerServiceType.SECURITY),
+                ('STATIC', AnalyzerServiceType.STATIC),
+                ('DYNAMIC', AnalyzerServiceType.DYNAMIC),
+                ('PERFORMANCE', AnalyzerServiceType.PERFORMANCE),
+                ('AI_REVIEW', AnalyzerServiceType.AI_REVIEW),
+            ]
+            for name, svc in enum_pairs:
+                member = getattr(AnalysisType, name, None)
+                if member is not None:
+                    try:
+                        key = str(member.value).lower()
+                        mapping[key] = svc
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        return mapping.get(at) or mapping.get(analysis_type)
     
     def _prepare_analysis_request(self, task: Any) -> Dict[str, Any]:  # AnalysisTask
         """Prepare analysis request for analyzer service."""
-        config = task.get_config()
+        config = get_config()
+        
+        # Get task configuration if available
+        task_config = getattr(task, 'config', {}) or {}
         
         request = {
             'request_id': str(uuid.uuid4()),
             'task_id': task.task_id,
             'action': f'run_{task.analysis_type}',
             'target': {
-                'model_slug': task.model_slug,
-                'app_number': task.app_number,
-                'source_path': f'/app/sources/{task.model_slug}/app{task.app_number}'
+                'model_slug': task.target_model,
+                'app_number': task.target_app_number,
+                'source_path': config.get_source_path(task.target_model, task.target_app_number)
             },
             'config': {
-                'tools_config': config.get('tools_config', {}),
-                'execution_config': config.get('execution_config', {}),
-                'output_config': config.get('output_config', {})
+                'tools_config': task_config.get('tools_config', {}),
+                'execution_config': task_config.get('execution_config', {}),
+                'output_config': task_config.get('output_config', {})
             },
             'options': {
                 'timeout': task.estimated_duration or 600,
@@ -229,7 +258,7 @@ class AnalysisExecutor:
     
     async def _send_analysis_request(
         self,
-        connection: websockets.WebSocketServerProtocol,
+        connection: Any,
         request: Dict[str, Any],
         task: Any,  # AnalysisTask
         progress_callback: Optional[Callable] = None
@@ -244,25 +273,30 @@ class AnalysisExecutor:
             result = None
             timeout = request['options']['timeout']
             
-            async for message in asyncio.wait_for(connection, timeout=timeout):
-                try:
-                    data = json.loads(message)
-                    message_type = data.get('type', 'unknown')
-                    
-                    if message_type == 'progress':
-                        await self._handle_progress_message(data, task, progress_callback)
-                    elif message_type == 'result':
-                        result = data
-                        break
-                    elif message_type == 'error':
-                        result = data
-                        break
-                    elif message_type == 'log':
-                        await self._handle_log_message(data, task)
-                    
-                except json.JSONDecodeError as e:
-                    logger.warning(f"Invalid JSON message from analyzer: {e}")
-                    continue
+            try:
+                while True:
+                    message = await asyncio.wait_for(connection.recv(), timeout=timeout)
+                    try:
+                        data = json.loads(message)
+                        message_type = data.get('type', 'unknown')
+                        
+                        if message_type == 'progress':
+                            await self._handle_progress_message(data, task, progress_callback)
+                        elif message_type == 'result':
+                            result = data
+                            break
+                        elif message_type == 'error':
+                            result = data
+                            break
+                        elif message_type == 'log':
+                            await self._handle_log_message(data, task)
+                        
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Invalid JSON message from analyzer: {e}")
+                        continue
+            except asyncio.TimeoutError:
+                logger.error(f"Message timeout for task {task.task_id}")
+                result = None
             
             if result is None:
                 raise TimeoutError("No result received from analyzer")
@@ -304,6 +338,37 @@ class AnalysisExecutor:
                 'scanning_css': ['stylelint'],
             }
 
+            # Resolve explicitly selected tools (names) from task metadata if available
+            selected_tool_names: set[str] | None = None
+            try:
+                meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
+                cand = meta.get('selected_tools')
+                if not isinstance(cand, list) and isinstance(meta.get('custom_options'), dict):
+                    cand = meta.get('custom_options', {}).get('selected_tools')
+                if isinstance(cand, list):
+                    if all(isinstance(x, str) for x in cand):
+                        selected_tool_names = {x.lower() for x in cand}
+                    elif all(isinstance(x, int) for x in cand):
+                        try:
+                            # Resolve IDs -> names via ToolRegistryService
+                            from app.services.service_locator import ServiceLocator
+                            tool_service = ServiceLocator.get_tool_registry_service()
+                            names: list[str] = []
+                            if tool_service:
+                                for tid in cand:
+                                    try:
+                                        t = tool_service.get_tool(int(tid))  # type: ignore[attr-defined]
+                                        name = (t or {}).get('name') if isinstance(t, dict) else None
+                                        if name:
+                                            names.append(name)
+                                    except Exception:
+                                        continue
+                            selected_tool_names = {n.lower() for n in names} if names else None
+                        except Exception:
+                            selected_tool_names = None
+            except Exception:
+                selected_tool_names = None
+
             # Initialize per-task emitted tools cache in metadata (non-persistent ephemeral via object attr)
             if not hasattr(task, '_emitted_tool_started'):
                 setattr(task, '_emitted_tool_started', set())
@@ -313,6 +378,9 @@ class AnalysisExecutor:
             # For each stage, emit tool.started once per tool to allow UI to show pending vs running
             if stage in stage_tool_map:
                 for tool_name in stage_tool_map[stage]:
+                    # Honor explicit selection: if selected_tool_names provided, only emit for those tools
+                    if selected_tool_names is not None and tool_name.lower() not in selected_tool_names:
+                        continue
                     key = f"{tool_name}"
                     if key not in emitted:
                         emit_task_event(
@@ -532,17 +600,23 @@ class AnalysisExecutor:
         """Run security analysis via subprocess bridge to analyzer_manager.py."""
         return self._run_analyzer_subprocess('security', model_slug, app_number, tools=tools, options=options)
     
-    def run_performance_test(self, model_slug: str, app_number: int, test_config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Run performance test via subprocess bridge to analyzer_manager.py."""
-        return self._run_analyzer_subprocess('performance', model_slug, app_number, config=test_config)
+    def run_performance_test(self, model_slug: str, app_number: int, test_config: Optional[Dict[str, Any]] = None, tools: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Run performance test via subprocess bridge to analyzer_manager.py.
+
+        tools: Optional list of tool names to gate which performance tools run (e.g., ["aiohttp", "ab"]).
+        """
+        return self._run_analyzer_subprocess('performance', model_slug, app_number, config=test_config, tools=tools)
     
     def run_static_analysis(self, model_slug: str, app_number: int, tools: Optional[List[str]] = None, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Run static analysis via subprocess bridge to analyzer_manager.py."""
         return self._run_analyzer_subprocess('static', model_slug, app_number, tools=tools, options=options)
     
-    def run_dynamic_analysis(self, model_slug: str, app_number: int, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Run dynamic analysis via subprocess bridge to analyzer_manager.py."""
-        return self._run_analyzer_subprocess('dynamic', model_slug, app_number, options=options)
+    def run_dynamic_analysis(self, model_slug: str, app_number: int, options: Optional[Dict[str, Any]] = None, tools: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Run dynamic analysis via subprocess bridge to analyzer_manager.py.
+
+        tools: Optional list of tool names to gate which dynamic tools run (e.g., ["curl", "nmap", "zap"]).
+        """
+        return self._run_analyzer_subprocess('dynamic', model_slug, app_number, options=options, tools=tools)
     
     def _run_analyzer_subprocess(self, analysis_type: str, model_slug: str, app_number: int, **kwargs) -> Dict[str, Any]:
         """Run analyzer_manager.py via subprocess with proper UTF-8 handling."""

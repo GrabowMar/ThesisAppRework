@@ -107,7 +107,8 @@ class PerformanceAnalyzerEngine(BaseAnalyzerEngine):
 
     def _run_impl(self, model_slug: str, app_number: int, **kwargs) -> Dict[str, Any]:
         test_config = kwargs.get('test_config') or kwargs.get('config')
-        return self._integration.run_performance_test(model_slug, app_number, test_config=test_config)
+        tools = kwargs.get('tools')
+        return self._integration.run_performance_test(model_slug, app_number, test_config=test_config, tools=tools)
 
 
 class StaticAnalyzerEngine(BaseAnalyzerEngine):
@@ -124,7 +125,8 @@ class DynamicAnalyzerEngine(BaseAnalyzerEngine):
 
     def _run_impl(self, model_slug: str, app_number: int, **kwargs) -> Dict[str, Any]:
         options = kwargs.get('options')
-        return self._integration.run_dynamic_analysis(model_slug, app_number, options=options)
+        tools = kwargs.get('tools')
+        return self._integration.run_dynamic_analysis(model_slug, app_number, options=options, tools=tools)
 
 
 # Registry -----------------------------------------------------------------

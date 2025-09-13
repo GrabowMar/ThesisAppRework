@@ -37,6 +37,7 @@ from config.celery_config import (
     CELERY_SEND_EVENTS, CELERY_TASK_REJECT_ON_WORKER_LOST, CELERY_TASK_DEFAULT_RETRY_DELAY,
     CELERY_TASK_MAX_RETRIES, CELERYBEAT_SCHEDULE
 )
+from app.config.config_manager import get_config
 
 # ---------------------------------------------------------------------------
 # Model Disable Gating
@@ -330,9 +331,11 @@ def security_analysis_task(self, model_slug: str, app_number: int,
                     analysis.started_at = datetime.now(timezone.utc)
                     session.commit()
 
-        # Default tools if not specified
-        if not tools:
-            tools = ['bandit', 'safety', 'pylint']
+        # Default tools only when tools is explicitly None
+        # (Respect caller-provided empty lists or explicit selections)
+        if tools is None:
+            config = get_config()
+            tools = config.get_default_tools('security')
 
         update_task_progress(10, 100, "Preparing engine")
         update_task_progress(20, 100, "Running security analysis")
@@ -835,9 +838,11 @@ def static_analysis_task(self, model_slug: str, app_number: int,
         # Engines are stateless; no container start step now
         update_task_progress(0, 100, "Initializing static analysis")
 
-        # Default tools
-        if not tools:
-            tools = ['pylint', 'flake8']
+        # Default tools only when tools is explicitly None
+        # (Respect caller-provided empty lists or explicit selections)
+        if tools is None:
+            config = get_config()
+            tools = config.get_default_tools('static')
 
         update_task_progress(10, 100, "Preparing engine")
         update_task_progress(20, 100, "Running static analysis")

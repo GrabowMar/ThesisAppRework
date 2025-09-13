@@ -38,7 +38,9 @@ services:
           cpus: '0.1'
   # Static Security & Quality Analyzer
   static-analyzer:
-    build: ./services/static-analyzer
+    build:
+      context: .
+      dockerfile: ./services/static-analyzer/Dockerfile
     ports:
       - "2001:2001"
     environment:
@@ -70,7 +72,9 @@ services:
 
   # Dynamic Security Analyzer (OWASP ZAP)
   dynamic-analyzer:
-    build: ./services/dynamic-analyzer
+    build:
+      context: .
+      dockerfile: ./services/dynamic-analyzer/Dockerfile
     ports:
       - "2002:2002"
     environment:
@@ -103,7 +107,9 @@ services:
 
   # Performance Tester (Locust)
   performance-tester:
-    build: ./services/performance-tester
+    build:
+      context: .
+      dockerfile: ./services/performance-tester/Dockerfile
     ports:
       - "2003:2003"
     environment:
@@ -134,7 +140,9 @@ services:
 
   # AI-Powered Requirements & Code Analyzer
   ai-analyzer:
-    build: ./services/ai-analyzer
+    build:
+      context: .
+      dockerfile: ./services/ai-analyzer/Dockerfile
     ports:
       - "2004:2004"
     environment:

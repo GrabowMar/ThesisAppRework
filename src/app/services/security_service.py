@@ -6,6 +6,7 @@ Integrates with containerized security scanners and provides fallback analysis.
 """
 
 from app.utils.logging_config import get_logger
+from app.config.config_manager import get_config
 import uuid
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
@@ -35,9 +36,10 @@ class SecurityService:
         # Generate unique scan ID
         scan_id = str(uuid.uuid4())
         
-        # Default tools if not specified
-        if not tools:
-            tools = ['bandit', 'safety', 'pylint']
+        # Default tools only when explicitly None; preserve empty list
+        if tools is None:
+            config = get_config()
+            tools = config.get_default_tools('security')
         
         # Create database record
         try:

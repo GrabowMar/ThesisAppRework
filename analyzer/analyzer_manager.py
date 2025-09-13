@@ -505,6 +505,7 @@ class AnalyzerManager:
     async def run_security_analysis(self, model_slug: str, app_number: int, 
                                   tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run security analysis on an application."""
+        # Only apply defaults when tools is explicitly None. Respect provided selections.
         if tools is None:
             tools = ['bandit', 'safety']
         
@@ -532,7 +533,8 @@ class AnalyzerManager:
         return await self.send_websocket_message('static-analyzer', message, timeout=security_timeout)
 
     async def run_dynamic_analysis(self, model_slug: str, app_number: int,
-                                  target_urls: Optional[List[str]] = None) -> Dict[str, Any]:
+                                  target_urls: Optional[List[str]] = None,
+                                  tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run dynamic (ZAP-like) analysis against running app endpoints."""
         logger.info(f"🕷️  Running dynamic (ZAP) analysis on {model_slug} app {app_number}")
         resolved_urls: List[str] = []
@@ -556,6 +558,8 @@ class AnalyzerManager:
             "model_slug": model_slug,
             "app_number": app_number,
             "target_urls": resolved_urls,
+            # Optional tools selection propagated to service for gating
+            "tools": tools,
             "timestamp": datetime.now().isoformat(),
             "id": str(uuid.uuid4())
         }
@@ -564,7 +568,7 @@ class AnalyzerManager:
     
     async def run_performance_test(self, model_slug: str, app_number: int,
                                  target_url: Optional[str] = None, users: int = 10, 
-                                 duration: int = 60) -> Dict[str, Any]:
+                                 duration: int = 60, tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run performance test on an application."""
         logger.info(f"⚡ Running performance test on {model_slug} app {app_number}")
         # New behavior: send explicit target_urls list derived from port config when available.
@@ -594,6 +598,8 @@ class AnalyzerManager:
             "target_urls": urls,
             "users": users,
             "duration": duration,
+            # Optional tools selection propagated to service for gating
+            "tools": tools,
             "timestamp": datetime.now().isoformat(),
             "id": str(uuid.uuid4())
         }
@@ -626,6 +632,7 @@ class AnalyzerManager:
     async def run_static_analysis(self, model_slug: str, app_number: int,
                                 tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run static code analysis."""
+        # Only apply defaults when tools is explicitly None. Respect provided selections.
         if tools is None:
             # Broaden to common static tools across Python/JS/CSS
             tools = ['pylint', 'flake8', 'mypy', 'eslint', 'stylelint']
@@ -1077,6 +1084,21 @@ async def main():
             model_slug = sys.argv[2]
             app_number = int(sys.argv[3])
             analysis_type = sys.argv[4] if len(sys.argv) > 4 else 'comprehensive'
+            # Optional: parse tool selection e.g., --tools bandit pylint
+            tools_arg: Optional[List[str]] = None
+            if '--tools' in sys.argv:
+                idx = sys.argv.index('--tools')
+                # Collect args after --tools; support comma-separated single token as well
+                candidate = sys.argv[idx + 1:] if idx + 1 < len(sys.argv) else []
+                # Stop at next flag if any (future-proofing)
+                collected: List[str] = []
+                for tok in candidate:
+                    if tok.startswith('-') and tok != '-':
+                        break
+                    # Split by comma to allow --tools bandit,eslint
+                    parts = [p.strip() for p in tok.split(',') if p.strip()]
+                    collected.extend(parts)
+                tools_arg = collected if collected else None
             
             if not JSON_MODE:
                 print(f"🎯 Analyzing {model_slug} app {app_number} ({analysis_type})")
@@ -1084,20 +1106,20 @@ async def main():
             if analysis_type == 'comprehensive':
                 results = await manager.run_comprehensive_analysis(model_slug, app_number)
             elif analysis_type == 'security':
-                results = await manager.run_security_analysis(model_slug, app_number)
+                results = await manager.run_security_analysis(model_slug, app_number, tools=tools_arg)
                 # Persist results for single analysis types
                 try:
                     await manager.save_analysis_results(model_slug, app_number, 'security', results)
                 except Exception as e:
                     logger.warning(f"Could not save security analysis results: {e}")
             elif analysis_type == 'performance':
-                results = await manager.run_performance_test(model_slug, app_number)
+                results = await manager.run_performance_test(model_slug, app_number, tools=tools_arg)
                 try:
                     await manager.save_analysis_results(model_slug, app_number, 'performance', results)
                 except Exception as e:
                     logger.warning(f"Could not save performance test results: {e}")
             elif analysis_type in ['dynamic', 'zap']:
-                results = await manager.run_dynamic_analysis(model_slug, app_number)
+                results = await manager.run_dynamic_analysis(model_slug, app_number, tools=tools_arg)
                 try:
                     await manager.save_analysis_results(model_slug, app_number, 'dynamic', results)
                 except Exception as e:
@@ -1109,7 +1131,7 @@ async def main():
                 except Exception as e:
                     logger.warning(f"Could not save AI analysis results: {e}")
             elif analysis_type == 'static':
-                results = await manager.run_static_analysis(model_slug, app_number)
+                results = await manager.run_static_analysis(model_slug, app_number, tools=tools_arg)
                 try:
                     await manager.save_analysis_results(model_slug, app_number, 'static', results)
                 except Exception as e:

@@ -66,6 +66,11 @@ class ServiceLocator:
         except ImportError:  # pragma: no cover
             AnalysisInspectionService = None  # type: ignore
 
+        try:
+            from .tool_registry_service import ToolRegistryService
+        except ImportError:  # pragma: no cover
+            ToolRegistryService = None  # type: ignore
+
         # Register available services
         cls.register('model_service', ModelService(app))
         if get_sample_generation_service:
@@ -81,6 +86,8 @@ class ServiceLocator:
             cls.register('security_service', SecurityService())
         if AnalysisInspectionService:
             cls.register('analysis_inspection_service', AnalysisInspectionService())
+        if ToolRegistryService:
+            cls.register('tool_registry_service', ToolRegistryService())
 
         # Best-effort: ensure PortConfiguration is populated from misc/port_config.json
         # Only done outside tests to avoid slowing the suite.
@@ -141,6 +148,11 @@ class ServiceLocator:
     def get_sample_generation_service(cls):
         """Get sample generation service."""
         return cls.get('sample_generation_service')
+    
+    @classmethod
+    def get_tool_registry_service(cls):
+        """Get the tool registry service."""
+        return cls.get('tool_registry_service')
     
     @classmethod
     def clear(cls):

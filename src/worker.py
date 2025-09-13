@@ -14,8 +14,7 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('../logs/celery_worker.log')
+        logging.StreamHandler()
     ]
 )
 
@@ -29,6 +28,18 @@ def create_worker_app():
     src_dir = Path(__file__).parent
     sys.path.insert(0, str(project_root))
     sys.path.insert(0, str(src_dir))
+    
+    # Create logs directory if it doesn't exist
+    logs_dir = project_root / "logs"
+    logs_dir.mkdir(exist_ok=True)
+    
+    # Update log handler path
+    log_file = logs_dir / "celery_worker.log"
+    for handler in logging.getLogger().handlers[:]:
+        if isinstance(handler, logging.FileHandler):
+            logging.getLogger().removeHandler(handler)
+    
+    logging.getLogger().addHandler(logging.FileHandler(str(log_file), mode='a'))
     
     # Import after path setup
     from app.factory import create_app, get_celery_app
@@ -56,5 +67,8 @@ app, celery = create_worker_app()
 if __name__ == '__main__':
     logger.info("Starting Celery worker...")
     
-    # Start worker
+    # Start worker with proper arguments
+    import sys
+    # Override sys.argv to provide proper celery worker command
+    sys.argv = ['celery', 'worker', '--loglevel=info']
     celery.start()

@@ -12,8 +12,8 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy requirements first for better caching
-COPY requirements.txt .
+# Copy requirements first for better caching (from repo root context)
+COPY services/static-analyzer/requirements.txt ./requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
@@ -33,8 +33,10 @@ RUN npm install -g \
 RUN useradd -u 1000 -m analyzer
 USER analyzer
 
-# Copy application code
-COPY --chown=analyzer:analyzer . .
+# Copy shared analyzer package and service code
+COPY --chown=analyzer:analyzer __init__.py ./analyzer/__init__.py
+COPY --chown=analyzer:analyzer shared ./analyzer/shared
+COPY --chown=analyzer:analyzer services/static-analyzer/ .
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

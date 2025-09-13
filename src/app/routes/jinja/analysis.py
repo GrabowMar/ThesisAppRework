@@ -11,6 +11,7 @@ from app.models import AnalysisTask
 from app.utils.template_paths import render_template_compat as render_template
 from app.services.task_service import AnalysisTaskService
 from app.services.service_locator import ServiceLocator
+from app.services.service_base import ValidationError, NotFoundError
 
 # Create blueprint
 analysis_bp = Blueprint('analysis', __name__, url_prefix='/analysis')
@@ -80,16 +81,37 @@ def analysis_index():
 def analysis_create():
     """Render and process the Analysis Creation Wizard.
 
-    POST expects form fields: model_slug, app_number, analysis_type, priority (optional)
-    Creates an AnalysisTask then redirects to /analysis/list (or dashboard if preferred).
-    Minimal validation performed; future enhancement can add richer feedback/JSON.
+    POST expects form fields: 
+    - model_slug, app_number (required)
+    - analysis_mode (profile/custom)
+    - analysis_profile (for profile mode)
+    - selected_tools[] (for custom mode)
+    - priority (optional)
+    
+    Creates a CustomAnalysisRequest or AnalysisTask based on mode,
+    then redirects to /analysis/list.
     """
     if request.method == 'POST':
         form = request.form
         model_slug = (form.get('model_slug') or '').strip()
         app_number_raw = form.get('app_number') or ''
-        analysis_type = (form.get('analysis_type') or '').strip()
+        analysis_mode = (form.get('analysis_mode') or '').strip()
+        analysis_profile = (form.get('analysis_profile') or '').strip()
+        selected_tools = form.getlist('selected_tools[]')
         priority = (form.get('priority') or 'normal').strip()
+
+        # Debug logging to trace actual POST payload (safe, no secrets)
+        try:
+            current_app.logger.debug(
+                "analysis_create POST: model=%s app=%s mode=%s profile=%s selected_tools=%s",
+                model_slug,
+                app_number_raw,
+                analysis_mode,
+                analysis_profile,
+                selected_tools,
+            )
+        except Exception:
+            pass
 
         errors = []
         if not model_slug:
@@ -99,8 +121,16 @@ def analysis_create():
         except Exception:
             errors.append('Valid application number required')
             app_number = None  # type: ignore
-        if not analysis_type:
-            errors.append('Analysis type is required')
+        
+        # Validate analysis configuration
+        if analysis_mode == 'profile':
+            if not analysis_profile:
+                errors.append('Analysis profile is required when using profile mode')
+        elif analysis_mode == 'custom':
+            if not selected_tools:
+                errors.append('At least one tool must be selected for custom analysis')
+        else:
+            errors.append('Analysis mode (profile or custom) is required')
 
         if errors:
             for e in errors:
@@ -109,14 +139,85 @@ def analysis_create():
             return render_template('pages/analysis/create.html'), 400
 
         try:
-            task = AnalysisTaskService.create_task(
-                model_slug=model_slug,
-                app_number=app_number,  # type: ignore[arg-type]
-                analysis_type=analysis_type,
-                priority=priority
-            )
-            flash(f'Created analysis task {task.task_id}', 'success')
+            if analysis_mode == 'custom':
+                # Create custom analysis request using tool registry service
+                tool_service = ServiceLocator.get_tool_registry_service()
+                if not tool_service:
+                    current_app.logger.error("Tool registry service unavailable from ServiceLocator")
+                    flash('Tool registry service is not available. Please try again later.', 'danger')
+                    return render_template('pages/analysis/create.html'), 500
+
+                # Convert tool IDs to integers
+                tool_ids: list[int] = []
+                for tool_id_str in selected_tools:
+                    try:
+                        tool_ids.append(int(tool_id_str))
+                    except ValueError:
+                        current_app.logger.warning(f"Invalid tool ID: {tool_id_str}")
+
+                custom_analysis = None
+                try:
+                    # ToolRegistryService expects 'tool_ids' (not 'selected_tools')
+                    custom_analysis = tool_service.create_custom_analysis(  # type: ignore[attr-defined]
+                        model_slug=model_slug,
+                        app_number=app_number,  # type: ignore[arg-type]
+                        analysis_mode='custom',
+                        tool_ids=tool_ids,
+                        priority=priority,
+                    )
+                    flash(
+                        f"Created custom analysis request {custom_analysis.get('id', 'unknown')} with {len(tool_ids)} tools",
+                        'success'
+                    )
+                except (ValidationError, NotFoundError) as e:
+                    # Validation or missing app/profile/tool — inform user and keep them on the form
+                    current_app.logger.warning(f"Custom analysis creation failed: {e}")
+                    flash(f"Could not create custom analysis: {e}", 'danger')
+                    return render_template('pages/analysis/create.html'), 400
+
+                # Create an executable task now and persist selected tool IDs in metadata
+                # Choose a concrete engine type (security/static) for custom selections
+                chosen_type = 'security'
+                task = AnalysisTaskService.create_task(
+                    model_slug=model_slug,
+                    app_number=app_number,  # type: ignore[arg-type]
+                    analysis_type=chosen_type,
+                    priority=priority,
+                    custom_options={
+                        'selected_tools': tool_ids
+                    }
+                )
+                # Also store selected_tools at top-level metadata for easy access
+                try:
+                    meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
+                    meta['selected_tools'] = tool_ids
+                    task.set_metadata(meta)
+                    from app.extensions import db
+                    db.session.commit()
+                except Exception:
+                    pass
+                
+            else:
+                # Profile mode - map to existing analysis types for compatibility
+                analysis_type_mapping = {
+                    'security': 'security',
+                    'performance': 'performance',
+                    'quality': 'dynamic',  # Map quality to dynamic for now
+                }
+                
+                analysis_type = analysis_type_mapping.get(analysis_profile, analysis_profile)
+                
+                task = AnalysisTaskService.create_task(
+                    model_slug=model_slug,
+                    app_number=app_number,  # type: ignore[arg-type]
+                    analysis_type=analysis_type,
+                    priority=priority
+                )
+                
+                flash(f'Created {analysis_profile} analysis task {task.task_id}', 'success')
+            
             return redirect(url_for('analysis.analysis_list'))
+            
         except Exception as e:
             current_app.logger.exception('Failed to create analysis task')
             flash(f'Error creating analysis task: {e}', 'danger')

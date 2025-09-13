@@ -1696,6 +1696,199 @@ def api_export_statistics():
     return create_success_response(data, message="Statistics exported")
 
 # =================================================================
+# TOOL REGISTRY API ROUTES
+# =================================================================
+
+@api_bp.route('/tool-registry/tools')
+def api_tool_registry_tools():
+    """API endpoint: Get all available analysis tools."""
+    try:
+        from app.services.service_locator import ServiceLocator
+        tool_service = ServiceLocator.get_tool_registry_service()
+        
+        category = request.args.get('category')
+        technology = request.args.get('technology')
+        
+        if category:
+            tools = tool_service.get_tools_by_category(category)
+        elif technology:
+            tools = tool_service.get_compatible_tools(technology)
+        else:
+            tools = tool_service.get_all_tools()
+        
+        tools_data = []
+        for tool in tools:
+            # Tool is already a dictionary from the service
+            if isinstance(tool, dict):
+                tools_data.append({
+                    'id': tool.get('id'),
+                    'name': tool.get('name'),
+                    'description': tool.get('description'),
+                    'category': tool.get('category'),
+                    'technologies': tool.get('technologies', []),
+                    'command': tool.get('command'),
+                    'enabled': tool.get('is_enabled', True),
+                    'execution_time_estimate': tool.get('estimated_duration'),
+                    'metadata': tool.get('metadata', {})
+                })
+            else:
+                # Fallback for object attributes (for backward compatibility)
+                tools_data.append({
+                    'id': tool.id,
+                    'name': tool.name,
+                    'description': tool.description,
+                    'category': tool.category,
+                    'technologies': tool.technologies,
+                    'command': tool.command,
+                    'enabled': tool.enabled,
+                    'execution_time_estimate': tool.execution_time_estimate,
+                    'metadata': tool.metadata or {}
+                })
+        
+        return create_success_response(tools_data, message="Analysis tools fetched")
+    except Exception as e:
+        current_app.logger.error(f"Error getting analysis tools: {e}")
+        return create_error_response(f"Failed to fetch analysis tools: {e}", code=500)
+
+@api_bp.route('/tool-registry/categories')
+def api_tool_registry_categories():
+    """API endpoint: Get all tool categories."""
+    try:
+        from app.services.service_locator import ServiceLocator
+        tool_service = ServiceLocator.get_tool_registry_service()
+        
+        categories = tool_service.get_tool_categories()
+        return create_success_response({'categories': categories}, message="Tool categories fetched")
+    except Exception as e:
+        current_app.logger.error(f"Error getting tool categories: {e}")
+        return create_error_response(f"Failed to fetch tool categories: {e}", code=500)
+
+@api_bp.route('/tool-registry/profiles')
+def api_tool_registry_profiles():
+    """API endpoint: Get analysis profiles."""
+    try:
+        from app.services.service_locator import ServiceLocator
+        tool_service = ServiceLocator.get_tool_registry_service()
+        
+        profiles = tool_service.get_analysis_profiles()
+        profiles_data = []
+        for profile in profiles:
+            if isinstance(profile, dict):
+                # Profile is already a dictionary from the service
+                profiles_data.append({
+                    'id': profile.get('id'),
+                    'name': profile.get('name'),
+                    'description': profile.get('description'),
+                    'is_builtin': profile.get('is_builtin', False),
+                    'tools': profile.get('tool_configurations', []),
+                    'created_at': profile.get('created_at')
+                })
+            else:
+                # Fallback for object attributes (for backward compatibility)
+                profile_tools = []
+                for config in profile.tool_configurations:
+                    profile_tools.append({
+                        'tool_id': config.tool_id,
+                        'tool_name': config.tool.name,
+                        'enabled': config.enabled,
+                        'parameters': config.parameters or {}
+                    })
+                
+                profiles_data.append({
+                    'id': profile.id,
+                    'name': profile.name,
+                    'description': profile.description,
+                    'is_builtin': profile.is_builtin,
+                    'tools': profile_tools,
+                    'created_at': profile.created_at.isoformat() if profile.created_at else None
+                })
+        
+        return create_success_response(profiles_data, message="Analysis profiles fetched")
+    except Exception as e:
+        current_app.logger.error(f"Error getting analysis profiles: {e}")
+        return create_error_response(f"Failed to fetch analysis profiles: {e}", code=500)
+
+@api_bp.route('/tool-registry/custom-analysis', methods=['POST'])
+def api_tool_registry_custom_analysis():
+    """API endpoint: Create custom analysis request with selected tools."""
+    try:
+        from app.services.service_locator import ServiceLocator
+        tool_service = ServiceLocator.get_tool_registry_service()
+        
+        data = request.get_json() or {}
+        
+        # Validate required fields
+        missing = require_fields(data, ['model_slug', 'app_number', 'selected_tools'])
+        if missing:
+            return create_error_response(f"Missing required fields: {', '.join(missing)}", code=400)
+        
+        # Validate selected_tools format
+        selected_tools = data.get('selected_tools', [])
+        if not isinstance(selected_tools, list) or not selected_tools:
+            return create_error_response("selected_tools must be a non-empty array", code=400)
+        
+        # Create custom analysis request
+        custom_analysis = tool_service.create_custom_analysis(
+            model_slug=data['model_slug'],
+            app_number=data['app_number'],
+            selected_tools=selected_tools,
+            metadata=data.get('metadata', {})
+        )
+        
+        return create_success_response({
+            'id': custom_analysis.get('id') if isinstance(custom_analysis, dict) else custom_analysis.id,
+            'model_slug': custom_analysis.get('model_slug') if isinstance(custom_analysis, dict) else custom_analysis.model_slug,
+            'app_number': custom_analysis.get('app_number') if isinstance(custom_analysis, dict) else custom_analysis.app_number,
+            'status': custom_analysis.get('status') if isinstance(custom_analysis, dict) else custom_analysis.status,
+            'selected_tools_count': len(selected_tools),
+            'created_at': custom_analysis.get('created_at') if isinstance(custom_analysis, dict) else (custom_analysis.created_at.isoformat() if custom_analysis.created_at else None)
+        }, message="Custom analysis created successfully")
+    except Exception as e:
+        current_app.logger.error(f"Error creating custom analysis: {e}")
+        return create_error_response(f"Failed to create custom analysis: {e}", code=500)
+
+@api_bp.route('/tool-registry/recommendations')
+def api_tool_registry_recommendations():
+    """API endpoint: Get recommended tools based on technology stack."""
+    try:
+        from app.services.service_locator import ServiceLocator
+        tool_service = ServiceLocator.get_tool_registry_service()
+        
+        technology = request.args.get('technology')
+        if not technology:
+            return create_error_response("technology parameter is required", code=400)
+        
+        recommendations = tool_service.get_compatible_tools(technology)
+        
+        recommendations_data = []
+        for tool in recommendations:
+            if isinstance(tool, dict):
+                # Tool is already a dictionary from the service
+                recommendations_data.append({
+                    'id': tool.get('id'),
+                    'name': tool.get('name'),
+                    'description': tool.get('description'),
+                    'category': tool.get('category'),
+                    'confidence_score': 0.8,  # Could be enhanced with ML-based recommendations
+                    'reason': f"Compatible with {technology} technology stack"
+                })
+            else:
+                # Fallback for object attributes (for backward compatibility)
+                recommendations_data.append({
+                    'id': tool.id,
+                    'name': tool.name,
+                    'description': tool.description,
+                    'category': tool.category,
+                    'confidence_score': 0.8,  # Could be enhanced with ML-based recommendations
+                    'reason': f"Compatible with {technology} technology stack"
+                })
+        
+        return create_success_response(recommendations_data, message="Tool recommendations fetched")
+    except Exception as e:
+        current_app.logger.error(f"Error getting tool recommendations: {e}")
+        return create_error_response(f"Failed to fetch tool recommendations: {e}", code=500)
+
+# =================================================================
 # SYSTEM API ROUTES
 # =================================================================
 
@@ -3083,3 +3276,95 @@ def api_bulk_docker():
         return html
 
     return create_success_response_with_status({'summary': summary, 'results': results})
+
+
+# ==========================================
+# Tool Registry API Routes
+# ==========================================
+
+@api_bp.route('/tool-registry/tools', methods=['GET'])
+def tool_registry_get_tools():
+    """Get all available analysis tools."""
+    try:
+        from app.services.service_locator import ServiceLocator
+        tool_service = ServiceLocator.get_tool_registry_service()
+        
+        category = request.args.get('category')
+        enabled_only = request.args.get('enabled_only', 'true').lower() == 'true'
+        
+        tools = tool_service.get_all_tools(enabled_only=enabled_only, category=category)
+        
+        return create_success_response({'tools': tools})
+    except Exception as e:
+        current_app.logger.exception('Error fetching tools from tool registry')
+        return create_error_response(str(e), 500)
+
+
+@api_bp.route('/tool-registry/categories', methods=['GET'])
+def tool_registry_get_categories():
+    """Get all tool categories."""
+    try:
+        from app.services.service_locator import ServiceLocator
+        tool_service = ServiceLocator.get_tool_registry_service()
+        
+        categories = tool_service.get_tool_categories()
+        
+        return create_success_response({'categories': categories})
+    except Exception as e:
+        current_app.logger.exception('Error fetching categories from tool registry')
+        return create_error_response(str(e), 500)
+
+
+@api_bp.route('/tool-registry/profiles', methods=['GET'])
+def tool_registry_get_profiles():
+    """Get all analysis profiles."""
+    try:
+        from app.services.service_locator import ServiceLocator
+        tool_service = ServiceLocator.get_tool_registry_service()
+        
+        include_builtin = request.args.get('include_builtin', 'true').lower() == 'true'
+        
+        profiles = tool_service.get_analysis_profiles(include_builtin=include_builtin)
+        
+        return create_success_response({'profiles': profiles})
+    except Exception as e:
+        current_app.logger.exception('Error fetching profiles from tool registry')
+        return create_error_response(str(e), 500)
+
+
+@api_bp.route('/tool-registry/custom-analysis', methods=['POST'])
+def tool_registry_create_custom_analysis():
+    """Create a custom analysis request."""
+    try:
+        from app.services.service_locator import ServiceLocator
+        tool_service = ServiceLocator.get_tool_registry_service()
+        
+        data = request.get_json()
+        if not data:
+            return create_error_response('Request body must be JSON', 400)
+        
+        analysis = tool_service.create_custom_analysis(data)
+        
+        return create_success_response({'analysis': analysis})
+    except Exception as e:
+        current_app.logger.exception('Error creating custom analysis')
+        return create_error_response(str(e), 500)
+
+
+@api_bp.route('/tool-registry/execution-plan', methods=['POST'])
+def tool_registry_get_execution_plan():
+    """Get execution plan for an analysis."""
+    try:
+        from app.services.service_locator import ServiceLocator
+        tool_service = ServiceLocator.get_tool_registry_service()
+        
+        data = request.get_json()
+        if not data or 'analysis_id' not in data:
+            return create_error_response('analysis_id is required', 400)
+        
+        plan = tool_service.get_analysis_execution_plan(data['analysis_id'])
+        
+        return create_success_response({'execution_plan': plan})
+    except Exception as e:
+        current_app.logger.exception('Error generating execution plan')
+        return create_error_response(str(e), 500)

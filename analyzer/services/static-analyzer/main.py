@@ -3,101 +3,43 @@
 Static Analyzer Service - Comprehensive Code Quality Analysis
 ============================================================
 
-A containerized static analysis service that runs:
-- Python: Bandit (security), Pylint (quality), MyPy (types)
-- JavaScript/TypeScript: ESLint (quality + security)
-- CSS: Stylelint
-- General: File structure analysis
-
-This service runs inside a Docker container with all tools pre-installed.
-Usage:
-    docker-compose up static-analyzer
-
-The service will start on ws://localhost:2001
+Modular static analysis service with strict tool selection gating.
+Runs per-language analyzers and reports results with accurate tools_used.
 """
 
 import asyncio
 import json
-import logging
 import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional
-import websockets
-from websockets.asyncio.server import serve
+from typing import Dict, List, Any, Optional, Set
 
-level_str = os.getenv('LOG_LEVEL', 'INFO').upper()
-level = getattr(logging, level_str, logging.INFO)
-logging.basicConfig(level=level)
-logger = logging.getLogger(__name__)
-logger.setLevel(level)
-
-# Tame noisy handshake errors from stray TCP connects that close immediately.
-# These show up as "opening handshake failed" in websockets.server/http11 when
-# a client connects and disconnects without sending any HTTP request line.
-# Raise log threshold to CRITICAL to avoid polluting container logs.
-try:
-    # Suppress noisy connection open/close logs from websockets internals
-    logging.getLogger("websockets.server").setLevel(logging.CRITICAL)
-    logging.getLogger("websockets.http").setLevel(logging.CRITICAL)
-    logging.getLogger("websockets.http11").setLevel(logging.CRITICAL)
-except Exception:
-    pass
+from analyzer.shared.service_base import BaseWSService
 
 
-class StaticAnalyzer:
+class StaticAnalyzer(BaseWSService):
     """Comprehensive static analyzer for multiple languages."""
-    
+
     def __init__(self):
-        self.service_name = "static-analyzer"
-        self.version = "1.0.0"
-        self.start_time = datetime.now()
-        self.available_tools = self._check_available_tools()
+        super().__init__(service_name="static-analyzer", default_port=2001, version="1.0.0")
         # Default ignore patterns for heavy/noisy directories
         self.default_ignores = [
             'node_modules', 'dist', 'build', '.next', '.nuxt', '.cache',
             '.venv', 'venv', '__pycache__', '.git', '.tox', '.mypy_cache',
             'coverage', 'site-packages'
         ]
-    
-    def _check_available_tools(self) -> List[str]:
-        """Check which static analysis tools are available."""
-        tools = []
-        
-        # Python tools
-        for tool in ['bandit', 'pylint', 'mypy']:
+
+    def _detect_available_tools(self) -> List[str]:
+        tools: List[str] = []
+        for tool in ['bandit', 'pylint', 'mypy', 'eslint', 'stylelint']:
             try:
-                result = subprocess.run([tool, '--version'], 
-                                      capture_output=True, text=True, timeout=10)
+                result = subprocess.run([tool, '--version'], capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
                     tools.append(tool)
-                    logger.debug(f"{tool} available")
+                    self.log.debug(f"{tool} available")
             except Exception as e:
-                logger.debug(f"{tool} not available: {e}")
-        
-        # JavaScript tools
-        for tool in ['eslint']:
-            try:
-                result = subprocess.run([tool, '--version'], 
-                                      capture_output=True, text=True, timeout=10)
-                if result.returncode == 0:
-                    tools.append(tool)
-                    logger.debug(f"{tool} available")
-            except Exception as e:
-                logger.debug(f"{tool} not available: {e}")
-        
-        # CSS tools
-        for tool in ['stylelint']:
-            try:
-                result = subprocess.run([tool, '--version'], 
-                                      capture_output=True, text=True, timeout=10)
-                if result.returncode == 0:
-                    tools.append(tool)
-                    logger.debug(f"{tool} available")
-            except Exception as e:
-                logger.debug(f"{tool} not available: {e}")
-        
+                self.log.debug(f"{tool} not available: {e}")
         return tools
     
     def _generate_pylintrc(self, config: Dict[str, Any]) -> str:
@@ -140,8 +82,11 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
 """
         return rcfile_content
     
-    async def analyze_python_files(self, source_path: Path, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Run Python static analysis tools with custom configuration."""
+    async def analyze_python_files(self, source_path: Path, config: Optional[Dict[str, Any]] = None, selected_tools: Optional[Set[str]] = None) -> Dict[str, Any]:
+        """Run Python static analysis tools with custom configuration.
+
+        Only executes tools included in selected_tools when provided.
+        """
         # Avoid traversing huge directories
         def _iter_py_files(base: Path):
             for p in base.rglob('*.py'):
@@ -154,14 +99,18 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         if not python_files:
             return {'status': 'no_files', 'message': 'No Python files found'}
         
-        results = {}
+        results: Dict[str, Any] = {}
         
         # Get configuration settings
         bandit_config = config.get('bandit', {}) if config else {}
         pylint_config = config.get('pylint', {}) if config else {}
         
         # Bandit security analysis
-        if 'bandit' in self.available_tools and bandit_config.get('enabled', True):
+        if (
+            'bandit' in self.available_tools
+            and (selected_tools is None or 'bandit' in selected_tools)
+            and bandit_config.get('enabled', True)
+        ):
             try:
                 # Build exclude list
                 exclude_dirs = bandit_config.get('exclude_dirs') or self.default_ignores
@@ -215,7 +164,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                         config_file = f.name
                         cmd.extend(['-c', config_file])
                 
-                logger.info(f"Running Bandit: {' '.join(cmd)}")
+                self.log.info(f"Running Bandit: {' '.join(cmd)}")
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
                 
                 # Cleanup temporary config file
@@ -229,6 +178,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     bandit_data = json.loads(result.stdout)
                     results['bandit'] = {
                         'tool': 'bandit',
+                        'executed': True,
                         'status': 'success',
                         'issues': bandit_data.get('results', []),
                         'total_issues': len(bandit_data.get('results', [])),
@@ -238,16 +188,22 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 else:
                     results['bandit'] = {
                         'tool': 'bandit', 
+                        'executed': True,
                         'status': 'no_issues', 
                         'total_issues': 0,
                         'config_used': bandit_config
                     }
             except Exception as e:
-                logger.error(f"Bandit analysis failed: {e}")
-                results['bandit'] = {'tool': 'bandit', 'status': 'error', 'error': str(e)}
+                self.log.error(f"Bandit analysis failed: {e}")
+                results['bandit'] = {'tool': 'bandit', 'executed': True, 'status': 'error', 'error': str(e)}
         
         # Pylint code quality
-        if 'pylint' in self.available_tools and pylint_config.get('enabled', True) and python_files:
+        if (
+            'pylint' in self.available_tools
+            and (selected_tools is None or 'pylint' in selected_tools)
+            and pylint_config.get('enabled', True)
+            and python_files
+        ):
             try:
                 # Create temporary pylintrc file
                 pylintrc_content = self._generate_pylintrc(pylint_config)
@@ -269,7 +225,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 if pylint_config.get('jobs'):
                     cmd.extend(['-j', str(pylint_config['jobs'])])
                 
-                logger.info(f"Running Pylint: {' '.join(cmd[:5])}... ({len(files_to_check)} files)")
+                self.log.info(f"Running Pylint: {' '.join(cmd[:5])}... ({len(files_to_check)} files)")
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
                 
                 # Cleanup temporary rcfile
@@ -283,6 +239,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                         pylint_data = json.loads(result.stdout)
                         results['pylint'] = {
                             'tool': 'pylint',
+                            'executed': True,
                             'status': 'success',
                             'issues': pylint_data,
                             'total_issues': len(pylint_data),
@@ -293,6 +250,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                         # Pylint might not output JSON, parse text output
                         results['pylint'] = {
                             'tool': 'pylint',
+                            'executed': True,
                             'status': 'completed',
                             'message': 'Analysis completed',
                             'output': result.stdout[:1000],  # Truncate output
@@ -302,19 +260,23 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 else:
                     results['pylint'] = {
                         'tool': 'pylint', 
+                        'executed': True,
                         'status': 'no_issues', 
                         'total_issues': 0,
                         'files_analyzed': len(files_to_check),
                         'config_used': pylint_config
                     }
             except Exception as e:
-                logger.error(f"Pylint analysis failed: {e}")
-                results['pylint'] = {'tool': 'pylint', 'status': 'error', 'error': str(e)}
+                self.log.error(f"Pylint analysis failed: {e}")
+                results['pylint'] = {'tool': 'pylint', 'executed': True, 'status': 'error', 'error': str(e)}
         
         return results
     
-    async def analyze_javascript_files(self, source_path: Path, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Run JavaScript/TypeScript static analysis with custom configuration."""
+    async def analyze_javascript_files(self, source_path: Path, config: Optional[Dict[str, Any]] = None, selected_tools: Optional[Set[str]] = None) -> Dict[str, Any]:
+        """Run JavaScript/TypeScript static analysis with custom configuration.
+
+        Only executes tools included in selected_tools when provided.
+        """
         js_files = []
         for pattern in ['*.js', '*.jsx', '*.ts', '*.tsx', '*.vue']:
             for p in source_path.rglob(pattern):
@@ -325,11 +287,15 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         if not js_files:
             return {'status': 'no_files', 'message': 'No JavaScript/TypeScript files found'}
         
-        results = {}
+        results: Dict[str, Any] = {}
         eslint_config = config.get('eslint', {}) if config else {}
         
         # ESLint analysis
-        if 'eslint' in self.available_tools and eslint_config.get('enabled', True):
+        if (
+            'eslint' in self.available_tools
+            and (selected_tools is None or 'eslint' in selected_tools)
+            and eslint_config.get('enabled', True)
+        ):
             try:
                 # Create custom ESLint config
                 eslint_config_data = {
@@ -370,7 +336,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                         json.dump(eslint_config_data, f, indent=2)
                         config_file = f.name
                 except Exception as e:
-                    logger.error(f"Failed to create temporary ESLint config: {e}")
+                    self.log.error(f"Failed to create temporary ESLint config: {e}")
                     config_file = None
                 
                 # Build ESLint command
@@ -393,7 +359,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 else:
                     cmd.append(str(source_path))
                 
-                logger.info(f"Running ESLint: {' '.join(cmd[:5])}...")
+                self.log.info(f"Running ESLint: {' '.join(cmd[:5])}...")
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
                 
                 if result.stdout:
@@ -410,6 +376,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                         
                         results['eslint'] = {
                             'tool': 'eslint',
+                            'executed': True,
                             'status': 'success',
                             'results': eslint_data,
                             'total_issues': total_issues,
@@ -420,6 +387,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     except json.JSONDecodeError:
                         results['eslint'] = {
                             'tool': 'eslint', 
+                            'executed': True,
                             'status': 'completed', 
                             'message': 'Analysis completed',
                             'output': result.stdout[:500],
@@ -428,6 +396,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 else:
                     results['eslint'] = {
                         'tool': 'eslint', 
+                        'executed': True,
                         'status': 'no_issues', 
                         'total_issues': 0,
                         'config_used': eslint_config
@@ -441,13 +410,13 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     pass
                     
             except Exception as e:
-                logger.error(f"ESLint analysis failed: {e}")
-                results['eslint'] = {'tool': 'eslint', 'status': 'error', 'error': str(e)}
+                self.log.error(f"ESLint analysis failed: {e}")
+                results['eslint'] = {'tool': 'eslint', 'executed': True, 'status': 'error', 'error': str(e)}
         
         return results
     
-    async def analyze_css_files(self, source_path: Path, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Run CSS static analysis."""
+    async def analyze_css_files(self, source_path: Path, config: Optional[Dict[str, Any]] = None, selected_tools: Optional[Set[str]] = None) -> Dict[str, Any]:
+        """Run CSS static analysis. Only executes tools included in selected_tools when provided."""
         css_files = []
         for pattern in ['*.css', '*.scss', '*.sass', '*.less']:
             for p in source_path.rglob(pattern):
@@ -458,10 +427,15 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         if not css_files:
             return {'status': 'no_files', 'message': 'No CSS files found'}
         
-        results = {}
+        results: Dict[str, Any] = {}
         
         # Stylelint analysis
-        if 'stylelint' in self.available_tools:
+        stylelint_cfg = (config or {}).get('stylelint', {})
+        if (
+            'stylelint' in self.available_tools
+            and (selected_tools is None or 'stylelint' in selected_tools)
+            and stylelint_cfg.get('enabled', True)
+        ):
             try:
                 # stylelint supports ignore patterns through .stylelintignore; here we pass globs limited to non-ignored dirs
                 cmd = ['stylelint', '--formatter', 'json']
@@ -477,17 +451,18 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                         total_issues = sum(len(file_result.get('warnings', [])) for file_result in stylelint_data)
                         results['stylelint'] = {
                             'tool': 'stylelint',
+                            'executed': True,
                             'status': 'success',
                             'results': stylelint_data,
                             'total_issues': total_issues
                         }
                     except json.JSONDecodeError:
-                        results['stylelint'] = {'tool': 'stylelint', 'status': 'completed'}
+                        results['stylelint'] = {'tool': 'stylelint', 'executed': True, 'status': 'completed'}
                 else:
-                    results['stylelint'] = {'tool': 'stylelint', 'status': 'no_issues', 'total_issues': 0}
+                    results['stylelint'] = {'tool': 'stylelint', 'executed': True, 'status': 'no_issues', 'total_issues': 0}
                     
             except Exception as e:
-                results['stylelint'] = {'tool': 'stylelint', 'status': 'error', 'error': str(e)}
+                results['stylelint'] = {'tool': 'stylelint', 'executed': True, 'status': 'error', 'error': str(e)}
         
         return results
     
@@ -523,30 +498,9 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         except Exception as e:
             return {'status': 'error', 'error': str(e)}
     
-    async def _progress(self, stage: str, message: str = "", analysis_id: Optional[str] = None, **kwargs):
-        """Send a PROGRESS_UPDATE to the gateway if configured."""
-        gw = os.getenv('GATEWAY_URL', 'ws://localhost:8765')
-        # Best-effort fire-and-forget; avoid blocking service on progress
-        try:
-            payload = {
-                'type': 'progress_update',
-                'correlation_id': analysis_id or kwargs.get('analysis_id') or '',
-                'stage': stage,
-                'message': message,
-                'service': self.service_name,
-                'data': {
-                    'stage': stage,
-                    'message': message,
-                    **kwargs
-                }
-            }
-            async with websockets.connect(gw, open_timeout=1, close_timeout=1, ping_interval=None) as ws:
-                await ws.send(json.dumps(payload))
-        except Exception:
-            # Swallow errors - progress is optional
-            pass
+    # Use BaseWSService.send_progress instead of local progress helper
 
-    async def analyze_model_code(self, model_slug: str, app_number: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None) -> Dict[str, Any]:
+    async def analyze_model_code(self, model_slug: str, app_number: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None, selected_tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Perform comprehensive static analysis on AI model code with custom configuration."""
         try:
             model_path = Path('/app/sources') / model_slug / f'app{app_number}'
@@ -557,23 +511,31 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     'error': f'Model path not found: {model_path}'
                 }
             
-            logger.info(f"Static analysis of {model_slug} app {app_number}")
-            await self._progress('starting', f"Starting static analysis for {model_slug} app {app_number}", analysis_id=analysis_id,
+            self.log.info(f"Static analysis of {model_slug} app {app_number}")
+            await self.send_progress('starting', f"Starting static analysis for {model_slug} app {app_number}", analysis_id=analysis_id,
                                  model_slug=model_slug, app_number=app_number)
             
+            # Normalize selected tools to a lowercase set for comparisons
+            selected_set: Optional[set] = None
+            if selected_tools:
+                try:
+                    selected_set = {t.lower() for t in selected_tools}
+                except Exception:
+                    selected_set = None
+
             results = {
                 'model_slug': model_slug,
                 'app_number': app_number,
                 'analysis_time': datetime.now().isoformat(),
-                'tools_used': self.available_tools.copy(),
+                'tools_used': [],  # will be populated based on executed tools
                 'configuration_applied': config is not None,
                 'results': {}
             }
             
             # Run analysis for different file types with configuration
-            logger.info("Analyzing Python files...")
-            await self._progress('scanning_python', 'Scanning Python files', analysis_id=analysis_id)
-            py_res = await self.analyze_python_files(model_path, config)
+            self.log.info("Analyzing Python files...")
+            await self.send_progress('scanning_python', 'Scanning Python files', analysis_id=analysis_id)
+            py_res = await self.analyze_python_files(model_path, config, selected_set)
             results['results']['python'] = py_res
             try:
                 count = 0
@@ -582,41 +544,47 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                         count += int(py_res['bandit'].get('total_issues', 0))
                     if 'pylint' in py_res and isinstance(py_res['pylint'], dict):
                         count += int(py_res['pylint'].get('total_issues', 0))
-                await self._progress('python_completed', f"Python analysis complete ({count} findings)", analysis_id=analysis_id,
+                await self.send_progress('python_completed', f"Python analysis complete ({count} findings)", analysis_id=analysis_id,
                                      issues_found=count)
             except Exception:
                 pass
             
-            logger.info("Analyzing JavaScript files...")
-            await self._progress('scanning_js', 'Scanning JavaScript/TypeScript files', analysis_id=analysis_id)
-            js_res = await self.analyze_javascript_files(model_path, config)
+            self.log.info("Analyzing JavaScript files...")
+            await self.send_progress('scanning_js', 'Scanning JavaScript/TypeScript files', analysis_id=analysis_id)
+            js_res = await self.analyze_javascript_files(model_path, config, selected_set)
             results['results']['javascript'] = js_res
             try:
                 count = 0
                 if isinstance(js_res, dict) and 'eslint' in js_res and isinstance(js_res['eslint'], dict):
                     count += int(js_res['eslint'].get('total_issues', 0))
-                await self._progress('js_completed', f"JS/TS analysis complete ({count} findings)", analysis_id=analysis_id,
+                await self.send_progress('js_completed', f"JS/TS analysis complete ({count} findings)", analysis_id=analysis_id,
                                      issues_found=count)
             except Exception:
                 pass
             
-            logger.info("Analyzing CSS files...")
-            await self._progress('scanning_css', 'Scanning CSS files', analysis_id=analysis_id)
-            css_res = await self.analyze_css_files(model_path, config)
+            self.log.info("Analyzing CSS files...")
+            await self.send_progress('scanning_css', 'Scanning CSS files', analysis_id=analysis_id)
+            css_res = await self.analyze_css_files(model_path, config, selected_set)
             results['results']['css'] = css_res
             
-            logger.info("Analyzing project structure...")
-            await self._progress('analyzing_structure', 'Analyzing project structure', analysis_id=analysis_id)
+            self.log.info("Analyzing project structure...")
+            await self.send_progress('analyzing_structure', 'Analyzing project structure', analysis_id=analysis_id)
             results['results']['structure'] = await self.analyze_project_structure(model_path)
             
-            # Calculate enhanced summary
+            # Calculate enhanced summary and derive tools_used strictly from executed tools
             total_issues = 0
             tools_run = 0
             severity_breakdown = {'error': 0, 'warning': 0, 'info': 0}
+            used_tools: List[str] = []
             
             for lang_results in results['results'].values():
                 if isinstance(lang_results, dict):
-                    for tool_result in lang_results.values():
+                    for tool_name, tool_result in lang_results.items():
+                        if not isinstance(tool_result, dict):
+                            continue
+                        # Only count as executed if tool result explicitly marks executed True
+                        if tool_result.get('executed') and tool_name not in used_tools:
+                            used_tools.append(tool_name)
                         if isinstance(tool_result, dict) and tool_result.get('status') == 'success':
                             tools_run += 1
                             total_issues += tool_result.get('total_issues', 0)
@@ -633,16 +601,17 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 'analysis_status': 'completed',
                 'configuration_preset': config.get('preset_name', 'custom') if config else 'default'
             }
-            await self._progress('reporting', 'Compiling report', analysis_id=analysis_id,
+            results['tools_used'] = used_tools
+            await self.send_progress('reporting', 'Compiling report', analysis_id=analysis_id,
                                  total_issues=total_issues, tools_run=tools_run)
-            await self._progress('completed', 'Static analysis completed', analysis_id=analysis_id,
+            await self.send_progress('completed', 'Static analysis completed', analysis_id=analysis_id,
                                  total_issues=total_issues)
             
             return results
             
         except Exception as e:
-            logger.error(f"Static analysis failed: {e}")
-            await self._progress('failed', f"Static analysis failed: {e}", analysis_id=analysis_id)
+            self.log.error(f"Static analysis failed: {e}")
+            await self.send_progress('failed', f"Static analysis failed: {e}", analysis_id=analysis_id)
             return {
                 'status': 'error',
                 'error': str(e),
@@ -655,118 +624,59 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         try:
             msg_type = message_data.get("type", "unknown")
             
-            if msg_type == "ping":
-                response = {
-                    "type": "pong",
-                    "timestamp": datetime.now().isoformat(),
-                    "service": self.service_name
-                }
-                await websocket.send(json.dumps(response))
-                logger.debug("Responded to ping")
-                
-            elif msg_type == "health_check":
-                uptime = (datetime.now() - self.start_time).total_seconds()
-                response = {
-                    "type": "health_response",
-                    "status": "healthy",
-                    "service": self.service_name,
-                    "version": self.version,
-                    "uptime": uptime,
-                    "available_tools": self.available_tools,
-                    "timestamp": datetime.now().isoformat()
-                }
-                await websocket.send(json.dumps(response))
-                logger.debug(f"Health check - Tools: {self.available_tools}")
-                
-            elif msg_type == "static_analyze":
+            if msg_type == "static_analyze":
                 model_slug = message_data.get("model_slug", "unknown")
                 app_number = message_data.get("app_number", 1)
                 config = message_data.get("config", None)
                 analysis_id = message_data.get("id")
+                # Tool selection normalized
+                tools = list(self.extract_selected_tools(message_data) or [])
                 
-                logger.info(f"Starting static analysis for {model_slug} app {app_number}")
+                self.log.info(f"Starting static analysis for {model_slug} app {app_number}")
                 if config:
-                    logger.info(f"Using custom configuration: {list(config.keys())}")
+                    self.log.info(f"Using custom configuration: {list(config.keys())}")
                 
-                analysis_results = await self.analyze_model_code(model_slug, app_number, config, analysis_id=analysis_id)
+                analysis_results = await self.analyze_model_code(
+                    model_slug, app_number, config, analysis_id=analysis_id, selected_tools=tools
+                )
                 
                 response = {
                     "type": "static_analysis_result",
                     "status": "success",
-                    "service": self.service_name,
+                    "service": self.info.name,
                     "analysis": analysis_results,
                     "timestamp": datetime.now().isoformat()
                 }
                 
                 await websocket.send(json.dumps(response))
-                logger.info(f"Static analysis completed for {model_slug} app {app_number}")
+                self.log.info(f"Static analysis completed for {model_slug} app {app_number}")
                 
             else:
                 response = {
                     "type": "error",
                     "message": f"Unknown message type: {msg_type}",
-                    "service": self.service_name
+                    "service": self.info.name
                 }
                 await websocket.send(json.dumps(response))
                 
         except Exception as e:
-            logger.error(f"Error handling message: {e}")
+            self.log.error(f"Error handling message: {e}")
             error_response = {
                 "type": "error",
                 "message": f"Internal error: {str(e)}",
-                "service": self.service_name
+                "service": self.info.name
             }
             try:
                 await websocket.send(json.dumps(error_response))
             except Exception:
                 pass
 
-async def handle_client(websocket):
-    """Handle client connections."""
-    analyzer = StaticAnalyzer()
-    client_addr = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
-    logger.debug(f"New client connected: {client_addr}")
-    
-    try:
-        async for message in websocket:
-            try:
-                message_data = json.loads(message)
-                await analyzer.handle_message(websocket, message_data)
-            except json.JSONDecodeError:
-                logger.error("Invalid JSON message")
-                error_response = {
-                    "type": "error",
-                    "message": "Invalid JSON format",
-                    "service": analyzer.service_name
-                }
-                await websocket.send(json.dumps(error_response))
-                
-    except websockets.exceptions.ConnectionClosed:
-        logger.debug(f"Client disconnected: {client_addr}")
-    except Exception as e:
-        logger.error(f"Error with client {client_addr}: {e}")
-
 async def main():
-    """Start the static analyzer service."""
-    host = os.getenv('WEBSOCKET_HOST', '0.0.0.0')
-    port = int(os.getenv('WEBSOCKET_PORT', 2001))
-    
-    logger.info(f"Starting Static Analyzer service on {host}:{port}")
-    
-    try:
-        async with serve(handle_client, host, port):
-            logger.info(f"Static Analyzer listening on ws://{host}:{port}")
-            logger.info("Service ready to accept connections")
-            await asyncio.Future()  # Run forever
-    except Exception as e:
-        logger.error(f"Failed to start service: {e}")
-        raise
+    service = StaticAnalyzer()
+    await service.run()
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("Service stopped by user")
-    except Exception as e:
-        logger.error(f"Service crashed: {e}")
-        exit(1)
+        pass

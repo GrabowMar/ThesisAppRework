@@ -3,55 +3,28 @@
 Performance Tester Service - Load Testing and Performance Analysis
 ==================================================================
 
-A containerized performance testing service that performs:
-- Load testing with concurrent requests
-- Response time analysis
-- Throughput measurement
-- Resource usage monitoring
-
-Usage:
-    docker-compose up performance-tester
-
-The service will start on ws://localhost:2003
+Refactored to use BaseWSService with strict tool selection gating.
 """
 
 import asyncio
 import json
-import logging
 import os
 import subprocess
 import statistics
 from urllib.parse import urlparse
 from datetime import datetime
 from typing import Dict, List, Any, Optional
-import websockets
-from websockets import connect as ws_connect
-from websockets.asyncio.server import serve
+from analyzer.shared.service_base import BaseWSService
 import aiohttp
 
-level_str = os.getenv('LOG_LEVEL', 'INFO').upper()
-level = getattr(logging, level_str, logging.INFO)
-logging.basicConfig(level=level)
-logger = logging.getLogger(__name__)
-logger.setLevel(level)
-try:
-    logging.getLogger("websockets.server").setLevel(logging.CRITICAL)
-    logging.getLogger("websockets.http").setLevel(logging.CRITICAL)
-    logging.getLogger("websockets.http11").setLevel(logging.CRITICAL)
-except Exception:
-    pass
-
-class PerformanceTester:
+class PerformanceTester(BaseWSService):
     """Performance testing service for web applications."""
     
     def __init__(self):
-        self.service_name = "performance-tester"
-        self.version = "1.0.0"
-        self.start_time = datetime.now()
-        self.available_tools = self._check_available_tools()
+        super().__init__(service_name="performance-tester", default_port=2003, version="1.0.0")
     
-    def _check_available_tools(self) -> List[str]:
-        """Check which performance testing tools are available."""
+    def _detect_available_tools(self) -> List[str]:
+        """Detect which performance testing tools are available."""
         tools = []
         
         # Check for curl (basic)
@@ -60,9 +33,9 @@ class PerformanceTester:
                                   capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 tools.append('curl')
-                logger.debug("curl available")
+                self.log.debug("curl available")
         except Exception as e:
-            logger.debug(f"curl not available: {e}")
+            self.log.debug(f"curl not available: {e}")
         
         # Check for ab (Apache Bench)
         try:
@@ -70,9 +43,9 @@ class PerformanceTester:
                                   capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 tools.append('ab')
-                logger.debug("Apache Bench (ab) available")
+                self.log.debug("Apache Bench (ab) available")
         except Exception as e:
-            logger.debug(f"Apache Bench not available: {e}")
+            self.log.debug(f"Apache Bench not available: {e}")
         
         # Check for wget
         try:
@@ -80,45 +53,24 @@ class PerformanceTester:
                                   capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 tools.append('wget')
-                logger.debug("wget available")
+                self.log.debug("wget available")
         except Exception as e:
-            logger.debug(f"wget not available: {e}")
+            self.log.debug(f"wget not available: {e}")
         
         # Always available - built-in aiohttp
         tools.append('aiohttp')
-        logger.debug("aiohttp available (built-in)")
+        self.log.debug("aiohttp available (built-in)")
         # Check for locust python package (import)
         try:
             import importlib  # noqa: F401
             locust_spec = __import__('locust')  # type: ignore
             if locust_spec:
                 tools.append('locust')
-                logger.debug("locust available (python package)")
+                self.log.debug("locust available (python package)")
         except Exception as e:
-            logger.debug(f"locust not available: {e}")
+            self.log.debug(f"locust not available: {e}")
         
         return tools
-
-    async def _progress(self, stage: str, message: str = "", analysis_id: Optional[str] = None, **kwargs):
-        """Send a PROGRESS_UPDATE to the gateway if configured."""
-        gw = os.getenv('GATEWAY_URL', 'ws://localhost:8765')
-        try:
-            payload = {
-                'type': 'progress_update',
-                'correlation_id': analysis_id or kwargs.get('analysis_id') or '',
-                'stage': stage,
-                'message': message,
-                'service': self.service_name,
-                'data': {
-                    'stage': stage,
-                    'message': message,
-                    **kwargs
-                }
-            }
-            async with ws_connect(gw, open_timeout=1, close_timeout=1, ping_interval=None) as ws:
-                await ws.send(json.dumps(payload))
-        except Exception:
-            pass
     
     async def measure_response_time(self, url: str, num_requests: int = 10) -> Dict[str, Any]:
         """Measure response times using aiohttp.
@@ -130,8 +82,8 @@ class PerformanceTester:
             Controlled by PERF_ENABLE_HOST_FALLBACK (default=1) env.
         """
         try:
-            logger.info(f"Measuring response time for {url} ({num_requests} requests)")
-            await self._progress('measuring', f'Measuring response time: {url}', url=url, requests=num_requests)
+            self.log.info(f"Measuring response time for {url} ({num_requests} requests)")
+            await self.send_progress('measuring', f'Measuring response time: {url}', url=url, requests=num_requests)
 
             response_times: List[float] = []
             successful_requests = 0
@@ -167,12 +119,12 @@ class PerformanceTester:
                         failed_requests += 1
                         if len(sample_errors) < 5:
                             sample_errors.append(str(e))
-                        logger.debug(f"Request {i+1} failed: {e}")
+                        self.log.debug(f"Request {i+1} failed: {e}")
                         # Trigger early fallback if threshold reached and we have zero successes so far
                         if (max_fail_before_fallback > 0 and failed_requests >= max_fail_before_fallback
                                 and successful_requests == 0):
                             early_fallback_triggered = True
-                            logger.info(
+                            self.log.info(
                                 f"Early fallback trigger: {failed_requests} consecutive failures for {url}; will attempt host fallback if enabled"
                             )
                             break
@@ -183,7 +135,7 @@ class PerformanceTester:
                     host_is_local = parsed.hostname in {'localhost', '127.0.0.1'}
                     if host_is_local and enable_fallback:
                         fallback_url = url.replace('localhost', 'host.docker.internal').replace('127.0.0.1', 'host.docker.internal')
-                        logger.info(f"No successes for {url}; attempting host gateway fallback {fallback_url}")
+                        self.log.info(f"No successes for {url}; attempting host gateway fallback {fallback_url}")
                         try:
                             async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
                                 for i in range(min(5, num_requests)):
@@ -208,7 +160,7 @@ class PerformanceTester:
                                 sample_errors.append(f"fallback_error: {fe}")
 
                 if not response_times:
-                    await self._progress('failed', f'No successful requests: {url}', url=url)
+                    await self.send_progress('failed', f'No successful requests: {url}', url=url)
                     return {
                         'status': 'failed',
                         'url': url,
@@ -219,7 +171,7 @@ class PerformanceTester:
                     }
                 else:
                     # Fallback produced successes
-                    await self._progress('measured', f'Response time measured (fallback): {url}', url=url,
+                    await self.send_progress('measured', f'Response time measured (fallback): {url}', url=url,
                                          avg_ms=statistics.mean(response_times))
                     return {
                         'status': 'success',
@@ -244,7 +196,7 @@ class PerformanceTester:
                     }
 
             # Normal success path
-            await self._progress('measured', f'Response time measured: {url}', url=url,
+            await self.send_progress('measured', f'Response time measured: {url}', url=url,
                                  avg_ms=statistics.mean(response_times))
             return {
                 'status': 'success',
@@ -267,7 +219,7 @@ class PerformanceTester:
             }
 
         except Exception as e:  # pragma: no cover
-            await self._progress('error', f'Error measuring response time: {e}', url=url)
+            await self.send_progress('error', f'Error measuring response time: {e}', url=url)
             return {'status': 'error', 'error': str(e), 'url': url}
     
     def _percentile(self, data: List[float], percentile: int) -> float:
@@ -297,8 +249,8 @@ class PerformanceTester:
             timeout = ab_config.get('timeout', 30)
             timelimit = ab_config.get('timelimit')
             
-            logger.info(f"Load testing {url} with ab ({num_requests} requests, {concurrency} concurrent)")
-            await self._progress('ab_start', f'AB load test start: {url}', url=url,
+            self.log.info(f"Load testing {url} with ab ({num_requests} requests, {concurrency} concurrent)")
+            await self.send_progress('ab_start', f'AB load test start: {url}', url=url,
                                  requests=num_requests, concurrency=concurrency)
             
             # Build Apache Bench command
@@ -307,7 +259,7 @@ class PerformanceTester:
             # Core parameters
             if timelimit:
                 cmd.extend(['-t', str(timelimit)])
-                logger.info(f"Using time limit: {timelimit}s")
+                self.log.info(f"Using time limit: {timelimit}s")
             else:
                 cmd.extend(['-n', str(num_requests)])
                 
@@ -442,7 +394,7 @@ class PerformanceTester:
                             }
                             break
                 
-                await self._progress('ab_done', f'AB test completed: {url}', url=url,
+                await self.send_progress('ab_done', f'AB test completed: {url}', url=url,
                                      rps=metrics.get('requests_per_second', 0.0))
                 return {
                     'status': 'success',
@@ -460,7 +412,7 @@ class PerformanceTester:
                     'config_used': ab_config
                 }
             else:
-                await self._progress('ab_error', f'AB test error: {url}', url=url, exit_code=result.returncode)
+                await self.send_progress('ab_error', f'AB test error: {url}', url=url, exit_code=result.returncode)
                 return {
                     'status': 'error',
                     'tool': 'apache_bench',
@@ -470,17 +422,17 @@ class PerformanceTester:
                 }
                 
         except subprocess.TimeoutExpired:
-            await self._progress('timeout', f'AB test timed out: {url}', url=url)
+            await self.send_progress('timeout', f'AB test timed out: {url}', url=url)
             return {'status': 'timeout', 'tool': 'apache_bench', 'error': 'Load test timed out'}
         except Exception as e:
-            await self._progress('error', f'AB test error: {e}', url=url)
+            await self.send_progress('error', f'AB test error: {e}', url=url)
             return {'status': 'error', 'tool': 'apache_bench', 'error': str(e)}
     
     async def concurrent_load_test(self, url: str, num_requests: int = 50, concurrency: int = 5) -> Dict[str, Any]:
         """Perform concurrent load testing using aiohttp."""
         try:
-            logger.info(f"Concurrent load testing {url} ({num_requests} requests, {concurrency} concurrent)")
-            await self._progress('load_start', f'Concurrent load test start: {url}', url=url,
+            self.log.info(f"Concurrent load testing {url} ({num_requests} requests, {concurrency} concurrent)")
+            await self.send_progress('load_start', f'Concurrent load test start: {url}', url=url,
                                  requests=num_requests, concurrency=concurrency)
             
             semaphore = asyncio.Semaphore(concurrency)
@@ -522,7 +474,7 @@ class PerformanceTester:
                 status_codes = [r['status_code'] for r in successful_results]
                 content_lengths = [r['content_length'] for r in successful_results]
                 
-                await self._progress('load_done', f'Concurrent load test completed: {url}', url=url,
+                await self.send_progress('load_done', f'Concurrent load test completed: {url}', url=url,
                                      success=len(successful_results), failed=len(failed_results))
                 return {
                     'status': 'success',
@@ -548,7 +500,7 @@ class PerformanceTester:
                     }
                 }
             else:
-                await self._progress('failed', f'Load test failed: {url}', url=url,
+                await self.send_progress('failed', f'Load test failed: {url}', url=url,
                                      failed=len(failed_results))
                 return {
                     'status': 'failed',
@@ -558,19 +510,20 @@ class PerformanceTester:
                 }
                 
         except Exception as e:
-            await self._progress('error', f'Concurrent load test error: {e}', url=url)
+            await self.send_progress('error', f'Concurrent load test error: {e}', url=url)
             return {'status': 'error', 'error': str(e)}
     
-    async def test_application_performance(self, model_slug: str, app_number: int, target_urls: List[str], config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def test_application_performance(self, model_slug: str, app_number: int, target_urls: List[str], config: Optional[Dict[str, Any]] = None, selected_tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Perform comprehensive performance testing on application."""
         try:
-            logger.info(f"Performance testing {model_slug} app {app_number}")
+            self.log.info(f"Performance testing {model_slug} app {app_number}")
+            selected_set = {t.lower() for t in selected_tools} if selected_tools else None
             
             results = {
                 'model_slug': model_slug,
                 'app_number': app_number,
                 'analysis_time': datetime.now().isoformat(),
-                'tools_used': self.available_tools.copy(),
+                'tools_used': [],
                 'target_urls': target_urls,
                 'results': {}
             }
@@ -580,15 +533,25 @@ class PerformanceTester:
                 url_results = {}
                 
                 # Basic response time test
-                logger.info(f"Testing response times for {url}")
-                response_time_result = await self.measure_response_time(url, num_requests=10)
+                self.log.info(f"Testing response times for {url}")
+                # Always use aiohttp internal method unless explicitly excluded by selection
+                if selected_set is None or 'aiohttp' in selected_set:
+                    response_time_result = await self.measure_response_time(url, num_requests=10)
+                    results['tools_used'] = list(set(results['tools_used'] + ['aiohttp']))
+                else:
+                    response_time_result = {'status': 'skipped', 'reason': 'aiohttp not selected', 'url': url}
                 effective_url = response_time_result.get('url', url)
                 url_results['response_time'] = response_time_result
                 url_results['effective_url'] = effective_url
                 
                 # Only do load testing if basic test succeeds (success_rate threshold configurable)
                 success_status = response_time_result.get('status') == 'success'
-                success_rate = response_time_result.get('success_rate', 0)
+                # Coerce success_rate to float defensively
+                raw_rate = response_time_result.get('success_rate', 0)
+                try:
+                    success_rate = float(raw_rate)
+                except Exception:
+                    success_rate = 0.0
                 min_rate_env = os.getenv('PERF_MIN_SUCCESS_RATE', '0')
                 try:
                     min_success_rate = float(min_rate_env)
@@ -596,30 +559,34 @@ class PerformanceTester:
                     min_success_rate = 0.0
                 if success_status and success_rate >= min_success_rate:
                     # Concurrent load test (use effective URL which may be fallback)
-                    logger.info(f"Running concurrent load test for {effective_url}")
-                    load_test_result = await self.concurrent_load_test(effective_url, num_requests=20, concurrency=3)
-                    url_results['load_test'] = load_test_result
+                    self.log.info(f"Running concurrent load test for {effective_url}")
+                    if selected_set is None or 'aiohttp' in selected_set:
+                        load_test_result = await self.concurrent_load_test(effective_url, num_requests=20, concurrency=3)
+                        url_results['load_test'] = load_test_result
+                        results['tools_used'] = list(set(results['tools_used'] + ['aiohttp']))
                     
                     # Apache Bench test if available
-                    if 'ab' in self.available_tools:
-                        logger.info(f"Running Apache Bench test for {effective_url}")
+                    if 'ab' in self.available_tools and (selected_set is None or 'ab' in selected_set):
+                        self.log.info(f"Running Apache Bench test for {effective_url}")
                         ab_config = {'apache_bench': {'requests': 50, 'concurrency': 5}}
                         ab_result = await self.load_test_with_ab(effective_url, ab_config)
                         url_results['apache_bench'] = ab_result
+                        results['tools_used'] = list(set(results['tools_used'] + ['ab']))
 
                     # Locust test if available (run only for first URL by default to save time)
-                    if 'locust' in self.available_tools and i == 0:
-                        logger.info(f"Running Locust test for {effective_url}")
+                    if 'locust' in self.available_tools and i == 0 and (selected_set is None or 'locust' in selected_set):
+                        self.log.info(f"Running Locust test for {effective_url}")
                         locust_cfg = None
                         if config:
                             locust_cfg = config.get('locust') if isinstance(config, dict) else None
                         locust_result = await self.run_locust_test(effective_url, locust_cfg)
                         url_results['locust'] = locust_result
+                        results['tools_used'] = list(set(results['tools_used'] + ['locust']))
                 else:
                     if not success_status:
-                        logger.info(f"Skipping heavy load tests for {url} due to failed response_time status")
+                        self.log.info(f"Skipping heavy load tests for {url} due to failed response_time status")
                     else:
-                        logger.info(f"Skipping heavy load tests for {url} due to success_rate {success_rate:.2f}% below threshold {min_success_rate:.2f}%")
+                        self.log.info(f"Skipping heavy load tests for {url} due to success_rate {success_rate:.2f}% below threshold {min_success_rate:.2f}%")
                 
                 results['results'][f'url_{i+1}'] = url_results
             
@@ -668,7 +635,7 @@ class PerformanceTester:
             return results
             
         except Exception as e:
-            logger.error(f"Performance testing failed: {e}")
+            self.log.error(f"Performance testing failed: {e}")
             return {
                 'status': 'error',
                 'error': str(e),
@@ -698,9 +665,9 @@ class PerformanceTester:
                             "    def index(self):\n"
                             "        self.client.get('/')\n"
                         )
-                    logger.debug("Auto-generated minimal locustfile.py for test run")
+                    self.log.debug("Auto-generated minimal locustfile.py for test run")
                 except Exception as gen_err:  # noqa: BLE001
-                    logger.warning(f"Failed to auto-generate locustfile.py: {gen_err}")
+                    self.log.warning(f"Failed to auto-generate locustfile.py: {gen_err}")
             # Defaults (kept deliberately small for fast feedback)
             users = 15
             spawn_rate = 3
@@ -720,7 +687,7 @@ class PerformanceTester:
                 '--only-summary',
                 '--csv', csv_prefix
             ]
-            await self._progress('locust_start', f'Locust test start: {url}', url=url, users=users, spawn_rate=spawn_rate)
+            await self.send_progress('locust_start', f'Locust test start: {url}', url=url, users=users, spawn_rate=spawn_rate)
             # Derive a timeout (run_time -> seconds)
             timeout_seconds = 60
             try:
@@ -732,7 +699,7 @@ class PerformanceTester:
                 pass
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_seconds)
             if result.returncode != 0:
-                await self._progress('locust_error', f'Locust failed: {url}', url=url, exit_code=result.returncode)
+                await self.send_progress('locust_error', f'Locust failed: {url}', url=url, exit_code=result.returncode)
                 return {'status': 'error', 'tool': 'locust', 'exit_code': result.returncode, 'stderr': result.stderr}
             # Parse CSV stats
             stats_file = f"{csv_prefix}_stats.csv"
@@ -765,7 +732,7 @@ class PerformanceTester:
                                 break
                 except Exception as e:
                     summary['parse_error'] = str(e)
-            await self._progress('locust_done', f'Locust test completed: {url}', url=url, rps=summary.get('requests_per_second'))
+            await self.send_progress('locust_done', f'Locust test completed: {url}', url=url, rps=summary.get('requests_per_second'))
             return {
                 'status': 'success',
                 'tool': 'locust',
@@ -779,42 +746,20 @@ class PerformanceTester:
                 'stdout_tail': result.stdout.splitlines()[-5:] if result.stdout else []
             }
         except subprocess.TimeoutExpired:
-            await self._progress('locust_timeout', f'Locust timeout: {url}', url=url)
+            await self.send_progress('locust_timeout', f'Locust timeout: {url}', url=url)
             return {'status': 'timeout', 'tool': 'locust', 'url': url}
         except FileNotFoundError:
             # Locust executable not found though package claimed present
             return {'status': 'error', 'tool': 'locust', 'error': 'locust command not found'}
         except Exception as e:
-            await self._progress('locust_error', f'Locust error: {e}', url=url)
+            await self.send_progress('locust_error', f'Locust error: {e}', url=url)
             return {'status': 'error', 'tool': 'locust', 'error': str(e)}
     
     async def handle_message(self, websocket, message_data):
         """Handle incoming WebSocket messages."""
         try:
             msg_type = message_data.get("type", "unknown")
-            
-            if msg_type == "ping":
-                response = {
-                    "type": "pong",
-                    "timestamp": datetime.now().isoformat(),
-                    "service": self.service_name
-                }
-                await websocket.send(json.dumps(response))
-                
-            elif msg_type == "health_check":
-                uptime = (datetime.now() - self.start_time).total_seconds()
-                response = {
-                    "type": "health_response",
-                    "status": "healthy",
-                    "service": self.service_name,
-                    "version": self.version,
-                    "uptime": uptime,
-                    "available_tools": self.available_tools,
-                    "timestamp": datetime.now().isoformat()
-                }
-                await websocket.send(json.dumps(response))
-                
-            elif msg_type == "performance_test":
+            if msg_type == "performance_test":
                 model_slug = message_data.get("model_slug", "unknown")
                 app_number = message_data.get("app_number", 1)
                 # Accept new 'target_urls' list; fall back to legacy single 'target_url'
@@ -826,6 +771,7 @@ class PerformanceTester:
                 if not isinstance(target_urls, list):  # defensive normalization
                     target_urls = []
                 config = message_data.get("config", None)
+                selected_tools = list(self.extract_selected_tools(message_data) or [])
                 
                 if not target_urls:
                     # Generate default URLs
@@ -835,89 +781,55 @@ class PerformanceTester:
                         f"http://localhost:{base_port + 1}"
                     ]
                 
-                logger.info(f"Starting performance test for {model_slug} app {app_number}")
+                self.log.info(f"Starting performance test for {model_slug} app {app_number}")
                 analysis_id = message_data.get('id')
-                await self._progress('starting', f'Starting performance test {model_slug} app {app_number}',
+                await self.send_progress('starting', f'Starting performance test {model_slug} app {app_number}',
                                      analysis_id=analysis_id, model_slug=model_slug, app_number=app_number,
                                      targets=len(target_urls))
                 if config:
-                    logger.info(f"Using custom configuration: {list(config.keys())}")
+                    self.log.info(f"Using custom configuration: {list(config.keys())}")
                 
-                test_results = await self.test_application_performance(model_slug, app_number, target_urls, config)
+                test_results = await self.test_application_performance(model_slug, app_number, target_urls, config, selected_tools)
                 
                 response = {
                     "type": "performance_test_result",
                     "status": "success",
-                    "service": self.service_name,
+                    "service": self.info.name,
                     "analysis": test_results,
                     "timestamp": datetime.now().isoformat()
                 }
                 
                 await websocket.send(json.dumps(response))
-                await self._progress('completed', f'Performance test completed {model_slug} app {app_number}',
+                await self.send_progress('completed', f'Performance test completed {model_slug} app {app_number}',
                                      analysis_id=analysis_id)
-                logger.info(f"Performance test completed for {model_slug} app {app_number}")
+                self.log.info(f"Performance test completed for {model_slug} app {app_number}")
                 
             else:
                 response = {
                     "type": "error",
                     "message": f"Unknown message type: {msg_type}",
-                    "service": self.service_name
+                    "service": self.info.name
                 }
                 await websocket.send(json.dumps(response))
                 
         except Exception as e:
-            logger.error(f"Error handling message: {e}")
+            self.log.error(f"Error handling message: {e}")
             error_response = {
                 "type": "error",
                 "message": f"Internal error: {str(e)}",
-                "service": self.service_name
+                "service": self.info.name
             }
             try:
                 await websocket.send(json.dumps(error_response))
             except Exception:
                 pass
 
-async def handle_client(websocket):
-    """Handle client connections."""
-    tester = PerformanceTester()
-    client_addr = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
-    logger.debug(f"New client connected: {client_addr}")
-    
-    try:
-        async for message in websocket:
-            try:
-                message_data = json.loads(message)
-                await tester.handle_message(websocket, message_data)
-            except json.JSONDecodeError:
-                logger.error("Invalid JSON message")
-                
-    except websockets.exceptions.ConnectionClosed:
-        logger.debug(f"Client disconnected: {client_addr}")
-    except Exception as e:
-        logger.error(f"Error with client {client_addr}: {e}")
-
 async def main():
-    """Start the performance tester service."""
-    host = os.getenv('WEBSOCKET_HOST', '0.0.0.0')
-    port = int(os.getenv('WEBSOCKET_PORT', 2003))
-    
-    logger.info(f"Starting Performance Tester service on {host}:{port}")
-    
-    try:
-        async with serve(handle_client, host, port):
-            logger.info(f"Performance Tester listening on ws://{host}:{port}")
-            logger.info("Service ready to accept connections")
-            await asyncio.Future()
-    except Exception as e:
-        logger.error(f"Failed to start service: {e}")
-        raise
+    service = PerformanceTester()
+    await service.run()
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("Service stopped by user")
-    except Exception as e:
-        logger.error(f"Service crashed: {e}")
-        exit(1)
+        pass

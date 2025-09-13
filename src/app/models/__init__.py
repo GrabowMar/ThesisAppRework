@@ -17,16 +17,41 @@ Models include:
 
 import json
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from sqlalchemy import event  # placed here to avoid circular import at module load
 
 # Import centralized constants and enums  
-from ..constants import AnalysisStatus, JobStatus, ContainerState
+from ..constants import AnalysisStatus, JobStatus, ContainerState, AnalysisType, JobPriority as Priority, SeverityLevel
 from ..extensions import db
 
-# Analysis configuration models are now defined in this file below
+# Import the tool registry models
+from .tool_registry import AnalysisTool, ToolConfiguration, AnalysisProfile, CustomAnalysisRequest
 
-# Import centralized enums for analysis system
-from ..constants import AnalysisType, AnalysisStatus, JobPriority as Priority, JobStatus as BatchStatus, SeverityLevel
+# Export all models
+__all__ = [
+    # Tool Registry Models
+    'AnalysisTool', 'ToolConfiguration', 'AnalysisProfile', 'CustomAnalysisRequest',
+    # Core Models
+    'ModelCapability', 'PortConfiguration', 'GeneratedApplication', 'GeneratedCodeResult',
+    # Analysis Models
+    'SecurityAnalysis', 'PerformanceTest', 'ZAPAnalysis', 'OpenRouterAnalysis',
+    # Container Models
+    'ContainerizedTest',
+    # Cache Models
+    'OpenRouterModelCache', 'ExternalModelInfoCache',
+    # Batch Models
+    'BatchAnalysis', 'BatchQueue', 'BatchDependency', 'BatchSchedule', 'BatchResourceUsage', 'BatchTemplate',
+    # Process & Event Models
+    'ProcessTracking', 'TestResults', 'EventLog',
+    # Configuration Models
+    'AnalysisConfig', 'ConfigPreset', 'ConfigTemplate',
+    # Execution Models
+    'ConfigExecution', 'AnalysisJob', 'AnalysisResult', 'AnalysisIssue',
+    # Utility
+    'utc_now'
+]
+
+# Analysis configuration models are now defined in this file below
 
 # Cleanup models for file replacement are defined below
 
@@ -128,7 +153,6 @@ class ModelCapability(db.Model):
 
 
 # --- Auto-population hooks for ModelCapability ---------------------------------
-from sqlalchemy import event  # placed here to avoid circular import at module load
 
 @event.listens_for(ModelCapability, 'before_insert')
 def _modelcap_before_insert(mapper, connection, target):  # pragma: no cover - simple field default
@@ -1652,7 +1676,7 @@ class ProcessTracking(db.Model):
         self.status = 'stopped'
         self.stopped_at = utc_now()
     
-    def update_heartbeat(self, resource_usage: Dict[str, Any] = None) -> None:
+    def update_heartbeat(self, resource_usage: Optional[Dict[str, Any]] = None) -> None:
         """Update last heartbeat and optionally resource usage."""
         self.last_heartbeat = utc_now()
         if resource_usage:
@@ -2368,21 +2392,21 @@ class AnalysisTask(db.Model):
         """Set severity breakdown from dictionary."""
         self.severity_breakdown = json.dumps(breakdown_dict)
     
-    def update_progress(self, percentage: float, current_step: str = None) -> None:
+    def update_progress(self, percentage: float, current_step: Optional[str] = None) -> None:
         """Update task progress."""
         self.progress_percentage = min(100.0, max(0.0, percentage))
         if current_step:
             self.current_step = current_step
         self.updated_at = utc_now()
     
-    def start_execution(self, worker: str = None) -> None:
+    def start_execution(self, worker: Optional[str] = None) -> None:
         """Mark task as started."""
         self.status = AnalysisStatus.RUNNING
         self.started_at = utc_now()
         if worker:
             self.assigned_worker = worker
     
-    def complete_execution(self, success: bool = True, error_message: str = None) -> None:
+    def complete_execution(self, success: bool = True, error_message: Optional[str] = None) -> None:
         """Mark task as completed or failed."""
         self.completed_at = utc_now()
         if success:
@@ -2563,7 +2587,7 @@ class AnalysisResult(db.Model):
         """Set tags from list."""
         self.tags = json.dumps(tags_list)
     
-    def mark_reviewed(self, reviewer: str, notes: str = None) -> None:
+    def mark_reviewed(self, reviewer: str, notes: Optional[str] = None) -> None:
         """Mark result as reviewed."""
         self.status = 'reviewed'
         self.reviewed_by = reviewer
@@ -2571,7 +2595,7 @@ class AnalysisResult(db.Model):
         if notes:
             self.review_notes = notes
     
-    def mark_false_positive(self, reviewer: str, notes: str = None) -> None:
+    def mark_false_positive(self, reviewer: str, notes: Optional[str] = None) -> None:
         """Mark result as false positive."""
         self.status = 'false_positive'
         self.reviewed_by = reviewer

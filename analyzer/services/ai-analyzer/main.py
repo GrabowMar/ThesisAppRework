@@ -1,50 +1,25 @@
 #!/usr/bin/env python3
 """
 AI Analyzer Service - AI-Powered Code Analysis
-===============================================
+==============================================
 
-A containerized AI analysis service that performs:
-- Code quality assessment using language models
-- Security pattern detection
-- Architecture analysis
-- Best practices compliance checking
-
-Usage:
-    docker-compose up ai-analyzer
-
-The service will start on ws://localhost:2004
+Refactored to use BaseWSService for uniform server lifecycle and logging.
 """
 
 import asyncio
 import json
-import logging
 import os
 from datetime import datetime
 from typing import Dict, List, Any, Optional
-import websockets
-from websockets.asyncio.server import serve
+from analyzer.shared.service_base import BaseWSService
 import aiohttp
 from pathlib import Path
 
-level_str = os.getenv('LOG_LEVEL', 'INFO').upper()
-level = getattr(logging, level_str, logging.INFO)
-logging.basicConfig(level=level)
-logger = logging.getLogger(__name__)
-logger.setLevel(level)
-try:
-    logging.getLogger("websockets.server").setLevel(logging.CRITICAL)
-    logging.getLogger("websockets.http").setLevel(logging.CRITICAL)
-    logging.getLogger("websockets.http11").setLevel(logging.CRITICAL)
-except Exception:
-    pass
-
-class AIAnalyzer:
+class AIAnalyzer(BaseWSService):
     """AI-powered code analysis service."""
     
     def __init__(self):
-        self.service_name = "ai-analyzer"
-        self.version = "1.0.0"
-        self.start_time = datetime.now()
+        super().__init__(service_name="ai-analyzer", default_port=2004, version="1.0.0")
         self.openrouter_api_key = os.getenv('OPENROUTER_API_KEY')
         self.default_model = os.getenv('AI_MODEL', 'anthropic/claude-3-haiku')
         self.available_models = self._get_available_models()
@@ -60,8 +35,7 @@ class AIAnalyzer:
             'meta-llama/llama-3.1-8b-instruct',
             'google/gemini-flash-1.5'
         ]
-        
-        logger.debug(f"Available AI models: {len(models)}")
+        self.log.debug(f"Available AI models: {len(models)}")
         return models
     
     async def read_source_files(self, source_path: str) -> Dict[str, str]:
@@ -85,13 +59,13 @@ class AIAnalyzer:
                                 relative_path = str(file_path.relative_to(source_dir))
                                 files_content[relative_path] = content
                         except Exception as e:
-                            logger.debug(f"Could not read {file_path}: {e}")
+                            self.log.debug(f"Could not read {file_path}: {e}")
             
-            logger.debug(f"Read {len(files_content)} source files from {source_path}")
+            self.log.debug(f"Read {len(files_content)} source files from {source_path}")
             return files_content
             
         except Exception as e:
-            logger.error(f"Error reading source files: {e}")
+            self.log.error(f"Error reading source files: {e}")
             return {}
     
     async def analyze_with_ai(self, prompt: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -351,7 +325,7 @@ Provide structured analysis with specific recommendations.'''
     async def analyze_application_ai(self, model_slug: str, app_number: int, source_path: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Perform comprehensive AI analysis of application."""
         try:
-            logger.info(f"AI analyzing {model_slug} app {app_number}")
+            self.log.info(f"AI analyzing {model_slug} app {app_number}")
             
             # Read source files
             files_content = await self.read_source_files(source_path)
@@ -397,8 +371,8 @@ Provide specific, actionable recommendations with examples."""
                 'structure_analysis': structure_analysis,
                 'ai_analysis': ai_analysis,
                 'files_analyzed': len(files_content),
-                'service': self.service_name,
-                'version': self.version,
+                'service': self.info.name,
+                'version': self.info.version,
                 'config_used': config or {}
             }
             
@@ -424,7 +398,7 @@ Provide specific, actionable recommendations with examples."""
             return results
             
         except Exception as e:
-            logger.error(f"AI analysis failed: {e}")
+            self.log.error(f"AI analysis failed: {e}")
             return {
                 'status': 'error',
                 'error': str(e),
@@ -437,30 +411,7 @@ Provide specific, actionable recommendations with examples."""
         try:
             msg_type = message_data.get("type", "unknown")
             
-            if msg_type == "ping":
-                response = {
-                    "type": "pong",
-                    "timestamp": datetime.now().isoformat(),
-                    "service": self.service_name
-                }
-                await websocket.send(json.dumps(response))
-                
-            elif msg_type == "health_check":
-                uptime = (datetime.now() - self.start_time).total_seconds()
-                response = {
-                    "type": "health_response",
-                    "status": "healthy",
-                    "service": self.service_name,
-                    "version": self.version,
-                    "uptime": uptime,
-                    "available_models": self.available_models,
-                    "openrouter_configured": bool(self.openrouter_api_key),
-                    "default_model": self.default_model,
-                    "timestamp": datetime.now().isoformat()
-                }
-                await websocket.send(json.dumps(response))
-                
-            elif msg_type == "ai_analysis":
+            if msg_type == "ai_analysis":
                 model_slug = message_data.get("model_slug", "unknown")
                 app_number = message_data.get("app_number", 1)
                 source_path = message_data.get("source_path", "")
@@ -469,27 +420,27 @@ Provide specific, actionable recommendations with examples."""
                     # Generate default path
                     source_path = f"/workspace/misc/models/{model_slug}/app{app_number}"
                 
-                logger.debug(f"Starting AI analysis for {model_slug} app {app_number}")
+                self.log.debug(f"Starting AI analysis for {model_slug} app {app_number}")
                 
                 analysis_results = await self.analyze_application_ai(model_slug, app_number, source_path)
                 
                 response = {
                     "type": "ai_analysis_result",
                     "status": "success",
-                    "service": self.service_name,
+                    "service": self.info.name,
                     "analysis": analysis_results,
                     "timestamp": datetime.now().isoformat()
                 }
                 
                 await websocket.send(json.dumps(response))
-                logger.debug(f"AI analysis completed for {model_slug} app {app_number}")
+                self.log.debug(f"AI analysis completed for {model_slug} app {app_number}")
                 
             elif msg_type == "list_models":
                 response = {
                     "type": "models_list",
                     "available_models": self.available_models,
                     "default_model": self.default_model,
-                    "service": self.service_name
+                    "service": self.info.name
                 }
                 await websocket.send(json.dumps(response))
                 
@@ -497,68 +448,31 @@ Provide specific, actionable recommendations with examples."""
                 response = {
                     "type": "error",
                     "message": f"Unknown message type: {msg_type}",
-                    "service": self.service_name
+                    "service": self.info.name
                 }
                 await websocket.send(json.dumps(response))
                 
         except Exception as e:
-            logger.error(f"Error handling message: {e}")
+            self.log.error(f"Error handling message: {e}")
             error_response = {
                 "type": "error",
                 "message": f"Internal error: {str(e)}",
-                "service": self.service_name
+                "service": self.info.name
             }
             try:
                 await websocket.send(json.dumps(error_response))
             except Exception:
                 pass
 
-async def handle_client(websocket):
-    """Handle client connections."""
-    analyzer = AIAnalyzer()
-    client_addr = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
-    logger.debug(f"New client connected: {client_addr}")
-    
-    try:
-        async for message in websocket:
-            try:
-                message_data = json.loads(message)
-                await analyzer.handle_message(websocket, message_data)
-            except json.JSONDecodeError:
-                logger.error("Invalid JSON message")
-                
-    except websockets.exceptions.ConnectionClosed:
-        logger.debug(f"Client disconnected: {client_addr}")
-    except Exception as e:
-        logger.error(f"Error with client {client_addr}: {e}")
-
 async def main():
-    """Start the AI analyzer service."""
-    host = os.getenv('WEBSOCKET_HOST', '0.0.0.0')
-    port = int(os.getenv('WEBSOCKET_PORT', 2004))
-    
-    logger.info(f"Starting AI Analyzer service on {host}:{port}")
-    
-    # Check for API key
+    # Log API key presence for visibility
     if not os.getenv('OPENROUTER_API_KEY'):
-        logger.warning("OPENROUTER_API_KEY not set - AI analysis will be limited")
-    else:
-        logger.debug("OpenRouter API key configured")
-    
-    try:
-        async with serve(handle_client, host, port):
-            logger.info(f"AI Analyzer listening on ws://{host}:{port}")
-            logger.debug("Service ready to accept connections")
-            await asyncio.Future()
-    except Exception as e:
-        logger.error(f"Failed to start service: {e}")
-        raise
+        print("[ai-analyzer] WARNING: OPENROUTER_API_KEY not set - AI analysis will be limited")
+    service = AIAnalyzer()
+    await service.run()
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("Service stopped by user")
-    except Exception as e:
-        logger.error(f"Service crashed: {e}")
-        exit(1)
+        pass

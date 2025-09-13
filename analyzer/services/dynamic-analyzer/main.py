@@ -3,50 +3,27 @@
 Dynamic Analyzer Service - Web Application Security Scanner
 ==========================================================
 
-A containerized dynamic security analysis service that performs:
-- Connectivity testing
-- Basic vulnerability scanning
-- Response analysis
-
-Usage:
-    docker-compose up dynamic-analyzer
-
-The service will start on ws://localhost:2002
+Refactored to use BaseWSService with strict tool selection gating.
 """
 
 import asyncio
 import json
-import logging
 import os
 import subprocess
 from datetime import datetime
-from typing import Dict, List, Any
-import websockets
-from websockets.asyncio.server import serve
+from typing import Dict, List, Any, Optional
 
-level_str = os.getenv('LOG_LEVEL', 'INFO').upper()
-level = getattr(logging, level_str, logging.INFO)
-logging.basicConfig(level=level)
-logger = logging.getLogger(__name__)
-logger.setLevel(level)
-try:
-    logging.getLogger("websockets.server").setLevel(logging.CRITICAL)
-    logging.getLogger("websockets.http").setLevel(logging.CRITICAL)
-    logging.getLogger("websockets.http11").setLevel(logging.CRITICAL)
-except Exception:
-    pass
+from analyzer.shared.service_base import BaseWSService
 
-class DynamicAnalyzer:
+
+class DynamicAnalyzer(BaseWSService):
     """Dynamic web application security analyzer."""
     
     def __init__(self):
-        self.service_name = "dynamic-analyzer"
-        self.version = "1.0.0"
-        self.start_time = datetime.now()
-        self.available_tools = self._check_available_tools()
+        super().__init__(service_name="dynamic-analyzer", default_port=2002, version="1.0.0")
     
-    def _check_available_tools(self) -> List[str]:
-        """Check which dynamic analysis tools are available."""
+    def _detect_available_tools(self) -> List[str]:
+        """Detect which dynamic analysis tools are available."""
         tools = []
         
         # Check for curl
@@ -55,9 +32,9 @@ class DynamicAnalyzer:
                                   capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 tools.append('curl')
-                logger.debug("curl available")
+                self.log.debug("curl available")
         except Exception as e:
-            logger.debug(f"curl not available: {e}")
+            self.log.debug(f"curl not available: {e}")
         
         # Check for wget
         try:
@@ -65,9 +42,9 @@ class DynamicAnalyzer:
                                   capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 tools.append('wget')
-                logger.debug("wget available")
+                self.log.debug("wget available")
         except Exception as e:
-            logger.debug(f"wget not available: {e}")
+            self.log.debug(f"wget not available: {e}")
         
         # Check for nmap
         try:
@@ -75,16 +52,16 @@ class DynamicAnalyzer:
                                   capture_output=True, text=True, timeout=10)
             if result.returncode == 0:
                 tools.append('nmap')
-                logger.debug("nmap available")
+                self.log.debug("nmap available")
         except Exception as e:
-            logger.debug(f"nmap not available: {e}")
+            self.log.debug(f"nmap not available: {e}")
         # Check for OWASP ZAP (Python client import + optional running daemon)
         try:
             __import__('zapv2')  # type: ignore
             tools.append('zap')
-            logger.debug("ZAP client library available")
+            self.log.debug("ZAP client library available")
         except Exception as e:
-            logger.debug(f"ZAP client not available: {e}")
+            self.log.debug(f"ZAP client not available: {e}")
         
         return tools
     
@@ -94,7 +71,7 @@ class DynamicAnalyzer:
             if 'curl' not in self.available_tools:
                 return {'status': 'tool_unavailable', 'message': 'curl not available'}
             
-            logger.info(f"Testing connectivity to {url}")
+            self.log.info(f"Testing connectivity to {url}")
             
             # Basic connectivity test
             cmd = ['curl', '-I', '--connect-timeout', '10', '--max-time', '30', url]
@@ -211,7 +188,7 @@ class DynamicAnalyzer:
                 # Fallback to basic connectivity test
                 return await self._basic_port_check(host, ports)
             
-            logger.info(f"Port scanning {host}")
+            self.log.info(f"Port scanning {host}")
             
             port_list = ','.join(map(str, ports))
             cmd = ['nmap', '-p', port_list, '--open', '-T4', host]
@@ -274,25 +251,34 @@ class DynamicAnalyzer:
             'method': 'basic_check'
         }
     
-    async def analyze_running_app(self, model_slug: str, app_number: int, target_urls: List[str]) -> Dict[str, Any]:
+    async def analyze_running_app(self, model_slug: str, app_number: int, target_urls: List[str], selected_tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Perform comprehensive dynamic analysis on running application."""
         try:
-            logger.info(f"Dynamic analysis of {model_slug} app {app_number}")
+            self.log.info(f"Dynamic analysis of {model_slug} app {app_number}")
             
+            # Normalize tool selection to lowercase set
+            selected_set = {t.lower() for t in selected_tools} if selected_tools else None
+
             results = {
                 'model_slug': model_slug,
                 'app_number': app_number,
                 'analysis_time': datetime.now().isoformat(),
-                'tools_used': self.available_tools.copy(),
+                'tools_used': [],
                 'target_urls': target_urls,
                 'results': {}
             }
             
             # Test connectivity for all URLs
             connectivity_results = []
-            for url in target_urls:
-                conn_result = await self.test_connectivity(url)
-                connectivity_results.append(conn_result)
+            if selected_set is None or 'curl' in selected_set:
+                for url in target_urls:
+                    conn_result = await self.test_connectivity(url)
+                    connectivity_results.append(conn_result)
+                # Mark curl as used if we executed connectivity checks
+                if connectivity_results:
+                    results['tools_used'].append('curl')
+            else:
+                self.log.info("Skipping connectivity tests due to tool selection gating (curl not selected)")
             
             results['results']['connectivity'] = connectivity_results
             
@@ -303,7 +289,7 @@ class DynamicAnalyzer:
                     reachable_urls.append(target_urls[i])
             
             # Vulnerability scanning on reachable URLs
-            if reachable_urls:
+            if reachable_urls and (selected_set is None or 'curl' in selected_set):
                 vuln_results = []
                 for url in reachable_urls[:2]:  # Limit to first 2 URLs
                     vuln_result = await self.scan_common_vulnerabilities(url)
@@ -311,6 +297,7 @@ class DynamicAnalyzer:
                     vuln_results.append(vuln_result)
                 
                 results['results']['vulnerability_scan'] = vuln_results
+                results['tools_used'] = list(set(results['tools_used'] + ['curl']))
             
             # Port scanning
             if target_urls:
@@ -336,15 +323,24 @@ class DynamicAnalyzer:
                 
                 if hosts_to_scan and ports_to_scan:
                     host = list(hosts_to_scan)[0]  # Scan first host
-                    port_scan_result = await self.port_scan(host, list(ports_to_scan))
-                    results['results']['port_scan'] = port_scan_result
+                    # Tool gating: prefer nmap; otherwise allow basic curl-based check if curl selected
+                    if selected_set is None or 'nmap' in selected_set:
+                        port_scan_result = await self.port_scan(host, list(ports_to_scan))
+                        results['results']['port_scan'] = port_scan_result
+                        results['tools_used'] = list(set(results['tools_used'] + ['nmap']))
+                    elif 'curl' in (selected_set or set()):
+                        # Fallback to basic check
+                        port_scan_result = await self._basic_port_check(host, list(ports_to_scan))
+                        results['results']['port_scan'] = port_scan_result
+                        results['tools_used'] = list(set(results['tools_used'] + ['curl']))
 
             # Optional OWASP ZAP scan (only if zap available & at least one reachable URL)
-            if 'zap' in self.available_tools and reachable_urls:
+            if 'zap' in self.available_tools and reachable_urls and (selected_set is None or 'zap' in selected_set):
                 primary_url = reachable_urls[0]
-                logger.info(f"Attempting ZAP scan for {primary_url}")
+                self.log.info(f"Attempting ZAP scan for {primary_url}")
                 zap_result = await self.zap_scan(primary_url)
                 results['results']['zap_scan'] = zap_result
+                results['tools_used'] = list(set(results['tools_used'] + ['zap']))
             
             # Calculate summary
             total_vulnerabilities = 0
@@ -365,7 +361,7 @@ class DynamicAnalyzer:
             return results
             
         except Exception as e:
-            logger.error(f"Dynamic analysis failed: {e}")
+            self.log.error(f"Dynamic analysis failed: {e}")
             return {
                 'status': 'error',
                 'error': str(e),
@@ -386,6 +382,7 @@ class DynamicAnalyzer:
             from zapv2 import ZAPv2  # type: ignore
         except Exception as e:
             return {'status': 'error', 'tool': 'zap', 'error': f'Import failure: {e}'}
+
         zap_port = os.getenv('ZAP_PORT', '8090')
         zap_api = os.getenv('ZAP_API_KEY', '')
         zap_url = f'http://localhost:{zap_port}'
@@ -447,33 +444,13 @@ class DynamicAnalyzer:
         """Handle incoming WebSocket messages."""
         try:
             msg_type = message_data.get("type", "unknown")
-            
-            if msg_type == "ping":
-                response = {
-                    "type": "pong",
-                    "timestamp": datetime.now().isoformat(),
-                    "service": self.service_name
-                }
-                await websocket.send(json.dumps(response))
-                
-            elif msg_type == "health_check":
-                uptime = (datetime.now() - self.start_time).total_seconds()
-                response = {
-                    "type": "health_response",
-                    "status": "healthy",
-                    "service": self.service_name,
-                    "version": self.version,
-                    "uptime": uptime,
-                    "available_tools": self.available_tools,
-                    "timestamp": datetime.now().isoformat()
-                }
-                await websocket.send(json.dumps(response))
-                
-            elif msg_type == "dynamic_analyze":
+            if msg_type == "dynamic_analyze":
                 model_slug = message_data.get("model_slug", "unknown")
                 app_number = message_data.get("app_number", 1)
                 target_urls = message_data.get("target_urls", [])
-                
+                # Tool selection normalized
+                selected_tools = list(self.extract_selected_tools(message_data) or [])
+
                 if not target_urls:
                     # Generate default URLs based on app number
                     base_port = 6000 + (app_number * 10)
@@ -481,85 +458,51 @@ class DynamicAnalyzer:
                         f"http://localhost:{base_port}",
                         f"http://localhost:{base_port + 1}"
                     ]
-                    logger.info(f"No target_urls supplied; using default heuristic ports {target_urls}")
+                    self.log.info(f"No target_urls supplied; using default heuristic ports {target_urls}")
                 else:
-                    logger.info(f"Received explicit target_urls: {target_urls}")
-                
-                logger.info(f"Starting dynamic analysis for {model_slug} app {app_number}")
-                
-                analysis_results = await self.analyze_running_app(model_slug, app_number, target_urls)
-                
+                    self.log.info(f"Received explicit target_urls: {target_urls}")
+
+                self.log.info(f"Starting dynamic analysis for {model_slug} app {app_number}")
+                await self.send_progress('starting', f"Starting dynamic analysis for {model_slug} app {app_number}",
+                                         model_slug=model_slug, app_number=app_number)
+
+                analysis_results = await self.analyze_running_app(model_slug, app_number, target_urls, selected_tools)
+
                 response = {
                     "type": "dynamic_analysis_result",
                     "status": "success",
-                    "service": self.service_name,
+                    "service": self.info.name,
                     "analysis": analysis_results,
                     "timestamp": datetime.now().isoformat()
                 }
-                
+
                 await websocket.send(json.dumps(response))
-                logger.info(f"Dynamic analysis completed for {model_slug} app {app_number}")
-                
+                self.log.info(f"Dynamic analysis completed for {model_slug} app {app_number}")
             else:
                 response = {
                     "type": "error",
                     "message": f"Unknown message type: {msg_type}",
-                    "service": self.service_name
+                    "service": self.info.name
                 }
                 await websocket.send(json.dumps(response))
-                
         except Exception as e:
-            logger.error(f"Error handling message: {e}")
+            self.log.error(f"Error handling message: {e}")
             error_response = {
                 "type": "error",
                 "message": f"Internal error: {str(e)}",
-                "service": self.service_name
+                "service": self.info.name
             }
             try:
                 await websocket.send(json.dumps(error_response))
             except Exception:
                 pass
 
-async def handle_client(websocket):
-    """Handle client connections."""
-    analyzer = DynamicAnalyzer()
-    client_addr = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
-    logger.debug(f"New client connected: {client_addr}")
-    
-    try:
-        async for message in websocket:
-            try:
-                message_data = json.loads(message)
-                await analyzer.handle_message(websocket, message_data)
-            except json.JSONDecodeError:
-                logger.error("Invalid JSON message")
-                
-    except websockets.exceptions.ConnectionClosed:
-        logger.debug(f"Client disconnected: {client_addr}")
-    except Exception as e:
-        logger.error(f"Error with client {client_addr}: {e}")
-
 async def main():
-    """Start the dynamic analyzer service."""
-    host = os.getenv('WEBSOCKET_HOST', '0.0.0.0')
-    port = int(os.getenv('WEBSOCKET_PORT', 2002))
-    
-    logger.info(f"Starting Dynamic Analyzer service on {host}:{port}")
-    
-    try:
-        async with serve(handle_client, host, port):
-            logger.info(f"Dynamic Analyzer listening on ws://{host}:{port}")
-            logger.info("Service ready to accept connections")
-            await asyncio.Future()
-    except Exception as e:
-        logger.error(f"Failed to start service: {e}")
-        raise
+    service = DynamicAnalyzer()
+    await service.run()
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("Service stopped by user")
-    except Exception as e:
-        logger.error(f"Service crashed: {e}")
-        exit(1)
+        pass

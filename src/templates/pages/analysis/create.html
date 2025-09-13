@@ -10,8 +10,11 @@
     <form id="analysis-wizard-form" method="POST" action="/analysis/create">
       <input type="hidden" name="model_slug" id="input-model-slug" />
       <input type="hidden" name="app_number" id="input-app-number" />
+      <input type="hidden" name="analysis_mode" id="input-analysis-mode" />
+      <input type="hidden" name="analysis_profile" id="input-analysis-profile" />
       <div id="batch-model-inputs" class="d-none"></div>
       <div id="batch-app-inputs" class="d-none"></div>
+      <div id="selected-tools-inputs" class="d-none"></div>
 
       <div class="row">
         <div class="col-lg-8">
@@ -96,61 +99,159 @@
           </div>
           
           <!-- Step 3 -->
-          <div class="wizard-panel" data-panel="3"><div class="card"><div class="card-header"><h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Step 3: Configure Analysis</h5></div><div class="card-body"><p class="text-muted">Choose the type of analysis and configure specific parameters.</p>
-            <div class="mb-4"><label class="form-label">Analysis Type <span class="text-danger">*</span></label>
-              <div class="row">
-                <div class="col-lg-6"><div class="list-group">
-                  <div class="list-group-item">
-                    <div class="form-check">
-                      <input class="form-check-input" type="radio" name="analysis_type" value="security" _="on change call updateAnalysisConfig()">
-                      <label class="form-check-label w-100">
-                        <h6 class="mb-1"><i class="fas fa-shield-check text-danger me-2"></i>Security Analysis</h6>
-                        <p class="mb-1 text-secondary small">Comprehensive security scanning including vulnerability detection, dependency analysis, and security best practices validation.</p>
-                        <small class="text-secondary"><i class="fas fa-clock me-1"></i> ~5-10 minutes <i class="fas fa-dollar-sign ms-2 me-1"></i> $0.05-$0.15</small>
-                      </label>
+          <div class="wizard-panel" data-panel="3"><div class="card"><div class="card-header"><h5 class="mb-0"><i class="fas fa-cogs me-2"></i>Step 3: Configure Analysis</h5></div><div class="card-body"><p class="text-muted">Choose the analysis tools and configure specific parameters.</p>
+            
+            <!-- Analysis Tool Selection -->
+            <div class="mb-4">
+              <label class="form-label">Analysis Tools <span class="text-danger">*</span></label>
+              
+              <!-- Quick Profiles Section -->
+              <div class="mb-3">
+                <h6 class="mb-2">Quick Profiles</h6>
+                <div class="row">
+                  <div class="col-lg-6">
+                    <div class="list-group">
+                      <div class="list-group-item">
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="profile_type" value="security" _="on change call loadAnalysisProfile('security')">
+                          <label class="form-check-label w-100">
+                            <h6 class="mb-1"><i class="fas fa-shield-check text-danger me-2"></i>Security Profile</h6>
+                            <p class="mb-1 text-secondary small">Comprehensive security scanning with vulnerability detection and dependency analysis.</p>
+                            <small class="text-secondary"><i class="fas fa-tools me-1"></i> Security tools</small>
+                          </label>
+                        </div>
+                      </div>
+                      <div class="list-group-item">
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="profile_type" value="performance" _="on change call loadAnalysisProfile('performance')">
+                          <label class="form-check-label w-100">
+                            <h6 class="mb-1"><i class="fas fa-gauge-high text-info me-2"></i>Performance Profile</h6>
+                            <p class="mb-1 text-secondary small">Load testing, response time analysis, and resource utilization assessment.</p>
+                            <small class="text-secondary"><i class="fas fa-tools me-1"></i> Performance tools</small>
+                          </label>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div class="list-group-item">
-                    <div class="form-check">
-                      <input class="form-check-input" type="radio" name="analysis_type" value="performance" _="on change call updateAnalysisConfig()">
-                      <label class="form-check-label w-100">
-                        <h6 class="mb-1"><i class="fas fa-gauge-high text-info me-2"></i>Performance Analysis</h6>
-                        <p class="mb-1 text-secondary small">Load testing, response time analysis, resource utilization, and scalability assessment.</p>
-                        <small class="text-secondary"><i class="fas fa-clock me-1"></i> ~3-8 minutes <i class="fas fa-dollar-sign ms-2 me-1"></i> $0.03-$0.12</small>
-                      </label>
+                  <div class="col-lg-6">
+                    <div class="list-group">
+                      <div class="list-group-item">
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="profile_type" value="quality" _="on change call loadAnalysisProfile('quality')">
+                          <label class="form-check-label w-100">
+                            <h6 class="mb-1"><i class="fas fa-star text-warning me-2"></i>Code Quality Profile</h6>
+                            <p class="mb-1 text-secondary small">Static analysis, linting, and code quality assessment tools.</p>
+                            <small class="text-secondary"><i class="fas fa-tools me-1"></i> Quality tools</small>
+                          </label>
+                        </div>
+                      </div>
+                      <div class="list-group-item">
+                        <div class="form-check">
+                          <input class="form-check-input" type="radio" name="profile_type" value="custom" _="on change call enableCustomToolPicker()">
+                          <label class="form-check-label w-100">
+                            <h6 class="mb-1"><i class="fas fa-sliders text-success me-2"></i>Custom Selection</h6>
+                            <p class="mb-1 text-secondary small">Pick individual tools from categories to create a custom analysis.</p>
+                            <small class="text-secondary"><i class="fas fa-tools me-1"></i> Choose tools manually</small>
+                          </label>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div></div>
-                <div class="col-lg-6"><div class="list-group">
-                  <div class="list-group-item">
-                    <div class="form-check">
-                      <input class="form-check-input" type="radio" name="analysis_type" value="dynamic" _="on change call updateAnalysisConfig()">
-                      <label class="form-check-label w-100">
-                        <h6 class="mb-1"><i class="fas fa-play text-warning me-2"></i>Dynamic Analysis</h6>
-                        <p class="mb-1 text-secondary small">Runtime behavior analysis, API interaction testing, and functional verification.</p>
-                        <small class="text-secondary"><i class="fas fa-clock me-1"></i> ~7-15 minutes <i class="fas fa-dollar-sign ms-2 me-1"></i> $0.08-$0.25</small>
-                      </label>
+                </div>
+              </div>
+
+              <!-- Custom Tool Picker (shown when Custom Selection is chosen) -->
+              <div id="custom-tool-picker" class="d-none">
+                <h6 class="mb-3">Select Analysis Tools</h6>
+                <div class="row">
+                  <!-- Security Tools -->
+                  <div class="col-md-6 mb-3">
+                    <div class="card">
+                      <div class="card-header py-2">
+                        <h6 class="mb-0 d-flex align-items-center">
+                          <i class="fas fa-shield-alt text-danger me-2"></i>Security Tools
+                        </h6>
+                      </div>
+                      <div class="card-body p-2" id="security-tools-list">
+                        <div class="text-center py-3">
+                          <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                          <p class="mb-0 small text-muted mt-2">Loading security tools...</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div class="list-group-item">
-                    <div class="form-check">
-                      <input class="form-check-input" type="radio" name="analysis_type" value="comprehensive" _="on change call updateAnalysisConfig()">
-                      <label class="form-check-label w-100">
-                        <h6 class="mb-1"><i class="fas fa-chart-line text-success me-2"></i>Comprehensive Analysis</h6>
-                        <p class="mb-1 text-secondary small">Full security, performance, and dynamic analysis combined with detailed reporting.</p>
-                        <small class="text-secondary"><i class="fas fa-clock me-1"></i> ~15-30 minutes <i class="fas fa-dollar-sign ms-2 me-1"></i> $0.15-$0.45</small>
-                      </label>
+                  
+                  <!-- Performance Tools -->
+                  <div class="col-md-6 mb-3">
+                    <div class="card">
+                      <div class="card-header py-2">
+                        <h6 class="mb-0 d-flex align-items-center">
+                          <i class="fas fa-tachometer-alt text-info me-2"></i>Performance Tools
+                        </h6>
+                      </div>
+                      <div class="card-body p-2" id="performance-tools-list">
+                        <div class="text-center py-3">
+                          <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                          <p class="mb-0 small text-muted mt-2">Loading performance tools...</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div></div>
-              </div></div>
+                  
+                  <!-- Quality Tools -->
+                  <div class="col-md-6 mb-3">
+                    <div class="card">
+                      <div class="card-header py-2">
+                        <h6 class="mb-0 d-flex align-items-center">
+                          <i class="fas fa-code text-warning me-2"></i>Code Quality Tools
+                        </h6>
+                      </div>
+                      <div class="card-body p-2" id="quality-tools-list">
+                        <div class="text-center py-3">
+                          <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                          <p class="mb-0 small text-muted mt-2">Loading quality tools...</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Dynamic Tools -->
+                  <div class="col-md-6 mb-3">
+                    <div class="card">
+                      <div class="card-header py-2">
+                        <h6 class="mb-0 d-flex align-items-center">
+                          <i class="fas fa-play text-success me-2"></i>Dynamic Analysis Tools
+                        </h6>
+                      </div>
+                      <div class="card-body p-2" id="dynamic-tools-list">
+                        <div class="text-center py-3">
+                          <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                          <p class="mb-0 small text-muted mt-2">Loading dynamic tools...</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Selected Tools Summary -->
+              <div id="selected-tools-summary" class="mt-3 d-none">
+                <div class="card bg-light">
+                  <div class="card-body">
+                    <h6 class="card-title mb-2">Selected Tools (<span id="selected-tools-count">0</span>)</h6>
+                    <div id="selected-tools-list" class="d-flex flex-wrap gap-1"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div id="analysis-config-options" class="u-5790ff" style="display:none;">
               <div class="row"><div class="col-md-6"><div class="mb-3"><label class="form-label">Priority Level</label><select class="form-select" name="priority"><option value="normal">Normal</option><option value="high">High (faster execution)</option><option value="low">Low (cost optimized)</option></select></div></div><div class="col-md-6"><div class="mb-3"><label class="form-label">Email Notification</label><select class="form-select" name="notification"><option value="completion">On completion</option><option value="failure">On failure only</option><option value="none">No notifications</option></select></div></div></div>
               <div class="mb-3"><div class="form-check"><input class="form-check-input" type="checkbox" id="advanced-options-toggle"><label class="form-check-label" for="advanced-options-toggle">Show advanced configuration options</label></div></div>
               <div id="advanced-options" class="collapse"><div class="border rounded p-3 bg-light"><h6 class="mb-3">Advanced Configuration</h6><div class="row"><div class="col-md-6"><div class="mb-3"><label class="form-label">Timeout (minutes)</label><input type="number" class="form-control" name="timeout" value="30" min="5" max="120"></div></div><div class="col-md-6"><div class="mb-3"><label class="form-label">Concurrent Workers</label><input type="number" class="form-control" name="workers" value="2" min="1" max="8"></div></div></div><div class="mb-3"><label class="form-label">Custom Parameters (JSON)</label><textarea class="form-control" name="custom_params" rows="3" placeholder="{}"></textarea></div></div></div>
             </div>
             <div id="live-estimate" class="mt-3" style="display:none;"><div class="card bg-light"><div class="card-body d-flex align-items-center"><i class="fas fa-calculator me-3 text-primary"></i><div><div class="fw-bold">Estimated run</div><div class="text-muted small">Time: <span id="estimate-time">-</span> · Cost: <span id="estimate-cost">-</span></div></div></div></div></div>
-            <div id="step3-error" class="text-danger small d-none mt-2">Please select an analysis type to continue.</div>
+            <div id="step3-error" class="text-danger small d-none mt-2">Please select an analysis profile or custom tools to continue.</div>
           </div></div></div>
           <!-- Step 4 -->
           <div class="wizard-panel" data-panel="4"><div class="card"><div class="card-header"><h5 class="mb-0"><i class="fas fa-check-circle me-2"></i>Step 4: Review & Launch</h5></div><div class="card-body"><p class="text-muted">Review your analysis configuration before launching.</p><div id="analysis-summary"><div class="row"><div class="col-md-8"><h6 class="mb-3">Analysis Summary</h6><dl class="row"><dt class="col-sm-4">Model:</dt><dd class="col-sm-8" id="summary-model">-</dd><dt class="col-sm-4">Application:</dt><dd class="col-sm-8" id="summary-app">-</dd><dt class="col-sm-4">Analysis Type:</dt><dd class="col-sm-8" id="summary-type">-</dd><dt class="col-sm-4">Priority:</dt><dd class="col-sm-8" id="summary-priority">-</dd><dt class="col-sm-4">Estimated Time:</dt><dd class="col-sm-8" id="summary-time">-</dd><dt class="col-sm-4">Estimated Cost:</dt><dd class="col-sm-8" id="summary-cost">-</dd></dl></div><div class="col-md-4"><div class="card bg-light"><div class="card-body text-center"><h6 class="card-title">Ready to Launch</h6><p class="card-text small text-muted">Your analysis will be queued and executed automatically. You'll receive notifications based on your preferences.</p><div class="analysis-status-icon"><i class="fas fa-rocket fa-3x text-primary"></i></div></div></div></div></div></div></div></div></div>
@@ -253,7 +354,7 @@
                 <div class="card-body"><div id="step-help" class="step-help">
               <div class="help-content active" data-help="1"><h6>Choosing the Right Model</h6><ul class="small"><li><strong>Coding Focus:</strong> Choose models optimized for code generation</li><li><strong>Provider Reliability:</strong> Consider uptime and support</li><li><strong>Cost vs Quality:</strong> Balance analysis depth with budget</li><li><strong>Capabilities:</strong> Match model strengths to your needs</li></ul><div class="alert alert-info small"><i class="fas fa-lightbulb me-1"></i><strong>Tip:</strong> Models with better coding capabilities typically generate more analyzable applications.</div></div>
               <div class="help-content" data-help="2"><h6>Application Selection</h6><ul class="small"><li><strong>Status:</strong> Only active applications can be analyzed</li><li><strong>Complexity:</strong> More complex apps provide richer analysis</li><li><strong>Age:</strong> Newer applications may have more recent patterns</li><li><strong>Size:</strong> Larger applications take longer to analyze</li></ul><div class="alert alert-warning small"><i class="fas fa-exclamation-triangle me-1"></i><strong>Note:</strong> Applications must be running for dynamic analysis.</div></div>
-              <div class="help-content" data-help="3"><h6>Analysis Types</h6><ul class="small"><li><strong>Security:</strong> Best for production-bound applications</li><li><strong>Performance:</strong> Ideal for high-traffic applications</li><li><strong>Dynamic:</strong> Great for API-heavy applications</li><li><strong>Comprehensive:</strong> Complete analysis for critical apps</li></ul><div class="alert alert-success small"><i class="fas fa-check me-1"></i><strong>Recommendation:</strong> Start with comprehensive for your most important applications.</div></div>
+              <div class="help-content" data-help="3"><h6>Analysis Configuration</h6><ul class="small"><li><strong>Quick Profiles:</strong> Pre-configured tool sets for common analysis needs</li><li><strong>Custom Selection:</strong> Pick individual tools from categories</li><li><strong>Security Tools:</strong> Vulnerability scanners, dependency checkers</li><li><strong>Performance Tools:</strong> Load testing, resource monitoring</li><li><strong>Quality Tools:</strong> Static analysis, linters, complexity metrics</li></ul><div class="alert alert-success small"><i class="fas fa-check me-1"></i><strong>Tip:</strong> Start with a profile and customize with additional tools as needed.</div></div>
               <div class="help-content" data-help="4"><h6>Before You Launch</h6><ul class="small"><li><strong>Double-check:</strong> Verify model and app selection</li><li><strong>Resources:</strong> Ensure sufficient system resources</li><li><strong>Timing:</strong> Consider system load and peak hours</li><li><strong>Notifications:</strong> Set up appropriate alerts</li></ul><div class="alert alert-primary small"><i class="fas fa-clock me-1"></i><strong>Scheduling:</strong> Analysis will start immediately upon launch.</div></div>
               </div></div></div>
             </div>
@@ -351,11 +452,13 @@
     .collapse-indicator { transition:color .15s ease; }
   </style>
   <script>
-// Analysis Creation Wizard JavaScript
+// Analysis Wizard JavaScript
 let currentStep = 1;
 let selectedModel = null;
 let selectedApp = null;
-let selectedAnalysisType = null;
+let selectedAnalysisProfile = null;
+let selectedTools = []; // Array of tool IDs for custom analysis
+let analysisMode = 'profile'; // 'profile' or 'custom'
 // Batch selection support
 let modelSelectionMode = 'single'; // 'single' | 'batch'
 let selectedModels = []; // array of {slug,name}
@@ -363,6 +466,10 @@ let selectedApps = []; // array of {number, info, modelSlug}
 let appSelectionMode = 'single'; // 'single' | 'batch'
 // Cache of modelSlug -> array of app objects {number, name, modelSlug}
 const modelAppsCache = {};
+// Tool registry cache
+let allTools = [];
+let toolCategories = [];
+let analysisProfiles = [];
 
 // Wizard navigation functions
 function nextStep() {
@@ -625,7 +732,7 @@ function isStepValid(step) {
         case 2:
       return appSelectionMode === 'single' ? !!selectedApp : selectedApps.length > 0;
         case 3:
-            return !!selectedAnalysisType;
+            return analysisMode === 'profile' ? !!selectedAnalysisProfile : selectedTools.length > 0;
         case 4:
             return true; // Review step is always valid
         default:
@@ -640,7 +747,9 @@ function getValidationMessage(step) {
         case 2:
             return 'Please select an application to analyze.';
         case 3:
-            return 'Please choose an analysis type to proceed.';
+            return analysisMode === 'profile' 
+                ? 'Please choose an analysis profile to proceed.'
+                : 'Please select at least one analysis tool to proceed.';
         default:
             return 'Please complete this step to continue.';
     }
@@ -967,40 +1076,297 @@ function refreshBatchApplicationsAggregate() {
 // (Removed older placeholder buildAggregatedAppsList; unified async version used above)
 
 // Analysis configuration functions
-function updateAnalysisConfig() {
-    const selectedRadio = document.querySelector('input[name="analysis_type"]:checked');
-    if (selectedRadio) {
-        selectedAnalysisType = selectedRadio.value;
+function loadAnalysisProfile(profileName) {
+    analysisMode = 'profile';
+    selectedAnalysisProfile = profileName;
+    selectedTools = []; // Clear custom tools when using profile
+    
+    // Hide custom tool picker
+    document.getElementById('custom-tool-picker').classList.add('d-none');
+    
+    // Show configuration options
+    document.getElementById('analysis-config-options').style.display = 'block';
+    document.getElementById('live-estimate').style.display = 'block';
+    
+    // Find the actual profile from loaded data
+    const profile = analysisProfiles.find(p => p.name.toLowerCase().includes(profileName.toLowerCase()));
+    
+    if (profile) {
+        // Calculate estimates based on actual profile tools
+        const toolCount = profile.tool_ids ? profile.tool_ids.length : 0;
+        const estimatedTime = Math.max(3, toolCount * 2) + '-' + (toolCount * 4 + 5);
+        const estimatedCost = (toolCount * 0.02 + 0.01).toFixed(3) + '-' + (toolCount * 0.05 + 0.03).toFixed(3);
         
-        // Show configuration options
-        document.getElementById('analysis-config-options').style.display = 'block';
-        document.getElementById('live-estimate').style.display = 'block';
+        document.getElementById('estimate-time').textContent = estimatedTime + ' minutes';
+        document.getElementById('estimate-cost').textContent = '$' + estimatedCost;
         
-        // Store selection
-        try {
-            sessionStorage.setItem('analysis_selected_type', selectedAnalysisType);
-        } catch (e) {
-            console.warn('Could not store analysis type in sessionStorage:', e);
-        }
-        
-        // Update live estimates
+        selectedAnalysisProfile = profile.name; // Use actual profile name
+    } else {
+        // Fallback estimates for unknown profiles
         const estimates = {
             security: { time: '5-10 minutes', cost: '$0.05-$0.15' },
             performance: { time: '3-8 minutes', cost: '$0.03-$0.12' },
-            dynamic: { time: '7-15 minutes', cost: '$0.08-$0.25' },
-            comprehensive: { time: '15-30 minutes', cost: '$0.15-$0.45' }
+            quality: { time: '4-7 minutes', cost: '$0.04-$0.10' }
         };
         
-        if (estimates[selectedAnalysisType]) {
-            document.getElementById('estimate-time').textContent = estimates[selectedAnalysisType].time;
-            document.getElementById('estimate-cost').textContent = estimates[selectedAnalysisType].cost;
+        if (estimates[profileName]) {
+            document.getElementById('estimate-time').textContent = estimates[profileName].time;
+            document.getElementById('estimate-cost').textContent = estimates[profileName].cost;
         }
-        
-        // Update navigation and show success feedback
-        updateNavigationButtons();
-        const typeName = selectedAnalysisType.charAt(0).toUpperCase() + selectedAnalysisType.slice(1);
-        showValidationFeedback(3, true, `${typeName} analysis type selected!`);
     }
+    
+    // Store selection
+    try {
+        sessionStorage.setItem('analysis_selected_profile', selectedAnalysisProfile);
+        sessionStorage.removeItem('analysis_selected_tools'); // Clear custom tools
+    } catch (e) {
+        console.warn('Could not store analysis profile in sessionStorage:', e);
+    }
+    
+    // Update navigation and show success feedback
+    updateNavigationButtons();
+    const profileDisplayName = selectedAnalysisProfile.charAt(0).toUpperCase() + selectedAnalysisProfile.slice(1);
+    showValidationFeedback(3, true, `${profileDisplayName} profile selected!`);
+}
+
+function enableCustomToolPicker() {
+    analysisMode = 'custom';
+    selectedAnalysisProfile = null;
+    
+    // Show custom tool picker
+    document.getElementById('custom-tool-picker').classList.remove('d-none');
+    
+    // Load tools by category if not already loaded
+    if (allTools.length === 0) {
+        loadAnalysisTools();
+    }
+    
+    // Show configuration options
+    document.getElementById('analysis-config-options').style.display = 'block';
+    document.getElementById('live-estimate').style.display = 'block';
+    
+    // Update estimates based on selected tools
+    updateCustomAnalysisEstimate();
+    
+    // Store selection
+    try {
+        sessionStorage.setItem('analysis_mode', 'custom');
+        sessionStorage.removeItem('analysis_selected_profile'); // Clear profile
+    } catch (e) {
+        console.warn('Could not store analysis mode in sessionStorage:', e);
+    }
+    
+    updateNavigationButtons();
+    showValidationFeedback(3, true, 'Custom tool selection enabled!');
+}
+
+async function loadAnalysisTools() {
+    console.log('Starting to load analysis tools...');
+    try {
+        // Load all tools from working tool registry API
+        const toolsResponse = await fetch('/api/tool-registry/tools');
+        console.log('Tools response status:', toolsResponse.status);
+        if (toolsResponse.ok) {
+            const toolsData = await toolsResponse.json();
+            console.log('Tools response data:', toolsData);
+            allTools = toolsData.data || [];
+            console.log('Loaded tools:', allTools.length, allTools);
+            
+            // Load analysis profiles too
+            const profilesResponse = await fetch('/api/tool-registry/profiles');
+            if (profilesResponse.ok) {
+                const profilesData = await profilesResponse.json();
+                analysisProfiles = profilesData.data || [];
+                console.log('Loaded profiles:', analysisProfiles.length);
+            }
+            
+            // Organize tools by category (mapping API categories to UI categories)
+            const toolsByCategory = {
+                'security': [],      // security + vulnerability tools
+                'performance': [],   // performance tools
+                'quality': [],       // quality + ai_analysis tools
+                'dynamic': []        // dynamic tools
+            };
+            
+            allTools.forEach(tool => {
+                const category = tool.category.toLowerCase();
+                console.log('Processing tool:', tool.name, 'category:', category);
+                
+                // Map API categories to UI categories
+                if (category === 'security' || category === 'vulnerability') {
+                    toolsByCategory['security'].push(tool);
+                } else if (category === 'performance') {
+                    toolsByCategory['performance'].push(tool);
+                } else if (category === 'quality' || category === 'ai_analysis') {
+                    toolsByCategory['quality'].push(tool);
+                } else if (category === 'dynamic') {
+                    toolsByCategory['dynamic'].push(tool);
+                } else {
+                    // Default to quality if category unknown
+                    console.log('Unknown category:', category, 'defaulting to quality');
+                    toolsByCategory['quality'].push(tool);
+                }
+            });
+            
+            console.log('Tools by category:', toolsByCategory);
+            
+            // Render tools in each category
+            renderToolsInCategory('security', toolsByCategory['security']);
+            renderToolsInCategory('performance', toolsByCategory['performance']);
+            renderToolsInCategory('quality', toolsByCategory['quality']);
+            renderToolsInCategory('dynamic', toolsByCategory['dynamic']);
+            
+            console.log('Tool registry loaded:', allTools.length, 'tools,', analysisProfiles.length, 'profiles');
+        } else {
+            console.error('Failed to load tools:', toolsResponse.status, toolsResponse.statusText);
+            showToolLoadingError('Failed to load analysis tools from server');
+        }
+    } catch (error) {
+        console.error('Error loading analysis tools:', error);
+        showToolLoadingError('Network error loading analysis tools');
+    }
+}
+
+function showToolLoadingError(message) {
+    ['security', 'performance', 'quality', 'dynamic'].forEach(category => {
+        const container = document.getElementById(`${category}-tools-list`);
+        if (container) {
+            container.innerHTML = `<div class="text-danger small"><i class="fas fa-exclamation-triangle me-1"></i>${message}</div>`;
+        }
+    });
+}
+
+function renderToolsInCategory(category, tools) {
+    console.log('Rendering tools for category:', category, 'tools:', tools);
+    const container = document.getElementById(`${category}-tools-list`);
+    console.log('Container for', category, ':', container);
+    if (!container) return;
+    
+    if (!tools || tools.length === 0) {
+        console.log('No tools for category:', category);
+        container.innerHTML = '<div class="text-muted small">No tools available in this category</div>';
+        return;
+    }
+    
+    console.log('Rendering', tools.length, 'tools for category:', category);
+    
+    const toolsHtml = tools.map(tool => {
+        const isEnabled = tool.enabled !== false;
+        const timeEstimate = tool.execution_time_estimate ? Math.ceil(tool.execution_time_estimate / 60) : 5;
+        
+        return `
+        <div class="form-check mb-2 ${!isEnabled ? 'opacity-50' : ''}">
+            <input class="form-check-input" type="checkbox" id="tool-${tool.id}" value="${tool.id}" 
+                   ${!isEnabled ? 'disabled' : ''}
+                   onchange="toggleTool(${tool.id}, '${escapeHtml(tool.name)}')">
+            <label class="form-check-label small w-100" for="tool-${tool.id}">
+                <div class="fw-semibold d-flex align-items-center justify-content-between">
+                    <span>${escapeHtml(tool.name)}</span>
+                    <span class="badge bg-primary-subtle text-primary tiny">available</span>
+                </div>
+                <div class="text-muted tiny">${escapeHtml(tool.description || 'No description available')}</div>
+                <div class="d-flex align-items-center justify-content-between mt-1">
+                    <div class="text-secondary tiny">
+                        <i class="fas fa-clock me-1"></i>~${timeEstimate}min
+                        <span class="mx-1">•</span>
+                        <i class="fas fa-cog me-1"></i>${escapeHtml(tool.category)}
+                    </div>
+                    ${!isEnabled ? '<span class="text-warning tiny"><i class="fas fa-pause me-1"></i>disabled</span>' : ''}
+                </div>
+            </label>
+        </div>
+        `;
+    }).join('');
+    
+    container.innerHTML = toolsHtml;
+}
+
+function toggleTool(toolId, toolName) {
+    const checkbox = document.getElementById(`tool-${toolId}`);
+    if (!checkbox) return;
+    
+    if (checkbox.checked) {
+        // Add tool to selection
+        if (!selectedTools.includes(toolId)) {
+            selectedTools.push(toolId);
+        }
+    } else {
+        // Remove tool from selection
+        selectedTools = selectedTools.filter(id => id !== toolId);
+    }
+    
+    // Update UI
+    updateSelectedToolsSummary();
+    updateCustomAnalysisEstimate();
+    updateNavigationButtons();
+    
+    // Store selection
+    try {
+        sessionStorage.setItem('analysis_selected_tools', JSON.stringify(selectedTools));
+    } catch (e) {
+        console.warn('Could not store selected tools in sessionStorage:', e);
+    }
+}
+
+function updateSelectedToolsSummary() {
+    const summaryContainer = document.getElementById('selected-tools-summary');
+    const countElement = document.getElementById('selected-tools-count');
+    const listElement = document.getElementById('selected-tools-list');
+    
+    if (!summaryContainer || !countElement || !listElement) return;
+    
+    if (selectedTools.length === 0) {
+        summaryContainer.classList.add('d-none');
+        return;
+    }
+    
+    summaryContainer.classList.remove('d-none');
+    countElement.textContent = selectedTools.length;
+    
+    // Create tool badges
+    const toolBadges = selectedTools.map(toolId => {
+        const tool = allTools.find(t => t.id === toolId);
+        if (!tool) return '';
+        
+        return `<span class="badge bg-primary-subtle text-primary me-1 mb-1">
+            ${escapeHtml(tool.name)}
+            <button type="button" class="btn-close btn-close-small ms-1" 
+                    onclick="toggleTool(${toolId}, '${escapeHtml(tool.name)}')" 
+                    aria-label="Remove ${escapeHtml(tool.name)}"></button>
+        </span>`;
+    }).join('');
+    
+    listElement.innerHTML = toolBadges;
+}
+
+function updateCustomAnalysisEstimate() {
+    if (analysisMode !== 'custom' || selectedTools.length === 0) {
+        document.getElementById('estimate-time').textContent = '-';
+        document.getElementById('estimate-cost').textContent = '-';
+        return;
+    }
+    
+    // Calculate estimates based on selected tools
+    let totalTimeMinutes = 0;
+    let totalCostEstimate = 0;
+    
+    selectedTools.forEach(toolId => {
+        const tool = allTools.find(t => t.id === toolId);
+        if (tool) {
+            totalTimeMinutes += tool.execution_time_estimate || 5; // Default 5 minutes per tool
+            totalCostEstimate += 0.02; // Default $0.02 per tool
+        }
+    });
+    
+    // Add base overhead
+    totalTimeMinutes += 2; // Base 2 minutes overhead
+    totalCostEstimate += 0.01; // Base $0.01 overhead
+    
+    const timeRange = `${Math.max(1, totalTimeMinutes - 2)}-${totalTimeMinutes + 3} minutes`;
+    const costRange = `$${(totalCostEstimate * 0.8).toFixed(3)}-$${(totalCostEstimate * 1.2).toFixed(3)}`;
+    
+    document.getElementById('estimate-time').textContent = timeRange;
+    document.getElementById('estimate-cost').textContent = costRange;
 }
 
 function updateAnalysisSummary() {
@@ -1016,18 +1382,30 @@ function updateAnalysisSummary() {
   } else {
     document.getElementById('summary-app').innerHTML = selectedApps.length ? `${selectedApps.length} apps` : '-';
   }
-  // Analysis type
-  if (selectedAnalysisType) {
-    document.getElementById('summary-type').textContent = selectedAnalysisType.charAt(0).toUpperCase() + selectedAnalysisType.slice(1);
+  
+  // Analysis type/tools summary
+  const summaryTypeElement = document.getElementById('summary-type');
+  if (analysisMode === 'profile' && selectedAnalysisProfile) {
+    const profileDisplayName = selectedAnalysisProfile.charAt(0).toUpperCase() + selectedAnalysisProfile.slice(1);
+    summaryTypeElement.textContent = `${profileDisplayName} Profile`;
+  } else if (analysisMode === 'custom' && selectedTools.length > 0) {
+    summaryTypeElement.textContent = `Custom (${selectedTools.length} tools)`;
+  } else {
+    summaryTypeElement.textContent = '-';
   }
+  
   // Priority
-  const priority = document.querySelector('select[name="priority"]').value;
-  document.getElementById('summary-priority').textContent = priority.charAt(0).toUpperCase() + priority.slice(1);
+  const priority = document.querySelector('select[name="priority"]');
+  if (priority) {
+    document.getElementById('summary-priority').textContent = priority.value.charAt(0).toUpperCase() + priority.value.slice(1);
+  }
+  
   // Estimates
-  const estimates = { security: { time: '5-10 minutes', cost: '$0.05-$0.15' }, performance: { time: '3-8 minutes', cost: '$0.03-$0.12' }, dynamic: { time: '7-15 minutes', cost: '$0.08-$0.25' }, comprehensive: { time: '15-30 minutes', cost: '$0.15-$0.45' } };
-  if (selectedAnalysisType && estimates[selectedAnalysisType]) {
-    document.getElementById('summary-time').textContent = estimates[selectedAnalysisType].time;
-    document.getElementById('summary-cost').textContent = estimates[selectedAnalysisType].cost;
+  const timeElement = document.getElementById('estimate-time');
+  const costElement = document.getElementById('estimate-cost');
+  if (timeElement && costElement) {
+    document.getElementById('summary-time').textContent = timeElement.textContent || '-';
+    document.getElementById('summary-cost').textContent = costElement.textContent || '-';
   }
 }
 
@@ -1118,7 +1496,9 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
         const savedModel = sessionStorage.getItem('analysis_selected_model');
         const savedApp = sessionStorage.getItem('analysis_selected_app');
-        const savedType = sessionStorage.getItem('analysis_selected_type');
+        const savedProfile = sessionStorage.getItem('analysis_selected_profile');
+        const savedMode = sessionStorage.getItem('analysis_mode');
+        const savedTools = sessionStorage.getItem('analysis_selected_tools');
         
         if (savedModel) {
             selectedModel = JSON.parse(savedModel);
@@ -1128,9 +1508,17 @@ document.addEventListener('DOMContentLoaded', () => {
             selectedApp = JSON.parse(savedApp);
             console.log('Restored app selection:', selectedApp);
         }
-        if (savedType) {
-            selectedAnalysisType = savedType;
-            console.log('Restored analysis type:', selectedAnalysisType);
+        if (savedProfile) {
+            selectedAnalysisProfile = savedProfile;
+            console.log('Restored analysis profile:', selectedAnalysisProfile);
+        }
+        if (savedMode) {
+            analysisMode = savedMode;
+            console.log('Restored analysis mode:', analysisMode);
+        }
+        if (savedTools) {
+            selectedTools = JSON.parse(savedTools);
+            console.log('Restored selected tools:', selectedTools);
         }
     } catch (e) {
         console.warn('Could not restore selections from sessionStorage:', e);
@@ -1219,9 +1607,29 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Serialize batch selections before submit
+  // Serialize batch selections and tool selections before submit
   if (form) {
     form.addEventListener('submit', () => {
+      // Populate hidden fields for analysis configuration
+      const modeInput = document.getElementById('input-analysis-mode');
+      const profileInput = document.getElementById('input-analysis-profile');
+      const toolsInputsWrapper = document.getElementById('selected-tools-inputs');
+      
+      if (modeInput) modeInput.value = analysisMode;
+      if (profileInput) profileInput.value = selectedAnalysisProfile || '';
+      if (toolsInputsWrapper) toolsInputsWrapper.innerHTML = '';
+      
+      // Add selected tools as hidden inputs
+      if (analysisMode === 'custom' && selectedTools.length > 0 && toolsInputsWrapper) {
+        selectedTools.forEach(toolId => {
+          const inp = document.createElement('input');
+          inp.type = 'hidden';
+          inp.name = 'selected_tools[]';
+          inp.value = toolId;
+          toolsInputsWrapper.appendChild(inp);
+        });
+      }
+      
       const modelInputsWrapper = document.getElementById('batch-model-inputs');
       const appInputsWrapper = document.getElementById('batch-app-inputs');
       if (modelInputsWrapper) modelInputsWrapper.innerHTML = '';

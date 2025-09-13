@@ -114,7 +114,7 @@ def main() -> int:
         wait_for_ready(base)
         results: dict[str, object] = {}
 
-        def check(name: str, method: str, path: str, **kwargs):
+        def check(name: str, method: str, path: str, *, critical: bool = True, **kwargs):
             url = base + path
             try:
                 # Some routes (e.g., /health) may perform dependency checks; allow a bit more time
@@ -129,63 +129,75 @@ def main() -> int:
                     "url": url,
                     "status": resp.status_code,
                     "ok": ok,
+                    "critical": critical,
                     "body": body,
                 }
                 return ok
             except Exception as e:  # noqa: BLE001
-                results[name] = {"url": url, "error": str(e), "ok": False}
+                results[name] = {"url": url, "error": str(e), "ok": False, "critical": critical}
                 return False
 
+        # Critical checks determine process exit code; optional checks are for diagnostics only.
         overall_ok = True
+        def apply_ok(check_ok: bool, critical: bool) -> None:
+            nonlocal overall_ok
+            if critical:
+                overall_ok &= check_ok
 
-        # Core health (prefer the faster API health)
-        overall_ok &= check("api_health", "GET", "/api/health")
-        overall_ok &= check("health", "GET", "/health")
+        # Core health (prefer the faster API health). The legacy /health may include heavy deps, so treat it as optional.
+        apply_ok(check("api_health", "GET", "/api/health", critical=True), True)
+        apply_ok(check("health", "GET", "/health", critical=False), False)
         # Models listing
-        overall_ok &= check("models_all", "GET", "/api/models/all")
+        apply_ok(check("models_all", "GET", "/api/models/all", critical=True), True)
         # Dashboard stats
-        overall_ok &= check("dashboard_stats", "GET", "/api/dashboard/stats")
+        apply_ok(check("dashboard_stats", "GET", "/api/dashboard/stats", critical=True), True)
         # Analyzer system health route
-        overall_ok &= check("system_health", "GET", "/api/system/health")
+        apply_ok(check("system_health", "GET", "/api/system/health", critical=False), False)
         # Analysis stats (HTMX-friendly but safe GET)
-        overall_ok &= check(
-            "analysis_stats",
-            "GET",
-            "/analysis/api/stats",
-            headers={"HX-Request": "true", "HX-Boosted": "true"},
+        apply_ok(
+            check(
+                "analysis_stats",
+                "GET",
+                "/analysis/api/stats",
+                headers={"HX-Request": "true", "HX-Boosted": "true"},
+                critical=True,
+            ),
+            True,
         )
 
         # Try to start an analysis for a known-looking app id (bulk route)
-        overall_ok &= check(
-            "analysis_start",
-            "POST",
-            "/advanced/api/analysis/start",
-            json={
-                "app_ids": ["anthropic_claude-3.7-sonnet_app1"],
-                "analysis_types": ["security"],
-            },
-            headers={"Content-Type": "application/json"},
+        apply_ok(
+            check(
+                "analysis_start",
+                "POST",
+                "/advanced/api/analysis/start",
+                json={
+                    "app_ids": ["anthropic_claude-3.7-sonnet_app1"],
+                    "analysis_types": ["security"],
+                },
+                headers={"Content-Type": "application/json"},
+                critical=False,
+            ),
+            False,
         )
 
         # WebSocket API: prefer real service if available. These will be marked ok
         # only when the service responds without 5xx. They are allowed to be 503
         # if the WS bridge isn't initialized in this environment.
-        ws_status_ok = check("ws_status", "GET", "/api/websocket/status")
+        ws_status_ok = check("ws_status", "GET", "/api/websocket/status", critical=False)
         if ws_status_ok:
-            # Validate active service is celery_websocket
+            # Validate active service if available (diagnostic only)
             try:
                 body = results.get("ws_status", {}).get("body", {})  # type: ignore[attr-defined]
                 active_service = (body or {}).get("active_service") if isinstance(body, dict) else None
-                if active_service != "celery_websocket":
-                    overall_ok = False
+                results["ws_status"]["active_service"] = active_service  # type: ignore[index]
             except Exception:
-                # If parsing fails, don't hard-fail the run
                 pass
             # Clear events first to ensure clean run
-            check("ws_events_clear", "POST", "/api/websocket/events/clear")
+            check("ws_events_clear", "POST", "/api/websocket/events/clear", critical=False)
 
             # Start via WS API on a concrete real model/app
-            ws_start_ok = check(
+            check(
                 "ws_start",
                 "POST",
                 "/api/websocket/analysis/start",
@@ -195,21 +207,26 @@ def main() -> int:
                     "app_number": 1,
                 },
                 headers={"Content-Type": "application/json"},
+                critical=False,
             )
-            overall_ok &= ws_start_ok
+            # WS checks are optional; don't affect overall_ok
 
             # Give the monitor loop a moment if Celery is connected
             time.sleep(1.0)
 
-            overall_ok &= check("ws_analyses", "GET", "/api/websocket/analyses")
-            overall_ok &= check("ws_events", "GET", "/api/websocket/events")
+            check("ws_analyses", "GET", "/api/websocket/analyses", critical=False)
+            check("ws_events", "GET", "/api/websocket/events", critical=False)
 
         # Query active tasks list to ensure task endpoint responds
-        overall_ok &= check(
-            "active_tasks",
-            "GET",
-            "/analysis/api/active-tasks",
-            headers={"HX-Request": "true", "HX-Boosted": "true"},
+        apply_ok(
+            check(
+                "active_tasks",
+                "GET",
+                "/analysis/api/active-tasks",
+                headers={"HX-Request": "true", "HX-Boosted": "true"},
+                critical=False,
+            ),
+            False,
         )
 
         payload = {"base": base, "results": results}

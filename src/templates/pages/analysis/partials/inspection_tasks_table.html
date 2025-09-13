@@ -6,7 +6,7 @@
       <span class="text-muted" id="analysis-selection-indicator"></span>
     </div>
     <div class="d-flex align-items-center gap-2">
-      <button class="btn btn-outline-primary btn-sm" onclick="htmx.trigger('#main-task-filter-form','submit')" title="Refresh tasks"><i class="fas fa-sync"></i></button>
+  <button class="btn btn-outline-primary btn-sm" onclick="refreshAnalysisTasks()" title="Refresh tasks"><i class="fas fa-sync"></i></button>
       <div class="btn-group btn-group-sm" role="group" aria-label="Batch actions">
         <button type="button" class="btn btn-outline-danger" id="analysis-batch-delete-btn" disabled
                 onclick="batchDeleteSelectedTasks()" title="Delete selected completed/failed tasks">
@@ -92,6 +92,17 @@
 
 <script>
 // --- Batch selection logic (scoped) ---
+function getTasksFilterFormSelector(){
+  // Works in both main analysis page (main-task-filter-form)
+  // and standalone inspection page (task-filter-form)
+  if(document.getElementById('main-task-filter-form')) return '#main-task-filter-form';
+  if(document.getElementById('task-filter-form')) return '#task-filter-form';
+  return null;
+}
+function refreshAnalysisTasks(){
+  var sel = getTasksFilterFormSelector();
+  if(sel){ try { htmx.trigger(sel, 'submit'); } catch(e){} }
+}
 function updateAnalysisTaskSelection(){
   var boxes = document.querySelectorAll('.analysis-task-checkbox');
   var checked = Array.from(boxes).filter(b=>b.checked);
@@ -129,7 +140,7 @@ function batchDeleteSelectedTasks(){
         card.insertBefore(div, card.firstChild.nextSibling); // after header
       }
       // Refresh list
-      htmx.trigger('#main-task-filter-form','submit');
+      refreshAnalysisTasks();
     })
     .catch(()=>{});
 }

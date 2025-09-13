@@ -9,6 +9,7 @@ from typing import Dict, List, Any, Union
 from pathlib import Path
 
 from ..constants import AnalysisType
+from ..config.config_manager import get_config
 
 
 def validate_model_slug(model_slug: str) -> Dict[str, Any]:
@@ -242,7 +243,8 @@ def validate_security_tools(tools: List[str]) -> Dict[str, Any]:
         'valid_tools': []
     }
     
-    valid_tools = ['bandit', 'safety', 'pylint', 'eslint', 'npm_audit', 'semgrep', 'snyk']
+    config = get_config()
+    valid_tools = config.get_valid_tools('security')
     
     if not tools:
         result['errors'].append("At least one security tool must be specified")

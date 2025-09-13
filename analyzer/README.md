@@ -80,6 +80,25 @@ python analyzer_manager.py batch models.json
 python analyzer_manager.py batch-models model1,model2,model3
 ```
 
+#### Tool selection (optional)
+You can gate which tools run for a given analysis using --tools. The list is service-specific and case-insensitive.
+
+Examples:
+
+```bash
+# Run only Bandit (security via static-analyzer)
+python analyzer_manager.py analyze anthropic_claude-3.7-sonnet 1 security --tools bandit
+
+# Static analysis with only ESLint
+python analyzer_manager.py analyze anthropic_claude-3.7-sonnet 1 static --tools eslint
+
+# Dynamic analysis: run connectivity + nmap only (no ZAP)
+python analyzer_manager.py analyze anthropic_claude-3.7-sonnet 1 dynamic --tools curl nmap
+
+# Performance testing: only aiohttp built-ins, skip ab/locust
+python analyzer_manager.py analyze anthropic_claude-3.7-sonnet 1 performance --tools aiohttp
+```
+
 ### Testing & Health
 ```bash
 python analyzer_manager.py test                     # Test all services
