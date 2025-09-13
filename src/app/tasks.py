@@ -935,7 +935,17 @@ def dynamic_analysis_task(self, model_slug: str, app_number: int, options: Optio
             result = options.get('force_engine_result')  # type: ignore[assignment]
         else:
             # Run dynamic analysis via engine
-            result = _run_engine('dynamic', model_slug, app_number, options=options)
+            # Extract explicit tools selection if provided via options
+            dyn_tools = None
+            try:
+                if isinstance(options, dict):
+                    # Prefer explicit list; support both names and IDs (IDs will be mapped in engine/integration layer if needed)
+                    cand = options.get('selected_tools') or options.get('tools')
+                    if isinstance(cand, list) and cand:
+                        dyn_tools = cand
+            except Exception:
+                dyn_tools = None
+            result = _run_engine('dynamic', model_slug, app_number, options=options, tools=dyn_tools)
 
         update_task_progress(80, 100, "Processing dynamic analysis results")
         status = result.get('status', 'completed') if isinstance(result, dict) else 'completed'

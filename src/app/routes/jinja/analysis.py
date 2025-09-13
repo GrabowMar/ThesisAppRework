@@ -175,27 +175,73 @@ def analysis_create():
                     flash(f"Could not create custom analysis: {e}", 'danger')
                     return render_template('pages/analysis/create.html'), 400
 
-                # Create an executable task now and persist selected tool IDs in metadata
-                # Choose a concrete engine type (security/static) for custom selections
-                chosen_type = 'security'
-                task = AnalysisTaskService.create_task(
-                    model_slug=model_slug,
-                    app_number=app_number,  # type: ignore[arg-type]
-                    analysis_type=chosen_type,
-                    priority=priority,
-                    custom_options={
-                        'selected_tools': tool_ids
-                    }
-                )
-                # Also store selected_tools at top-level metadata for easy access
+                # Resolve selected tool IDs to tool records and group by analyzer service
+                tools_by_service: dict[str, list[int]] = {}
+                tool_names_by_id: dict[int, str] = {}
                 try:
-                    meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
-                    meta['selected_tools'] = tool_ids
-                    task.set_metadata(meta)
-                    from app.extensions import db
-                    db.session.commit()
-                except Exception:
-                    pass
+                    for tid in tool_ids:
+                        try:
+                            t = tool_service.get_tool(int(tid))  # type: ignore[attr-defined]
+                        except Exception:
+                            t = None
+                        if not t:
+                            continue
+                        svc = (t.get('service_name') or '').strip()
+                        if not svc:
+                            continue
+                        tools_by_service.setdefault(svc, []).append(int(tid))
+                        if t.get('name'):
+                            tool_names_by_id[int(tid)] = str(t['name'])
+                except Exception as e:
+                    current_app.logger.warning(f"Failed to resolve selected tool details: {e}")
+
+                # Map service_name -> engine analysis_type
+                service_to_engine = {
+                    'static-analyzer': 'security',   # static analyzer runs security/quality linters
+                    'dynamic-analyzer': 'dynamic',   # ZAP and other dynamic scanners
+                    'performance-tester': 'performance',
+                    'ai-analyzer': 'ai',
+                }
+
+                # Create one task per analyzer service with its subset of tools
+                created_tasks = []
+                from app.extensions import db as _db  # lazy import
+                for service_name, ids in tools_by_service.items():
+                    analysis_type = service_to_engine.get(service_name, 'security')
+                    task = AnalysisTaskService.create_task(
+                        model_slug=model_slug,
+                        app_number=app_number,  # type: ignore[arg-type]
+                        analysis_type=analysis_type,
+                        priority=priority,
+                        custom_options={
+                            'selected_tools': ids,
+                            'selected_tool_names': [tool_names_by_id.get(i) for i in ids if tool_names_by_id.get(i)],
+                            'source': 'wizard_custom',
+                        }
+                    )
+                    # Also mirror selection at top-level metadata for convenience
+                    try:
+                        meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
+                        meta['selected_tools'] = ids
+                        if 'selected_tool_names' not in meta:
+                            meta['selected_tool_names'] = [tool_names_by_id.get(i) for i in ids if tool_names_by_id.get(i)]
+                        task.set_metadata(meta)
+                        _db.session.commit()
+                    except Exception:
+                        pass
+                    created_tasks.append(task)
+
+                # If no valid services resolved (edge-case), fallback to single security task
+                if not created_tasks:
+                    task = AnalysisTaskService.create_task(
+                        model_slug=model_slug,
+                        app_number=app_number,  # type: ignore[arg-type]
+                        analysis_type='security',
+                        priority=priority,
+                        custom_options={'selected_tools': tool_ids, 'source': 'wizard_custom'}
+                    )
+                    created_tasks.append(task)
+                flash(f"Created {len(created_tasks)} task(s) for selected tools", 'success')
                 
             else:
                 # Profile mode - map to existing analysis types for compatibility

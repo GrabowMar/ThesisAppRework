@@ -236,10 +236,25 @@
 
               <!-- Selected Tools Summary -->
               <div id="selected-tools-summary" class="mt-3 d-none">
-                <div class="card bg-light">
+                <div class="card border-primary bg-light">
+                  <div class="card-header bg-primary text-white py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <h6 class="mb-0">
+                        <i class="fas fa-check-circle me-2"></i>Selected Tools (<span id="selected-tools-count">0</span>)
+                      </h6>
+                      <button type="button" class="btn btn-sm btn-outline-light" onclick="clearAllTools()">
+                        <i class="fas fa-times me-1"></i>Clear All
+                      </button>
+                    </div>
+                  </div>
                   <div class="card-body">
-                    <h6 class="card-title mb-2">Selected Tools (<span id="selected-tools-count">0</span>)</h6>
-                    <div id="selected-tools-list" class="d-flex flex-wrap gap-1"></div>
+                    <div id="selected-tools-list" class="d-flex flex-wrap gap-2"></div>
+                    <div class="mt-2">
+                      <small class="text-muted">
+                        <i class="fas fa-info-circle me-1"></i>
+                        These tools will be grouped by service and may create multiple analysis tasks.
+                      </small>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -362,6 +377,31 @@
         </div>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Tool Selection Confirmation Modal -->
+<div class="modal fade" id="confirmation-modal" tabindex="-1" aria-labelledby="confirmationModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="confirmationModalLabel">
+          <i class="fas fa-check-circle text-primary me-2"></i>Confirm Analysis
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="confirmation-modal-body">
+        <!-- Content will be populated by JavaScript -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          <i class="fas fa-times me-1"></i>Cancel
+        </button>
+        <button type="button" class="btn btn-primary" onclick="proceedWithFormSubmission()" data-bs-dismiss="modal">
+          <i class="fas fa-play me-1"></i>Start Analysis
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -1290,6 +1330,24 @@ function toggleTool(toolId, toolName) {
         if (!selectedTools.includes(toolId)) {
             selectedTools.push(toolId);
         }
+        
+        // Auto-switch to custom mode when user selects individual tools
+        if (analysisMode !== 'custom') {
+            analysisMode = 'custom';
+            selectedAnalysisProfile = null;
+            
+            // Check the custom radio button
+            const customRadio = document.querySelector('input[name="profile_type"][value="custom"]');
+            if (customRadio) {
+                customRadio.checked = true;
+            }
+            
+            // Uncheck profile radio buttons
+            const profileRadios = document.querySelectorAll('input[name="profile_type"]:not([value="custom"])');
+            profileRadios.forEach(radio => radio.checked = false);
+            
+            console.log('Auto-switched to custom mode due to tool selection');
+        }
     } else {
         // Remove tool from selection
         selectedTools = selectedTools.filter(id => id !== toolId);
@@ -1299,6 +1357,120 @@ function toggleTool(toolId, toolName) {
     updateSelectedToolsSummary();
     updateCustomAnalysisEstimate();
     updateNavigationButtons();
+
+function clearAllTools() {
+    // Uncheck all tool checkboxes
+    const allCheckboxes = document.querySelectorAll('input[type="checkbox"][id^="tool-"]');
+    allCheckboxes.forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    
+    // Clear selected tools array
+    selectedTools = [];
+    
+    // Update UI
+    updateSelectedToolsSummary();
+    updateCustomAnalysisEstimate();
+    updateNavigationButtons();
+    
+    // Store empty selection
+    try {
+        sessionStorage.setItem('analysis_selected_tools', JSON.stringify([]));
+    } catch (e) {
+        console.warn('Could not store empty selection in sessionStorage:', e);
+    }
+    
+    console.log('Cleared all tool selections');
+}
+
+function showToolSelectionConfirmation() {
+    // Group tools by service for confirmation display
+    const toolsByService = {};
+    let totalTasks = 0;
+    
+    selectedTools.forEach(toolId => {
+        const tool = allTools.find(t => t.id === toolId);
+        if (!tool) return;
+        
+        const serviceName = tool.service_name || 'unknown';
+        if (!toolsByService[serviceName]) {
+            toolsByService[serviceName] = [];
+            totalTasks++;
+        }
+        toolsByService[serviceName].push(tool);
+    });
+    
+    // Build confirmation message
+    let confirmationHtml = `
+        <div class="mb-3">
+            <h6><i class="fas fa-exclamation-triangle text-warning me-2"></i>Confirm Tool Selection</h6>
+            <p>You have selected <strong>${selectedTools.length} tools</strong> which will create <strong>${totalTasks} analysis tasks</strong>:</p>
+        </div>
+    `;
+    
+    Object.keys(toolsByService).forEach(serviceName => {
+        const tools = toolsByService[serviceName];
+        const serviceDisplayName = {
+            'static-analyzer': 'Security/Quality Analysis Task',
+            'dynamic-analyzer': 'Dynamic Security Scan Task',
+            'performance-tester': 'Performance Testing Task',
+            'ai-analyzer': 'AI Analysis Task'
+        }[serviceName] || `${serviceName} Task`;
+        
+        confirmationHtml += `
+            <div class="mb-2">
+                <strong>${serviceDisplayName}:</strong><br>
+                <ul class="mb-1">
+        `;
+        
+        tools.forEach(tool => {
+            confirmationHtml += `<li>${escapeHtml(tool.display_name || tool.name)}</li>`;
+        });
+        
+        confirmationHtml += '</ul></div>';
+    });
+    
+    confirmationHtml += `
+        <div class="alert alert-info mt-3">
+            <small><i class="fas fa-info-circle me-1"></i>
+            Each service runs separately, so multiple tasks may execute in parallel.
+            </small>
+        </div>
+    `;
+    
+    // Use browser confirm for simplicity (can be enhanced with modal later)
+    const toolNames = selectedTools.map(toolId => {
+        const tool = allTools.find(t => t.id === toolId);
+        return tool ? tool.display_name || tool.name : `Tool ${toolId}`;
+    }).join(', ');
+    
+    const confirmed = confirm(
+        `Confirm Analysis:\n\n` +
+        `Selected Tools (${selectedTools.length}): ${toolNames}\n\n` +
+        `This will create ${totalTasks} analysis task(s).\n\n` +
+        `Continue with analysis?`
+    );
+    
+    if (confirmed) {
+        proceedWithFormSubmission();
+    }
+}
+
+function proceedWithFormSubmission() {
+    const form = document.getElementById('analysis-wizard-form');
+    const launchBtn = document.getElementById('launch-btn');
+    const loadingBtn = document.getElementById('launch-btn-loading');
+    
+    if (launchBtn) launchBtn.classList.add('d-none');
+    if (loadingBtn) loadingBtn.classList.remove('d-none');
+    
+    if (form) {
+        // Remove event listeners to prevent infinite loop and submit directly
+        const newForm = form.cloneNode(true);
+        form.parentNode.replaceChild(newForm, form);
+        newForm.submit();
+    }
+}
     
     // Store selection
     try {
@@ -1323,20 +1495,59 @@ function updateSelectedToolsSummary() {
     summaryContainer.classList.remove('d-none');
     countElement.textContent = selectedTools.length;
     
-    // Create tool badges
-    const toolBadges = selectedTools.map(toolId => {
+    // Group tools by service and create enhanced badges
+    const toolsByService = {};
+    selectedTools.forEach(toolId => {
         const tool = allTools.find(t => t.id === toolId);
-        if (!tool) return '';
+        if (!tool) return;
         
-        return `<span class="badge bg-primary-subtle text-primary me-1 mb-1">
-            ${escapeHtml(tool.name)}
-            <button type="button" class="btn-close btn-close-small ms-1" 
-                    onclick="toggleTool(${toolId}, '${escapeHtml(tool.name)}')" 
-                    aria-label="Remove ${escapeHtml(tool.name)}"></button>
-        </span>`;
-    }).join('');
+        const serviceName = tool.service_name || 'unknown';
+        if (!toolsByService[serviceName]) {
+            toolsByService[serviceName] = [];
+        }
+        toolsByService[serviceName].push(tool);
+    });
     
-    listElement.innerHTML = toolBadges;
+    let toolBadgesHtml = '';
+    
+    // Show service groups
+    Object.keys(toolsByService).forEach(serviceName => {
+        const tools = toolsByService[serviceName];
+        const serviceColor = {
+            'static-analyzer': 'danger',
+            'dynamic-analyzer': 'warning',
+            'performance-tester': 'info',
+            'ai-analyzer': 'primary'
+        }[serviceName] || 'secondary';
+        
+        const serviceDisplayName = {
+            'static-analyzer': 'Security/Quality Analysis',
+            'dynamic-analyzer': 'Dynamic Security Scan', 
+            'performance-tester': 'Performance Testing',
+            'ai-analyzer': 'AI Analysis'
+        }[serviceName] || serviceName;
+        
+        toolBadgesHtml += `
+            <div class="mb-2">
+                <small class="text-muted fw-bold">${serviceDisplayName}:</small><br>
+        `;
+        
+        tools.forEach(tool => {
+            toolBadgesHtml += `
+                <span class="badge bg-${serviceColor} me-1 mb-1" style="font-size: 0.9em;">
+                    <i class="fas fa-tools me-1"></i>
+                    ${escapeHtml(tool.display_name || tool.name)}
+                    <button type="button" class="btn-close btn-close-white ms-1" 
+                            onclick="toggleTool(${tool.id}, '${escapeHtml(tool.name)}')"
+                            style="font-size: 0.6em;" title="Remove ${escapeHtml(tool.name)}"></button>
+                </span>
+            `;
+        });
+        
+        toolBadgesHtml += '</div>';
+    });
+    
+    listElement.innerHTML = toolBadgesHtml;
 }
 
 function updateCustomAnalysisEstimate() {
@@ -1449,6 +1660,102 @@ function escapeHtml(text) {
     };
     return text.replace(/[&<>"']/g, function(m) { return map[m]; });
 }
+function showToolSelectionConfirmation() {
+    // Group tools by service for confirmation display
+    const toolsByService = {};
+    let totalTasks = 0;
+    
+    selectedTools.forEach(toolId => {
+        const tool = allTools.find(t => t.id === toolId);
+        if (!tool) return;
+        
+        const serviceName = tool.service_name || 'unknown';
+        if (!toolsByService[serviceName]) {
+            toolsByService[serviceName] = [];
+            totalTasks++;
+        }
+        toolsByService[serviceName].push(tool);
+    });
+    
+    // Build confirmation message
+    let confirmationHtml = `
+        <div class="mb-3">
+            <h6><i class="fas fa-exclamation-triangle text-warning me-2"></i>Confirm Tool Selection</h6>
+            <p>You have selected <strong>${selectedTools.length} tools</strong> which will create <strong>${totalTasks} analysis tasks</strong>:</p>
+        </div>
+    `;
+    
+    Object.keys(toolsByService).forEach(serviceName => {
+        const tools = toolsByService[serviceName];
+        const serviceDisplayName = {
+            'static-analyzer': 'Security/Quality Analysis Task',
+            'dynamic-analyzer': 'Dynamic Security Scan Task',
+            'performance-tester': 'Performance Testing Task',
+            'ai-analyzer': 'AI Analysis Task'
+        }[serviceName] || `${serviceName} Task`;
+        
+        confirmationHtml += `
+            <div class="mb-2">
+                <strong>${serviceDisplayName}:</strong><br>
+                <ul class="mb-1">
+        `;
+        
+        tools.forEach(tool => {
+            confirmationHtml += `<li>${escapeHtml(tool.display_name || tool.name)}</li>`;
+        });
+        
+        confirmationHtml += '</ul></div>';
+    });
+    
+    confirmationHtml += `
+        <div class="alert alert-info mt-3">
+            <small><i class="fas fa-info-circle me-1"></i>
+            Each service runs separately, so multiple tasks may execute in parallel.
+            </small>
+        </div>
+    `;
+    
+    // Show confirmation dialog using browser confirm or custom modal
+    if (window.bootstrap && document.getElementById('confirmation-modal')) {
+        // Use Bootstrap modal if available
+        document.getElementById('confirmation-modal-body').innerHTML = confirmationHtml;
+        const modal = new bootstrap.Modal(document.getElementById('confirmation-modal'));
+        modal.show();
+    } else {
+        // Fallback to browser confirm
+        const toolNames = selectedTools.map(toolId => {
+            const tool = allTools.find(t => t.id === toolId);
+            return tool ? tool.display_name || tool.name : `Tool ${toolId}`;
+        }).join(', ');
+        
+        const confirmed = confirm(
+            `Confirm Analysis:\n\n` +
+            `Selected Tools (${selectedTools.length}): ${toolNames}\n\n` +
+            `This will create ${totalTasks} analysis task(s).\n\n` +
+            `Continue with analysis?`
+        );
+        
+        if (confirmed) {
+            proceedWithFormSubmission();
+        }
+    }
+}
+
+function proceedWithFormSubmission() {
+    const form = document.getElementById('analysis-wizard-form');
+    const launchBtn = document.getElementById('launch-btn');
+    const loadingBtn = document.getElementById('launch-btn-loading');
+    
+    if (launchBtn) launchBtn.classList.add('d-none');
+    if (loadingBtn) loadingBtn.classList.remove('d-none');
+    
+    if (form) {
+        // Remove event listener to prevent infinite loop
+        form.removeEventListener('submit', arguments.callee);
+        form.submit();
+    }
+}
+
 // Initialize wizard on page load
 document.addEventListener('DOMContentLoaded', () => {
   // Initialize wizard state
@@ -1482,6 +1789,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     showValidationFeedback(i, false, getValidationMessage(i));
                     return;
                 }
+            }
+            
+            // Show confirmation dialog for custom tool selection
+            if (analysisMode === 'custom' && selectedTools.length > 0) {
+                e.preventDefault();
+                showToolSelectionConfirmation();
+                return;
             }
             
             // Show loading state

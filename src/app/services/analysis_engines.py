@@ -126,6 +126,18 @@ class DynamicAnalyzerEngine(BaseAnalyzerEngine):
     def _run_impl(self, model_slug: str, app_number: int, **kwargs) -> Dict[str, Any]:
         options = kwargs.get('options')
         tools = kwargs.get('tools')
+        # Normalize common aliases to canonical tool names expected by analyzer services
+        try:
+            if isinstance(tools, list):
+                normalized = []
+                for t in tools:
+                    name = str(t).strip().lower()
+                    if name in ('zap-baseline', 'owasp-zap', 'zap_baseline'):
+                        name = 'zap'
+                    normalized.append(name)
+                tools = normalized
+        except Exception:
+            pass
         return self._integration.run_dynamic_analysis(model_slug, app_number, options=options, tools=tools)
 
 

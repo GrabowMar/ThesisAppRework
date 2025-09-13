@@ -238,17 +238,27 @@ class TaskExecutionService:
             task.progress_percentage = 40.0
             db.session.commit()
             
-            # Resolve selected tools from task metadata; default only when None
+            # Resolve selected tools from task metadata (where routes store custom_options)
             resolved_tools = None
             try:
+                # Routes store selected tools in metadata['custom_options']
                 meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
+                if not isinstance(meta, dict):
+                    meta = {}
+                
+                # Extract custom_options from metadata
+                custom_options = meta.get('custom_options', {})
+                if not isinstance(custom_options, dict):
+                    custom_options = {}
+                
+                # Get selected tools from custom_options
+                cand = custom_options.get('selected_tools')
+                
+                # Fallback: check direct metadata keys
+                if not isinstance(cand, list):
+                    cand = meta.get('selected_tools')
             except Exception:
-                meta = {}
-
-            # Check direct key first, then custom_options nesting
-            cand = meta.get('selected_tools')
-            if not isinstance(cand, list):
-                cand = (meta.get('custom_options') or {}).get('selected_tools') if isinstance(meta.get('custom_options'), dict) else None
+                cand = None
             if isinstance(cand, list):
                 # Normalize: resolve tool IDs (ints or numeric strings) to names via ToolRegistryService
                 def _as_int_list(seq):

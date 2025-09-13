@@ -27,6 +27,7 @@ from app.tasks import (
     security_analysis_task,
     performance_test_task,
     static_analysis_task,
+    dynamic_analysis_task,
     ai_analysis_task,
 )
 
@@ -103,6 +104,16 @@ class CeleryWebSocketService:
             elif analysis_type == 'static':
                 async_task = cast(Any, static_analysis_task)
                 async_res = async_task.delay(model_slug, app_num, tools=tools, options=config)
+                task_id = async_res.id
+            elif analysis_type == 'dynamic':
+                # dynamic_analysis_task(self, model_slug, app_number, options=None)
+                # Pass tools inside options to keep signature stable
+                if tools:
+                    if not isinstance(config, dict):
+                        config = {}
+                    config['selected_tools'] = tools
+                async_task = cast(Any, dynamic_analysis_task)
+                async_res = async_task.delay(model_slug, app_num, options=config)
                 task_id = async_res.id
             elif analysis_type == 'ai':
                 async_task = cast(Any, ai_analysis_task)
