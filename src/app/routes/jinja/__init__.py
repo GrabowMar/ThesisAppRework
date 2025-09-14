@@ -7,8 +7,6 @@ from .main import main_bp
 from .models import models_bp
 from .analysis import analysis_bp
 from .stats import stats_bp
-from .tasks import tasks_bp
-from .advanced import advanced_bp
 from .reports import reports_bp
 from .docs import docs_bp
 from .sample_generator import sample_generator_bp
@@ -18,8 +16,6 @@ __all__ = [
     'models_bp',
     'analysis_bp',
     'stats_bp',
-    'tasks_bp',
-    'advanced_bp',
     'reports_bp',
     'docs_bp',
     'sample_generator_bp'

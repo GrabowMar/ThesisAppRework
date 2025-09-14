@@ -116,7 +116,11 @@ def _upsert_openrouter_models(models_payload: list) -> int:
             except Exception:
                 context_window = None
 
+        # Try to find existing by model_id first, then by canonical_slug to avoid constraint violations
         existing = ModelCapability.query.filter_by(model_id=model_id).first()
+        if not existing:
+            existing = ModelCapability.query.filter_by(canonical_slug=canonical).first()
+        
         if not existing:
             existing = ModelCapability()
             existing.model_id = model_id
@@ -125,6 +129,8 @@ def _upsert_openrouter_models(models_payload: list) -> int:
             existing.model_name = model_name
             db.session.add(existing)
         else:
+            # Update existing record
+            existing.model_id = model_id
             existing.canonical_slug = canonical
             existing.provider = provider
             existing.model_name = model_name

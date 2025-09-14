@@ -8,13 +8,14 @@
       "critical": true,
       "body": {
         "data": {
+          "database": "connected",
           "status": "healthy",
-          "timestamp": "2025-09-13T06:11:01.311780+00:00",
+          "timestamp": "2025-09-14T17:08:44.953162+00:00",
           "version": "1.0"
         },
         "message": "Success",
         "success": true,
-        "timestamp": "2025-09-13T08:11:01.311780"
+        "timestamp": "2025-09-14T17:08:44.953162+00:00"
       }
     },
     "health": {
@@ -38,130 +39,135 @@
       "ok": true,
       "critical": true,
       "body": {
-        "models": [
-          {
-            "capabilities": [
-              "text",
-              "text->text"
-            ],
-            "context_length": 131072,
-            "description": "Hermes 4 is a large-scale reasoning model built on Meta-Llama-3.1-405B and released by Nous Research. It introduces a hybrid reasoning mode, where the model can choose to deliberate internally with <think>...</think> traces or respond directly, offering flexibility between speed and depth. Users can control the reasoning behaviour with the `reasoning` `enabled` boolean. [Learn more in our docs](https://openrouter.ai/docs/use-cases/reasoning-tokens#enable-reasoning-with-default-config)\n\nThe model is instruction-tuned with an expanded post-training corpus (~60B tokens) emphasizing reasoning traces, improving performance in math, code, STEM, and logical reasoning, while retaining broad assistant utility. It also supports structured outputs, including JSON mode, schema adherence, function calling, and tool use. Hermes 4 is trained for steerability, lower refusal rates, and alignment toward neutral, user-directed behavior.",
-            "input_price_per_1k": 0.0002,
-            "installed": true,
-            "max_output_tokens": 0,
-            "model_id": "nousresearch_hermes-4-405b",
-            "name": "nousresearch_hermes-4-405b",
-            "openrouter": {
-              "canonical_slug": "nousresearch/hermes-4-405b",
-              "created": null,
-              "model_id": null,
-              "name": "Nous: Hermes 4 405B",
-              "pricing": {
-                "completion": "0.000000800064",
-                "image": "0",
-                "internal_reasoning": "0",
-                "prompt": "0.0000001999188",
-                "request": "0",
-                "web_search": "0"
+        "data": {
+          "models": [
+            {
+              "capabilities": [
+                "text",
+                "text->text"
+              ],
+              "context_length": 131072,
+              "description": "Hermes 4 is a large-scale reasoning model built on Meta-Llama-3.1-405B and released by Nous Research. It introduces a hybrid reasoning mode, where the model can choose to deliberate internally with <think>...</think> traces or respond directly, offering flexibility between speed and depth. Users can control the reasoning behaviour with the `reasoning` `enabled` boolean. [Learn more in our docs](https://openrouter.ai/docs/use-cases/reasoning-tokens#enable-reasoning-with-default-config)\n\nThe model is instruction-tuned with an expanded post-training corpus (~60B tokens) emphasizing reasoning traces, improving performance in math, code, STEM, and logical reasoning, while retaining broad assistant utility. It also supports structured outputs, including JSON mode, schema adherence, function calling, and tool use. Hermes 4 is trained for steerability, lower refusal rates, and alignment toward neutral, user-directed behavior.",
+              "input_price_per_1k": 0.0002,
+              "installed": true,
+              "max_output_tokens": 0,
+              "model_id": "nousresearch_hermes-4-405b",
+              "name": "nousresearch_hermes-4-405b",
+              "openrouter": {
+                "canonical_slug": "nousresearch/hermes-4-405b",
+                "created": null,
+                "model_id": null,
+                "name": "Nous: Hermes 4 405B",
+                "pricing": {
+                  "completion": "0.000000800064",
+                  "image": "0",
+                  "internal_reasoning": "0",
+                  "prompt": "0.0000001999188",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "top_provider": {
+                  "context_length": 131072,
+                  "is_moderated": false,
+                  "max_completion_tokens": null
+                }
               },
-              "top_provider": {
-                "context_length": 131072,
-                "is_moderated": false,
-                "max_completion_tokens": null
-              }
+              "output_price_per_1k": 0.0008,
+              "performance_score": 0,
+              "provider": "nousresearch",
+              "provider_logo": "/static/images/default-avatar.svg",
+              "slug": "nousresearch_hermes-4-405b",
+              "status": "active"
             },
-            "output_price_per_1k": 0.0008,
-            "performance_score": 0,
-            "provider": "nousresearch",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "nousresearch_hermes-4-405b",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "text",
-              "text->text"
-            ],
-            "context_length": 262144,
-            "description": "Qwen3-30B-A3B-Thinking-2507 is a 30B parameter Mixture-of-Experts reasoning model optimized for complex tasks requiring extended multi-step thinking. The model is designed specifically for \u201cthinking mode,\u201d where internal reasoning traces are separated from final answers.\n\nCompared to earlier Qwen3-30B releases, this version improves performance across logical reasoning, mathematics, science, coding, and multilingual benchmarks. It also demonstrates stronger instruction following, tool use, and alignment with human preferences. With higher reasoning efficiency and extended output budgets, it is best suited for advanced research, competitive problem solving, and agentic applications requiring structured long-context reasoning.",
-            "input_price_per_1k": 7.1e-05,
-            "installed": true,
-            "max_output_tokens": 262144,
-            "model_id": "qwen_qwen3-30b-a3b-thinking-2507",
-            "name": "qwen_qwen3-30b-a3b-thinking-2507",
-            "openrouter": {
-              "canonical_slug": "qwen/qwen3-30b-a3b-thinking-2507",
-              "created": null,
-              "model_id": null,
-              "name": "Qwen: Qwen3 30B A3B Thinking 2507",
-              "pricing": {
-                "completion": "0.0000002852",
-                "image": "0",
-                "internal_reasoning": "0",
-                "prompt": "0.0000000713",
-                "request": "0",
-                "web_search": "0"
+            {
+              "capabilities": [
+                "text",
+                "text->text"
+              ],
+              "context_length": 262144,
+              "description": "Qwen3-30B-A3B-Thinking-2507 is a 30B parameter Mixture-of-Experts reasoning model optimized for complex tasks requiring extended multi-step thinking. The model is designed specifically for \u201cthinking mode,\u201d where internal reasoning traces are separated from final answers.\n\nCompared to earlier Qwen3-30B releases, this version improves performance across logical reasoning, mathematics, science, coding, and multilingual benchmarks. It also demonstrates stronger instruction following, tool use, and alignment with human preferences. With higher reasoning efficiency and extended output budgets, it is best suited for advanced research, competitive problem solving, and agentic applications requiring structured long-context reasoning.",
+              "input_price_per_1k": 7.1e-05,
+              "installed": true,
+              "max_output_tokens": 262144,
+              "model_id": "qwen_qwen3-30b-a3b-thinking-2507",
+              "name": "qwen_qwen3-30b-a3b-thinking-2507",
+              "openrouter": {
+                "canonical_slug": "qwen/qwen3-30b-a3b-thinking-2507",
+                "created": null,
+                "model_id": null,
+                "name": "Qwen: Qwen3 30B A3B Thinking 2507",
+                "pricing": {
+                  "completion": "0.0000002852",
+                  "image": "0",
+                  "internal_reasoning": "0",
+                  "prompt": "0.0000000713",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "top_provider": {
+                  "context_length": 262144,
+                  "is_moderated": false,
+                  "max_completion_tokens": 262144
+                }
               },
-              "top_provider": {
-                "context_length": 262144,
-                "is_moderated": false,
-                "max_completion_tokens": 262144
-              }
+              "output_price_per_1k": 0.000285,
+              "performance_score": 0,
+              "provider": "qwen",
+              "provider_logo": "/static/images/default-avatar.svg",
+              "slug": "qwen_qwen3-30b-a3b-thinking-2507",
+              "status": "active"
             },
-            "output_price_per_1k": 0.000285,
-            "performance_score": 0,
-            "provider": "qwen",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "qwen_qwen3-30b-a3b-thinking-2507",
-            "status": "active"
-          },
-          {
-            "capabilities": [
-              "text",
-              "text->text"
-            ],
-            "context_length": 256000,
-            "description": "Grok Code Fast 1 is a speedy and economical reasoning model that excels at agentic coding. With reasoning traces visible in the response, developers can steer Grok Code for high-quality work flows.",
-            "input_price_per_1k": 0.0002,
-            "installed": true,
-            "max_output_tokens": 10000,
-            "model_id": "x-ai_grok-code-fast-1",
-            "name": "x-ai_grok-code-fast-1",
-            "openrouter": {
-              "canonical_slug": "x-ai/grok-code-fast-1",
-              "created": null,
-              "model_id": null,
-              "name": "xAI: Grok Code Fast 1",
-              "pricing": {
-                "completion": "0.0000015",
-                "image": "0",
-                "input_cache_read": "0.00000002",
-                "internal_reasoning": "0",
-                "prompt": "0.0000002",
-                "request": "0",
-                "web_search": "0"
+            {
+              "capabilities": [
+                "text",
+                "text->text"
+              ],
+              "context_length": 256000,
+              "description": "Grok Code Fast 1 is a speedy and economical reasoning model that excels at agentic coding. With reasoning traces visible in the response, developers can steer Grok Code for high-quality work flows.",
+              "input_price_per_1k": 0.0002,
+              "installed": true,
+              "max_output_tokens": 10000,
+              "model_id": "x-ai_grok-code-fast-1",
+              "name": "x-ai_grok-code-fast-1",
+              "openrouter": {
+                "canonical_slug": "x-ai/grok-code-fast-1",
+                "created": null,
+                "model_id": null,
+                "name": "xAI: Grok Code Fast 1",
+                "pricing": {
+                  "completion": "0.0000015",
+                  "image": "0",
+                  "input_cache_read": "0.00000002",
+                  "internal_reasoning": "0",
+                  "prompt": "0.0000002",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "top_provider": {
+                  "context_length": 256000,
+                  "is_moderated": false,
+                  "max_completion_tokens": 10000
+                }
               },
-              "top_provider": {
-                "context_length": 256000,
-                "is_moderated": false,
-                "max_completion_tokens": 10000
-              }
-            },
-            "output_price_per_1k": 0.0015,
-            "performance_score": 0,
-            "provider": "x-ai",
-            "provider_logo": "/static/images/default-avatar.svg",
-            "slug": "x-ai_grok-code-fast-1",
-            "status": "active"
+              "output_price_per_1k": 0.0015,
+              "performance_score": 0,
+              "provider": "x-ai",
+              "provider_logo": "/static/images/default-avatar.svg",
+              "slug": "x-ai_grok-code-fast-1",
+              "status": "active"
+            }
+          ],
+          "statistics": {
+            "active_models": 3,
+            "avg_cost_per_1k": 0.000157,
+            "source": "database",
+            "total_models": 3,
+            "unique_providers": 3
           }
-        ],
-        "statistics": {
-          "active_models": 3,
-          "avg_cost_per_1k": 0.000157,
-          "source": "database",
-          "total_models": 3,
-          "unique_providers": 3
-        }
+        },
+        "message": "Success",
+        "success": true,
+        "timestamp": "2025-09-14T17:08:46.925917+00:00"
       }
     },
     "dashboard_stats": {
@@ -170,303 +176,308 @@
       "ok": true,
       "critical": true,
       "body": {
-        "counts": {
-          "applications": 90,
-          "models": 3,
-          "performance_tests": 0,
-          "security_tests": 1
+        "data": {
+          "counts": {
+            "applications": 93,
+            "models": 3,
+            "performance_tests": 0,
+            "security_tests": 1
+          },
+          "frameworks": [
+            {
+              "count": 93,
+              "name": "Flask"
+            }
+          ],
+          "providers": [
+            {
+              "count": 1,
+              "name": "nousresearch"
+            },
+            {
+              "count": 1,
+              "name": "qwen"
+            },
+            {
+              "count": 1,
+              "name": "x-ai"
+            }
+          ],
+          "recent_apps": [
+            {
+              "app_number": 1,
+              "app_type": "web_application",
+              "backend_framework": "Flask",
+              "container_status": "unknown",
+              "created_at": "Sun, 14 Sep 2025 13:05:07 GMT",
+              "frontend_framework": "React",
+              "generation_status": "pending",
+              "has_backend": true,
+              "has_docker_compose": true,
+              "has_frontend": true,
+              "id": 93,
+              "metadata": {},
+              "model_slug": "test-model-backend",
+              "provider": "test-model-backend",
+              "updated_at": "Sun, 14 Sep 2025 13:05:07 GMT"
+            },
+            {
+              "app_number": 1,
+              "app_type": "web_application",
+              "backend_framework": "Flask",
+              "container_status": "unknown",
+              "created_at": "Sun, 14 Sep 2025 13:05:07 GMT",
+              "frontend_framework": "React",
+              "generation_status": "pending",
+              "has_backend": true,
+              "has_docker_compose": true,
+              "has_frontend": true,
+              "id": 92,
+              "metadata": {},
+              "model_slug": "test-model-api",
+              "provider": "test-model-api",
+              "updated_at": "Sun, 14 Sep 2025 13:05:07 GMT"
+            },
+            {
+              "app_number": 1,
+              "app_type": "web_application",
+              "backend_framework": "Flask",
+              "container_status": "unknown",
+              "created_at": "Sun, 14 Sep 2025 13:05:07 GMT",
+              "frontend_framework": "React",
+              "generation_status": "pending",
+              "has_backend": true,
+              "has_docker_compose": true,
+              "has_frontend": true,
+              "id": 91,
+              "metadata": {},
+              "model_slug": "test-model",
+              "provider": "test-model",
+              "updated_at": "Sun, 14 Sep 2025 13:05:07 GMT"
+            },
+            {
+              "app_number": 9,
+              "app_type": "web_app",
+              "backend_framework": "Flask",
+              "container_status": "stopped",
+              "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
+              "frontend_framework": "React",
+              "generation_status": "completed",
+              "has_backend": true,
+              "has_docker_compose": true,
+              "has_frontend": true,
+              "id": 90,
+              "metadata": {},
+              "model_slug": "x-ai_grok-code-fast-1",
+              "provider": "x-ai",
+              "updated_at": "Sun, 14 Sep 2025 13:05:08 GMT"
+            },
+            {
+              "app_number": 7,
+              "app_type": "web_app",
+              "backend_framework": "Flask",
+              "container_status": "stopped",
+              "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
+              "frontend_framework": "React",
+              "generation_status": "completed",
+              "has_backend": true,
+              "has_docker_compose": true,
+              "has_frontend": true,
+              "id": 88,
+              "metadata": {},
+              "model_slug": "x-ai_grok-code-fast-1",
+              "provider": "x-ai",
+              "updated_at": "Sun, 14 Sep 2025 13:05:08 GMT"
+            }
+          ],
+          "recent_models": [
+            {
+              "canonical_slug": "x-ai_grok-code-fast-1",
+              "capabilities": {
+                "capabilities": [
+                  "text",
+                  "text->text"
+                ],
+                "supports_json_mode": null,
+                "supports_streaming": null,
+                "supports_tool_calls": null,
+                "supports_vision": null
+              },
+              "context_window": 256000,
+              "cost_efficiency": 0.0,
+              "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
+              "id": 3,
+              "input_price_per_token": 2e-07,
+              "is_free": false,
+              "max_output_tokens": 10000,
+              "metadata": {
+                "openrouter_architecture": {
+                  "input_modalities": [
+                    "text"
+                  ],
+                  "instruct_type": null,
+                  "modality": "text->text",
+                  "output_modalities": [
+                    "text"
+                  ],
+                  "tokenizer": "Grok"
+                },
+                "openrouter_canonical_slug": "x-ai/grok-code-fast-1",
+                "openrouter_description": "Grok Code Fast 1 is a speedy and economical reasoning model that excels at agentic coding. With reasoning traces visible in the response, developers can steer Grok Code for high-quality work flows.",
+                "openrouter_id": "x-ai/grok-code-fast-1",
+                "openrouter_name": "xAI: Grok Code Fast 1",
+                "openrouter_pricing": {
+                  "completion": "0.0000015",
+                  "image": "0",
+                  "input_cache_read": "0.00000002",
+                  "internal_reasoning": "0",
+                  "prompt": "0.0000002",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "openrouter_top_provider": {
+                  "context_length": 256000,
+                  "is_moderated": false,
+                  "max_completion_tokens": 10000
+                }
+              },
+              "model_id": "x-ai_grok-code-fast-1",
+              "model_name": "x-ai_grok-code-fast-1",
+              "output_price_per_token": 1.5e-06,
+              "provider": "x-ai",
+              "safety_score": 0.0,
+              "supports_function_calling": false,
+              "supports_json_mode": false,
+              "supports_streaming": false,
+              "supports_vision": false,
+              "updated_at": "Tue, 09 Sep 2025 22:35:08 GMT"
+            },
+            {
+              "canonical_slug": "qwen_qwen3-30b-a3b-thinking-2507",
+              "capabilities": {
+                "capabilities": [
+                  "text",
+                  "text->text"
+                ],
+                "supports_json_mode": null,
+                "supports_streaming": null,
+                "supports_tool_calls": null,
+                "supports_vision": null
+              },
+              "context_window": 262144,
+              "cost_efficiency": 0.0,
+              "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
+              "id": 2,
+              "input_price_per_token": 7.13e-08,
+              "is_free": false,
+              "max_output_tokens": 262144,
+              "metadata": {
+                "openrouter_architecture": {
+                  "input_modalities": [
+                    "text"
+                  ],
+                  "instruct_type": null,
+                  "modality": "text->text",
+                  "output_modalities": [
+                    "text"
+                  ],
+                  "tokenizer": "Qwen3"
+                },
+                "openrouter_canonical_slug": "qwen/qwen3-30b-a3b-thinking-2507",
+                "openrouter_description": "Qwen3-30B-A3B-Thinking-2507 is a 30B parameter Mixture-of-Experts reasoning model optimized for complex tasks requiring extended multi-step thinking. The model is designed specifically for \u201cthinking mode,\u201d where internal reasoning traces are separated from final answers.\n\nCompared to earlier Qwen3-30B releases, this version improves performance across logical reasoning, mathematics, science, coding, and multilingual benchmarks. It also demonstrates stronger instruction following, tool use, and alignment with human preferences. With higher reasoning efficiency and extended output budgets, it is best suited for advanced research, competitive problem solving, and agentic applications requiring structured long-context reasoning.",
+                "openrouter_id": "qwen/qwen3-30b-a3b-thinking-2507",
+                "openrouter_name": "Qwen: Qwen3 30B A3B Thinking 2507",
+                "openrouter_pricing": {
+                  "completion": "0.0000002852",
+                  "image": "0",
+                  "internal_reasoning": "0",
+                  "prompt": "0.0000000713",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "openrouter_top_provider": {
+                  "context_length": 262144,
+                  "is_moderated": false,
+                  "max_completion_tokens": 262144
+                }
+              },
+              "model_id": "qwen_qwen3-30b-a3b-thinking-2507",
+              "model_name": "qwen_qwen3-30b-a3b-thinking-2507",
+              "output_price_per_token": 2.852e-07,
+              "provider": "qwen",
+              "safety_score": 0.0,
+              "supports_function_calling": false,
+              "supports_json_mode": false,
+              "supports_streaming": false,
+              "supports_vision": false,
+              "updated_at": "Tue, 09 Sep 2025 22:35:08 GMT"
+            },
+            {
+              "canonical_slug": "nousresearch_hermes-4-405b",
+              "capabilities": {
+                "capabilities": [
+                  "text",
+                  "text->text"
+                ],
+                "supports_json_mode": null,
+                "supports_streaming": null,
+                "supports_tool_calls": null,
+                "supports_vision": null
+              },
+              "context_window": 131072,
+              "cost_efficiency": 0.0,
+              "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
+              "id": 1,
+              "input_price_per_token": 1.999188e-07,
+              "is_free": false,
+              "max_output_tokens": 0,
+              "metadata": {
+                "openrouter_architecture": {
+                  "input_modalities": [
+                    "text"
+                  ],
+                  "instruct_type": null,
+                  "modality": "text->text",
+                  "output_modalities": [
+                    "text"
+                  ],
+                  "tokenizer": "Other"
+                },
+                "openrouter_canonical_slug": "nousresearch/hermes-4-405b",
+                "openrouter_description": "Hermes 4 is a large-scale reasoning model built on Meta-Llama-3.1-405B and released by Nous Research. It introduces a hybrid reasoning mode, where the model can choose to deliberate internally with <think>...</think> traces or respond directly, offering flexibility between speed and depth. Users can control the reasoning behaviour with the `reasoning` `enabled` boolean. [Learn more in our docs](https://openrouter.ai/docs/use-cases/reasoning-tokens#enable-reasoning-with-default-config)\n\nThe model is instruction-tuned with an expanded post-training corpus (~60B tokens) emphasizing reasoning traces, improving performance in math, code, STEM, and logical reasoning, while retaining broad assistant utility. It also supports structured outputs, including JSON mode, schema adherence, function calling, and tool use. Hermes 4 is trained for steerability, lower refusal rates, and alignment toward neutral, user-directed behavior.",
+                "openrouter_id": "nousresearch/hermes-4-405b",
+                "openrouter_name": "Nous: Hermes 4 405B",
+                "openrouter_pricing": {
+                  "completion": "0.000000800064",
+                  "image": "0",
+                  "internal_reasoning": "0",
+                  "prompt": "0.0000001999188",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "openrouter_top_provider": {
+                  "context_length": 131072,
+                  "is_moderated": false,
+                  "max_completion_tokens": null
+                }
+              },
+              "model_id": "nousresearch_hermes-4-405b",
+              "model_name": "nousresearch_hermes-4-405b",
+              "output_price_per_token": 8.00064e-07,
+              "provider": "nousresearch",
+              "safety_score": 0.0,
+              "supports_function_calling": false,
+              "supports_json_mode": false,
+              "supports_streaming": false,
+              "supports_vision": false,
+              "updated_at": "Tue, 09 Sep 2025 22:35:08 GMT"
+            }
+          ],
+          "timestamp": "2025-09-14T17:08:46.939742+00:00"
         },
-        "frameworks": [
-          {
-            "count": 90,
-            "name": "Flask"
-          }
-        ],
-        "providers": [
-          {
-            "count": 1,
-            "name": "nousresearch"
-          },
-          {
-            "count": 1,
-            "name": "qwen"
-          },
-          {
-            "count": 1,
-            "name": "x-ai"
-          }
-        ],
-        "recent_apps": [
-          {
-            "app_number": 9,
-            "app_type": "web_app",
-            "backend_framework": "Flask",
-            "container_status": "stopped",
-            "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
-            "frontend_framework": "React",
-            "generation_status": "completed",
-            "has_backend": true,
-            "has_docker_compose": true,
-            "has_frontend": true,
-            "id": 90,
-            "metadata": {},
-            "model_slug": "x-ai_grok-code-fast-1",
-            "provider": "x-ai",
-            "updated_at": "Fri, 12 Sep 2025 16:48:51 GMT"
-          },
-          {
-            "app_number": 7,
-            "app_type": "web_app",
-            "backend_framework": "Flask",
-            "container_status": "stopped",
-            "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
-            "frontend_framework": "React",
-            "generation_status": "completed",
-            "has_backend": true,
-            "has_docker_compose": true,
-            "has_frontend": true,
-            "id": 88,
-            "metadata": {},
-            "model_slug": "x-ai_grok-code-fast-1",
-            "provider": "x-ai",
-            "updated_at": "Fri, 12 Sep 2025 16:48:51 GMT"
-          },
-          {
-            "app_number": 8,
-            "app_type": "web_app",
-            "backend_framework": "Flask",
-            "container_status": "stopped",
-            "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
-            "frontend_framework": "React",
-            "generation_status": "completed",
-            "has_backend": true,
-            "has_docker_compose": true,
-            "has_frontend": true,
-            "id": 89,
-            "metadata": {},
-            "model_slug": "x-ai_grok-code-fast-1",
-            "provider": "x-ai",
-            "updated_at": "Fri, 12 Sep 2025 16:48:51 GMT"
-          },
-          {
-            "app_number": 6,
-            "app_type": "web_app",
-            "backend_framework": "Flask",
-            "container_status": "stopped",
-            "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
-            "frontend_framework": "React",
-            "generation_status": "completed",
-            "has_backend": true,
-            "has_docker_compose": true,
-            "has_frontend": true,
-            "id": 87,
-            "metadata": {},
-            "model_slug": "x-ai_grok-code-fast-1",
-            "provider": "x-ai",
-            "updated_at": "Fri, 12 Sep 2025 16:48:51 GMT"
-          },
-          {
-            "app_number": 28,
-            "app_type": "web_app",
-            "backend_framework": "Flask",
-            "container_status": "stopped",
-            "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
-            "frontend_framework": "React",
-            "generation_status": "completed",
-            "has_backend": true,
-            "has_docker_compose": true,
-            "has_frontend": true,
-            "id": 81,
-            "metadata": {},
-            "model_slug": "x-ai_grok-code-fast-1",
-            "provider": "x-ai",
-            "updated_at": "Fri, 12 Sep 2025 16:48:51 GMT"
-          }
-        ],
-        "recent_models": [
-          {
-            "canonical_slug": "x-ai_grok-code-fast-1",
-            "capabilities": {
-              "capabilities": [
-                "text",
-                "text->text"
-              ],
-              "supports_json_mode": null,
-              "supports_streaming": null,
-              "supports_tool_calls": null,
-              "supports_vision": null
-            },
-            "context_window": 256000,
-            "cost_efficiency": 0.0,
-            "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
-            "id": 3,
-            "input_price_per_token": 2e-07,
-            "is_free": false,
-            "max_output_tokens": 10000,
-            "metadata": {
-              "openrouter_architecture": {
-                "input_modalities": [
-                  "text"
-                ],
-                "instruct_type": null,
-                "modality": "text->text",
-                "output_modalities": [
-                  "text"
-                ],
-                "tokenizer": "Grok"
-              },
-              "openrouter_canonical_slug": "x-ai/grok-code-fast-1",
-              "openrouter_description": "Grok Code Fast 1 is a speedy and economical reasoning model that excels at agentic coding. With reasoning traces visible in the response, developers can steer Grok Code for high-quality work flows.",
-              "openrouter_id": "x-ai/grok-code-fast-1",
-              "openrouter_name": "xAI: Grok Code Fast 1",
-              "openrouter_pricing": {
-                "completion": "0.0000015",
-                "image": "0",
-                "input_cache_read": "0.00000002",
-                "internal_reasoning": "0",
-                "prompt": "0.0000002",
-                "request": "0",
-                "web_search": "0"
-              },
-              "openrouter_top_provider": {
-                "context_length": 256000,
-                "is_moderated": false,
-                "max_completion_tokens": 10000
-              }
-            },
-            "model_id": "x-ai_grok-code-fast-1",
-            "model_name": "x-ai_grok-code-fast-1",
-            "output_price_per_token": 1.5e-06,
-            "provider": "x-ai",
-            "safety_score": 0.0,
-            "supports_function_calling": false,
-            "supports_json_mode": false,
-            "supports_streaming": false,
-            "supports_vision": false,
-            "updated_at": "Tue, 09 Sep 2025 22:35:08 GMT"
-          },
-          {
-            "canonical_slug": "qwen_qwen3-30b-a3b-thinking-2507",
-            "capabilities": {
-              "capabilities": [
-                "text",
-                "text->text"
-              ],
-              "supports_json_mode": null,
-              "supports_streaming": null,
-              "supports_tool_calls": null,
-              "supports_vision": null
-            },
-            "context_window": 262144,
-            "cost_efficiency": 0.0,
-            "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
-            "id": 2,
-            "input_price_per_token": 7.13e-08,
-            "is_free": false,
-            "max_output_tokens": 262144,
-            "metadata": {
-              "openrouter_architecture": {
-                "input_modalities": [
-                  "text"
-                ],
-                "instruct_type": null,
-                "modality": "text->text",
-                "output_modalities": [
-                  "text"
-                ],
-                "tokenizer": "Qwen3"
-              },
-              "openrouter_canonical_slug": "qwen/qwen3-30b-a3b-thinking-2507",
-              "openrouter_description": "Qwen3-30B-A3B-Thinking-2507 is a 30B parameter Mixture-of-Experts reasoning model optimized for complex tasks requiring extended multi-step thinking. The model is designed specifically for \u201cthinking mode,\u201d where internal reasoning traces are separated from final answers.\n\nCompared to earlier Qwen3-30B releases, this version improves performance across logical reasoning, mathematics, science, coding, and multilingual benchmarks. It also demonstrates stronger instruction following, tool use, and alignment with human preferences. With higher reasoning efficiency and extended output budgets, it is best suited for advanced research, competitive problem solving, and agentic applications requiring structured long-context reasoning.",
-              "openrouter_id": "qwen/qwen3-30b-a3b-thinking-2507",
-              "openrouter_name": "Qwen: Qwen3 30B A3B Thinking 2507",
-              "openrouter_pricing": {
-                "completion": "0.0000002852",
-                "image": "0",
-                "internal_reasoning": "0",
-                "prompt": "0.0000000713",
-                "request": "0",
-                "web_search": "0"
-              },
-              "openrouter_top_provider": {
-                "context_length": 262144,
-                "is_moderated": false,
-                "max_completion_tokens": 262144
-              }
-            },
-            "model_id": "qwen_qwen3-30b-a3b-thinking-2507",
-            "model_name": "qwen_qwen3-30b-a3b-thinking-2507",
-            "output_price_per_token": 2.852e-07,
-            "provider": "qwen",
-            "safety_score": 0.0,
-            "supports_function_calling": false,
-            "supports_json_mode": false,
-            "supports_streaming": false,
-            "supports_vision": false,
-            "updated_at": "Tue, 09 Sep 2025 22:35:08 GMT"
-          },
-          {
-            "canonical_slug": "nousresearch_hermes-4-405b",
-            "capabilities": {
-              "capabilities": [
-                "text",
-                "text->text"
-              ],
-              "supports_json_mode": null,
-              "supports_streaming": null,
-              "supports_tool_calls": null,
-              "supports_vision": null
-            },
-            "context_window": 131072,
-            "cost_efficiency": 0.0,
-            "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
-            "id": 1,
-            "input_price_per_token": 1.999188e-07,
-            "is_free": false,
-            "max_output_tokens": 0,
-            "metadata": {
-              "openrouter_architecture": {
-                "input_modalities": [
-                  "text"
-                ],
-                "instruct_type": null,
-                "modality": "text->text",
-                "output_modalities": [
-                  "text"
-                ],
-                "tokenizer": "Other"
-              },
-              "openrouter_canonical_slug": "nousresearch/hermes-4-405b",
-              "openrouter_description": "Hermes 4 is a large-scale reasoning model built on Meta-Llama-3.1-405B and released by Nous Research. It introduces a hybrid reasoning mode, where the model can choose to deliberate internally with <think>...</think> traces or respond directly, offering flexibility between speed and depth. Users can control the reasoning behaviour with the `reasoning` `enabled` boolean. [Learn more in our docs](https://openrouter.ai/docs/use-cases/reasoning-tokens#enable-reasoning-with-default-config)\n\nThe model is instruction-tuned with an expanded post-training corpus (~60B tokens) emphasizing reasoning traces, improving performance in math, code, STEM, and logical reasoning, while retaining broad assistant utility. It also supports structured outputs, including JSON mode, schema adherence, function calling, and tool use. Hermes 4 is trained for steerability, lower refusal rates, and alignment toward neutral, user-directed behavior.",
-              "openrouter_id": "nousresearch/hermes-4-405b",
-              "openrouter_name": "Nous: Hermes 4 405B",
-              "openrouter_pricing": {
-                "completion": "0.000000800064",
-                "image": "0",
-                "internal_reasoning": "0",
-                "prompt": "0.0000001999188",
-                "request": "0",
-                "web_search": "0"
-              },
-              "openrouter_top_provider": {
-                "context_length": 131072,
-                "is_moderated": false,
-                "max_completion_tokens": null
-              }
-            },
-            "model_id": "nousresearch_hermes-4-405b",
-            "model_name": "nousresearch_hermes-4-405b",
-            "output_price_per_token": 8.00064e-07,
-            "provider": "nousresearch",
-            "safety_score": 0.0,
-            "supports_function_calling": false,
-            "supports_json_mode": false,
-            "supports_streaming": false,
-            "supports_vision": false,
-            "updated_at": "Tue, 09 Sep 2025 22:35:08 GMT"
-          }
-        ],
-        "timestamp": "2025-09-13T06:11:05.465877+00:00"
+        "message": "Success",
+        "success": true,
+        "timestamp": "2025-09-14T17:08:46.939742+00:00"
       }
     },
     "system_health": {
@@ -475,23 +486,28 @@
       "ok": true,
       "critical": false,
       "body": {
-        "database": {
-          "error": null,
-          "healthy": true
+        "data": {
+          "database": {
+            "error": null,
+            "healthy": true
+          },
+          "docker": {
+            "available": true,
+            "containers_running": 14,
+            "error": null
+          },
+          "issues": [],
+          "status": "healthy",
+          "system": {
+            "cpu_percent": 2.8,
+            "disk_percent": 67.5,
+            "memory_percent": 73.1
+          },
+          "timestamp": "2025-09-14T17:08:48.021111+00:00"
         },
-        "docker": {
-          "available": false,
-          "containers_running": 0,
-          "error": null
-        },
-        "issues": [],
-        "status": "healthy",
-        "system": {
-          "cpu_percent": 1.7,
-          "disk_percent": 66.8,
-          "memory_percent": 39.7
-        },
-        "timestamp": "2025-09-13T06:11:15.489659+00:00"
+        "message": "Success",
+        "success": true,
+        "timestamp": "2025-09-14T17:08:48.021111+00:00"
       }
     },
     "analysis_stats": {
@@ -499,7 +515,7 @@
       "status": 200,
       "ok": true,
       "critical": true,
-      "body": "\n<div class=\"row text-center small\">\n  <div class=\"col-6 mb-3\">\n    <div class=\"fw-bold\">Total Tasks</div>\n    <div class=\"h5 mb-0\">46</div>\n  </div>\n  <div class=\"col-6 mb-3\">\n    <div class=\"fw-bold\">Active</div>\n    <div class=\"h5 text-warning mb-0\">1</div>\n  </div>\n  <div class=\"col-6\">\n    <div class=\"fw-bold\">Completed</div>\n    <div class=\"h5 text-success mb-0\">23</div>\n  </div>\n  <div class=\"col-6\">\n    <div class=\"fw-bold\">Failed</div>\n    <div class=\"h5 text-danger mb-0\">1</div>\n  </di"
+      "body": "\n<div class=\"row text-center small\">\n  <div class=\"col-6 mb-3\">\n    <div class=\"fw-bold\">Total Tasks</div>\n    <div class=\"h5 mb-0\">18</div>\n  </div>\n  <div class=\"col-6 mb-3\">\n    <div class=\"fw-bold\">Active</div>\n    <div class=\"h5 text-warning mb-0\">1</div>\n  </div>\n  <div class=\"col-6\">\n    <div class=\"fw-bold\">Completed</div>\n    <div class=\"h5 text-success mb-0\">11</div>\n  </div>\n  <div class=\"col-6\">\n    <div class=\"fw-bold\">Failed</div>\n    <div class=\"h5 text-danger mb-0\">6</div>\n  </di"
     },
     "analysis_start": {
       "url": "http://127.0.0.1:5005/advanced/api/analysis/start",
@@ -519,7 +535,7 @@
           "data": {
             "active_analyses": 0,
             "connected": true,
-            "last_update": "2025-09-13T06:11:15.566526+00:00",
+            "last_update": "2025-09-14T17:08:48.085661+00:00",
             "service": "celery_websocket"
           },
           "preference": "celery",
@@ -539,12 +555,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "067e58328522467ea5200a09071c1c1d",
+        "error_id": "4f13591a1f5f42a4949ade83fb6fa1a4",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/events/clear",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-13T06:11:15.577543+00:00"
+        "timestamp": "2025-09-14T17:08:48.101278+00:00"
       }
     },
     "ws_start": {
@@ -554,12 +570,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "eb6e76c0a3bb4daaa0d14f7312d2b87e",
+        "error_id": "ec0a5f075f3b4662be9d853a5007cce7",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/analysis/start",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-13T06:11:15.579548+00:00"
+        "timestamp": "2025-09-14T17:08:48.103481+00:00"
       }
     },
     "ws_analyses": {
@@ -569,12 +585,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "19be7d6723144399bbdccd9cf7f8fd4d",
+        "error_id": "c8c28501315f438cb88389a02580732b",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/analyses",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-13T06:11:16.582944+00:00"
+        "timestamp": "2025-09-14T17:08:49.116301+00:00"
       }
     },
     "ws_events": {
@@ -584,12 +600,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "fb0d37be246440a097efe299e12a99c2",
+        "error_id": "599c1a56fa7a4cf8af1fcc92826edeb4",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/events",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-13T06:11:16.605727+00:00"
+        "timestamp": "2025-09-14T17:08:49.119307+00:00"
       }
     },
     "active_tasks": {

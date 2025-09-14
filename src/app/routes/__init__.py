@@ -7,15 +7,17 @@ from .jinja.main import main_bp
 from .jinja.models import models_bp
 from .jinja.analysis import analysis_bp
 from .jinja.stats import stats_bp
-from .jinja.tasks import tasks_bp
-from .jinja.advanced import advanced_bp
 from .jinja.reports import reports_bp
 from .jinja.docs import docs_bp
 from .jinja.sample_generator import sample_generator_bp
-from .api import api_bp
-from .api.tasks_realtime import tasks_rt_bp
-from .api.sample_generation import sample_gen_bp
-from .api.app_scaffolding import scaffold_bp
+
+# Refactored API blueprints - organized by domain
+from .api import (
+    api_bp, core_bp, models_bp as api_models_bp, system_bp, dashboard_bp,
+    applications_bp, analysis_bp as api_analysis_bp, scaffold_bp, sample_gen_bp, 
+    tasks_rt_bp, template_store_bp, migration_bp
+)
+
 from .websockets import websocket_api_bp, register_websocket_routes, register_error_handlers
 from .shared_utils import register_template_globals_and_filters
 
@@ -25,15 +27,25 @@ __all__ = [
     'models_bp',
     'analysis_bp',
     'stats_bp',
-    'tasks_bp',
-    'advanced_bp',
     'reports_bp',
     'docs_bp',
+    'sample_generator_bp',
 
-    # API blueprints
+    # Main API orchestrator blueprint
     'api_bp',
+
+    # Refactored API blueprints
+    'core_bp',
+    'api_models_bp',
+    'system_bp',
+    'dashboard_bp',
+    'applications_bp',
+    'api_analysis_bp',
     'sample_gen_bp',
     'scaffold_bp',
+    'tasks_rt_bp',
+    'template_store_bp',
+    'migration_bp',
 
     # WebSocket blueprints and functions
     'websocket_api_bp',
@@ -59,19 +71,27 @@ def register_blueprints(app):
     app.register_blueprint(models_bp)
     app.register_blueprint(analysis_bp)
     app.register_blueprint(stats_bp)
-    app.register_blueprint(tasks_bp)
-    app.register_blueprint(advanced_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(docs_bp)
     app.register_blueprint(sample_generator_bp)
 
-    # Register API blueprint
-    app.register_blueprint(api_bp, url_prefix='/api')
-    app.register_blueprint(tasks_rt_bp)
-    # Sample generation API (already prefixed inside file with /api/sample-gen)
-    app.register_blueprint(sample_gen_bp)
-    # App scaffolding API (/api/app-scaffold)
-    app.register_blueprint(scaffold_bp)
+    # Register refactored API blueprints under /api prefix
+    app.register_blueprint(api_bp, url_prefix='/api')  # Main API orchestrator (includes all nested blueprints)
+    
+    # Individual blueprint registration commented out since they're now nested in api_bp
+    # app.register_blueprint(core_bp, url_prefix='/api')
+    # app.register_blueprint(api_models_bp, url_prefix='/api/models')
+    # app.register_blueprint(system_bp, url_prefix='/api/system')
+    # app.register_blueprint(dashboard_bp, url_prefix='/api/dashboard')
+    # app.register_blueprint(applications_bp, url_prefix='/api')
+    # app.register_blueprint(api_analysis_bp, url_prefix='/api')
+    # app.register_blueprint(migration_bp, url_prefix='/api')
+    
+    # These already have their prefixes defined in the blueprint files
+    app.register_blueprint(sample_gen_bp)  # /api/sample-gen
+    app.register_blueprint(scaffold_bp)   # /api/app-scaffold
+    app.register_blueprint(tasks_rt_bp)   # /api/tasks
+    app.register_blueprint(template_store_bp)  # /api/templates
 
     # Register WebSocket API blueprint under both legacy (/api/websocket) and new (/ws-api) paths
     # The tests expect /api/websocket/* endpoints.
