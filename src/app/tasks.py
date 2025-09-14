@@ -22,7 +22,8 @@ except Exception:  # pragma: no cover
     get_engine = None  # type: ignore
 
 try:  # pragma: no cover
-    from app.services.batch_service import batch_service  # type: ignore
+    # Import explicitly from task_service to avoid submodule import shadowing
+    from app.services.task_service import batch_service  # type: ignore
 except Exception:  # pragma: no cover
     batch_service = None  # type: ignore
 

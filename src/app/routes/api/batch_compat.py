@@ -10,7 +10,6 @@ They intentionally use simplified logic mapped onto the modern batch_service.
 """
 
 from flask import Blueprint, jsonify, current_app
-from app.services import batch_service
 from app.services.task_service import queue_service, batch_service as modern_batch_service
 from app.utils.template_paths import render_template_compat
 
@@ -21,11 +20,9 @@ batch_compat_bp = Blueprint('batch_compat', __name__)
 def legacy_dispatch_next():
     """Dispatch the next pending job (legacy shim)."""
     try:
-        # Modern service may already choose next tasks internally; here we just call dispatch_next if present
+        # Call dispatch_next if available on the modern batch service
         if hasattr(modern_batch_service, 'dispatch_next'):
             result = getattr(modern_batch_service, 'dispatch_next')()
-        elif hasattr(batch_service, 'dispatch_next'):
-            result = getattr(batch_service, 'dispatch_next')()  # type: ignore[attr-defined]
         else:
             result = {'dispatched': 0, 'reason': 'dispatch_next not implemented'}
         return jsonify({'success': True, 'result': result})
