@@ -221,7 +221,8 @@ def models_paginated():
 def model_containers_sync_status(model_slug):
     """
     Model containers sync status endpoint.
-    TODO: Move this to models.py module
+    Compatibility shim that delegates to models.py implementation.
     """
-    from .common import api_error
-    return api_error("Model sync status endpoint needs migration to models.py", 501)
+    # Import lazily to avoid circulars
+    from .models import api_model_containers_sync_status
+    return api_model_containers_sync_status(model_slug)

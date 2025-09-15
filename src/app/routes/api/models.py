@@ -441,17 +441,44 @@ def api_model_containers_sync_status(model_slug):
     try:
         apps = GeneratedApplication.query.filter_by(model_slug=model_slug).order_by(GeneratedApplication.app_number.asc()).all()
         
-        if request.args.get('format') == 'html' or request.headers.get('HX-Request'):
-            # Return HTML fragment - this would need the template rendering logic
-            # For now, return a simple summary
-            return f'''
-            <div class="model-apps-summary">
-                <h6>{model_slug} Applications ({len(apps)} total)</h6>
-                <div class="row">
-                    {' '.join([f'<div class="col-md-4"><div class="card"><div class="card-body"><h6>App {a.app_number}</h6><span class="badge bg-secondary">{a.container_status or "unknown"}</span></div></div></div>' for a in apps])}
-                </div>
-            </div>
-            '''
+        # HTMX/HTML fragment variant: only table rows supported
+        if (request.args.get('format') == 'html') or request.headers.get('HX-Request'):
+            hx_target = request.headers.get('HX-Target', '')
+            if 'model-apps-table-body' in hx_target:
+                rows = []
+                for a in apps:
+                    status = (a.container_status or 'unknown').lower()
+                    badge = 'success' if status == 'running' else 'secondary' if status == 'stopped' else 'warning'
+                    rows.append(
+                        f'<tr>'
+                        f'<td class="text-nowrap"><span class="badge bg-secondary">#{a.app_number}</span></td>'
+                        f'<td>{a.app_type or ""}</td>'
+                        f'<td><span class="badge bg-{badge}">{status}</span></td>'
+                        f'</tr>'
+                    )
+                return '\n'.join(rows)
+            # Legacy cards/grid container variant (models page). Provide minimal card markup
+            if 'model-apps' in hx_target or (request.args.get('format') == 'html'):
+                cards = []
+                for a in apps:
+                    status = (a.container_status or 'unknown').lower()
+                    badge = 'success' if status == 'running' else 'secondary' if status == 'stopped' else 'warning'
+                    app_no = a.app_number
+                    app_type = a.app_type or ''
+                    cards.append(
+                        '<div class="col-12 col-sm-6 col-md-4 col-lg-3 mb-3">'
+                        '  <div class="card shadow-sm h-100">'
+                        '    <div class="card-body p-3 d-flex flex-column">'
+                        f'      <div class="d-flex justify-content-between align-items-center mb-2">'
+                        f'        <span class="badge bg-secondary">#{app_no}</span>'
+                        f'        <span class="badge bg-{badge}">{status}</span>'
+                        '      </div>'
+                        f'      <div class="small text-muted">{app_type}</div>'
+                        '    </div>'
+                        '  </div>'
+                        '</div>'
+                    )
+                return '\n'.join(cards)
         
         # JSON response: simplified list
         return api_success({

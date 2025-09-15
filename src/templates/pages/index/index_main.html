@@ -39,45 +39,76 @@
     <!-- Recent Activity (Applications + Analyses) -->
     <div class="row">
       <div class="col-md-6 mb-4">
-        <div class="card h-100">
-          <div class="card-header"><h5 class="card-title mb-0">Recent Applications</h5></div>
+        <div class="card h-100 fade-in">
+          <div class="card-header d-flex align-items-center">
+            <i class="fas fa-cogs text-primary me-2"></i>
+            <h5 class="card-title mb-0">Recent Applications</h5>
+          </div>
           <div class="card-body">
             {% if recent_apps %}
               <div class="list-group list-group-flush">
                 {% for app in recent_apps %}
                 <div class="list-group-item px-0">
-                  <div class="d-flex w-100 justify-content-between">
-                    <h6 class="mb-1">{{ app.app_number }} - {{ app.model_slug }}</h6>
+                  <div class="d-flex w-100 justify-content-between align-items-start">
+                    <div>
+                      <h6 class="mb-1 fw-semibold">{{ app.app_number }} - {{ app.model_slug }}</h6>
+                      <p class="mb-1 text-muted small">
+                        <span class="status-dot success"></span>{{ app.status }}
+                      </p>
+                    </div>
                     <small class="text-muted">{{ app.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
                   </div>
-                  <p class="mb-1 text-muted">{{ app.status }}</p>
                 </div>
                 {% endfor %}
               </div>
+              <div class="mt-3">
+                <a href="/api/applications" class="btn btn-sm btn-outline-primary">
+                  <i class="fas fa-arrow-right me-1"></i>View All
+                </a>
+              </div>
             {% else %}
-              <p class="text-muted">No recent applications</p>
+              <div class="text-center py-4">
+                <i class="fas fa-inbox text-muted" style="font-size: 2rem;"></i>
+                <p class="text-muted mt-2 mb-0">No recent applications</p>
+              </div>
             {% endif %}
           </div>
         </div>
       </div>
       <div class="col-md-6 mb-4">
-        <div class="card h-100">
-          <div class="card-header"><h5 class="card-title mb-0">Recent Security Analyses</h5></div>
+        <div class="card h-100 fade-in" style="animation-delay: 0.1s;">
+          <div class="card-header d-flex align-items-center">
+            <i class="fas fa-shield-alt text-success me-2"></i>
+            <h5 class="card-title mb-0">Recent Security Analyses</h5>
+          </div>
           <div class="card-body">
             {% if recent_analyses %}
               <div class="list-group list-group-flush">
                 {% for analysis in recent_analyses %}
                 <div class="list-group-item px-0">
-                  <div class="d-flex w-100 justify-content-between">
-                    <h6 class="mb-1">Analysis {{ analysis.id }}</h6>
+                  <div class="d-flex w-100 justify-content-between align-items-start">
+                    <div>
+                      <h6 class="mb-1 fw-semibold">Analysis {{ analysis.id }}</h6>
+                      <p class="mb-1 text-muted small">
+                        <span class="status-dot {% if analysis.status == 'COMPLETED' %}success{% elif analysis.status == 'RUNNING' %}info{% else %}warning{% endif %}"></span>
+                        Status: {{ analysis.status }}
+                      </p>
+                    </div>
                     <small class="text-muted">{{ analysis.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
                   </div>
-                  <p class="mb-1 text-muted">Status: {{ analysis.status }}</p>
                 </div>
                 {% endfor %}
               </div>
+              <div class="mt-3">
+                <a href="{{ url_for('analysis.analysis_index') }}" class="btn btn-sm btn-outline-success">
+                  <i class="fas fa-arrow-right me-1"></i>View All
+                </a>
+              </div>
             {% else %}
-              <p class="text-muted">No recent analyses</p>
+              <div class="text-center py-4">
+                <i class="fas fa-shield-alt text-muted" style="font-size: 2rem;"></i>
+                <p class="text-muted mt-2 mb-0">No recent analyses</p>
+              </div>
             {% endif %}
           </div>
         </div>
@@ -85,9 +116,11 @@
     </div>
 
     <!-- Live Tasks -->
-    <div class="card" id="live-tasks">
+    <div class="card fade-in" id="live-tasks" style="animation-delay: 0.2s;">
       <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="card-title mb-0"><i class="fas fa-tasks me-2"></i>Live Tasks</h5>
+        <h5 class="card-title mb-0">
+          <i class="fas fa-tasks me-2 text-info"></i>Live Tasks
+        </h5>
         <small class="text-muted" id="queue-summary">Queue summary loading...</small>
       </div>
       <div class="card-body p-0">
@@ -110,56 +143,144 @@
             <tbody></tbody>
           </table>
         </div>
-        <div class="p-2 small text-muted">Realtime events via Socket.IO; falls back to polling if unavailable.</div>
+        <div class="p-3 small text-muted border-top">
+          <i class="fas fa-wifi me-1"></i>
+          Realtime events via Socket.IO; falls back to polling if unavailable.
+        </div>
       </div>
     </div>
   </div>
   <div class="col-lg-4 order-1 order-lg-2 mb-4">
     <div id="dashboard-sidebar" class="analysis-sidebar right-sticky-sidebar">
       <!-- Mini Stats -->
-      <div class="card mb-3 mini-stats">
-        <div class="card-body p-2">
-          <ul class="list-unstyled mb-0 d-flex flex-wrap gap-2 small">
-            <li class="d-flex align-items-center gap-1 stat-item"><span class="stat-icon bg-primary text-white"><i class="fas fa-brain"></i></span><span class="stat-value">{{ stats.total_models }}</span><span class="text-muted stat-label">Models</span></li>
-            <li class="d-flex align-items-center gap-1 stat-item"><span class="stat-icon bg-success text-white"><i class="fas fa-cogs"></i></span><span class="stat-value">{{ stats.total_applications }}</span><span class="text-muted stat-label">Apps</span></li>
-            <li class="d-flex align-items-center gap-1 stat-item"><span class="stat-icon bg-warning text-white"><i class="fas fa-shield-alt"></i></span><span class="stat-value">{{ stats.total_security_analyses }}</span><span class="text-muted stat-label">Security</span></li>
-            <li class="d-flex align-items-center gap-1 stat-item"><span class="stat-icon bg-info text-white"><i class="fas fa-tachometer-alt"></i></span><span class="stat-value">{{ stats.total_performance_tests }}</span><span class="text-muted stat-label">Perf</span></li>
-          </ul>
+      <div class="card mb-3 mini-stats fade-in" style="animation-delay: 0.3s;">
+        <div class="card-header py-2">
+          <h6 class="card-title mb-0">
+            <i class="fas fa-chart-bar text-primary me-2"></i>Overview
+          </h6>
+        </div>
+        <div class="card-body p-3">
+          <div class="row g-2">
+            <div class="col-6">
+              <div class="text-center p-2 rounded bg-primary bg-opacity-10">
+                <div class="h4 mb-1 text-primary">{{ stats.total_models }}</div>
+                <small class="text-muted">Models</small>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="text-center p-2 rounded bg-success bg-opacity-10">
+                <div class="h4 mb-1 text-success">{{ stats.total_applications }}</div>
+                <small class="text-muted">Apps</small>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="text-center p-2 rounded bg-warning bg-opacity-10">
+                <div class="h4 mb-1 text-warning">{{ stats.total_security_analyses }}</div>
+                <small class="text-muted">Security</small>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="text-center p-2 rounded bg-info bg-opacity-10">
+                <div class="h4 mb-1 text-info">{{ stats.total_performance_tests }}</div>
+                <small class="text-muted">Performance</small>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <!-- Quick Actions -->
-      <div class="card mb-3">
-        <div class="card-header py-2"><h5 class="card-title h6 mb-0"><i class="fas fa-bolt me-1"></i>Quick Actions</h5></div>
-        <div class="card-body py-2">
-          <div class="row g-2 mb-2">
-            <div class="col-6"><a href="{{ url_for('models.models_overview') }}" class="btn btn-outline-primary btn-sm w-100"><i class="fas fa-brain me-1"></i>Models</a></div>
-            <div class="col-6"><a href="{{ url_for('analysis.analysis_dashboard') }}" class="btn btn-outline-success btn-sm w-100"><i class="fas fa-chart-line me-1"></i>Analysis</a></div>
-            <div class="col-6"><a href="/api/applications" class="btn btn-outline-info btn-sm w-100"><i class="fas fa-cogs me-1"></i>Apps</a></div>
-            <div class="col-6"><a href="#live-tasks" class="btn btn-outline-warning btn-sm w-100"><i class="fas fa-tasks me-1"></i>Tasks</a></div>
+      <div class="card mb-3 fade-in" style="animation-delay: 0.4s;">
+        <div class="card-header py-2">
+          <h6 class="card-title mb-0">
+            <i class="fas fa-bolt me-2 text-warning"></i>Quick Actions
+          </h6>
+        </div>
+        <div class="card-body py-3">
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <a href="{{ url_for('main.models_overview') }}" class="btn btn-outline-primary btn-sm w-100">
+                <i class="fas fa-brain me-1"></i>Models
+              </a>
+            </div>
+            <div class="col-6">
+              <a href="{{ url_for('analysis.analysis_dashboard') }}" class="btn btn-outline-success btn-sm w-100">
+                <i class="fas fa-chart-line me-1"></i>Analysis
+              </a>
+            </div>
+            <div class="col-6">
+              <a href="/api/applications" class="btn btn-outline-info btn-sm w-100">
+                <i class="fas fa-cogs me-1"></i>Apps
+              </a>
+            </div>
+            <div class="col-6">
+              <a href="#live-tasks" class="btn btn-outline-warning btn-sm w-100">
+                <i class="fas fa-tasks me-1"></i>Tasks
+              </a>
+            </div>
           </div>
+          <hr class="my-3">
+          <h6 class="text-muted small mb-2">Maintenance Actions</h6>
           <div class="row g-2 align-items-end small" id="dashboard-actions">
-            <div class="col-6"><button class="btn btn-sm btn-primary w-100" data-action="init-db"><i class="fas fa-database me-1"></i>Init DB</button></div>
-            <div class="col-6"><button class="btn btn-sm btn-secondary w-100" data-action="populate-db" id="populate-db-btn"><span class="btn-label"><i class="fas fa-seedling me-1"></i>Populate</span><span class="spinner-border spinner-border-sm d-none" role="status"></span></button></div>
-            <div class="col-6"><button class="btn btn-sm btn-outline-danger w-100" data-action="log-cleanup"><i class="fas fa-broom me-1"></i>Logs</button></div>
-            <div class="col-6"><button class="btn btn-sm btn-outline-success w-100" data-action="sample-generation-smoke"><i class="fas fa-vial me-1"></i>Sample</button></div>
-            <div class="col-12"><button class="btn btn-sm btn-outline-info w-100" data-action="http-smoke"><i class="fas fa-plug me-1"></i>HTTP Smoke</button></div>
-            <div class="col-12"><div class="small text-muted" id="dashboard-action-status">Select an action to run a maintenance or diagnostic task.</div></div>
+            <div class="col-6">
+              <button class="btn btn-sm btn-primary w-100" data-action="init-db">
+                <i class="fas fa-database me-1"></i>Init DB
+              </button>
+            </div>
+            <div class="col-6">
+              <button class="btn btn-sm btn-secondary w-100" data-action="populate-db" id="populate-db-btn">
+                <span class="btn-label">
+                  <i class="fas fa-seedling me-1"></i>Populate
+                </span>
+                <span class="spinner-border spinner-border-sm d-none" role="status"></span>
+              </button>
+            </div>
+            <div class="col-6">
+              <button class="btn btn-sm btn-outline-danger w-100" data-action="log-cleanup">
+                <i class="fas fa-broom me-1"></i>Logs
+              </button>
+            </div>
+            <div class="col-6">
+              <button class="btn btn-sm btn-outline-success w-100" data-action="sample-generation-smoke">
+                <i class="fas fa-vial me-1"></i>Sample
+              </button>
+            </div>
+            <div class="col-12">
+              <button class="btn btn-sm btn-outline-info w-100" data-action="http-smoke">
+                <i class="fas fa-plug me-1"></i>HTTP Smoke
+              </button>
+            </div>
+            <div class="col-12">
+              <div class="small text-muted" id="dashboard-action-status">
+                Select an action to run a maintenance or diagnostic task.
+              </div>
+            </div>
             <div class="col-12 mt-2 d-none" id="action-detailed-result"></div>
           </div>
         </div>
       </div>
       <!-- Running Batches -->
       {% if running_batches %}
-      <div class="card mb-3 border-warning">
-        <div class="card-header py-2 bg-warning text-white"><h5 class="card-title h6 mb-0"><i class="fas fa-play-circle me-1"></i>Running Batches</h5></div>
-        <div class="card-body py-2 small">
+      <div class="card mb-3 border-warning fade-in" style="animation-delay: 0.5s;">
+        <div class="card-header py-2 bg-warning bg-opacity-10">
+          <h6 class="card-title mb-0 text-warning">
+            <i class="fas fa-play-circle me-2"></i>Running Batches
+          </h6>
+        </div>
+        <div class="card-body py-3">
           {% for batch in running_batches %}
-          <div class="mb-2 p-2 rounded border">
-            <div class="d-flex justify-content-between"><span class="fw-bold">Batch {{ batch.id }}</span><span class="text-muted">{{ batch.progress }}%</span></div>
-            <div class="progress mt-1" style="height:6px;">
-              <div class="progress-bar" role="progressbar" style="width: {{ batch.progress }}%"></div>
+          <div class="mb-3 p-3 rounded border bg-light">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="fw-semibold">Batch {{ batch.id }}</span>
+              <span class="badge bg-primary">{{ batch.progress }}%</span>
             </div>
-            <div class="text-muted small mt-1">{{ batch.description or 'No description' }}</div>
+            <div class="progress mb-2" style="height: 8px;">
+              <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                   role="progressbar" 
+                   style="width: {{ batch.progress }}%"></div>
+            </div>
+            <div class="text-muted small">
+              {{ batch.description or 'No description available' }}
+            </div>
           </div>
           {% endfor %}
         </div>

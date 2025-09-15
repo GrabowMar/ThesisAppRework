@@ -130,8 +130,20 @@ def testing():
 
 @main_bp.route('/models_overview')
 def models_overview():
-    """Redirect to models overview page."""
-    return redirect(url_for('models.models_overview'))
+    """Models overview page (render directly to avoid redirect loops)."""
+    try:
+        return render_template(
+            'pages/models/overview.html',
+            page_title='Models Overview'
+        )
+    except Exception as e:
+        current_app.logger.error(f"Error loading models overview: {e}")
+        flash('Error loading models overview', 'error')
+        return render_template(
+            'pages/errors/errors_main.html',
+            error=str(e),
+            page_title='Models Overview Error'
+        ), 500
 
 @main_bp.route('/applications')
 def applications_index():
@@ -156,14 +168,34 @@ def applications_generate():
 
 @main_bp.route('/applications/table')
 def applications_table():
-    """HTMX partial: Applications table - delegate to models blueprint."""
-    # Simple redirect to the existing applications page functionality
-    return redirect(url_for('models.model_apps'))
+    """HTMX partial: Applications table content."""
+    try:
+        # Build the same context as the full applications page
+        from app.routes.jinja.models import build_applications_context  # type: ignore
+        context = build_applications_context()
+        # Return only the table block so HX swap can replace the section
+        return render_template('pages/applications/partials/table_block.html', **context)
+    except Exception as e:
+        current_app.logger.error(f"Error rendering applications table: {e}")
+        return ('<div class="alert alert-danger">Failed to load applications table.</div>', 500)
 
 @main_bp.route('/applications/stats')
 def applications_stats():
-    """HTMX partial: Applications stats - delegate to models blueprint."""
-    return redirect(url_for('models.model_apps'))
+    """HTMX partial: Applications stats numbers snippet."""
+    try:
+        from app.routes.jinja.models import build_applications_context  # type: ignore
+        ctx = build_applications_context()
+        stats = ctx.get('applications_stats') or ctx.get('stats') or {}
+        return render_template(
+            'pages/applications/partials/_stats_numbers.html',
+            total_applications=stats.get('total_applications', 0),
+            running_applications=stats.get('running_applications', 0),
+            analyzed_applications=stats.get('analyzed_applications', 0),
+            unique_models=stats.get('unique_models', 0)
+        )
+    except Exception as e:
+        current_app.logger.error(f"Error rendering applications stats: {e}")
+        return ('<ul class="list-unstyled small"><li class="text-danger">Failed to load stats</li></ul>', 500)
 
 @main_bp.route('/applications/<model_slug>/<int:app_number>')
 def applications_detail_alias(model_slug, app_number):

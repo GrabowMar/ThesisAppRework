@@ -1,473 +1,366 @@
 """
 Models routes for the Flask application
-=======================================
+======================================="""
 
-Model-related web routes that render Jinja templates.
-"""
+from __future__ import annotations
 
-import os
 from pathlib import Path
-from datetime import timedelta
-from flask import Blueprint, request, flash, current_app, Response
+from typing import Any
 
-from app.extensions import db, deep_merge_dicts, dicts_to_csv
-from sqlalchemy import or_
-from app.models import (
-    ModelCapability, GeneratedApplication, SecurityAnalysis, PerformanceTest,
-    PortConfiguration, ExternalModelInfoCache
-)
-from app.utils.generated_apps import list_generated_apps  # noqa: F401 (may be used elsewhere)
+from flask import Blueprint, current_app, flash, request, Response
 from app.utils.template_paths import render_template_compat as render_template
-from app.utils.helpers import get_app_directory
+from app.extensions import db
+from app.models import (
+    ModelCapability,
+    GeneratedApplication,
+    SecurityAnalysis,
+    PerformanceTest,
+    PortConfiguration,
+    ExternalModelInfoCache,
+)
+from app.utils.helpers import get_app_directory, deep_merge_dicts, dicts_to_csv
 from app.utils.port_resolution import resolve_ports
+from app.routes.shared_utils import _project_root
+from sqlalchemy import or_
 
-# Import shared utilities
-from ..shared_utils import openrouter_service, _project_root
+# Blueprint for models routes
+models_bp = Blueprint('models', __name__, url_prefix='/models')
 
 
 class SimplePagination:
-    """Simple pagination class to provide iter_pages() method for templates."""
-    
-    def __init__(self, page, per_page, total, items):
+    """Lightweight pagination helper compatible with templates."""
+
+    def __init__(self, page: int, per_page: int, total: int, items: list[Any]):
         self.page = page
         self.per_page = per_page
         self.total = total
         self.items = items
-        self.pages = max(1, (total + per_page - 1) // per_page)
-    
+
     @property
-    def has_prev(self):
+    def pages(self) -> int:
+        if self.per_page <= 0:
+            return 1
+        return max(1, (self.total + self.per_page - 1) // self.per_page)
+
+    @property
+    def has_prev(self) -> bool:
         return self.page > 1
-    
+
     @property
-    def prev_num(self):
-        return self.page - 1 if self.has_prev else None
-    
-    @property
-    def has_next(self):
+    def has_next(self) -> bool:
         return self.page < self.pages
-    
+
     @property
-    def next_num(self):
-        return self.page + 1 if self.has_next else None
-    
-    def iter_pages(self, left_edge=2, left_current=2, right_current=3, right_edge=2):
-        """Iterate over page numbers."""
-        last = self.pages
-        for num in range(1, last + 1):
-            if num <= left_edge or \
-               (self.page - left_current - 1 < num < self.page + right_current) or \
-               num > last - right_edge:
+    def prev_num(self) -> int:
+        return max(1, self.page - 1)
+
+    @property
+    def next_num(self) -> int:
+        return min(self.pages, self.page + 1)
+
+    def iter_pages(
+        self,
+        left_edge: int = 2,
+        left_current: int = 2,
+        right_current: int = 2,
+        right_edge: int = 2,
+    ):
+        """Yield page numbers for pagination controls with ellipses as None.
+
+        Mirrors Flask-SqlAlchemy Pagination.iter_pages signature so templates
+        like `for page_num in pagination.iter_pages()` work unchanged.
+        """
+        last = 0
+        total_pages = self.pages
+        for num in range(1, total_pages + 1):
+            if (
+                num <= left_edge
+                or (num >= self.page - left_current and num <= self.page + right_current)
+                or num > total_pages - right_edge
+            ):
+                if last + 1 != num:
+                    yield None
                 yield num
+                last = num
 
 
-# Create blueprint
-models_bp = Blueprint('models', __name__, url_prefix='/models')
+def build_applications_context():
+    """Build context for Applications overview using application-centric filtering and pagination."""
+    # Filter & table state parameters
+    model_filter_raw = (request.args.get('model') or '').strip()
+    # Accept comma-separated slugs
+    model_filter_list = [m.strip() for m in model_filter_raw.split(',') if m.strip()]
+    provider_filter = (request.args.get('provider') or '').strip()
+    search_filter = (request.args.get('search') or '').strip()
+    status_filter_raw = (request.args.get('status') or '').strip()  # comma-aware
+    status_filters = [s.strip().lower() for s in status_filter_raw.split(',') if s.strip()]
+    type_filter = (request.args.get('type') or '').strip()
+    ports_filter = (request.args.get('ports') or '').strip()
+    analysis_filter = (request.args.get('analysis') or '').strip()
+    sort_field = request.args.get('sort', 'model')  # model|provider|model_desc|provider_desc
+    page = max(1, int(request.args.get('page', 1) or 1))
+    per_page = min(100, max(5, int(request.args.get('per_page', 25) or 25)))
 
-# In-process lightweight enrichment cache (simple rate limiting / TTL)
-_ENRICH_CACHE: dict[str, dict] = {}
-_ENRICH_TTL_SECONDS = 300  # 5 minutes
-
-def _enrich_model(model: ModelCapability):
-    """Enrich a model with OpenRouter data using a tiny time-based cache.
-
-    Avoids hammering external API repeatedly during rapid comparison / overview refreshes.
-    """
-    from time import time
-    key = model.canonical_slug
-    now = time()
-    cached = _ENRICH_CACHE.get(key)
-    if cached and (now - cached.get('_ts', 0)) < _ENRICH_TTL_SECONDS:
-        return cached['data']
-    data = openrouter_service.enrich_model_data(model)
-    _ENRICH_CACHE[key] = {'_ts': now, 'data': data}
-    return data
-
-@models_bp.route('/')
-def models_overview():
-    """Static models overview page showing table of AI models with OpenRouter data."""
+    # Preload PortConfiguration map
+    port_map: dict[tuple[str, int], dict] = {}
     try:
-        # Basic stats for sidebar
-        try:
-            total_models = ModelCapability.query.count()
-            unique_providers = db.session.query(ModelCapability.provider).distinct().count()
-        except Exception:
-            total_models = 0
-            unique_providers = 0
-
-        models_stats = {
-            'total_models': total_models,
-            'active_models': total_models,  # placeholder; refine if a flag exists
-            'unique_providers': unique_providers,
-            'avg_cost_per_1k': 0,
-        }
-
-        # Providers for filter dropdown (optional in template)
-        try:
-            providers = db.session.query(ModelCapability.provider.distinct()).all()
-            available_providers = [
-                {'id': p[0], 'name': p[0]}
-                for p in providers if p and p[0]
-            ]
-        except Exception:
-            available_providers = []
-
-        return render_template(
-            'pages/models/overview.html',
-            models_stats=models_stats,
-            available_providers=available_providers,
-        )
+        for pc in db.session.query(PortConfiguration).all():
+            port_map[(pc.model, pc.app_num)] = {'backend': pc.backend_port, 'frontend': pc.frontend_port}
     except Exception as e:
-        current_app.logger.error(f"Error loading models overview: {e}")
-        return render_template(
-            'pages/errors/errors_main.html',
-            error_code=500,
-            error_title='Models Overview Error',
-            error_message=str(e)
-        ), 500
+        current_app.logger.warning(f"Failed to load PortConfiguration from DB: {e}")
 
-@models_bp.route('/model/<model_slug>/details')
-def model_details(model_slug):
-    """Detailed view of a specific model with comprehensive OpenRouter data."""
+    # Base GeneratedApplication query (apps-level)
+    q = GeneratedApplication.query
+    if model_filter_list:
+        try:
+            q = q.filter(GeneratedApplication.model_slug.in_(model_filter_list))
+        except Exception:
+            pass
+    if provider_filter:
+        q = q.filter(GeneratedApplication.provider == provider_filter)
+    if search_filter:
+        # Match model slug, provider, app_type
+        like = f"%{search_filter}%"
+        try:
+            from sqlalchemy import or_
+            q = q.filter(or_(GeneratedApplication.model_slug.ilike(like),
+                             GeneratedApplication.provider.ilike(like),
+                             GeneratedApplication.app_type.ilike(like)))
+        except Exception:
+            q = q.filter(GeneratedApplication.model_slug.contains(search_filter))
+    # Soft sort at DB level for determinism
+    if sort_field.startswith('provider'):
+        q = q.order_by(GeneratedApplication.provider.asc(), GeneratedApplication.model_slug.asc(), GeneratedApplication.app_number.asc())
+    else:
+        q = q.order_by(GeneratedApplication.model_slug.asc(), GeneratedApplication.app_number.asc())
+
+    # Fetch rows once; for typical sizes this is OK and enables status/ports filters
+    rows = q.all()
+    total_apps_overall = len(rows)
+
+    # Prepare Docker status map (status only)
     try:
-        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first_or_404()
-        enriched_data = openrouter_service.enrich_model_data(model)
+        from app.services.service_locator import ServiceLocator
+        docker_mgr = ServiceLocator.get_docker_manager()
+    except Exception:
+        docker_mgr = None  # type: ignore
+    running_projects: set[str] = set()
+    any_projects: set[str] = set()
+    if docker_mgr and getattr(docker_mgr, 'client', None):
+        try:
+            all_conts = docker_mgr.list_all_containers()  # type: ignore[attr-defined]
+            for c in all_conts or []:
+                labels = c.get('labels') or {}
+                proj = labels.get('com.docker.compose.project')
+                if not proj:
+                    continue
+                any_projects.add(proj)
+                if (c.get('status') or '').lower() == 'running':
+                    running_projects.add(proj)
+        except Exception:
+            pass
 
-        total_apps = GeneratedApplication.query.filter_by(model_slug=model_slug).count()
-        analyses_count = (
-            SecurityAnalysis.query.join(GeneratedApplication)
-            .filter(GeneratedApplication.model_slug == model_slug)
-            .count()
-        )
+    def _project_name(model_slug: str, app_num: int) -> str:
+        safe_model = (model_slug or '').replace('_', '-').replace('.', '-')
+        return f"{safe_model}-app{app_num}"
 
-        enriched_data.update({
-            'total_apps': total_apps,
-            'analyses_count': analyses_count,
+    # Build application dicts
+    applications_all: list[dict] = []
+    running_count = 0
+    for r in rows:
+        ports = port_map.get((r.model_slug, r.app_number), {})
+        derived_ports = []
+        if isinstance(ports, dict):
+            for key in ('backend', 'frontend'):
+                val = ports.get(key)
+                if isinstance(val, int):
+                    derived_ports.append({'host_port': val})
+        try:
+            m = ModelCapability.query.filter_by(canonical_slug=r.model_slug).first()
+            model_provider = getattr(m, 'provider', None) or r.provider or 'local'
+            display_name = getattr(m, 'display_name', None) or getattr(m, 'model_name', None) or r.model_slug
+        except Exception:
+            model_provider = r.provider or 'local'
+            display_name = r.model_slug
+        # Determine live status
+        proj = _project_name(r.model_slug, r.app_number)
+        status = r.container_status or r.generation_status or 'unknown'
+        if proj in running_projects:
+            status = 'running'
+        elif proj in any_projects:
+            status = 'stopped'
+        if status == 'running':
+            running_count += 1
+        applications_all.append({
+            'model_slug': r.model_slug,
+            'model_provider': model_provider,
+            'model_display_name': display_name,
+            'app_number': r.app_number,
+            'status': status,
+            'id': r.id,
+            'app_type': r.app_type or 'web_app',
+            'ports': derived_ports,
+            'container_size': None,
+            'analysis_status': 'none'
         })
 
-        disabled_env = os.getenv('DISABLED_ANALYSIS_MODELS', '')
-        disabled_models = {m.strip() for m in disabled_env.split(',') if m.strip()}
-        is_disabled = model_slug in disabled_models
+    # Apply in-memory filters that depend on enriched fields
+    def _passes_status(a: dict) -> bool:
+        if not status_filters:
+            return True
+        return (a.get('status') or '').lower() in status_filters
+    def _passes_type(a: dict) -> bool:
+        return (not type_filter) or (a.get('app_type') == type_filter)
+    def _passes_ports(a: dict) -> bool:
+        if not ports_filter:
+            return True
+        has = bool(a.get('ports'))
+        if ports_filter == 'has_ports':
+            return has
+        if ports_filter == 'no_ports':
+            return not has
+        # exposed/internal are placeholders; treat 'exposed' same as has_ports for now
+        if ports_filter == 'exposed':
+            return has
+        if ports_filter == 'internal':
+            return not has
+        return True
+    def _passes_analysis(a: dict) -> bool:
+        if not analysis_filter:
+            return True
+        # With no analysis data wired yet, only allow 'not_analyzed'
+        if analysis_filter == 'not_analyzed':
+            return (a.get('analysis_status') in (None, '', 'none'))
+        return True
 
-        return render_template(
-            'pages/models/model_details.html',
-            model=enriched_data,
-            model_slug=model_slug,
-            analysis_disabled=is_disabled,
-            disabled_models=disabled_models
-        )
+    filtered_apps = [a for a in applications_all if _passes_status(a) and _passes_type(a) and _passes_ports(a) and _passes_analysis(a)]
 
-    except Exception as e:
-        current_app.logger.error(f"Error loading model details for {model_slug}: {e}")
-        flash(f"Error loading model details: {e}", "error")
-        return render_template(
-            'pages/errors/errors_main.html',
-            error_code=404,
-            error_title='Model Not Found',
-            error_message=f"Model '{model_slug}' not found"
-        )
+    # Sort applications
+    if sort_field in ('model', 'model_desc'):
+        filtered_apps.sort(key=lambda a: (a['model_display_name'] or '', a['app_number']), reverse=sort_field.endswith('desc'))
+    elif sort_field in ('provider', 'provider_desc'):
+        filtered_apps.sort(key=lambda a: (a['model_provider'] or '', a['model_display_name'] or '', a['app_number']), reverse=sort_field.endswith('desc'))
+    else:
+        filtered_apps.sort(key=lambda a: (a['model_display_name'] or '', a['app_number']))
 
-@models_bp.route('/model/<model_slug>/more-info')
-def model_more_info(model_slug):
-    """HTMX endpoint: external details (OpenRouter) for modal display."""
+    # Pagination on filtered apps
+    total_filtered = len(filtered_apps)
+    page_count = max(1, (total_filtered + per_page - 1) // per_page)
+    start = (page - 1) * per_page
+    end = start + per_page
+    applications_list = filtered_apps[start:end]
+    pagination = SimplePagination(page, per_page, total_filtered, applications_list)
+
+    # Providers and models for filter dropdowns (derived from rows)
     try:
-        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first_or_404()
+        providers = sorted({(r.provider or 'local') for r in rows if getattr(r, 'provider', None)})
+    except Exception:
+        providers = []
+    available_models = []
+    try:
+        slugs = sorted({r.model_slug for r in rows})
+        # Fetch names when available
+        name_map = {m.canonical_slug: (getattr(m, 'display_name', None) or m.model_name or m.canonical_slug)
+                    for m in ModelCapability.query.filter(ModelCapability.canonical_slug.in_(slugs)).all()} if slugs else {}
+        for s in slugs:
+            available_models.append({'slug': s, 'display_name': name_map.get(s, s)})
+    except Exception:
+        available_models = [{'slug': s, 'display_name': s} for s in sorted({r.model_slug for r in rows})]
 
-        ttl_hours = int(request.args.get('ttl', 6))
-        force_refresh = request.args.get('refresh') == '1'
+    # Stats
+    try:
+        analyzed_count = db.session.query(SecurityAnalysis).count()
+    except Exception:
+        analyzed_count = 0
+    stats = {
+        'total_applications': total_apps_overall,
+        'running_applications': running_count,
+        'analyzed_applications': analyzed_count,
+        'unique_models': len({r.model_slug for r in rows}),
+    }
 
-        cached = None
-        if not force_refresh:
-            cached = ExternalModelInfoCache.query.filter_by(model_slug=model_slug).first()
-            if cached and cached.is_expired():
-                cached = None
+    context = {
+        'total_apps': total_apps_overall,
+        'running_containers': running_count,
+        'stopped_containers': max(0, total_apps_overall - running_count),
+        'total_models': len({r.model_slug for r in rows}),
+        'providers': providers,
+        'applications': applications_list,
+        'total_applications': total_apps_overall,
+        'total_count': total_filtered,
+        'available_models': available_models,
+        'stats': stats,
+        'applications_stats': stats,
+        'current_filters': {
+            'model': model_filter_raw,
+            'provider': provider_filter,
+            'search': search_filter,
+            'status': status_filter_raw,
+            'sort': sort_field,
+            'page': page,
+            'per_page': per_page,
+            'page_count': page_count
+        },
+        'pagination': pagination,
+        'active_page': 'applications',
+        'has_right_sidebar': True
+    }
+    return context
 
-        if cached is None or force_refresh:
-            data = _enrich_model(model)
+def _enrich_model(m: ModelCapability) -> dict:
+    """Minimal model enrichment used by CSV export and models filter/comparison.
 
-            try:
-                entry = ExternalModelInfoCache.query.filter_by(model_slug=model_slug).first()
-                if not entry:
-                    entry = ExternalModelInfoCache()
-                    entry.model_slug = model_slug
-                    entry.set_data(data)
-                    db.session.add(entry)
-                else:
-                    entry.set_data(data)
-                # utc_now helper may live in app.utils.time or fall back to datetime.utcnow
-                try:
-                    from app.utils.time import utc_now  # type: ignore
-                    entry.cache_expires_at = utc_now() + timedelta(hours=ttl_hours)
-                except Exception:
-                    from datetime import datetime, timezone
-                    entry.cache_expires_at = datetime.now(timezone.utc) + timedelta(hours=ttl_hours)
-                entry.source_notes = 'openrouter'
-                db.session.commit()
-            except Exception as e:
-                current_app.logger.warning(f"Failed to persist external cache for {model_slug}: {e}")
+    Avoids network calls; derives fields from stored capabilities/metadata.
+    """
+    try:
+        caps_raw = m.get_capabilities() or {}
+    except Exception:
+        caps_raw = {}
+    try:
+        meta = m.get_metadata() or {}
+    except Exception:
+        meta = {}
 
-            payload = data
-        else:
-            payload = cached.get_data()
-
+    # Normalize capabilities to a simple dict/list when possible
+    caps: Any = {}
+    if isinstance(caps_raw, dict):
+        caps = caps_raw.get('capabilities') if 'capabilities' in caps_raw else caps_raw
+    else:
+        # Best-effort: if it's a sequence, map to a flag dict; otherwise keep empty
         try:
-            app_count = GeneratedApplication.query.filter_by(model_slug=model_slug).count()
-            sec_count = (
-                SecurityAnalysis.query.join(GeneratedApplication)
-                .filter(GeneratedApplication.model_slug == model_slug)
-                .count()
-            )
-            payload['apps_count'] = app_count
-            payload['analyses_count'] = sec_count
-        except Exception as e:
-            current_app.logger.warning(f"Failed to compute live counts for {model_slug}: {e}")
+            caps_iter = list(caps_raw)  # type: ignore[arg-type]
+            caps = {str(k): True for k in caps_iter}
+        except Exception:
+            caps = {}
 
-        return render_template(
-            'pages/models/partials/more_info_modal_body.html',
-            model=payload,
-            model_slug=model_slug
-        )
-    except Exception as e:
-        current_app.logger.error(f"Error loading more info for {model_slug}: {e}")
-        return f'<div class="alert alert-danger">Error: {str(e)}</div>'
+    # Map a small set of openrouter- style fields from metadata when present
+    data = {
+        'provider': m.provider,
+        'name': m.model_name,
+        'capabilities': caps if isinstance(caps, (dict, list)) else {},
+        'openrouter_context_length': meta.get('openrouter_context_length') or meta.get('context_length') or m.context_window,
+        'openrouter_prompt_price': meta.get('openrouter_prompt_price') or meta.get('input_price_per_1k'),
+        'openrouter_completion_price': meta.get('openrouter_completion_price') or meta.get('output_price_per_1k'),
+        'openrouter_pricing_request': meta.get('openrouter_pricing_request'),
+        'openrouter_pricing_image': meta.get('openrouter_pricing_image'),
+        'openrouter_pricing_web_search': meta.get('openrouter_pricing_web_search'),
+        'openrouter_pricing_internal_reasoning': meta.get('openrouter_pricing_internal_reasoning'),
+        'openrouter_pricing_input_cache_read': meta.get('openrouter_pricing_input_cache_read'),
+        'openrouter_pricing_input_cache_write': meta.get('openrouter_pricing_input_cache_write'),
+        'architecture_modality': meta.get('architecture_modality'),
+        'architecture_input_modalities': meta.get('architecture_input_modalities'),
+        'architecture_output_modalities': meta.get('architecture_output_modalities'),
+        'architecture_tokenizer': meta.get('architecture_tokenizer'),
+        'architecture_instruct_type': meta.get('architecture_instruct_type'),
+        'performance_score': meta.get('performance_score') or m.cost_efficiency,
+    }
+    return data
 
 def _render_applications_page():
     """Core implementation for applications overview (shared by legacy and new routes)."""
     try:
-        # Build port map from database
-        port_map = {}
-        try:
-            for pc in db.session.query(PortConfiguration).all():
-                key = (pc.model, pc.app_num)
-                port_map[key] = {
-                    'backend': pc.backend_port,
-                    'frontend': pc.frontend_port,
-                }
-        except Exception as e:
-            current_app.logger.warning(f"Failed to load PortConfiguration from DB: {e}")
-
-        # Get filter & table state parameters
-        model_filter = request.args.get('model')
-        provider_filter = request.args.get('provider')
-        search_filter = request.args.get('search')
-        status_filter = request.args.get('status')  # running|stopped|error|pending
-        sort_field = request.args.get('sort', 'model')  # model|provider|running_desc etc.
-        page = max(1, int(request.args.get('page', 1) or 1))
-        per_page = min(100, max(5, int(request.args.get('per_page', 25) or 25)))
-
-        # Get all models to create app grid
-        models_query = ModelCapability.query
-
-        # Apply filters
-        if provider_filter:
-            models_query = models_query.filter(ModelCapability.provider == provider_filter)
-
-        if model_filter:
-            models_query = models_query.filter(
-                ModelCapability.canonical_slug.contains(model_filter) |
-                ModelCapability.model_name.contains(model_filter)
-            )
-
-        if search_filter:
-            models_query = models_query.filter(
-                ModelCapability.model_name.contains(search_filter) |
-                ModelCapability.provider.contains(search_filter)
-            )
-
-        # Apply simple sorting
-        if sort_field == 'model':
-            models_query = models_query.order_by(ModelCapability.model_name.asc())
-        elif sort_field == 'model_desc':
-            models_query = models_query.order_by(ModelCapability.model_name.desc())
-        elif sort_field == 'provider':
-            models_query = models_query.order_by(ModelCapability.provider.asc())
-        elif sort_field == 'provider_desc':
-            models_query = models_query.order_by(ModelCapability.provider.desc())
-        else:
-            models_query = models_query.order_by(ModelCapability.provider.asc(), ModelCapability.model_name.asc())
-
-        models = models_query.all()
-
-        # If no DB models, synthesize from filesystem directories so application
-        # grid can still render existing generated apps.
-        if not models:
-            try:
-                from app.utils.generated_apps import list_generated_models
-                fs_slugs = list_generated_models()
-                synthetic = []
-                for slug in fs_slugs:
-                    class _SyntheticModel:
-                        canonical_slug = slug
-                        model_name = slug
-                        provider = slug.split('_')[0]
-                        display_name = slug
-                    synthetic.append(_SyntheticModel())
-                if synthetic:
-                    models = synthetic
-            except Exception as _e:  # pragma: no cover
-                current_app.logger.warning(f"Failed building synthetic models for applications page: {_e}")
-
-        # Build application grid data
-        application_grid = []
-        total_apps = 0
-        running_containers = 0
-        stopped_containers = 0
-
-        try:
-            current_app.logger.debug(f"[apps-grid] models_count={len(models)} total_apps_db={GeneratedApplication.query.count()}")
-        except Exception:
-            pass
-        filtered_models = []
-        for model in models:
-            db_apps = GeneratedApplication.query.filter_by(
-                model_slug=model.canonical_slug
-            ).all()
-            db_apps_index = {a.app_number: a for a in db_apps}
-
-            model_apps = []
-            existing_count = 0
-            for i in range(1, 31):  # Apps 1-30
-                app = db_apps_index.get(i)
-                ports = port_map.get((model.canonical_slug, i))
-                # Filesystem fallback detection (only if no DB row)
-                fs_exists = False
-                if not app:
-                    try:
-                        fs_dir = get_app_directory(model.canonical_slug, i)
-                        fs_exists = fs_dir.exists()
-                    except Exception:
-                        fs_exists = False
-                exists_flag = bool(app) or fs_exists
-                if exists_flag:
-                    existing_count += 1
-                app_data = {
-                    'id': app.id if app else None,
-                    'app_number': i,
-                    'exists': exists_flag,
-                    'status': app.container_status if app else ('filesystem' if fs_exists else 'not_created'),
-                    'app_type': app.app_type if app else ('web_app' if fs_exists else 'unknown'),
-                    'has_backend': app.has_backend if app else fs_exists,
-                    'has_frontend': app.has_frontend if app else fs_exists,
-                    'has_docker_compose': app.has_docker_compose if app else False,
-                    'generation_status': app.generation_status if app else ('filesystem' if fs_exists else 'pending'),
-                    'ports': ports
-                }
-                model_apps.append(app_data)
-
-                if app:
-                    total_apps += 1
-                    if app.container_status == 'running':
-                        running_containers += 1
-                    else:
-                        stopped_containers += 1
-                elif fs_exists:
-                    # Count filesystem-only apps as stopped (not running)
-                    total_apps += 1
-                    stopped_containers += 1
-
-            # Optional status filtering: include model row only if any app matches
-            if status_filter:
-                status_match = any(a.get('status') and status_filter in a.get('status') for a in model_apps)
-                if not status_match:
-                    continue
-            filtered_models.append(model)
-            application_grid.append({
-                'model': model,
-                'apps': model_apps,
-                'apps_count': existing_count
-            })
-            try:
-                current_app.logger.debug(f"[apps-grid] model={getattr(model,'canonical_slug','?')} fs_apps={existing_count} total_apps_running={running_containers} total_apps={total_apps}")
-            except Exception:
-                pass
-
-        # Get filter options
-        providers = []
-        try:
-            providers = db.session.query(ModelCapability.provider.distinct()).all()
-            providers = [p[0] for p in providers if p[0]]
-        except Exception:
-            providers = []
-        if not providers and models:
-            # derive from synthetic set
-            providers = sorted({getattr(m, 'provider', 'local') for m in models if getattr(m, 'provider', None)})
-
-        # Build additional context expected by template
-        applications_list = []
-        for entry in application_grid:
-            for app in entry['apps']:
-                if app.get('exists'):
-                    applications_list.append({
-                        'model_slug': entry['model'].canonical_slug,
-                        'app_number': app.get('app_number'),
-                        'status': app.get('status'),
-                        'id': app.get('id')
-                    })
-
-        available_models = [
-            {
-                'slug': m.canonical_slug,
-                'display_name': getattr(m, 'display_name', None) or m.model_name or m.canonical_slug
-            }
-            for m in filtered_models or models
-        ]
-
-        try:
-            analyzed_count = db.session.query(SecurityAnalysis).count()
-        except Exception:
-            analyzed_count = 0
-
-        stats = {
-            'total_applications': total_apps,
-            'running_applications': running_containers,
-            'analyzed_applications': analyzed_count,
-            'unique_models': len(filtered_models or models)
-        }
-
-        # Pagination (on model rows)
-        total_models_count = len(application_grid)
-        start = (page - 1) * per_page
-        end = start + per_page
-        paged_grid = application_grid[start:end]
-        page_count = max(1, (total_models_count + per_page - 1) // per_page)
-
-        # Create pagination object with iter_pages() method
-        pagination = SimplePagination(page, per_page, total_models_count, paged_grid)
-
-        # Unified context for applications overview. Ensures new base layout flags are present
-        # even if older code paths forget to set them.
-        context = {
-            'application_grid': paged_grid,
-            'total_apps': total_apps,
-            'running_containers': running_containers,
-            'stopped_containers': stopped_containers,
-            'total_models': total_models_count,
-            'providers': providers,
-            'applications': applications_list,
-            'total_count': total_apps,
-            'available_models': available_models,
-            'stats': stats,
-            'applications_stats': stats,  # Template compatibility alias
-            'current_filters': {
-                'model': model_filter,
-                'provider': provider_filter,
-                'search': search_filter,
-                'status': status_filter,
-                'sort': sort_field,
-                'page': page,
-                'per_page': per_page,
-                'page_count': page_count
-            },
-            'pagination': pagination,
-            'active_page': 'applications',  # navbar highlight
-            'has_right_sidebar': True       # required for correct two-column layout
-        }
-        try:
-            current_app.logger.debug(f"[apps-grid] final_stats total_apps={total_apps} models={len(models)}")
-        except Exception:
-            pass
+        context = build_applications_context()
         return render_template('pages/applications/applications_main.html', **context)
-
     except Exception as e:
         current_app.logger.error(f"Error loading applications: {e}")
         flash(f"Error loading applications: {e}", "error")
@@ -477,6 +370,18 @@ def _render_applications_page():
             running_containers=0, stopped_containers=0,
             current_filters={}, providers=[], error=str(e)
         )
+
+@models_bp.route('/')
+def models_index():
+    """Legacy models index → redirect to main models overview page."""
+    from flask import redirect, url_for
+    return redirect(url_for('main.models_overview'))
+
+@models_bp.route('/models_overview')
+def models_overview():
+    """Compatibility endpoint name used by some templates; delegate to main."""
+    from flask import redirect, url_for
+    return redirect(url_for('main.models_overview'))
 
 
 @models_bp.route('/application/<model_slug>/<int:app_number>')
@@ -1063,8 +968,8 @@ def _render_application_section(model_slug: str, app_number: int, section: str):
                 docker_mgr = ServiceLocator.get_docker_manager()
                 if docker_mgr:
                     # Get container information
-                    containers = docker_mgr.get_project_containers(model_slug, app_number)
-                    docker_diag = docker_mgr.debug_compose_resolution(model_slug, app_number)
+                    containers = docker_mgr.get_project_containers(model_slug, app_number)  # type: ignore[attr-defined]
+                    docker_diag = docker_mgr.debug_compose_resolution(model_slug, app_number)  # type: ignore[attr-defined]
                     ctx['container_info'] = {
                         'containers': containers,
                         'containers_found': len(containers),
@@ -1269,15 +1174,11 @@ def application_ports_diagnostics(model_slug, app_number):
 def model_apps(model_slug):
     """View applications for a specific model."""
     try:
-        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first_or_404()
-        apps = GeneratedApplication.query.filter_by(model_slug=model_slug).all()
-
-        return render_template(
-            # Removed legacy 'pages/applications/index.html' reference (deprecated layout)
-            model=model,
-            apps=apps,
-            page_title=f"{model.display_name} Applications"
-        )
+        # Route now serves as a compatibility alias. Redirect to Applications page
+        # with model filter applied so the UI reflects the requested model.
+        _ = ModelCapability.query.filter_by(canonical_slug=model_slug).first_or_404()
+        from flask import redirect, url_for
+        return redirect(url_for('main.applications_index', model=model_slug))
     except Exception as e:
         current_app.logger.error(f"Error loading model apps for {model_slug}: {e}")
         flash(f'Error loading applications: {str(e)}', 'error')

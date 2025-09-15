@@ -10,14 +10,7 @@
           <option value="100">100</option>
         </select>
       </label>
-      <div class="btn-group btn-group-sm" role="group" aria-label="View mode">
-        <button type="button" class="btn btn-outline-secondary active" id="view-table" onclick="setApplicationsView('table')">
-          <i class="fas fa-table"></i> Table
-        </button>
-        <button type="button" class="btn btn-outline-secondary" id="view-grid" onclick="setApplicationsView('grid')">
-          <i class="fas fa-th"></i> Grid
-        </button>
-      </div>
+      <!-- Grid view removed -->
       <span class="text-muted" id="applications-source-indicator"></span>
     </div>
     <div class="d-flex align-items-center gap-2">
@@ -501,17 +494,7 @@ function updateSelectionIndicator() {
   }
 }
 
-// View mode functions
-function setApplicationsView(viewMode) {
-  // Toggle button states
-  document.getElementById('view-table').classList.toggle('active', viewMode === 'table');
-  document.getElementById('view-grid').classList.toggle('active', viewMode === 'grid');
-  
-  // TODO: Implement grid view
-  if (viewMode === 'grid') {
-    showNotification('Grid view coming soon', 'info');
-  }
-}
+// Grid view removed
 
 // Pagination functions
 function changeApplicationsPage(page) { if (window.applyApplicationFilters) { applyApplicationFilters({page}); } }
