@@ -1,20 +1,106 @@
-{# Unified Analysis Tasks Table with batch actions #}
-<div class="card mb-3 analysis-table-card d-flex flex-column">
-  <div class="card-header py-2 d-flex flex-wrap gap-2 align-items-center justify-content-between small">
-    <div class="d-flex flex-wrap align-items-center gap-2">
-      <span class="fw-medium">Tasks</span>
-      <span class="text-muted" id="analysis-selection-indicator"></span>
+{# Unified Analysis Tasks Table with full header and batch actions #}
+<div id="tasks-table-section">
+  <div class="card mb-3 analysis-table-card d-flex flex-column">
+    <div class="card-header py-2 d-flex flex-wrap gap-2 align-items-center justify-content-between small">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <h2 class="h4 mb-0 d-flex align-items-center gap-2"><i class="fa-solid fa-tasks"></i> Analysis Tasks</h2>
+        <a href="/analysis/create" class="btn btn-primary btn-sm"><i class="fa fa-plus me-1"></i> New Analysis</a>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2 ms-auto">
+        <form id="main-task-filter-form" class="d-flex flex-wrap align-items-center gap-2"
+              hx-get="/analysis/api/tasks/inspect/list"
+              hx-target="#tasks-table-section"
+              hx-trigger="change from:.tasks-filter, keyup delay:400ms from:input[name='search']">
+
+          {# Status #}
+          <label class="d-flex align-items-center gap-1 mb-0">
+            <span class="text-muted">Status</span>
+            {% set status_val = request.args.get('status') if request else '' %}
+            <select name="status" class="form-select form-select-sm w-auto tasks-filter" title="Filter by status">
+              <option value="">All</option>
+              {% for s in ['PENDING','RUNNING','COMPLETED','FAILED'] %}
+                <option value="{{ s }}" {% if status_val == s %}selected{% endif %}>{{ s|capitalize }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          {# Type #}
+          <label class="d-flex align-items-center gap-1 mb-0">
+            <span class="text-muted">Type</span>
+            {% set type_val = request.args.get('analysis_type') if request else '' %}
+            <select name="analysis_type" class="form-select form-select-sm w-auto tasks-filter" title="Filter by analysis type">
+              <option value="">All</option>
+              {% if analysis_types %}
+                {% for at in analysis_types %}
+                  <option value="{{ at }}" {% if type_val == at %}selected{% endif %}>{{ at }}</option>
+                {% endfor %}
+              {% else %}
+                {% for at in ['security','performance','compatibility','lint'] %}
+                  <option value="{{ at }}" {% if type_val == at %}selected{% endif %}>{{ at|capitalize }}</option>
+                {% endfor %}
+              {% endif %}
+            </select>
+          </label>
+
+          {# Priority #}
+          <label class="d-flex align-items-center gap-1 mb-0">
+            <span class="text-muted">Priority</span>
+            {% set pr_val = request.args.get('priority') if request else '' %}
+            <select name="priority" class="form-select form-select-sm w-auto tasks-filter" title="Filter by priority">
+              <option value="">All</option>
+              {% for p in ['LOW','NORMAL','HIGH'] %}
+                <option value="{{ p }}" {% if pr_val == p %}selected{% endif %}>{{ p|capitalize }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          {# Model #}
+          <label class="d-flex align-items-center gap-1 mb-0">
+            <span class="text-muted">Model</span>
+            <input type="text" name="model" class="form-control form-control-sm tasks-filter" placeholder="model slug" value="{{ request.args.get('model','') if request else '' }}">
+          </label>
+
+          {# Search #}
+          <div class="input-group input-group-sm w-auto">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+            <input type="text" name="search" class="form-control" placeholder="task id/name" value="{{ request.args.get('search','') if request else '' }}">
+            <button class="btn btn-outline-secondary" type="button" onclick="this.closest('form').querySelector('input[name=search]').value=''; htmx.trigger(this.closest('form'), 'change')" title="Clear">
+              <i class="fas fa-xmark"></i>
+            </button>
+          </div>
+
+          {# Limit #}
+          <label class="d-flex align-items-center gap-1 mb-0">
+            <span class="text-muted">Limit</span>
+            {% set limit_val = request.args.get('per_page', '25') if request else '25' %}
+            <select name="per_page" class="form-select form-select-sm w-auto tasks-filter" title="Result limit">
+              {% for n in [25,50,100] %}
+                <option value="{{ n }}" {% if limit_val|string == n|string %}selected{% endif %}>{{ n }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <div class="btn-group btn-group-sm" role="group">
+            <button type="submit" class="btn btn-primary"><i class="fa fa-filter me-1"></i>Apply</button>
+            <button type="reset" class="btn btn-outline-secondary" onclick="this.form.reset(); htmx.trigger(this.form,'change')">Reset</button>
+            <button type="button" class="btn btn-outline-primary" title="Refresh" hx-get="/analysis/api/tasks/inspect/list" hx-target="#tasks-table-section" hx-include="#main-task-filter-form">
+              <i class="fas fa-sync"></i>
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
-    <div class="d-flex align-items-center gap-2">
-  <button class="btn btn-outline-primary btn-sm" onclick="refreshAnalysisTasks()" title="Refresh tasks"><i class="fas fa-sync"></i></button>
-      <div class="btn-group btn-group-sm" role="group" aria-label="Batch actions">
+    
+    {# Batch actions section #}
+    <div class="px-2 pb-2 pt-1 small d-flex flex-wrap gap-2 align-items-center">
+      <span class="text-muted" id="analysis-selection-indicator"></span>
+      <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Batch actions">
         <button type="button" class="btn btn-outline-danger" id="analysis-batch-delete-btn" disabled
                 onclick="batchDeleteSelectedTasks()" title="Delete selected completed/failed tasks">
-          <i class="fas fa-trash"></i>
+          <i class="fas fa-trash me-1"></i>Delete Selected
         </button>
       </div>
     </div>
-  </div>
   <div class="card-body p-0 d-flex flex-column flex-grow-1">
     {% if tasks and tasks|length > 0 %}
     <div class="table-responsive flex-grow-1" id="analysis-tasks-table-scroll">
@@ -77,6 +163,12 @@
             <td class="text-end">
               <div class="btn-group" role="group">
                 <a href="/analysis/tasks/{{ t.task_id }}" class="btn btn-outline-primary btn-sm" title="View details" hx-boost="true"><i class="fas fa-eye"></i></a>
+                {% set st = t.status.value if t.status else t.status %}
+                {% if st in ['running', 'pending'] %}
+                  <button class="btn btn-outline-warning btn-sm" onclick="cancelTask('{{ t.task_id }}')" title="Cancel task"><i class="fas fa-stop"></i></button>
+                {% elif st in ['completed', 'failed', 'cancelled'] %}
+                  <button class="btn btn-outline-danger btn-sm" onclick="deleteTask('{{ t.task_id }}')" title="Delete task"><i class="fas fa-trash"></i></button>
+                {% endif %}
               </div>
             </td>
           </tr>
@@ -85,9 +177,77 @@
       </table>
     </div>
     {% else %}
-      <div class="p-4 text-center text-muted">No tasks match filters.</div>
+      <div class="p-4 text-center text-muted">
+        <i class="fas fa-tasks text-muted mb-3" style="font-size: 3rem;"></i>
+        <h5 class="text-muted">No tasks found</h5>
+        <p class="text-muted mb-3">No analysis tasks match your current filters.</p>
+        <a href="/analysis/create" class="btn btn-primary">
+          <i class="fas fa-plus me-1"></i>Start New Analysis
+        </a>
+      </div>
     {% endif %}
+    
+    {# Pagination footer #}
+    <div class="d-flex flex-wrap justify-content-between align-items-center p-2 border-top small gap-2" id="tasks-pagination-bar">
+      <div id="tasks-page-summary" class="text-muted">
+        {% if tasks %}Showing {{ tasks|length }} tasks{% endif %}
+      </div>
+      <nav aria-label="Tasks pagination" class="ms-auto">
+        {% if pagination and pagination.pages > 1 %}
+        <ul class="pagination pagination-sm mb-0" id="tasks-pagination">
+          {% if pagination.has_prev %}
+          <li class="page-item">
+            <a class="page-link" href="#"
+               hx-get="/analysis/api/tasks/inspect/list?page={{ pagination.prev_num }}"
+               hx-target="#tasks-table-section"
+               hx-include="#main-task-filter-form">Previous</a>
+          </li>
+          {% endif %}
+
+          {% for page_num in pagination.iter_pages() %}
+            {% if page_num %}
+              {% if page_num != pagination.page %}
+              <li class="page-item">
+                <a class="page-link" href="#"
+                   hx-get="/analysis/api/tasks/inspect/list?page={{ page_num }}"
+                   hx-target="#tasks-table-section"
+                   hx-include="#main-task-filter-form">{{ page_num }}</a>
+              </li>
+              {% else %}
+              <li class="page-item active">
+                <span class="page-link">{{ page_num }}</span>
+              </li>
+              {% endif %}
+            {% else %}
+            <li class="page-item disabled">
+              <span class="page-link">…</span>
+            </li>
+            {% endif %}
+          {% endfor %}
+
+          {% if pagination.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="#"
+               hx-get="/analysis/api/tasks/inspect/list?page={{ pagination.next_num }}"
+               hx-target="#tasks-table-section"
+               hx-include="#main-task-filter-form">Next</a>
+          </li>
+          {% endif %}
+        </ul>
+        {% endif %}
+      </nav>
+    </div>
   </div>
+  
+  <style>
+    /* Match applications/models visual style */
+    .card-header .btn i,
+    .card-header .input-group-text i {
+      font-size: 1.05rem;
+      line-height: 1;
+    }
+    #analysis-tasks-table { box-shadow: none; }
+  </style>
 </div>
 
 <script>
@@ -143,5 +303,57 @@ function batchDeleteSelectedTasks(){
       refreshAnalysisTasks();
     })
     .catch(()=>{});
+}
+
+// --- Individual task actions ---
+function cancelTask(taskId) {
+  if (!confirm('Cancel this running task?')) return;
+  
+  fetch('/analysis/api/tasks/' + encodeURIComponent(taskId) + '/cancel', {method:'POST'})
+    .then(r=>r.text())
+    .then(html=>{
+      // Show result message
+      showTaskActionResult(html);
+      // Refresh list to show updated status
+      refreshAnalysisTasks();
+    })
+    .catch(e=>{
+      showTaskActionResult('<div class="text-danger small">Error cancelling task</div>');
+    });
+}
+
+function deleteTask(taskId) {
+  if (!confirm('Delete this task permanently?')) return;
+  
+  var formData = new FormData();
+  formData.append('task_ids[]', taskId);
+  
+  fetch('/analysis/api/tasks/batch/delete', {method:'POST', body: formData})
+    .then(r=>r.text())
+    .then(html=>{
+      // Show result message
+      showTaskActionResult(html);
+      // Refresh list
+      refreshAnalysisTasks();
+    })
+    .catch(e=>{
+      showTaskActionResult('<div class="text-danger small">Error deleting task</div>');
+    });
+}
+
+function showTaskActionResult(html) {
+  var card = document.querySelector('.analysis-table-card');
+  if(card){
+    var existing = card.querySelector('.task-action-result');
+    if(existing) existing.remove();
+    var div = document.createElement('div');
+    div.className='task-action-result';
+    div.innerHTML = html;
+    card.insertBefore(div, card.firstChild.nextSibling); // after header
+    // Auto-remove after 3 seconds
+    setTimeout(function() {
+      if(div.parentNode) div.parentNode.removeChild(div);
+    }, 3000);
+  }
 }
 </script>

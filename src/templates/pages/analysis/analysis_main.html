@@ -12,11 +12,7 @@
   </div>
   {% endif %}
   <div id="main-tasks-table-wrapper" class="htmx-indicator-parent" hx-indicator="#global-spinner"
-       {% if not tasks or tasks|length == 0 %}hx-get="/analysis/api/tasks/table" hx-trigger="load" hx-swap="innerHTML"{% endif %}>
-    {% if tasks and tasks|length > 0 %}
-      {% include 'pages/analysis/partials/tasks_table_main.html' %}
-    {% else %}
-      <div class="p-4 text-center text-muted">Loading tasks…</div>
-    {% endif %}
+       hx-get="/analysis/api/tasks/inspect/list" hx-trigger="load" hx-swap="innerHTML">
+    <div class="p-4 text-center text-muted">Loading tasks…</div>
   </div>
 {% endblock %}

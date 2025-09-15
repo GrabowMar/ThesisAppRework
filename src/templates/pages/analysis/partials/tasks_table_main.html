@@ -8,7 +8,7 @@
       </div>
       <div class="d-flex flex-wrap align-items-center gap-2 ms-auto">
         <form id="main-task-filter-form" class="d-flex flex-wrap align-items-center gap-2"
-              hx-get="/analysis/api/tasks/table"
+              hx-get="/analysis/api/tasks/inspect/list"
               hx-target="#tasks-table-section"
               hx-trigger="change from:.tasks-filter, keyup delay:400ms from:input[name='search']">
 
@@ -83,7 +83,7 @@
           <div class="btn-group btn-group-sm" role="group">
             <button type="submit" class="btn btn-primary"><i class="fa fa-filter me-1"></i>Apply</button>
             <button type="reset" class="btn btn-outline-secondary" onclick="this.form.reset(); htmx.trigger(this.form,'change')">Reset</button>
-            <button type="button" class="btn btn-outline-primary" title="Refresh" hx-get="/analysis/api/tasks/table" hx-target="#tasks-table-section" hx-include="#main-task-filter-form">
+            <button type="button" class="btn btn-outline-primary" title="Refresh" hx-get="/analysis/api/tasks/inspect/list" hx-target="#tasks-table-section" hx-include="#main-task-filter-form">
               <i class="fas fa-sync"></i>
             </button>
           </div>
@@ -177,7 +177,7 @@
             {% if pagination.has_prev %}
             <li class="page-item">
               <a class="page-link" href="#"
-                 hx-get="/analysis/api/tasks/table?page={{ pagination.prev_num }}"
+                 hx-get="/analysis/api/tasks/inspect/list?page={{ pagination.prev_num }}"
                  hx-target="#tasks-table-section"
                  hx-include="#main-task-filter-form">Previous</a>
             </li>
@@ -188,7 +188,7 @@
                 {% if page_num != pagination.page %}
                 <li class="page-item">
                   <a class="page-link" href="#"
-                     hx-get="/analysis/api/tasks/table?page={{ page_num }}"
+                     hx-get="/analysis/api/tasks/inspect/list?page={{ page_num }}"
                      hx-target="#tasks-table-section"
                      hx-include="#main-task-filter-form">{{ page_num }}</a>
                 </li>
@@ -207,7 +207,7 @@
             {% if pagination.has_next %}
             <li class="page-item">
               <a class="page-link" href="#"
-                 hx-get="/analysis/api/tasks/table?page={{ pagination.next_num }}"
+                 hx-get="/analysis/api/tasks/inspect/list?page={{ pagination.next_num }}"
                  hx-target="#tasks-table-section"
                  hx-include="#main-task-filter-form">Next</a>
             </li>

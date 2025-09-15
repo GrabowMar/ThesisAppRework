@@ -72,7 +72,7 @@ def api_models_list_options():
                 repo_root = os.path.abspath(os.path.join(current_app.root_path, os.pardir))
                 models_base = os.path.join(repo_root, 'generated')
                 models = [m for m in models if os.path.isdir(os.path.join(models_base, m.canonical_slug))]
-        return render_template('partials/models/_model_options.html', models=models)
+        return render_template('pages/models/partials/_model_options.html', models=models)
     except Exception as e:
         current_app.logger.error(f"Error rendering model options: {e}")
         return '<option value="">All Models</option>', 200

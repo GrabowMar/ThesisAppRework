@@ -440,6 +440,20 @@ def htmx_tasks_inspection_list():
             tasks = []
     return render_template('pages/analysis/partials/inspection_tasks_table.html', tasks=tasks)
 
+@analysis_bp.route('/api/tasks/<task_id>/cancel', methods=['POST'])
+def cancel_single_task(task_id: str):
+    """Cancel a single running/pending task."""
+    try:
+        task = AnalysisTaskService.cancel_task(task_id)
+        if not task:
+            return '<div class="text-danger small">Task not found</div>', 404
+        return '<div class="alert alert-info py-2 mb-2 small">Task cancelled successfully</div>'
+    except ValueError as e:
+        return f'<div class="text-warning small">{e}</div>', 400
+    except Exception as e:
+        current_app.logger.error(f"Error cancelling task {task_id}: {e}")
+        return f'<div class="text-danger small">Error cancelling task: {e}</div>', 500
+
 @analysis_bp.route('/api/tasks/batch/delete', methods=['POST'])
 def batch_delete_tasks():
     """Batch delete (remove) analysis tasks.

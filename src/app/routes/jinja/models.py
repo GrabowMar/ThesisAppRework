@@ -1127,7 +1127,7 @@ def model_actions(model_slug=None):
             ).count()
 
             return render_template(
-                'partials/model_actions.html',
+                'pages/models/partials/model_actions.html',
                 model=model,
                 stats={
                     'applications': app_count,
