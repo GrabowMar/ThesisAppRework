@@ -10,12 +10,12 @@
         "data": {
           "database": "connected",
           "status": "healthy",
-          "timestamp": "2025-09-15T07:22:17.409225+00:00",
+          "timestamp": "2025-09-15T09:58:17.346421+00:00",
           "version": "1.0"
         },
         "message": "Success",
         "success": true,
-        "timestamp": "2025-09-15T07:22:17.409225+00:00"
+        "timestamp": "2025-09-15T09:58:17.346421+00:00"
       }
     },
     "health": {
@@ -40,12 +40,12 @@
       "critical": true,
       "body": {
         "error": "Page Not Found",
-        "error_id": "f11215ecad6745f3850d555b8330d530",
+        "error_id": "7bf8718b919a4ed09715772217d58a71",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/models/all",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-15T07:22:18.472510+00:00"
+        "timestamp": "2025-09-15T09:58:19.302459+00:00"
       }
     },
     "dashboard_stats": {
@@ -55,12 +55,12 @@
       "critical": true,
       "body": {
         "error": "Page Not Found",
-        "error_id": "1221a19f361146f785ac1887cd2172da",
+        "error_id": "f6165a00c92147b4904818914efae01b",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/dashboard/stats",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-15T07:22:18.494352+00:00"
+        "timestamp": "2025-09-15T09:58:19.304608+00:00"
       }
     },
     "system_health": {
@@ -70,12 +70,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "0c234113ee6a43cc89f52cd84a93e2ef",
+        "error_id": "c795265e74214351bc534cbb0dbb031e",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/system/health",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-15T07:22:18.497369+00:00"
+        "timestamp": "2025-09-15T09:58:19.306255+00:00"
       }
     },
     "analysis_stats": {
@@ -103,7 +103,7 @@
           "data": {
             "active_analyses": 0,
             "connected": true,
-            "last_update": "2025-09-15T07:22:18.550065+00:00",
+            "last_update": "2025-09-15T09:58:19.358071+00:00",
             "service": "celery_websocket"
           },
           "preference": "celery",
@@ -123,12 +123,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "0a274976aa0641a9a2cf0a9ceee1e92a",
+        "error_id": "6e69b46daed4432c871dbdd8d283cbf6",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/events/clear",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-15T07:22:18.552795+00:00"
+        "timestamp": "2025-09-15T09:58:19.370717+00:00"
       }
     },
     "ws_start": {
@@ -138,12 +138,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "a38546040b0041cd9f6e20fa0730831d",
+        "error_id": "37083f9fb3d9449683df390202b5c0f9",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/analysis/start",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-15T07:22:18.554800+00:00"
+        "timestamp": "2025-09-15T09:58:19.373227+00:00"
       }
     },
     "ws_analyses": {
@@ -153,12 +153,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "b8400f1537d54046a5a01a175e92ac19",
+        "error_id": "57df4bb38702492189f96ad277481d21",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/analyses",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-15T07:22:19.558498+00:00"
+        "timestamp": "2025-09-15T09:58:20.376939+00:00"
       }
     },
     "ws_events": {
@@ -168,12 +168,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "11ca40205f0843b09db9a8a2b17fdd39",
+        "error_id": "4fb3e64e332f4acaa81e638748f269d4",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/events",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-15T07:22:19.562016+00:00"
+        "timestamp": "2025-09-15T09:58:20.380774+00:00"
       }
     },
     "active_tasks": {

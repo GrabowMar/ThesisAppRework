@@ -315,6 +315,12 @@
 </div>
 
 <script>
+// Ensure selection helper exists before other functions use it
+if (!window.getSelectedApplications) {
+  window.getSelectedApplications = function() {
+    return Array.from(document.querySelectorAll('.app-checkbox:checked')).map(cb => cb.value);
+  };
+}
 // Application action functions
 function performAppAction(modelSlug, appNumber, action) {
   const button = event.target.closest('button, a');

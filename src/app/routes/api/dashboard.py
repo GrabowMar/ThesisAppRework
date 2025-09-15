@@ -5,7 +5,7 @@ Dashboard API routes
 Endpoints for dashboard overview, statistics, and HTMX fragments.
 """
 
-from flask import Blueprint, current_app
+from flask import Blueprint, current_app, jsonify
 from datetime import datetime, timezone, timedelta
 
 from app.extensions import db
@@ -206,6 +206,52 @@ def dashboard_system_health_fragment():
     except Exception as e:
         current_app.logger.error(f"Error rendering system health: {e}")
         return '<div class="text-muted small">Health unavailable</div>'
+
+
+@dashboard_bp.route('/system-stats')
+def dashboard_system_stats():
+    """Compatibility JSON endpoint for live system stats used by dashboard JS.
+
+    Returns counts and basic system resource metrics. If psutil is unavailable,
+    resource metrics will be omitted, but counts will still be provided.
+    """
+    try:
+        counts = {
+            'models': db.session.query(ModelCapability).count(),
+            'applications': db.session.query(GeneratedApplication).count(),
+            'security_analyses': db.session.query(SecurityAnalysis).count(),
+            'performance_tests': db.session.query(PerformanceTest).count(),
+        }
+
+        data = {
+            'counts': counts,
+            'resources': {},
+            'uptime_seconds': 0,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }
+
+        try:
+            import psutil  # type: ignore
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+            mem = psutil.virtual_memory()
+            disk = psutil.disk_usage('/')
+            boot_time = psutil.boot_time()
+            uptime_seconds = int(datetime.now(timezone.utc).timestamp() - boot_time)
+            data['resources'] = {
+                'cpu_percent': cpu_percent,
+                'memory_percent': getattr(mem, 'percent', 0),
+                'disk_percent': getattr(disk, 'percent', 0),
+                'memory_gb': round(getattr(mem, 'total', 0) / 1024**3, 2) if getattr(mem, 'total', 0) else 0,
+                'disk_free_gb': round(getattr(disk, 'free', 0) / 1024**3, 2) if getattr(disk, 'free', 0) else 0,
+            }
+            data['uptime_seconds'] = uptime_seconds
+        except Exception:  # psutil missing or runtime error
+            pass
+
+        return jsonify(data)
+    except Exception as e:  # pragma: no cover
+        current_app.logger.error(f"Error building dashboard system stats: {e}")
+        return jsonify({'error': 'Failed to gather system stats', 'details': str(e)}), 500
 
 
 @dashboard_bp.route('/analyzer-services')

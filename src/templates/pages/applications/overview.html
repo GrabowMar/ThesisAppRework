@@ -20,26 +20,28 @@
 {% endblock %}
 
 {% block right_sidebar %}
-<div class="d-flex flex-column gap-3" id="applications-sidebar">
+{% from 'shared/ui/content_sidebar.html' import content_sidebar %}
+{% call content_sidebar(title='Applications', id='applications-sidebar', icon='fas fa-cubes', collapse_pref_key='apps_sidebar_collapsed') %}
+<div class="d-flex flex-column gap-3">
   {# Header card removed (redundant with standardized header) #}
   <div class="card mini-stats compact-card">
     <div class="card-header py-1"><strong class="fw-semibold small">Stats</strong></div>
     <div class="card-body p-1">
       <div class="stats-icons-row d-flex justify-content-between align-items-center gap-1 position-relative" role="list">
         <div class="stat-icon-btn bg-primary text-white" role="listitem" data-bs-toggle="tooltip" title="Apps: {{ applications_stats.total_applications }}">
-          <i class="fas fa-cubes"></i>
+          <i class="fas fa-rocket"></i>
           <span class="stat-badge badge bg-dark" id="total-applications">{{ applications_stats.total_applications }}</span>
         </div>
         <div class="stat-icon-btn bg-success text-white" role="listitem" data-bs-toggle="tooltip" title="Running: {{ applications_stats.running_applications }}">
-          <i class="fas fa-play"></i>
+          <i class="fas fa-circle-play"></i>
           <span class="stat-badge badge bg-dark" id="running-applications">{{ applications_stats.running_applications }}</span>
         </div>
         <div class="stat-icon-btn bg-info text-white" role="listitem" data-bs-toggle="tooltip" title="Analyzed: {{ applications_stats.analyzed_applications }}">
-          <i class="fas fa-chart-bar"></i>
+          <i class="fas fa-chart-line"></i>
           <span class="stat-badge badge bg-dark" id="analyzed-applications">{{ applications_stats.analyzed_applications }}</span>
         </div>
         <div class="stat-icon-btn bg-warning text-white" role="listitem" data-bs-toggle="tooltip" title="Models: {{ applications_stats.unique_models }}">
-          <i class="fas fa-brain"></i>
+          <i class="fas fa-layer-group"></i>
           <span class="stat-badge badge bg-dark" id="unique-models">{{ applications_stats.unique_models }}</span>
         </div>
       </div>
@@ -151,11 +153,31 @@
     #applications-sidebar .compact-filters .mb-1, #applications-sidebar .compact-filters .mb-0 { margin-bottom:.45rem !important; }
     #applications-sidebar .compact-filters label.form-label { font-size:.65rem; }
   </style>
+  </div>
+  <!-- Actions removed for compact sidebar -->
+  <style>
+    #applications-sidebar .compact-card { border-radius: .4rem; }
+    #applications-sidebar .mini-stats .stats-icons-row { width:100%; }
+    #applications-sidebar .mini-stats .stat-icon-btn { position:relative; flex:1 1 0; display:flex; align-items:center; justify-content:center; height:34px; border-radius:4px; font-size:.9rem; }
+    #applications-sidebar .mini-stats .stat-icon-btn i { pointer-events:none; }
+    #applications-sidebar .mini-stats .stat-badge { position:absolute; bottom:0; right:2px; transform:translateY(50%); font-size:.55rem; padding:.15rem .3rem; }
+    #applications-sidebar .mini-stats .stat-icon-btn.bg-warning { color:#000; }
+    #applications-sidebar #applications-filters-card .form-select,
+    #applications-sidebar #applications-filters-card .form-control { padding:.15rem .35rem; }
+    #applications-sidebar #applications-filters-card .dropdown-menu { max-height:240px; overflow:auto; }
+    #applications-sidebar .compact-filters .mb-1, #applications-sidebar .compact-filters .mb-0 { margin-bottom:.45rem !important; }
+    #applications-sidebar .compact-filters label.form-label { font-size:.65rem; }
+  </style>
 </div>
+{% endcall %}
 {% endblock %}
 
 {% block scripts %}
 <script>
+// Global helper used by batch actions; returns selected app keys
+function getSelectedApplications(){
+  return Array.from(document.querySelectorAll('.app-checkbox:checked')).map(cb=>cb.value);
+}
 // Search functionality
 let searchTimeout;
 function debounceApplicationSearch() {

@@ -1026,6 +1026,45 @@ h1, h2, h3, h4, h5, h6 {
 .right-sticky-scroll { max-height:calc(100vh - (var(--header-height) + 80px)); overflow-y:auto; }
 @media (max-width: 991.98px){ .right-sticky-scroll { max-height:none; overflow:visible; } }
 
+/* Collapsible Right Content Sidebar (shared/ui/content_sidebar.html) */
+/* Floating toggle button: visible on desktop only and when collapsed */
+.content-sidebar-toggle { 
+	position: fixed;
+	right: 12px;
+	top: calc(var(--header-height) + 12px);
+	z-index: 1100;
+	border-radius: 999px;
+	box-shadow: 0 4px 12px rgba(0,0,0,.12);
+	opacity: .9;
+	transition: opacity .15s ease, transform .15s ease;
+	display: none; /* default hidden */
+}
+.content-sidebar-toggle:hover { opacity: 1; transform: translateY(-1px); }
+@media (max-width: 991.98px){ .content-sidebar-toggle { display:none !important; } }
+
+/* Hide inner sidebar panel when collapsed; keep wrapper for toggle anchor */
+.page-wrapper.content-sidebar-collapsed .content-sidebar .content-sidebar-inner { display: none !important; }
+
+/* Grid adjustments when right sidebar is collapsed (desktop) */
+@media (min-width: 992px){
+	/* Collapse the right column to zero width without removing flow, so the toggle can still be fixed-positioned */
+	.page-wrapper.has-right-sidebar.content-sidebar-collapsed .col-lg-3.col-xl-3 {
+		flex: 0 0 0 !important;
+		max-width: 0 !important;
+		padding-left: 0 !important;
+		padding-right: 0 !important;
+		overflow: visible !important;
+	}
+	/* Expand the main column to full width */
+	.page-wrapper.has-right-sidebar.content-sidebar-collapsed .col-lg-9.col-xl-9 {
+		flex: 0 0 100% !important;
+		max-width: 100% !important;
+	}
+}
+
+/* Only show the floating toggle when collapsed (on desktop) */
+.page-wrapper.content-sidebar-collapsed .content-sidebar-toggle { display: inline-flex; align-items:center; justify-content:center; }
+
 
 
 /* Analysis results summary table column sizing */
