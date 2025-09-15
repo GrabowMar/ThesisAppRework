@@ -150,7 +150,7 @@ body.sidebar-collapsed footer.footer { margin-left: var(--sidebar-collapsed-widt
 :root[data-bs-theme='dark'] .sidebar-nav .nav-link:hover { background:#2c3034; color:#fff; }
 /* Remove dark mode solid highlight for active; color handled later */
 :root[data-bs-theme='dark'] .sidebar-nav .nav-link.active { background:transparent; color:#fff; }
-.sidebar-nav .nav-link:hover { background:#495057; color:#fff; transform:translateX(2px); }
+.sidebar-nav .nav-link:hover { background:#495057; color:#fff; }
 .sidebar.collapsed .nav-link:hover { transform:none; }
 .sidebar-nav .nav-link:focus { outline:2px solid var(--color-accent); outline-offset:2px; background:#3e4449; color:#fff; box-shadow:0 0 0 2px rgba(13,110,253,0.25); }
 /* New active styling: underline when expanded, halo when collapsed */
@@ -288,7 +288,6 @@ body.sidebar-collapsed footer.footer { margin-left: var(--sidebar-collapsed-widt
 
 .card:hover {
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-	transform: translateY(-1px);
 }
 
 :root[data-bs-theme='dark'] .card {
@@ -308,7 +307,6 @@ body.sidebar-collapsed footer.footer { margin-left: var(--sidebar-collapsed-widt
 }
 
 .btn:hover {
-	transform: translateY(-1px);
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
@@ -1039,7 +1037,7 @@ h1, h2, h3, h4, h5, h6 {
 	transition: opacity .15s ease, transform .15s ease;
 	display: none; /* default hidden */
 }
-.content-sidebar-toggle:hover { opacity: 1; transform: translateY(-1px); }
+.content-sidebar-toggle:hover { opacity: 1; }
 @media (max-width: 991.98px){ .content-sidebar-toggle { display:none !important; } }
 
 /* Hide inner sidebar panel when collapsed; keep wrapper for toggle anchor */
