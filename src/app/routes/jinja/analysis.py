@@ -294,10 +294,9 @@ def htmx_model_grid_fragment():
     selectable = request.args.get('selectable', 'false').lower() == 'true'
     page = int(request.args.get('page', 1) or 1)
     page_size = min(int(request.args.get('page_size', 12) or 12), 60)
-    models = svc.get_all_models()
-    # Filter logic
-    if provider:
-        models = [m for m in models if getattr(m, 'provider', None) == provider]
+    # Use only used models (models with applications)
+    models = svc.get_used_models(provider=provider)
+    # Apply additional filters
     if capability:
         models = [m for m in models if capability in getattr(m, 'capabilities', [])]
     if price:
@@ -315,6 +314,24 @@ def htmx_model_grid_fragment():
     page_models = models[start:end]
     has_next = end < total
     return render_template('pages/analysis/partials/model_grid_select.html', models=page_models, selectable=selectable, page=page, page_size=page_size, total=total, has_next=has_next)
+
+@analysis_bp.route('/api/models/providers')
+def htmx_model_providers():
+    """Return list of providers that have models with applications (HTMX)."""
+    from app.services.model_service import ModelService
+    svc: ModelService
+    if not hasattr(current_app, 'model_service'):
+        current_app.model_service = ModelService(current_app)  # type: ignore[attr-defined]
+    svc = current_app.model_service  # type: ignore[attr-defined]
+    
+    providers = svc.get_used_providers()
+    
+    # Return as simple HTML options
+    html = '<option value="">All Providers</option>'
+    for provider in providers:
+        html += f'<option value="{provider}">{provider.title()}</option>'
+    
+    return html
 
 # Applications list fragment for wizard (HTMX)
 @analysis_bp.route('/api/models/<model_slug>/applications')

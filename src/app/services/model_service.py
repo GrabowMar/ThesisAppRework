@@ -36,6 +36,27 @@ class ModelService:
             query = query.filter_by(provider=provider)
         return query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
     
+    def get_used_models(self, provider: Optional[str] = None) -> List[ModelCapability]:
+        """Get only models that have generated applications (used models)."""
+        query = (
+            ModelCapability.query
+            .join(GeneratedApplication, ModelCapability.canonical_slug == GeneratedApplication.model_slug)
+            .distinct()
+        )
+        if provider:
+            query = query.filter(ModelCapability.provider == provider)
+        return query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+    
+    def get_used_providers(self) -> List[str]:
+        """Get list of providers that have models with generated applications."""
+        return [
+            provider[0] for provider in 
+            db.session.query(ModelCapability.provider)
+            .join(GeneratedApplication, ModelCapability.canonical_slug == GeneratedApplication.model_slug)
+            .distinct()
+            .order_by(ModelCapability.provider)
+        ]
+    
     def get_model_by_slug(self, canonical_slug: str) -> Optional[ModelCapability]:
         """Get a specific model by its canonical slug."""
         return ModelCapability.query.filter_by(canonical_slug=canonical_slug).first()
@@ -49,8 +70,10 @@ class ModelService:
         return [provider[0] for provider in db.session.query(ModelCapability.provider).distinct()]
     
     def get_model_apps(self, canonical_slug: str) -> List[GeneratedApplication]:
-        """Get all applications for a specific model."""
-        return GeneratedApplication.query.filter_by(model_slug=canonical_slug).all()
+        """Get all applications for a specific model, sorted naturally by app number."""
+        apps = GeneratedApplication.query.filter_by(model_slug=canonical_slug).all()
+        # Sort naturally by app_number (1, 2, 3, ... 10, 11, ... instead of 1, 10, 11, ... 2, 3)
+        return sorted(apps, key=lambda app: app.app_number)
     
     def get_app(self, canonical_slug: str, app_number: int) -> Optional[GeneratedApplication]:
         """Get a specific application."""

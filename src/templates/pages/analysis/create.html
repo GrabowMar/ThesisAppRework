@@ -26,12 +26,9 @@
               <div class="row mb-4">
                 <div class="col-md-4">
                   <label class="form-label">Provider</label>
-                  <select class="form-select" id="provider-filter" _="on change call filterModels()">
-                    <option value="">All Providers</option>
-                    <option value="openai">OpenAI</option>
-                    <option value="anthropic">Anthropic</option>
-                    <option value="google">Google</option>
-                    <option value="meta">Meta</option>
+                  <select class="form-select" id="provider-filter" _="on change call filterModels()"
+                          hx-get="/analysis/api/models/providers" hx-trigger="load" hx-swap="innerHTML">
+                    <option value="">Loading providers...</option>
                   </select>
                 </div>
                 <div class="col-md-4">
@@ -54,7 +51,7 @@
                   </select>
                 </div>
               </div>
-              <div id="model-selection-grid" hx-get="/api/models/grid?selectable=true" hx-trigger="load"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading models...</span></div></div></div>
+              <div id="model-selection-grid" hx-get="/analysis/api/models/grid?selectable=true" hx-trigger="load"><div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading models...</span></div></div></div>
               <div id="selected-model-preview" class="mt-4 u-5790ff" style="display:none;"><div class="alert alert-info"><h6 class="alert-heading">Selected Model</h6><div id="selected-model-details"></div></div></div>
               <div id="step1-error" class="text-danger small d-none mt-2">Please select a model to continue.</div>
             </div></div>
@@ -898,7 +895,7 @@ function loadApplicationsForModel(model) {
     
   // Use HTMX to load applications (fallback to fetch if needed)
   if (window.htmx && htmx.ajax) {
-    htmx.ajax('GET', `/api/models/${encodeURIComponent(model.slug)}/applications`, {
+    htmx.ajax('GET', `/analysis/api/models/${encodeURIComponent(model.slug)}/applications`, {
       target: '#application-selection-list',
       swap: 'innerHTML'
     }).then(() => {
@@ -915,7 +912,7 @@ function loadApplicationsForModel(model) {
     });
   } else {
     console.warn('HTMX not available, falling back to fetch');
-    fetch(`/api/models/${encodeURIComponent(model.slug)}/applications`)
+    fetch(`/analysis/api/models/${encodeURIComponent(model.slug)}/applications`)
       .then(r => r.text())
       .then(html => {
         listContainer.innerHTML = html;
@@ -949,7 +946,7 @@ function cacheAppsFromContainer(modelSlug, container) {
 async function ensureAppsForModel(model) {
   if (modelAppsCache[model.slug]) return;
   try {
-    const resp = await fetch(`/api/models/${encodeURIComponent(model.slug)}/applications?partial=true`);
+    const resp = await fetch(`/analysis/api/models/${encodeURIComponent(model.slug)}/applications?partial=true`);
     const html = await resp.text();
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
@@ -1643,7 +1640,7 @@ function filterModels() {
     `;
     
     if (window.htmx) {
-        htmx.ajax('GET', `/api/models/grid?${params.toString()}`, {
+        htmx.ajax('GET', `/analysis/api/models/grid?${params.toString()}`, {
             target: '#model-selection-grid'
         });
     }
