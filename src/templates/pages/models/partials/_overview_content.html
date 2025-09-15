@@ -10,21 +10,65 @@
 					<option value="100">100</option>
 				</select>
 			</label>
-					<div class="btn-group btn-group-sm" role="group" aria-label="Data source">
-						<button type="button" class="btn btn-outline-secondary active" id="src-db" onclick="setModelsSource('db')">All</button>
-						<button type="button" class="btn btn-outline-secondary" id="src-used" onclick="setModelsSource('used')" title="Locally installed / used">Used</button>
-						<button type="button" class="btn btn-outline-secondary" id="src-openrouter" onclick="setModelsSource('openrouter')">OpenRouter</button>
-					</div>
+			<div class="btn-group btn-group-sm" role="group" aria-label="Data source">
+				<button type="button" class="btn btn-outline-secondary active" id="src-db" onclick="setModelsSource('db')"><i class="fas fa-database me-1"></i>All</button>
+				<button type="button" class="btn btn-outline-secondary" id="src-used" onclick="setModelsSource('used')" title="Locally installed / used"><i class="fas fa-tag me-1"></i>Used</button>
+				<button type="button" class="btn btn-outline-secondary" id="src-openrouter" onclick="setModelsSource('openrouter')"><i class="fas fa-cloud me-1"></i>OpenRouter</button>
+			</div>
 			<span class="text-muted" id="models-source-indicator"></span>
 		</div>
-		<div class="d-flex align-items-center gap-2">
-			<button class="btn btn-outline-primary btn-sm" onclick="refreshModels()"><i class="fas fa-sync"></i></button>
-			<button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#batchOperationsModal" title="Batch actions" onclick="updateBatchSelectionCount()"><i class="fas fa-layer-group"></i></button>
+		<div class="d-flex flex-wrap align-items-center gap-2 ms-auto">
+			<div class="input-group input-group-sm w-auto">
+				<span class="input-group-text"><i class="fas fa-search"></i></span>
+				<input type="text" id="model-search" class="form-control" placeholder="Search models" onkeyup="debounceSearch()" />
+				<button class="btn btn-outline-secondary" onclick="clearSearch()" type="button" title="Clear"><i class="fas fa-xmark"></i></button>
+			</div>
+			<div class="dropdown">
+				<button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" type="button"><i class="fas fa-building me-1"></i>Providers</button>
+				<div class="dropdown-menu p-2 dropdown-menu-end" style="min-width: 220px; max-height: 260px; overflow: auto;">
+					<div class="d-flex justify-content-between align-items-center mb-1 small text-muted"><span>Select providers</span><div><button class="btn btn-link btn-sm p-0" onclick="document.querySelectorAll('.provider-option').forEach(el=>el.checked=true); applyFilters();">All</button><button class="btn btn-link btn-sm p-0 ms-2" onclick="document.querySelectorAll('.provider-option').forEach(el=>el.checked=false); applyFilters();">None</button></div></div>
+					{% for provider in available_providers %}
+					<label class="dropdown-item form-check"><input class="form-check-input provider-option" type="checkbox" value="{{ provider.id }}" id="provider-{{ provider.id }}"><span class="form-check-label">{{ provider.name }}</span></label>
+					{% endfor %}
+				</div>
+			</div>
+			<div class="dropdown">
+				<button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" type="button"><i class="fas fa-bolt me-1"></i>Capabilities</button>
+				<div class="dropdown-menu p-2 dropdown-menu-end" style="min-width: 220px; max-height: 260px; overflow: auto;">
+					{% set capability_options = ['coding','analysis','reasoning','multimodal','language','vision','function_calling','json_mode','streaming'] %}
+					{% for cap in capability_options %}
+					<label class="dropdown-item form-check"><input class="form-check-input capability-option" type="checkbox" value="{{ cap }}" id="cap-{{ cap }}"><span class="form-check-label text-capitalize">{{ cap.replace('_',' ') }}</span></label>
+					{% endfor %}
+				</div>
+			</div>
+			<label class="d-flex align-items-center gap-1 mb-0">
+				<span class="text-muted">Price</span>
+				<select class="form-select form-select-sm w-auto" id="price-filter" onchange="applyFilters()">
+					<option value="">All</option>
+					<option value="free">Free</option>
+					<option value="low">Low</option>
+					<option value="medium">Medium</option>
+					<option value="high">High</option>
+				</select>
+			</label>
+			<div class="btn-group btn-group-sm" role="group" aria-label="Actions">
+				<button class="btn btn-outline-primary" onclick="refreshModels()" title="Refresh"><i class="fas fa-sync"></i></button>
+				<button class="btn btn-outline-secondary" onclick="tagInstalledModels()" title="Tag Installed"><i class="fas fa-tag"></i></button>
+				<button class="btn btn-outline-success" onclick="exportModelsData()" title="Export"><i class="fas fa-download"></i></button>
+				<button class="btn btn-outline-info" onclick="openComparison()" title="Compare"><i class="fas fa-notes-medical"></i></button>
+				<a class="btn btn-primary" href="/models/import" title="Import"><i class="fas fa-upload"></i></a>
+			</div>
 		</div>
 	</div>
+	<div class="px-2 pb-2 pt-1 small d-flex flex-wrap gap-2 align-items-center">
+		<span class="badge bg-primary-lt d-inline-flex align-items-center gap-1"><i class="fas fa-brain"></i><span id="total-models">{{ models_stats.total_models }}</span></span>
+		<span class="badge bg-success-lt d-inline-flex align-items-center gap-1"><i class="fas fa-check-circle"></i><span id="active-models">{{ models_stats.active_models }}</span></span>
+		<span class="badge bg-info-lt d-inline-flex align-items-center gap-1"><i class="fas fa-building"></i><span id="unique-providers">{{ models_stats.unique_providers }}</span></span>
+		<span class="badge bg-warning-lt d-inline-flex align-items-center gap-1 text-dark"><i class="fas fa-dollar-sign"></i><span id="avg-cost"><span>{{ models_stats.avg_cost_per_1k|round(4) }}</span></span></span>
+	</div>
 	<div class="card-body p-0">
-		<div class="table-responsive" style="max-height:70vh; overflow:auto;">
-			<table class="table table-sm table-hover table-striped table-vcenter mb-0" id="models-table">
+		<div class="table-responsive">
+			<table class="table table-sm table-striped table-vcenter mb-0" id="models-table">
         <thead>
           <tr>
             <th class="w-1">
@@ -44,14 +88,14 @@
         </thead>
         <tbody id="models-table-body"></tbody>
       </table>
-    </div>
+		</div>
 		<div class="d-flex flex-wrap justify-content-between align-items-center p-2 border-top small gap-2" id="models-pagination-bar">
 			<div id="models-page-summary" class="text-muted">Page 1</div>
 			<nav aria-label="Models pagination" class="ms-auto">
 				<ul class="pagination pagination-sm mb-0" id="models-pagination"></ul>
 			</nav>
 		</div>
-  </div>
+	</div>
 </div>
 <div id="comparison-panel" class="mt-3"></div>
 <div id="loading-spinner" class="text-center py-4" style="display:none">
@@ -95,4 +139,19 @@
 			</div>
 		</div>
 	</div>
+
+<style>
+	/* Slightly larger toolbar icons for better affordance */
+	.card-header .btn i,
+	.card-header .input-group-text i {
+		font-size: 1.05rem;
+		line-height: 1;
+	}
+	/* Badge icon legibility */
+	.card > .badge i {
+		font-size: .95rem;
+	}
+  /* Remove table elevation/shadow */
+  #models-table { box-shadow: none; }
+</style>
 </div>

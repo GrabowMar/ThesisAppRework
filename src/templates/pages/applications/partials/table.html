@@ -13,22 +13,96 @@
       <!-- Grid view removed -->
       <span class="text-muted" id="applications-source-indicator"></span>
     </div>
-    <div class="d-flex align-items-center gap-2">
-      <button class="btn btn-outline-primary btn-sm" onclick="refreshApplications()" title="Refresh applications">
-        <i class="fas fa-sync"></i>
-      </button>
-      <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#generateAppModal" title="Generate application">
-        <i class="fas fa-plus"></i>
-      </button>
-      <button class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#batchApplicationsModal" title="Batch operations" onclick="updateBatchSelectionCount()">
-        <i class="fas fa-layer-group"></i>
-      </button>
+    <div class="d-flex flex-wrap align-items-center gap-2 ms-auto">
+      <div class="input-group input-group-sm w-auto">
+        <span class="input-group-text"><i class="fas fa-search"></i></span>
+        <input type="text" id="application-search" class="form-control" placeholder="Search applications..." onkeyup="debounceApplicationSearch()" />
+        <button class="btn btn-outline-secondary" onclick="clearApplicationSearch()" type="button" title="Clear search"><i class="fas fa-xmark icon" aria-hidden="true"></i></button>
+      </div>
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" type="button"><i class="fas fa-cube me-1"></i><span id="models-summary">All models</span></button>
+        <div class="dropdown-menu p-2 dropdown-menu-end" style="min-width: 240px; max-height: 260px; overflow:auto;">
+          {% if available_models is defined %}
+          <div class="d-flex justify-content-between align-items-center mb-1 small text-muted">
+            <span>Select models</span>
+            <div>
+              <button class="btn btn-link btn-sm p-0" onclick="document.querySelectorAll('.model-option').forEach(el=>el.checked=true); document.getElementById('model-filter').value = Array.from(document.querySelectorAll('.model-option')).map(cb=>cb.value).join(','); applyApplicationFilters();">All</button>
+              <button class="btn btn-link btn-sm p-0 ms-2" onclick="document.querySelectorAll('.model-option').forEach(el=>el.checked=false); document.getElementById('model-filter').value = ''; applyApplicationFilters();">None</button>
+            </div>
+          </div>
+          {% for model in available_models %}
+          <label class="dropdown-item form-check">
+            <input class="form-check-input model-option" type="checkbox" value="{{ model.slug }}" id="model-{{ model.slug }}">
+            <span class="form-check-label">{{ model.display_name }}</span>
+          </label>
+          {% endfor %}
+          <input type="hidden" id="model-filter" value="" />
+          {% else %}
+            <div class="text-muted small px-1">Model list unavailable</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="dropdown">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" type="button"><i class="fas fa-signal me-1"></i><span id="status-summary">All statuses</span></button>
+        <div class="dropdown-menu p-2 dropdown-menu-end" style="min-width: 220px; max-height: 260px; overflow:auto;">
+          {% set status_options = ['running','stopped','error','pending','not_created'] %}
+          {% for status in status_options %}
+          <label class="dropdown-item form-check">
+            <input class="form-check-input status-option" type="checkbox" value="{{ status }}" id="status-{{ status }}">
+            <span class="form-check-label text-capitalize">{{ status.replace('_',' ') }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      <label class="d-flex align-items-center gap-1 mb-0">
+        <span class="text-muted">Type</span>
+        <select class="form-select form-select-sm w-auto" id="type-filter" onchange="applyApplicationFilters()" title="Filter by application type">
+          <option value="">All</option>
+          <option value="web_app">Web App</option>
+          <option value="api_service">API Service</option>
+          <option value="frontend_only">Frontend Only</option>
+          <option value="cli_tool">CLI Tool</option>
+        </select>
+      </label>
+      <label class="d-flex align-items-center gap-1 mb-0">
+        <span class="text-muted">Ports</span>
+        <select class="form-select form-select-sm w-auto" id="ports-filter" onchange="applyApplicationFilters()" title="Filter by port status">
+          <option value="">All</option>
+          <option value="has_ports">Has Ports</option>
+          <option value="no_ports">No Ports</option>
+          <option value="exposed">Exposed</option>
+          <option value="internal">Internal Only</option>
+        </select>
+      </label>
+      <label class="d-flex align-items-center gap-1 mb-0">
+        <span class="text-muted">Analysis</span>
+        <select class="form-select form-select-sm w-auto" id="analysis-filter" onchange="applyApplicationFilters()" title="Filter by analysis status">
+          <option value="">All</option>
+          <option value="analyzed">Analyzed</option>
+          <option value="not_analyzed">Not Analyzed</option>
+          <option value="pending_analysis">Pending Analysis</option>
+          <option value="analysis_failed">Analysis Failed</option>
+        </select>
+      </label>
+      <div class="btn-group btn-group-sm" role="group">
+        <button class="btn btn-outline-primary" onclick="refreshApplications()" title="Refresh applications"><i class="fas fa-sync"></i></button>
+        <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#generateAppModal" title="Generate application"><i class="fas fa-plus"></i></button>
+        <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#batchApplicationsModal" title="Batch operations" onclick="updateBatchSelectionCount()"><i class="fas fa-layer-group"></i></button>
+      </div>
       <span class="text-muted small" id="applications-selection-indicator"></span>
     </div>
   </div>
+  {% if applications_stats is defined %}
+  <div class="px-2 pb-2 pt-1 small d-flex flex-wrap gap-2 align-items-center">
+    <span class="badge bg-primary-lt d-inline-flex align-items-center gap-1"><i class="fas fa-rocket"></i><span id="total-applications">{{ applications_stats.total_applications }}</span></span>
+    <span class="badge bg-success-lt d-inline-flex align-items-center gap-1"><i class="fas fa-circle-play"></i><span id="running-applications">{{ applications_stats.running_applications }}</span></span>
+    <span class="badge bg-info-lt d-inline-flex align-items-center gap-1"><i class="fas fa-chart-line"></i><span id="analyzed-applications">{{ applications_stats.analyzed_applications }}</span></span>
+    <span class="badge bg-warning-lt d-inline-flex align-items-center gap-1 text-dark"><i class="fas fa-layer-group"></i><span id="unique-models">{{ applications_stats.unique_models }}</span></span>
+  </div>
+  {% endif %}
   <div class="card-body p-0 d-flex flex-column flex-grow-1">
     <div class="table-responsive apps-table-scroll flex-grow-1" id="applications-table-scroll">
-      <table class="table table-sm table-hover table-striped table-vcenter mb-0" id="applications-table">
+  <table class="table table-sm table-striped table-vcenter mb-0" id="applications-table">
         <thead>
           <tr>
             <th class="w-1">
@@ -526,6 +600,27 @@ document.addEventListener('change', function(evt) {
     updateBatchSelectionCount();
   }
 });
+
+// Rebind filter checkbox change handlers on load and after HTMX swaps
+function bindApplicationHeaderFilterEvents(){
+  document.querySelectorAll('.model-option, .status-option').forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+      if (this.classList.contains('model-option')) {
+        const selected = Array.from(document.querySelectorAll('.model-option:checked')).map(cb => cb.value).join(',');
+        const hidden = document.getElementById('model-filter');
+        if (hidden) hidden.value = selected;
+      }
+      if (typeof applyApplicationFilters === 'function') applyApplicationFilters();
+    });
+  });
+  if (typeof updateFilterSummaries === 'function') updateFilterSummaries();
+}
+document.addEventListener('DOMContentLoaded', bindApplicationHeaderFilterEvents);
+document.body.addEventListener('htmx:afterSwap', function(e){
+  if (e.target && e.target.id === 'applications-table-section') {
+    setTimeout(bindApplicationHeaderFilterEvents, 10);
+  }
+});
 </script>
 
 <style>
@@ -534,14 +629,18 @@ document.addEventListener('change', function(evt) {
   color: #206bc4; 
 }
 
-#applications-table { 
-  box-shadow: var(--tblr-shadow, 0 1px 2px rgba(0,0,0,.04)); 
-}
+/* Remove table elevation/shadow */
+#applications-table { box-shadow: none; }
 
-.applications-table-card { min-height: 40vh; }
-.apps-table-scroll { overflow:auto; }
-body, html { height:100%; }
-/* Dynamic height will be applied with JS; fallback keeps natural flow */
+.applications-table-card { min-height: 30vh; }
+.apps-table-scroll { overflow: visible; }
+
+/* Larger header icons per request */
+.card-header .btn i,
+.card-header .input-group-text i {
+  font-size: 1.05rem;
+  line-height: 1;
+}
 
 .d-none { 
   display: none !important; 
@@ -581,21 +680,4 @@ body, html { height:100%; }
 }
 </style>
 
-<script>
-// Dynamic table height: fill available viewport minus offsets.
-function resizeApplicationsTable() {
-  const scroll = document.getElementById('applications-table-scroll');
-  if (!scroll) return;
-  const rect = scroll.getBoundingClientRect();
-  const viewportH = window.innerHeight;
-  // Allow 16px breathing room
-  const desired = viewportH - rect.top - 16; 
-  if (desired > 200) {
-    scroll.style.maxHeight = desired + 'px';
-  }
-}
-window.addEventListener('resize', resizeApplicationsTable);
-document.addEventListener('DOMContentLoaded', resizeApplicationsTable);
-// Also after HTMX swaps
-document.body.addEventListener('htmx:afterSwap', function(evt){ if (evt.target.id === 'applications-table-section') setTimeout(resizeApplicationsTable,10); });
-</script>
+<!-- Removed dynamic height scripting to let table adjust naturally to pagination -->
