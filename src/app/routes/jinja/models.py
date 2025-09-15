@@ -223,7 +223,7 @@ def model_more_info(model_slug):
             current_app.logger.warning(f"Failed to compute live counts for {model_slug}: {e}")
 
         return render_template(
-            'partials/models/more_info_modal_body.html',
+            'pages/models/partials/more_info_modal_body.html',
             model=payload,
             model_slug=model_slug
         )
