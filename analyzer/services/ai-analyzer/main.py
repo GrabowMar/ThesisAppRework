@@ -208,6 +208,219 @@ Provide structured analysis with specific recommendations.'''
                 'config_used': openrouter_config
             }
     
+    async def analyze_with_gpt4all(self, prompt: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Analyze code using local GPT4All model with custom configuration."""
+        gpt4all_config = config.get('gpt4all', {}) if config else {}
+        
+        try:
+            # GPT4All configuration
+            api_url = gpt4all_config.get('api_url', os.getenv('GPT4ALL_API_URL', 'http://localhost:4891/v1'))
+            preferred_model = gpt4all_config.get('preferred_model', 'Llama 3 8B Instruct')
+            max_tokens = gpt4all_config.get('max_tokens', 4000)
+            temperature = gpt4all_config.get('temperature', 0.1)
+            timeout = gpt4all_config.get('timeout', 120)
+            
+            # Available models preference order
+            preferred_models = [
+                "Llama 3 8B Instruct",
+                "DeepSeek-R1-Distill-Qwen-7B", 
+                "Nous Hermes 2 Mistral DPO",
+                "GPT4All Falcon",
+                "Mistral 7B Instruct"
+            ]
+            
+            # Check server availability
+            try:
+                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
+                    async with session.get(f"{api_url}/models") as response:
+                        if response.status != 200:
+                            return {
+                                'status': 'error',
+                                'error': 'GPT4All server not available',
+                                'config_used': gpt4all_config
+                            }
+                        
+                        models_data = await response.json()
+                        available_models = []
+                        for model in models_data.get('data', []):
+                            if isinstance(model, dict) and 'id' in model:
+                                available_models.append(model['id'])
+                            elif isinstance(model, str):
+                                available_models.append(model)
+                        
+                        # Select best available model
+                        model_to_use = preferred_model
+                        if preferred_model and preferred_model in available_models:
+                            model_to_use = preferred_model
+                        else:
+                            for model in preferred_models:
+                                if model in available_models:
+                                    model_to_use = model
+                                    break
+                            else:
+                                if available_models:
+                                    model_to_use = available_models[0]
+                                else:
+                                    model_to_use = "Llama 3 8B Instruct"
+                        
+                        self.log.info(f"Using GPT4All model: {model_to_use}")
+                        
+            except Exception as e:
+                return {
+                    'status': 'error',
+                    'error': f'Failed to connect to GPT4All server: {str(e)}',
+                    'config_used': gpt4all_config
+                }
+            
+            # Prepare system prompt for code analysis
+            system_prompt = gpt4all_config.get('system_prompt', '''You are an expert code reviewer focused on determining if code meets specific requirements.
+Analyze the provided code and determine if it satisfies the given requirement.
+Focus on concrete evidence in the code, not assumptions.
+Some code may be summarized or simplified - look for key patterns and functionality.
+Respond with JSON containing only the following fields:
+{
+  "met": true/false,
+  "confidence": "HIGH"/"MEDIUM"/"LOW",
+  "explanation": "Brief explanation with specific code evidence"
+}''')
+            
+            messages = [
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+            
+            payload = {
+                "model": model_to_use,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature
+            }
+            
+            # Make request to GPT4All
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
+                async with session.post(
+                    f"{api_url}/chat/completions",
+                    headers={'Content-Type': 'application/json'},
+                    json=payload
+                ) as response:
+                    
+                    if response.status == 200:
+                        result = await response.json()
+                        
+                        if 'choices' in result and len(result['choices']) > 0:
+                            choice = result['choices'][0]
+                            message = choice['message']
+                            analysis_text = message['content']
+                            
+                            # Try to parse JSON response
+                            try:
+                                # Look for JSON in the response
+                                import re
+                                json_match = re.search(r'```(?:json)?\\s*({.*?})\\s*```', analysis_text, re.DOTALL)
+                                if json_match:
+                                    json_content = json.loads(json_match.group(1))
+                                else:
+                                    json_match = re.search(r'({.*?})', analysis_text, re.DOTALL)
+                                    if json_match:
+                                        json_content = json.loads(json_match.group(1))
+                                    else:
+                                        # Fallback parsing
+                                        json_content = {
+                                            "met": "meets the requirement" in analysis_text.lower() or "requirement is met" in analysis_text.lower(),
+                                            "confidence": "LOW",
+                                            "explanation": analysis_text[:200] + ("..." if len(analysis_text) > 200 else "")
+                                        }
+                                        
+                                return {
+                                    'status': 'success',
+                                    'model': model_to_use,
+                                    'analysis': json_content,
+                                    'raw_response': analysis_text,
+                                    'usage': result.get('usage', {}),
+                                    'timestamp': datetime.now().isoformat(),
+                                    'config_used': gpt4all_config
+                                }
+                                
+                            except json.JSONDecodeError:
+                                # Return raw analysis if JSON parsing fails
+                                return {
+                                    'status': 'success',
+                                    'model': model_to_use,
+                                    'analysis': analysis_text,
+                                    'usage': result.get('usage', {}),
+                                    'timestamp': datetime.now().isoformat(),
+                                    'config_used': gpt4all_config
+                                }
+                        else:
+                            return {
+                                'status': 'error',
+                                'error': 'No response from GPT4All model',
+                                'model': model_to_use,
+                                'config_used': gpt4all_config
+                            }
+                    else:
+                        error_text = await response.text()
+                        return {
+                            'status': 'error',
+                            'error': f'GPT4All API error {response.status}: {error_text}',
+                            'model': model_to_use,
+                            'config_used': gpt4all_config
+                        }
+                        
+        except asyncio.TimeoutError:
+            return {
+                'status': 'timeout',
+                'error': 'GPT4All analysis request timed out',
+                'model': gpt4all_config.get('preferred_model', 'Llama 3 8B Instruct'),
+                'config_used': gpt4all_config
+            }
+        except Exception as e:
+            return {
+                'status': 'error',
+                'error': f'GPT4All analysis failed: {str(e)}',
+                'model': gpt4all_config.get('preferred_model', 'Llama 3 8B Instruct'),
+                'config_used': gpt4all_config
+            }
+    
+    def _fallback_analyze_code(self, requirement: str, code: str, is_frontend: bool) -> Dict[str, Any]:
+        """Fallback analysis using basic pattern matching when AI unavailable."""
+        self.log.info(f"Using fallback analysis for {'frontend' if is_frontend else 'backend'} code")
+        
+        req_lower = requirement.lower()
+        
+        result = {
+            "met": False,
+            "confidence": "LOW",
+            "explanation": f"Fallback analysis: Unable to analyze with AI API. Basic pattern matching used."
+        }
+        
+        if is_frontend:
+            # Basic frontend pattern matching
+            if any(term in req_lower for term in ['form', 'input', 'submit']):
+                result["met"] = any(term in code.lower() for term in ['<form', 'input', 'submit', 'button'])
+            elif any(term in req_lower for term in ['navigation', 'menu', 'nav']):
+                result["met"] = any(term in code.lower() for term in ['nav', 'menu', 'header', 'sidebar'])
+            elif any(term in req_lower for term in ['responsive', 'mobile']):
+                result["met"] = any(term in code.lower() for term in ['@media', 'mobile', 'responsive', 'grid', 'flex'])
+        else:
+            # Basic backend pattern matching
+            if any(term in req_lower for term in ['database', 'db', 'sql']):
+                result["met"] = any(term in code.lower() for term in ['database', 'db', 'sql', 'query', 'select', 'insert'])
+            elif any(term in req_lower for term in ['api', 'endpoint', 'route']):
+                result["met"] = any(term in code.lower() for term in ['@app.route', 'def ', 'api', 'endpoint', 'get', 'post'])
+            elif any(term in req_lower for term in ['authentication', 'auth', 'login']):
+                result["met"] = any(term in code.lower() for term in ['auth', 'login', 'password', 'token', 'session'])
+        
+        if result["met"]:
+            result["confidence"] = "MEDIUM"
+        return result
+    
     async def analyze_code_structure(self, files_content: Dict[str, str]) -> Dict[str, Any]:
         """Analyze code structure and patterns."""
         try:

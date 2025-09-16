@@ -27,7 +27,9 @@ RUN npm install -g \
     eslint-plugin-react \
     eslint-plugin-vue \
     stylelint \
-    stylelint-config-standard
+    stylelint-config-standard \
+    jshint \
+    snyk
 
 # Create non-root user
 RUN useradd -u 1000 -m analyzer

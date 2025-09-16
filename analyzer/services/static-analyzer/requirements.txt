@@ -3,4 +3,7 @@ bandit>=1.7.5
 safety>=3.0.0
 pylint>=3.0.0
 mypy>=1.6.0
+semgrep>=1.45.0
+vulture>=2.7
 requests>=2.31.0
+PyYAML>=6.0

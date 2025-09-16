@@ -2,3 +2,4 @@ websockets>=12.0
 locust>=2.17.0
 aiohttp>=3.9.0
 statistics>=1.0.3
+PyYAML>=6.0

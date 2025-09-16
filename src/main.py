@@ -31,6 +31,21 @@ def main():
     src_dir = Path(__file__).parent
     sys.path.insert(0, str(src_dir))
     
+    # Ensure stdout/stderr are UTF-8 encoded to support Unicode banners on Windows
+    try:
+        # Use getattr to keep type-checkers happy even if the wrapper doesn't expose reconfigure
+        _reconf_out = getattr(sys.stdout, "reconfigure", None)
+        if callable(_reconf_out):
+            _reconf_out(encoding="utf-8", errors="replace")
+        _reconf_err = getattr(sys.stderr, "reconfigure", None)
+        if callable(_reconf_err):
+            _reconf_err(encoding="utf-8", errors="replace")
+        os.environ.setdefault("PYTHONUTF8", "1")
+        os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+    except Exception:
+        # Non-fatal if we can't reconfigure; we'll use a safe banner fallback below
+        pass
+    
     # Import after path setup
     from app.factory import create_app
     # Run generated content migration (best-effort)
@@ -59,8 +74,9 @@ def main():
         logger.error(f"Failed to create Flask application: {e}")
         return 1
     
-    # Print startup information
-    print(f"""
+    # Print startup information with a Unicode banner; fall back to ASCII if needed
+    try:
+        print(f"""
 ╔══════════════════════════════════════════════════════════════════════════════╗
 ║                           Thesis App - AI Model Analyzer                     ║
 ╠══════════════════════════════════════════════════════════════════════════════╣
@@ -90,7 +106,16 @@ def main():
 ║  Auto-start: {str(app.config.get('ANALYZER_AUTO_START', False)):<5}                                                ║
 ║  Location: ../analyzer/analyzer_manager.py                                   ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
-    """)
+        """)
+    except Exception:
+        print(
+            "Thesis App - AI Model Analyzer\n"
+            f"Environment: {config_name} | Debug: {debug}\n"
+            f"Host: {host} | Port: {port}\n"
+            "Features: Celery integration, Analyzer services, Real-time results, Batch processing\n"
+            "Endpoints: /health, /api/tasks/status, /api/tasks/history, /api/analyzer/*\n"
+            f"Analyzer Auto-start: {app.config.get('ANALYZER_AUTO_START', False)} | Location: ../analyzer/analyzer_manager.py\n"
+        )
     
     # Start the application
     try:

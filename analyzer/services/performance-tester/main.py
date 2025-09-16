@@ -47,6 +47,16 @@ class PerformanceTester(BaseWSService):
         except Exception as e:
             self.log.debug(f"Apache Bench not available: {e}")
         
+        # Check for Artillery
+        try:
+            result = subprocess.run(['artillery', '--version'], 
+                                  capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                tools.append('artillery')
+                self.log.debug("Artillery available")
+        except Exception as e:
+            self.log.debug(f"Artillery not available: {e}")
+        
         # Check for wget
         try:
             result = subprocess.run(['wget', '--version'], 
@@ -513,6 +523,173 @@ class PerformanceTester(BaseWSService):
             await self.send_progress('error', f'Concurrent load test error: {e}', url=url)
             return {'status': 'error', 'error': str(e)}
     
+    async def load_test_with_artillery(self, url: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Perform load testing using Artillery with custom configuration."""
+        try:
+            if 'artillery' not in self.available_tools:
+                return {'status': 'tool_unavailable', 'message': 'Artillery not available'}
+            
+            # Get configuration parameters
+            artillery_config = config.get('artillery', {}) if config else {}
+            
+            # Artillery configuration
+            users = artillery_config.get('users', 100)
+            spawn_rate = artillery_config.get('spawn_rate', 10)
+            duration = artillery_config.get('duration', 60)
+            target = artillery_config.get('target', url)
+            
+            self.log.info(f"Load testing {url} with Artillery ({users} users, {spawn_rate}/s spawn rate, {duration}s duration)")
+            await self.send_progress('artillery_start', f'Artillery load test start: {url}', url=url,
+                                 users=users, spawn_rate=spawn_rate, duration=duration)
+            
+            # Create temporary Artillery config file
+            import tempfile
+            import yaml
+            
+            artillery_config_data = {
+                'config': {
+                    'target': target,
+                    'phases': [
+                        {
+                            'name': artillery_config.get('phase_name', 'Load Test'),
+                            'duration': duration,
+                            'arrivalRate': spawn_rate,
+                            'maxVusers': users
+                        }
+                    ]
+                },
+                'scenarios': [
+                    {
+                        'flow': [
+                            {
+                                'get': {
+                                    'url': artillery_config.get('endpoint', '/')
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+            
+            # Add custom scenarios if provided
+            if artillery_config.get('scenarios'):
+                artillery_config_data['scenarios'] = artillery_config['scenarios']
+            
+            # Add processor if provided
+            if artillery_config.get('processor'):
+                artillery_config_data['config']['processor'] = artillery_config['processor']
+            
+            # Create temporary config file
+            config_file = None
+            output_file = None
+            try:
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
+                    yaml.dump(artillery_config_data, f, indent=2)
+                    config_file = f.name
+                
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                    output_file = f.name
+                
+                # Build Artillery command
+                cmd = [
+                    'artillery', 'run',
+                    '--output', output_file,
+                    config_file
+                ]
+                
+                # Add additional Artillery options
+                if artillery_config.get('quiet'):
+                    cmd.append('--quiet')
+                
+                if artillery_config.get('overrides'):
+                    for key, value in artillery_config['overrides'].items():
+                        cmd.extend(['--overrides', f'{key}={value}'])
+                
+                self.log.info(f"Running Artillery: {' '.join(cmd)}")
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=duration + 120)
+                
+                if result.returncode == 0:
+                    # Parse Artillery JSON output
+                    artillery_results = {}
+                    try:
+                        with open(output_file, 'r') as f:
+                            artillery_data = json.load(f)
+                            
+                        # Extract metrics from Artillery output
+                        aggregate = artillery_data.get('aggregate', {})
+                        
+                        artillery_results = {
+                            'scenarios_created': aggregate.get('scenariosCreated', 0),
+                            'scenarios_completed': aggregate.get('scenariosCompleted', 0),
+                            'requests_completed': aggregate.get('requestsCompleted', 0),
+                            'latency': {
+                                'min': aggregate.get('latency', {}).get('min', 0),
+                                'max': aggregate.get('latency', {}).get('max', 0),
+                                'median': aggregate.get('latency', {}).get('median', 0),
+                                'p95': aggregate.get('latency', {}).get('p95', 0),
+                                'p99': aggregate.get('latency', {}).get('p99', 0)
+                            },
+                            'rps': {
+                                'count': aggregate.get('rps', {}).get('count', 0),
+                                'mean': aggregate.get('rps', {}).get('mean', 0)
+                            },
+                            'scenario_duration': {
+                                'min': aggregate.get('scenarioDuration', {}).get('min', 0),
+                                'max': aggregate.get('scenarioDuration', {}).get('max', 0),
+                                'median': aggregate.get('scenarioDuration', {}).get('median', 0),
+                                'p95': aggregate.get('scenarioDuration', {}).get('p95', 0),
+                                'p99': aggregate.get('scenarioDuration', {}).get('p99', 0)
+                            },
+                            'errors': aggregate.get('errors', {}),
+                            'codes': aggregate.get('codes', {})
+                        }
+                        
+                    except Exception as parse_error:
+                        self.log.warning(f"Could not parse Artillery output: {parse_error}")
+                        artillery_results = {'raw_output': result.stdout}
+                    
+                    await self.send_progress('artillery_done', f'Artillery test completed: {url}', url=url,
+                                         rps=artillery_results.get('rps', {}).get('mean', 0))
+                    return {
+                        'status': 'success',
+                        'tool': 'artillery',
+                        'url': url,
+                        'test_parameters': {
+                            'users': users,
+                            'spawn_rate': spawn_rate,
+                            'duration': duration,
+                            'target': target
+                        },
+                        'results': artillery_results,
+                        'config_used': artillery_config
+                    }
+                else:
+                    await self.send_progress('artillery_error', f'Artillery test error: {url}', url=url, exit_code=result.returncode)
+                    return {
+                        'status': 'error',
+                        'tool': 'artillery',
+                        'error': result.stderr or result.stdout,
+                        'exit_code': result.returncode,
+                        'config_used': artillery_config
+                    }
+            
+            finally:
+                # Cleanup temporary files
+                try:
+                    if config_file and os.path.exists(config_file):
+                        os.unlink(config_file)
+                    if output_file and os.path.exists(output_file):
+                        os.unlink(output_file)
+                except Exception:
+                    pass
+                    
+        except subprocess.TimeoutExpired:
+            await self.send_progress('timeout', f'Artillery test timed out: {url}', url=url)
+            return {'status': 'timeout', 'tool': 'artillery', 'error': 'Load test timed out'}
+        except Exception as e:
+            await self.send_progress('error', f'Artillery test error: {e}', url=url)
+            return {'status': 'error', 'tool': 'artillery', 'error': str(e)}
+    
     async def test_application_performance(self, model_slug: str, app_number: int, target_urls: List[str], config: Optional[Dict[str, Any]] = None, selected_tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Perform comprehensive performance testing on application."""
         try:
@@ -571,6 +748,25 @@ class PerformanceTester(BaseWSService):
                         ab_config = {'apache_bench': {'requests': 50, 'concurrency': 5}}
                         ab_result = await self.load_test_with_ab(effective_url, ab_config)
                         url_results['apache_bench'] = ab_result
+                        if ab_result.get('status') == 'success':
+                            results['tools_used'] = list(set(results['tools_used'] + ['ab']))
+                    
+                    # Artillery test if available
+                    if 'artillery' in self.available_tools and (selected_set is None or 'artillery' in selected_set):
+                        self.log.info(f"Running Artillery test for {effective_url}")
+                        artillery_config = {
+                            'artillery': {
+                                'users': 50,
+                                'spawn_rate': 5,
+                                'duration': 30,
+                                'target': effective_url,
+                                'endpoint': '/'
+                            }
+                        }
+                        artillery_result = await self.load_test_with_artillery(effective_url, artillery_config)
+                        url_results['artillery'] = artillery_result
+                        if artillery_result.get('status') == 'success':
+                            results['tools_used'] = list(set(results['tools_used'] + ['artillery']))
                         results['tools_used'] = list(set(results['tools_used'] + ['ab']))
 
                     # Locust test if available (run only for first URL by default to save time)

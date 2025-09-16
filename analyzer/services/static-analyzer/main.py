@@ -11,6 +11,7 @@ import asyncio
 import json
 import os
 import subprocess
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Set
@@ -32,7 +33,7 @@ class StaticAnalyzer(BaseWSService):
 
     def _detect_available_tools(self) -> List[str]:
         tools: List[str] = []
-        for tool in ['bandit', 'pylint', 'mypy', 'eslint', 'stylelint']:
+        for tool in ['bandit', 'pylint', 'mypy', 'eslint', 'stylelint', 'semgrep', 'snyk', 'safety', 'jshint', 'vulture']:
             try:
                 result = subprocess.run([tool, '--version'], capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
@@ -104,6 +105,10 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         # Get configuration settings
         bandit_config = config.get('bandit', {}) if config else {}
         pylint_config = config.get('pylint', {}) if config else {}
+        mypy_config = config.get('mypy', {}) if config else {}
+        safety_config = config.get('safety', {}) if config else {}
+        vulture_config = config.get('vulture', {}) if config else {}
+        semgrep_config = config.get('semgrep', {}) if config else {}
         
         # Bandit security analysis
         if (
@@ -270,6 +275,259 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 self.log.error(f"Pylint analysis failed: {e}")
                 results['pylint'] = {'tool': 'pylint', 'executed': True, 'status': 'error', 'error': str(e)}
         
+        # Semgrep multi-language security analysis
+        if (
+            'semgrep' in self.available_tools
+            and (selected_tools is None or 'semgrep' in selected_tools)
+            and semgrep_config.get('enabled', True)
+        ):
+            try:
+                cmd = ['semgrep', '--config=auto', '--json', str(source_path)]
+                
+                # Apply configuration
+                if semgrep_config.get('config'):
+                    cmd[1] = f'--config={semgrep_config["config"]}'
+                elif semgrep_config.get('rules'):
+                    if 'security-audit' in semgrep_config['rules']:
+                        cmd[1] = '--config=p/security-audit'
+                    elif 'owasp-top-ten' in semgrep_config['rules']:
+                        cmd[1] = '--config=p/owasp-top-ten'
+                
+                if semgrep_config.get('severity'):
+                    cmd.extend(['--severity', semgrep_config['severity']])
+                
+                if semgrep_config.get('exclude'):
+                    for exclude in semgrep_config['exclude']:
+                        cmd.extend(['--exclude', exclude])
+                
+                if semgrep_config.get('timeout'):
+                    cmd.extend(['--timeout', str(semgrep_config['timeout'])])
+                
+                if semgrep_config.get('max_memory'):
+                    cmd.extend(['--max-memory', str(semgrep_config['max_memory'])])
+                
+                if semgrep_config.get('sarif_output'):
+                    cmd[2] = '--sarif'
+                
+                self.log.info(f"Running Semgrep: {' '.join(cmd)}")
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                
+                if result.stdout:
+                    semgrep_data = json.loads(result.stdout)
+                    total_issues = len(semgrep_data.get('results', []))
+                    
+                    # Calculate severity breakdown
+                    severity_counts = {'ERROR': 0, 'WARNING': 0, 'INFO': 0}
+                    for finding in semgrep_data.get('results', []):
+                        severity = finding.get('extra', {}).get('severity', 'INFO')
+                        severity_counts[severity] = severity_counts.get(severity, 0) + 1
+                    
+                    results['semgrep'] = {
+                        'tool': 'semgrep',
+                        'executed': True,
+                        'status': 'success',
+                        'results': semgrep_data.get('results', []),
+                        'total_issues': total_issues,
+                        'severity_breakdown': severity_counts,
+                        'errors': semgrep_data.get('errors', []),
+                        'paths_scanned': semgrep_data.get('paths', {}),
+                        'config_used': semgrep_config
+                    }
+                else:
+                    results['semgrep'] = {
+                        'tool': 'semgrep',
+                        'executed': True,
+                        'status': 'no_issues',
+                        'total_issues': 0,
+                        'config_used': semgrep_config
+                    }
+            except Exception as e:
+                self.log.error(f"Semgrep analysis failed: {e}")
+                results['semgrep'] = {'tool': 'semgrep', 'executed': True, 'status': 'error', 'error': str(e)}
+        
+        # Mypy type checking
+        if (
+            'mypy' in self.available_tools
+            and (selected_tools is None or 'mypy' in selected_tools)
+            and mypy_config.get('enabled', True)
+            and python_files
+        ):
+            try:
+                cmd = ['mypy', '--show-error-codes', '--no-error-summary']
+                
+                if mypy_config.get('strict'):
+                    cmd.append('--strict')
+                
+                if mypy_config.get('ignore_missing_imports'):
+                    cmd.append('--ignore-missing-imports')
+                
+                if mypy_config.get('config_file'):
+                    cmd.extend(['--config-file', mypy_config['config_file']])
+                
+                # Limit files to prevent timeout
+                max_files = mypy_config.get('max_files', 10)
+                files_to_check = python_files[:max_files]
+                cmd.extend([str(f) for f in files_to_check])
+                
+                self.log.info(f"Running Mypy: {' '.join(cmd[:5])}... ({len(files_to_check)} files)")
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
+                
+                # Process Mypy output into JSON format
+                errors = []
+                for line in result.stdout.splitlines():
+                    if ':' in line and (' error:' in line or ' warning:' in line):
+                        parts = line.strip().split(':', 3)
+                        if len(parts) >= 4:
+                            errors.append({
+                                'file': parts[0],
+                                'line': int(parts[1]) if parts[1].isdigit() else 0,
+                                'column': int(parts[2]) if parts[2].isdigit() else 0,
+                                'message': parts[3].strip(),
+                                'severity': 'error' if ' error:' in line else 'warning'
+                            })
+                
+                results['mypy'] = {
+                    'tool': 'mypy',
+                    'executed': True,
+                    'status': 'success' if errors else 'no_issues',
+                    'results': errors,
+                    'total_issues': len(errors),
+                    'files_analyzed': len(files_to_check),
+                    'summary': {
+                        'total_errors': len([e for e in errors if e['severity'] == 'error']),
+                        'files_checked': len(files_to_check)
+                    },
+                    'config_used': mypy_config
+                }
+            except Exception as e:
+                self.log.error(f"Mypy analysis failed: {e}")
+                results['mypy'] = {'tool': 'mypy', 'executed': True, 'status': 'error', 'error': str(e)}
+        
+        # Safety dependency vulnerability scanning
+        if (
+            'safety' in self.available_tools
+            and (selected_tools is None or 'safety' in selected_tools)
+            and safety_config.get('enabled', True)
+        ):
+            try:
+                cmd = ['safety', 'scan', '--output', 'json']
+                
+                # Check for requirements.txt file
+                requirements_file = source_path / 'requirements.txt'
+                if requirements_file.exists():
+                    cmd.extend(['--file', str(requirements_file)])
+                
+                if safety_config.get('packages'):
+                    cmd.extend(['--packages'] + safety_config['packages'])
+                
+                if safety_config.get('ignore'):
+                    for vuln_id in safety_config['ignore']:
+                        cmd.extend(['--ignore', str(vuln_id)])
+                
+                if safety_config.get('key'):
+                    cmd.extend(['--key', safety_config['key']])
+                
+                self.log.info(f"Running Safety: {' '.join(cmd)}")
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                
+                if result.stdout:
+                    try:
+                        safety_data = json.loads(result.stdout)
+                        vulnerabilities = safety_data.get('vulnerabilities', [])
+                        
+                        results['safety'] = {
+                            'tool': 'safety',
+                            'executed': True,
+                            'status': 'success',
+                            'vulnerabilities': vulnerabilities,
+                            'total_issues': len(vulnerabilities),
+                            'ignored_vulnerabilities': safety_data.get('ignored_vulnerabilities', []),
+                            'metadata': safety_data.get('metadata', {}),
+                            'announcements': safety_data.get('announcements', []),
+                            'config_used': safety_config
+                        }
+                    except json.JSONDecodeError:
+                        # Handle non-JSON output
+                        results['safety'] = {
+                            'tool': 'safety',
+                            'executed': True,
+                            'status': 'completed',
+                            'message': 'Analysis completed',
+                            'output': result.stdout[:1000],
+                            'config_used': safety_config
+                        }
+                else:
+                    results['safety'] = {
+                        'tool': 'safety',
+                        'executed': True,
+                        'status': 'no_issues',
+                        'total_issues': 0,
+                        'config_used': safety_config
+                    }
+            except Exception as e:
+                self.log.error(f"Safety analysis failed: {e}")
+                results['safety'] = {'tool': 'safety', 'executed': True, 'status': 'error', 'error': str(e)}
+        
+        # Vulture dead code detection
+        if (
+            'vulture' in self.available_tools
+            and (selected_tools is None or 'vulture' in selected_tools)
+            and vulture_config.get('enabled', True)
+            and python_files
+        ):
+            try:
+                cmd = ['vulture', str(source_path)]
+                
+                if vulture_config.get('min_confidence'):
+                    cmd.extend(['--min-confidence', str(vulture_config['min_confidence'])])
+                
+                if vulture_config.get('exclude'):
+                    cmd.extend(['--exclude', ','.join(vulture_config['exclude'])])
+                
+                if vulture_config.get('ignore_decorators'):
+                    for decorator in vulture_config['ignore_decorators']:
+                        cmd.extend(['--ignore-decorators', decorator])
+                
+                if vulture_config.get('ignore_names'):
+                    for name in vulture_config['ignore_names']:
+                        cmd.extend(['--ignore-names', name])
+                
+                if vulture_config.get('sort_by_size'):
+                    cmd.append('--sort-by-size')
+                
+                if vulture_config.get('verbose'):
+                    cmd.append('--verbose')
+                
+                self.log.info(f"Running Vulture: {' '.join(cmd)}")
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
+                
+                # Parse Vulture output (it doesn't have native JSON output)
+                dead_code_findings = []
+                if result.stdout:
+                    for line in result.stdout.splitlines():
+                        if ':' in line and ('unused' in line.lower() or 'unreachable' in line.lower()):
+                            # Parse vulture output format: filename:line: message
+                            parts = line.split(':', 2)
+                            if len(parts) >= 3:
+                                dead_code_findings.append({
+                                    'filename': parts[0],
+                                    'line': int(parts[1]) if parts[1].isdigit() else 0,
+                                    'message': parts[2].strip(),
+                                    'confidence': 80  # Default confidence
+                                })
+                
+                results['vulture'] = {
+                    'tool': 'vulture',
+                    'executed': True,
+                    'status': 'success' if dead_code_findings else 'no_issues',
+                    'results': dead_code_findings,
+                    'total_issues': len(dead_code_findings),
+                    'config_used': vulture_config
+                }
+            except Exception as e:
+                self.log.error(f"Vulture analysis failed: {e}")
+                results['vulture'] = {'tool': 'vulture', 'executed': True, 'status': 'error', 'error': str(e)}
+        
         return results
     
     async def analyze_javascript_files(self, source_path: Path, config: Optional[Dict[str, Any]] = None, selected_tools: Optional[Set[str]] = None) -> Dict[str, Any]:
@@ -289,6 +547,8 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         
         results: Dict[str, Any] = {}
         eslint_config = config.get('eslint', {}) if config else {}
+        jshint_config = config.get('jshint', {}) if config else {}
+        snyk_config = config.get('snyk', {}) if config else {}
         
         # ESLint analysis
         if (
@@ -412,6 +672,176 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             except Exception as e:
                 self.log.error(f"ESLint analysis failed: {e}")
                 results['eslint'] = {'tool': 'eslint', 'executed': True, 'status': 'error', 'error': str(e)}
+        
+        # JSHint JavaScript quality analysis
+        if (
+            'jshint' in self.available_tools
+            and (selected_tools is None or 'jshint' in selected_tools)
+            and jshint_config.get('enabled', True)
+            and js_files
+        ):
+            try:
+                cmd = ['jshint', '--reporter', 'json']
+                
+                # Create temporary JSHint config
+                jshint_config_data = {
+                    'esversion': jshint_config.get('esversion', 6),
+                    'strict': jshint_config.get('strict', True),
+                    'undef': jshint_config.get('undef', True),
+                    'unused': jshint_config.get('unused', True),
+                    'curly': jshint_config.get('curly', True),
+                    'eqeqeq': jshint_config.get('eqeqeq', True),
+                    'immed': jshint_config.get('immed', True),
+                    'latedef': jshint_config.get('latedef', True),
+                    'newcap': jshint_config.get('newcap', True),
+                    'noarg': jshint_config.get('noarg', True),
+                    'sub': jshint_config.get('sub', True),
+                    'boss': jshint_config.get('boss', True),
+                    'eqnull': jshint_config.get('eqnull', True),
+                    'browser': jshint_config.get('browser', True),
+                    'node': jshint_config.get('node', True),
+                    'predef': jshint_config.get('predef', ['$', 'jQuery', 'angular'])
+                }
+                
+                import tempfile
+                config_file = None
+                try:
+                    with tempfile.NamedTemporaryFile(mode='w', suffix='.jshintrc', delete=False) as f:
+                        json.dump(jshint_config_data, f, indent=2)
+                        config_file = f.name
+                        cmd.extend(['--config', config_file])
+                except Exception:
+                    pass
+                
+                # Limit files to prevent timeout
+                max_files = jshint_config.get('max_files', 30)
+                files_to_check = js_files[:max_files]
+                cmd.extend([str(f) for f in files_to_check])
+                
+                self.log.info(f"Running JSHint: {' '.join(cmd[:5])}... ({len(files_to_check)} files)")
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                
+                if config_file:
+                    try:
+                        os.unlink(config_file)
+                    except Exception:
+                        pass
+                
+                if result.stdout:
+                    try:
+                        jshint_data = json.loads(result.stdout)
+                        results['jshint'] = {
+                            'tool': 'jshint',
+                            'executed': True,
+                            'status': 'success',
+                            'results': jshint_data,
+                            'total_issues': len(jshint_data) if isinstance(jshint_data, list) else 0,
+                            'files_analyzed': len(files_to_check),
+                            'config_used': jshint_config
+                        }
+                    except json.JSONDecodeError:
+                        results['jshint'] = {
+                            'tool': 'jshint',
+                            'executed': True,
+                            'status': 'completed',
+                            'message': 'Analysis completed',
+                            'output': result.stdout[:500],
+                            'config_used': jshint_config
+                        }
+                else:
+                    results['jshint'] = {
+                        'tool': 'jshint',
+                        'executed': True,
+                        'status': 'no_issues',
+                        'total_issues': 0,
+                        'files_analyzed': len(files_to_check),
+                        'config_used': jshint_config
+                    }
+            except Exception as e:
+                self.log.error(f"JSHint analysis failed: {e}")
+                results['jshint'] = {'tool': 'jshint', 'executed': True, 'status': 'error', 'error': str(e)}
+        
+        # Snyk Code vulnerability analysis
+        if (
+            'snyk' in self.available_tools
+            and (selected_tools is None or 'snyk' in selected_tools)
+            and snyk_config.get('enabled', True)
+        ):
+            try:
+                cmd = ['snyk', 'code', 'test', '--json']
+                
+                if snyk_config.get('severity_threshold'):
+                    cmd.extend(['--severity-threshold', snyk_config['severity_threshold']])
+                
+                if snyk_config.get('org'):
+                    cmd.extend(['--org', snyk_config['org']])
+                
+                if snyk_config.get('project_name'):
+                    cmd.extend(['--project-name', snyk_config['project_name']])
+                
+                if snyk_config.get('exclude'):
+                    for exclude in snyk_config['exclude']:
+                        cmd.extend(['--exclude', exclude])
+                
+                if snyk_config.get('all_projects'):
+                    cmd.append('--all-projects')
+                
+                # Add target directory
+                cmd.append(str(source_path))
+                
+                self.log.info(f"Running Snyk Code: {' '.join(cmd)}")
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                
+                if result.stdout:
+                    try:
+                        snyk_data = json.loads(result.stdout)
+                        total_issues = 0
+                        
+                        # Count issues from SARIF format or direct results
+                        if 'runs' in snyk_data:
+                            for run in snyk_data['runs']:
+                                total_issues += len(run.get('results', []))
+                        elif 'vulnerabilities' in snyk_data:
+                            total_issues = len(snyk_data['vulnerabilities'])
+                        
+                        results['snyk'] = {
+                            'tool': 'snyk',
+                            'executed': True,
+                            'status': 'success',
+                            'results': snyk_data,
+                            'total_issues': total_issues,
+                            'config_used': snyk_config
+                        }
+                    except json.JSONDecodeError:
+                        # Handle authentication or other errors
+                        if 'authenticate' in result.stderr.lower() or 'auth' in result.stderr.lower():
+                            results['snyk'] = {
+                                'tool': 'snyk',
+                                'executed': True,
+                                'status': 'auth_required',
+                                'message': 'Snyk authentication required',
+                                'config_used': snyk_config
+                            }
+                        else:
+                            results['snyk'] = {
+                                'tool': 'snyk',
+                                'executed': True,
+                                'status': 'error',
+                                'message': 'Failed to parse Snyk output',
+                                'output': result.stdout[:500],
+                                'config_used': snyk_config
+                            }
+                else:
+                    results['snyk'] = {
+                        'tool': 'snyk',
+                        'executed': True,
+                        'status': 'no_issues',
+                        'total_issues': 0,
+                        'config_used': snyk_config
+                    }
+            except Exception as e:
+                self.log.error(f"Snyk Code analysis failed: {e}")
+                results['snyk'] = {'tool': 'snyk', 'executed': True, 'status': 'error', 'error': str(e)}
         
         return results
     
@@ -544,6 +974,14 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                         count += int(py_res['bandit'].get('total_issues', 0))
                     if 'pylint' in py_res and isinstance(py_res['pylint'], dict):
                         count += int(py_res['pylint'].get('total_issues', 0))
+                    if 'semgrep' in py_res and isinstance(py_res['semgrep'], dict):
+                        count += int(py_res['semgrep'].get('total_issues', 0))
+                    if 'mypy' in py_res and isinstance(py_res['mypy'], dict):
+                        count += int(py_res['mypy'].get('total_issues', 0))
+                    if 'safety' in py_res and isinstance(py_res['safety'], dict):
+                        count += int(py_res['safety'].get('total_issues', 0))
+                    if 'vulture' in py_res and isinstance(py_res['vulture'], dict):
+                        count += int(py_res['vulture'].get('total_issues', 0))
                 await self.send_progress('python_completed', f"Python analysis complete ({count} findings)", analysis_id=analysis_id,
                                      issues_found=count)
             except Exception:
@@ -555,8 +993,13 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             results['results']['javascript'] = js_res
             try:
                 count = 0
-                if isinstance(js_res, dict) and 'eslint' in js_res and isinstance(js_res['eslint'], dict):
-                    count += int(js_res['eslint'].get('total_issues', 0))
+                if isinstance(js_res, dict):
+                    if 'eslint' in js_res and isinstance(js_res['eslint'], dict):
+                        count += int(js_res['eslint'].get('total_issues', 0))
+                    if 'jshint' in js_res and isinstance(js_res['jshint'], dict):
+                        count += int(js_res['jshint'].get('total_issues', 0))
+                    if 'snyk' in js_res and isinstance(js_res['snyk'], dict):
+                        count += int(js_res['snyk'].get('total_issues', 0))
                 await self.send_progress('js_completed', f"JS/TS analysis complete ({count} findings)", analysis_id=analysis_id,
                                      issues_found=count)
             except Exception:

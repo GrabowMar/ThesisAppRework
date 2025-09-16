@@ -1,12 +1,17 @@
 # Performance Testing Container - Locust Load Testing
 FROM python:3.11-slim
 
-# Install system dependencies
+# Install Node.js for Artillery
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
     apache2-utils \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Artillery globally
+RUN npm install -g artillery
 
 # Set working directory
 WORKDIR /app
