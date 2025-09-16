@@ -6,6 +6,7 @@ Endpoints for dashboard overview, statistics, and HTMX fragments.
 """
 
 from flask import Blueprint, current_app, jsonify
+from typing import Any
 from datetime import datetime, timezone, timedelta
 
 from app.extensions import db
@@ -254,6 +255,412 @@ def dashboard_system_stats():
         return jsonify({'error': 'Failed to gather system stats', 'details': str(e)}), 500
 
 
+@dashboard_bp.route('/system-health-comprehensive')
+def comprehensive_system_health():
+    """Get comprehensive system health including all services, analyzers, and connections."""
+    try:
+        import subprocess
+        import os
+        import socket
+        
+        health_data = {
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'overall_status': 'healthy',
+            'components': {}
+        }
+        
+        # Database health
+        try:
+            db.session.execute(db.text('SELECT 1'))
+            health_data['components']['database'] = {
+                'status': 'healthy',
+                'message': 'Database connection active',
+                'response_time_ms': None
+            }
+        except Exception as e:
+            health_data['components']['database'] = {
+                'status': 'unhealthy',
+                'message': f'Database error: {str(e)}',
+                'response_time_ms': None
+            }
+            health_data['overall_status'] = 'degraded'
+        
+        # Tool Registry health
+        try:
+            from app.services.service_locator import ServiceLocator
+            tool_service = ServiceLocator.get_tool_registry_service()
+            if tool_service:
+                ts: Any = tool_service  # type: ignore[assignment]
+                tools = ts.get_all_tools()
+                profiles = ts.get_analysis_profiles()
+                categories = ts.get_tool_categories()
+                health_data['components']['tool_registry'] = {
+                    'status': 'healthy',
+                    'message': f'{len(tools)} tools, {len(profiles)} profiles, {len(categories)} categories',
+                    'details': {
+                        'tools_count': len(tools),
+                        'profiles_count': len(profiles),
+                        'categories_count': len(categories),
+                        'enabled_tools': len([t for t in tools if t.get('is_enabled', False)])
+                    }
+                }
+            else:
+                health_data['components']['tool_registry'] = {
+                    'status': 'unhealthy',
+                    'message': 'Tool registry service not available'
+                }
+                health_data['overall_status'] = 'degraded'
+        except Exception as e:
+            health_data['components']['tool_registry'] = {
+                'status': 'unhealthy',
+                'message': f'Tool registry error: {str(e)}'
+            }
+            health_data['overall_status'] = 'degraded'
+        
+        # Analyzer services health (initialize with defaults so UI always shows entries)
+        analyzer_services = [
+            {'name': 'static-analyzer', 'port': 2001, 'type': 'static'},
+            {'name': 'dynamic-analyzer', 'port': 2002, 'type': 'dynamic'},
+            {'name': 'performance-tester', 'port': 2003, 'type': 'performance'},
+            {'name': 'ai-analyzer', 'port': 2004, 'type': 'ai'},
+            {'name': 'gateway', 'port': 8765, 'type': 'gateway'}
+        ]
+
+        health_data['components']['analyzers'] = {
+            svc['name']: {
+                'status': 'unknown',
+                'message': 'Not checked',
+                'port': svc['port'],
+                'type': svc['type']
+            } for svc in analyzer_services
+        }
+
+        try:
+            analyzer_dir = os.path.join(os.getcwd(), 'analyzer')
+            def _compose(args: list[str], timeout: int = 5):
+                for base in (['docker', 'compose'], ['docker-compose']):
+                    try:
+                        return subprocess.run(base + args, cwd=analyzer_dir, capture_output=True, text=True, timeout=timeout)
+                    except Exception:
+                        continue
+                return None
+
+            if os.path.exists(analyzer_dir):
+                for service in analyzer_services:
+                    svc_name = service['name']
+                    # First try analyzer_manager health (for services it knows)
+                    used_fallback = False
+                    try:
+                        if svc_name != 'gateway':
+                            result = subprocess.run(
+                                ['python', 'analyzer_manager.py', 'health', svc_name],
+                                cwd=analyzer_dir, capture_output=True, text=True, timeout=5
+                            )
+                        else:
+                            result = None
+                        if result and result.returncode == 0:
+                            health_data['components']['analyzers'][svc_name].update({
+                                'status': 'healthy',
+                                'message': f"Service {svc_name} responding"
+                            })
+                            continue
+                        else:
+                            used_fallback = True
+                    except Exception:
+                        used_fallback = True
+
+                    # Fallback: use docker compose published port and attempt TCP connect
+                    try:
+                        port_str = str(service['port'])
+                        comp = _compose(['port', svc_name, port_str], timeout=4)
+                        if comp and comp.returncode == 0 and comp.stdout.strip():
+                            hostport = comp.stdout.strip().splitlines()[0].strip()
+                            # Expect '0.0.0.0:PORT' or '127.0.0.1:PORT'
+                            hp = hostport.rsplit(':', 1)
+                            if len(hp) == 2:
+                                host, pub_port = hp[0], int(hp[1])
+                                connect_host = '127.0.0.1' if host in ('0.0.0.0', '::') else host
+                                try:
+                                    with socket.create_connection((connect_host, pub_port), timeout=1.5):
+                                        ok = True
+                                except Exception:
+                                    ok = False
+                                if ok:
+                                    health_data['components']['analyzers'][svc_name].update({
+                                        'status': 'healthy',
+                                        'message': f'Port {connect_host}:{pub_port} reachable'
+                                    })
+                                else:
+                                    health_data['components']['analyzers'][svc_name].update({
+                                        'status': 'unhealthy',
+                                        'message': f'Port {connect_host}:{pub_port} not reachable'
+                                    })
+                                    health_data['overall_status'] = 'degraded'
+                            else:
+                                health_data['components']['analyzers'][svc_name].update({
+                                    'status': 'unhealthy',
+                                    'message': 'Could not resolve published port'
+                                })
+                                health_data['overall_status'] = 'degraded'
+                        else:
+                            # If fallback attempted and compose had no mapping, mark unknown
+                            if used_fallback:
+                                health_data['components']['analyzers'][svc_name].update({
+                                    'status': 'unknown',
+                                    'message': 'No details'
+                                })
+                    except Exception as e:
+                        health_data['components']['analyzers'][svc_name].update({
+                            'status': 'error',
+                            'message': f'Docker check failed: {str(e)[:200]}'
+                        })
+        except Exception:
+            pass
+
+        # Compute overall analyzers summary for the System Health tile
+        try:
+            analyzer_entries = health_data['components'].get('analyzers', {})
+            total = len(analyzer_entries)
+            healthy = sum(1 for v in analyzer_entries.values() if v.get('status') == 'healthy')
+            unhealthy = sum(1 for v in analyzer_entries.values() if v.get('status') == 'unhealthy')
+            if total == 0:
+                summary_status = 'unknown'
+                message = 'No details'
+            elif healthy == total:
+                summary_status = 'healthy'
+                message = f'All {total} services healthy'
+            elif healthy == 0 and unhealthy == 0:
+                summary_status = 'unknown'
+                message = 'No details'
+            else:
+                summary_status = 'degraded'
+                message = f'{healthy}/{total} services healthy'
+            health_data['components']['analyzers_summary'] = {
+                'status': summary_status,
+                'message': message,
+                'details': {'healthy': healthy, 'total': total}
+            }
+        except Exception:
+            pass
+        
+        # Celery health (use accessor from extensions)
+        try:
+            from app.extensions import get_celery
+            celery_app = get_celery()
+            if celery_app:
+                try:
+                    inspect = celery_app.control.inspect()
+                    stats = inspect.stats() if inspect else None
+                except Exception:
+                    stats = None
+
+                if stats:
+                    active_workers = len(stats)
+                    health_data['components']['celery'] = {
+                        'status': 'healthy',
+                        'message': f'{active_workers} worker(s) active',
+                        'details': {'active_workers': active_workers}
+                    }
+                else:
+                    health_data['components']['celery'] = {
+                        'status': 'unhealthy',
+                        'message': 'No active Celery workers'
+                    }
+                    health_data['overall_status'] = 'degraded'
+            else:
+                health_data['components']['celery'] = {
+                    'status': 'not_configured',
+                    'message': 'Celery not initialized in app components'
+                }
+        except Exception as e:
+            health_data['components']['celery'] = {
+                'status': 'error',
+                'message': f'Celery check failed: {str(e)}'
+            }
+        
+        # OpenRouter connection health
+        try:
+            # Prefer app config, but fallback to environment for flexibility
+            import os as _os
+            openrouter_key = current_app.config.get('OPENROUTER_API_KEY') or _os.getenv('OPENROUTER_API_KEY')
+            if openrouter_key:
+                # Try a simple API call to test connection
+                import requests
+                headers = {
+                    'Authorization': f'Bearer {openrouter_key}',
+                    'Content-Type': 'application/json'
+                }
+                response = requests.get(
+                    'https://openrouter.ai/api/v1/models', 
+                    headers=headers, 
+                    timeout=5
+                )
+                if response.status_code == 200:
+                    models_data = response.json()
+                    model_count = len(models_data.get('data', []))
+                    health_data['components']['openrouter'] = {
+                        'status': 'healthy',
+                        'message': f'OpenRouter API accessible ({model_count} models available)',
+                        'details': {'available_models': model_count}
+                    }
+                else:
+                    health_data['components']['openrouter'] = {
+                        'status': 'unhealthy',
+                        'message': f'OpenRouter API error: {response.status_code}'
+                    }
+                    health_data['overall_status'] = 'degraded'
+            else:
+                health_data['components']['openrouter'] = {
+                    'status': 'not_configured',
+                    'message': 'OpenRouter API key not configured'
+                }
+        except Exception as e:
+            health_data['components']['openrouter'] = {
+                'status': 'error',
+                'message': f'OpenRouter check failed: {str(e)}'
+            }
+        
+        # Redis health (derive from configuration; avoid importing non-existent redis_client)
+        try:
+            redis_url = (
+                current_app.config.get('REDIS_URL')
+                or current_app.config.get('CELERY_BROKER_URL')
+                or current_app.config.get('CELERY_RESULT_BACKEND')
+            )
+            redis_url_synthetic = bool(current_app.config.get('REDIS_URL_SYNTHETIC'))
+            if redis_url and str(redis_url).startswith('redis'):
+                try:
+                    import redis  # type: ignore
+                    client: Any = redis.Redis.from_url(redis_url, socket_connect_timeout=2, socket_timeout=2)
+                    client.ping()
+                    health_data['components']['redis'] = {
+                        'status': 'healthy',
+                        'message': 'Redis connection active',
+                        'details': {'url': redis_url.split('@')[-1] if '@' in redis_url else redis_url}
+                    }
+                except Exception as e:
+                    # Attempt Docker Compose port resolution as a fallback for API-Docker context
+                    try:
+                        analyzer_dir = os.path.join(os.getcwd(), 'analyzer')
+                        def _compose(args: list[str], timeout: int = 5):
+                            for base in (['docker', 'compose'], ['docker-compose']):
+                                try:
+                                    return subprocess.run(base + args, cwd=analyzer_dir, capture_output=True, text=True, timeout=timeout)
+                                except Exception:
+                                    continue
+                            return None
+                        comp = _compose(['port', 'redis', '6379'], timeout=4)
+                        if comp and comp.returncode == 0 and comp.stdout.strip():
+                            hostport = comp.stdout.strip().splitlines()[0].strip()
+                            hp = hostport.rsplit(':', 1)
+                            if len(hp) == 2:
+                                host, pub_port = hp[0], int(hp[1])
+                                connect_host = '127.0.0.1' if host in ('0.0.0.0', '::') else host
+                                import redis  # type: ignore
+                                url = f"redis://{connect_host}:{pub_port}/0"
+                                client2: Any = redis.Redis.from_url(url, socket_connect_timeout=2, socket_timeout=2)
+                                client2.ping()
+                                health_data['components']['redis'] = {
+                                    'status': 'healthy',
+                                    'message': 'Redis connection active (via Docker)',
+                                    'details': {'url': url}
+                                }
+                            else:
+                                raise RuntimeError('Could not parse docker port output')
+                        else:
+                            raise RuntimeError('Docker compose port did not return mapping')
+                    except Exception:
+                        if redis_url_synthetic:
+                            health_data['components']['redis'] = {
+                                'status': 'not_configured',
+                                'message': 'Redis not available in this environment'
+                            }
+                        else:
+                            health_data['components']['redis'] = {
+                                'status': 'unhealthy',
+                                'message': f'Redis ping failed: {str(e)[:200]}'
+                            }
+                            health_data['overall_status'] = 'degraded'
+                    # Final fallback: direct TCP to localhost:6379
+                    try:
+                        with socket.create_connection(('127.0.0.1', 6379), timeout=1.0):
+                            # If TCP open, try a ping
+                            import redis  # type: ignore
+                            url = 'redis://127.0.0.1:6379/0'
+                            client3: Any = redis.Redis.from_url(url, socket_connect_timeout=1, socket_timeout=1)
+                            client3.ping()
+                            health_data['components']['redis'] = {
+                                'status': 'healthy',
+                                'message': 'Redis connection active (localhost)',
+                                'details': {'url': url}
+                            }
+                    except Exception:
+                        pass
+            else:
+                health_data['components']['redis'] = {
+                    'status': 'not_configured',
+                    'message': 'Redis URL not configured'
+                }
+        except Exception as e:
+            health_data['components']['redis'] = {
+                'status': 'error',
+                'message': f'Redis check failed: {str(e)[:200]}'
+            }
+        
+        return jsonify(health_data)
+        
+    except Exception as e:
+        current_app.logger.error(f"Comprehensive health check failed: {e}")
+        return api_error("Health check failed", details={"reason": str(e)})
+
+
+@dashboard_bp.route('/tool-registry-summary')
+def tool_registry_summary():
+    """Get tool registry summary for dashboard."""
+    try:
+        from app.services.service_locator import ServiceLocator
+        tool_service = ServiceLocator.get_tool_registry_service()
+        
+        if not tool_service:
+            return api_error("Tool registry service not available")
+        
+        ts: Any = tool_service  # type: ignore[assignment]
+        tools = ts.get_all_tools()
+        profiles = ts.get_analysis_profiles()
+        categories = ts.get_tool_categories()
+        tools_by_category = ts.get_tools_by_category()
+        
+        # Count tools by service
+        tools_by_service = {}
+        for tool in tools:
+            service = tool.get('service_name', 'unknown')
+            if service not in tools_by_service:
+                tools_by_service[service] = []
+            tools_by_service[service].append(tool)
+        
+        # Count enabled vs disabled tools
+        enabled_tools = [t for t in tools if t.get('is_enabled', False)]
+        disabled_tools = [t for t in tools if not t.get('is_enabled', True)]
+        
+        return api_success({
+            'summary': {
+                'total_tools': len(tools),
+                'enabled_tools': len(enabled_tools),
+                'disabled_tools': len(disabled_tools),
+                'total_profiles': len(profiles),
+                'total_categories': len(categories)
+            },
+            'tools_by_category': {cat: len(tools_list) for cat, tools_list in tools_by_category.items()},
+            'tools_by_service': {svc: len(tools_list) for svc, tools_list in tools_by_service.items()},
+            'recent_tools': tools[:5],  # First 5 tools as recent
+            'builtin_profiles': [p for p in profiles if p.get('is_builtin', False)]
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Tool registry summary failed: {e}")
+        return api_error("Failed to get tool registry summary", details={"reason": str(e)})
+
+
 @dashboard_bp.route('/analyzer-services')
 def dashboard_analyzer_services():
     """Return analyzer services status cards."""
@@ -289,9 +696,18 @@ def recent_activity():
     try:
         from app.utils.template_paths import render_template_compat as render_template
         # Get recent activities (last 10 items)
-        recent_security = db.session.query(SecurityAnalysis).order_by(db.desc(SecurityAnalysis.started_at)).limit(5).all()
-        recent_performance = db.session.query(PerformanceTest).order_by(db.desc(PerformanceTest.started_at)).limit(5).all()
-        recent_batch = db.session.query(BatchAnalysis).order_by(db.desc(BatchAnalysis.created_at)).limit(5).all()
+        try:
+            recent_security = db.session.query(SecurityAnalysis).order_by(db.desc(SecurityAnalysis.started_at)).limit(5).all()
+        except Exception:
+            recent_security = []
+        try:
+            recent_performance = db.session.query(PerformanceTest).order_by(db.desc(PerformanceTest.started_at)).limit(5).all()
+        except Exception:
+            recent_performance = []
+        try:
+            recent_batch = db.session.query(BatchAnalysis).order_by(db.desc(BatchAnalysis.created_at)).limit(5).all()
+        except Exception:
+            recent_batch = []
 
         activities = []
 
@@ -331,11 +747,18 @@ def recent_activity():
 
         if not activities:
             return '<div class="text-center py-3"><p class="text-muted">Unable to load activity</p></div>'
-        return render_template('components/dashboard/activity-timeline.html', activities=activities)
+        try:
+            return render_template('components/dashboard/activity-timeline.html', activities=activities)
+        except Exception as _tpl_err:
+            current_app.logger.warning(f"Activity timeline render failed: {_tpl_err}")
+            return '<div class="text-center py-3"><p class="text-muted">No recent activity</p></div>'
     except Exception as e:
         current_app.logger.error(f"Error getting recent activity: {e}")
         from app.utils.template_paths import render_template_compat as render_template
-        return render_template('components/dashboard/activity-timeline.html', activities=[])
+        try:
+            return render_template('components/dashboard/activity-timeline.html', activities=[])
+        except Exception:
+            return '<div class="text-center py-3"><p class="text-muted">No recent activity</p></div>'
 
 
 # =================================================================

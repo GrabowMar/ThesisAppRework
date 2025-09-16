@@ -1,15 +1,17 @@
 {% extends "layouts/base.html" %}
 
-{% block title %}Dashboard - ThesisAppRework{% endblock %}
-{% set page_title = 'Dashboard' %}
-{% set page_subtitle = 'System overview, live tasks & quick actions' %}
-{% set page_icon = 'gauge-high' %}
+{% block title %}System Dashboard - AI Analysis Platform{% endblock %}
+{% set page_title = 'System Dashboard' %}
+{% set page_subtitle = 'Comprehensive platform overview and health monitoring' %}
+{% set page_icon = 'fas fa-chart-line' %}
 {% set page_actions = [
-  {'label':'Models','href': url_for('main.models_overview'),'icon':'cubes','class':'btn-outline-primary'},
-  {'label':'Analysis','href': url_for('analysis.analysis_index'),'icon':'chart-column','class':'btn-outline-success'},
-  {'label':'Reports','href': url_for('reports.reports_index'),'icon':'file-lines','class':'btn-outline-info'}
+  {'label':'Models','href': url_for('main.models_overview'),'icon':'robot','class':'btn-outline-primary'},
+  {'label':'Analysis','href': url_for('analysis.analysis_index'),'icon':'shield-check','class':'btn-outline-success'},
+  {'label':'Tools','href': '/api/tool-registry/tools','icon':'tools','class':'btn-outline-info'},
+  {'label':'Health','href': '#system-health-section','icon':'heart-pulse','class':'btn-outline-warning'}
 ] %}
-{# Safe dashboard stats defaults accessible to all blocks #}
+
+{# Safe dashboard stats defaults #}
 {% if stats is not defined %}
   {% set stats = {
     'total_models': 0,
@@ -20,274 +22,304 @@
 {% endif %}
 
 {% block content %}
-{% if stats is not defined %}
-  {% set stats = {
-    'total_models': 0,
-    'total_applications': 0,
-    'total_security_analyses': 0,
-    'total_performance_tests': 0
-  } %}
-{% endif %}
-{% set page_icon = 'fas fa-gauge-high' %}
-{% set actions = [
-  {'label':'Models','href': url_for('main.models_overview'),'icon':'cubes','class':'btn-outline-primary'},
-  {'label':'Analysis','href': url_for('analysis.analysis_index'),'icon':'chart-column','class':'btn-outline-success'},
-  {'label':'Reports','href': url_for('reports.reports_index'),'icon':'file-lines','class':'btn-outline-info'}
-] %}
-<div class="row">
-  <div class="col-lg-8 order-2 order-lg-1">
-    <!-- Recent Activity (Applications + Analyses) -->
-    <div class="row">
-      <div class="col-md-6 mb-4">
-        <div class="card h-100 fade-in">
-          <div class="card-header d-flex align-items-center">
-            <i class="fas fa-cogs text-primary me-2"></i>
-            <h5 class="card-title mb-0">Recent Applications</h5>
-          </div>
-          <div class="card-body">
-            {% if recent_apps %}
-              <div class="list-group list-group-flush">
-                {% for app in recent_apps %}
-                <div class="list-group-item px-0">
-                  <div class="d-flex w-100 justify-content-between align-items-start">
-                    <div>
-                      <h6 class="mb-1 fw-semibold">{{ app.app_number }} - {{ app.model_slug }}</h6>
-                      <p class="mb-1 text-muted small">
-                        <span class="status-dot success"></span>{{ app.status }}
-                      </p>
-                    </div>
-                    <small class="text-muted">{{ app.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
-                  </div>
-                </div>
-                {% endfor %}
+<div class="container-fluid">
+  <!-- System Status Overview -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card bg-gradient-primary text-white">
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col-md-8">
+              <h1 class="card-title text-white mb-3">
+                <i class="fas fa-chart-line me-3"></i>
+                AI Analysis Platform
+              </h1>
+              <p class="text-white-75 mb-3 fs-5">
+                Real-time monitoring of analyzers, tools, connections, and system health
+              </p>
+              <div class="d-flex gap-2 mb-3">
+                <span class="badge bg-light text-dark px-3 py-2">
+                  <i class="fas fa-robot me-1"></i>
+                  <span id="overview-models-count">{{ stats.total_models }}</span> Models
+                </span>
+                <span class="badge bg-light text-dark px-3 py-2">
+                  <i class="fas fa-cogs me-1"></i>
+                  <span id="overview-apps-count">{{ stats.total_applications }}</span> Apps
+                </span>
+                <span class="badge bg-light text-dark px-3 py-2">
+                  <i class="fas fa-shield-alt me-1"></i>
+                  <span id="overview-analyses-count">{{ stats.total_security_analyses }}</span> Analyses
+                </span>
+                <span class="badge bg-light text-dark px-3 py-2" id="system-status-badge">
+                  <i class="fas fa-heart-pulse me-1"></i>
+                  <span id="overall-system-status">Checking...</span>
+                </span>
               </div>
-              <div class="mt-3">
-                <a href="/api/applications" class="btn btn-sm btn-outline-primary">
-                  <i class="fas fa-arrow-right me-1"></i>View All
-                </a>
+            </div>
+            <div class="col-md-4 text-center d-none d-md-block">
+              <div class="display-1 text-white-50">
+                <i class="fas fa-server"></i>
               </div>
-            {% else %}
-              <div class="text-center py-4">
-                <i class="fas fa-inbox text-muted" style="font-size: 2rem;"></i>
-                <p class="text-muted mt-2 mb-0">No recent applications</p>
-              </div>
-            {% endif %}
+            </div>
           </div>
         </div>
       </div>
-      <div class="col-md-6 mb-4">
-        <div class="card h-100 fade-in" style="animation-delay: 0.1s;">
-          <div class="card-header d-flex align-items-center">
-            <i class="fas fa-shield-alt text-success me-2"></i>
-            <h5 class="card-title mb-0">Recent Security Analyses</h5>
+    </div>
+  </div>
+
+  <!-- Main Dashboard Grid -->
+  <div class="row">
+    <!-- Left Column: System Health & Analyzers -->
+    <div class="col-lg-6 mb-4">
+      <!-- System Health Section -->
+      <div class="card mb-4" id="system-health-section">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">
+            <i class="fas fa-heart-pulse text-danger me-2"></i>
+            System Health
+          </h5>
+          <button class="btn btn-sm btn-outline-primary" onclick="refreshSystemHealth()">
+            <i class="fas fa-sync-alt me-1"></i>Refresh
+          </button>
+        </div>
+        <div class="card-body" id="system-health-content">
+          <div class="text-center py-3">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading health status...</span>
+            </div>
           </div>
-          <div class="card-body">
-            {% if recent_analyses %}
-              <div class="list-group list-group-flush">
-                {% for analysis in recent_analyses %}
-                <div class="list-group-item px-0">
-                  <div class="d-flex w-100 justify-content-between align-items-start">
-                    <div>
-                      <h6 class="mb-1 fw-semibold">Analysis {{ analysis.id }}</h6>
-                      <p class="mb-1 text-muted small">
-                        <span class="status-dot {% if analysis.status == 'COMPLETED' %}success{% elif analysis.status == 'RUNNING' %}info{% else %}warning{% endif %}"></span>
-                        Status: {{ analysis.status }}
-                      </p>
-                    </div>
-                    <small class="text-muted">{{ analysis.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
-                  </div>
-                </div>
-                {% endfor %}
-              </div>
-              <div class="mt-3">
-                <a href="{{ url_for('analysis.analysis_index') }}" class="btn btn-sm btn-outline-success">
-                  <i class="fas fa-arrow-right me-1"></i>View All
-                </a>
-              </div>
-            {% else %}
-              <div class="text-center py-4">
-                <i class="fas fa-shield-alt text-muted" style="font-size: 2rem;"></i>
-                <p class="text-muted mt-2 mb-0">No recent analyses</p>
-              </div>
-            {% endif %}
+        </div>
+      </div>
+
+      <!-- Analyzer Services Status -->
+      <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">
+            <i class="fab fa-docker text-info me-2"></i>
+            Analyzer Services
+          </h5>
+          <button class="btn btn-sm btn-outline-info" onclick="refreshAnalyzerServices()">
+            <i class="fas fa-sync-alt me-1"></i>Check Status
+          </button>
+        </div>
+        <div class="card-body" id="analyzer-services-content">
+          <div class="text-center py-3">
+            <div class="spinner-border text-info" role="status">
+              <span class="visually-hidden">Loading analyzer status...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Column: Tool Registry & Quick Actions -->
+    <div class="col-lg-6 mb-4">
+      <!-- Tool Registry Status -->
+      <div class="card mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">
+            <i class="fas fa-tools text-warning me-2"></i>
+            Tool Registry
+          </h5>
+          <button class="btn btn-sm btn-outline-warning" onclick="refreshToolRegistry()">
+            <i class="fas fa-sync-alt me-1"></i>Refresh
+          </button>
+        </div>
+        <div class="card-body" id="tool-registry-content">
+          <div class="text-center py-3">
+            <div class="spinner-border text-warning" role="status">
+              <span class="visually-hidden">Loading tool registry...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions & System Operations -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="card-title mb-0">
+            <i class="fas fa-bolt text-primary me-2"></i>
+            Quick Actions
+          </h5>
+        </div>
+        <div class="card-body">
+          <!-- Navigation Actions -->
+          <div class="row g-2 mb-3">
+            <div class="col-6 col-md-3">
+              <a href="{{ url_for('main.models_overview') }}" class="btn btn-outline-primary w-100">
+                <i class="fas fa-robot me-1"></i>Models
+              </a>
+            </div>
+            <div class="col-6 col-md-3">
+              <a href="{{ url_for('analysis.analysis_index') }}" class="btn btn-outline-success w-100">
+                <i class="fas fa-chart-line me-1"></i>Analysis
+              </a>
+            </div>
+            <div class="col-6 col-md-3">
+              <a href="/analysis/create" class="btn btn-outline-info w-100">
+                <i class="fas fa-plus me-1"></i>New Analysis
+              </a>
+            </div>
+            <div class="col-6 col-md-3">
+              <a href="{{ url_for('docs.docs_index') }}" class="btn btn-outline-secondary w-100">
+                <i class="fas fa-book me-1"></i>Docs
+              </a>
+            </div>
+          </div>
+          
+          <!-- System Operations -->
+          <h6 class="text-muted mb-2">System Operations</h6>
+          <div class="row g-2" id="system-actions">
+            <div class="col-6 col-md-4">
+              <button class="btn btn-sm btn-primary w-100" data-action="init-db">
+                <i class="fas fa-database me-1"></i>Init DB
+              </button>
+            </div>
+            <div class="col-6 col-md-4">
+              <button class="btn btn-sm btn-success w-100" data-action="populate-db">
+                <i class="fas fa-seedling me-1"></i>Populate
+              </button>
+            </div>
+            <div class="col-6 col-md-4">
+              <button class="btn btn-sm btn-info w-100" data-action="http-smoke">
+                <i class="fas fa-plug me-1"></i>HTTP Test
+              </button>
+            </div>
+            <div class="col-6 col-md-4">
+              <button class="btn btn-sm btn-warning w-100" data-action="sample-generation-smoke">
+                <i class="fas fa-vial me-1"></i>Sample Test
+              </button>
+            </div>
+            <div class="col-6 col-md-4">
+              <button class="btn btn-sm btn-secondary w-100" data-action="log-cleanup">
+                <i class="fas fa-broom me-1"></i>Clean Logs
+              </button>
+            </div>
+            <div class="col-6 col-md-4">
+              <button class="btn btn-sm btn-outline-danger w-100" onclick="refreshAllStatus()">
+                <i class="fas fa-sync-alt me-1"></i>Refresh All
+              </button>
+            </div>
+          </div>
+          
+          <!-- Action Status -->
+          <div class="mt-3">
+            <div class="small text-muted" id="action-status">
+              Select an action to run system operations or tests.
+            </div>
+            <div class="mt-2 d-none" id="action-result"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Row: Recent Activity & Live Tasks -->
+  <div class="row">
+    <!-- Recent Activity -->
+    <div class="col-lg-6 mb-4">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">
+            <i class="fas fa-clock text-success me-2"></i>
+            Recent Activity
+          </h5>
+          <button class="btn btn-sm btn-outline-success" onclick="refreshRecentActivity()">
+            <i class="fas fa-sync-alt me-1"></i>Refresh
+          </button>
+        </div>
+        <div class="card-body" id="recent-activity-content">
+          <div class="text-center py-3">
+            <div class="spinner-border text-success" role="status">
+              <span class="visually-hidden">Loading recent activity...</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
     <!-- Live Tasks -->
-    <div class="card fade-in" id="live-tasks" style="animation-delay: 0.2s;">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h5 class="card-title mb-0">
-          <i class="fas fa-tasks me-2 text-info"></i>Live Tasks
-        </h5>
-        <small class="text-muted" id="queue-summary">Queue summary loading...</small>
-      </div>
-      <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-sm mb-0" id="tasks-live-table">
-            <thead class="table-light">
-              <tr>
-                <th>Task ID</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Progress</th>
-                <th>Model</th>
-                <th>App</th>
-                <th>Started</th>
-                <th>Completed</th>
-                <th>Tools</th>
-                <th>Severities</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
+    <div class="col-lg-6 mb-4">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">
+            <i class="fas fa-tasks text-info me-2"></i>
+            Live Tasks
+          </h5>
+          <small class="text-muted" id="tasks-summary">Loading...</small>
         </div>
-        <div class="p-3 small text-muted border-top">
-          <i class="fas fa-wifi me-1"></i>
-          Realtime events via Socket.IO; falls back to polling if unavailable.
+        <div class="card-body p-0" id="live-tasks-content">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0" id="live-tasks-table">
+              <thead class="table-light">
+                <tr>
+                  <th>ID</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Progress</th>
+                  <th>Model</th>
+                  <th>App</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colspan="6" class="text-center py-3">
+                    <div class="spinner-border text-info" role="status">
+                      <span class="visually-hidden">Loading tasks...</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
   </div>
-  <div class="col-lg-4 order-1 order-lg-2 mb-4">
-    <div id="dashboard-sidebar" class="analysis-sidebar right-sticky-sidebar">
-      <!-- Mini Stats -->
-      <div class="card mb-3 mini-stats fade-in" style="animation-delay: 0.3s;">
-        <div class="card-header py-2">
-          <h6 class="card-title mb-0">
-            <i class="fas fa-chart-bar text-primary me-2"></i>Overview
-          </h6>
-        </div>
-        <div class="card-body p-3">
-          <div class="row g-2">
-            <div class="col-6">
-              <div class="text-center p-2 rounded bg-primary bg-opacity-10">
-                <div class="h4 mb-1 text-primary">{{ stats.total_models }}</div>
-                <small class="text-muted">Models</small>
-              </div>
+
+  <!-- Connection Status Strip -->
+  <div class="row">
+    <div class="col-12">
+      <div class="card bg-dark text-white">
+        <div class="card-body py-2">
+          <div class="row text-center small">
+            <div class="col-md-2">
+              <span class="text-muted">Database:</span>
+              <span class="ms-1" id="db-status-strip">
+                <i class="fas fa-spinner fa-spin text-warning"></i>
+              </span>
             </div>
-            <div class="col-6">
-              <div class="text-center p-2 rounded bg-success bg-opacity-10">
-                <div class="h4 mb-1 text-success">{{ stats.total_applications }}</div>
-                <small class="text-muted">Apps</small>
-              </div>
+            <div class="col-md-2">
+              <span class="text-muted">OpenRouter:</span>
+              <span class="ms-1" id="openrouter-status-strip">
+                <i class="fas fa-spinner fa-spin text-warning"></i>
+              </span>
             </div>
-            <div class="col-6">
-              <div class="text-center p-2 rounded bg-warning bg-opacity-10">
-                <div class="h4 mb-1 text-warning">{{ stats.total_security_analyses }}</div>
-                <small class="text-muted">Security</small>
-              </div>
+            <div class="col-md-2">
+              <span class="text-muted">Celery:</span>
+              <span class="ms-1" id="celery-status-strip">
+                <i class="fas fa-spinner fa-spin text-warning"></i>
+              </span>
             </div>
-            <div class="col-6">
-              <div class="text-center p-2 rounded bg-info bg-opacity-10">
-                <div class="h4 mb-1 text-info">{{ stats.total_performance_tests }}</div>
-                <small class="text-muted">Performance</small>
-              </div>
+            <div class="col-md-2">
+              <span class="text-muted">Redis:</span>
+              <span class="ms-1" id="redis-status-strip">
+                <i class="fas fa-spinner fa-spin text-warning"></i>
+              </span>
+            </div>
+            <div class="col-md-2">
+              <span class="text-muted">Tools:</span>
+              <span class="ms-1" id="tools-status-strip">
+                <i class="fas fa-spinner fa-spin text-warning"></i>
+              </span>
+            </div>
+            <div class="col-md-2">
+              <span class="text-muted">Last Update:</span>
+              <span class="ms-1" id="last-update-strip">Never</span>
             </div>
           </div>
         </div>
       </div>
-      <!-- Quick Actions -->
-      <div class="card mb-3 fade-in" style="animation-delay: 0.4s;">
-        <div class="card-header py-2">
-          <h6 class="card-title mb-0">
-            <i class="fas fa-bolt me-2 text-warning"></i>Quick Actions
-          </h6>
-        </div>
-        <div class="card-body py-3">
-          <div class="row g-2 mb-3">
-            <div class="col-6">
-              <a href="{{ url_for('main.models_overview') }}" class="btn btn-outline-primary btn-sm w-100">
-                <i class="fas fa-brain me-1"></i>Models
-              </a>
-            </div>
-            <div class="col-6">
-              <a href="{{ url_for('analysis.analysis_dashboard') }}" class="btn btn-outline-success btn-sm w-100">
-                <i class="fas fa-chart-line me-1"></i>Analysis
-              </a>
-            </div>
-            <div class="col-6">
-              <a href="/api/applications" class="btn btn-outline-info btn-sm w-100">
-                <i class="fas fa-cogs me-1"></i>Apps
-              </a>
-            </div>
-            <div class="col-6">
-              <a href="#live-tasks" class="btn btn-outline-warning btn-sm w-100">
-                <i class="fas fa-tasks me-1"></i>Tasks
-              </a>
-            </div>
-          </div>
-          <hr class="my-3">
-          <h6 class="text-muted small mb-2">Maintenance Actions</h6>
-          <div class="row g-2 align-items-end small" id="dashboard-actions">
-            <div class="col-6">
-              <button class="btn btn-sm btn-primary w-100" data-action="init-db">
-                <i class="fas fa-database me-1"></i>Init DB
-              </button>
-            </div>
-            <div class="col-6">
-              <button class="btn btn-sm btn-secondary w-100" data-action="populate-db" id="populate-db-btn">
-                <span class="btn-label">
-                  <i class="fas fa-seedling me-1"></i>Populate
-                </span>
-                <span class="spinner-border spinner-border-sm d-none" role="status"></span>
-              </button>
-            </div>
-            <div class="col-6">
-              <button class="btn btn-sm btn-outline-danger w-100" data-action="log-cleanup">
-                <i class="fas fa-broom me-1"></i>Logs
-              </button>
-            </div>
-            <div class="col-6">
-              <button class="btn btn-sm btn-outline-success w-100" data-action="sample-generation-smoke">
-                <i class="fas fa-vial me-1"></i>Sample
-              </button>
-            </div>
-            <div class="col-12">
-              <button class="btn btn-sm btn-outline-info w-100" data-action="http-smoke">
-                <i class="fas fa-plug me-1"></i>HTTP Smoke
-              </button>
-            </div>
-            <div class="col-12">
-              <div class="small text-muted" id="dashboard-action-status">
-                Select an action to run a maintenance or diagnostic task.
-              </div>
-            </div>
-            <div class="col-12 mt-2 d-none" id="action-detailed-result"></div>
-          </div>
-        </div>
-      </div>
-      <!-- Running Batches -->
-      {% if running_batches %}
-      <div class="card mb-3 border-warning fade-in" style="animation-delay: 0.5s;">
-        <div class="card-header py-2 bg-warning bg-opacity-10">
-          <h6 class="card-title mb-0 text-warning">
-            <i class="fas fa-play-circle me-2"></i>Running Batches
-          </h6>
-        </div>
-        <div class="card-body py-3">
-          {% for batch in running_batches %}
-          <div class="mb-3 p-3 rounded border bg-light">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <span class="fw-semibold">Batch {{ batch.id }}</span>
-              <span class="badge bg-primary">{{ batch.progress }}%</span>
-            </div>
-            <div class="progress mb-2" style="height: 8px;">
-              <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                   role="progressbar" 
-                   style="width: {{ batch.progress }}%"></div>
-            </div>
-            <div class="text-muted small">
-              {{ batch.description or 'No description available' }}
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-      {% endif %}
-      <!-- Live System Stats placeholder (JS inserts) -->
-      <div id="live-system-stats-wrapper"></div>
     </div>
   </div>
 </div>
@@ -295,125 +327,615 @@
 
 {% block scripts %}
 <script>
-// Auto-refresh dashboard data every 30 seconds
-setInterval(function() {
-    // Could add AJAX calls here to refresh stats
-    console.log('Dashboard refresh check...');
-}, 30000);
+// Comprehensive Dashboard Management
+class DashboardManager {
+  constructor() {
+    this.refreshIntervals = new Map();
+    this.lastUpdateTime = null;
+    this.init();
+  }
 
-// New dynamic system stats polling
-function fetchSystemStats(){
-    fetch('/api/dashboard/system-stats')
-        .then(r=>r.json())
-        .then(data=>{
-                const el = document.getElementById('live-system-stats');
-                if(!el) return;
-                if(data.error){ el.innerHTML = '<span class="text-danger">Stats unavailable</span>'; return; }
-                const uptimeMins = Math.floor((data.uptime_seconds||0)/60);
-                el.innerHTML = `
-                    <div class="row g-2">
-                        <div class="col-md-2 col-6"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${data.counts.models}</div><small class="text-muted">Models</small></div></div>
-                        <div class="col-md-2 col-6"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${data.counts.applications}</div><small class="text-muted">Apps</small></div></div>
-                        <div class="col-md-2 col-6"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${data.counts.security_analyses}</div><small class="text-muted">Security</small></div></div>
-                        <div class="col-md-2 col-6"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${data.counts.performance_tests}</div><small class="text-muted">Perf</small></div></div>
-                        <div class="col-md-2 col-6"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${data.resources.cpu_percent}%</div><small class="text-muted">CPU</small></div></div>
-                        <div class="col-md-2 col-6"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${data.resources.memory_percent}%</div><small class="text-muted">Mem</small></div></div>
-                        <div class="col-12 mt-2"><small class="text-muted">Uptime ~ ${uptimeMins}m | Disk ${data.resources.disk_percent}% used</small></div>
-                    </div>`;
-        })
-        .catch(()=>{
-                const el = document.getElementById('live-system-stats');
-                if(el) el.innerHTML = '<span class="text-danger">Failed to load stats</span>';
-        });
-}
-document.addEventListener('DOMContentLoaded', function(){
-    // Insert live system stats card inside sidebar placeholder if not present
-    const holder = document.getElementById('live-system-stats-wrapper');
-    if(holder && !document.getElementById('live-system-stats')){
-        holder.innerHTML = '<div class="card mb-3"><div class="card-header d-flex justify-content-between align-items-center py-2"><h5 class="mb-0 h6"><i class="fas fa-chart-area me-1"></i>Live System Stats</h5><button class="btn btn-sm btn-outline-primary" id="refresh-stats-btn"><i class="fas fa-sync"></i></button></div><div class="card-body py-2" id="live-system-stats"><div class="text-muted">Loading...</div></div></div>';
-        document.getElementById('refresh-stats-btn').addEventListener('click', fetchSystemStats);
-        fetchSystemStats();
-        setInterval(fetchSystemStats, 30000);
-    }
+  init() {
+    // Initialize all dashboard components
+    this.setupEventListeners();
+    this.startAutoRefresh();
+    this.loadInitialData();
+  }
 
-    // Action buttons
-    function renderDetailedResult(data){
-        const ctn = document.getElementById('action-detailed-result');
-        if(!ctn) return;
-        ctn.classList.remove('d-none');
-        const safe = (v)=> typeof v === 'string' ? v.replace(/</g,'&lt;') : JSON.stringify(v, null, 2);
-        if(data.result && data.result.operation === 'populate_database'){
-            const vr = data.result.verification || {};
-            ctn.innerHTML = `
-              <div class="card border-success">
-                <div class="card-header py-2 d-flex justify-content-between align-items-center">
-                  <span class="fw-bold text-success">Population Summary</span>
-                  <button class="btn btn-sm btn-outline-secondary" id="toggle-raw-json">Raw</button>
-                </div>
-                <div class="card-body py-2">
-                  <div class="row g-2 small">
-                    <div class="col-6 col-md-2"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${vr.models||0}</div><div class="text-muted">Models</div></div></div>
-                    <div class="col-6 col-md-2"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${vr.ports||0}</div><div class="text-muted">Ports</div></div></div>
-                    <div class="col-6 col-md-2"><div class="p-2 bg-light rounded text-center"><div class="fw-bold">${vr.applications||0}</div><div class="text-muted">Apps</div></div></div>
-                    <div class="col-12 mt-2"><small class="text-muted">Providers: ${Object.keys(vr.providers||{}).length}</small></div>
-                  </div>
-                  <pre class="mt-2 small bg-dark text-white p-2 d-none" id="raw-json-block"></pre>
-                </div>
-              </div>`;
-            document.getElementById('toggle-raw-json')?.addEventListener('click', ()=>{
-                const block = document.getElementById('raw-json-block');
-                block.classList.toggle('d-none');
-                block.textContent = JSON.stringify(data, null, 2);
-            });
-        } else {
-            ctn.innerHTML = `<div class='alert alert-info small mb-0'>${safe(data.result || data.error || 'No details')}</div>`;
-        }
-    }
-
-    document.getElementById('dashboard-actions')?.addEventListener('click', function(e){
-        const btn = e.target.closest('button[data-action]');
-        if(!btn) return;
-        const action = btn.getAttribute('data-action');
-        if(action === 'populate-db'){
-            if(!confirm('Populate database? This may insert or update many rows.')) return;
-            btn.querySelector('.btn-label').classList.add('d-none');
-            btn.querySelector('.spinner-border').classList.remove('d-none');
-        }
-        btn.disabled = true;
-        const statusEl = document.getElementById('dashboard-action-status');
-        statusEl.innerHTML = `<span class='text-info'>Running ${action}...</span>`;
-        fetch(`/api/dashboard/actions/${action}`, {method:'POST'})
-            .then(r=>r.json())
-            .then(data=>{
-                if(data.success || data.ok){
-                    statusEl.innerHTML = `<span class='text-success'>${data.message || 'Success'} (${(data.result?.result?.runtime_ms || data.result?.runtime_ms || 0)} ms)</span>`;
-                    renderDetailedResult(data);
-                } else {
-                    statusEl.innerHTML = `<span class='text-danger'>${data.error || 'Failed'}</span>`;
-                }
-            })
-            .catch(err=>{
-                statusEl.innerHTML = `<span class='text-danger'>Error: ${err}</span>`;
-            })
-            .finally(()=>{
-                btn.disabled=false;
-                if(action==='populate-db'){
-                    btn.querySelector('.btn-label').classList.remove('d-none');
-                    btn.querySelector('.spinner-border').classList.add('d-none');
-                }
-            });
+  setupEventListeners() {
+    // System action buttons
+    document.getElementById('system-actions')?.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      
+      const action = btn.getAttribute('data-action');
+      this.executeSystemAction(action, btn);
     });
+  }
+
+  loadInitialData() {
+    // Load all dashboard sections
+    this.refreshSystemHealth();
+    this.refreshAnalyzerServices();
+    this.refreshToolRegistry();
+    this.refreshRecentActivity();
+    this.refreshLiveTasks();
+    this.refreshStatusStrip();
+  }
+
+  startAutoRefresh() {
+    // System health every 30 seconds
+    this.refreshIntervals.set('health', setInterval(() => this.refreshSystemHealth(), 30000));
+    
+    // Tool registry every 60 seconds
+    this.refreshIntervals.set('tools', setInterval(() => this.refreshToolRegistry(), 60000));
+    
+    // Analyzer services every 45 seconds
+    this.refreshIntervals.set('analyzers', setInterval(() => this.refreshAnalyzerServices(), 45000));
+    
+    // Live tasks every 15 seconds
+    this.refreshIntervals.set('tasks', setInterval(() => this.refreshLiveTasks(), 15000));
+    
+    // Status strip every 30 seconds
+    this.refreshIntervals.set('status', setInterval(() => this.refreshStatusStrip(), 30000));
+    
+    // Recent activity every 2 minutes
+    this.refreshIntervals.set('activity', setInterval(() => this.refreshRecentActivity(), 120000));
+  }
+
+  async refreshSystemHealth() {
+    try {
+      const response = await fetch('/api/dashboard/system-health-comprehensive');
+      const data = await response.json();
+      
+      if (response.ok) {
+        this.renderSystemHealth(data);
+        this.updateOverallStatus(data.overall_status);
+      } else {
+        this.renderSystemHealthError(data.error || 'Failed to load health data');
+      }
+    } catch (error) {
+      this.renderSystemHealthError('Network error: ' + error.message);
+    }
+  }
+
+  renderSystemHealth(healthData) {
+    const container = document.getElementById('system-health-content');
+    if (!container) return;
+
+    const components = healthData.components || {};
+    let html = '<div class="row g-3">';
+
+    // Render each component
+    Object.entries(components)
+      // Skip the raw analyzers map; it's rendered in the Analyzer Services section
+      .filter(([name]) => name !== 'analyzers')
+      .forEach(([name, comp]) => {
+      const statusClass = this.getStatusClass(comp.status);
+      const statusIcon = this.getStatusIcon(comp.status);
+      
+      html += `
+        <div class="col-md-6">
+          <div class="card border-${statusClass} h-100">
+            <div class="card-body py-2">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <h6 class="card-title mb-1">${this.formatComponentName(name)}</h6>
+                  <small class="text-muted">${comp.message || 'No details'}</small>
+                </div>
+                <div class="text-${statusClass}">
+                  ${statusIcon}
+                </div>
+              </div>
+              ${comp.details ? this.renderComponentDetails(comp.details) : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    html += '</div>';
+    html += `<div class="mt-3 small text-muted">Last updated: ${new Date(healthData.timestamp).toLocaleTimeString()}</div>`;
+    
+    container.innerHTML = html;
+  }
+
+  renderSystemHealthError(errorMsg) {
+    const container = document.getElementById('system-health-content');
+    if (!container) return;
+    
+    container.innerHTML = `
+      <div class="alert alert-danger">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        ${errorMsg}
+      </div>
+    `;
+  }
+
+  async refreshAnalyzerServices() {
+    try {
+      const response = await fetch('/api/dashboard/system-health-comprehensive');
+      const data = await response.json();
+      
+      if (response.ok && data.components && data.components.analyzers) {
+        this.renderAnalyzerServices(data.components.analyzers);
+      } else {
+        this.renderAnalyzerServicesError('Failed to load analyzer status');
+      }
+    } catch (error) {
+      this.renderAnalyzerServicesError('Network error: ' + error.message);
+    }
+  }
+
+  renderAnalyzerServices(analyzers) {
+    const container = document.getElementById('analyzer-services-content');
+    if (!container) return;
+
+    let html = '<div class="row g-2">';
+    
+    Object.entries(analyzers).forEach(([name, service]) => {
+      const statusClass = this.getStatusClass(service.status);
+      const statusIcon = this.getStatusIcon(service.status);
+      
+      html += `
+        <div class="col-md-6">
+          <div class="card border-${statusClass} h-100">
+            <div class="card-body py-2">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <h6 class="mb-1">${name}</h6>
+                  <small class="text-muted">Port ${service.port} • ${service.type}</small>
+                </div>
+                <div class="text-${statusClass}">${statusIcon}</div>
+              </div>
+              <div class="small mt-1">${service.message}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+    container.innerHTML = html;
+  }
+
+  renderAnalyzerServicesError(errorMsg) {
+    const container = document.getElementById('analyzer-services-content');
+    if (!container) return;
+    
+    container.innerHTML = `
+      <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        ${errorMsg}
+      </div>
+    `;
+  }
+
+  async refreshToolRegistry() {
+    try {
+      const response = await fetch('/api/dashboard/tool-registry-summary');
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        this.renderToolRegistry(data.data);
+      } else {
+        this.renderToolRegistryError(data.error || 'Failed to load tool registry');
+      }
+    } catch (error) {
+      this.renderToolRegistryError('Network error: ' + error.message);
+    }
+  }
+
+  renderToolRegistry(toolData) {
+    const container = document.getElementById('tool-registry-content');
+    if (!container) return;
+
+    const summary = toolData.summary || {};
+    const byCategory = toolData.tools_by_category || {};
+    const byService = toolData.tools_by_service || {};
+
+    let html = `
+      <div class="row g-3 mb-3">
+        <div class="col-6">
+          <div class="text-center p-2 bg-primary bg-opacity-10 rounded">
+            <div class="h5 mb-1 text-primary">${summary.total_tools || 0}</div>
+            <small class="text-muted">Total Tools</small>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="text-center p-2 bg-success bg-opacity-10 rounded">
+            <div class="h5 mb-1 text-success">${summary.enabled_tools || 0}</div>
+            <small class="text-muted">Enabled</small>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="text-center p-2 bg-warning bg-opacity-10 rounded">
+            <div class="h5 mb-1 text-warning">${summary.total_profiles || 0}</div>
+            <small class="text-muted">Profiles</small>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="text-center p-2 bg-info bg-opacity-10 rounded">
+            <div class="h5 mb-1 text-info">${summary.total_categories || 0}</div>
+            <small class="text-muted">Categories</small>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Tools by category
+    if (Object.keys(byCategory).length > 0) {
+      html += '<h6 class="text-muted mb-2">Tools by Category</h6>';
+      html += '<div class="row g-1 mb-3">';
+      Object.entries(byCategory).forEach(([category, count]) => {
+        html += `
+          <div class="col-6">
+            <small class="d-flex justify-content-between">
+              <span>${category}</span>
+              <span class="badge bg-secondary">${count}</span>
+            </small>
+          </div>
+        `;
+      });
+      html += '</div>';
+    }
+
+    // Tools by service
+    if (Object.keys(byService).length > 0) {
+      html += '<h6 class="text-muted mb-2">Tools by Service</h6>';
+      html += '<div class="row g-1">';
+      Object.entries(byService).forEach(([service, count]) => {
+        html += `
+          <div class="col-12">
+            <small class="d-flex justify-content-between">
+              <span>${service}</span>
+              <span class="badge bg-outline-primary">${count}</span>
+            </small>
+          </div>
+        `;
+      });
+      html += '</div>';
+    }
+
+    container.innerHTML = html;
+  }
+
+  renderToolRegistryError(errorMsg) {
+    const container = document.getElementById('tool-registry-content');
+    if (!container) return;
+    
+    container.innerHTML = `
+      <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        ${errorMsg}
+      </div>
+    `;
+  }
+
+  async refreshRecentActivity() {
+    try {
+      const response = await fetch('/api/dashboard/recent_activity');
+      
+      if (response.ok) {
+        const html = await response.text();
+        this.renderRecentActivity(html);
+      } else {
+        this.renderRecentActivityError('Failed to load recent activity');
+      }
+    } catch (error) {
+      this.renderRecentActivityError('Network error: ' + error.message);
+    }
+  }
+
+  renderRecentActivity(html) {
+    const container = document.getElementById('recent-activity-content');
+    if (!container) return;
+    
+    container.innerHTML = html || '<p class="text-muted text-center py-3">No recent activity</p>';
+  }
+
+  renderRecentActivityError(errorMsg) {
+    const container = document.getElementById('recent-activity-content');
+    if (!container) return;
+    
+    container.innerHTML = `
+      <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        ${errorMsg}
+      </div>
+    `;
+  }
+
+  async refreshLiveTasks() {
+    try {
+      const response = await fetch('/analysis/api/active-tasks');
+      
+      if (response.ok) {
+        const html = await response.text();
+        this.renderLiveTasks(html);
+      } else {
+        this.renderLiveTasksError('Failed to load live tasks');
+      }
+    } catch (error) {
+      this.renderLiveTasksError('Network error: ' + error.message);
+    }
+  }
+
+  renderLiveTasks(html) {
+    const container = document.getElementById('live-tasks-content');
+    if (!container) return;
+    
+    if (html.trim()) {
+      container.innerHTML = html;
+    } else {
+      container.innerHTML = `
+        <div class="text-center py-3">
+          <p class="text-muted">No active tasks</p>
+        </div>
+      `;
+    }
+    
+    // Update summary
+    const summaryEl = document.getElementById('tasks-summary');
+    if (summaryEl) {
+      const taskCount = (html.match(/task-id/g) || []).length;
+      summaryEl.textContent = taskCount > 0 ? `${taskCount} active tasks` : 'No active tasks';
+    }
+  }
+
+  renderLiveTasksError(errorMsg) {
+    const container = document.getElementById('live-tasks-content');
+    if (!container) return;
+    
+    container.innerHTML = `
+      <div class="alert alert-warning">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        ${errorMsg}
+      </div>
+    `;
+  }
+
+  async refreshStatusStrip() {
+    try {
+      const response = await fetch('/api/dashboard/system-health-comprehensive');
+      const data = await response.json();
+      
+      if (response.ok) {
+        this.renderStatusStrip(data.components || {});
+      } else {
+        this.renderStatusStripError();
+      }
+    } catch (error) {
+      this.renderStatusStripError();
+    }
+  }
+
+  renderStatusStrip(components) {
+    const strips = {
+      'db-status-strip': 'database',
+      'openrouter-status-strip': 'openrouter', 
+      'celery-status-strip': 'celery',
+      'redis-status-strip': 'redis',
+      'tools-status-strip': 'tool_registry'
+    };
+
+    Object.entries(strips).forEach(([elementId, componentKey]) => {
+      const element = document.getElementById(elementId);
+      if (!element) return;
+
+      const component = components[componentKey];
+      if (component) {
+        const statusClass = this.getStatusClass(component.status);
+        const statusIcon = this.getStatusIcon(component.status);
+        element.innerHTML = `<span class="text-${statusClass}">${statusIcon}</span>`;
+      } else {
+        element.innerHTML = '<span class="text-muted"><i class="fas fa-question"></i></span>';
+      }
+    });
+
+    // Update last update time
+    const lastUpdateEl = document.getElementById('last-update-strip');
+    if (lastUpdateEl) {
+      lastUpdateEl.textContent = new Date().toLocaleTimeString();
+    }
+  }
+
+  renderStatusStripError() {
+    const strips = ['db-status-strip', 'openrouter-status-strip', 'celery-status-strip', 'redis-status-strip', 'tools-status-strip'];
+    strips.forEach(id => {
+      const element = document.getElementById(id);
+      if (element) {
+        element.innerHTML = '<span class="text-danger"><i class="fas fa-times"></i></span>';
+      }
+    });
+  }
+
+  async executeSystemAction(action, button) {
+    const statusEl = document.getElementById('action-status');
+    const resultEl = document.getElementById('action-result');
+    
+    // Show loading state
+    button.disabled = true;
+    statusEl.innerHTML = `<span class="text-info">Running ${action}...</span>`;
+    resultEl.classList.add('d-none');
+
+    try {
+      const response = await fetch(`/api/dashboard/actions/${action}`, {
+        method: 'POST'
+      });
+      
+      const data = await response.json();
+      
+      if (data.success || data.ok) {
+        statusEl.innerHTML = `<span class="text-success">${data.message || 'Success'}</span>`;
+        if (data.result) {
+          resultEl.innerHTML = `<div class="alert alert-success small">${JSON.stringify(data.result, null, 2)}</div>`;
+          resultEl.classList.remove('d-none');
+        }
+      } else {
+        statusEl.innerHTML = `<span class="text-danger">${data.error || 'Failed'}</span>`;
+      }
+    } catch (error) {
+      statusEl.innerHTML = `<span class="text-danger">Error: ${error.message}</span>`;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  updateOverallStatus(status) {
+    const badge = document.getElementById('system-status-badge');
+    const statusText = document.getElementById('overall-system-status');
+    
+    if (badge && statusText) {
+      const statusClass = this.getStatusClass(status);
+      badge.className = `badge bg-${statusClass === 'success' ? 'light' : statusClass === 'warning' ? 'warning' : 'danger'} text-dark px-3 py-2`;
+      statusText.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+    }
+  }
+
+  getStatusClass(status) {
+    switch (status) {
+      case 'healthy': return 'success';
+      case 'unhealthy': case 'error': return 'danger';
+      case 'degraded': case 'warning': case 'unknown': return 'warning';
+      case 'not_configured': return 'secondary';
+      default: return 'secondary';
+    }
+  }
+
+  getStatusIcon(status) {
+    switch (status) {
+      case 'healthy': return '<i class="fas fa-check-circle"></i>';
+      case 'unhealthy': case 'error': return '<i class="fas fa-times-circle"></i>';
+      case 'degraded': case 'warning': return '<i class="fas fa-exclamation-triangle"></i>';
+      case 'unknown': return '<i class="fas fa-question-circle"></i>';
+      case 'not_configured': return '<i class="fas fa-cog"></i>';
+      default: return '<i class="fas fa-circle"></i>';
+    }
+  }
+
+  formatComponentName(name) {
+    return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  renderComponentDetails(details) {
+    if (!details || typeof details !== 'object') return '';
+    
+    let html = '<div class="mt-2 small">';
+    Object.entries(details).forEach(([key, value]) => {
+      html += `<div class="d-flex justify-content-between">
+        <span class="text-muted">${key}:</span>
+        <span>${value}</span>
+      </div>`;
+    });
+    html += '</div>';
+    return html;
+  }
+
+  // Public methods for manual refresh
+  refreshAll() {
+    this.loadInitialData();
+  }
+
+  destroy() {
+    // Clear all intervals
+    this.refreshIntervals.forEach(interval => clearInterval(interval));
+    this.refreshIntervals.clear();
+  }
+}
+
+// Global functions for buttons
+function refreshSystemHealth() {
+  dashboard.refreshSystemHealth();
+}
+
+function refreshAnalyzerServices() {
+  dashboard.refreshAnalyzerServices();
+}
+
+function refreshToolRegistry() {
+  dashboard.refreshToolRegistry();
+}
+
+function refreshRecentActivity() {
+  dashboard.refreshRecentActivity();
+}
+
+function refreshAllStatus() {
+  dashboard.refreshAll();
+}
+
+// Initialize dashboard when DOM is loaded
+let dashboard;
+document.addEventListener('DOMContentLoaded', () => {
+  dashboard = new DashboardManager();
+});
+
+// Clean up on page unload
+window.addEventListener('beforeunload', () => {
+  if (dashboard) {
+    dashboard.destroy();
+  }
 });
 </script>
-<!-- Fixed SRI hash for socket.io 4.7.5 (previous placeholder blocked load) -->
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js" integrity="sha384-2huaZvOR9iDzHqslqwpR87isEmrfxqyWOF7hr7BY6KG0+hVKLoEXMPUJw3ynWuhO" crossorigin="anonymous"></script>
-<script src="/static/js/tasks_live.js"></script>
+
+<!-- Additional styling for the comprehensive dashboard -->
 <style>
-    #dashboard-sidebar.analysis-sidebar { position: sticky; }
-    .mini-stats .stat-icon { display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border-radius:4px; font-size:10px; }
-    .mini-stats .stat-item { background:var(--tblr-bg-surface,#f8f9fa); padding:4px 6px; border-radius:4px; line-height:1; }
-    .mini-stats .stat-value { font-weight:600; }
-    .mini-stats ul { gap:6px !important; }
-    @media (max-width: 991.98px) { #dashboard-sidebar.analysis-sidebar { position: static; } }
+.bg-gradient-primary {
+  background: linear-gradient(135deg, #206bc4 0%, #4299e1 100%) !important;
+}
+
+.text-white-75 {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+
+.card-header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.status-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-indicator.healthy { background-color: #28a745; }
+.status-indicator.warning { background-color: #ffc107; }
+.status-indicator.error { background-color: #dc3545; }
+.status-indicator.unknown { background-color: #6c757d; }
+
+.fade-in {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.table-responsive {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.card-body .row .col-6:nth-child(odd) {
+  padding-right: 0.5rem;
+}
+
+.card-body .row .col-6:nth-child(even) {
+  padding-left: 0.5rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .card-body .row .col-6 {
+    padding: 0.25rem;
+  }
+  
+  .btn {
+    font-size: 0.875rem;
+  }
+}
 </style>
 {% endblock %}

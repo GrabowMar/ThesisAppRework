@@ -32,9 +32,56 @@ api_bp = Blueprint('api', __name__)
 api_bp.register_blueprint(core_bp)
 api_bp.register_blueprint(models_bp) 
 api_bp.register_blueprint(system_bp)
-api_bp.register_blueprint(dashboard_bp)
+# Mount dashboard routes under /api/dashboard to provide a stable prefix
+api_bp.register_blueprint(dashboard_bp, url_prefix='/dashboard')
 api_bp.register_blueprint(applications_bp)
 api_bp.register_blueprint(analysis_bp)
+
+# ----------------------------------------------------------------------------
+# Back-compat shims for pre-prefix dashboard endpoints
+# These keep older callers (if any) working by delegating to the new routes
+# ----------------------------------------------------------------------------
+
+@api_bp.route('/overview')
+def dashboard_overview_compat():
+    from .dashboard import api_dashboard_overview
+    return api_dashboard_overview()
+
+
+@api_bp.route('/stats')
+def dashboard_stats_compat():
+    from .dashboard import api_dashboard_stats
+    return api_dashboard_stats()
+
+
+@api_bp.route('/system-stats')
+def dashboard_system_stats_compat():
+    from .dashboard import dashboard_system_stats
+    return dashboard_system_stats()
+
+
+@api_bp.route('/analyzer-services')
+def dashboard_analyzer_services_compat():
+    from .dashboard import dashboard_analyzer_services
+    return dashboard_analyzer_services()
+
+
+@api_bp.route('/recent_activity')
+def dashboard_recent_activity_compat():
+    from .dashboard import recent_activity
+    return recent_activity()
+
+
+@api_bp.route('/system-health-comprehensive')
+def dashboard_system_health_comprehensive_compat():
+    from .dashboard import comprehensive_system_health
+    return comprehensive_system_health()
+
+
+@api_bp.route('/tool-registry-summary')
+def dashboard_tool_registry_summary_compat():
+    from .dashboard import tool_registry_summary
+    return tool_registry_summary()
 
 # Add any missing critical routes that tests depend on
 # These will be migrated to appropriate modules in future iterations

@@ -40,10 +40,20 @@ def create_celery(app: Optional[Flask] = None) -> Celery:
         Configured Celery instance
     """
     
+    # Prefer Flask app configuration when available; fallback to CeleryConfig
+    _backend = None
+    _broker = None
+    if app is not None:
+        try:
+            _backend = app.config.get('CELERY_RESULT_BACKEND', None)
+            _broker = app.config.get('CELERY_BROKER_URL', None)
+        except Exception:
+            _backend = None
+            _broker = None
     celery = Celery(
         app.import_name if app else 'thesis_app',
-        backend=CeleryConfig.result_backend,
-        broker=CeleryConfig.broker_url,
+        backend=_backend or CeleryConfig.result_backend,
+        broker=_broker or CeleryConfig.broker_url,
         include=['app.tasks']
     )
     
@@ -82,7 +92,23 @@ def create_app(config_name: str = 'default') -> Flask:
         if env_path.exists():
             load_dotenv(env_path)
     except Exception:
-        pass
+        # Fallback: very small .env loader (KEY=VALUE per line, ignores comments)
+        try:
+            env_path = Path(os.getenv('ENV_FILE', '.env'))
+            if env_path.exists():
+                for line in env_path.read_text(encoding='utf-8').splitlines():
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    if '=' in line:
+                        k, v = line.split('=', 1)
+                        k = k.strip()
+                        v = v.strip().strip('"').strip("'")
+                        # Do not overwrite existing explicit environment values
+                        if k and (k not in os.environ):
+                            os.environ[k] = v
+        except Exception:
+            pass
 
     # Apply LOG_LEVEL early
     _lvl = os.getenv('LOG_LEVEL')
@@ -142,6 +168,37 @@ def create_app(config_name: str = 'default') -> Flask:
     # Websocket strict mode: when true, do NOT fall back to mock service if Celery-backed init fails
     WEBSOCKET_STRICT_CELERY=os.environ.get('WEBSOCKET_STRICT_CELERY', 'false').lower() == 'true',
     )
+
+    # Surface OpenRouter key in app config if present (without logging)
+    try:  # pragma: no cover - simple wiring
+        _ork = os.getenv('OPENROUTER_API_KEY')
+        if _ork and not app.config.get('OPENROUTER_API_KEY'):
+            app.config['OPENROUTER_API_KEY'] = _ork
+    except Exception:
+        pass
+
+    # Normalize Redis configuration early: if REDIS_URL missing but host/port present, synthesize it
+    try:  # pragma: no cover - configuration wiring
+        if not os.environ.get('REDIS_URL'):
+            _r_host = os.environ.get('REDIS_HOST')
+            _r_port = os.environ.get('REDIS_PORT')
+            if _r_host and _r_port:
+                _constructed = f"redis://{_r_host}:{_r_port}/0"
+                os.environ['REDIS_URL'] = _constructed
+                # Mark that REDIS_URL was synthesized from host/port, not an explicit URL
+                os.environ['REDIS_URL_SYNTHETIC'] = '1'
+        # Propagate to app config if still missing
+        if not app.config.get('REDIS_URL') and os.environ.get('REDIS_URL'):
+            app.config['REDIS_URL'] = os.environ['REDIS_URL']
+            if os.environ.get('REDIS_URL_SYNTHETIC'):
+                app.config['REDIS_URL_SYNTHETIC'] = True
+        # Ensure Celery URLs align when using Redis
+        if str(app.config.get('CELERY_BROKER_URL', '')).startswith('redis') is False and os.environ.get('REDIS_URL'):
+            app.config['CELERY_BROKER_URL'] = os.environ['REDIS_URL']
+        if str(app.config.get('CELERY_RESULT_BACKEND', '')).startswith('redis') is False and os.environ.get('REDIS_URL'):
+            app.config['CELERY_RESULT_BACKEND'] = os.environ['REDIS_URL']
+    except Exception:
+        pass
     
     # Ensure Jinja picks up template changes without restarting the app
     try:
