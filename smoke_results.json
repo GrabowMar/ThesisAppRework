@@ -10,12 +10,12 @@
         "data": {
           "database": "connected",
           "status": "healthy",
-          "timestamp": "2025-09-15T20:18:49.462789+00:00",
+          "timestamp": "2025-09-16T09:30:04.234954+00:00",
           "version": "1.0"
         },
         "message": "Success",
         "success": true,
-        "timestamp": "2025-09-15T20:18:49.462789+00:00"
+        "timestamp": "2025-09-16T09:30:04.234954+00:00"
       }
     },
     "health": {
@@ -40,12 +40,12 @@
       "critical": true,
       "body": {
         "error": "Page Not Found",
-        "error_id": "c4f9247821b14a6282ef7d18a50566bf",
+        "error_id": "e5fb21b09b8e47ef8d3f2434733f07f1",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/models/all",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-15T20:18:53.638046+00:00"
+        "timestamp": "2025-09-16T09:30:08.366524+00:00"
       }
     },
     "dashboard_stats": {
@@ -55,12 +55,12 @@
       "critical": true,
       "body": {
         "error": "Page Not Found",
-        "error_id": "4e8f507381204a60a38baec7e87456be",
+        "error_id": "625089a193f84c1ab5c603365f8e9abe",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/dashboard/stats",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-15T20:18:53.648832+00:00"
+        "timestamp": "2025-09-16T09:30:08.382539+00:00"
       }
     },
     "system_health": {
@@ -70,12 +70,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "6bc1c162a3fb4a85ab5d600a14fbcc45",
+        "error_id": "42e101b7ef0c4440ae062ac3ea7c0e90",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/system/health",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-15T20:18:53.654090+00:00"
+        "timestamp": "2025-09-16T09:30:08.385521+00:00"
       }
     },
     "analysis_stats": {
@@ -83,7 +83,7 @@
       "status": 200,
       "ok": true,
       "critical": true,
-      "body": "\n<div class=\"row text-center small\">\n  <div class=\"col-6 mb-3\">\n    <div class=\"fw-bold\">Total Tasks</div>\n    <div class=\"h5 mb-0\">18</div>\n  </div>\n  <div class=\"col-6 mb-3\">\n    <div class=\"fw-bold\">Active</div>\n    <div class=\"h5 text-warning mb-0\">0</div>\n  </div>\n  <div class=\"col-6\">\n    <div class=\"fw-bold\">Completed</div>\n    <div class=\"h5 text-success mb-0\">11</div>\n  </div>\n  <div class=\"col-6\">\n    <div class=\"fw-bold\">Failed</div>\n    <div class=\"h5 text-danger mb-0\">6</div>\n  </di"
+      "body": "\n<div class=\"row text-center small\">\n  <div class=\"col-6 mb-3\">\n    <div class=\"fw-bold\">Total Tasks</div>\n    <div class=\"h5 mb-0\">0</div>\n  </div>\n  <div class=\"col-6 mb-3\">\n    <div class=\"fw-bold\">Active</div>\n    <div class=\"h5 text-warning mb-0\">0</div>\n  </div>\n  <div class=\"col-6\">\n    <div class=\"fw-bold\">Completed</div>\n    <div class=\"h5 text-success mb-0\">0</div>\n  </div>\n  <div class=\"col-6\">\n    <div class=\"fw-bold\">Failed</div>\n    <div class=\"h5 text-danger mb-0\">0</div>\n  </div>"
     },
     "analysis_start": {
       "url": "http://127.0.0.1:5005/advanced/api/analysis/start",
@@ -103,7 +103,7 @@
           "data": {
             "active_analyses": 0,
             "connected": true,
-            "last_update": "2025-09-15T20:18:53.901697+00:00",
+            "last_update": "2025-09-16T09:30:08.556789+00:00",
             "service": "celery_websocket"
           },
           "preference": "celery",
@@ -123,12 +123,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "655f499451fa483c86854c6c7300bd80",
+        "error_id": "b42b97a672d842cdadee34cb5e5627af",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/events/clear",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-15T20:18:53.920928+00:00"
+        "timestamp": "2025-09-16T09:30:08.559794+00:00"
       }
     },
     "ws_start": {
@@ -138,12 +138,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "cb0d59e745c049458b4797dbf7a231e1",
+        "error_id": "771cf0318d1c467d89b6be11ad1c688e",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/analysis/start",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-15T20:18:53.927290+00:00"
+        "timestamp": "2025-09-16T09:30:08.586472+00:00"
       }
     },
     "ws_analyses": {
@@ -153,12 +153,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "f0151bdfa31e4fc89dc8a21a6c4a8952",
+        "error_id": "5b9e7bfd45634b55b54e3dbbe598af97",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/analyses",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-15T20:18:54.941267+00:00"
+        "timestamp": "2025-09-16T09:30:09.600618+00:00"
       }
     },
     "ws_events": {
@@ -168,12 +168,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "0d32a99d44c64400b73d87504404135a",
+        "error_id": "4a9ba1ca540b467bb2d6c2ca5c8aa6f3",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/events",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-15T20:18:54.950939+00:00"
+        "timestamp": "2025-09-16T09:30:09.615946+00:00"
       }
     },
     "active_tasks": {

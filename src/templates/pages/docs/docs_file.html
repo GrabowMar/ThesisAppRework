@@ -2,236 +2,332 @@
 
 {% block title %}{{ title }} - Documentation{% endblock %}
 
-{% block head_styles %}
-<style>
-/* Markdown content styling */
-.docs-content {
-    font-size: 1rem;
-    line-height: 1.6;
-}
+{% block content %}
+<div class="page-body mt-0">
+    <div class="container-fluid">
+        <!-- Page Header Card -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row g-2 align-items-center">
+                    <div class="col">
+                        <nav aria-label="breadcrumb" class="mb-2">
+                            <ol class="breadcrumb breadcrumb-alternate">
+                                <li class="breadcrumb-item">
+                                    <a href="{{ url_for('main.dashboard') }}">
+                                        <i class="fas fa-home"></i>
+                                    </a>
+                                </li>
+                                <li class="breadcrumb-item">
+                                    <a href="{{ url_for('docs.docs_index') }}">Documentation</a>
+                                </li>
+                                <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
+                            </ol>
+                        </nav>
+                        <h2 class="card-title mb-2">{{ title }}</h2>
+                        <div class="text-muted">
+                            <i class="fas fa-file-alt me-1"></i>
+                            <code>{{ filepath }}</code>
+                        </div>
+                    </div>
+                    <div class="col-auto ms-auto">
+                        <div class="btn-list">
+                            <a href="{{ url_for('docs.docs_index') }}" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-1"></i>
+                                Back to Docs
+                            </a>
+                            <button class="btn btn-outline-secondary" onclick="window.print()">
+                                <i class="fas fa-print me-1"></i>
+                                Print
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-.docs-content h1,
-.docs-content h2,
-.docs-content h3,
-.docs-content h4,
-.docs-content h5,
-.docs-content h6 {
-    color: var(--tbl-primary, #206bc4);
-    margin-top: 2rem;
-    margin-bottom: 1rem;
-    font-weight: 600;
-}
+            <div class="row">
+                <!-- Sidebar Navigation -->
+                <div class="col-md-4 col-xl-3 d-none d-md-block">
+                    <div class="sticky-top">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Table of Contents</h3>
+                            </div>
+                            <div class="card-body p-2">
+                                <div id="table-of-contents-nav" class="docs-toc"></div>
+                            </div>
+                        </div>
+                        
+                    </div>
+            </div>
 
-.docs-content h1 { font-size: 2rem; border-bottom: 2px solid #e6e7e9; padding-bottom: 0.5rem; }
-.docs-content h2 { font-size: 1.75rem; border-bottom: 1px solid #e6e7e9; padding-bottom: 0.25rem; }
-.docs-content h3 { font-size: 1.5rem; }
-.docs-content h4 { font-size: 1.25rem; }
-.docs-content h5 { font-size: 1.125rem; }
-.docs-content h6 { font-size: 1rem; }
+                <!-- Main Content -->
+                <div class="col-md-8 col-xl-9">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="docs-content" id="markdown-content">
+                                {{ content|safe }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-.docs-content p {
-    margin-bottom: 1rem;
-}
-
-.docs-content blockquote {
-    border-left: 4px solid var(--tbl-primary, #206bc4);
-    padding-left: 1rem;
-    margin: 1.5rem 0;
-    background-color: #f8fafc;
-    padding: 1rem;
-    border-radius: 0.375rem;
-}
-
-.docs-content code {
-    background-color: #f1f5f9;
-    padding: 0.125rem 0.25rem;
-    border-radius: 0.25rem;
-    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-    font-size: 0.875em;
-}
-
-.docs-content pre {
-    background-color: #f8fafc;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.5rem;
-    padding: 1rem;
-    overflow-x: auto;
-    margin: 1rem 0;
-}
-
-.docs-content pre code {
-    background-color: transparent;
-    padding: 0;
-    border-radius: 0;
-}
-
-.docs-content table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 1rem 0;
-    border: 1px solid #e2e8f0;
-    border-radius: 0.5rem;
-    overflow: hidden;
-}
-
-.docs-content th,
-.docs-content td {
-    padding: 0.75rem;
-    text-align: left;
-    border-bottom: 1px solid #e2e8f0;
-}
-
-.docs-content th {
-    background-color: #f8fafc;
-    font-weight: 600;
-    color: var(--tbl-primary, #206bc4);
-}
-
-.docs-content tr:nth-child(even) {
-    background-color: #f8fafc;
-}
-
-.docs-content ul,
-.docs-content ol {
-    padding-left: 2rem;
-    margin: 1rem 0;
-}
-
-.docs-content li {
-    margin-bottom: 0.5rem;
-}
-
-.docs-content a {
-    color: var(--tbl-primary, #206bc4);
-    text-decoration: none;
-}
-
-.docs-content a:hover {
-    text-decoration: underline;
-}
-
-.docs-content img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 0.5rem;
-    margin: 1rem 0;
-}
-
-.docs-content hr {
-    border: none;
-    border-top: 1px solid #e2e8f0;
-    margin: 2rem 0;
-}
-
-/* File info banner */
-.file-info {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 1rem;
-    border-radius: 0.5rem;
-    margin-bottom: 2rem;
-}
-
-.file-info h5 {
-    margin: 0;
-    font-size: 1.1rem;
-}
-
-/* Navigation breadcrumb */
-.breadcrumb-nav {
-    background-color: #f8fafc;
-    padding: 1rem;
-    border-radius: 0.5rem;
-    margin-bottom: 2rem;
-}
-</style>
 {% endblock %}
 
-{% block content %}
-<!-- File Info Banner -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="file-info">
-            <div class="d-flex align-items-center justify-content-between">
-                <div>
-                    <h5 class="mb-1">
-                        <i class="fas fa-file-alt me-2"></i>
-                        {{ title }}
-                    </h5>
-                    <small class="opacity-75">{{ filepath }}</small>
-                </div>
-                <div class="d-flex gap-2">
-                    <a href="{{ url_for('docs.docs_index') }}" class="btn btn-light btn-sm">
-                        <i class="fas fa-arrow-left me-1"></i>
-                        Back to Docs
-                    </a>
-                    <a href="{{ url_for('main.dashboard') }}" class="btn btn-light btn-sm">
-                        <i class="fas fa-home me-1"></i>
-                        Dashboard
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+{% block head_styles %}
 
-<!-- Breadcrumb Navigation -->
-<div class="row mb-4">
-    <div class="col-12">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb breadcrumb-nav mb-0">
-                <li class="breadcrumb-item">
-                    <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
-                </li>
-                <li class="breadcrumb-item">
-                    <a href="{{ url_for('docs.docs_index') }}">Documentation</a>
-                </li>
-                <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
-            </ol>
-        </nav>
-    </div>
-</div>
+{% endblock %}
 
-<!-- Markdown Content -->
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body">
-                <div class="docs-content">
-                    {{ content|safe }}
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    initializeDocsPage();
+});
 
-<!-- Footer Actions -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body text-center">
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <a href="{{ url_for('docs.docs_index') }}" class="btn btn-outline-primary btn-lg w-100">
-                            <i class="fas fa-list me-2"></i>
-                            All Documents
-                        </a>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <a href="{{ url_for('main.models_overview') }}" class="btn btn-outline-success btn-lg w-100">
-                            <i class="fas fa-robot me-2"></i>
-                            Models Overview
-                        </a>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-info btn-lg w-100">
-                            <i class="fas fa-tachometer-alt me-2"></i>
-                            Dashboard
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+function initializeDocsPage() {
+    generateTableOfContents();
+    setupScrollSpy();
+    setupKeyboardNavigation();
+}
+
+function generateTableOfContents() {
+    const content = document.getElementById('markdown-content');
+    const tocContainer = document.getElementById('table-of-contents-nav');
+    
+    if (!content || !tocContainer) return;
+    
+    const headings = content.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    
+    if (headings.length === 0) {
+        // Hide ToC card if no headings
+        const tocCard = tocContainer.closest('.card');
+        if (tocCard) tocCard.style.display = 'none';
+        return;
+    }
+    
+    // Clear existing content
+    tocContainer.innerHTML = '';
+    
+    headings.forEach((heading, index) => {
+        // Create an ID if none exists
+        if (!heading.id) {
+            heading.id = 'heading-' + index;
+        }
+        
+        const level = parseInt(heading.tagName.charAt(1));
+        const text = heading.textContent.trim();
+        
+        // Skip if text is too long (truncate)
+        const displayText = text.length > 50 ? text.substring(0, 47) + '...' : text;
+        
+        const tocItem = document.createElement('a');
+        tocItem.className = `toc-link level-${level}`;
+        tocItem.href = '#' + heading.id;
+        tocItem.textContent = displayText;
+        tocItem.setAttribute('title', text); // Full text in tooltip
+        tocItem.setAttribute('data-heading-id', heading.id);
+        
+        // Smooth scroll handler
+        tocItem.addEventListener('click', function(e) {
+            e.preventDefault();
+            const target = document.getElementById(heading.id);
+            if (target) {
+                // Calculate offset for card header
+                const headerHeight = 150;
+                const targetPosition = target.offsetTop - headerHeight;
+                
+                window.scrollTo({
+                    top: Math.max(0, targetPosition),
+                    behavior: 'smooth'
+                });
+                
+                // Update URL without jumping
+                history.replaceState(null, null, '#' + heading.id);
+                
+                // Update active state
+                updateActiveTocItem(tocItem);
+            }
+        });
+        
+        tocContainer.appendChild(tocItem);
+    });
+}
+
+function setupScrollSpy() {
+    const tocLinks = document.querySelectorAll('.toc-link');
+    
+    if (tocLinks.length === 0) return;
+    
+    let ticking = false;
+    
+    function updateActiveTocItem(activeItem) {
+        tocLinks.forEach(link => link.classList.remove('active'));
+        if (activeItem) {
+            activeItem.classList.add('active');
+            
+            // Scroll active item into view in sidebar
+            const tocContainer = document.querySelector('.docs-toc');
+            if (tocContainer && activeItem) {
+                const linkRect = activeItem.getBoundingClientRect();
+                const containerRect = tocContainer.getBoundingClientRect();
+                
+                if (linkRect.top < containerRect.top || linkRect.bottom > containerRect.bottom) {
+                    const scrollTop = tocContainer.scrollTop + (linkRect.top - containerRect.top) - (containerRect.height / 2) + (linkRect.height / 2);
+                    tocContainer.scrollTo({
+                        top: Math.max(0, scrollTop),
+                        behavior: 'smooth'
+                    });
+                }
+            }
+        }
+    }
+    
+    function handleScroll() {
+        if (!ticking) {
+            requestAnimationFrame(() => {
+                const scrollY = window.scrollY + 160; // Offset for header card
+                let activeHeading = null;
+                
+                tocLinks.forEach(link => {
+                    const targetId = link.getAttribute('data-heading-id');
+                    const target = document.getElementById(targetId);
+                    
+                    if (target && target.offsetTop <= scrollY) {
+                        activeHeading = link;
+                    }
+                });
+                
+                updateActiveTocItem(activeHeading);
+                ticking = false;
+            });
+            ticking = true;
+        }
+    }
+    
+    window.addEventListener('scroll', handleScroll);
+    handleScroll(); // Initial call
+}
+
+function setupKeyboardNavigation() {
+    document.addEventListener('keydown', function(e) {
+        // Alt + Left Arrow: Back to docs
+        if (e.altKey && e.key === 'ArrowLeft') {
+            e.preventDefault();
+            window.location.href = '{{ url_for("docs.docs_index") }}';
+        }
+        
+        // Alt + Home: Go to dashboard
+        if (e.altKey && e.key === 'Home') {
+            e.preventDefault();
+            window.location.href = '{{ url_for("main.dashboard") }}';
+        }
+        
+        // Ctrl + P: Print
+        if (e.ctrlKey && e.key === 'p') {
+            e.preventDefault();
+            window.print();
+        }
+    });
+}
+
+// Enhance external links
+document.addEventListener('DOMContentLoaded', function() {
+    const contentLinks = document.querySelectorAll('.docs-content a[href^="http"]');
+    contentLinks.forEach(link => {
+        link.setAttribute('target', '_blank');
+        link.setAttribute('rel', 'noopener noreferrer');
+        
+        // Add external link icon
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-external-link-alt ms-1';
+        icon.style.fontSize = '0.75em';
+        icon.style.opacity = '0.7';
+        link.appendChild(icon);
+    });
+});
+
+// Copy code blocks functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const codeBlocks = document.querySelectorAll('.docs-content pre');
+    
+    codeBlocks.forEach(block => {
+        // Create copy button
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn btn-sm btn-ghost-secondary position-absolute';
+        copyBtn.style.top = '0.75rem';
+        copyBtn.style.right = '0.75rem';
+        copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+        copyBtn.setAttribute('title', 'Copy to clipboard');
+        
+        // Add copy functionality
+        copyBtn.addEventListener('click', function() {
+            const code = block.querySelector('code');
+            if (code) {
+                navigator.clipboard.writeText(code.textContent).then(() => {
+                    copyBtn.innerHTML = '<i class="fas fa-check text-success"></i>';
+                    copyBtn.setAttribute('title', 'Copied!');
+                    
+                    setTimeout(() => {
+                        copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+                        copyBtn.setAttribute('title', 'Copy to clipboard');
+                    }, 2000);
+                }).catch(() => {
+                    copyBtn.innerHTML = '<i class="fas fa-times text-danger"></i>';
+                    setTimeout(() => {
+                        copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+                    }, 2000);
+                });
+            }
+        });
+        
+        // Position block relatively and add button
+        block.style.position = 'relative';
+        block.appendChild(copyBtn);
+    });
+});
+
+// Enhanced image lightbox (simple implementation)
+document.addEventListener('DOMContentLoaded', function() {
+    const images = document.querySelectorAll('.docs-content img');
+    
+    images.forEach(img => {
+        img.style.cursor = 'pointer';
+        img.addEventListener('click', function() {
+            const lightbox = document.createElement('div');
+            lightbox.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.8);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 9999;
+                cursor: pointer;
+            `;
+            
+            const lightboxImg = img.cloneNode();
+            lightboxImg.style.cssText = `
+                max-width: 90%;
+                max-height: 90%;
+                border-radius: 0.5rem;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            `;
+            
+            lightbox.appendChild(lightboxImg);
+            
+            lightbox.addEventListener('click', function() {
+                document.body.removeChild(lightbox);
+            });
+            
+            document.body.appendChild(lightbox);
+        });
+    });
+});
+</script>
 {% endblock %}
