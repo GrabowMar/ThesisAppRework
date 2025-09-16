@@ -1,38 +1,42 @@
-# Frontend Revamp Documentation
+# Frontend Documentation
 
-This folder contains the living documents guiding the iterative rebuild of the Flask/Jinja/HTMX frontend, now migrating from AdminLTE to Bootstrap 5.
+This folder contains the consolidated frontend architecture and development documentation for the Flask/Jinja/HTMX/Bootstrap 5 based UI.
 
-Contents (high-level):
-- 00_MASTER_PROMPT.md – Master AI/system prompt to keep generation aligned
-- 01_CORE_PRINCIPLES.md – Architectural & design principles
-- 02_TECH_STACK.md – Technologies, versions, rationale (updated for Bootstrap 5)
-- 03_TEMPLATE_STRUCTURE.md – Target template & asset hierarchy
-- 04_COMPONENT_TAXONOMY.md – Classification of partials/components (Bootstrap 5 focused)
-- 05_NAMING_CONVENTIONS.md – File, block, id/data-* naming rules
-- 06_STATE_MANAGEMENT.md – Server + HTMX + progressive enhancement state patterns
-- 07_ROUTES_MAPPING.md – Route groups → templates mapping & legacy shim notes
-- 08_ITERATIVE_MIGRATION_PLAN.md – Ordered refactor stages & acceptance criteria (includes Bootstrap 5 migration)
-- 09_CODING_STANDARDS.md – HTML/Jinja/HTMX/JS/CSS lint rules & patterns
-- 10_PERFORMANCE_ACCESSIBILITY.md – Performance budgets & a11y checklist
-- 11_TEST_STRATEGY.md – Template, route, interaction and visual regression testing
-- 12_STYLE_GUIDE.md – Design tokens & CSS strategy (Bootstrap 5 focused)
-- 13_OBSERVABILITY.md – Logging, metrics, tracing hooks in templates
-- 14_RISKS_DECISIONS.md – ADR-style log of decisions & open risks (includes Bootstrap 5 migration decision)
-- 15_BOOTSTRAP_5_MIGRATION.md – Comprehensive guide for migrating from AdminLTE to Bootstrap 5
+## Documentation Structure
 
-## Key Changes for Bootstrap 5 Migration
+- **FRONTEND_ARCHITECTURE.md** – Complete frontend architecture guide covering technology stack, component hierarchy, HTMX patterns, Bootstrap 5 implementation, accessibility standards, and performance guidelines
+- **FRONTEND_DEVELOPMENT.md** – Practical development guide with workflow, component creation patterns, testing strategies, and troubleshooting
 
-- **Removed jQuery dependencies**: Bootstrap 5 is jQuery-free
-- **Updated component system**: AdminLTE components → Bootstrap 5 equivalents
-- **Modern CSS framework**: Leverage Bootstrap 5 utilities and components
-- **Icon migration**: Font Awesome → Bootstrap Icons (preferred)
-- **Responsive improvements**: Better mobile-first approach
+## Key Technologies
+
+- **Server Framework**: Flask with Jinja2 templating
+- **CSS Framework**: Bootstrap 5 (no jQuery dependency)
+- **Progressive Enhancement**: HTMX for dynamic updates
+- **Icons**: Font Awesome (solid style) - NO inline SVG
+- **JavaScript**: Vanilla ES modules only when needed
+
+## Template Organization
+
+```
+templates/
+├── layouts/              # Page skeletons (base.html, dashboard.html, etc.)
+├── pages/{domain}/       # Complete domain-specific pages
+├── ui/elements/          # Reusable UI components
+└── partials/{domain}/    # HTMX fragment endpoints
+```
 
 ## Migration Status
 
-- **Stage 1**: Documentation & Standards (In Progress)
-- **Stage 2**: Bootstrap 5 Foundation & Layout Migration (Pending)
-- **Stages 3-7**: Component migration with Bootstrap 5 (Pending)
-- **Stage 8**: Legacy cleanup and AdminLTE removal (Pending)
+✅ **Completed**: Documentation consolidation, Bootstrap 5 foundation
+🔄 **In Progress**: Component migration from AdminLTE to Bootstrap 5
+📋 **Planned**: Legacy cleanup and AdminLTE removal
 
-Use PRs to evolve; each change must update MASTER_PROMPT if principle-level shifts occur.
+## Quick Start
+
+1. Read [FRONTEND_ARCHITECTURE.md](FRONTEND_ARCHITECTURE.md) for architectural overview
+2. Follow [FRONTEND_DEVELOPMENT.md](FRONTEND_DEVELOPMENT.md) for development workflow
+3. Use Bootstrap 5 utilities and components
+4. Test accessibility and responsive behavior
+5. Update component documentation as needed
+
+For questions or clarifications, refer to the consolidated documentation files or create an issue.

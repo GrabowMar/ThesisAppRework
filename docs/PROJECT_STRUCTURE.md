@@ -34,7 +34,7 @@ Celery task definitions; gating logic uses `DISABLED_ANALYSIS_MODELS` env to ear
 ORM models (capabilities, generated apps, analyses). Large analyzer outputs stored in JSON columns; parsing deferred to services.
 
 ## Analyzer Stack (`analyzer/`)
-`docker-compose.yml` defines: gateway (8765), static (2001), dynamic (2002), performance (2003), ai (2004), redis (6379). Results persisted under per-service volumes and/or `analyzer/results/`.
+`docker-compose.yml` defines: gateway (8765), static-analyzer (2001), dynamic-analyzer (2002), performance-tester (2003), ai-analyzer (2004), redis (6379). Results persisted under per-service volumes and/or `analyzer/results/`.
 
 ## Generated Applications (`generated/`)
 Layout: `generated/<model_slug>/app<number>/` (slug keeps hyphens). Ports resolved primarily via DB (`PortConfiguration`); fallback JSON only if absent. Compose files built via `scripts/build_start_app.py`.
@@ -43,7 +43,7 @@ Layout: `generated/<model_slug>/app<number>/` (slug keeps hyphens). Ports resolv
 Synchronous API (`/api/sample-gen/*`) uses in-memory registry + manifest under `src/generated/indices/generation_manifest.json`. Does NOT use Celery; safe for fast test flows.
 
 ## Template Conventions
-Pages: `templates/pages/*.html`; partials: `templates/partials/**`. Detect HTMX with `HX-Request` header. Shared wrapper macros live under `partials/common/` (see `TEMPLATES.md`).
+Pages: `templates/pages/*.html`; partials: `templates/partials/**`. Detect HTMX with `HX-Request` header. Shared wrapper macros live under `partials/common/` (see `TEMPLATES.md`). Frontend uses Bootstrap 5 + Font Awesome icons (no inline SVG).
 
 ## Error Handling
 Central handlers in `routes/errors.py` map internal `ServiceError` subclasses to JSON or HTML; request id injected. See `ERROR_HANDLING.md`.
@@ -71,9 +71,10 @@ pytest -q                           # Tests
 python scripts/build_start_app.py --model <slug> --app 1 --rebuild
 ```
 
-## Status Snapshot (2025-09-03)
-Stable: layering, engines, analyzer stack.  
+## Status Snapshot (2025-09-16)
+Stable: layering, engines, analyzer stack, Bootstrap 5 frontend.  
 In Progress: richer port allocation & background tasks.  
+Completed: Bootstrap 5 migration, frontend documentation consolidation.  
 Deprecated: legacy analyzer service & container/port shims (see `LEGACY_REMOVALS.md`).
 
-_Last updated: 2025-09-03._
+_Last updated: 2025-09-16._

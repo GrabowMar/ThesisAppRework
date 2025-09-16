@@ -2,9 +2,9 @@
 
 This document summarizes the ongoing effort to reduce bespoke frontend JavaScript in favor of:
 
-- **htmx** for declarative partial loading, polling, and swapping
-- **hyperscript** for small imperative UI behaviors directly in markup
-- **Tabler / Bootstrap** for layout, components, and transitions
+- **HTMX** for declarative partial loading, polling, and swapping
+- **Bootstrap 5** for layout, components, and transitions (no jQuery dependency)  
+- **Font Awesome** for consistent iconography
 
 ## Feature Flags & Modes
 
@@ -64,4 +64,4 @@ Broadcast custom events to a single `hx-trigger` listener (e.g. `refresh-apps-ta
 - Further decomposition of `sample_generator.js` (batch operations & scaffolding) into fragments.
 - Potential replacement of tasks live dashboard via SSE + HTMX if websocket dependency decreases.
 
-_Updated: {{ current_date|default('2025-09-08') }}_
+_Updated: 2025-09-16 (updated for Bootstrap 5 and Font Awesome migration)_

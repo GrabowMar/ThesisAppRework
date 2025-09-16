@@ -1,12 +1,12 @@
 # Project Overview
 
-> Navigation: [Architecture](ARCHITECTURE.md) · [Request Flow](REQUEST_FLOW.md) · [Analysis Pipeline](ANALYSIS_PIPELINE.md) · [Data Model](DATA_MODEL.md) · [Routes](ROUTES_REFERENCE.md) · [Services](SERVICES_REFERENCE.md) · [Dev Guide](DEVELOPMENT_GUIDE.md) · [Observability](OBSERVABILITY.md) · [Templates](TEMPLATES.md)
+> Navigation: [Architecture](ARCHITECTURE.md) · [Request Flow](REQUEST_FLOW.md) · [Analysis Pipeline](ANALYSIS_PIPELINE.md) · [Data Model](DATA_MODEL.md) · [Routes](ROUTES_REFERENCE.md) · [Services](SERVICES_REFERENCE.md) · [Dev Guide](DEVELOPMENT_GUIDE.md) · [Observability](OBSERVABILITY.md) · [Templates](TEMPLATES.md) · [Frontend](frontend/FRONTEND_ARCHITECTURE.md)
 
 The Thesis App Rework platform orchestrates generation, execution and multi-dimensional analysis of AI‑generated applications ("model apps") across multiple LLM providers. It provides:
 
-1. An operator-facing Flask + HTMX web UI for browsing models & generated apps, launching analyses, and viewing results.
+1. An operator-facing Flask + HTMX + Bootstrap 5 web UI for browsing models & generated apps, launching analyses, and viewing results.
 2. A Celery task layer that offloads long-running or I/O-bound analysis work.
-3. A set of containerized analyzer microservices (static, dynamic/ZAP, performance, AI) communicating via WebSockets (ports 2001‑2004 + gateway 8765).
+3. A set of containerized analyzer microservices (static-analyzer, dynamic-analyzer, performance-tester, ai-analyzer) communicating via WebSockets (ports 2001‑2004 + gateway 8765).
 4. Lightweight in-process Analysis Engines (`analysis_engines.py`) giving a uniform synchronous contract (`engine.run(...)`) primarily leveraged by Celery tasks, but available for fast-path tests.
 5. A relational database (SQLAlchemy) capturing model metadata, port allocations, generated application inventory, and analysis/test results with JSON payloads.
 6. An experimental Sample Generation subsystem (`/api/sample-gen/*`) for AI-backed code artifact generation + manifest tracking.
@@ -37,14 +37,14 @@ Sample generation diverges: Route → Service Locator → synchronous generation
 
 ## Architecture Layers
 
-1. Presentation: Flask routes + Jinja templates (HTMX fragments)
-2. Services: Business logic (model/catalog, docker orchestration hooks, batch, sample gen)
-3. Analysis Engines: Thin synchronous wrappers around analyzer integration (used by tasks & selective tests)
-4. Asynchronous Layer: Celery tasks (analysis, batch, container ops) + WebSocket bridge
-5. Analyzer Microservices: Dockerized specialized analyzers (static, dynamic, performance, AI)
-6. Persistence: SQLAlchemy models + JSON columns for large result payloads
-7. Documentation & Tooling: Auto-generated references + MkDocs site
-8. Experimental Generation: Synchronous sample code generation + manifest tracking
+1. **Presentation**: Flask routes + Jinja templates + Bootstrap 5 + HTMX fragments
+2. **Services**: Business logic (model/catalog, docker orchestration hooks, batch, sample gen)
+3. **Analysis Engines**: Thin synchronous wrappers around analyzer integration (used by tasks & selective tests)
+4. **Asynchronous Layer**: Celery tasks (analysis, batch, container ops) + WebSocket bridge
+5. **Analyzer Microservices**: Dockerized specialized analyzers (static, dynamic, performance, AI)
+6. **Persistence**: SQLAlchemy models + JSON columns for large result payloads
+7. **Documentation & Tooling**: Auto-generated references + MkDocs site
+8. **Experimental Generation**: Synchronous sample code generation + manifest tracking
 
 See [Architecture](ARCHITECTURE.md) for detailed diagrams and cross-component responsibilities.
 
@@ -57,16 +57,49 @@ See [Architecture](ARCHITECTURE.md) for detailed diagrams and cross-component re
 - Partial-first UX: Return minimal HTMX fragments; stable DOM IDs ease incremental replacement.
 - Extensible analyzers: Add container + engine + Celery task; reuse protocol & integration.
 - Reproducibility: Generated app inventory, manifest, and analysis configs timestamped for experiment traceability.
-- Separation of concerns: Sample generation remains synchronous to simplify iteration and reduce queue noise.
+- **Progressive enhancement**: Core functionality works without JavaScript; HTMX augments experience.
 
 ## Primary User Journeys
 
-1. Browse Models → Filter/Sort → Drill into model details → View associated generated applications.
-2. Applications Grid → Select app → Launch security/static/dynamic/performance analysis (Celery task queued) → Poll/fragment refresh.
-3. Sample Generation (optional) → Upsert template → Generate code → Inspect manifest + structure.
-4. Inspect Analysis Result → Summaries + raw JSON (lazy parse) → Export.
-5. Batch Workflow → Multi-app enqueue → Aggregate progress dashboard.
-6. System Monitoring → Analyzer container health & task metrics.
+1. **Browse Models** → Filter/Sort → Drill into model details → View associated generated applications.
+2. **Applications Grid** → Select app → Launch security/static/dynamic/performance analysis (Celery task queued) → Poll/fragment refresh.
+3. **Sample Generation** (optional) → Upsert template → Generate code → Inspect manifest + structure.
+4. **Inspect Analysis Result** → Summaries + raw JSON (lazy parse) → Export.
+5. **Batch Workflow** → Multi-app enqueue → Aggregate progress dashboard.
+6. **System Monitoring** → Analyzer container health & task metrics.
+
+## Analysis Types
+
+The platform supports multiple analysis types defined in `constants.py`:
+
+- **security**: General security analysis (static code analysis)
+- **performance**: Performance testing using Locust
+- **zap_security**: Dynamic security testing using OWASP ZAP
+- **openrouter**: AI-powered code analysis using OpenRouter models
+- **code_quality**: Code quality analysis (linting, complexity)
+
+Each analysis type has:
+- Dedicated analyzer container service
+- Corresponding database model for storing results
+- Analysis engine with uniform `run()` interface
+- Celery task for asynchronous execution
+
+## Frontend Architecture
+
+The UI is built with:
+- **Flask + Jinja2**: Server-side rendering
+- **Bootstrap 5**: CSS framework (no jQuery dependency)
+- **HTMX**: Progressive enhancement for dynamic updates
+- **Font Awesome**: Icon library (solid style only)
+- **Vanilla JavaScript**: Minimal client-side scripting
+
+Templates are organized in a clear hierarchy:
+- `layouts/`: Page skeletons
+- `pages/{domain}/`: Complete page views
+- `ui/elements/`: Reusable components
+- `partials/{domain}/`: HTMX fragments
+
+See [Frontend Architecture](frontend/FRONTEND_ARCHITECTURE.md) for detailed guidance.
 
 ## When to Add a New Service
 
@@ -75,10 +108,13 @@ Add a service when logic: (a) touches multiple models/tables, (b) may be reused 
 ## Adding a New Analyzer Type (Conceptual)
 
 1. Implement the container / tool logic under `analyzer/services/<new-analyzer>/` with a WebSocket server exposing a consistent message protocol.
-2. Extend Celery tasks to enqueue requests referencing the new analyzer type.
-3. Update the front-end configuration partial to allow selecting the new analysis mode.
-4. Persist results in a new table (JSON payload + summary metrics).
-5. Add display partials + route endpoints for viewing and exporting results.
+2. Add the service to `analyzer/docker-compose.yml` with appropriate port and health checks.
+3. Extend `analyzer_manager.py` to support the new analyzer type in CLI commands.
+4. Create an analysis engine in `analysis_engines.py` with uniform `run()` interface.
+5. Add Celery task to enqueue requests referencing the new analyzer type.
+6. Create database model for storing results (following existing patterns).
+7. Update the front-end configuration partial to allow selecting the new analysis mode.
+8. Add display partials + route endpoints for viewing and exporting results.
 
 ## Auto-Generated Documentation
 
@@ -103,11 +139,18 @@ Every major doc begins with a navigation line for quick jumps. Add new documents
 - [Routes Reference](ROUTES_REFERENCE.md) – auto-generated URL inventory
 - [Services Reference](SERVICES_REFERENCE.md) – public service APIs
 - [Observability](OBSERVABILITY.md) – logs, metrics, health checks
+- [Frontend Architecture](frontend/FRONTEND_ARCHITECTURE.md) – UI patterns and best practices
+- [Frontend Development](frontend/FRONTEND_DEVELOPMENT.md) – Development workflow
 
 ---
-### Recent UI Standard Change
+### Current Technology Stack
 
-As of 2025-09-07 all inline SVG (Tabler) icons were removed and replaced with Font Awesome (solid style) `<i>` elements for consistency, reduced template verbosity, and easier future theming. New contributions must use Font Awesome only; introducing raw `<svg>` requires documented justification.
+- **Backend**: Flask with SQLAlchemy, Celery for async tasks
+- **Frontend**: Bootstrap 5 + HTMX + Font Awesome icons
+- **Analyzers**: Docker containers with WebSocket communication
+- **Database**: SQLite (dev) with JSON columns for complex data
+- **Task Queue**: Celery with Redis backend
+- **Testing**: Pytest with ephemeral test database
 
 ---
-_Last updated: 2025-09-07._ 
+_Last updated: 2025-09-16 (modernized with Bootstrap 5, clarified analyzer types)._ 
