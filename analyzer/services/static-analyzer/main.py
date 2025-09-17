@@ -527,7 +527,23 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             except Exception as e:
                 self.log.error(f"Vulture analysis failed: {e}")
                 results['vulture'] = {'tool': 'vulture', 'executed': True, 'status': 'error', 'error': str(e)}
-        
+        # Summarize per-tool status for Python analyzers
+        try:
+            summary = {}
+            for name in ['bandit', 'pylint', 'semgrep', 'mypy', 'safety', 'vulture']:
+                t = results.get(name)
+                if isinstance(t, dict):
+                    summary[name] = {
+                        'executed': bool(t.get('executed')),
+                        'status': t.get('status'),
+                        'total_issues': int(t.get('total_issues', 0)),
+                        'error': t.get('error') if 'error' in t else None,
+                    }
+            if summary:
+                results['tool_status'] = summary
+        except Exception:
+            pass
+
         return results
     
     async def analyze_javascript_files(self, source_path: Path, config: Optional[Dict[str, Any]] = None, selected_tools: Optional[Set[str]] = None) -> Dict[str, Any]:
@@ -842,7 +858,23 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             except Exception as e:
                 self.log.error(f"Snyk Code analysis failed: {e}")
                 results['snyk'] = {'tool': 'snyk', 'executed': True, 'status': 'error', 'error': str(e)}
-        
+        # Summarize per-tool status for JS analyzers
+        try:
+            summary = {}
+            for name in ['eslint', 'jshint', 'snyk']:
+                t = results.get(name)
+                if isinstance(t, dict):
+                    summary[name] = {
+                        'executed': bool(t.get('executed')),
+                        'status': t.get('status'),
+                        'total_issues': int(t.get('total_issues', 0)),
+                        'error': t.get('error') if 'error' in t else None,
+                    }
+            if summary:
+                results['tool_status'] = summary
+        except Exception:
+            pass
+
         return results
     
     async def analyze_css_files(self, source_path: Path, config: Optional[Dict[str, Any]] = None, selected_tools: Optional[Set[str]] = None) -> Dict[str, Any]:

@@ -18,6 +18,7 @@ from __future__ import annotations
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 import json
+from pathlib import Path
 
 from .service_base import NotFoundError, ValidationError
 from ..models import AnalysisTask
@@ -97,6 +98,14 @@ class AnalysisInspectionService:
         data['has_error'] = bool(task.error_message)
         # Count attached results (if any)
         data['results_count'] = len(getattr(task, 'results', []) or [])
+        # Prefer a derived status if analyzer indicated success but DB status lags
+        try:
+            payload = self.get_task_results_payload(task.task_id)
+            if isinstance(payload, dict) and payload.get('derived_status'):
+                data['derived_status'] = payload.get('derived_status')
+        except Exception:
+            # Non-fatal if results not yet present or any parsing error occurs
+            pass
         return data
 
     # ------------- Results JSON -------------------------------------------
@@ -123,8 +132,71 @@ class AnalysisInspectionService:
             # Orchestrator payload lives at the top level with 'summary', 'findings', 'tool_results'
             analysis_data = metadata
             summary = metadata.get('summary', {})
-            results = metadata.get('tool_results', {})
+            # Prefer tool_results; some producers use 'results'
+            results = metadata.get('tool_results') or metadata.get('results') or {}
+
+        # Best-effort fallback: if results look empty, try to load the latest persisted analyzer result file
+        model_slug = (analysis_data.get('model_slug') or task.target_model)
+        app_number = (analysis_data.get('app_number') or task.target_app_number)
+        if (not results or (isinstance(results, dict) and not results.keys())) and model_slug and app_number:
+            try:
+                loaded = self._load_latest_analyzer_results(str(model_slug), int(app_number))
+                if loaded:
+                    # Common analyzer file shapes:
+                    # A) { 'analysis': {..., 'results': {...}, 'summary': {...} } }
+                    # B) { 'results': { 'analysis': {..., 'results': {...}}, 'summary': {...} } }
+                    # C) { 'results': {...}, 'summary': {...} }
+
+                    # Shape A: top-level 'analysis'
+                    if 'analysis' in loaded and isinstance(loaded['analysis'], dict):
+                        analysis_block = loaded['analysis']
+                        results = analysis_block.get('results', results)
+                        summary = (analysis_block.get('summary') or summary) or summary
+                        if 'analysis_time' in analysis_block and 'analysis_time' not in analysis_data:
+                            analysis_data['analysis_time'] = analysis_block.get('analysis_time')
+                        if not analysis_data.get('tools_used') and isinstance(analysis_block.get('tools_used'), list):
+                            analysis_data['tools_used'] = list(analysis_block.get('tools_used', []))
+
+                    # Shape B: nested under loaded['results']
+                    elif 'results' in loaded and isinstance(loaded['results'], dict):
+                        outer_results = loaded['results']
+                        # Try nested analysis/results
+                        if 'analysis' in outer_results and isinstance(outer_results['analysis'], dict):
+                            analysis_block = outer_results['analysis']
+                            # Tool outputs live here
+                            results = analysis_block.get('results', results)
+                            # Prefer summary from outer or analysis block
+                            if not summary:
+                                summary = outer_results.get('summary') or analysis_block.get('summary') or {}
+                            # Carry over helpful fields
+                            if 'analysis_time' in analysis_block and 'analysis_time' not in analysis_data:
+                                analysis_data['analysis_time'] = analysis_block.get('analysis_time')
+                            if not analysis_data.get('tools_used') and isinstance(analysis_block.get('tools_used'), list):
+                                analysis_data['tools_used'] = list(analysis_block.get('tools_used', []))
+                            if 'configuration_applied' in analysis_block and 'configuration_applied' not in analysis_data:
+                                analysis_data['configuration_applied'] = analysis_block.get('configuration_applied')
+                        else:
+                            # Shape C or partial: tool outputs may already be here
+                            results = outer_results or results
+                            if not summary:
+                                summary = loaded.get('summary', {})
+            except Exception:
+                pass
         
+        # If analyzer file signaled top-level error, reflect it in summary and status
+        try:
+            if isinstance(loaded, dict) and isinstance(loaded.get('results'), dict):
+                top = loaded['results']
+                if str(top.get('status', '')).lower() in ('error', 'failed'):
+                    # Mark summary to include error and prefer failed status
+                    summary = summary or {}
+                    if 'error' in top and 'error' not in summary:
+                        summary['error'] = top.get('error')
+                    # Force derived_status to failed to avoid misleading completed
+                    derived_status = 'failed'
+        except Exception:
+            pass
+
         # Extract severity breakdown
         severity = summary.get('severity_breakdown', {})
         
@@ -337,14 +409,55 @@ class AnalysisInspectionService:
         total_issues = summary.get('total_issues_found', len(findings))
         
         # Enhanced payload with comprehensive metadata
+        # Derive a friendlier status hint from analyzer summary if DB task status is misleading
+        derived_status = None
+        try:
+            deriv = summary.get('analysis_status') if isinstance(summary, dict) else None
+            if deriv in ('completed', 'success'):
+                derived_status = deriv
+            elif findings:
+                derived_status = 'completed'
+        except Exception:
+            pass
+
+        # Derive tools_used if still empty by inspecting executed tool blocks
+        tools_skipped: list[str] = []
+        try:
+            if (not analysis_data.get('tools_used')) and isinstance(results, dict):
+                used = []
+                for lang_key, lang_block in results.items():
+                    if not isinstance(lang_block, dict):
+                        continue
+                    for tool_name, tool_block in lang_block.items():
+                        if not isinstance(tool_block, dict):
+                            continue
+                        # Consider executed tools or those with a non-skipped status
+                        executed = tool_block.get('executed') is True
+                        status_val = str(tool_block.get('status', '')).lower()
+                        if executed or (status_val and status_val not in ('skipped', 'not_run', 'noop')):
+                            used.append(tool_name)
+                        if (not executed) or status_val in ('skipped', 'not_run', 'noop', 'no_files'):
+                            tools_skipped.append(tool_name)
+                if used:
+                    # Deduplicate and store
+                    analysis_data['tools_used'] = sorted(set(used))
+        except Exception:
+            pass
+
+        # Decide effective status: prefer analyzer-derived
+        effective_status = derived_status or getattr(task.status, 'value', task.status)
+        db_status = getattr(task.status, 'value', task.status)
+
         payload = {
             'task_id': task.task_id,
-            'status': getattr(task.status, 'value', task.status),
+            'status': effective_status,
+            'db_status': db_status,
             'analysis_type': getattr(task.analysis_type, 'value', task.analysis_type),
-            'model_slug': analysis_data.get('model_slug'),
-            'app_number': analysis_data.get('app_number'),
+            'model_slug': analysis_data.get('model_slug', model_slug),
+            'app_number': analysis_data.get('app_number', app_number),
             'analysis_time': analysis_data.get('analysis_time'),
-            'tools_used': analysis_data.get('tools_used', []),
+            'tools_used': analysis_data.get('tools_used') or (summary.get('tools_used') if isinstance(summary, dict) else []) or [],
+            'tools_skipped': sorted(set(tools_skipped)) if tools_skipped else [],
             'configuration_applied': analysis_data.get('configuration_applied', False),
             'summary': summary,
             'severity_breakdown': severity,
@@ -358,9 +471,36 @@ class AnalysisInspectionService:
                 'extraction_version': '2.0',
                 'comprehensive_parsing': True,
                 'raw_data_included': True
-            }
+            },
+            'derived_status': derived_status
         }
         return payload
+
+    def _load_latest_analyzer_results(self, model_slug: str, app_number: int) -> Optional[Dict[str, Any]]:
+        """Load the most recent analyzer result JSON for a given model/app.
+
+        Searches results/<model_slug>/appN/*-analyzer/*.json and returns parsed JSON.
+        """
+        try:
+            base = Path.cwd() / 'results' / model_slug / f'app{app_number}'
+            if not base.exists():
+                return None
+            # Prefer static-analyzer first, but allow any analyzer folder
+            candidates = []
+            for sub in ('static-analyzer', 'dynamic-analyzer', 'performance-tester', 'ai-analyzer'):
+                p = base / sub
+                if p.exists():
+                    candidates.extend(sorted(p.glob('*.json'), key=lambda x: x.stat().st_mtime, reverse=True))
+            # Fallback to any JSON under app folder
+            if not candidates:
+                candidates = sorted(base.glob('**/*.json'), key=lambda x: x.stat().st_mtime, reverse=True)
+            if not candidates:
+                return None
+            latest = candidates[0]
+            with latest.open('r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            return None
 
     def _map_eslint_severity(self, severity: int) -> str:
         """Map ESLint numeric severity to string."""

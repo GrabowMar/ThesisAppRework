@@ -120,6 +120,7 @@ class BaseWSService:
             'timestamp': datetime.now().isoformat(),
         }
         try:
+            # Disable keepalive pings when talking to gateway as well
             async with websockets.connect(gw, open_timeout=1, close_timeout=1, ping_interval=None) as ws:
                 await ws.send(json.dumps(payload))
         except Exception:
@@ -180,7 +181,15 @@ class BaseWSService:
         port = int(os.getenv('WEBSOCKET_PORT', self.default_port))
         self.log.info(f"Starting {self.info.name} on {host}:{port}")
         try:
-            async with serve(self._handle_client, host, port):
+            # Disable keepalive pings on the server to avoid ping timeouts while
+            # long-running subprocess tasks block the event loop.
+            async with serve(
+                self._handle_client,
+                host,
+                port,
+                ping_interval=None,
+                ping_timeout=None,
+            ):
                 self.log.info(f"{self.info.name} listening on ws://{host}:{port}")
                 await asyncio.Future()  # run forever
         except Exception as e:

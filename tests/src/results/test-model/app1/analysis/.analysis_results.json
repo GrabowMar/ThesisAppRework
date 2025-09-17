@@ -3,7 +3,7 @@
     "module": "analysis",
     "model": "test-model",
     "app_number": 1,
-    "timestamp": "2025-09-17T12:51:38.533504+00:00",
+    "timestamp": "2025-09-17T19:13:48.267205+00:00",
     "version": "1.0",
     "analysis_type": "analysis"
   },
@@ -12,7 +12,7 @@
     "model_slug": "test-model",
     "app_number": 1,
     "target_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\src\\generated\\apps\\test-model\\app1",
-    "analysis_duration": 0.05840134620666504,
+    "analysis_duration": 0.05393218994140625,
     "tools_requested": [
       "npm-audit"
     ],
@@ -52,7 +52,7 @@
     },
     "findings": [],
     "metadata": {
-      "analysis_timestamp": "2025-09-17T12:51:38.532182+00:00",
+      "analysis_timestamp": "2025-09-17T19:13:48.266083+00:00",
       "detected_languages": [
         "javascript",
         "python",

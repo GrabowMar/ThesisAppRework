@@ -619,6 +619,12 @@ def tool_registry_summary():
     """Get tool registry summary for dashboard."""
     try:
         from app.services.service_locator import ServiceLocator
+        # Try to fetch analyzer-reported available tools per service (fast, best-effort)
+        try:
+            from app.services.analyzer_integration import get_available_toolsets  # type: ignore
+            available_toolsets = get_available_toolsets() or {}
+        except Exception:
+            available_toolsets = {}
         tool_service = ServiceLocator.get_tool_registry_service()
         
         if not tool_service:
@@ -641,6 +647,48 @@ def tool_registry_summary():
         # Count enabled vs disabled tools
         enabled_tools = [t for t in tools if t.get('is_enabled', False)]
         disabled_tools = [t for t in tools if not t.get('is_enabled', True)]
+
+        # Annotate availability from analyzer services
+        def _normalize_service(name: str) -> str:
+            mapping = {
+                'static': 'static-analyzer',
+                'security': 'static-analyzer',
+                'static-analyzer': 'static-analyzer',
+                'dynamic-analyzer': 'dynamic-analyzer',
+                'performance-tester': 'performance-tester',
+                'ai-analyzer': 'ai-analyzer',
+            }
+            return mapping.get((name or '').lower(), name or 'unknown')
+
+        annotated_tools = []
+        available_by_service: dict[str, int] = {}
+        available_by_category: dict[str, int] = {}
+        for t in tools:
+            svc = _normalize_service(t.get('service_name', 'unknown'))
+            raw_list = available_toolsets.get(svc, None)
+            avail = set(x.lower() for x in (raw_list or []))
+            tname = str(t.get('name', '')).lower()
+            # Availability policy:
+            # - If analyzer reported a non-empty list: use membership
+            # - If analyzer explicitly reported empty list for service: treat as unavailable
+            # - If analyzer provided no entry for the service (unknown): infer from registry enabled flag
+            if raw_list is None:
+                is_available = bool(t.get('is_enabled', True))
+                availability_source = 'inferred'
+            elif not avail:
+                is_available = False
+                availability_source = 'analyzer'
+            else:
+                is_available = tname in avail
+                availability_source = 'analyzer'
+            item = dict(t)
+            item['available'] = is_available
+            item['availability_source'] = availability_source
+            annotated_tools.append(item)
+            if is_available:
+                available_by_service[svc] = available_by_service.get(svc, 0) + 1
+                cat = t.get('category') or 'other'
+                available_by_category[cat] = available_by_category.get(cat, 0) + 1
         
         return api_success({
             'summary': {
@@ -648,11 +696,15 @@ def tool_registry_summary():
                 'enabled_tools': len(enabled_tools),
                 'disabled_tools': len(disabled_tools),
                 'total_profiles': len(profiles),
-                'total_categories': len(categories)
+                'total_categories': len(categories),
+                'available_tools_total': sum(available_by_service.values()) if available_by_service else 0
             },
             'tools_by_category': {cat: len(tools_list) for cat, tools_list in tools_by_category.items()},
             'tools_by_service': {svc: len(tools_list) for svc, tools_list in tools_by_service.items()},
-            'recent_tools': tools[:5],  # First 5 tools as recent
+            'available_by_service': available_by_service,
+            'available_by_category': available_by_category,
+            'recent_tools': annotated_tools[:5],  # First 5 tools as recent (with availability)
+            'tools_annotated': annotated_tools,  # Full list with availability flag
             'builtin_profiles': [p for p in profiles if p.get('is_builtin', False)]
         })
         

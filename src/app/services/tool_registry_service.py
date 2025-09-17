@@ -44,6 +44,17 @@ class ToolRegistryService:
                 self._initialized = True
             except Exception as e:
                 logger.warning(f"Failed to initialize builtin tools/profiles: {e}")
+        else:
+            # Defensive: if the active DB/session changed (e.g., tests bind a new
+            # in-memory database), our previous initialization may not exist.
+            # If canonical builtin tools are missing, re-run initialization.
+            try:
+                sentinel = AnalysisTool.query.filter_by(name='bandit').first()
+                if sentinel is None:
+                    self._initialize_builtin_tools()
+                    self._initialize_builtin_profiles()
+            except Exception as e:
+                logger.debug(f"Builtin tool recheck failed (non-fatal): {e}")
     
     # ==========================================
     # Tool Management
@@ -251,6 +262,13 @@ class ToolRegistryService:
         """Get a tool by name."""
         self._ensure_initialized()
         tool = AnalysisTool.query.filter_by(name=name).first()
+        if not tool:
+            # Lazy self-heal: if builtin tools are missing (fresh DB), initialize and retry once
+            try:
+                self._initialize_builtin_tools()
+                tool = AnalysisTool.query.filter_by(name=name).first()
+            except Exception:
+                tool = None
         return tool.to_dict() if tool else None
     
     def create_tool(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -692,6 +710,52 @@ class ToolRegistryService:
                 }
             },
             {
+                'name': 'mypy',
+                'display_name': 'Mypy Type Checker',
+                'category': 'quality',
+                'service_name': 'static-analyzer',
+                'description': 'Static type checking for Python',
+                'command': 'mypy {source_path}',
+                'compatibility': ['python', 'backend'],
+                'is_enabled': True,
+                'estimated_duration': 120,
+                'default_config': {
+                    'ignore_missing_imports': True,
+                    'show_error_codes': True,
+                    'no_error_summary': True,
+                    'max_files': 10
+                }
+            },
+            {
+                'name': 'safety',
+                'display_name': 'Safety Dependency Checker',
+                'category': 'security',
+                'service_name': 'static-analyzer',
+                'description': 'Python dependency vulnerability scanning',
+                'command': 'safety scan --output json',
+                'compatibility': ['python', 'backend'],
+                'is_enabled': True,
+                'estimated_duration': 60,
+                'default_config': {
+                    'output': 'json'
+                }
+            },
+            {
+                'name': 'semgrep',
+                'display_name': 'Semgrep SAST',
+                'category': 'security',
+                'service_name': 'static-analyzer',
+                'description': 'Multi-language static analysis (security & quality)',
+                'command': 'semgrep --config=auto --json {source_path}',
+                'compatibility': ['python', 'javascript', 'typescript', 'backend', 'frontend'],
+                'is_enabled': True,
+                'estimated_duration': 180,
+                'default_config': {
+                    'config': 'auto',
+                    'severity': None
+                }
+            },
+            {
                 'name': 'eslint',
                 'display_name': 'ESLint JavaScript Linter',
                 'category': 'quality',
@@ -704,6 +768,47 @@ class ToolRegistryService:
                 'default_config': {
                     'format': 'json',
                     'ext': ['.js', '.jsx', '.ts', '.tsx']
+                }
+            },
+            {
+                'name': 'jshint',
+                'display_name': 'JSHint JavaScript Linter',
+                'category': 'quality',
+                'service_name': 'static-analyzer',
+                'description': 'JavaScript code quality checker',
+                'command': 'jshint --reporter json {source_path}',
+                'compatibility': ['javascript', 'frontend'],
+                'is_enabled': True,
+                'estimated_duration': 60,
+                'default_config': {
+                    'esversion': 6,
+                    'max_files': 30
+                }
+            },
+            {
+                'name': 'stylelint',
+                'display_name': 'Stylelint CSS Linter',
+                'category': 'quality',
+                'service_name': 'static-analyzer',
+                'description': 'CSS/SCSS style linting',
+                'command': 'stylelint --formatter json "{source_path}/**/*.css"',
+                'compatibility': ['frontend'],
+                'is_enabled': True,
+                'estimated_duration': 45,
+                'default_config': {}
+            },
+            {
+                'name': 'vulture',
+                'display_name': 'Vulture Dead Code Finder',
+                'category': 'quality',
+                'service_name': 'static-analyzer',
+                'description': 'Dead code and unused code detection for Python',
+                'command': 'vulture {source_path}',
+                'compatibility': ['python', 'backend'],
+                'is_enabled': True,
+                'estimated_duration': 60,
+                'default_config': {
+                    'min_confidence': 60
                 }
             },
             {
@@ -736,6 +841,22 @@ class ToolRegistryService:
                     'users': 10,
                     'spawn_rate': 2,
                     'duration': '60s'
+                }
+            },
+            {
+                'name': 'ab-load-test',
+                'display_name': 'Apache Bench Load Testing',
+                'category': 'performance',
+                'service_name': 'performance-tester',
+                'description': 'HTTP performance benchmarking using Apache Bench',
+                'command': 'ab -n {requests} -c {concurrency} {target_url}/',
+                'compatibility': ['web', 'api', 'backend'],
+                'is_enabled': True,
+                'estimated_duration': 120,
+                'default_config': {
+                    'requests': 200,
+                    'concurrency': 10,
+                    'keepalive': True
                 }
             },
             {

@@ -81,12 +81,15 @@ class ConnectionManager:
         try:
             logger.info(f"Connecting to {service_key} analyzer at {service_url}")
             
+            # Disable keepalive pings to prevent timeouts while services perform
+            # long-running blocking subprocess work. We rely on higher-level
+            # request timeouts and error handling instead.
             connection = await asyncio.wait_for(
                 websockets.connect(
                     service_url,
-                    ping_interval=self.connection_timeouts['heartbeat'],
-                    ping_timeout=10,
-                    close_timeout=10
+                    ping_interval=None,
+                    ping_timeout=None,
+                    close_timeout=20
                 ),
                 timeout=self.connection_timeouts['connect']
             )
@@ -167,9 +170,25 @@ class AnalysisExecutor:
             
             # Send request and handle response
             result = await self._send_analysis_request(connection, request, task, progress_callback)
-            
+
+            # Decide success using tolerant schema match (some services use 'success')
+            def _is_success(res: dict) -> bool:
+                try:
+                    status = str(res.get('status', '')).lower()
+                    if status in ('completed', 'success', 'ok'):
+                        return True
+                    # Look into nested analysis summary
+                    analysis = res.get('analysis') if isinstance(res.get('analysis'), dict) else None
+                    if analysis:
+                        summary = analysis.get('summary') if isinstance(analysis.get('summary'), dict) else None
+                        if summary and str(summary.get('analysis_status', '')).lower() in ('completed', 'success'):
+                            return True
+                    return False
+                except Exception:
+                    return False
+
             # Process results
-            if result['status'] == 'completed':
+            if _is_success(result):
                 await self._process_successful_result(task, result)
             else:
                 await self._process_failed_result(task, result)
@@ -431,13 +450,40 @@ class AnalysisExecutor:
     async def _process_successful_result(self, task: Any, result: Dict[str, Any]):
         """Process successful analysis result."""
         try:
-            # Extract result data
-            analysis_data = result.get('data', {})
+            # Extract result data from multiple possible shapes
+            analysis_data = {}
+            if isinstance(result.get('analysis'), dict):
+                analysis_data = result.get('analysis')  # canonical analyzer shape
+            elif isinstance(result.get('data'), dict):
+                analysis_data = result.get('data')
+            elif isinstance(result.get('results'), dict):
+                # Wrap results under analysis key for consistency
+                analysis_data = {'results': result.get('results')}
+
             findings = result.get('findings', [])
             metrics = result.get('metrics', {})
             
-            # Update task with results
+            # Update task with results: persist analysis summary and computed fields
             task.mark_completed(analysis_data)
+
+            # Populate task fields for list views / inspection
+            try:
+                # Summary and counts
+                summary = analysis_data.get('summary', {}) if isinstance(analysis_data, dict) else {}
+                sev = summary.get('severity_breakdown', {}) if isinstance(summary, dict) else {}
+                issues_total = int(summary.get('total_issues_found', 0)) if isinstance(summary, dict) else 0
+                task.set_severity_breakdown(sev if isinstance(sev, dict) else {})
+                task.issues_found = issues_total
+                # Also store a small normalized summary into result_summary
+                if isinstance(summary, dict) and summary:
+                    # Merge a thin wrapper containing summary + tools_used into result_summary
+                    thin = {
+                        'summary': summary,
+                        'tools_used': (analysis_data.get('tools_used') if isinstance(analysis_data, dict) else []) or [],
+                    }
+                    task.set_result_summary(thin)
+            except Exception:
+                pass
             
             # Store detailed findings
             if findings:
@@ -448,6 +494,22 @@ class AnalysisExecutor:
                 metadata = task.get_metadata()
                 metadata['metrics'] = metrics
                 task.set_metadata(metadata)
+
+            # Persist a normalized copy of the analyzer result into task metadata
+            try:
+                meta = task.get_metadata()
+                # Avoid clobbering if already set by previous retry
+                meta['analysis'] = analysis_data
+                # Add raw transport-level envelope (non-sensitive)
+                meta['result_envelope'] = {
+                    'type': result.get('type'),
+                    'service': result.get('service'),
+                    'status': result.get('status'),
+                    'timestamp': result.get('timestamp'),
+                }
+                task.set_metadata(meta)
+            except Exception:
+                pass
             
             db.session.commit()
             logger.info(f"Successfully processed results for task {task.task_id}")
@@ -718,7 +780,7 @@ class AnalyzerHealthMonitor:
             # Send health check request
             health_request = {
                 'request_id': str(uuid.uuid4()),
-                'action': 'health_check'
+                'type': 'health_check'
             }
             
             await connection.send(json.dumps(health_request))
@@ -734,12 +796,14 @@ class AnalyzerHealthMonitor:
                         'version': response.get('version', 'unknown'),
                         'uptime': response.get('uptime', 0),
                         'resource_usage': response.get('resource_usage', {}),
+                        'available_tools': response.get('available_tools', []),
                         'last_check': datetime.now(timezone.utc).isoformat()
                     }
                 else:
                     health_data = {
                         'status': 'unhealthy',
                         'error': response.get('error', 'Unknown error'),
+                        'available_tools': response.get('available_tools', []),
                         'last_check': datetime.now(timezone.utc).isoformat()
                     }
                 
@@ -773,6 +837,108 @@ class AnalyzerHealthMonitor:
     def get_cached_health_status(self) -> Dict[str, Dict[str, Any]]:
         """Get cached health status."""
         return self.health_status.copy()
+
+
+# ---- Convenience helpers for synchronous contexts -------------------------
+def get_available_toolsets(timeout_seconds: float = 3.0) -> Dict[str, list]:
+    """Best-effort snapshot of available tools per analyzer service.
+
+    Attempts a quick health check of all analyzer services to retrieve their
+    reported 'available_tools' lists. Uses a short timeout to avoid blocking
+    request handlers; falls back to cached values when available.
+
+    Returns a mapping like:
+      { 'static-analyzer': ['bandit', 'pylint', ...], 'dynamic-analyzer': [...], ... }
+    """
+    try:
+        # Use cached values first
+        cached = health_monitor.get_cached_health_status() or {}
+
+        # Prepare async call with reduced connect timeout
+        # Temporarily lower connect timeout for a snappier check
+        original_timeout = analysis_executor.connection_manager.connection_timeouts.get('connect', 10)  # type: ignore[attr-defined]
+        analysis_executor.connection_manager.connection_timeouts['connect'] = 2  # type: ignore[attr-defined]
+        try:
+            async def _check_all():
+                return await health_monitor.check_all_services()
+
+            # Run with overall timeout cap
+            results: Dict[str, Dict[str, Any]] = asyncio.run(asyncio.wait_for(_check_all(), timeout=timeout_seconds))  # type: ignore[arg-type]
+        except Exception:
+            # Fall back to cached if async fails or times out
+            results = cached
+        finally:
+            # Restore original connect timeout
+            analysis_executor.connection_manager.connection_timeouts['connect'] = original_timeout  # type: ignore[attr-defined]
+
+        # Build simple mapping from analyzer responses
+        mapping: Dict[str, list] = {}
+        for key, data in (results or {}).items():
+            # Normalize keys to service names used elsewhere
+            # AnalyzerServiceType values are: 'security', 'static', 'dynamic', 'performance', 'ai_review'
+            service_map = {
+                'static': 'static-analyzer',
+                'security': 'static-analyzer',  # security maps to static analyzer
+                'dynamic': 'dynamic-analyzer',
+                'performance': 'performance-tester',
+                'ai_review': 'ai-analyzer',
+            }
+            svc = service_map.get(key, key)
+            tools = []
+            try:
+                tools = list((data or {}).get('available_tools', []) or [])
+            except Exception:
+                tools = []
+            # Merge (prefer non-empty)
+            if svc in mapping:
+                if not mapping[svc] and tools:
+                    mapping[svc] = tools
+            else:
+                mapping[svc] = tools
+
+        # Fallback: if a service is healthy but provided no tool list, infer from Tool Registry
+        try:
+            from app.services.service_locator import ServiceLocator
+            tool_service = ServiceLocator.get_tool_registry_service()
+            if tool_service:
+                # Build a quick group of enabled tools by service
+                try:
+                    # Use public API to get all tools
+                    tools_all = tool_service.get_all_tools(enabled_only=True)  # type: ignore[attr-defined]
+                except Exception:
+                    tools_all = []
+                by_service: Dict[str, list] = {}
+                for t in tools_all or []:
+                    svc_name = (t.get('service_name') or '').strip()
+                    if not svc_name:
+                        continue
+                    by_service.setdefault(svc_name, []).append(str(t.get('name', '')).lower())
+
+                # Known service keys to check
+                known_svcs = ['static-analyzer', 'dynamic-analyzer', 'performance-tester', 'ai-analyzer']
+                # Reverse-map analyzer result keys for health check lookup
+                reverse_map = {
+                    'static-analyzer': 'static',
+                    'dynamic-analyzer': 'dynamic',
+                    'performance-tester': 'performance',
+                    'ai-analyzer': 'ai_review',
+                }
+                for svc in known_svcs:
+                    # If mapping missing or empty AND corresponding analyzer status was healthy, infer names from registry
+                    if (svc not in mapping) or (not mapping.get(svc)):
+                        analyzer_key = reverse_map.get(svc, svc)
+                        svc_status = (results or {}).get(analyzer_key, {}) or {}
+                        if str(svc_status.get('status')).lower() == 'healthy':
+                            inferred = by_service.get(svc) or []
+                            if inferred:
+                                mapping[svc] = inferred
+        except Exception:
+            # Best-effort fallback only; ignore errors
+            pass
+
+        return mapping
+    except Exception:
+        return {}
 
 
 # Initialize global instances

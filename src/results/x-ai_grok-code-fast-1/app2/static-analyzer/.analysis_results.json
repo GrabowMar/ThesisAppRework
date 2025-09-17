@@ -1,30 +1,46 @@
 {
   "metadata": {
     "module": "analysis",
-    "model": "nousresearch_hermes-4-405b",
-    "app_number": 1,
-    "timestamp": "2025-09-17T19:14:07.226749+00:00",
+    "model": "x-ai_grok-code-fast-1",
+    "app_number": 2,
+    "timestamp": "2025-09-17T21:12:38.126471+00:00",
     "version": "1.0",
     "analysis_type": "static-analyzer"
   },
   "results": {
     "success": true,
-    "model_slug": "nousresearch_hermes-4-405b",
-    "app_number": 1,
-    "target_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\src\\generated\\apps\\nousresearch_hermes-4-405b\\app1",
-    "analysis_duration": 3.1811282634735107,
+    "model_slug": "x-ai_grok-code-fast-1",
+    "app_number": 2,
+    "target_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\src\\generated\\apps\\x-ai_grok-code-fast-1\\app2",
+    "analysis_duration": 38.11681008338928,
     "tools_requested": [
+      "semgrep",
       "bandit",
       "safety",
+      "jshint",
+      "eslint",
+      "mypy",
       "pylint"
     ],
-    "tools_successful": 3,
+    "tools_successful": 7,
     "tools_failed": 0,
     "tool_results": {
+      "semgrep": {
+        "status": "success"
+      },
       "bandit": {
         "status": "success"
       },
       "safety": {
+        "status": "success"
+      },
+      "jshint": {
+        "status": "success"
+      },
+      "eslint": {
+        "status": "success"
+      },
+      "mypy": {
         "status": "success"
       },
       "pylint": {
@@ -38,18 +54,22 @@
       "categories": [],
       "tags": [],
       "tool_status": {
+        "semgrep": "success",
         "bandit": "success",
         "safety": "success",
+        "jshint": "success",
+        "eslint": "success",
+        "mypy": "success",
         "pylint": "success"
       }
     },
     "findings": [],
     "metadata": {
-      "analysis_timestamp": "2025-09-17T19:14:07.223749+00:00",
+      "analysis_timestamp": "2025-09-17T21:12:38.126471+00:00",
       "detected_languages": [
+        "html",
         "javascript",
-        "python",
-        "html"
+        "python"
       ],
       "file_count": 12,
       "orchestrator_version": "2.0.0"

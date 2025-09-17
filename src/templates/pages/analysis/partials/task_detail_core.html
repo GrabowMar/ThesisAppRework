@@ -4,7 +4,20 @@
     <div class="row g-3 small">
       <div class="col-sm-6 col-lg-4">
         <div class="text-muted text-uppercase tiny">Status</div>
-        <span class="badge bg-secondary text-uppercase">{{ task.status }}</span>
+        {% set st = (task.derived_status or task.status)|lower %}
+        {% if st == 'running' %}
+          <span class="badge bg-warning-lt text-uppercase"><i class="fas fa-spinner fa-spin me-1"></i>{{ st }}</span>
+        {% elif st in ['completed','success'] %}
+          <span class="badge bg-success-lt text-uppercase"><i class="fas fa-check me-1"></i>{{ st }}</span>
+        {% elif st == 'failed' %}
+          <span class="badge bg-danger-lt text-uppercase"><i class="fas fa-times me-1"></i>{{ st }}</span>
+        {% elif st == 'pending' %}
+          <span class="badge bg-secondary-lt text-uppercase"><i class="fas fa-clock me-1"></i>{{ st }}</span>
+        {% elif st == 'cancelled' %}
+          <span class="badge bg-muted-lt text-uppercase"><i class="fas fa-ban me-1"></i>{{ st }}</span>
+        {% else %}
+          <span class="badge bg-secondary text-uppercase">{{ task.status }}</span>
+        {% endif %}
       </div>
       <div class="col-sm-6 col-lg-4">
         <div class="text-muted text-uppercase tiny">Type</div>

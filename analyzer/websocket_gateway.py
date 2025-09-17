@@ -193,7 +193,7 @@ async def send_to_service(service: ServiceType, message: Dict[str, Any], timeout
     try:
         await broadcast_event('routing', f"Routing request to {service.value}", service=service.value, details={'outbound_type': message.get('type')})
         async with websockets.connect(
-            url, open_timeout=10, close_timeout=5, ping_interval=20, ping_timeout=10
+            url, open_timeout=10, close_timeout=10, ping_interval=None, ping_timeout=None
         ) as ws:
             await broadcast_event('service_connected', f"Connected to {service.value}", service=service.value)
             await ws.send(json.dumps(message))

@@ -198,6 +198,16 @@
                 <!-- Analysis Tool Selection -->
                 <div class="mb-4">
                   <label class="form-label fw-bold">Analysis Tools <span class="text-danger">*</span></label>
+                  <div class="d-flex align-items-center justify-content-between mb-2">
+                    <div class="small text-muted" id="availability-legend">
+                      <span class="badge bg-success-subtle text-success me-1">available</span>
+                      <span class="badge bg-secondary-lt text-secondary me-1">unavailable</span>
+                      <span class="badge bg-warning-subtle text-warning">disabled</span>
+                    </div>
+                    <button type="button" class="btn btn-link btn-sm p-0" id="refresh-availability-btn" title="Refresh availability">
+                      <i class="fas fa-rotate me-1"></i>Refresh availability
+                    </button>
+                  </div>
                   
                   <!-- Quick Profiles Section -->
                   <div class="mb-4">
@@ -269,6 +279,7 @@
                   <!-- Custom Tool Picker (shown when Custom Selection is chosen) -->
                   <div id="custom-tool-picker" class="d-none">
                     <h6 class="mb-3">Select Analysis Tools</h6>
+                    <div id="step3-inline-error" class="alert alert-danger py-2 d-none" role="alert"></div>
                     <div class="row g-3">
                       <!-- Security Tools -->
                       <div class="col-md-6 mb-3">
@@ -1594,13 +1605,47 @@ async function loadAnalysisTools() {
     console.log('Starting to load analysis tools...');
     try {
         // Load all tools from working tool registry API
-        const toolsResponse = await fetch('/api/tool-registry/tools');
+        const [toolsResponse, summaryResponse] = await Promise.all([
+          fetch('/api/tool-registry/tools'),
+          fetch('/api/dashboard/tool-registry-summary')
+        ]);
         console.log('Tools response status:', toolsResponse.status);
         if (toolsResponse.ok) {
             const toolsData = await toolsResponse.json();
             console.log('Tools response data:', toolsData);
             allTools = toolsData.data || [];
             console.log('Loaded tools:', allTools.length, allTools);
+            // Merge live availability into allTools for strict gating
+            let availabilityMap = {};
+            if (summaryResponse && summaryResponse.ok) {
+              try {
+                const s = await summaryResponse.json();
+                const annotated = (s && s.data && s.data.tools_annotated) || [];
+                const byId = new Map(annotated.map(t => [t.id, t]));
+                allTools = allTools.map(t => {
+                  const ann = byId.get(t.id);
+                  // Use annotation if available, otherwise default to enabled state (inferred availability)
+                  return ann ? { ...t, available: !!ann.available, availability_source: ann.availability_source || 'analyzer' } 
+                             : { ...t, available: !!t.is_enabled, availability_source: 'inferred' };
+                });
+                // Prune any previously selected tools that are no longer available/enabled
+                const before = [...selectedTools];
+                selectedTools = selectedTools.filter(id => {
+                  const tool = allTools.find(t => t.id === id);
+                  return tool && tool.enabled !== false && tool.available === true;
+                });
+                if (before.length !== selectedTools.length) {
+                  const inline = document.getElementById('step3-inline-error');
+                  if (inline) {
+                    inline.textContent = 'Some previously selected tools are no longer available and were removed from your selection.';
+                    inline.classList.remove('d-none');
+                  }
+                }
+              } catch (e) { console.warn('Availability map parse failed', e); }
+            } else {
+              // If summary unavailable, default to enabled state (inferred availability)
+              allTools = allTools.map(t => ({ ...t, available: !!t.is_enabled, availability_source: 'inferred' }));
+            }
             
             // Load analysis profiles too
             const profilesResponse = await fetch('/api/tool-registry/profiles');
@@ -1680,19 +1725,42 @@ function renderToolsInCategory(category, tools) {
     
     console.log('Rendering', tools.length, 'tools for category:', category);
     
-    const toolsHtml = tools.map(tool => {
-        const isEnabled = tool.enabled !== false;
+  const toolsHtml = tools.map(tool => {
+    const isEnabled = tool.enabled !== false;
+    const isAvailable = tool.available === true; // merged above
         const timeEstimate = tool.execution_time_estimate ? Math.ceil(tool.execution_time_estimate / 60) : 5;
         
-        return `
-        <div class="form-check mb-2 ${!isEnabled ? 'opacity-50' : ''}">
-            <input class="form-check-input" type="checkbox" id="tool-${tool.id}" value="${tool.id}" 
-                   ${!isEnabled ? 'disabled' : ''}
+    // Enhanced tooltips based on availability source
+    let tooltip = '';
+    if (!isEnabled) {
+      tooltip = 'This tool is disabled';
+    } else if (!isAvailable) {
+      if (tool.availability_source === 'inferred') {
+        tooltip = 'Tool availability unknown - analyzer services may be offline';
+      } else {
+        tooltip = 'This tool is currently unavailable';
+      }
+    }
+    
+    // Badge color and text based on availability and source
+    let availabilityBadge = '';
+    if (isAvailable) {
+      const badgeText = tool.availability_source === 'inferred' ? 'enabled' : 'available';
+      const badgeClass = tool.availability_source === 'inferred' ? 'bg-info-subtle text-info' : 'bg-success-subtle text-success';
+      availabilityBadge = `<span class="badge ${badgeClass} tiny">${badgeText}</span>`;
+    } else {
+      availabilityBadge = '<span class="badge bg-secondary-lt text-secondary tiny">unavailable</span>';
+    }
+    
+    return `
+    <div class="form-check mb-2 ${(!isEnabled || !isAvailable) ? 'opacity-50' : ''}" ${tooltip ? `title="${tooltip}"` : ''}>
+       <input class="form-check-input" type="checkbox" id="tool-${tool.id}" value="${tool.id}" 
+           ${(!isEnabled || !isAvailable) ? 'disabled' : ''}
                    onchange="toggleTool(${tool.id}, '${escapeHtml(tool.name)}')">
             <label class="form-check-label small w-100" for="tool-${tool.id}">
                 <div class="fw-semibold d-flex align-items-center justify-content-between">
-                    <span>${escapeHtml(tool.name)}</span>
-                    <span class="badge bg-primary-subtle text-primary tiny">available</span>
+          <span>${escapeHtml(tool.name)}</span>
+          ${availabilityBadge}
                 </div>
                 <div class="text-muted tiny">${escapeHtml(tool.description || 'No description available')}</div>
                 <div class="d-flex align-items-center justify-content-between mt-1">
@@ -1701,7 +1769,7 @@ function renderToolsInCategory(category, tools) {
                         <span class="mx-1">•</span>
                         <i class="fas fa-cog me-1"></i>${escapeHtml(tool.category)}
                     </div>
-                    ${!isEnabled ? '<span class="text-warning tiny"><i class="fas fa-pause me-1"></i>disabled</span>' : ''}
+          ${!isEnabled ? '<span class="text-warning tiny"><i class="fas fa-pause me-1"></i>disabled</span>' : (!isAvailable ? '<span class="text-muted tiny"><i class="fas fa-ban me-1"></i>unavailable</span>' : '')}
                 </div>
             </label>
         </div>
@@ -1747,6 +1815,9 @@ function toggleTool(toolId, toolName) {
     updateSelectedToolsSummary();
     updateCustomAnalysisEstimate();
     updateNavigationButtons();
+  // Hide inline error if user changes tools
+  const inline = document.getElementById('step3-inline-error');
+  if (inline) inline.classList.add('d-none');
 
 function clearAllTools() {
     // Uncheck all tool checkboxes
@@ -1790,44 +1861,6 @@ function showToolSelectionConfirmation() {
         toolsByService[serviceName].push(tool);
     });
     
-    // Build confirmation message
-    let confirmationHtml = `
-        <div class="mb-3">
-            <h6><i class="fas fa-exclamation-triangle text-warning me-2"></i>Confirm Tool Selection</h6>
-            <p>You have selected <strong>${selectedTools.length} tools</strong> which will create <strong>${totalTasks} analysis tasks</strong>:</p>
-        </div>
-    `;
-    
-    Object.keys(toolsByService).forEach(serviceName => {
-        const tools = toolsByService[serviceName];
-        const serviceDisplayName = {
-            'static-analyzer': 'Security/Quality Analysis Task',
-            'dynamic-analyzer': 'Dynamic Security Scan Task',
-            'performance-tester': 'Performance Testing Task',
-            'ai-analyzer': 'AI Analysis Task'
-        }[serviceName] || `${serviceName} Task`;
-        
-        confirmationHtml += `
-            <div class="mb-2">
-                <strong>${serviceDisplayName}:</strong><br>
-                <ul class="mb-1">
-        `;
-        
-        tools.forEach(tool => {
-            confirmationHtml += `<li>${escapeHtml(tool.display_name || tool.name)}</li>`;
-        });
-        
-        confirmationHtml += '</ul></div>';
-    });
-    
-    confirmationHtml += `
-        <div class="alert alert-info mt-3">
-            <small><i class="fas fa-info-circle me-1"></i>
-            Each service runs separately, so multiple tasks may execute in parallel.
-            </small>
-        </div>
-    `;
-    
     // Use browser confirm for simplicity (can be enhanced with modal later)
     const toolNames = selectedTools.map(toolId => {
         const tool = allTools.find(t => t.id === toolId);
@@ -1847,6 +1880,7 @@ function showToolSelectionConfirmation() {
 }
 
 function proceedWithFormSubmission() {
+    console.log('proceedWithFormSubmission called');
     const form = document.getElementById('analysis-wizard-form');
     const launchBtn = document.getElementById('launch-btn');
     const loadingBtn = document.getElementById('launch-btn-loading');
@@ -1855,10 +1889,18 @@ function proceedWithFormSubmission() {
     if (loadingBtn) loadingBtn.classList.remove('d-none');
     
     if (form) {
-        // Remove event listeners to prevent infinite loop and submit directly
-        const newForm = form.cloneNode(true);
-        form.parentNode.replaceChild(newForm, form);
-        newForm.submit();
+        console.log('Adding bypass input and submitting form');
+        // Create a hidden input to bypass validation
+        const bypassInput = document.createElement('input');
+        bypassInput.type = 'hidden';
+        bypassInput.name = '_bypass_confirmation';
+        bypassInput.value = '1';
+        form.appendChild(bypassInput);
+        
+        // Submit the form directly
+        form.submit();
+    } else {
+        console.error('Form not found!');
     }
 }
     
@@ -1990,7 +2032,17 @@ function updateAnalysisSummary() {
     const profileDisplayName = selectedAnalysisProfile.charAt(0).toUpperCase() + selectedAnalysisProfile.slice(1);
     summaryTypeElement.textContent = `${profileDisplayName} Profile`;
   } else if (analysisMode === 'custom' && selectedTools.length > 0) {
-    summaryTypeElement.textContent = `Custom (${selectedTools.length} tools)`;
+    // Compute per-service grouping
+    const toolsByService = {};
+    selectedTools.forEach(id => {
+      const t = allTools.find(x => x.id === id);
+      if (!t) return;
+      const svc = t.service_name || 'unknown';
+      toolsByService[svc] = toolsByService[svc] || [];
+      toolsByService[svc].push(t);
+    });
+    const svcParts = Object.keys(toolsByService).map(svc => `${svc}: ${toolsByService[svc].length}`).join(', ');
+    summaryTypeElement.textContent = `Custom (${selectedTools.length} tools; ${Object.keys(toolsByService).length} task(s): ${svcParts})`;
   } else {
     summaryTypeElement.textContent = '-';
   }
@@ -2050,101 +2102,6 @@ function escapeHtml(text) {
     };
     return text.replace(/[&<>"']/g, function(m) { return map[m]; });
 }
-function showToolSelectionConfirmation() {
-    // Group tools by service for confirmation display
-    const toolsByService = {};
-    let totalTasks = 0;
-    
-    selectedTools.forEach(toolId => {
-        const tool = allTools.find(t => t.id === toolId);
-        if (!tool) return;
-        
-        const serviceName = tool.service_name || 'unknown';
-        if (!toolsByService[serviceName]) {
-            toolsByService[serviceName] = [];
-            totalTasks++;
-        }
-        toolsByService[serviceName].push(tool);
-    });
-    
-    // Build confirmation message
-    let confirmationHtml = `
-        <div class="mb-3">
-            <h6><i class="fas fa-exclamation-triangle text-warning me-2"></i>Confirm Tool Selection</h6>
-            <p>You have selected <strong>${selectedTools.length} tools</strong> which will create <strong>${totalTasks} analysis tasks</strong>:</p>
-        </div>
-    `;
-    
-    Object.keys(toolsByService).forEach(serviceName => {
-        const tools = toolsByService[serviceName];
-        const serviceDisplayName = {
-            'static-analyzer': 'Security/Quality Analysis Task',
-            'dynamic-analyzer': 'Dynamic Security Scan Task',
-            'performance-tester': 'Performance Testing Task',
-            'ai-analyzer': 'AI Analysis Task'
-        }[serviceName] || `${serviceName} Task`;
-        
-        confirmationHtml += `
-            <div class="mb-2">
-                <strong>${serviceDisplayName}:</strong><br>
-                <ul class="mb-1">
-        `;
-        
-        tools.forEach(tool => {
-            confirmationHtml += `<li>${escapeHtml(tool.display_name || tool.name)}</li>`;
-        });
-        
-        confirmationHtml += '</ul></div>';
-    });
-    
-    confirmationHtml += `
-        <div class="alert alert-info mt-3">
-            <small><i class="fas fa-info-circle me-1"></i>
-            Each service runs separately, so multiple tasks may execute in parallel.
-            </small>
-        </div>
-    `;
-    
-    // Show confirmation dialog using browser confirm or custom modal
-    if (window.bootstrap && document.getElementById('confirmation-modal')) {
-        // Use Bootstrap modal if available
-        document.getElementById('confirmation-modal-body').innerHTML = confirmationHtml;
-        const modal = new bootstrap.Modal(document.getElementById('confirmation-modal'));
-        modal.show();
-    } else {
-        // Fallback to browser confirm
-        const toolNames = selectedTools.map(toolId => {
-            const tool = allTools.find(t => t.id === toolId);
-            return tool ? tool.display_name || tool.name : `Tool ${toolId}`;
-        }).join(', ');
-        
-        const confirmed = confirm(
-            `Confirm Analysis:\n\n` +
-            `Selected Tools (${selectedTools.length}): ${toolNames}\n\n` +
-            `This will create ${totalTasks} analysis task(s).\n\n` +
-            `Continue with analysis?`
-        );
-        
-        if (confirmed) {
-            proceedWithFormSubmission();
-        }
-    }
-}
-
-function proceedWithFormSubmission() {
-    const form = document.getElementById('analysis-wizard-form');
-    const launchBtn = document.getElementById('launch-btn');
-    const loadingBtn = document.getElementById('launch-btn-loading');
-    
-    if (launchBtn) launchBtn.classList.add('d-none');
-    if (loadingBtn) loadingBtn.classList.remove('d-none');
-    
-    if (form) {
-        // Remove event listener to prevent infinite loop
-        form.removeEventListener('submit', arguments.callee);
-        form.submit();
-    }
-}
 
 // Initialize wizard on page load
 document.addEventListener('DOMContentLoaded', () => {
@@ -2171,21 +2128,125 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('analysis-wizard-form');
     if (form) {
         form.addEventListener('submit', (e) => {
-            // Validate all steps before submission
-            for (let i = 1; i <= 3; i++) {
-                if (!isStepValid(i)) {
-                    e.preventDefault();
-                    goToStep(i);
-                    showValidationFeedback(i, false, getValidationMessage(i));
-                    return;
-                }
+            console.log('Form submit event triggered!');
+            console.log('analysisMode:', analysisMode);
+            console.log('selectedTools:', selectedTools);
+            
+            // Serialize form data first
+            const modeInput = document.getElementById('input-analysis-mode');
+            const profileInput = document.getElementById('input-analysis-profile');
+            const toolsInputsWrapper = document.getElementById('selected-tools-inputs');
+            
+            if (modeInput) modeInput.value = analysisMode;
+            if (profileInput) profileInput.value = selectedAnalysisProfile || '';
+            if (toolsInputsWrapper) toolsInputsWrapper.innerHTML = '';
+            
+            // Add selected tools as hidden inputs
+            if (analysisMode === 'custom' && selectedTools.length > 0 && toolsInputsWrapper) {
+                selectedTools.forEach(toolId => {
+                    const inp = document.createElement('input');
+                    inp.type = 'hidden';
+                    inp.name = 'selected_tools[]';
+                    inp.value = toolId;
+                    toolsInputsWrapper.appendChild(inp);
+                });
             }
             
+            // Populate model/app selections for batch mode
+            const modelInput = document.getElementById('input-model-slug');
+            const appInput = document.getElementById('input-app-number');
+            
+            if (isBatchMode) {
+                if (selectedModels.length > 0) {
+                    if (modelInput) modelInput.value = selectedModels.map(m => m.slug).join(',');
+                }
+                if (selectedApps.length > 0) {
+                    if (appInput) appInput.value = selectedApps.map(a => `${a.modelSlug}:${a.number}`).join(',');
+                }
+            } else {
+                if (selectedModel && modelInput) modelInput.value = selectedModel.slug;
+                if (selectedApp && appInput) appInput.value = selectedApp.number;
+            }
+            
+            // Validate all steps before submission
+            try {
+                for (let i = 1; i <= 3; i++) {
+                    console.log(`Validating step ${i}`);
+                    if (!isStepValid(i)) {
+                        console.log(`Step ${i} validation failed`);
+                        e.preventDefault();
+                        goToStep(i);
+                        showValidationFeedback(i, false, getValidationMessage(i));
+                        return;
+                    }
+                    console.log(`Step ${i} validation passed`);
+                }
+                console.log('All validation passed');
+            } catch (error) {
+                console.error('Validation error:', error);
+                e.preventDefault();
+                return;
+            }
+            
+            // Check if this is a bypass submission (after confirmation)
+            const bypassInput = form.querySelector('input[name="_bypass_confirmation"]');
+            if (bypassInput) {
+                // Remove the bypass input to prevent it from being submitted
+                bypassInput.remove();
+                // Allow form to submit without showing confirmation again
+                const launchBtn = document.getElementById('launch-btn');
+                const loadingBtn = document.getElementById('launch-btn-loading');
+                if (launchBtn) launchBtn.classList.add('d-none');
+                if (loadingBtn) loadingBtn.classList.remove('d-none');
+                return; // Let the form submit naturally
+            }
+
             // Show confirmation dialog for custom tool selection
             if (analysisMode === 'custom' && selectedTools.length > 0) {
-                e.preventDefault();
-                showToolSelectionConfirmation();
-                return;
+                console.log('Custom mode with tools - showing confirmation');
+                try {
+                    // Ensure allTools is loaded
+                    if (!allTools || allTools.length === 0) {
+                        console.warn('allTools not loaded yet, allowing submission');
+                        e.preventDefault();
+                        alert('Tools are still loading. Please wait a moment and try again.');
+                        return;
+                    }
+                    
+                    // Strict client-side gating: block if any selected tool is currently unavailable
+                    const unavailableSelected = selectedTools.filter(id => {
+                        const t = allTools.find(x => x.id === id);
+                        return t && t.available === false;
+                    });
+                    console.log('Checked tool availability, unavailable:', unavailableSelected);
+                    
+                    if (unavailableSelected.length > 0) {
+                        console.log('Unavailable tools detected:', unavailableSelected);
+                        e.preventDefault();
+                        const names = unavailableSelected.map(id => {
+                            const t = allTools.find(x => x.id === id);
+                            return t ? (t.display_name || t.name || `Tool ${id}`) : `Tool ${id}`;
+                        }).join(', ');
+                        const msg = `The following tools are unavailable and cannot be selected: ${names}`;
+                        const inline = document.getElementById('step3-inline-error');
+                        if (inline) {
+                            inline.textContent = msg;
+                            inline.classList.remove('d-none');
+                        } else {
+                            showValidationFeedback(3, false, msg);
+                        }
+                        return;
+                    }
+                    
+                    console.log('Preventing form and showing confirmation dialog');
+                    e.preventDefault();
+                    showToolSelectionConfirmation();
+                    return;
+                } catch (error) {
+                    console.error('Error in confirmation logic:', error);
+                    e.preventDefault();
+                    return;
+                }
             }
             
             // Show loading state
@@ -2310,52 +2371,26 @@ document.addEventListener('DOMContentLoaded', () => {
       const preview = document.getElementById('selected-app-preview'); if (preview) preview.style.display = 'none';
     });
   }
-
-  // Serialize batch selections and tool selections before submit
-  if (form) {
-    form.addEventListener('submit', () => {
-      // Populate hidden fields for analysis configuration
-      const modeInput = document.getElementById('input-analysis-mode');
-      const profileInput = document.getElementById('input-analysis-profile');
-      const toolsInputsWrapper = document.getElementById('selected-tools-inputs');
-      
-      if (modeInput) modeInput.value = analysisMode;
-      if (profileInput) profileInput.value = selectedAnalysisProfile || '';
-      if (toolsInputsWrapper) toolsInputsWrapper.innerHTML = '';
-      
-      // Add selected tools as hidden inputs
-      if (analysisMode === 'custom' && selectedTools.length > 0 && toolsInputsWrapper) {
-        selectedTools.forEach(toolId => {
-          const inp = document.createElement('input');
-          inp.type = 'hidden';
-          inp.name = 'selected_tools[]';
-          inp.value = toolId;
-          toolsInputsWrapper.appendChild(inp);
-        });
-      }
-      
-      const modelInputsWrapper = document.getElementById('batch-model-inputs');
-      const appInputsWrapper = document.getElementById('batch-app-inputs');
-      if (modelInputsWrapper) modelInputsWrapper.innerHTML = '';
-      if (appInputsWrapper) appInputsWrapper.innerHTML = '';
-
-      if (modelSelectionMode === 'batch' && selectedModels.length > 0 && modelInputsWrapper) {
-        selectedModels.forEach(m => {
-          const inp = document.createElement('input');
-          inp.type = 'hidden';
-          inp.name = 'model_slugs[]';
-          inp.value = m.slug;
-          modelInputsWrapper.appendChild(inp);
-        });
-      }
-      if (appSelectionMode === 'batch' && selectedApps.length > 0 && appInputsWrapper) {
-        selectedApps.forEach(a => {
-          const inp = document.createElement('input');
-          inp.type = 'hidden';
-          inp.name = 'app_numbers[]';
-          inp.value = a.number;
-          appInputsWrapper.appendChild(inp);
-        });
+  // Hook up refresh availability button
+  const refreshBtn = document.getElementById('refresh-availability-btn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async () => {
+      try {
+        await loadAnalysisTools();
+        // Re-render lists after refresh
+        const byCategory = {
+          'security': allTools.filter(t => ['security','vulnerability'].includes((t.category||'').toLowerCase())),
+          'performance': allTools.filter(t => (t.category||'').toLowerCase()==='performance'),
+          'quality': allTools.filter(t => ['quality','ai_analysis'].includes((t.category||'').toLowerCase())),
+          'dynamic': allTools.filter(t => (t.category||'').toLowerCase()==='dynamic')
+        };
+        renderToolsInCategory('security', byCategory.security);
+        renderToolsInCategory('performance', byCategory.performance);
+        renderToolsInCategory('quality', byCategory.quality);
+        renderToolsInCategory('dynamic', byCategory.dynamic);
+        updateSelectedToolsSummary();
+      } catch (e) {
+        console.warn('Availability refresh failed', e);
       }
     });
   }

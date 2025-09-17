@@ -155,6 +155,54 @@ def analysis_create():
                     except ValueError:
                         current_app.logger.warning(f"Invalid tool ID: {tool_id_str}")
 
+                # Strict validation: all selected tools must exist, be enabled, and be currently available
+                invalid_errors: list[str] = []
+                resolved_tools: list[dict] = []
+                normalized_service = {
+                    'static': 'static-analyzer',
+                    'security': 'static-analyzer',
+                    'static-analyzer': 'static-analyzer',
+                    'dynamic-analyzer': 'dynamic-analyzer',
+                    'performance-tester': 'performance-tester',
+                    'ai-analyzer': 'ai-analyzer',
+                }
+                # Try to fetch live availability from analyzer services; unknown is treated as unavailable in strict mode
+                try:
+                    from app.services.analyzer_integration import get_available_toolsets  # type: ignore
+                    available_toolsets = get_available_toolsets() or {}
+                except Exception as _avail_err:
+                    current_app.logger.warning(f"Analyzer availability lookup failed (strict mode): {_avail_err}")
+                    available_toolsets = {}
+
+                for tid in tool_ids:
+                    tool_rec = None
+                    try:
+                        tool_rec = tool_service.get_tool(int(tid))  # type: ignore[attr-defined]
+                    except Exception as _e:
+                        tool_rec = None
+                    if not tool_rec:
+                        invalid_errors.append(f"Unknown tool id: {tid}")
+                        continue
+                    if not tool_rec.get('is_enabled', False):
+                        nm = tool_rec.get('display_name') or tool_rec.get('name') or f"Tool {tid}"
+                        invalid_errors.append(f"{nm} is disabled in the registry")
+                        continue
+                    # Availability check per analyzer service
+                    svc = normalized_service.get(str(tool_rec.get('service_name', '')).lower(), tool_rec.get('service_name') or 'unknown')
+                    name_lc = str(tool_rec.get('name', '')).lower()
+                    avail_set = set(x.lower() for x in (available_toolsets.get(svc) or []))
+                    if not avail_set or name_lc not in avail_set:
+                        nm = tool_rec.get('display_name') or tool_rec.get('name') or f"Tool {tid}"
+                        invalid_errors.append(f"{nm} is currently unavailable via {svc}")
+                        continue
+                    resolved_tools.append(tool_rec)
+
+                if invalid_errors:
+                    for msg in invalid_errors:
+                        flash(msg, 'danger')
+                    # Do not proceed with task creation in strict mode
+                    return render_template('pages/analysis/create.html'), 400
+
                 custom_analysis = None
                 try:
                     # ToolRegistryService expects 'tool_ids' (not 'selected_tools')
@@ -176,22 +224,26 @@ def analysis_create():
                     return render_template('pages/analysis/create.html'), 400
 
                 # Resolve selected tool IDs to tool records and group by analyzer service
+                # Note: use strictly validated `resolved_tools` so only allowed tools propagate
                 tools_by_service: dict[str, list[int]] = {}
                 tool_names_by_id: dict[int, str] = {}
                 try:
-                    for tid in tool_ids:
-                        try:
-                            t = tool_service.get_tool(int(tid))  # type: ignore[attr-defined]
-                        except Exception:
-                            t = None
+                    tool_records = resolved_tools if 'resolved_tools' in locals() and resolved_tools else [
+                        # Back-compat if validation skipped for some reason
+                        tool_service.get_tool(int(tid)) for tid in tool_ids  # type: ignore[attr-defined]
+                    ]
+                    for t in tool_records:
                         if not t:
                             continue
                         svc = (t.get('service_name') or '').strip()
                         if not svc:
                             continue
-                        tools_by_service.setdefault(svc, []).append(int(tid))
+                        tid = int(t.get('id')) if t.get('id') is not None else None  # type: ignore[arg-type]
+                        if tid is None:
+                            continue
+                        tools_by_service.setdefault(svc, []).append(tid)
                         if t.get('name'):
-                            tool_names_by_id[int(tid)] = str(t['name'])
+                            tool_names_by_id[tid] = str(t['name'])
                 except Exception as e:
                     current_app.logger.warning(f"Failed to resolve selected tool details: {e}")
 

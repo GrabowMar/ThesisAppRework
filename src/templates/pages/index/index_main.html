@@ -544,8 +544,10 @@ class DashboardManager {
     if (!container) return;
 
     const summary = toolData.summary || {};
-    const byCategory = toolData.tools_by_category || {};
+  const byCategory = toolData.tools_by_category || {};
     const byService = toolData.tools_by_service || {};
+    const availableByService = toolData.available_by_service || {};
+    const availableByCategory = toolData.available_by_category || {};
     const tools = Array.isArray(toolData.tools) ? toolData.tools : [];
 
     // Group tools (if available) to render names
@@ -577,6 +579,13 @@ class DashboardManager {
           </div>
         </div>
         <div class="col-6">
+          <div class="metric-card metric-info">
+            <div class="metric-icon-bg"><i class="fas fa-signal"></i></div>
+            <div class="metric-value">${summary.available_tools_total || 0}</div>
+            <div class="metric-label">Available (via analyzers)</div>
+          </div>
+        </div>
+        <div class="col-6">
           <div class="metric-card metric-warning">
             <div class="metric-icon-bg"><i class="fas fa-list-check"></i></div>
             <div class="metric-value">${summary.total_profiles || 0}</div>
@@ -593,13 +602,33 @@ class DashboardManager {
       </div>
     `;
 
+    // Normalize categories to avoid duplicates (e.g., code_quality vs quality)
+    const catMap = {
+      'code_quality': 'quality',
+      'dynamic_analysis': 'dynamic',
+      'vulnerability': 'security'
+    };
+    const normalizedByCategory = {};
+    Object.entries(byCategory).forEach(([k, v]) => {
+      const key = catMap[k] || k;
+      normalizedByCategory[key] = (normalizedByCategory[key] || 0) + (v || 0);
+    });
+
     // Tools by category
-    if (Object.keys(byCategory).length > 0) {
+    if (Object.keys(normalizedByCategory).length > 0) {
       html += '<h6 class="text-muted mb-2">Tools by Category</h6>';
       html += '<div class="row g-2 mb-3">';
-      Object.entries(byCategory).forEach(([category, count]) => {
+      Object.entries(normalizedByCategory).forEach(([category, count]) => {
         const catKey = category.toLowerCase();
-        const names = (toolsByCategoryNames[catKey] || []).map(t => t.display_name || t.name);
+        // Merge names from any synonym buckets
+        let names = (toolsByCategoryNames[catKey] || []).map(t => t.display_name || t.name);
+        if (catKey === 'quality') {
+          names = names.concat((toolsByCategoryNames['code_quality'] || []).map(t => t.display_name || t.name));
+        } else if (catKey === 'dynamic') {
+          names = names.concat((toolsByCategoryNames['dynamic_analysis'] || []).map(t => t.display_name || t.name));
+        } else if (catKey === 'security') {
+          names = names.concat((toolsByCategoryNames['vulnerability'] || []).map(t => t.display_name || t.name));
+        }
         // Skip empty categories (no tools)
         if ((!count || count === 0) && names.length === 0) return;
         const icon = {
@@ -611,12 +640,14 @@ class DashboardManager {
           'dynamic': 'fas fa-play text-success'
         }[catKey] || 'fas fa-tag text-secondary';
 
+        const availCount = availableByCategory[category] || availableByCategory[catKey] || 0;
+        const availableBadge = availCount ? `<span class=\"badge bg-success-subtle text-success ms-2\" title=\"Available via analyzers\">${availCount} available</span>` : '';
         html += `
           <div class="col-12">
             <div class="border rounded p-2 small">
               <div class="d-flex justify-content-between align-items-center mb-1">
                 <div class="fw-semibold">
-                  <i class="${icon} me-2"></i>${category}
+                  <i class="${icon} me-2"></i>${category} ${availableBadge}
                 </div>
                 <span class="badge bg-secondary">${(names.length || count)}</span>
               </div>
@@ -648,13 +679,15 @@ class DashboardManager {
           'performance-tester': 'performance-tester',
           'ai-analyzer': 'ai-analyzer'
         }[service] || service;
+        const availCount = availableByService[service] || 0;
+        const availableBadge = availCount ? `<span class=\"badge bg-success-subtle text-success ms-2\" title=\"Available via analyzer\">${availCount} available</span>` : '';
 
         html += `
           <div class="col-12">
             <div class="border rounded p-2 small">
               <div class="d-flex justify-content-between align-items-center mb-1">
                 <div class="fw-semibold">
-                  <i class="${icon} me-2"></i>${label}
+                  <i class="${icon} me-2"></i>${label} ${availableBadge}
                 </div>
                 <span class="badge bg-primary-subtle text-primary">${(names.length || count)}</span>
               </div>

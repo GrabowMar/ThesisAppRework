@@ -434,11 +434,11 @@ class AnalyzerManager:
         
         try:
             async with websockets.connect(
-                service_info.websocket_url, 
+                service_info.websocket_url,
                 open_timeout=10,
-                close_timeout=5,
-                ping_interval=20,
-                ping_timeout=10
+                close_timeout=10,
+                ping_interval=None,
+                ping_timeout=None
             ) as websocket:
                 
                 # Send message

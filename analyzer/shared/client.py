@@ -37,8 +37,8 @@ class AnalyzerClient:
         try:
             self.websocket = await websockets.connect(
                 self.uri,
-                ping_interval=30,
-                ping_timeout=10,
+                ping_interval=None,
+                ping_timeout=None,
                 close_timeout=10
             )
             self.connected = True
