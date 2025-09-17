@@ -29,7 +29,9 @@ RUN npm install -g \
     stylelint \
     stylelint-config-standard \
     jshint \
-    snyk
+    snyk \
+    prettier \
+    csslint
 
 # Create non-root user
 RUN useradd -u 1000 -m analyzer

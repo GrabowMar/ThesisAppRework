@@ -1,45 +1,46 @@
-"""Analysis Engines
-===================
+"""Analysis Engines - Compatibility Layer
+========================================
 
-Lightweight, standardized wrappers around concrete analyzer execution paths.
+Compatibility layer for the new dynamic analysis system.
+Maintains backward compatibility while transitioning to the new tool-based architecture.
 
 Goals:
  - Provide a consistent run(model_slug, app_number, **kwargs) contract
- - Keep orchestration logic (task dispatch / analyzer_manager bridge) centralized
- - Allow future extension (e.g., AIAnalysis, CompositeAnalysis) without bloating
- - Decouple higher-level services (analysis_service) from specific integration calls
+ - Bridge old engine interface to new orchestrator system
+ - Support gradual migration from type-based to tag-based analysis
+ - Maintain existing API contracts during transition
 
-Each engine delegates to the existing AnalyzerIntegration, translating a minimal
-set of keyword arguments and normalizing the response schema.
-
-Return Schema (best-effort normalization):
+Return Schema (standardized):
  {
    "status": str,              # running|completed|failed|queued|error
    "engine": str,              # security|performance|static|dynamic
    "model_slug": str,
    "app_number": int,
-   "payload": {...},           # raw analyzer integration response
+   "payload": {...},           # orchestrator response
    "error": Optional[str]
  }
-
-This file intentionally avoids importing heavy model modules to keep import
-overhead low for route handlers and Celery tasks that only need execution.
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Optional
 
-from .analyzer_integration import get_analyzer_integration
+# Import new analysis system
+from ..engines import get_analysis_orchestrator
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
-    'BaseAnalyzerEngine', 'SecurityAnalyzerEngine', 'PerformanceAnalyzerEngine',
-    'StaticAnalyzerEngine', 'DynamicAnalyzerEngine', 'get_engine', 'ENGINE_REGISTRY'
+    'EngineResult', 'BaseAnalyzerEngine', 'SecurityAnalyzerEngine', 
+    'PerformanceAnalyzerEngine', 'StaticAnalyzerEngine', 'DynamicAnalyzerEngine',
+    'get_engine', 'ENGINE_REGISTRY'
 ]
 
 
 @dataclass
 class EngineResult:
+    """Compatibility wrapper for engine results."""
     status: str
     engine: str
     model_slug: str
@@ -59,90 +60,82 @@ class EngineResult:
 
 
 class BaseAnalyzerEngine:
-    """Abstract base for analyzer engines."""
+    """Base class for compatibility engines."""
     engine_name: str = 'base'
 
     def __init__(self):
-        self._integration = get_analyzer_integration()
+        self.orchestrator = get_analysis_orchestrator()
 
-    # Public API -----------------------------------------------------------
     def run(self, model_slug: str, app_number: int, **kwargs) -> EngineResult:
+        """Run analysis using new orchestrator system."""
         try:
-            raw = self._run_impl(model_slug, app_number, **kwargs) or {}
-            status = raw.get('status') or raw.get('state') or 'completed'
+            # Determine analysis type based on engine
+            tags = getattr(self, '_analysis_tags', set())
+            if tags:
+                result = self.orchestrator.run_tagged_analysis(
+                    model_slug=model_slug,
+                    app_number=app_number,
+                    tags=tags,
+                    **kwargs
+                )
+            else:
+                result = self.orchestrator.run_analysis(
+                    model_slug=model_slug,
+                    app_number=app_number,
+                    **kwargs
+                )
+            
+            # Convert to old format
+            status = 'completed' if result.get('success') else 'failed'
+            error = result.get('error') if not result.get('success') else None
+            
             return EngineResult(
                 status=status,
                 engine=self.engine_name,
                 model_slug=model_slug,
                 app_number=app_number,
-                payload=raw,
+                payload=result,
+                error=error
             )
-        except Exception as e:  # pragma: no cover - defensive
+            
+        except Exception as e:
+            logger.error(f"Engine {self.engine_name} failed: {e}")
             return EngineResult(
                 status='error',
                 engine=self.engine_name,
                 model_slug=model_slug,
                 app_number=app_number,
                 payload={},
-                error=str(e),
+                error=str(e)
             )
-
-    # Internal -------------------------------------------------------------
-    def _run_impl(self, model_slug: str, app_number: int, **kwargs) -> Dict[str, Any]:  # noqa: D401
-        """Concrete engines must implement."""
-        raise NotImplementedError
 
 
 class SecurityAnalyzerEngine(BaseAnalyzerEngine):
+    """Security analysis engine - routes to security tools."""
     engine_name = 'security'
-
-    def _run_impl(self, model_slug: str, app_number: int, **kwargs) -> Dict[str, Any]:
-        tools = kwargs.get('tools')  # optional list
-        options = kwargs.get('options')
-        return self._integration.run_security_analysis(model_slug, app_number, tools=tools, options=options)
+    _analysis_tags = {'security'}
 
 
 class PerformanceAnalyzerEngine(BaseAnalyzerEngine):
+    """Performance analysis engine - routes to performance tools."""
     engine_name = 'performance'
-
-    def _run_impl(self, model_slug: str, app_number: int, **kwargs) -> Dict[str, Any]:
-        test_config = kwargs.get('test_config') or kwargs.get('config')
-        tools = kwargs.get('tools')
-        return self._integration.run_performance_test(model_slug, app_number, test_config=test_config, tools=tools)
+    _analysis_tags = {'performance'}
 
 
 class StaticAnalyzerEngine(BaseAnalyzerEngine):
+    """Static analysis engine - routes to static analysis tools."""
     engine_name = 'static'
-
-    def _run_impl(self, model_slug: str, app_number: int, **kwargs) -> Dict[str, Any]:
-        tools = kwargs.get('tools')
-        options = kwargs.get('options')
-        return self._integration.run_static_analysis(model_slug, app_number, tools=tools, options=options)
+    _analysis_tags = {'static', 'quality'}
 
 
 class DynamicAnalyzerEngine(BaseAnalyzerEngine):
+    """Dynamic analysis engine - routes to dynamic analysis tools."""
     engine_name = 'dynamic'
-
-    def _run_impl(self, model_slug: str, app_number: int, **kwargs) -> Dict[str, Any]:
-        options = kwargs.get('options')
-        tools = kwargs.get('tools')
-        # Normalize common aliases to canonical tool names expected by analyzer services
-        try:
-            if isinstance(tools, list):
-                normalized = []
-                for t in tools:
-                    name = str(t).strip().lower()
-                    if name in ('zap-baseline', 'owasp-zap', 'zap_baseline'):
-                        name = 'zap'
-                    normalized.append(name)
-                tools = normalized
-        except Exception:
-            pass
-        return self._integration.run_dynamic_analysis(model_slug, app_number, options=options, tools=tools)
+    _analysis_tags = {'dynamic', 'security'}
 
 
-# Registry -----------------------------------------------------------------
-ENGINE_REGISTRY: Dict[str, Type[BaseAnalyzerEngine]] = {
+# Registry for backward compatibility
+ENGINE_REGISTRY: Dict[str, type] = {
     'security': SecurityAnalyzerEngine,
     'performance': PerformanceAnalyzerEngine,
     'static': StaticAnalyzerEngine,
@@ -151,10 +144,9 @@ ENGINE_REGISTRY: Dict[str, Type[BaseAnalyzerEngine]] = {
 
 
 def get_engine(name: str) -> BaseAnalyzerEngine:
-    """Get an engine instance by name.
-
-    Raises:
-        KeyError if engine not registered.
-    """
+    """Get an engine instance by name."""
+    if name not in ENGINE_REGISTRY:
+        raise KeyError(f"Engine '{name}' not found. Available engines: {list(ENGINE_REGISTRY.keys())}")
+    
     cls = ENGINE_REGISTRY[name]
     return cls()

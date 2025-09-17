@@ -7,3 +7,6 @@ semgrep>=1.45.0
 vulture>=2.7
 requests>=2.31.0
 PyYAML>=6.0
+flake8>=6.0.0
+black>=23.0.0
+isort>=5.12.0

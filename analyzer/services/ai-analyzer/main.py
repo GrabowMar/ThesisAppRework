@@ -630,8 +630,8 @@ Provide specific, actionable recommendations with examples."""
                 source_path = message_data.get("source_path", "")
                 
                 if not source_path:
-                    # Generate default path
-                    source_path = f"/workspace/misc/models/{model_slug}/app{app_number}"
+                    # Generate default path - apps are mounted at /app/sources
+                    source_path = f"/app/sources/{model_slug}/app{app_number}"
                 
                 self.log.debug(f"Starting AI analysis for {model_slug} app {app_number}")
                 

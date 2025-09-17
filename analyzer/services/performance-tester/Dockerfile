@@ -1,11 +1,12 @@
 # Performance Testing Container - Locust Load Testing
 FROM python:3.11-slim
 
-# Install Node.js for Artillery
+# Install Node.js for Artillery and performance tools
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
     apache2-utils \
+    wrk \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*

@@ -4,6 +4,7 @@ Tool Registry Service
 
 Service for managing dynamic analysis tools, configurations, and profiles.
 Provides CRUD operations and intelligent tool selection.
+Enhanced to integrate with the new dynamic tool system.
 """
 
 import logging
@@ -18,6 +19,12 @@ from ..models import GeneratedApplication
 from ..constants import AnalysisStatus
 from .service_base import NotFoundError, ValidationError
 
+# Import new dynamic tool system
+try:
+    from ..engines import get_tool_registry
+    DYNAMIC_TOOLS_AVAILABLE = True
+except ImportError:
+    DYNAMIC_TOOLS_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +50,10 @@ class ToolRegistryService:
     # ==========================================
     
     def get_all_tools(self, enabled_only: bool = True, category: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get all available analysis tools."""
+        """Get all available analysis tools from both database and dynamic registry."""
         self._ensure_initialized()
+        
+        # Get database tools
         query = AnalysisTool.query
         
         if enabled_only:
@@ -53,11 +62,133 @@ class ToolRegistryService:
         if category:
             query = query.filter(AnalysisTool.category == category)
         
-        tools = query.order_by(AnalysisTool.category, AnalysisTool.name).all()
-        return [tool.to_dict() for tool in tools]
+        db_tools = query.order_by(AnalysisTool.category, AnalysisTool.name).all()
+        tools = [tool.to_dict() for tool in db_tools]
+        
+        # Integrate dynamic tools if available
+        if DYNAMIC_TOOLS_AVAILABLE:
+            dynamic_tools = self._get_dynamic_tools(enabled_only=enabled_only, category=category)
+            tools.extend(dynamic_tools)
+        
+        return tools
+    
+    def _get_dynamic_tools(self, enabled_only: bool = False, category: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get tools from the new dynamic tool registry."""
+        try:
+            from ..engines import get_tool_registry
+            
+            # Ensure all engine modules are imported to register tools
+            self._ensure_engines_imported()
+            
+            dynamic_registry = get_tool_registry()
+            all_dynamic_tools = dynamic_registry.get_all_tools_info()
+            
+            tools = []
+            for tool_name, tool_info in all_dynamic_tools.items():
+                # Skip if tool is not available and we only want enabled tools
+                if enabled_only and not tool_info.get('available', False):
+                    continue
+                
+                # Map dynamic tool format to expected format
+                tool_dict = self._convert_dynamic_tool_to_dict(tool_name, tool_info)
+                
+                # Filter by category if specified
+                if category and tool_dict.get('category') != category:
+                    continue
+                
+                tools.append(tool_dict)
+                
+            return tools
+            
+        except Exception as e:
+            logger.warning(f"Failed to get dynamic tools: {e}")
+            return []
+    
+    def _ensure_engines_imported(self):
+        """Ensure all engine modules are imported to register tools."""
+        try:
+            # Import all engine modules to trigger tool registration
+            import app.engines.backend_security  # noqa: F401
+            import app.engines.frontend_security  # noqa: F401
+            import app.engines.performance  # noqa: F401
+            # Module imports trigger @analysis_tool decorators which register tools
+        except ImportError as e:
+            logger.warning(f"Failed to import some engine modules: {e}")
+    
+    def _convert_dynamic_tool_to_dict(self, tool_name: str, tool_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert dynamic tool info to expected dictionary format."""
+        # Map tags to category
+        tags = tool_info.get('tags', [])
+        category = self._map_tags_to_category(tags)
+        
+        # Map tool to service
+        service_name = self._map_tool_to_service(tool_name, tags)
+        
+        # Estimate duration based on tool type
+        estimated_duration = self._estimate_tool_duration(tool_name, tags)
+        
+        return {
+            'id': f"dynamic_{tool_name}",  # Prefix to avoid conflicts
+            'name': tool_name,
+            'display_name': tool_info.get('display_name', tool_name.title()),
+            'description': tool_info.get('description', ''),
+            'category': category,
+            'service_name': service_name,
+            'is_enabled': tool_info.get('available', False),
+            'estimated_duration': estimated_duration,
+            'execution_time_estimate': estimated_duration,
+            'compatibility': list(tool_info.get('supported_languages', [])),
+            'tags': tags,
+            'version': tool_info.get('version'),
+            'prerequisites': tool_info.get('prerequisites', []),
+            'default_config': tool_info.get('config', {}),
+            'source': 'dynamic'  # Mark as dynamic tool
+        }
+    
+    def _map_tags_to_category(self, tags: List[str]) -> str:
+        """Map tool tags to category."""
+        tag_set = set(tag.lower() for tag in tags)
+        
+        if 'security' in tag_set:
+            return 'security'
+        elif 'performance' in tag_set:
+            return 'performance'
+        elif 'quality' in tag_set:
+            return 'code_quality'
+        elif 'dynamic' in tag_set:
+            return 'dynamic_analysis'
+        else:
+            return 'other'
+    
+    def _map_tool_to_service(self, tool_name: str, tags: List[str]) -> str:
+        """Map tool to analyzer service."""
+        tag_set = set(tag.lower() for tag in tags)
+        
+        if 'performance' in tag_set:
+            return 'performance-tester'
+        elif 'dynamic' in tag_set or tool_name in ['zap', 'zap-baseline']:
+            return 'dynamic-analyzer'
+        elif 'security' in tag_set or 'quality' in tag_set:
+            return 'static-analyzer'
+        else:
+            return 'static-analyzer'
+    
+    def _estimate_tool_duration(self, tool_name: str, tags: List[str]) -> int:
+        """Estimate tool duration in seconds."""
+        # Base estimates by tool type
+        if 'performance' in tags:
+            return 300  # 5 minutes for performance tests
+        elif tool_name in ['bandit', 'safety']:
+            return 60   # 1 minute for security scanners
+        elif tool_name in ['pylint', 'eslint']:
+            return 120  # 2 minutes for linters
+        elif tool_name in ['npm-audit']:
+            return 30   # 30 seconds for dependency checks
+        else:
+            return 180  # 3 minutes default
     
     def get_tools_by_category(self, enabled_only: bool = True) -> Dict[str, List[Dict[str, Any]]]:
-        """Get tools grouped by category."""
+        """Get tools grouped by category including dynamic tools."""
         self._ensure_initialized()
         tools = self.get_all_tools(enabled_only=enabled_only)
         categories = {}
@@ -67,6 +198,12 @@ class ToolRegistryService:
             if category not in categories:
                 categories[category] = []
             categories[category].append(tool)
+        
+        # Ensure standard categories exist even if empty
+        standard_categories = ['security', 'performance', 'code_quality', 'dynamic_analysis']
+        for category in standard_categories:
+            if category not in categories:
+                categories[category] = []
         
         return categories
     
