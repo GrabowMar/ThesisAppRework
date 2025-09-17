@@ -233,7 +233,14 @@ class BaseAnalysisTool(ABC):
 
 # Utility functions
 def find_executable(name: str) -> Optional[str]:
-    """Find executable in PATH or check if analyzer services are available."""
+    """Find executable in PATH or (optionally) check analyzer services.
+
+    By default we only return executables available on the host PATH to avoid
+    issuing local subprocess calls that will inevitably fail with
+    "Command not found" when binaries are missing. If you explicitly want to
+    treat containerized tools as available (for planning/registry display), set
+    ORCHESTRATOR_USE_CONTAINER_TOOLS=1 in the environment.
+    """
     # First try to find locally
     if platform.system() == "Windows":
         # Try with .exe and .cmd extensions
@@ -247,15 +254,42 @@ def find_executable(name: str) -> Optional[str]:
         if result:
             return result
     
-    # For containerized tools, check if analyzer services are available
+    # Optionally consider containerized tools available when services are up
+    # (for UI planning or when execution is proxied through containers).
+    # Disabled by default to prevent local subprocess attempts failing.
+    import os
+    use_container_tools = os.environ.get('ORCHESTRATOR_USE_CONTAINER_TOOLS', '0') in ('1', 'true', 'True')
+    if not use_container_tools:
+        return None
+
+    # Treat a broader set of tools as available when the corresponding
+    # analyzer service container is up. This keeps the UI and planner in sync
+    # with what the containers can execute, even if the host lacks binaries.
     containerized_tools = {
+        # Static/security/quality (2001)
         'bandit': 'static-analyzer',
-        'safety': 'static-analyzer', 
+        'safety': 'static-analyzer',
         'pylint': 'static-analyzer',
+        'mypy': 'static-analyzer',
+        'flake8': 'static-analyzer',
+        'semgrep': 'static-analyzer',
+        'snyk': 'static-analyzer',
         'eslint': 'static-analyzer',
         'jshint': 'static-analyzer',
+        'stylelint': 'static-analyzer',
+        'vulture': 'static-analyzer',
+
+        # Dynamic (2002)
+        'curl': 'dynamic-analyzer',
+        'wget': 'dynamic-analyzer',
+        'nmap': 'dynamic-analyzer',
+        'zap': 'dynamic-analyzer',
+
+        # Performance (2003)
+        'ab': 'performance-tester',        # apache-bench
+        'artillery': 'performance-tester',
+        'aiohttp': 'performance-tester',   # built-in client in container
         'locust': 'performance-tester',
-        'ab': 'performance-tester'  # apache-bench
     }
     
     service_name = containerized_tools.get(name)

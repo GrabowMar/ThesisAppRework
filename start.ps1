@@ -4,8 +4,8 @@
 # Comprehensive startup script for ThesisApp with Flask + Celery + Analyzer microservices
 
 param(
-    [Parameter(Position = 0, HelpMessage = "Startup mode: start, flask-only, celery-only, analyzer-only, dev, stop, restart, status")]
-    [ValidateSet("start", "flask-only", "celery-only", "analyzer-only", "dev", "stop", "restart", "status", "help")]
+    [Parameter(Position = 0, HelpMessage = "Startup mode: start, flask-only, celery-only, analyzer-only, dev, stop, restart, status, logs")]
+    [ValidateSet("start", "flask-only", "celery-only", "analyzer-only", "dev", "stop", "restart", "status", "help", "logs")]
     [string]$Mode = "start",
     
     [Parameter(HelpMessage = "Flask host (default: 127.0.0.1)")]
@@ -28,7 +28,11 @@ param(
     [switch]$NoAnalyzer,
     
     [Parameter(HelpMessage = "Verbose output")]
-    [switch]$VerboseOutput
+    [switch]$VerboseOutput,
+    
+    [Parameter(HelpMessage = "Which logs to show when Mode=logs: all, flask, celery, analyzer")]
+    [ValidateSet("all", "flask", "celery", "analyzer")]
+    [string]$Logs = "all"
 )
 
 # Script configuration
@@ -388,6 +392,47 @@ function Show-Status {
     Write-Host "   Logs Directory: $LOGS_DIR" -ForegroundColor Gray
 }
 
+function Show-Logs {
+    param(
+        [string]$Target = "all"
+    )
+
+    Write-Header "ThesisApp Logs"
+
+    $follow = [bool]$Background
+    $shown = $false
+
+    function Show-OneLog {
+        param(
+            [string]$Name,
+            [string]$Path
+        )
+        if (Test-Path $Path) {
+            Write-Host "🔎 $Name log: $Path" -ForegroundColor Cyan
+            if ($follow -and ($Target -ne 'all')) {
+                try { Get-Content -Path $Path -Tail 100 -Wait } catch { }
+            } else {
+                try { Get-Content -Path $Path -Tail 200 | Write-Host -ForegroundColor Gray } catch { }
+            }
+        } else {
+            Write-Warning "$Name log not found at $Path"
+        }
+    }
+
+    if ($Target -eq 'all' -or $Target -eq 'flask') { Show-OneLog -Name 'Flask' -Path $FLASK_LOG; $shown = $true }
+    if ($Target -eq 'all' -or $Target -eq 'celery') { Show-OneLog -Name 'Celery' -Path $CELERY_LOG; $shown = $true }
+    if ($Target -eq 'all' -or $Target -eq 'analyzer') { Show-OneLog -Name 'Analyzer' -Path $ANALYZER_LOG; $shown = $true }
+
+    if (-not $shown) {
+        Write-Warning "No logs selected. Use -Logs all|flask|celery|analyzer"
+    }
+
+    if ($follow -and $Target -eq 'all') {
+        Write-Host ""
+        Write-Warning "Follow (-Background) works best with a single target (e.g., -Logs flask)."
+    }
+}
+
 function Stop-AllServices {
     Write-Header "Stopping ThesisApp Services"
     
@@ -414,6 +459,7 @@ function Show-Help {
     Write-Host "  stop         Stop all services" -ForegroundColor White
     Write-Host "  restart      Restart all services" -ForegroundColor White
     Write-Host "  status       Show services status" -ForegroundColor White
+    Write-Host "  logs         Show recent logs (use -Logs to select)" -ForegroundColor White
     Write-Host "  help         Show this help" -ForegroundColor White
     Write-Host ""
     
@@ -425,6 +471,7 @@ function Show-Help {
     Write-Host "  -Background  Start in background" -ForegroundColor White
     Write-Host "  -NoAnalyzer  Skip analyzer services" -ForegroundColor White
     Write-Host "  -VerboseOutput Verbose output" -ForegroundColor White
+    Write-Host "  -Logs        Which logs to show with Mode=logs: all, flask, celery, analyzer" -ForegroundColor White
     Write-Host ""
     
     Write-Host "EXAMPLES:" -ForegroundColor Cyan
@@ -432,6 +479,8 @@ function Show-Help {
     Write-Host "  .\start.ps1 flask-only -Debug       # Start Flask in debug mode" -ForegroundColor Gray
     Write-Host "  .\start.ps1 start -Background       # Start all in background" -ForegroundColor Gray
     Write-Host "  .\start.ps1 dev                     # Development mode" -ForegroundColor Gray
+    Write-Host "  .\start.ps1 logs                    # Show last 200 lines of all logs" -ForegroundColor Gray
+    Write-Host "  .\start.ps1 logs -Logs flask        # Show Flask log (tail with -Background)" -ForegroundColor Gray
     Write-Host "  .\start.ps1 status                  # Check status" -ForegroundColor Gray
     Write-Host "  .\start.ps1 stop                    # Stop everything" -ForegroundColor Gray
     Write-Host ""
@@ -451,6 +500,11 @@ switch ($Mode) {
     
     "status" {
         Show-Status
+        exit 0
+    }
+    
+    "logs" {
+        Show-Logs -Target $Logs
         exit 0
     }
     

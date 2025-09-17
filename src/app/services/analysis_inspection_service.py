@@ -52,7 +52,7 @@ class AnalysisInspectionService:
         """
         query = AnalysisTask.query
         if status:
-            query = query.filter(AnalysisTask.status == status)
+            query = query.filter(AnalysisTask.status == status)  # type: ignore[arg-type]
         if analysis_type:
             query = query.filter(AnalysisTask.analysis_type == analysis_type)
         if model:
@@ -113,11 +113,17 @@ class AnalysisInspectionService:
         task = self.get_task(task_id)
         
         # Extract analysis results from task metadata
-        metadata = task.get_metadata()
-        analysis_data = metadata.get('analysis', {})
-        
-        # Build comprehensive summary from metadata
-        summary = analysis_data.get('summary', {})
+        metadata = task.get_metadata() or {}
+        # Support both legacy shape (metadata['analysis']) and new orchestrator shape (metadata at top-level)
+        if 'analysis' in metadata:
+            analysis_data = metadata.get('analysis', {})
+            summary = analysis_data.get('summary', {})
+            results = analysis_data.get('results', {})
+        else:
+            # Orchestrator payload lives at the top level with 'summary', 'findings', 'tool_results'
+            analysis_data = metadata
+            summary = metadata.get('summary', {})
+            results = metadata.get('tool_results', {})
         
         # Extract severity breakdown
         severity = summary.get('severity_breakdown', {})
@@ -127,8 +133,7 @@ class AnalysisInspectionService:
         total_issues = 0
         tool_metrics: Dict[str, Any] = {}
         
-        if 'results' in analysis_data:
-            results = analysis_data['results']
+        if results:
             
             # Process Python tool results with comprehensive metadata
             if 'python' in results:
@@ -310,7 +315,7 @@ class AnalysisInspectionService:
             )
             # Only enrich if we have top-level tool raw blocks and haven't already parsed them.
             # Bandit: if 'bandit' block exists but we have zero bandit findings identified above.
-            if 'security' in results:
+            if results and 'security' in results:
                 security_block = results['security']
                 bandit_block = security_block.get('bandit') if isinstance(security_block, dict) else None
                 if isinstance(bandit_block, dict):
@@ -318,7 +323,7 @@ class AnalysisInspectionService:
                     if not existing_bandit:
                         findings = merge_findings(findings, parse_bandit_results(bandit_block))
 
-            if 'python' in results:
+            if results and 'python' in results:
                 python_block = results['python']
                 pylint_block = python_block.get('pylint') if isinstance(python_block, dict) else None
                 if isinstance(pylint_block, dict) and 'issues' in pylint_block:
@@ -344,7 +349,7 @@ class AnalysisInspectionService:
             'summary': summary,
             'severity_breakdown': severity,
             'tool_metrics': tool_metrics,
-            'structure_analysis': results.get('structure', {}) if 'results' in analysis_data else {},
+            'structure_analysis': results.get('structure', {}) if results else {},
             'findings_preview': findings,
             'findings_total': total_issues,
             'findings_by_tool': self._group_findings_by_tool(findings),

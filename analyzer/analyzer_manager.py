@@ -136,8 +136,9 @@ class AnalyzerManager:
         }
         
         self.compose_file = Path("docker-compose.yml")
-        self.results_dir = Path("results")
-        self.results_dir.mkdir(exist_ok=True)
+        # Save results under project root results folder
+        self.results_dir = (Path(__file__).parent.parent / "results").resolve()
+        self.results_dir.mkdir(parents=True, exist_ok=True)
 
         # Determine docker compose command (prefer modern 'docker compose')
         self._compose_cmd = self._resolve_compose_cmd()
@@ -760,14 +761,17 @@ class AnalyzerManager:
     # RESULTS MANAGEMENT
     # =================================================================
     
-    async def save_analysis_results(self, model_slug: str, app_number: int, 
+    async def save_analysis_results(self, model_slug: str, app_number: int,
                                   analysis_type: str, results: Dict[str, Any]) -> Path:
-        """Save analysis results to file."""
+        """Save analysis results to project-root results/<model>/appN/<container-dir>/<timestamped>.json"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        container_dir = self._map_analysis_type_to_container_dir(analysis_type)
+        # Compose directory path
+        out_dir = self.results_dir / model_slug / f"app{app_number}" / container_dir
+        out_dir.mkdir(parents=True, exist_ok=True)
         filename = f"{model_slug}_app{app_number}_{analysis_type}_{timestamp}.json"
-        filepath = self.results_dir / filename
-        
-        # Add metadata
+        filepath = out_dir / filename
+
         results_with_metadata = {
             'metadata': {
                 'model_slug': model_slug,
@@ -778,56 +782,129 @@ class AnalyzerManager:
             },
             'results': results
         }
-        
+
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(results_with_metadata, f, indent=2, default=str)
-            
             logger.info(f"💾 Results saved to: {filepath}")
             return filepath
-            
         except Exception as e:
             logger.error(f"❌ Failed to save results: {e}")
             raise
     
     async def save_batch_results(self, batch_results: Dict[str, Any]) -> Path:
-        """Save batch analysis results to file."""
+        """Save batch analysis results to project-root results/batch/"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        out_dir = (self.results_dir / "batch").resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
         filename = f"batch_analysis_{batch_results['batch_id'][:8]}_{timestamp}.json"
-        filepath = self.results_dir / filename
-        
+        filepath = out_dir / filename
+
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(batch_results, f, indent=2, default=str)
-            
             logger.info(f"💾 Batch results saved to: {filepath}")
             return filepath
-            
         except Exception as e:
             logger.error(f"❌ Failed to save batch results: {e}")
             raise
     
     def list_results(self, limit: int = 20) -> List[Dict[str, Any]]:
-        """List recent analysis results."""
-        result_files = []
-        
-        for filepath in self.results_dir.glob("*.json"):
+        """List recent analysis results from project-root results tree."""
+        result_files: List[Dict[str, Any]] = []
+        try:
+            # Collect any json files under results tree (excluding massive trees)
+            for filepath in self.results_dir.rglob("*.json"):
+                try:
+                    stat = filepath.stat()
+                    # Determine if batch file
+                    is_batch = any(part == 'batch' for part in filepath.parts)
+                    result_files.append({
+                        'filename': filepath.name,
+                        'path': str(filepath),
+                        'size': stat.st_size,
+                        'modified': datetime.fromtimestamp(stat.st_mtime),
+                        'is_batch': is_batch
+                    })
+                except Exception as e:
+                    logger.warning(f"Could not read file info for {filepath}: {e}")
+            # Sort by modification time (newest first)
+            result_files.sort(key=lambda x: x['modified'], reverse=True)
+            return result_files[:limit]
+        except Exception as e:
+            logger.warning(f"Could not list results: {e}")
+            return result_files
+
+    def _map_analysis_type_to_container_dir(self, analysis_type: str) -> str:
+        """Map analysis type to container folder name for results organization."""
+        at = (analysis_type or '').lower()
+        if at in ('security', 'static'):
+            return 'static-analyzer'
+        if at in ('dynamic', 'zap'):
+            return 'dynamic-analyzer'
+        if at in ('performance',):
+            return 'performance-tester'
+        if at in ('ai', 'ai_review', 'ai-review'):
+            return 'ai-analyzer'
+        if at in ('comprehensive',):
+            return 'comprehensive'
+        # Default catch-all
+        return 'analysis'
+
+    def find_result_files(self, query: str) -> List[Path]:
+        """Find result files by query within the results tree.
+
+        Resolution order:
+        - Absolute path provided and exists -> return it
+        - Relative path under results_dir exists -> return it
+        - If query contains glob chars (*?[]) -> rglob(query)
+        - Exact filename match across all JSON files (case-insensitive on Windows)
+        - Fallback: substring match against filenames
+        Returns a list of matches sorted by modified time (newest first).
+        """
+        q = (query or "").strip()
+        matches: List[Path] = []
+        try:
+            # Absolute path
+            p = Path(q)
+            if p.is_absolute() and p.exists():
+                return [p.resolve()]
+
+            # Relative path from results root
+            rel = (self.results_dir / q).resolve()
+            if rel.exists():
+                return [rel]
+
+            # Glob pattern support
+            if any(ch in q for ch in "*?[]"):
+                matches = list(self.results_dir.rglob(q))
+            else:
+                # Exact filename match across JSONs
+                lower_q = q.lower()
+                for f in self.results_dir.rglob("*.json"):
+                    try:
+                        if f.name.lower() == lower_q:
+                            matches.append(f)
+                    except Exception:
+                        continue
+                # Fallback: substring match
+                if not matches:
+                    for f in self.results_dir.rglob("*.json"):
+                        try:
+                            if lower_q in f.name.lower():
+                                matches.append(f)
+                        except Exception:
+                            continue
+
+            # Sort newest first
             try:
-                stat = filepath.stat()
-                result_files.append({
-                    'filename': filepath.name,
-                    'path': str(filepath),
-                    'size': stat.st_size,
-                    'modified': datetime.fromtimestamp(stat.st_mtime),
-                    'is_batch': 'batch_analysis' in filepath.name
-                })
-            except Exception as e:
-                logger.warning(f"Could not read file info for {filepath}: {e}")
-        
-        # Sort by modification time (newest first)
-        result_files.sort(key=lambda x: x['modified'], reverse=True)
-        
-        return result_files[:limit]
+                matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+            except Exception:
+                pass
+        except Exception:
+            return []
+
+        return matches
     
     # =================================================================
     # TESTING AND VALIDATION
@@ -1256,23 +1333,53 @@ async def main():
         
         elif command == 'results':
             if len(sys.argv) > 2:
-                # Show specific result file
-                filename = sys.argv[2]
-                filepath = manager.results_dir / filename
-                
-                if not filepath.exists():
-                    print(f"❌ Result file not found: {filepath}")
+                # Show specific result file, with recursive lookup
+                query = sys.argv[2]
+                matches = manager.find_result_files(query)
+
+                if not matches:
+                    if JSON_MODE:
+                        print(json.dumps({"status": "error", "error": "result_not_found", "query": query}))
+                    else:
+                        print(f"❌ Result not found for query: {query}")
+                        print("Tip: You can pass a filename, partial name, relative path under 'results/', an absolute path, or a glob like '**/static-analyzer/*.json'.")
                     return
-                
+
+                # If multiple matches, show top 5 and require more specific query
+                if len(matches) > 1:
+                    if JSON_MODE:
+                        print(json.dumps({
+                            "status": "ambiguous",
+                            "count": len(matches),
+                            "candidates": [str(p) for p in matches[:10]]
+                        }))
+                    else:
+                        print(f"⚠️  Ambiguous query. {len(matches)} files match. Showing newest 5:")
+                        for p in matches[:5]:
+                            try:
+                                mtime = datetime.fromtimestamp(p.stat().st_mtime)
+                                print(f" - {p}  ({mtime})")
+                            except Exception:
+                                print(f" - {p}")
+                        print("Refine your query (e.g., include more of the path or use a glob).")
+                    return
+
+                filepath = matches[0]
                 try:
-                    with open(filepath, 'r') as f:
+                    with open(filepath, 'r', encoding='utf-8') as f:
                         results = json.load(f)
-                    
-                    print(f"📄 Results from {filename}:")
-                    print(json.dumps(results, indent=2, default=str))
-                    
+
+                    if JSON_MODE:
+                        print(json.dumps({"status": "ok", "path": str(filepath), "results": results}))
+                    else:
+                        print(f"📄 Results from {filepath}:")
+                        print(json.dumps(results, indent=2, default=str))
+
                 except Exception as e:
-                    print(f"❌ Failed to read results: {e}")
+                    if JSON_MODE:
+                        print(json.dumps({"status": "error", "error": str(e), "path": str(filepath)}))
+                    else:
+                        print(f"❌ Failed to read results: {e}")
             else:
                 # List results
                 results = manager.list_results()

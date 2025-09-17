@@ -119,7 +119,8 @@ class TaskExecutionService:
                         # Execute real analysis instead of simulation
                         try:
                             result = self._execute_real_analysis(task_db)
-                            success = result.get('status') == 'success'
+                            # Engine returns 'completed' on success or 'failed'/'error' otherwise
+                            success = result.get('status') in ('success', 'completed')
                             
                             # Save analysis results to database
                             if success and result.get('payload'):
@@ -129,12 +130,11 @@ class TaskExecutionService:
                                 # Extract summary metrics for the task
                                 payload = result['payload']
                                 if isinstance(payload, dict):
-                                    analysis = payload.get('analysis', {})
-                                    summary = analysis.get('summary', {})
-                                    
+                                    # Support both legacy shape (metadata['analysis']['summary']) and
+                                    # new orchestrator shape (payload['summary']).
+                                    summary = payload.get('summary') or payload.get('analysis', {}).get('summary', {})
                                     # Update task summary fields
-                                    task_db.issues_found = summary.get('total_issues_found', 0)
-                                    
+                                    task_db.issues_found = summary.get('total_issues_found', summary.get('total_findings', 0))
                                     # Store severity breakdown if available
                                     severity_breakdown = summary.get('severity_breakdown', {})
                                     if severity_breakdown:
@@ -393,57 +393,19 @@ class TaskExecutionService:
                     if result and result.get('payload'):
                         try:
                             task_db.set_metadata(result['payload'])
-                            
-                            # Extract summary information and update task fields
+                            # Extract summary information and update task fields (supports both payload shapes)
                             payload = result['payload']
                             if isinstance(payload, dict):
-                                analysis_data = payload.get('analysis', {})
-                                summary = analysis_data.get('summary', {})
-                                
+                                summary = payload.get('summary') or payload.get('analysis', {}).get('summary', {})
                                 # Update issues count
-                                task_db.issues_found = summary.get('total_issues_found', 0)
-                                
-                                # Store result summary
+                                task_db.issues_found = summary.get('total_issues_found', summary.get('total_findings', 0))
+                                # Store result summary if present
                                 if summary:
                                     task_db.set_result_summary(summary)
-                                
-                                # Calculate and store severity breakdown
-                                severity_counts = {'error': 0, 'warning': 0, 'info': 0, 'medium': 0, 'high': 0, 'low': 0}
-                                
-                                if 'results' in analysis_data:
-                                    results_data = analysis_data['results']
-                                    
-                                    # Count Python tool issues
-                                    if 'python' in results_data:
-                                        python_results = results_data['python']
-                                        
-                                        # Count Bandit issues
-                                        if 'bandit' in python_results and 'issues' in python_results['bandit']:
-                                            for issue in python_results['bandit']['issues']:
-                                                severity = issue.get('issue_severity', 'unknown').lower()
-                                                if severity in severity_counts:
-                                                    severity_counts[severity] += 1
-                                        
-                                        # Count PyLint issues
-                                        if 'pylint' in python_results and 'issues' in python_results['pylint']:
-                                            for issue in python_results['pylint']['issues']:
-                                                issue_type = issue.get('type', 'unknown').lower()
-                                                if issue_type in severity_counts:
-                                                    severity_counts[issue_type] += 1
-                                    
-                                    # Count JavaScript tool issues
-                                    if 'javascript' in results_data:
-                                        js_results = results_data['javascript']
-                                        if 'eslint' in js_results and 'issues' in js_results['eslint']:
-                                            for issue in js_results['eslint']['issues']:
-                                                severity = issue.get('severity', 'unknown').lower()
-                                                if severity in severity_counts:
-                                                    severity_counts[severity] += 1
-                                
-                                # Store severity breakdown as JSON
-                                import json
-                                task_db.severity_breakdown = json.dumps(severity_counts)
-                                
+                                # Store severity breakdown if present
+                                sev = summary.get('severity_breakdown') or {}
+                                if sev:
+                                    task_db.severity_breakdown = json.dumps(sev)
                         except Exception as e:
                             logger.warning("Failed to store analysis results for task %s: %s", task_db.task_id, e)
                     

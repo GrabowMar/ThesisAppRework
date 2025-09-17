@@ -15,6 +15,8 @@ from .base import (
     ToolStatus, parse_file_extensions
 )
 from ..utils.json_results_manager import JsonResultsManager
+from ..utils.helpers import get_app_directory
+from ..paths import GENERATED_APPS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +32,8 @@ class AnalysisOrchestrator:
         """
         self.registry = get_tool_registry()
         self.base_path = base_path or Path.cwd()
-        self.results_manager = JsonResultsManager(self.base_path, "analysis")
+        # Store under project-root results directory
+        self.results_manager = JsonResultsManager(self.base_path / "results", "analysis")
         
     def discover_tools(self) -> Dict[str, Any]:
         """Discover available tools on the system."""
@@ -197,13 +200,14 @@ class AnalysisOrchestrator:
                 }
             }
             
-            # Save results
+            # Save results under folder named after the analyzer container service
             try:
+                container_dir = self._infer_container_dir(tools)
                 self.results_manager.save_results(
                     model_slug,
                     app_number,
                     results,
-                    analysis_type='comprehensive'
+                    analysis_type=container_dir or 'analysis'
                 )
             except Exception as e:
                 logger.warning(f"Failed to save results: {e}")
@@ -309,23 +313,67 @@ class AnalysisOrchestrator:
         return self.results_manager.list_available_results(model_slug)
     
     # Private methods
+    def _infer_container_dir(self, tools: Optional[List[str]]) -> Optional[str]:
+        """Infer container service name directory from selected tools.
+
+        Returns one of: 'static-analyzer', 'dynamic-analyzer', 'performance-tester', 'ai-analyzer'
+        If multiple categories detected, returns 'comprehensive'. If none, returns None.
+        """
+        mapping = {
+            # static
+            'bandit': 'static-analyzer', 'safety': 'static-analyzer', 'pylint': 'static-analyzer',
+            'mypy': 'static-analyzer', 'flake8': 'static-analyzer', 'semgrep': 'static-analyzer',
+            'snyk': 'static-analyzer', 'eslint': 'static-analyzer', 'jshint': 'static-analyzer',
+            'stylelint': 'static-analyzer', 'vulture': 'static-analyzer',
+            # dynamic
+            'curl': 'dynamic-analyzer', 'wget': 'dynamic-analyzer', 'nmap': 'dynamic-analyzer', 'zap': 'dynamic-analyzer',
+            # performance
+            'ab': 'performance-tester', 'artillery': 'performance-tester', 'aiohttp': 'performance-tester', 'locust': 'performance-tester',
+            # ai
+            'ai-review': 'ai-analyzer', 'ai': 'ai-analyzer'
+        }
+        if not tools:
+            return None
+        services = {mapping.get(t.lower()) for t in tools if mapping.get(t.lower())}
+        services.discard(None)  # type: ignore[arg-type]
+        if not services:
+            return None
+        if len(services) == 1:
+            return next(iter(services))
+        return 'comprehensive'
     
     def _resolve_target_path(self, model_slug: str, app_number: int) -> Path:
-        """Resolve target path for analysis."""
-        # Try multiple path patterns
-        candidates = [
-            self.base_path / "misc" / "models" / model_slug / f"app{app_number}",
-            self.base_path / "generated" / model_slug / f"app{app_number}",
-            self.base_path / model_slug / f"app{app_number}",
-            self.base_path / f"{model_slug}_app{app_number}"
-        ]
-        
-        for candidate in candidates:
-            if candidate.exists():
-                return candidate
-        
-        # Default to first candidate
-        return candidates[0]
+        """Resolve target path for analysis.
+
+        Priority order:
+          1) New unified path: src/generated/apps/<model_slug>/appN
+          2) Legacy path: misc/models/<model_slug>/appN
+          3) Heuristic fallback using helpers.get_app_directory
+          4) Last-resort: return canonical generated path (may not exist)
+        """
+        # 1) Prefer new unified generated/apps structure (project-root anchored)
+        try:
+            gen_candidate = GENERATED_APPS_DIR / model_slug / f"app{app_number}"
+            if gen_candidate.exists():
+                return gen_candidate
+        except Exception:
+            pass
+
+        # 2) Legacy misc/models path relative to project root
+        legacy_candidate = (Path(__file__).resolve().parents[3] / "misc" / "models" / model_slug / f"app{app_number}")
+        if legacy_candidate.exists():
+            return legacy_candidate
+
+        # 3) Use helpers (handles variations and fuzzy matching)
+        try:
+            helper_path = get_app_directory(model_slug, app_number)
+            if helper_path.exists():
+                return helper_path
+        except Exception:
+            pass
+
+        # 4) Return canonical new path even if missing (callers will validate)
+        return GENERATED_APPS_DIR / model_slug / f"app{app_number}"
     
     def _detect_languages(self, target_path: Path) -> Set[str]:
         """Detect programming languages in target path."""

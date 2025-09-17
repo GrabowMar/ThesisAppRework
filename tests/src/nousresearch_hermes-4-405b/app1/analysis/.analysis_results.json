@@ -1,0 +1,61 @@
+{
+  "metadata": {
+    "module": "analysis",
+    "model": "nousresearch_hermes-4-405b",
+    "app_number": 1,
+    "timestamp": "2025-09-17T08:35:11.310743+00:00",
+    "version": "1.0",
+    "analysis_type": "comprehensive"
+  },
+  "results": {
+    "success": true,
+    "model_slug": "nousresearch_hermes-4-405b",
+    "app_number": 1,
+    "target_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\src\\generated\\apps\\nousresearch_hermes-4-405b\\app1",
+    "analysis_duration": 0.029477834701538086,
+    "tools_requested": [
+      "bandit",
+      "safety",
+      "pylint"
+    ],
+    "tools_successful": 0,
+    "tools_failed": 3,
+    "tool_results": {
+      "bandit": {
+        "status": "❓ Not available",
+        "error": "Tool not available on system"
+      },
+      "safety": {
+        "status": "❓ Not available",
+        "error": "Tool not available on system"
+      },
+      "pylint": {
+        "status": "❓ Not available",
+        "error": "Tool not available on system"
+      }
+    },
+    "summary": {
+      "total_findings": 0,
+      "severity_breakdown": {},
+      "tools_breakdown": {},
+      "categories": [],
+      "tags": [],
+      "tool_status": {
+        "bandit": "❓ Not available",
+        "safety": "❓ Not available",
+        "pylint": "❓ Not available"
+      }
+    },
+    "findings": [],
+    "metadata": {
+      "analysis_timestamp": "2025-09-17T08:35:11.309739+00:00",
+      "detected_languages": [
+        "python",
+        "javascript",
+        "html"
+      ],
+      "file_count": 12,
+      "orchestrator_version": "2.0.0"
+    }
+  }
+}
