@@ -517,7 +517,20 @@ class DashboardManager {
       const data = await response.json();
       
       if (response.ok && data.success) {
-        this.renderToolRegistry(data.data);
+        // Ensure we also have the full tools list so we can show names
+        let toolData = data.data || {};
+        if (!toolData.tools || !Array.isArray(toolData.tools) || toolData.tools.length === 0) {
+          try {
+            const toolsResp = await fetch('/api/tool-registry/tools');
+            if (toolsResp.ok) {
+              const toolsJson = await toolsResp.json();
+              toolData.tools = toolsJson.data || [];
+            }
+          } catch (err) {
+            console.warn('Unable to load full tool list for names:', err);
+          }
+        }
+        this.renderToolRegistry(toolData);
       } else {
         this.renderToolRegistryError(data.error || 'Failed to load tool registry');
       }
@@ -533,31 +546,48 @@ class DashboardManager {
     const summary = toolData.summary || {};
     const byCategory = toolData.tools_by_category || {};
     const byService = toolData.tools_by_service || {};
+    const tools = Array.isArray(toolData.tools) ? toolData.tools : [];
+
+    // Group tools (if available) to render names
+    const toolsByCategoryNames = {};
+    const toolsByServiceNames = {};
+    if (tools.length) {
+      tools.forEach(t => {
+        const cat = (t.category || 'uncategorized').toLowerCase();
+        const svc = t.service_name || 'unknown';
+        (toolsByCategoryNames[cat] ||= []).push(t);
+        (toolsByServiceNames[svc] ||= []).push(t);
+      });
+    }
 
     let html = `
       <div class="row g-3 mb-3">
         <div class="col-6">
-          <div class="text-center p-2 bg-primary bg-opacity-10 rounded">
-            <div class="h5 mb-1 text-primary">${summary.total_tools || 0}</div>
-            <small class="text-muted">Total Tools</small>
+          <div class="metric-card metric-primary">
+            <div class="metric-icon-bg"><i class="fas fa-tools"></i></div>
+            <div class="metric-value">${summary.total_tools || 0}</div>
+            <div class="metric-label">Total Tools</div>
           </div>
         </div>
         <div class="col-6">
-          <div class="text-center p-2 bg-success bg-opacity-10 rounded">
-            <div class="h5 mb-1 text-success">${summary.enabled_tools || 0}</div>
-            <small class="text-muted">Enabled</small>
+          <div class="metric-card metric-success">
+            <div class="metric-icon-bg"><i class="fas fa-check-circle"></i></div>
+            <div class="metric-value">${summary.enabled_tools || 0}</div>
+            <div class="metric-label">Enabled</div>
           </div>
         </div>
         <div class="col-6">
-          <div class="text-center p-2 bg-warning bg-opacity-10 rounded">
-            <div class="h5 mb-1 text-warning">${summary.total_profiles || 0}</div>
-            <small class="text-muted">Profiles</small>
+          <div class="metric-card metric-warning">
+            <div class="metric-icon-bg"><i class="fas fa-list-check"></i></div>
+            <div class="metric-value">${summary.total_profiles || 0}</div>
+            <div class="metric-label">Profiles</div>
           </div>
         </div>
         <div class="col-6">
-          <div class="text-center p-2 bg-info bg-opacity-10 rounded">
-            <div class="h5 mb-1 text-info">${summary.total_categories || 0}</div>
-            <small class="text-muted">Categories</small>
+          <div class="metric-card metric-info">
+            <div class="metric-icon-bg"><i class="fas fa-layer-group"></i></div>
+            <div class="metric-value">${summary.total_categories || 0}</div>
+            <div class="metric-label">Categories</div>
           </div>
         </div>
       </div>
@@ -566,14 +596,32 @@ class DashboardManager {
     // Tools by category
     if (Object.keys(byCategory).length > 0) {
       html += '<h6 class="text-muted mb-2">Tools by Category</h6>';
-      html += '<div class="row g-1 mb-3">';
+      html += '<div class="row g-2 mb-3">';
       Object.entries(byCategory).forEach(([category, count]) => {
+        const catKey = category.toLowerCase();
+        const names = (toolsByCategoryNames[catKey] || []).map(t => t.display_name || t.name);
+        // Skip empty categories (no tools)
+        if ((!count || count === 0) && names.length === 0) return;
+        const icon = {
+          'security': 'fas fa-shield-alt text-danger',
+          'vulnerability': 'fas fa-bug text-danger',
+          'performance': 'fas fa-gauge-high text-info',
+          'quality': 'fas fa-code text-warning',
+          'ai_analysis': 'fas fa-brain text-primary',
+          'dynamic': 'fas fa-play text-success'
+        }[catKey] || 'fas fa-tag text-secondary';
+
         html += `
-          <div class="col-6">
-            <small class="d-flex justify-content-between">
-              <span>${category}</span>
-              <span class="badge bg-secondary">${count}</span>
-            </small>
+          <div class="col-12">
+            <div class="border rounded p-2 small">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <div class="fw-semibold">
+                  <i class="${icon} me-2"></i>${category}
+                </div>
+                <span class="badge bg-secondary">${(names.length || count)}</span>
+              </div>
+              ${names.length ? (() => { const cap = 12; const more = Math.max(0, names.length - cap); const show = names.slice(0, cap); return `<div class=\"d-flex flex-wrap gap-1\">${show.map(n => `<span class=\"badge bg-secondary-lt text-secondary\">${n}</span>`).join('')}${more?`<span class=\"badge bg-light text-muted\">+${more} more</span>`:''}</div>`; })() : ''}
+            </div>
           </div>
         `;
       });
@@ -583,14 +631,35 @@ class DashboardManager {
     // Tools by service
     if (Object.keys(byService).length > 0) {
       html += '<h6 class="text-muted mb-2">Tools by Service</h6>';
-      html += '<div class="row g-1">';
+      html += '<div class="row g-2">';
       Object.entries(byService).forEach(([service, count]) => {
+        const names = (toolsByServiceNames[service] || []).map(t => t.display_name || t.name);
+        // Skip empty services (no tools)
+        if ((!count || count === 0) && names.length === 0) return;
+        const icon = {
+          'static-analyzer': 'fas fa-shield-alt text-danger',
+          'dynamic-analyzer': 'fas fa-flask text-warning',
+          'performance-tester': 'fas fa-gauge-high text-info',
+          'ai-analyzer': 'fas fa-brain text-primary'
+        }[service] || 'fas fa-cubes text-secondary';
+        const label = {
+          'static-analyzer': 'static-analyzer',
+          'dynamic-analyzer': 'dynamic-analyzer',
+          'performance-tester': 'performance-tester',
+          'ai-analyzer': 'ai-analyzer'
+        }[service] || service;
+
         html += `
           <div class="col-12">
-            <small class="d-flex justify-content-between">
-              <span>${service}</span>
-              <span class="badge bg-outline-primary">${count}</span>
-            </small>
+            <div class="border rounded p-2 small">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <div class="fw-semibold">
+                  <i class="${icon} me-2"></i>${label}
+                </div>
+                <span class="badge bg-primary-subtle text-primary">${(names.length || count)}</span>
+              </div>
+              ${names.length ? (() => { const cap = 12; const more = Math.max(0, names.length - cap); const show = names.slice(0, cap); return `<div class=\"d-flex flex-wrap gap-1\">${show.map(n => `<span class=\"badge bg-primary-subtle text-primary\">${n}</span>`).join('')}${more?`<span class=\"badge bg-light text-muted\">+${more} more</span>`:''}</div>`; })() : ''}
+            </div>
           </div>
         `;
       });
@@ -937,5 +1006,35 @@ window.addEventListener('beforeunload', () => {
     font-size: 0.875rem;
   }
 }
+
+/* Metric tiles for Tool Registry with background icons */
+.metric-card {
+  position: relative;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.5rem;
+  color: #0b2239;
+  overflow: hidden;
+}
+.metric-card .metric-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.metric-card .metric-label {
+  font-size: 0.75rem;
+  color: rgba(0,0,0,.55);
+}
+.metric-card .metric-icon-bg {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.2rem;
+  font-size: 2.5rem;
+  opacity: 0.15;
+  color: #0b2239;
+}
+.metric-primary { background: linear-gradient(135deg, rgba(32,107,196,.12), rgba(66,153,225,.2)); }
+.metric-success { background: linear-gradient(135deg, rgba(25,135,84,.12), rgba(25,135,84,.2)); }
+.metric-warning { background: linear-gradient(135deg, rgba(255,193,7,.12), rgba(255,193,7,.2)); }
+.metric-info    { background: linear-gradient(135deg, rgba(13,202,240,.12), rgba(13,202,240,.2)); }
 </style>
 {% endblock %}

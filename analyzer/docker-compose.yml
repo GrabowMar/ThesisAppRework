@@ -182,10 +182,12 @@ services:
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # Use shell form to ensure non-zero exit on failure and wait a bit for startup
+      test: ["CMD-SHELL", "redis-cli -h 127.0.0.1 -p 6379 ping || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
+      start_period: 10s
     user: "999:999"
     restart: unless-stopped
     networks:
