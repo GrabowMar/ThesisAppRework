@@ -10,12 +10,12 @@
         "data": {
           "database": "connected",
           "status": "healthy",
-          "timestamp": "2025-09-16T13:56:16.921836+00:00",
+          "timestamp": "2025-09-17T21:30:38.063413+00:00",
           "version": "1.0"
         },
         "message": "Success",
         "success": true,
-        "timestamp": "2025-09-16T13:56:16.921836+00:00"
+        "timestamp": "2025-09-17T21:30:38.063413+00:00"
       }
     },
     "health": {
@@ -40,27 +40,867 @@
       "critical": true,
       "body": {
         "error": "Page Not Found",
-        "error_id": "0102aeacb97846eaa386f291127cdd90",
+        "error_id": "30a80eccbb75431e8ddd343089884987",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/models/all",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-16T13:56:18.056545+00:00"
+        "timestamp": "2025-09-17T21:30:39.218717+00:00"
       }
     },
     "dashboard_stats": {
       "url": "http://127.0.0.1:5005/api/dashboard/stats",
-      "status": 404,
+      "status": 200,
       "ok": true,
       "critical": true,
       "body": {
-        "error": "Page Not Found",
-        "error_id": "2cd1bbbffff246bdbce6593464249f12",
-        "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
-        "path": "/api/dashboard/stats",
-        "status": "error",
-        "status_code": 404,
-        "timestamp": "2025-09-16T13:56:18.070336+00:00"
+        "data": {
+          "counts": {
+            "applications": 93,
+            "models": 278,
+            "performance_tests": 0,
+            "security_tests": 1
+          },
+          "frameworks": [
+            {
+              "count": 93,
+              "name": "Flask"
+            }
+          ],
+          "providers": [
+            {
+              "count": 1,
+              "name": "agentica-org"
+            },
+            {
+              "count": 2,
+              "name": "ai21"
+            },
+            {
+              "count": 3,
+              "name": "aion-labs"
+            },
+            {
+              "count": 1,
+              "name": "alfredpros"
+            },
+            {
+              "count": 2,
+              "name": "allenai"
+            },
+            {
+              "count": 1,
+              "name": "alpindale"
+            },
+            {
+              "count": 3,
+              "name": "amazon"
+            },
+            {
+              "count": 2,
+              "name": "anthracite-org"
+            },
+            {
+              "count": 10,
+              "name": "anthropic"
+            },
+            {
+              "count": 4,
+              "name": "arcee-ai"
+            },
+            {
+              "count": 1,
+              "name": "arliai"
+            },
+            {
+              "count": 4,
+              "name": "baidu"
+            },
+            {
+              "count": 2,
+              "name": "bytedance"
+            },
+            {
+              "count": 4,
+              "name": "cognitivecomputations"
+            },
+            {
+              "count": 9,
+              "name": "cohere"
+            },
+            {
+              "count": 2,
+              "name": "deepcogito"
+            },
+            {
+              "count": 12,
+              "name": "deepseek"
+            },
+            {
+              "count": 1,
+              "name": "eleutherai"
+            },
+            {
+              "count": 20,
+              "name": "google"
+            },
+            {
+              "count": 1,
+              "name": "gryphe"
+            },
+            {
+              "count": 2,
+              "name": "inception"
+            },
+            {
+              "count": 2,
+              "name": "inflection"
+            },
+            {
+              "count": 2,
+              "name": "liquid"
+            },
+            {
+              "count": 1,
+              "name": "mancer"
+            },
+            {
+              "count": 1,
+              "name": "meituan"
+            },
+            {
+              "count": 17,
+              "name": "meta-llama"
+            },
+            {
+              "count": 8,
+              "name": "microsoft"
+            },
+            {
+              "count": 2,
+              "name": "minimax"
+            },
+            {
+              "count": 28,
+              "name": "mistralai"
+            },
+            {
+              "count": 4,
+              "name": "moonshotai"
+            },
+            {
+              "count": 2,
+              "name": "morph"
+            },
+            {
+              "count": 3,
+              "name": "neversleep"
+            },
+            {
+              "count": 7,
+              "name": "nousresearch"
+            },
+            {
+              "count": 3,
+              "name": "nvidia"
+            },
+            {
+              "count": 39,
+              "name": "openai"
+            },
+            {
+              "count": 3,
+              "name": "openrouter"
+            },
+            {
+              "count": 6,
+              "name": "perplexity"
+            },
+            {
+              "count": 29,
+              "name": "qwen"
+            },
+            {
+              "count": 1,
+              "name": "raifle"
+            },
+            {
+              "count": 1,
+              "name": "rekaai"
+            },
+            {
+              "count": 4,
+              "name": "sao10k"
+            },
+            {
+              "count": 1,
+              "name": "shisa-ai"
+            },
+            {
+              "count": 1,
+              "name": "sophosympatheia"
+            },
+            {
+              "count": 1,
+              "name": "stepfun-ai"
+            },
+            {
+              "count": 1,
+              "name": "switchpoint"
+            },
+            {
+              "count": 1,
+              "name": "tencent"
+            },
+            {
+              "count": 5,
+              "name": "thedrummer"
+            },
+            {
+              "count": 3,
+              "name": "thudm"
+            },
+            {
+              "count": 2,
+              "name": "tngtech"
+            },
+            {
+              "count": 1,
+              "name": "undi95"
+            },
+            {
+              "count": 8,
+              "name": "x-ai"
+            },
+            {
+              "count": 4,
+              "name": "z-ai"
+            }
+          ],
+          "recent_apps": [
+            {
+              "app_number": 1,
+              "app_type": "web_application",
+              "backend_framework": "Flask",
+              "container_status": "unknown",
+              "created_at": "Sun, 14 Sep 2025 13:05:07 GMT",
+              "frontend_framework": "React",
+              "generation_status": "pending",
+              "has_backend": true,
+              "has_docker_compose": true,
+              "has_frontend": true,
+              "id": 93,
+              "metadata": {},
+              "model_slug": "test-model-backend",
+              "provider": "test-model-backend",
+              "updated_at": "Sun, 14 Sep 2025 13:05:07 GMT"
+            },
+            {
+              "app_number": 1,
+              "app_type": "web_application",
+              "backend_framework": "Flask",
+              "container_status": "unknown",
+              "created_at": "Sun, 14 Sep 2025 13:05:07 GMT",
+              "frontend_framework": "React",
+              "generation_status": "pending",
+              "has_backend": true,
+              "has_docker_compose": true,
+              "has_frontend": true,
+              "id": 92,
+              "metadata": {},
+              "model_slug": "test-model-api",
+              "provider": "test-model-api",
+              "updated_at": "Sun, 14 Sep 2025 13:05:07 GMT"
+            },
+            {
+              "app_number": 1,
+              "app_type": "web_application",
+              "backend_framework": "Flask",
+              "container_status": "unknown",
+              "created_at": "Sun, 14 Sep 2025 13:05:07 GMT",
+              "frontend_framework": "React",
+              "generation_status": "pending",
+              "has_backend": true,
+              "has_docker_compose": true,
+              "has_frontend": true,
+              "id": 91,
+              "metadata": {},
+              "model_slug": "test-model",
+              "provider": "test-model",
+              "updated_at": "Sun, 14 Sep 2025 13:05:07 GMT"
+            },
+            {
+              "app_number": 9,
+              "app_type": "web_app",
+              "backend_framework": "Flask",
+              "container_status": "stopped",
+              "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
+              "frontend_framework": "React",
+              "generation_status": "completed",
+              "has_backend": true,
+              "has_docker_compose": true,
+              "has_frontend": true,
+              "id": 90,
+              "metadata": {},
+              "model_slug": "x-ai_grok-code-fast-1",
+              "provider": "x-ai",
+              "updated_at": "Sun, 14 Sep 2025 13:05:08 GMT"
+            },
+            {
+              "app_number": 7,
+              "app_type": "web_app",
+              "backend_framework": "Flask",
+              "container_status": "stopped",
+              "created_at": "Mon, 08 Sep 2025 20:46:23 GMT",
+              "frontend_framework": "React",
+              "generation_status": "completed",
+              "has_backend": true,
+              "has_docker_compose": true,
+              "has_frontend": true,
+              "id": 88,
+              "metadata": {},
+              "model_slug": "x-ai_grok-code-fast-1",
+              "provider": "x-ai",
+              "updated_at": "Sun, 14 Sep 2025 13:05:08 GMT"
+            }
+          ],
+          "recent_models": [
+            {
+              "canonical_slug": "openai_gpt-4-0314",
+              "capabilities": {
+                "architecture": {
+                  "input_modalities": [
+                    "text"
+                  ],
+                  "instruct_type": null,
+                  "modality": "text->text",
+                  "output_modalities": [
+                    "text"
+                  ],
+                  "tokenizer": "GPT"
+                },
+                "canonical_slug": "openai/gpt-4-0314",
+                "context_length": 8191,
+                "created": 1685232000,
+                "description": "GPT-4-0314 is the first version of GPT-4 released, with a context length of 8,192 tokens, and was supported until June 14. Training data: up to Sep 2021.",
+                "hugging_face_id": null,
+                "id": "openai/gpt-4-0314",
+                "name": "OpenAI: GPT-4 (older v0314)",
+                "per_request_limits": null,
+                "pricing": {
+                  "completion": "0.00006",
+                  "image": "0",
+                  "internal_reasoning": "0",
+                  "prompt": "0.00003",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "supported_parameters": [
+                  "frequency_penalty",
+                  "logit_bias",
+                  "logprobs",
+                  "max_tokens",
+                  "presence_penalty",
+                  "response_format",
+                  "seed",
+                  "stop",
+                  "structured_outputs",
+                  "temperature",
+                  "tool_choice",
+                  "tools",
+                  "top_logprobs",
+                  "top_p"
+                ],
+                "top_provider": {
+                  "context_length": 8191,
+                  "is_moderated": true,
+                  "max_completion_tokens": 4096
+                }
+              },
+              "context_window": 8191,
+              "cost_efficiency": 0.0,
+              "created_at": "Sun, 14 Sep 2025 20:49:23 GMT",
+              "id": 278,
+              "input_price_per_token": 3e-05,
+              "is_free": false,
+              "max_output_tokens": 4096,
+              "metadata": {
+                "openrouter_canonical_slug": "openai/gpt-4-0314",
+                "openrouter_created": 1685232000,
+                "openrouter_description": "GPT-4-0314 is the first version of GPT-4 released, with a context length of 8,192 tokens, and was supported until June 14. Training data: up to Sep 2021.",
+                "openrouter_model_id": "openai/gpt-4-0314",
+                "openrouter_name": "OpenAI: GPT-4 (older v0314)",
+                "openrouter_pricing": {
+                  "completion": "0.00006",
+                  "image": "0",
+                  "internal_reasoning": "0",
+                  "prompt": "0.00003",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "openrouter_supported_parameters": [
+                  "frequency_penalty",
+                  "logit_bias",
+                  "logprobs",
+                  "max_tokens",
+                  "presence_penalty",
+                  "response_format",
+                  "seed",
+                  "stop",
+                  "structured_outputs",
+                  "temperature",
+                  "tool_choice",
+                  "tools",
+                  "top_logprobs",
+                  "top_p"
+                ],
+                "openrouter_top_provider": {
+                  "context_length": 8191,
+                  "is_moderated": true,
+                  "max_completion_tokens": 4096
+                }
+              },
+              "model_id": "openai/gpt-4-0314",
+              "model_name": "gpt-4-0314",
+              "output_price_per_token": 6e-05,
+              "provider": "openai",
+              "safety_score": 0.0,
+              "supports_function_calling": false,
+              "supports_json_mode": false,
+              "supports_streaming": false,
+              "supports_vision": false,
+              "updated_at": "Sun, 14 Sep 2025 20:49:23 GMT"
+            },
+            {
+              "canonical_slug": "openai_gpt-3.5-turbo",
+              "capabilities": {
+                "architecture": {
+                  "input_modalities": [
+                    "text"
+                  ],
+                  "instruct_type": null,
+                  "modality": "text->text",
+                  "output_modalities": [
+                    "text"
+                  ],
+                  "tokenizer": "GPT"
+                },
+                "canonical_slug": "openai/gpt-3.5-turbo",
+                "context_length": 16385,
+                "created": 1685232000,
+                "description": "GPT-3.5 Turbo is OpenAI's fastest model. It can understand and generate natural language or code, and is optimized for chat and traditional completion tasks.\n\nTraining data up to Sep 2021.",
+                "hugging_face_id": null,
+                "id": "openai/gpt-3.5-turbo",
+                "name": "OpenAI: GPT-3.5 Turbo",
+                "per_request_limits": null,
+                "pricing": {
+                  "completion": "0.0000015",
+                  "image": "0",
+                  "internal_reasoning": "0",
+                  "prompt": "0.0000005",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "supported_parameters": [
+                  "frequency_penalty",
+                  "logit_bias",
+                  "logprobs",
+                  "max_tokens",
+                  "presence_penalty",
+                  "response_format",
+                  "seed",
+                  "stop",
+                  "structured_outputs",
+                  "temperature",
+                  "tool_choice",
+                  "tools",
+                  "top_logprobs",
+                  "top_p"
+                ],
+                "top_provider": {
+                  "context_length": 16385,
+                  "is_moderated": true,
+                  "max_completion_tokens": 4096
+                }
+              },
+              "context_window": 16385,
+              "cost_efficiency": 0.0,
+              "created_at": "Sun, 14 Sep 2025 20:49:23 GMT",
+              "id": 276,
+              "input_price_per_token": 5e-07,
+              "is_free": false,
+              "max_output_tokens": 4096,
+              "metadata": {
+                "openrouter_canonical_slug": "openai/gpt-3.5-turbo",
+                "openrouter_created": 1685232000,
+                "openrouter_description": "GPT-3.5 Turbo is OpenAI's fastest model. It can understand and generate natural language or code, and is optimized for chat and traditional completion tasks.\n\nTraining data up to Sep 2021.",
+                "openrouter_model_id": "openai/gpt-3.5-turbo",
+                "openrouter_name": "OpenAI: GPT-3.5 Turbo",
+                "openrouter_pricing": {
+                  "completion": "0.0000015",
+                  "image": "0",
+                  "internal_reasoning": "0",
+                  "prompt": "0.0000005",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "openrouter_supported_parameters": [
+                  "frequency_penalty",
+                  "logit_bias",
+                  "logprobs",
+                  "max_tokens",
+                  "presence_penalty",
+                  "response_format",
+                  "seed",
+                  "stop",
+                  "structured_outputs",
+                  "temperature",
+                  "tool_choice",
+                  "tools",
+                  "top_logprobs",
+                  "top_p"
+                ],
+                "openrouter_top_provider": {
+                  "context_length": 16385,
+                  "is_moderated": true,
+                  "max_completion_tokens": 4096
+                }
+              },
+              "model_id": "openai/gpt-3.5-turbo",
+              "model_name": "gpt-3.5-turbo",
+              "output_price_per_token": 1.5e-06,
+              "provider": "openai",
+              "safety_score": 0.0,
+              "supports_function_calling": false,
+              "supports_json_mode": false,
+              "supports_streaming": false,
+              "supports_vision": false,
+              "updated_at": "Sun, 14 Sep 2025 20:49:23 GMT"
+            },
+            {
+              "canonical_slug": "openai_gpt-4",
+              "capabilities": {
+                "architecture": {
+                  "input_modalities": [
+                    "text"
+                  ],
+                  "instruct_type": null,
+                  "modality": "text->text",
+                  "output_modalities": [
+                    "text"
+                  ],
+                  "tokenizer": "GPT"
+                },
+                "canonical_slug": "openai/gpt-4",
+                "context_length": 8191,
+                "created": 1685232000,
+                "description": "OpenAI's flagship model, GPT-4 is a large-scale multimodal language model capable of solving difficult problems with greater accuracy than previous models due to its broader general knowledge and advanced reasoning capabilities. Training data: up to Sep 2021.",
+                "hugging_face_id": null,
+                "id": "openai/gpt-4",
+                "name": "OpenAI: GPT-4",
+                "per_request_limits": null,
+                "pricing": {
+                  "completion": "0.00006",
+                  "image": "0",
+                  "internal_reasoning": "0",
+                  "prompt": "0.00003",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "supported_parameters": [
+                  "frequency_penalty",
+                  "logit_bias",
+                  "logprobs",
+                  "max_tokens",
+                  "presence_penalty",
+                  "response_format",
+                  "seed",
+                  "stop",
+                  "structured_outputs",
+                  "temperature",
+                  "tool_choice",
+                  "tools",
+                  "top_logprobs",
+                  "top_p"
+                ],
+                "top_provider": {
+                  "context_length": 8191,
+                  "is_moderated": true,
+                  "max_completion_tokens": 4096
+                }
+              },
+              "context_window": 8191,
+              "cost_efficiency": 0.0,
+              "created_at": "Sun, 14 Sep 2025 20:49:23 GMT",
+              "id": 277,
+              "input_price_per_token": 3e-05,
+              "is_free": false,
+              "max_output_tokens": 4096,
+              "metadata": {
+                "openrouter_canonical_slug": "openai/gpt-4",
+                "openrouter_created": 1685232000,
+                "openrouter_description": "OpenAI's flagship model, GPT-4 is a large-scale multimodal language model capable of solving difficult problems with greater accuracy than previous models due to its broader general knowledge and advanced reasoning capabilities. Training data: up to Sep 2021.",
+                "openrouter_model_id": "openai/gpt-4",
+                "openrouter_name": "OpenAI: GPT-4",
+                "openrouter_pricing": {
+                  "completion": "0.00006",
+                  "image": "0",
+                  "internal_reasoning": "0",
+                  "prompt": "0.00003",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "openrouter_supported_parameters": [
+                  "frequency_penalty",
+                  "logit_bias",
+                  "logprobs",
+                  "max_tokens",
+                  "presence_penalty",
+                  "response_format",
+                  "seed",
+                  "stop",
+                  "structured_outputs",
+                  "temperature",
+                  "tool_choice",
+                  "tools",
+                  "top_logprobs",
+                  "top_p"
+                ],
+                "openrouter_top_provider": {
+                  "context_length": 8191,
+                  "is_moderated": true,
+                  "max_completion_tokens": 4096
+                }
+              },
+              "model_id": "openai/gpt-4",
+              "model_name": "gpt-4",
+              "output_price_per_token": 6e-05,
+              "provider": "openai",
+              "safety_score": 0.0,
+              "supports_function_calling": false,
+              "supports_json_mode": false,
+              "supports_streaming": false,
+              "supports_vision": false,
+              "updated_at": "Sun, 14 Sep 2025 20:49:23 GMT"
+            },
+            {
+              "canonical_slug": "undi95_remm-slerp-l2-13b",
+              "capabilities": {
+                "architecture": {
+                  "input_modalities": [
+                    "text"
+                  ],
+                  "instruct_type": "alpaca",
+                  "modality": "text->text",
+                  "output_modalities": [
+                    "text"
+                  ],
+                  "tokenizer": "Llama2"
+                },
+                "canonical_slug": "undi95/remm-slerp-l2-13b",
+                "context_length": 6144,
+                "created": 1689984000,
+                "description": "A recreation trial of the original MythoMax-L2-B13 but with updated models. #merge",
+                "hugging_face_id": "Undi95/ReMM-SLERP-L2-13B",
+                "id": "undi95/remm-slerp-l2-13b",
+                "name": "ReMM SLERP 13B",
+                "per_request_limits": null,
+                "pricing": {
+                  "completion": "0.00000065",
+                  "image": "0",
+                  "internal_reasoning": "0",
+                  "prompt": "0.00000045",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "supported_parameters": [
+                  "frequency_penalty",
+                  "logit_bias",
+                  "max_tokens",
+                  "min_p",
+                  "presence_penalty",
+                  "repetition_penalty",
+                  "response_format",
+                  "seed",
+                  "stop",
+                  "structured_outputs",
+                  "temperature",
+                  "top_a",
+                  "top_k",
+                  "top_p"
+                ],
+                "top_provider": {
+                  "context_length": 6144,
+                  "is_moderated": false,
+                  "max_completion_tokens": null
+                }
+              },
+              "context_window": 6144,
+              "cost_efficiency": 0.0,
+              "created_at": "Sun, 14 Sep 2025 20:49:23 GMT",
+              "id": 274,
+              "input_price_per_token": 4.5e-07,
+              "is_free": false,
+              "max_output_tokens": 0,
+              "metadata": {
+                "openrouter_canonical_slug": "undi95/remm-slerp-l2-13b",
+                "openrouter_created": 1689984000,
+                "openrouter_description": "A recreation trial of the original MythoMax-L2-B13 but with updated models. #merge",
+                "openrouter_model_id": "undi95/remm-slerp-l2-13b",
+                "openrouter_name": "ReMM SLERP 13B",
+                "openrouter_pricing": {
+                  "completion": "0.00000065",
+                  "image": "0",
+                  "internal_reasoning": "0",
+                  "prompt": "0.00000045",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "openrouter_supported_parameters": [
+                  "frequency_penalty",
+                  "logit_bias",
+                  "max_tokens",
+                  "min_p",
+                  "presence_penalty",
+                  "repetition_penalty",
+                  "response_format",
+                  "seed",
+                  "stop",
+                  "structured_outputs",
+                  "temperature",
+                  "top_a",
+                  "top_k",
+                  "top_p"
+                ],
+                "openrouter_top_provider": {
+                  "context_length": 6144,
+                  "is_moderated": false,
+                  "max_completion_tokens": null
+                }
+              },
+              "model_id": "undi95/remm-slerp-l2-13b",
+              "model_name": "remm-slerp-l2-13b",
+              "output_price_per_token": 6.5e-07,
+              "provider": "undi95",
+              "safety_score": 0.0,
+              "supports_function_calling": false,
+              "supports_json_mode": false,
+              "supports_streaming": false,
+              "supports_vision": false,
+              "updated_at": "Sun, 14 Sep 2025 20:49:23 GMT"
+            },
+            {
+              "canonical_slug": "gryphe_mythomax-l2-13b",
+              "capabilities": {
+                "architecture": {
+                  "input_modalities": [
+                    "text"
+                  ],
+                  "instruct_type": "alpaca",
+                  "modality": "text->text",
+                  "output_modalities": [
+                    "text"
+                  ],
+                  "tokenizer": "Llama2"
+                },
+                "canonical_slug": "gryphe/mythomax-l2-13b",
+                "context_length": 4096,
+                "created": 1688256000,
+                "description": "One of the highest performing and most popular fine-tunes of Llama 2 13B, with rich descriptions and roleplay. #merge",
+                "hugging_face_id": "Gryphe/MythoMax-L2-13b",
+                "id": "gryphe/mythomax-l2-13b",
+                "name": "MythoMax 13B",
+                "per_request_limits": null,
+                "pricing": {
+                  "completion": "0.00000006",
+                  "image": "0",
+                  "internal_reasoning": "0",
+                  "prompt": "0.00000006",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "supported_parameters": [
+                  "frequency_penalty",
+                  "logit_bias",
+                  "max_tokens",
+                  "min_p",
+                  "presence_penalty",
+                  "repetition_penalty",
+                  "response_format",
+                  "seed",
+                  "stop",
+                  "structured_outputs",
+                  "temperature",
+                  "top_a",
+                  "top_k",
+                  "top_p"
+                ],
+                "top_provider": {
+                  "context_length": 4096,
+                  "is_moderated": false,
+                  "max_completion_tokens": null
+                }
+              },
+              "context_window": 4096,
+              "cost_efficiency": 0.0,
+              "created_at": "Sun, 14 Sep 2025 20:49:23 GMT",
+              "id": 275,
+              "input_price_per_token": 6e-08,
+              "is_free": false,
+              "max_output_tokens": 0,
+              "metadata": {
+                "openrouter_canonical_slug": "gryphe/mythomax-l2-13b",
+                "openrouter_created": 1688256000,
+                "openrouter_description": "One of the highest performing and most popular fine-tunes of Llama 2 13B, with rich descriptions and roleplay. #merge",
+                "openrouter_model_id": "gryphe/mythomax-l2-13b",
+                "openrouter_name": "MythoMax 13B",
+                "openrouter_pricing": {
+                  "completion": "0.00000006",
+                  "image": "0",
+                  "internal_reasoning": "0",
+                  "prompt": "0.00000006",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "openrouter_supported_parameters": [
+                  "frequency_penalty",
+                  "logit_bias",
+                  "max_tokens",
+                  "min_p",
+                  "presence_penalty",
+                  "repetition_penalty",
+                  "response_format",
+                  "seed",
+                  "stop",
+                  "structured_outputs",
+                  "temperature",
+                  "top_a",
+                  "top_k",
+                  "top_p"
+                ],
+                "openrouter_top_provider": {
+                  "context_length": 4096,
+                  "is_moderated": false,
+                  "max_completion_tokens": null
+                }
+              },
+              "model_id": "gryphe/mythomax-l2-13b",
+              "model_name": "mythomax-l2-13b",
+              "output_price_per_token": 6e-08,
+              "provider": "gryphe",
+              "safety_score": 0.0,
+              "supports_function_calling": false,
+              "supports_json_mode": false,
+              "supports_streaming": false,
+              "supports_vision": false,
+              "updated_at": "Sun, 14 Sep 2025 20:49:23 GMT"
+            }
+          ],
+          "timestamp": "2025-09-17T21:30:39.263806+00:00"
+        },
+        "message": "Success",
+        "success": true,
+        "timestamp": "2025-09-17T21:30:39.263806+00:00"
       }
     },
     "system_health": {
@@ -70,12 +910,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "94259af5e8324005abeba6400b611bff",
+        "error_id": "f158290ec5bf47b8941b10318680d78c",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/system/health",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-16T13:56:18.084272+00:00"
+        "timestamp": "2025-09-17T21:30:39.274010+00:00"
       }
     },
     "analysis_stats": {
@@ -83,7 +923,7 @@
       "status": 200,
       "ok": true,
       "critical": true,
-      "body": "\n<div class=\"row text-center small\">\n  <div class=\"col-6 mb-3\">\n    <div class=\"fw-bold\">Total Tasks</div>\n    <div class=\"h5 mb-0\">0</div>\n  </div>\n  <div class=\"col-6 mb-3\">\n    <div class=\"fw-bold\">Active</div>\n    <div class=\"h5 text-warning mb-0\">0</div>\n  </div>\n  <div class=\"col-6\">\n    <div class=\"fw-bold\">Completed</div>\n    <div class=\"h5 text-success mb-0\">0</div>\n  </div>\n  <div class=\"col-6\">\n    <div class=\"fw-bold\">Failed</div>\n    <div class=\"h5 text-danger mb-0\">0</div>\n  </div>"
+      "body": "\n<div class=\"row text-center small\">\n  <div class=\"col-6 mb-3\">\n    <div class=\"fw-bold\">Total Tasks</div>\n    <div class=\"h5 mb-0\">3</div>\n  </div>\n  <div class=\"col-6 mb-3\">\n    <div class=\"fw-bold\">Active</div>\n    <div class=\"h5 text-warning mb-0\">0</div>\n  </div>\n  <div class=\"col-6\">\n    <div class=\"fw-bold\">Completed</div>\n    <div class=\"h5 text-success mb-0\">3</div>\n  </div>\n  <div class=\"col-6\">\n    <div class=\"fw-bold\">Failed</div>\n    <div class=\"h5 text-danger mb-0\">0</div>\n  </div>"
     },
     "analysis_start": {
       "url": "http://127.0.0.1:5005/advanced/api/analysis/start",
@@ -103,7 +943,7 @@
           "data": {
             "active_analyses": 0,
             "connected": true,
-            "last_update": "2025-09-16T13:56:18.133410+00:00",
+            "last_update": "2025-09-17T21:30:39.848337+00:00",
             "service": "celery_websocket"
           },
           "preference": "celery",
@@ -123,12 +963,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "9530ccd0740d43fe989609bc506a88aa",
+        "error_id": "ec334c942d144221ade49e55783a40ac",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/events/clear",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-16T13:56:18.135682+00:00"
+        "timestamp": "2025-09-17T21:30:39.856051+00:00"
       }
     },
     "ws_start": {
@@ -138,12 +978,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "5156c3e2298549a28e1d3e7cee4caa8a",
+        "error_id": "10a484bfcdf84a2bb0352a5f725b1308",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/analysis/start",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-16T13:56:18.137349+00:00"
+        "timestamp": "2025-09-17T21:30:39.861147+00:00"
       }
     },
     "ws_analyses": {
@@ -153,12 +993,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "7ea0b325619a4a10abf7b19fd5445a30",
+        "error_id": "3a0689f355d9458bad59152bf9be7676",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/analyses",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-16T13:56:19.139948+00:00"
+        "timestamp": "2025-09-17T21:30:40.874286+00:00"
       }
     },
     "ws_events": {
@@ -168,12 +1008,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "f5e586ba82e640a8b2e5c3c87c207b5c",
+        "error_id": "407fde67ae2b4ebfbe3ef54e78465e40",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/events",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-16T13:56:19.160821+00:00"
+        "timestamp": "2025-09-17T21:30:40.893559+00:00"
       }
     },
     "active_tasks": {

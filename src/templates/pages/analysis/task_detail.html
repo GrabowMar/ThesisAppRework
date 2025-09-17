@@ -8,4 +8,5 @@
 </div>
 <div id="task-core" hx-get="/analysis/api/tasks/{{ task.task_id }}/detail" hx-trigger="load" class="mb-4"></div>
 <div id="results-summary" hx-get="/analysis/api/tasks/{{ task.task_id }}/results/summary" hx-trigger="load" class="mb-4"></div>
+<div id="tool-details" hx-get="/analysis/api/tasks/{{ task.task_id }}/results/tools" hx-trigger="load" class="mb-4"></div>
 {% endblock %}

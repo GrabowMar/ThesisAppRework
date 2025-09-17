@@ -618,6 +618,29 @@ def task_results_summary_fragment(task_id: str):
     findings = (payload.get('findings_preview') or [])[:50]
     return render_template('pages/analysis/partials/task_results_summary.html', task_id=task_id, payload=payload, findings=findings)
 
+@analysis_bp.route('/api/tasks/<task_id>/results/tools')
+def task_tool_details_fragment(task_id: str):
+    """HTMX fragment: detailed tool execution information and output logs.
+    
+    Shows what tools actually did during analysis, including files analyzed,
+    rules checked, execution time, and raw output - even when findings count is 0.
+    """
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="text-danger small">Inspection service unavailable</div>'
+    try:
+        payload = insp.get_task_results_payload(task_id)  # type: ignore[attr-defined]
+    except Exception as e:  # pragma: no cover
+        return f'<div class="alert alert-danger small">Error loading tool details: {e}</div>'
+    
+    # Extract tool metrics and execution details
+    tool_metrics = payload.get('tool_metrics', {})
+    
+    return render_template('pages/analysis/partials/task_tool_details.html', 
+                         task_id=task_id, 
+                         payload=payload, 
+                         tool_metrics=tool_metrics)
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------

@@ -287,6 +287,8 @@ class AnalysisInspectionService:
                     tool_metrics['mypy'] = {
                         'status': mypy_data.get('status'),
                         'total_issues': mypy_data.get('total_issues', 0),
+                        'files_analyzed': mypy_data.get('files_analyzed', 0),
+                        'summary': mypy_data.get('summary', {}),
                         'config_used': mypy_data.get('config_used', {})
                     }
                     
@@ -307,6 +309,94 @@ class AnalysisInspectionService:
                                 'note': issue.get('note', ''),
                                 'suggestion': issue.get('suggestion', ''),
                                 # Raw data for advanced analysis
+                                'raw_data': issue
+                            }
+                            findings.append(finding)
+                
+                # Process Semgrep issues - extract ALL fields
+                if 'semgrep' in python_results:
+                    semgrep_data = python_results['semgrep']
+                    tool_metrics['semgrep'] = {
+                        'status': semgrep_data.get('status'),
+                        'total_issues': semgrep_data.get('total_issues', 0),
+                        'severity_breakdown': semgrep_data.get('severity_breakdown', {}),
+                        'paths_scanned': semgrep_data.get('paths_scanned', {}),
+                        'errors': semgrep_data.get('errors', []),
+                        'config_used': semgrep_data.get('config_used', {})
+                    }
+                    
+                    if 'results' in semgrep_data:
+                        for issue in semgrep_data['results'][:50]:
+                            finding = {
+                                'tool': 'semgrep',
+                                'severity': issue.get('extra', {}).get('severity', 'INFO').lower(),
+                                'title': issue.get('extra', {}).get('message', 'Security pattern detected'),
+                                'category': issue.get('check_id', 'security'),
+                                'file_path': issue.get('path', ''),
+                                'line_number': issue.get('start', {}).get('line'),
+                                'column': issue.get('start', {}).get('col'),
+                                'end_line': issue.get('end', {}).get('line'),
+                                'end_column': issue.get('end', {}).get('col'),
+                                'message': issue.get('extra', {}).get('message', ''),
+                                'check_id': issue.get('check_id'),
+                                'metadata': issue.get('extra', {}).get('metadata', {}),
+                                'references': issue.get('extra', {}).get('references', []),
+                                'raw_data': issue
+                            }
+                            findings.append(finding)
+                
+                # Process Safety vulnerabilities - extract ALL fields
+                if 'safety' in python_results:
+                    safety_data = python_results['safety']
+                    tool_metrics['safety'] = {
+                        'status': safety_data.get('status'),
+                        'total_issues': safety_data.get('total_issues', 0),
+                        'vulnerabilities': len(safety_data.get('vulnerabilities', [])),
+                        'ignored_vulnerabilities': len(safety_data.get('ignored_vulnerabilities', [])),
+                        'metadata': safety_data.get('metadata', {}),
+                        'config_used': safety_data.get('config_used', {})
+                    }
+                    
+                    if 'vulnerabilities' in safety_data:
+                        for vuln in safety_data['vulnerabilities'][:50]:
+                            finding = {
+                                'tool': 'safety',
+                                'severity': 'high',  # Safety vulnerabilities are generally high severity
+                                'title': vuln.get('advisory', 'Security vulnerability'),
+                                'category': 'dependency-vulnerability',
+                                'package_name': vuln.get('package_name'),
+                                'installed_version': vuln.get('installed_version'),
+                                'affected_versions': vuln.get('affected_versions'),
+                                'analyzed_version': vuln.get('analyzed_version'),
+                                'message': vuln.get('advisory', ''),
+                                'vulnerability_id': vuln.get('vulnerability_id'),
+                                'cve': vuln.get('cve'),
+                                'cwe': vuln.get('cwe'),
+                                'more_info_url': vuln.get('more_info_url', ''),
+                                'raw_data': vuln
+                            }
+                            findings.append(finding)
+                
+                # Process Vulture dead code findings - extract ALL fields
+                if 'vulture' in python_results:
+                    vulture_data = python_results['vulture']
+                    tool_metrics['vulture'] = {
+                        'status': vulture_data.get('status'),
+                        'total_issues': vulture_data.get('total_issues', 0),
+                        'config_used': vulture_data.get('config_used', {})
+                    }
+                    
+                    if 'results' in vulture_data:
+                        for issue in vulture_data['results'][:50]:
+                            finding = {
+                                'tool': 'vulture',
+                                'severity': 'low',  # Dead code is typically low severity
+                                'title': issue.get('message', 'Dead code detected'),
+                                'category': 'dead-code',
+                                'file_path': issue.get('filename', ''),
+                                'line_number': issue.get('line'),
+                                'message': issue.get('message', ''),
+                                'confidence': issue.get('confidence', 80),
                                 'raw_data': issue
                             }
                             findings.append(finding)
@@ -346,6 +436,60 @@ class AnalysisInspectionService:
                                 'fix_range': issue.get('fix', {}).get('range', []) if issue.get('fix') else [],
                                 'suggestions': issue.get('suggestions', []),
                                 # Raw data for advanced analysis
+                                'raw_data': issue
+                            }
+                            findings.append(finding)
+                
+                # Process JSHint issues - extract ALL fields
+                if 'jshint' in js_results:
+                    jshint_data = js_results['jshint']
+                    tool_metrics['jshint'] = {
+                        'status': jshint_data.get('status'),
+                        'total_issues': jshint_data.get('total_issues', 0),
+                        'config_used': jshint_data.get('config_used', {})
+                    }
+                    
+                    if 'results' in jshint_data:
+                        for file_result in jshint_data['results']:
+                            for issue in file_result.get('messages', [])[:50]:
+                                finding = {
+                                    'tool': 'jshint',
+                                    'severity': 'warning',  # JSHint issues are typically warnings
+                                    'title': issue.get('message', 'JavaScript code quality issue'),
+                                    'category': issue.get('code', 'javascript'),
+                                    'file_path': file_result.get('filePath', ''),
+                                    'line_number': issue.get('line'),
+                                    'column': issue.get('column'),
+                                    'message': issue.get('message', ''),
+                                    'code': issue.get('code'),
+                                    'evidence': issue.get('evidence', ''),
+                                    'raw_data': issue
+                                }
+                                findings.append(finding)
+                
+                # Process Snyk issues - extract ALL fields  
+                if 'snyk' in js_results:
+                    snyk_data = js_results['snyk']
+                    tool_metrics['snyk'] = {
+                        'status': snyk_data.get('status'),
+                        'total_issues': snyk_data.get('total_issues', 0),
+                        'config_used': snyk_data.get('config_used', {})
+                    }
+                    
+                    if 'results' in snyk_data:
+                        for issue in snyk_data['results'][:50]:
+                            finding = {
+                                'tool': 'snyk',
+                                'severity': issue.get('severity', 'medium').lower(),
+                                'title': issue.get('title', 'Security vulnerability'),
+                                'category': 'security-vulnerability',
+                                'file_path': issue.get('packageName', ''),
+                                'message': issue.get('title', ''),
+                                'package_name': issue.get('packageName'),
+                                'version': issue.get('version'),
+                                'cve': issue.get('identifiers', {}).get('CVE', []),
+                                'cwe': issue.get('identifiers', {}).get('CWE', []),
+                                'references': issue.get('references', []),
                                 'raw_data': issue
                             }
                             findings.append(finding)
@@ -470,7 +614,8 @@ class AnalysisInspectionService:
             'metadata': {
                 'extraction_version': '2.0',
                 'comprehensive_parsing': True,
-                'raw_data_included': True
+                'raw_data_included': True,
+                'analysis_duration': analysis_data.get('analysis_duration') or (results.get('analysis_duration') if results else None)
             },
             'derived_status': derived_status
         }

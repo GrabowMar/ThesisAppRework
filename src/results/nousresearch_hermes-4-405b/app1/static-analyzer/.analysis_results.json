@@ -3,7 +3,7 @@
     "module": "analysis",
     "model": "nousresearch_hermes-4-405b",
     "app_number": 1,
-    "timestamp": "2025-09-17T20:39:37.969990+00:00",
+    "timestamp": "2025-09-17T21:49:34.313671+00:00",
     "version": "1.0",
     "analysis_type": "static-analyzer"
   },
@@ -12,22 +12,46 @@
     "model_slug": "nousresearch_hermes-4-405b",
     "app_number": 1,
     "target_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\src\\generated\\apps\\nousresearch_hermes-4-405b\\app1",
-    "analysis_duration": 12.053714752197266,
+    "analysis_duration": 45.801918268203735,
     "tools_requested": [
+      "semgrep",
       "bandit",
       "safety",
-      "pylint"
+      "jshint",
+      "eslint",
+      "mypy",
+      "pylint",
+      "stylelint",
+      "vulture"
     ],
-    "tools_successful": 3,
+    "tools_successful": 9,
     "tools_failed": 0,
     "tool_results": {
+      "semgrep": {
+        "status": "success"
+      },
       "bandit": {
         "status": "success"
       },
       "safety": {
         "status": "success"
       },
+      "jshint": {
+        "status": "success"
+      },
+      "eslint": {
+        "status": "success"
+      },
+      "mypy": {
+        "status": "success"
+      },
       "pylint": {
+        "status": "success"
+      },
+      "stylelint": {
+        "status": "success"
+      },
+      "vulture": {
         "status": "success"
       }
     },
@@ -38,14 +62,20 @@
       "categories": [],
       "tags": [],
       "tool_status": {
+        "semgrep": "success",
         "bandit": "success",
         "safety": "success",
-        "pylint": "success"
+        "jshint": "success",
+        "eslint": "success",
+        "mypy": "success",
+        "pylint": "success",
+        "stylelint": "success",
+        "vulture": "success"
       }
     },
     "findings": [],
     "metadata": {
-      "analysis_timestamp": "2025-09-17T20:39:37.963131+00:00",
+      "analysis_timestamp": "2025-09-17T21:49:34.304631+00:00",
       "detected_languages": [
         "html",
         "javascript",
