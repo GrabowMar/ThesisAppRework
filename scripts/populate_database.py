@@ -35,7 +35,7 @@ def populate_database():
     try:
         # Import Flask app components
         from app.factory import create_app
-        from app.services.model_service import ModelService
+        from app.services.data_initialization import DataInitializationService
         
         # Create Flask app
         logger.info("Creating Flask application...")
@@ -44,11 +44,11 @@ def populate_database():
         with app.app_context():
             logger.info("Starting database population...")
             
-            # Initialize model service
-            model_service = ModelService(app)
+            # Initialize data initialization service (includes OpenRouter integration)
+            data_init_service = DataInitializationService()
             
-            # Populate database from files
-            results = model_service.populate_database_from_files()
+            # Populate database from files and OpenRouter API
+            results = data_init_service.initialize_all_data()
             
             logger.info("Database population completed!")
             logger.info(f"Results: {results}")
@@ -57,17 +57,26 @@ def populate_database():
             print("\n" + "=" * 60)
             print("DATABASE POPULATION SUMMARY")
             print("=" * 60)
-            print(f"Models created/updated:      {results['models']}")
-            print(f"Port configs created:        {results['ports']}")
-            print(f"Applications discovered:     {results['apps']}")
+            
+            total_models = results['models_loaded'] + results.get('openrouter_models_loaded', 0)
+            print(f"Models loaded (total):       {total_models}")
+            print(f"  From JSON file:            {results['models_loaded']}")
+            print(f"  From OpenRouter API:       {results.get('openrouter_models_loaded', 0)}")
+            print(f"Port configs loaded:         {results['ports_loaded']}")
+            print(f"Applications discovered:     {results['applications_loaded']}")
             print("=" * 60)
             
-            if sum(results.values()) > 0:
+            if results['success'] and total_models > 0:
                 print("✅ Database population successful!")
                 return True
-            else:
+            elif results['success']:
                 print("ℹ️  No new data to populate (database already up to date)")
                 return True
+            else:
+                print("❌ Database population had errors:")
+                for error in results.get('errors', []):
+                    print(f"  - {error}")
+                return False
                 
     except Exception as e:
         logger.error(f"Error during database population: {e}")

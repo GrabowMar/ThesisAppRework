@@ -47,7 +47,9 @@ def main():
             
             if result['success']:
                 logger.info("✅ Data loading completed successfully!")
-                logger.info("   Models loaded: %d", result['models_loaded'])
+                total_models = result['models_loaded'] + result.get('openrouter_models_loaded', 0)
+                logger.info("   Models loaded: %d (from file: %d, from OpenRouter: %d)", 
+                           total_models, result['models_loaded'], result.get('openrouter_models_loaded', 0))
                 logger.info("   Applications loaded: %d", result['applications_loaded'])
                 logger.info("   Ports loaded: %d", result['ports_loaded'])
                 if result['errors']:

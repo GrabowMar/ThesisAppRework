@@ -421,17 +421,20 @@ class AppScaffoldingService:
         merged_ports.sort(key=lambda x: (x.get('model'), x.get('app_number')))
         ports_path.write_text(json.dumps(merged_ports, indent=2), encoding='utf-8')
 
-        colors_path = self.base_path / 'src' / 'misc' / 'model_capabilities.json'
-        existing_colors: Dict[str, str] = {}
-        if colors_path.exists():
+        # Store colors in models_summary.json or similar (model_capabilities.json is deprecated)
+        models_summary_path = self.base_path / 'src' / 'misc' / 'models_summary.json'
+        existing_summary: Dict[str, Any] = {}
+        if models_summary_path.exists():
             try:
-                cdata = json.loads(colors_path.read_text(encoding='utf-8'))
-                if isinstance(cdata, dict) and isinstance(cdata.get('colors'), dict):
-                    existing_colors.update({str(k): str(v) for k, v in cdata['colors'].items()})
+                existing_summary = json.loads(models_summary_path.read_text(encoding='utf-8'))
             except Exception:  # noqa: BLE001
-                logger.warning("Failed reading existing model_capabilities.json; rewriting fresh")
-        existing_colors.update(colors)  # new mappings override
-        colors_path.write_text(json.dumps({"colors": existing_colors}, indent=2), encoding='utf-8')
+                logger.warning("Failed reading existing models_summary.json; creating fresh")
+        
+        # Update colors in the summary file
+        if 'colors' not in existing_summary:
+            existing_summary['colors'] = {}
+        existing_summary['colors'].update(colors)  # new mappings override
+        models_summary_path.write_text(json.dumps(existing_summary, indent=2), encoding='utf-8')
 
     # ----------------------------- Status ---------------------------------
     def status(self) -> Dict[str, Any]:

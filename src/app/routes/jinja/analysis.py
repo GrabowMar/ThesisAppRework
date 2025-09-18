@@ -5,7 +5,8 @@ Analysis routes for the Flask application
 Analysis-related web routes that render Jinja templates.
 """
 
-from flask import Blueprint, current_app, request, redirect, url_for, flash
+import json
+from flask import Blueprint, current_app, request, redirect, url_for, flash, jsonify, make_response, abort
 
 from app.models import AnalysisTask
 from app.utils.template_paths import render_template_compat as render_template
@@ -456,24 +457,26 @@ def tasks_inspection_index():
 @analysis_bp.route('/tasks/<task_id>')
 def task_detail_page(task_id: str):
     """Full page detail for a single analysis task."""
-    insp = ServiceLocator.get('analysis_inspection_service')
-    detail = None
-    if insp:
+    try:
+        # Get basic task info first
+        from app.models import AnalysisTask
+        task = AnalysisTask.query.filter_by(task_id=task_id).first()
+        if not task:
+            abort(404, description=f"Task {task_id} not found")
+        
+        # Try to use the modern template, fall back to legacy if there are issues
         try:
-            detail = insp.get_task_detail(task_id)  # type: ignore[attr-defined]
-        except Exception:
-            detail = None
-    # Fallback: direct task fetch if inspection service missing or failed
-    if detail is None:
-        try:
-            task_obj = AnalysisTaskService.get_task(task_id)
-            if task_obj:
-                detail = task_obj.to_dict()
-            else:
-                return render_template('partials/common/error.html', error='Task not found'), 404
-        except Exception as e:  # pragma: no cover
-            return render_template('partials/common/error.html', error=f'Task error: {e}'), 500
-    return render_template('pages/analysis/task_detail.html', task=detail)
+            return render_template('pages/analysis/modern_task_detail.html', task=task, task_id=task_id)
+        except Exception as template_error:
+            current_app.logger.warning(f"Modern template failed for {task_id}: {template_error}")
+            # Fallback to legacy template
+            return render_template('pages/analysis/task_detail.html', task=task)
+        
+    except Exception as e:
+        current_app.logger.error(f"Task detail page error for {task_id}: {e}")
+        abort(500, description="Internal server error")
+    except Exception as e:  # pragma: no cover
+        return render_template('partials/common/error.html', error=f'Error: {e}'), 500
 
 @analysis_bp.route('/api/tasks/inspect/list')
 def htmx_tasks_inspection_list():
@@ -641,6 +644,320 @@ def task_tool_details_fragment(task_id: str):
                          payload=payload, 
                          tool_metrics=tool_metrics)
 
+# Modern tab endpoints for new task detail interface
+
+@analysis_bp.route('/api/tasks/<task_id>/tabs/overview')
+def task_tab_overview(task_id: str):
+    """HTMX fragment: Overview tab with summary dashboard and key metrics."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="alert alert-danger">Inspection service unavailable</div>'
+    try:
+        payload = insp.get_enhanced_task_payload(task_id)  # type: ignore[attr-defined]
+        return render_template('pages/analysis/tabs/overview.html', 
+                             task_id=task_id, payload=payload)
+    except Exception as e:
+        return f'<div class="alert alert-danger">Error loading overview: {e}</div>'
+
+@analysis_bp.route('/api/tasks/<task_id>/tabs/security')
+def task_tab_security(task_id: str):
+    """HTMX fragment: Security tools tab (Bandit, Semgrep, Snyk, Safety)."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="alert alert-danger">Inspection service unavailable</div>'
+    try:
+        payload = insp.get_enhanced_task_payload(task_id)  # type: ignore[attr-defined]
+        security_tools = insp.get_security_tools_report(task_id)  # type: ignore[attr-defined]
+        return render_template('pages/analysis/tabs/security.html', 
+                             task_id=task_id, payload=payload, security_tools=security_tools)
+    except Exception as e:
+        return f'<div class="alert alert-danger">Error loading security tab: {e}</div>'
+
+@analysis_bp.route('/api/tasks/<task_id>/tabs/quality')
+def task_tab_quality(task_id: str):
+    """HTMX fragment: Code quality tools tab (ESLint, Pylint, Mypy, Vulture)."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="alert alert-danger">Inspection service unavailable</div>'
+    try:
+        payload = insp.get_enhanced_task_payload(task_id)  # type: ignore[attr-defined]
+        quality_tools = insp.get_quality_tools_report(task_id)  # type: ignore[attr-defined]
+        return render_template('pages/analysis/tabs/quality.html', 
+                             task_id=task_id, payload=payload, quality_tools=quality_tools)
+    except Exception as e:
+        return f'<div class="alert alert-danger">Error loading quality tab: {e}</div>'
+
+@analysis_bp.route('/api/tasks/<task_id>/tabs/dependencies')
+def task_tab_dependencies(task_id: str):
+    """HTMX fragment: Dependencies tab (Safety, Snyk, package analysis)."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="alert alert-danger">Inspection service unavailable</div>'
+    try:
+        payload = insp.get_enhanced_task_payload(task_id)  # type: ignore[attr-defined]
+        deps_tools = insp.get_dependency_tools_report(task_id)  # type: ignore[attr-defined]
+        return render_template('pages/analysis/tabs/dependencies.html', 
+                             task_id=task_id, payload=payload, deps_tools=deps_tools)
+    except Exception as e:
+        return f'<div class="alert alert-danger">Error loading dependencies tab: {e}</div>'
+
+@analysis_bp.route('/api/tasks/<task_id>/tabs/findings')
+def task_tab_findings(task_id: str):
+    """HTMX fragment: Unified findings tab with all issues from all tools."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="alert alert-danger">Inspection service unavailable</div>'
+    try:
+        payload = insp.get_enhanced_task_payload(task_id)  # type: ignore[attr-defined]
+        unified_findings = insp.get_unified_findings(task_id)  # type: ignore[attr-defined]
+        return render_template('pages/analysis/tabs/findings.html', 
+                             task_id=task_id, payload=payload, findings=unified_findings)
+    except Exception as e:
+        return f'<div class="alert alert-danger">Error loading findings tab: {e}</div>'
+
+@analysis_bp.route('/api/tasks/<task_id>/tabs/explorer')
+def task_tab_explorer(task_id: str):
+    """HTMX fragment: Code explorer tab with file tree and code context."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="alert alert-danger">Inspection service unavailable</div>'
+    try:
+        payload = insp.get_enhanced_task_payload(task_id)  # type: ignore[attr-defined]
+        file_tree = insp.get_file_tree_with_findings(task_id)  # type: ignore[attr-defined]
+        return render_template('pages/analysis/tabs/explorer.html', 
+                             task_id=task_id, payload=payload, file_tree=file_tree)
+    except Exception as e:
+        return f'<div class="alert alert-danger">Error loading explorer tab: {e}</div>'
+
+@analysis_bp.route('/api/tasks/<task_id>/export/sarif')
+def task_export_sarif(task_id: str):
+    """Export task results in SARIF format for integration with other tools."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return jsonify({'error': 'Inspection service unavailable'}), 500
+    try:
+        sarif_data = insp.export_to_sarif(task_id)  # type: ignore[attr-defined]
+        response = make_response(json.dumps(sarif_data, indent=2))
+        response.headers['Content-Type'] = 'application/json'
+        response.headers['Content-Disposition'] = f'attachment; filename="{task_id}.sarif"'
+        return response
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@analysis_bp.route('/api/tasks/<task_id>/refresh')
+def task_refresh(task_id: str):
+    """Refresh task data and return updated content."""
+    try:
+        task = AnalysisTask.query.filter_by(task_id=task_id).first()
+        if not task:
+            return '<div class="alert alert-danger">Task not found</div>'
+        
+        # Force refresh of cached data
+        insp = ServiceLocator.get('analysis_inspection_service')
+        if insp and hasattr(insp, 'clear_cache'):
+            insp.clear_cache(task_id)  # type: ignore[attr-defined]
+            
+        return render_template('pages/analysis/task_detail_modern.html', task=task)
+    except Exception as e:
+        return f'<div class="alert alert-danger">Error refreshing task: {e}</div>'
+
+@analysis_bp.route('/api/tasks/<task_id>/refresh-content')
+def task_refresh_content(task_id: str):
+    """Refresh only the executive summary content without changing the page layout."""
+    try:
+        # Force refresh of cached data
+        insp = ServiceLocator.get('analysis_inspection_service')
+        if insp and hasattr(insp, 'clear_cache'):
+            insp.clear_cache(task_id)  # type: ignore[attr-defined]
+            
+        # Return just the summary dashboard content
+        payload = insp.get_task_results_payload(task_id) if insp else {}  # type: ignore[attr-defined]
+        return render_template('pages/analysis/partials/summary_dashboard.html', 
+                             task_id=task_id, payload=payload)
+    except Exception as e:
+        return f'<div class="alert alert-danger">Error refreshing content: {e}</div>'
+
+@analysis_bp.route('/api/tasks/<task_id>/debug-payload')
+def task_debug_payload(task_id: str):
+    """Debug endpoint to show the raw payload data."""
+    try:
+        insp = ServiceLocator.get('analysis_inspection_service')
+        if not insp:
+            return '<div class="alert alert-danger">Inspection service unavailable</div>'
+        
+        payload = insp.get_task_results_payload(task_id)  # type: ignore[attr-defined]
+        
+        # Return formatted JSON for debugging
+        import json
+        return f'<pre>{json.dumps(payload, indent=2, default=str)}</pre>'
+    except Exception as e:
+        return f'<div class="alert alert-danger">Error loading debug payload: {e}</div>'
+
+@analysis_bp.route('/api/tasks/<task_id>/summary-dashboard')
+def task_summary_dashboard(task_id: str):
+    """HTMX fragment: executive summary dashboard with key metrics and charts."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="alert alert-danger">Inspection service unavailable</div>'
+    try:
+        payload = insp.get_task_results_payload(task_id)  # type: ignore[attr-defined]
+        return render_template('pages/analysis/partials/summary_dashboard.html', 
+                             task_id=task_id, payload=payload)
+    except Exception as e:  # pragma: no cover
+        return f'<div class="alert alert-danger">Error loading summary: {e}</div>'
+
+# Modern task detail tab routes (simple URLs for easy navigation)
+@analysis_bp.route('/tasks/<task_id>/overview')
+def task_overview_simple(task_id: str):
+    """Simple URL for overview tab."""
+    return task_overview_tab(task_id)
+
+@analysis_bp.route('/tasks/<task_id>/security')
+def task_security_simple(task_id: str):
+    """Simple URL for security tab."""
+    return task_security_tools_tab(task_id)
+
+@analysis_bp.route('/tasks/<task_id>/quality')
+def task_quality_simple(task_id: str):
+    """Simple URL for quality tab."""
+    return task_quality_tools_tab(task_id)
+
+@analysis_bp.route('/tasks/<task_id>/dependencies')
+def task_dependencies_simple(task_id: str):
+    """Simple URL for dependencies tab."""
+    return task_dependency_tools_tab(task_id)
+
+@analysis_bp.route('/tasks/<task_id>/findings')
+def task_findings_simple(task_id: str):
+    """Simple URL for findings tab."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="alert alert-danger">Inspection service unavailable</div>'
+    try:
+        payload = insp.get_task_results_payload(task_id)  # type: ignore[attr-defined]
+        return render_template('pages/analysis/partials/all_findings_tab.html', 
+                             task_id=task_id, payload=payload)
+    except Exception as e:
+        return f'<div class="alert alert-danger">Error loading findings: {e}</div>'
+
+@analysis_bp.route('/tasks/<task_id>/explorer')
+def task_explorer_simple(task_id: str):
+    """Simple URL for code explorer tab."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="alert alert-danger">Inspection service unavailable</div>'
+    try:
+        payload = insp.get_task_results_payload(task_id)  # type: ignore[attr-defined]
+        return render_template('pages/analysis/partials/code_explorer_tab.html', 
+                             task_id=task_id, payload=payload)
+    except Exception as e:
+        return f'<div class="alert alert-danger">Error loading explorer: {e}</div>'
+
+@analysis_bp.route('/api/tasks/<task_id>/overview')
+def task_overview_tab(task_id: str):
+    """HTMX fragment: overview tab with general analysis information."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="alert alert-danger">Inspection service unavailable</div>'
+    try:
+        payload = insp.get_task_results_payload(task_id)  # type: ignore[attr-defined]
+        return render_template('pages/analysis/partials/overview_tab.html', 
+                             task_id=task_id, payload=payload)
+    except Exception as e:  # pragma: no cover
+        return f'<div class="alert alert-danger">Error loading overview: {e}</div>'
+
+@analysis_bp.route('/api/tasks/<task_id>/security-tools')
+def task_security_tools_tab(task_id: str):
+    """HTMX fragment: security tools analysis with detailed reports."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="alert alert-danger">Inspection service unavailable</div>'
+    try:
+        payload = insp.get_task_results_payload(task_id)  # type: ignore[attr-defined]
+        return render_template('pages/analysis/partials/security_tools_tab.html', 
+                             task_id=task_id, payload=payload)
+    except Exception as e:  # pragma: no cover
+        return f'<div class="alert alert-danger">Error loading security tools: {e}</div>'
+
+@analysis_bp.route('/api/tasks/<task_id>/quality-tools')
+def task_quality_tools_tab(task_id: str):
+    """HTMX fragment: code quality tools analysis."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="alert alert-danger">Inspection service unavailable</div>'
+    try:
+        payload = insp.get_task_results_payload(task_id)  # type: ignore[attr-defined]
+        return render_template('pages/analysis/partials/quality_tools_tab.html', 
+                             task_id=task_id, payload=payload)
+    except Exception as e:  # pragma: no cover
+        return f'<div class="alert alert-danger">Error loading quality tools: {e}</div>'
+
+@analysis_bp.route('/api/tasks/<task_id>/dependency-tools')
+def task_dependency_tools_tab(task_id: str):
+    """HTMX fragment: dependency analysis tools."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return '<div class="alert alert-danger">Inspection service unavailable</div>'
+    try:
+        payload = insp.get_task_results_payload(task_id)  # type: ignore[attr-defined]
+        return render_template('pages/analysis/partials/dependency_tools_tab.html', 
+                             task_id=task_id, payload=payload)
+    except Exception as e:  # pragma: no cover
+        return f'<div class="alert alert-danger">Error loading dependency tools: {e}</div>'
+
+@analysis_bp.route('/api/tasks/<task_id>/all-findings')
+def task_all_findings_tab(task_id: str):
+    """HTMX fragment: unified view of all findings across tools."""
+    try:
+        insp = ServiceLocator.get_analysis_inspection_service()
+        if not insp:
+            return '<div class="alert alert-danger">Inspection service unavailable</div>'
+        
+        analysis = insp.get_task(task_id)  # type: ignore[attr-defined]
+        
+        # Get comprehensive findings data
+        payload = insp.get_comprehensive_findings(analysis)  # type: ignore[attr-defined]
+        
+        return render_template('pages/analysis/partials/all_findings_tab.html', 
+                             analysis=analysis, payload=payload)
+    except Exception as e:  # pragma: no cover
+        return f'<div class="alert alert-danger">Error loading findings: {e}</div>'
+
+@analysis_bp.route('/api/tasks/<task_id>/code-explorer')
+def task_code_explorer_tab(task_id: str):
+    """HTMX fragment: interactive code explorer with syntax highlighting."""
+    try:
+        insp = ServiceLocator.get_analysis_inspection_service()
+        if not insp:
+            return '<div class="alert alert-danger">Inspection service unavailable</div>'
+        
+        analysis = insp.get_task(task_id)  # type: ignore[attr-defined]
+        
+        # Get code exploration data
+        payload = insp.get_code_exploration_data(analysis)  # type: ignore[attr-defined]
+        
+        return render_template('pages/analysis/partials/code_explorer_tab.html', 
+                             analysis=analysis, payload=payload)
+    except Exception as e:  # pragma: no cover
+        return f'<div class="alert alert-danger">Error loading code explorer: {e}</div>'
+
+@analysis_bp.route('/api/tasks/<task_id>/export/sarif')
+def export_task_sarif(task_id: str):
+    """Export analysis results in SARIF format."""
+    insp = ServiceLocator.get('analysis_inspection_service')
+    if not insp:
+        return jsonify({'error': 'Inspection service unavailable'}), 500
+    try:
+        payload = insp.get_task_results_payload(task_id)  # type: ignore[attr-defined]
+        sarif_data = _convert_to_sarif(payload)
+        
+        response = make_response(json.dumps(sarif_data, indent=2))
+        response.headers['Content-Type'] = 'application/json'
+        response.headers['Content-Disposition'] = f'attachment; filename="task_{task_id}_analysis.sarif"'
+        return response
+    except Exception as e:  # pragma: no cover
+        return jsonify({'error': f'SARIF export failed: {e}'}), 500
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -661,3 +978,92 @@ def _build_stats_snapshot(tasks):
             'completed_tasks': 0,
             'failed_tasks': 0
         }
+
+def _convert_to_sarif(payload: dict) -> dict:
+    """Convert analysis payload to SARIF 2.1.0 format."""
+    from datetime import datetime
+    
+    # SARIF 2.1.0 structure
+    sarif = {
+        "version": "2.1.0",
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "runs": [{
+            "tool": {
+                "driver": {
+                    "name": "ThesisApp Security Analysis",
+                    "version": "1.0.0",
+                    "informationUri": "https://github.com/ThesisApp",
+                    "rules": []
+                }
+            },
+            "invocation": {
+                "executionSuccessful": payload.get('status') == 'completed',
+                "startTimeUtc": datetime.now().isoformat() + 'Z'
+            },
+            "results": []
+        }]
+    }
+    
+    # Convert findings to SARIF results
+    findings = payload.get('findings_preview', [])
+    rules = set()
+    
+    for finding in findings:
+        rule_id = f"{finding.get('tool', 'unknown')}.{finding.get('category', 'general')}"
+        rules.add(rule_id)
+        
+        result = {
+            "ruleId": rule_id,
+            "message": {
+                "text": finding.get('message', finding.get('title', 'No description'))
+            },
+            "level": _map_severity_to_sarif(finding.get('severity', 'info')),
+            "locations": []
+        }
+        
+        # Add location if available
+        if finding.get('file_path'):
+            location = {
+                "physicalLocation": {
+                    "artifactLocation": {
+                        "uri": finding['file_path']
+                    }
+                }
+            }
+            
+            if finding.get('line_number'):
+                location['physicalLocation']['region'] = {
+                    "startLine": finding['line_number']
+                }
+                if finding.get('column'):
+                    location['physicalLocation']['region']['startColumn'] = finding['column']
+            
+            result['locations'].append(location)
+        
+        sarif['runs'][0]['results'].append(result)
+    
+    # Add rules definitions
+    for rule_id in rules:
+        tool_name, category = rule_id.split('.', 1) if '.' in rule_id else (rule_id, 'general')
+        sarif['runs'][0]['tool']['driver']['rules'].append({
+            "id": rule_id,
+            "name": category.title().replace('-', ' '),
+            "shortDescription": {
+                "text": f"{tool_name.title()} {category.replace('-', ' ')} check"
+            },
+            "helpUri": f"https://docs.thesisapp.com/rules/{tool_name}/{category}"
+        })
+    
+    return sarif
+
+def _map_severity_to_sarif(severity: str) -> str:
+    """Map internal severity levels to SARIF levels."""
+    severity = severity.lower()
+    if severity in ['critical', 'high', 'error']:
+        return 'error'
+    elif severity in ['medium', 'warning']:
+        return 'warning'
+    elif severity in ['low', 'info']:
+        return 'info'
+    else:
+        return 'note'

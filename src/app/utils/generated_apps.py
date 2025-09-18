@@ -29,11 +29,6 @@ def _load_json(path: Path) -> Tuple[Any, List[str]]:
         return None, errors
 
 
-def load_model_capabilities() -> Dict[str, Any]:
-    data, errors = _load_json(Path(Config.MODEL_CAPABILITIES_FILE))
-    return {"data": data, "errors": errors}
-
-
 def load_models_summary() -> Dict[str, Any]:
     path = Path(getattr(Config, 'MODELS_SUMMARY_FILE', MISC_DIR / 'models_summary.json'))
     data, errors = _load_json(path)
@@ -92,6 +87,6 @@ def generated_apps_stats() -> Dict[str, Any]:
 
 
 __all__ = [
-    'load_model_capabilities', 'load_models_summary', 'load_port_config',
+    'load_models_summary', 'load_port_config',
     'list_generated_models', 'list_generated_apps', 'generated_apps_stats'
 ]

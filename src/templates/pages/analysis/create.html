@@ -1169,9 +1169,9 @@ function validateCurrentStep() {
 function isStepValid(step) {
     switch (step) {
         case 1:
-      return modelSelectionMode === 'single' ? !!selectedModel : selectedModels.length > 0;
+            return modelSelectionMode === 'single' ? !!selectedModel : selectedModels.length > 0;
         case 2:
-      return appSelectionMode === 'single' ? !!selectedApp : selectedApps.length > 0;
+            return appSelectionMode === 'single' ? !!selectedApp : selectedApps.length > 0;
         case 3:
             return analysisMode === 'profile' ? !!selectedAnalysisProfile : selectedTools.length > 0;
         case 4:
@@ -1815,9 +1815,18 @@ function toggleTool(toolId, toolName) {
     updateSelectedToolsSummary();
     updateCustomAnalysisEstimate();
     updateNavigationButtons();
-  // Hide inline error if user changes tools
-  const inline = document.getElementById('step3-inline-error');
-  if (inline) inline.classList.add('d-none');
+    
+    // Hide inline error if user changes tools
+    const inline = document.getElementById('step3-inline-error');
+    if (inline) inline.classList.add('d-none');
+    
+    // Store selection
+    try {
+        sessionStorage.setItem('analysis_selected_tools', JSON.stringify(selectedTools));
+    } catch (e) {
+        console.warn('Could not store selected tools in sessionStorage:', e);
+    }
+}
 
 function clearAllTools() {
     // Uncheck all tool checkboxes
@@ -1901,14 +1910,6 @@ function proceedWithFormSubmission() {
         form.submit();
     } else {
         console.error('Form not found!');
-    }
-}
-    
-    // Store selection
-    try {
-        sessionStorage.setItem('analysis_selected_tools', JSON.stringify(selectedTools));
-    } catch (e) {
-        console.warn('Could not store selected tools in sessionStorage:', e);
     }
 }
 
@@ -2156,6 +2157,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const modelInput = document.getElementById('input-model-slug');
             const appInput = document.getElementById('input-app-number');
             
+            const isBatchMode = (modelSelectionMode === 'batch' || appSelectionMode === 'batch');
             if (isBatchMode) {
                 if (selectedModels.length > 0) {
                     if (modelInput) modelInput.value = selectedModels.map(m => m.slug).join(',');

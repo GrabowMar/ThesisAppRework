@@ -47,9 +47,14 @@ class MaintenanceService:
 
     def populate_database(self, verify: bool = True) -> Dict[str, Any]:
         logger.info("MaintenanceService.populate_database starting")
-        ms = ModelService(self.app)
-        results = ms.populate_database_from_files()
+        
+        # Use DataInitializationService for comprehensive data loading including OpenRouter
+        from app.services.data_initialization import DataInitializationService
+        data_init_service = DataInitializationService()
+        
+        results = data_init_service.initialize_all_data()
         verification = self.verify_database() if verify else {}
+        
         payload = {
             "operation": "populate_database",
             "results": results,

@@ -38,6 +38,7 @@ class DataInitializationService:
         """Initialize all data from JSON files and misc folder."""
         results = {
             'models_loaded': 0,
+            'openrouter_models_loaded': 0,
             'applications_loaded': 0,
             'ports_loaded': 0,
             'errors': [],
@@ -46,9 +47,10 @@ class DataInitializationService:
         }
         
         try:
-            # Load model capabilities
+            # Load model capabilities (includes OpenRouter API fallback)
             model_results = self.load_model_capabilities()
             results['models_loaded'] = model_results['loaded']
+            results['openrouter_models_loaded'] = model_results.get('openrouter_loaded', 0)
             results['errors'].extend(model_results['errors'])
             
             # Load applications from generated folder
@@ -64,7 +66,8 @@ class DataInitializationService:
             # Commit all changes
             db.session.commit()
             
-            logger.info(f"Data initialization completed: {results['models_loaded']} models, {results['applications_loaded']} apps, {results['ports_loaded']} ports")
+            total_models = results['models_loaded'] + results['openrouter_models_loaded']
+            logger.info(f"Data initialization completed: {total_models} models ({results['models_loaded']} from file, {results['openrouter_models_loaded']} from OpenRouter), {results['applications_loaded']} apps, {results['ports_loaded']} ports")
             
         except Exception as e:
             logger.error(f"Data initialization failed: {e}")
@@ -75,25 +78,19 @@ class DataInitializationService:
         return results
 
     def reload_core_files(self) -> Dict[str, Any]:
-        """Reload core JSON files: model_capabilities.json, models_summary.json, port_config.json.
+        """Reload core JSON files: models_summary.json, port_config.json.
 
         Returns a structured result with per-file stats and overall success flag.
         """
         results: Dict[str, Any] = {
             'success': True,
             'timestamp': datetime.now(timezone.utc).isoformat(),
-            'model_capabilities': {},
             'models_summary': {},
             'port_config': {},
             'errors': []
         }
 
         try:
-            cap_res = self.load_model_capabilities()
-            results['model_capabilities'] = cap_res
-            if cap_res.get('errors'):
-                results['errors'].extend(cap_res['errors'])
-
             summary_res = self.load_models_summary()
             results['models_summary'] = summary_res
             if summary_res.get('errors'):
@@ -114,49 +111,66 @@ class DataInitializationService:
         return results
     
     def load_model_capabilities(self) -> Dict[str, Any]:
-        """Load model capabilities from model_capabilities.json."""
+        """Load model capabilities from OpenRouter API."""
+        results = {'loaded': 0, 'openrouter_loaded': 0, 'errors': []}
+        
+        # Check if we need to load models from OpenRouter API
+        current_model_count = ModelCapability.query.count()
+        if current_model_count < 10:  # Arbitrary threshold - if we have less than 10 models, fetch from API
+            try:
+                import os
+                from flask import current_app
+                
+                api_key = os.getenv('OPENROUTER_API_KEY') or current_app.config.get('OPENROUTER_API_KEY')
+                if api_key:
+                    logger.info("Loading models from OpenRouter API due to insufficient local models")
+                    openrouter_result = self._load_from_openrouter_api(api_key)
+                    results['openrouter_loaded'] = openrouter_result['loaded']
+                    results['errors'].extend(openrouter_result['errors'])
+                else:
+                    logger.info("OpenRouter API key not configured, skipping API fetch")
+            except Exception as e:
+                error_msg = f"Error loading from OpenRouter API: {str(e)}"
+                results['errors'].append(error_msg)
+                logger.error(error_msg)
+        else:
+            logger.info(f"Sufficient models already loaded ({current_model_count}), skipping OpenRouter API fetch")
+            
+        return results
+    
+    def _load_from_openrouter_api(self, api_key: str) -> Dict[str, Any]:
+        """Load models from OpenRouter API."""
         results = {'loaded': 0, 'errors': []}
         
         try:
-            model_caps_file = self.misc_path / "model_capabilities.json"
-            if not model_caps_file.exists():
-                results['errors'].append("model_capabilities.json not found")
-                return results
+            import requests
+            from ..routes.shared_utils import _upsert_openrouter_models
+            
+            headers = {
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            }
+            
+            logger.info("Fetching models from OpenRouter API...")
+            response = requests.get('https://openrouter.ai/api/v1/models', headers=headers, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                models_data = data.get('data', [])
+                logger.info(f"Fetched {len(models_data)} models from OpenRouter API")
                 
-            with open(model_caps_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            # Extract models data (handle nested structure)
-            models_data = data.get('models', {})
-            if isinstance(models_data, dict) and 'models' in models_data:
-                models_data = models_data['models']
-            
-            for model_id, model_info in models_data.items():
-                if isinstance(model_info, dict) and 'canonical_slug' in model_info:
-                    try:
-                        # Check if model already exists
-                        existing = ModelCapability.query.filter_by(
-                            canonical_slug=model_info['canonical_slug']
-                        ).first()
-                        
-                        if existing:
-                            # Update existing model
-                            self._update_model_capability(existing, model_info)
-                            logger.debug(f"Updated model: {model_info['canonical_slug']}")
-                        else:
-                            # Create new model
-                            self._create_model_capability(model_info)
-                            logger.debug(f"Created model: {model_info['canonical_slug']}")
-                            
-                        results['loaded'] += 1
-                        
-                    except Exception as e:
-                        error_msg = f"Error processing model {model_id}: {str(e)}"
-                        results['errors'].append(error_msg)
-                        logger.warning(error_msg)
-                        
+                # Upsert models using the existing utility function
+                upserted_count = _upsert_openrouter_models(models_data)
+                results['loaded'] = upserted_count
+                logger.info(f"Successfully upserted {upserted_count} models from OpenRouter API")
+                
+            else:
+                error_msg = f"OpenRouter API returned status {response.status_code}: {response.text[:200]}"
+                results['errors'].append(error_msg)
+                logger.error(error_msg)
+                
         except Exception as e:
-            error_msg = f"Error loading model capabilities: {str(e)}"
+            error_msg = f"Failed to fetch from OpenRouter API: {str(e)}"
             results['errors'].append(error_msg)
             logger.error(error_msg)
             
@@ -374,87 +388,6 @@ class DataInitializationService:
 
         return results
     
-    def _create_model_capability(self, model_info: Dict[str, Any]) -> None:
-        """Create a new ModelCapability record."""
-        # Extract pricing information with proper error handling
-        pricing = model_info.get('pricing', {})
-        input_price = 0.0
-        output_price = 0.0
-        
-        try:
-            # Handle different pricing key formats
-            if 'prompt_tokens' in pricing:
-                input_price = float(pricing['prompt_tokens'])
-            elif 'prompt' in pricing:
-                input_price = float(pricing['prompt'])
-        except (ValueError, TypeError):
-            input_price = 0.0
-        
-        try:
-            if 'completion_tokens' in pricing:
-                output_price = float(pricing['completion_tokens'])
-            elif 'completion' in pricing:
-                output_price = float(pricing['completion'])
-        except (ValueError, TypeError):
-            output_price = 0.0
-
-        # Create then set attributes to avoid constructor signature issues in static analysis
-        model = ModelCapability()
-        model.model_id = model_info.get('model_id', '')
-        model.canonical_slug = model_info.get('canonical_slug', '')
-        model.provider = model_info.get('provider', 'unknown')
-        model.model_name = model_info.get('model_name', '')
-        model.is_free = bool(model_info.get('is_free', False))
-        model.context_window = int(model_info.get('context_window', 0) or 0)
-        model.max_output_tokens = int(model_info.get('max_output_tokens', 0) or 0)
-        model.supports_function_calling = bool(model_info.get('supports_function_calling', False))
-        model.supports_vision = bool(model_info.get('supports_vision', False))
-        model.supports_streaming = bool(model_info.get('supports_streaming', False))
-        model.supports_json_mode = bool(model_info.get('supports_json_mode', False))
-        model.input_price_per_token = float(input_price)
-        model.output_price_per_token = float(output_price)
-        model.capabilities_json = json.dumps(model_info)
-        model.updated_at = datetime.now(timezone.utc)
-
-        db.session.add(model)
-    
-    def _update_model_capability(self, model: ModelCapability, model_info: Dict[str, Any]) -> None:
-        """Update an existing ModelCapability record."""
-        model.model_id = model_info.get('model_id', model.model_id)
-        model.provider = model_info.get('provider', model.provider)
-        model.model_name = model_info.get('model_name', model.model_name)
-        model.is_free = model_info.get('is_free', model.is_free)
-        model.context_window = model_info.get('context_window', model.context_window)
-        model.max_output_tokens = model_info.get('max_output_tokens', model.max_output_tokens)
-        model.supports_function_calling = model_info.get('supports_function_calling', model.supports_function_calling)
-        model.supports_vision = model_info.get('supports_vision', model.supports_vision)
-        model.supports_streaming = model_info.get('supports_streaming', model.supports_streaming)
-
-        # Update pricing with flexible key handling
-        pricing = model_info.get('pricing', {}) or {}
-        try:
-            prompt_price = pricing.get('prompt')
-            if prompt_price is None:
-                prompt_price = pricing.get('prompt_tokens')
-            if prompt_price is not None:
-                model.input_price_per_token = float(prompt_price)
-        except (TypeError, ValueError):
-            # Keep existing value on parse error
-            pass
-
-        try:
-            completion_price = pricing.get('completion')
-            if completion_price is None:
-                completion_price = pricing.get('completion_tokens')
-            if completion_price is not None:
-                model.output_price_per_token = float(completion_price)
-        except (TypeError, ValueError):
-            # Keep existing value on parse error
-            pass
-
-        model.capabilities_json = json.dumps(model_info)
-        model.updated_at = datetime.now(timezone.utc)
-    
     def _create_generated_application(self, model_slug: str, app_number: int, app_folder: Path) -> None:
         """Create a new GeneratedApplication record."""
         # Analyze folder structure to determine frameworks and capabilities
@@ -538,7 +471,6 @@ class DataInitializationService:
             'port_config_count': PortConfiguration.query.count(),
             'last_model_update': self._get_last_model_update(),
             'apps_folder_exists': self.models_path.exists(),
-            'model_capabilities_file_exists': (self.misc_path / "model_capabilities.json").exists(),
             'models_summary_file_exists': (self.misc_path / "models_summary.json").exists(),
             'port_config_file_exists': (self.misc_path / "port_config.json").exists()
         }

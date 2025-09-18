@@ -244,7 +244,6 @@ class Paths:
     
     # Configuration files
     PORT_CONFIG = MISC_DIR / "port_config.json"
-    MODEL_CAPABILITIES = MISC_DIR / "model_capabilities.json"
     MODELS_SUMMARY = MISC_DIR / "models_summary.json"
     
     # Testing infrastructure

@@ -150,6 +150,11 @@ class ServiceLocator:
         return cls.get('sample_generation_service')
     
     @classmethod
+    def get_analysis_inspection_service(cls):
+        """Get the analysis inspection service."""
+        return cls.get('analysis_inspection_service')
+    
+    @classmethod
     def get_tool_registry_service(cls):
         """Get the tool registry service."""
         return cls.get('tool_registry_service')

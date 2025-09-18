@@ -170,11 +170,8 @@ class ModelService:
         populated = {'models': 0, 'ports': 0, 'apps': 0}
         
         try:
-            # Populate model capabilities
-            capabilities_file = Paths.MODEL_CAPABILITIES
-            if capabilities_file.exists():
-                populated['models'] = self._populate_model_capabilities(capabilities_file)
-                self.logger.info(f"Populated {populated['models']} models from capabilities file")
+            # Legacy model capabilities loading is deprecated - models now loaded from OpenRouter API
+            self.logger.info("Legacy model capabilities loading skipped - using OpenRouter API")
             
             # Populate port configurations  
             port_config_file = Paths.PORT_CONFIG
@@ -193,80 +190,6 @@ class ModelService:
             raise
         
         return populated
-    
-    def _populate_model_capabilities(self, file_path: Path) -> int:
-        """Populate model capabilities from JSON file."""
-        with open(file_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        count = 0
-        models_data = data.get('models', {})
-        
-        # Skip metadata sections and get actual model data
-        for model_id, model_info in models_data.items():
-            if model_id in ['metadata', 'capabilities_summary']:
-                continue
-                
-            if not isinstance(model_info, dict):
-                continue
-                
-            # Check if model exists
-            existing = ModelCapability.query.filter_by(model_id=model_id).first()
-            
-            if not existing:
-                # Extract pricing information
-                pricing = model_info.get('pricing', {})
-                input_price = 0.0
-                output_price = 0.0
-                
-                if isinstance(pricing, dict):
-                    input_price = float(pricing.get('input', 0) or 0)
-                    output_price = float(pricing.get('output', 0) or 0)
-                
-                # Create new model
-                model = ModelCapability(
-                    model_id=model_id,
-                    canonical_slug=model_info.get('canonical_slug', model_id.replace('/', '_')),
-                    provider=model_info.get('provider', 'unknown'),
-                    model_name=model_info.get('model_name', model_id.split('/')[-1]),
-                    is_free=model_info.get('is_free', False),
-                    context_window=model_info.get('context_window', 0),
-                    max_output_tokens=model_info.get('max_output_tokens', 0),
-                    supports_function_calling=model_info.get('supports_function_calling', False),
-                    supports_vision=model_info.get('supports_vision', False),
-                    supports_streaming=model_info.get('supports_streaming', False),
-                    supports_json_mode=model_info.get('supports_json_mode', False),
-                    input_price_per_token=input_price,
-                    output_price_per_token=output_price,
-                    cost_efficiency=model_info.get('performance', {}).get('cost_efficiency', 0.0),
-                    safety_score=model_info.get('quality_metrics', {}).get('safety', 0.0)
-                )
-                
-                # Store full capabilities and metadata as JSON
-                capabilities = {
-                    'capabilities': model_info.get('capabilities', {}),
-                    'supported_parameters': model_info.get('supported_parameters', []),
-                    'input_modalities': model_info.get('input_modalities', []),
-                    'output_modalities': model_info.get('output_modalities', [])
-                }
-                model.set_capabilities(capabilities)
-                
-                metadata = {
-                    'architecture': model_info.get('architecture', {}),
-                    'performance': model_info.get('performance', {}),
-                    'quality_metrics': model_info.get('quality_metrics', {}),
-                    'rate_limits': model_info.get('rate_limits', {}),
-                    'provider_info': model_info.get('provider_info', {}),
-                    'usage_stats': model_info.get('usage_stats', {}),
-                    'last_updated': model_info.get('last_updated', datetime.now(timezone.utc).isoformat())
-                }
-                model.set_metadata(metadata)
-                
-                db.session.add(model)
-                count += 1
-        
-        db.session.commit()
-        return count
     
     def _populate_port_configurations(self, file_path: Path) -> int:
         """Populate port configurations from JSON file."""

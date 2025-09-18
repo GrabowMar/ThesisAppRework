@@ -32,7 +32,6 @@ class Config:
     MISC_DIR = BASE_DIR.parent / 'misc'
     MODELS_DIR = MISC_DIR / 'models'  # legacy (may be deprecated later)
     PORT_CONFIG_FILE = MISC_DIR / 'port_config.json'
-    MODEL_CAPABILITIES_FILE = MISC_DIR / 'model_capabilities.json'
     MODELS_SUMMARY_FILE = MISC_DIR / 'models_summary.json'
 
     # Unified generated apps root (mirrors app.paths.GENERATED_APPS_DIR)
