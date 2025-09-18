@@ -1,0 +1,53 @@
+{
+  "metadata": {
+    "module": "analysis",
+    "model": "qwen_qwen3-30b-a3b-thinking-2507",
+    "app_number": 5,
+    "timestamp": "2025-09-18T20:51:39.500397+00:00",
+    "version": "1.0",
+    "analysis_type": "static-analyzer"
+  },
+  "results": {
+    "success": true,
+    "model_slug": "qwen_qwen3-30b-a3b-thinking-2507",
+    "app_number": 5,
+    "target_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\src\\generated\\apps\\qwen_qwen3-30b-a3b-thinking-2507\\app5",
+    "analysis_duration": 9.545853614807129,
+    "tools_requested": [
+      "mypy",
+      "pylint"
+    ],
+    "tools_successful": 2,
+    "tools_failed": 0,
+    "tool_results": {
+      "mypy": {
+        "status": "success"
+      },
+      "pylint": {
+        "status": "success"
+      }
+    },
+    "summary": {
+      "total_findings": 0,
+      "severity_breakdown": {},
+      "tools_breakdown": {},
+      "categories": [],
+      "tags": [],
+      "tool_status": {
+        "mypy": "success",
+        "pylint": "success"
+      }
+    },
+    "findings": [],
+    "metadata": {
+      "analysis_timestamp": "2025-09-18T20:51:39.492281+00:00",
+      "detected_languages": [
+        "html",
+        "python",
+        "javascript"
+      ],
+      "file_count": 12,
+      "orchestrator_version": "2.0.0"
+    }
+  }
+}

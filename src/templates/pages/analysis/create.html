@@ -1645,16 +1645,16 @@ async function loadAnalysisTools() {
                   return ann ? { ...t, available: !!ann.available, availability_source: ann.availability_source || 'analyzer' } 
                              : { ...t, available: !!t.is_enabled, availability_source: 'inferred' };
                 });
-                // Prune any previously selected tools that are no longer available/enabled
+                // Prune previously selected tools only if disabled in registry (keep temporarily unavailable tools)
                 const before = [...selectedTools];
                 selectedTools = selectedTools.filter(id => {
                   const tool = allTools.find(t => t.id === id);
-                  return tool && tool.enabled !== false && tool.available === true;
+                  return tool && tool.enabled !== false;
                 });
                 if (before.length !== selectedTools.length) {
                   const inline = document.getElementById('step3-inline-error');
                   if (inline) {
-                    inline.textContent = 'Some previously selected tools are no longer available and were removed from your selection.';
+                    inline.textContent = 'Some previously selected tools are disabled in the registry and were removed from your selection.';
                     inline.classList.remove('d-none');
                   }
                 }
@@ -1752,11 +1752,9 @@ function renderToolsInCategory(category, tools) {
     if (!isEnabled) {
       tooltip = 'This tool is disabled';
     } else if (!isAvailable) {
-      if (tool.availability_source === 'inferred') {
-        tooltip = 'Tool availability unknown - analyzer services may be offline';
-      } else {
-        tooltip = 'This tool is currently unavailable';
-      }
+      tooltip = tool.availability_source === 'inferred'
+        ? 'Availability unknown - services may be offline (you can still select)'
+        : 'Currently unavailable (you can still select)';
     }
     
     // Badge color and text based on availability and source
@@ -1769,10 +1767,10 @@ function renderToolsInCategory(category, tools) {
       availabilityBadge = '<span class="badge bg-secondary-lt text-secondary tiny">unavailable</span>';
     }
     
-    return `
-    <div class="form-check mb-2 ${(!isEnabled || !isAvailable) ? 'opacity-50' : ''}" ${tooltip ? `title="${tooltip}"` : ''}>
-       <input class="form-check-input" type="checkbox" id="tool-${tool.id}" value="${tool.id}" 
-           ${(!isEnabled || !isAvailable) ? 'disabled' : ''}
+  return `
+  <div class="form-check mb-2 ${(!isEnabled) ? 'opacity-50' : ''}" ${tooltip ? `title="${tooltip}"` : ''}>
+     <input class="form-check-input" type="checkbox" id="tool-${tool.id}" value="${tool.id}" 
+       ${(!isEnabled) ? 'disabled' : ''}
                    onchange="toggleTool(${tool.id}, '${escapeHtml(tool.name)}')">
             <label class="form-check-label small w-100" for="tool-${tool.id}">
                 <div class="fw-semibold d-flex align-items-center justify-content-between">
@@ -1786,7 +1784,7 @@ function renderToolsInCategory(category, tools) {
                         <span class="mx-1">•</span>
                         <i class="fas fa-cog me-1"></i>${escapeHtml(tool.category)}
                     </div>
-          ${!isEnabled ? '<span class="text-warning tiny"><i class="fas fa-pause me-1"></i>disabled</span>' : (!isAvailable ? '<span class="text-muted tiny"><i class="fas fa-ban me-1"></i>unavailable</span>' : '')}
+      ${!isEnabled ? '<span class="text-warning tiny"><i class="fas fa-pause me-1"></i>disabled</span>' : (!isAvailable ? '<span class="text-muted tiny"><i class="fas fa-circle-exclamation me-1"></i>unavailable</span>' : '')}
                 </div>
             </label>
         </div>
@@ -2312,7 +2310,18 @@ document.addEventListener('DOMContentLoaded', () => {
             // Check if this is a bypass submission (after confirmation)
             const bypassInput = form.querySelector('input[name="_bypass_confirmation"]');
             if (bypassInput) {
-                // Remove the bypass input to prevent it from being submitted
+        // Clear persisted selections to avoid locking tools after a run
+        try {
+          sessionStorage.removeItem('analysis_selected_model');
+          sessionStorage.removeItem('analysis_selected_app');
+          sessionStorage.removeItem('analysis_selected_tools');
+          sessionStorage.removeItem('analysis_selected_profile');
+          sessionStorage.removeItem('analysis_mode');
+          sessionStorage.removeItem('analysis_selected_model_batch');
+          sessionStorage.removeItem('analysis_selected_app_batch');
+        } catch (e) { /* no-op */ }
+
+        // Remove the bypass input to prevent it from being submitted
                 bypassInput.remove();
                 // Allow form to submit without showing confirmation again
                 const launchBtn = document.getElementById('launch-btn');
@@ -2322,7 +2331,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; // Let the form submit naturally
             }
 
-            // Show confirmation dialog for custom tool selection
+      // Show confirmation dialog for custom tool selection
             if (analysisMode === 'custom' && selectedTools.length > 0) {
                 console.log('Custom mode with tools - showing confirmation');
                 try {
@@ -2333,33 +2342,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         alert('Tools are still loading. Please wait a moment and try again.');
                         return;
                     }
-                    
-                    // Strict client-side gating: block if any selected tool is currently unavailable
-                    const unavailableSelected = selectedTools.filter(id => {
-                        const t = allTools.find(x => x.id === id);
-                        return t && t.available === false;
-                    });
-                    console.log('Checked tool availability, unavailable:', unavailableSelected);
-                    
-                    if (unavailableSelected.length > 0) {
-                        console.log('Unavailable tools detected:', unavailableSelected);
-                        e.preventDefault();
-                        const names = unavailableSelected.map(id => {
-                            const t = allTools.find(x => x.id === id);
-                            return t ? (t.display_name || t.name || `Tool ${id}`) : `Tool ${id}`;
-                        }).join(', ');
-                        const msg = `The following tools are unavailable and cannot be selected: ${names}`;
-                        const inline = document.getElementById('step3-inline-error');
-                        if (inline) {
-                            inline.textContent = msg;
-                            inline.classList.remove('d-none');
-                        } else {
-                            showValidationFeedback(3, false, msg);
-                        }
-                        return;
-                    }
-                    
-                    console.log('Preventing form and showing confirmation dialog');
+          console.log('Preventing form and showing confirmation dialog');
                     e.preventDefault();
                     showToolSelectionConfirmation();
                     return;

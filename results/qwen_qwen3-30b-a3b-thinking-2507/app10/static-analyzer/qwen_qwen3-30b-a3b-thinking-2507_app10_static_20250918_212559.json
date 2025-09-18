@@ -1,0 +1,330 @@
+{
+  "metadata": {
+    "model_slug": "qwen_qwen3-30b-a3b-thinking-2507",
+    "app_number": 10,
+    "analysis_type": "static",
+    "timestamp": "2025-09-18T21:25:59.428222",
+    "analyzer_version": "1.0.0"
+  },
+  "results": {
+    "type": "static_analysis_result",
+    "status": "success",
+    "service": "static-analyzer",
+    "analysis": {
+      "model_slug": "qwen_qwen3-30b-a3b-thinking-2507",
+      "app_number": 10,
+      "analysis_time": "2025-09-18T19:25:22.484228",
+      "tools_used": [
+        "bandit",
+        "semgrep",
+        "safety"
+      ],
+      "configuration_applied": false,
+      "results": {
+        "python": {
+          "bandit": {
+            "tool": "bandit",
+            "executed": true,
+            "status": "success",
+            "issues": [
+              {
+                "code": "11 if __name__ == \"__main__\":\n12     app.run(host='0.0.0.0', port=5089)\n",
+                "col_offset": 17,
+                "end_col_offset": 26,
+                "filename": "/app/sources/qwen_qwen3-30b-a3b-thinking-2507/app10/backend/app.py",
+                "issue_confidence": "MEDIUM",
+                "issue_cwe": {
+                  "id": 605,
+                  "link": "https://cwe.mitre.org/data/definitions/605.html"
+                },
+                "issue_severity": "MEDIUM",
+                "issue_text": "Possible binding to all interfaces.",
+                "line_number": 12,
+                "line_range": [
+                  12
+                ],
+                "more_info": "https://bandit.readthedocs.io/en/1.8.6/plugins/b104_hardcoded_bind_all_interfaces.html",
+                "test_id": "B104",
+                "test_name": "hardcoded_bind_all_interfaces"
+              }
+            ],
+            "total_issues": 1,
+            "metrics": {
+              "/app/sources/qwen_qwen3-30b-a3b-thinking-2507/app10/backend/app.py": {
+                "CONFIDENCE.HIGH": 0,
+                "CONFIDENCE.LOW": 0,
+                "CONFIDENCE.MEDIUM": 1,
+                "CONFIDENCE.UNDEFINED": 0,
+                "SEVERITY.HIGH": 0,
+                "SEVERITY.LOW": 0,
+                "SEVERITY.MEDIUM": 1,
+                "SEVERITY.UNDEFINED": 0,
+                "loc": 9,
+                "nosec": 0,
+                "skipped_tests": 0
+              },
+              "_totals": {
+                "CONFIDENCE.HIGH": 0,
+                "CONFIDENCE.LOW": 0,
+                "CONFIDENCE.MEDIUM": 1,
+                "CONFIDENCE.UNDEFINED": 0,
+                "SEVERITY.HIGH": 0,
+                "SEVERITY.LOW": 0,
+                "SEVERITY.MEDIUM": 1,
+                "SEVERITY.UNDEFINED": 0,
+                "loc": 9,
+                "nosec": 0,
+                "skipped_tests": 0
+              }
+            },
+            "config_used": {}
+          },
+          "semgrep": {
+            "tool": "semgrep",
+            "executed": true,
+            "status": "success",
+            "results": [
+              {
+                "check_id": "dockerfile.security.missing-user.missing-user",
+                "path": "/app/sources/qwen_qwen3-30b-a3b-thinking-2507/app10/backend/Dockerfile",
+                "start": {
+                  "line": 20,
+                  "col": 1,
+                  "offset": 493
+                },
+                "end": {
+                  "line": 20,
+                  "col": 25,
+                  "offset": 517
+                },
+                "extra": {
+                  "message": "By not specifying a USER, a program in the container may run as 'root'. This is a security hazard. If an attacker can control a process running as root, they may have control over the container. Ensure that the last USER in a Dockerfile is a USER other than 'root'.",
+                  "fix": "USER non-root\nCMD [\"python\", \"app.py\"]",
+                  "metadata": {
+                    "cwe": [
+                      "CWE-250: Execution with Unnecessary Privileges"
+                    ],
+                    "category": "security",
+                    "technology": [
+                      "dockerfile"
+                    ],
+                    "confidence": "MEDIUM",
+                    "owasp": [
+                      "A04:2021 - Insecure Design"
+                    ],
+                    "references": [
+                      "https://owasp.org/Top10/A04_2021-Insecure_Design"
+                    ],
+                    "subcategory": [
+                      "audit"
+                    ],
+                    "likelihood": "LOW",
+                    "impact": "MEDIUM",
+                    "license": "Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license",
+                    "vulnerability_class": [
+                      "Improper Authorization"
+                    ],
+                    "source": "https://semgrep.dev/r/dockerfile.security.missing-user.missing-user",
+                    "shortlink": "https://sg.run/Gbvn"
+                  },
+                  "severity": "ERROR",
+                  "fingerprint": "requires login",
+                  "lines": "requires login",
+                  "validation_state": "NO_VALIDATOR",
+                  "engine_kind": "OSS"
+                }
+              },
+              {
+                "check_id": "python.flask.security.audit.app-run-param-config.avoid_app_run_with_bad_host",
+                "path": "/app/sources/qwen_qwen3-30b-a3b-thinking-2507/app10/backend/app.py",
+                "start": {
+                  "line": 12,
+                  "col": 5,
+                  "offset": 260
+                },
+                "end": {
+                  "line": 12,
+                  "col": 39,
+                  "offset": 294
+                },
+                "extra": {
+                  "message": "Running flask app with host 0.0.0.0 could expose the server publicly.",
+                  "metadata": {
+                    "cwe": [
+                      "CWE-668: Exposure of Resource to Wrong Sphere"
+                    ],
+                    "owasp": [
+                      "A01:2021 - Broken Access Control"
+                    ],
+                    "category": "security",
+                    "technology": [
+                      "flask"
+                    ],
+                    "references": [
+                      "https://owasp.org/Top10/A01_2021-Broken_Access_Control"
+                    ],
+                    "subcategory": [
+                      "vuln"
+                    ],
+                    "likelihood": "HIGH",
+                    "impact": "MEDIUM",
+                    "confidence": "HIGH",
+                    "license": "Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license",
+                    "vulnerability_class": [
+                      "Other"
+                    ],
+                    "source": "https://semgrep.dev/r/python.flask.security.audit.app-run-param-config.avoid_app_run_with_bad_host",
+                    "shortlink": "https://sg.run/eLby"
+                  },
+                  "severity": "WARNING",
+                  "fingerprint": "requires login",
+                  "lines": "requires login",
+                  "validation_state": "NO_VALIDATOR",
+                  "engine_kind": "OSS"
+                }
+              },
+              {
+                "check_id": "dockerfile.security.missing-user.missing-user",
+                "path": "/app/sources/qwen_qwen3-30b-a3b-thinking-2507/app10/frontend/Dockerfile",
+                "start": {
+                  "line": 19,
+                  "col": 1,
+                  "offset": 419
+                },
+                "end": {
+                  "line": 19,
+                  "col": 41,
+                  "offset": 459
+                },
+                "extra": {
+                  "message": "By not specifying a USER, a program in the container may run as 'root'. This is a security hazard. If an attacker can control a process running as root, they may have control over the container. Ensure that the last USER in a Dockerfile is a USER other than 'root'.",
+                  "fix": "USER non-root\nCMD [\"npx\", \"vite\", \"--host\", \"0.0.0.0\"]",
+                  "metadata": {
+                    "cwe": [
+                      "CWE-250: Execution with Unnecessary Privileges"
+                    ],
+                    "category": "security",
+                    "technology": [
+                      "dockerfile"
+                    ],
+                    "confidence": "MEDIUM",
+                    "owasp": [
+                      "A04:2021 - Insecure Design"
+                    ],
+                    "references": [
+                      "https://owasp.org/Top10/A04_2021-Insecure_Design"
+                    ],
+                    "subcategory": [
+                      "audit"
+                    ],
+                    "likelihood": "LOW",
+                    "impact": "MEDIUM",
+                    "license": "Semgrep Rules License v1.0. For more details, visit semgrep.dev/legal/rules-license",
+                    "vulnerability_class": [
+                      "Improper Authorization"
+                    ],
+                    "source": "https://semgrep.dev/r/dockerfile.security.missing-user.missing-user",
+                    "shortlink": "https://sg.run/Gbvn"
+                  },
+                  "severity": "ERROR",
+                  "fingerprint": "requires login",
+                  "lines": "requires login",
+                  "validation_state": "NO_VALIDATOR",
+                  "engine_kind": "OSS"
+                }
+              }
+            ],
+            "total_issues": 3,
+            "severity_breakdown": {
+              "ERROR": 2,
+              "WARNING": 1,
+              "INFO": 0
+            },
+            "errors": [],
+            "paths_scanned": {
+              "scanned": [
+                "/app/sources/qwen_qwen3-30b-a3b-thinking-2507/app10/backend/Dockerfile",
+                "/app/sources/qwen_qwen3-30b-a3b-thinking-2507/app10/backend/app.py",
+                "/app/sources/qwen_qwen3-30b-a3b-thinking-2507/app10/backend/requirements.txt",
+                "/app/sources/qwen_qwen3-30b-a3b-thinking-2507/app10/docker-compose.yml",
+                "/app/sources/qwen_qwen3-30b-a3b-thinking-2507/app10/frontend/Dockerfile",
+                "/app/sources/qwen_qwen3-30b-a3b-thinking-2507/app10/frontend/index.html",
+                "/app/sources/qwen_qwen3-30b-a3b-thinking-2507/app10/frontend/package.json",
+                "/app/sources/qwen_qwen3-30b-a3b-thinking-2507/app10/frontend/src/App.jsx",
+                "/app/sources/qwen_qwen3-30b-a3b-thinking-2507/app10/frontend/vite.config.js"
+              ]
+            },
+            "config_used": {}
+          },
+          "safety": {
+            "tool": "safety",
+            "executed": true,
+            "status": "no_issues",
+            "total_issues": 0,
+            "config_used": {}
+          },
+          "tool_status": {
+            "bandit": {
+              "executed": true,
+              "status": "success",
+              "total_issues": 1,
+              "error": null
+            },
+            "semgrep": {
+              "executed": true,
+              "status": "success",
+              "total_issues": 3,
+              "error": null
+            },
+            "safety": {
+              "executed": true,
+              "status": "no_issues",
+              "total_issues": 0,
+              "error": null
+            }
+          }
+        },
+        "javascript": {},
+        "css": {
+          "status": "no_files",
+          "message": "No CSS files found"
+        },
+        "structure": {
+          "status": "success",
+          "file_counts": {
+            "python": 1,
+            "javascript": 2,
+            "typescript": 0,
+            "css": 0,
+            "html": 1,
+            "json": 1,
+            "dockerfile": 2,
+            "docker_compose": 1
+          },
+          "security_files": {
+            "requirements_txt": false,
+            "package_json": false,
+            "dockerfile": true,
+            "gitignore": false
+          },
+          "total_files": 8
+        }
+      },
+      "summary": {
+        "total_issues_found": 4,
+        "tools_run_successfully": 2,
+        "severity_breakdown": {
+          "error": 0,
+          "warning": 0,
+          "info": 0,
+          "ERROR": 2,
+          "WARNING": 1,
+          "INFO": 0
+        },
+        "analysis_status": "completed",
+        "configuration_preset": "default"
+      }
+    },
+    "timestamp": "2025-09-18T19:25:59.433423"
+  }
+}
