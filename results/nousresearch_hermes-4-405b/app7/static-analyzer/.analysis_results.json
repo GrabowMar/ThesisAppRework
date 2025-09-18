@@ -2,17 +2,17 @@
   "metadata": {
     "module": "analysis",
     "model": "nousresearch_hermes-4-405b",
-    "app_number": 1,
-    "timestamp": "2025-09-18T17:31:56.300442+00:00",
+    "app_number": 7,
+    "timestamp": "2025-09-18T17:23:44.404726+00:00",
     "version": "1.0",
     "analysis_type": "static-analyzer"
   },
   "results": {
     "success": true,
     "model_slug": "nousresearch_hermes-4-405b",
-    "app_number": 1,
-    "target_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\src\\generated\\apps\\nousresearch_hermes-4-405b\\app1",
-    "analysis_duration": 16.14856219291687,
+    "app_number": 7,
+    "target_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\src\\generated\\apps\\nousresearch_hermes-4-405b\\app7",
+    "analysis_duration": 12.383551597595215,
     "tools_requested": [
       "bandit",
       "safety",
@@ -45,7 +45,7 @@
     },
     "findings": [],
     "metadata": {
-      "analysis_timestamp": "2025-09-18T17:31:56.300442+00:00",
+      "analysis_timestamp": "2025-09-18T17:23:44.404726+00:00",
       "detected_languages": [
         "python",
         "html",
