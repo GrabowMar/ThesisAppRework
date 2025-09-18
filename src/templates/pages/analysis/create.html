@@ -1038,6 +1038,23 @@ function updateWizardStep() {
   if (currentStep === 2) {
     refreshBatchApplicationsAggregate();
   }
+
+  // If entering Step 3 and no analysis option is chosen yet, default to 'security' profile
+  if (currentStep === 3) {
+    try {
+      if (analysisMode === 'profile' && !selectedAnalysisProfile) {
+        // Check the security radio and load the profile
+        const secRadio = document.querySelector('input[name="profile_type"][value="security"]');
+        if (secRadio) {
+          secRadio.checked = true;
+        }
+        // This updates estimates and enables navigation
+        loadAnalysisProfile('security');
+      }
+    } catch (e) {
+      console.warn('Default profile selection failed:', e);
+    }
+  }
 }
 
 function updateNavigationButtons() {
@@ -1897,17 +1914,118 @@ function proceedWithFormSubmission() {
     if (launchBtn) launchBtn.classList.add('d-none');
     if (loadingBtn) loadingBtn.classList.remove('d-none');
     
-    if (form) {
-        console.log('Adding bypass input and submitting form');
-        // Create a hidden input to bypass validation
-        const bypassInput = document.createElement('input');
-        bypassInput.type = 'hidden';
-        bypassInput.name = '_bypass_confirmation';
-        bypassInput.value = '1';
-        form.appendChild(bypassInput);
-        
-        // Submit the form directly
-        form.submit();
+  if (form) {
+        console.log('Serializing form state and submitting form');
+        // Ensure hidden inputs mirror current wizard state before direct submit
+        try {
+          // Mode and profile
+          const modeInput = document.getElementById('input-analysis-mode');
+          const profileInput = document.getElementById('input-analysis-profile');
+          if (modeInput) modeInput.value = analysisMode;
+          if (profileInput) profileInput.value = selectedAnalysisProfile || '';
+
+          // Tools
+          const toolsInputsWrapper = document.getElementById('selected-tools-inputs');
+          if (toolsInputsWrapper) {
+            toolsInputsWrapper.innerHTML = '';
+            if (analysisMode === 'custom' && Array.isArray(selectedTools) && selectedTools.length > 0) {
+              selectedTools.forEach(toolId => {
+                const inp = document.createElement('input');
+                inp.type = 'hidden';
+                inp.name = 'selected_tools[]';
+                inp.value = toolId;
+                toolsInputsWrapper.appendChild(inp);
+              });
+            }
+          }
+
+          // Model / App selections
+          const modelInput = document.getElementById('input-model-slug');
+          const appInput = document.getElementById('input-app-number');
+          const isBatchMode = (modelSelectionMode === 'batch' || appSelectionMode === 'batch');
+          if (isBatchMode) {
+            if (selectedModels.length > 0 && modelInput) {
+              modelInput.value = selectedModels.map(m => m.slug).join(',');
+            }
+            if (selectedApps.length > 0 && appInput) {
+              appInput.value = selectedApps.map(a => `${a.modelSlug}:${a.number}`).join(',');
+            }
+          } else {
+            if (selectedModel && modelInput) modelInput.value = selectedModel.slug;
+            if (selectedApp && appInput) appInput.value = selectedApp.number;
+          }
+
+          // Add a bypass flag (safe for server to ignore) to indicate confirmation was shown
+          const bypassInput = document.createElement('input');
+          bypassInput.type = 'hidden';
+          bypassInput.name = '_bypass_confirmation';
+          bypassInput.value = '1';
+          form.appendChild(bypassInput);
+        } catch (serr) {
+          console.warn('Error serializing form state before submit:', serr);
+        }
+
+        // Trigger a standard submit event (lets our submit handler run/validate)
+        setTimeout(() => {
+          try {
+            if (typeof form.requestSubmit === 'function') {
+              form.requestSubmit();
+            } else {
+              // Create a temporary hidden submit button and click it
+              const tmpBtn = document.createElement('button');
+              tmpBtn.type = 'submit';
+              tmpBtn.style.display = 'none';
+              form.appendChild(tmpBtn);
+              tmpBtn.click();
+              form.removeChild(tmpBtn);
+            }
+          } catch (err) {
+            console.error('Submit dispatch failed:', err);
+            // Revert loading UI so user can retry
+            if (loadingBtn) loadingBtn.classList.add('d-none');
+            if (launchBtn) launchBtn.classList.remove('d-none');
+          }
+        }, 50);
+
+        // Watchdog: if the submit event never fires (browser quirk), fall back to fetch
+        try {
+          window.__analysisSubmitEventFired = false;
+          setTimeout(async () => {
+            if (window.__analysisSubmitEventFired) return;
+            if (window.__analysisFormSubmitting) return;
+            console.warn('Submit event not detected; using fetch fallback');
+            window.__analysisFormSubmitting = true;
+            try {
+              const fd = new FormData(form);
+              const resp = await fetch(form.action || '/analysis/create', {
+                method: 'POST',
+                body: fd,
+                credentials: 'same-origin'
+              });
+              if (resp.redirected) {
+                window.location.href = resp.url;
+                return;
+              }
+              if (resp.ok) {
+                // Assume success goes to list
+                window.location.href = '/analysis/list';
+                return;
+              }
+              const txt = await resp.text();
+              console.error('Fetch fallback failed, status:', resp.status, txt);
+              alert('Failed to launch analysis (' + resp.status + '). Please check selections and try again.');
+            } catch (fe) {
+              console.error('Fetch fallback error:', fe);
+              alert('Network error launching analysis. Please try again.');
+            } finally {
+              window.__analysisFormSubmitting = false;
+              if (loadingBtn) loadingBtn.classList.add('d-none');
+              if (launchBtn) launchBtn.classList.remove('d-none');
+            }
+          }, 1500);
+        } catch (wdErr) {
+          console.warn('Submit watchdog setup failed', wdErr);
+        }
     } else {
         console.error('Form not found!');
     }
@@ -2129,6 +2247,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('analysis-wizard-form');
     if (form) {
         form.addEventListener('submit', (e) => {
+      try { window.__analysisSubmitEventFired = true; } catch (_) {}
             console.log('Form submit event triggered!');
             console.log('analysisMode:', analysisMode);
             console.log('selectedTools:', selectedTools);

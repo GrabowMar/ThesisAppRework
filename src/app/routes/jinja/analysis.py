@@ -114,14 +114,63 @@ def analysis_create():
         except Exception:
             pass
 
+        # Helper: parse potential batch inputs coming from the wizard
+        def _parse_selection(model_value: str, app_value: str) -> list[tuple[str, int]]:
+            """Return list of (model_slug, app_number) pairs.
+
+            Supports formats:
+            - Single: model_slug='gpt', app_number='7'
+            - Batch apps with explicit model: app_number='gpt:7,claude:3'
+            - Batch models + single/nums (fallback): model_slug='gpt,claude', app_number='7,8'
+            In the last case, we pair each model with each app number (cartesian product).
+            """
+            pairs: list[tuple[str, int]] = []
+            m_list = [m.strip() for m in (model_value or '').split(',') if m.strip()]
+            # First, prefer explicit model:app entries in app_value
+            explicit_parts = [p.strip() for p in (app_value or '').split(',') if p.strip()]
+            has_explicit = any(':' in p for p in explicit_parts)
+            if has_explicit:
+                for part in explicit_parts:
+                    try:
+                        mslug, anum = part.split(':', 1)
+                        anum_i = int(str(anum).strip())
+                        mslug = mslug.strip()
+                        if mslug:
+                            pairs.append((mslug, anum_i))
+                    except Exception:
+                        continue
+                return pairs
+            # Otherwise, parse app numbers and pair with provided model(s)
+            a_list: list[int] = []
+            for a in [x.strip() for x in (app_value or '').split(',') if x.strip()]:
+                try:
+                    a_list.append(int(a))
+                except Exception:
+                    continue
+            # If no model list provided, keep single model as list if present
+            if not m_list and model_value:
+                m_list = [model_value]
+            # If both present and multiple, build cartesian product; if one side empty, result empty
+            for m in m_list or []:
+                for a in a_list or []:
+                    pairs.append((m, a))
+            # Fallback: single/single if above produced nothing and values look scalar
+            if not pairs and model_value and app_value:
+                try:
+                    pairs.append((model_value, int(app_value)))
+                except Exception:
+                    pass
+            return pairs
+
+        # Compute selection pairs (supports batch)
+        selection_pairs = _parse_selection(model_slug, app_number_raw)
+
         errors = []
-        if not model_slug:
-            errors.append('Model is required')
-        try:
-            app_number = int(app_number_raw)
-        except Exception:
+        if not selection_pairs:
+            # Preserve original error messages for single-case UX
+            if not model_slug:
+                errors.append('Model is required')
             errors.append('Valid application number required')
-            app_number = None  # type: ignore
         
         # Validate analysis configuration
         if analysis_mode == 'profile':
@@ -174,6 +223,12 @@ def analysis_create():
                 except Exception as _avail_err:
                     current_app.logger.warning(f"Analyzer availability lookup failed (strict mode): {_avail_err}")
                     available_toolsets = {}
+                # If availability info is completely unavailable, degrade to non-strict mode
+                availability_enforced = bool(available_toolsets)
+                if not availability_enforced:
+                    current_app.logger.warning(
+                        "Proceeding without strict tool availability enforcement (no analyzer availability data)."
+                    )
 
                 for tid in tool_ids:
                     tool_rec = None
@@ -188,14 +243,18 @@ def analysis_create():
                         nm = tool_rec.get('display_name') or tool_rec.get('name') or f"Tool {tid}"
                         invalid_errors.append(f"{nm} is disabled in the registry")
                         continue
-                    # Availability check per analyzer service
-                    svc = normalized_service.get(str(tool_rec.get('service_name', '')).lower(), tool_rec.get('service_name') or 'unknown')
-                    name_lc = str(tool_rec.get('name', '')).lower()
-                    avail_set = set(x.lower() for x in (available_toolsets.get(svc) or []))
-                    if not avail_set or name_lc not in avail_set:
-                        nm = tool_rec.get('display_name') or tool_rec.get('name') or f"Tool {tid}"
-                        invalid_errors.append(f"{nm} is currently unavailable via {svc}")
-                        continue
+                    # Availability check per analyzer service (only when enforced)
+                    if availability_enforced:
+                        svc = normalized_service.get(str(tool_rec.get('service_name', '')).lower(), tool_rec.get('service_name') or 'unknown')
+                        name_lc = str(tool_rec.get('name', '')).lower()
+                        avail_list = available_toolsets.get(svc) or []
+                        avail_set = set(x.lower() for x in avail_list)
+                        # IMPORTANT: Only enforce when a service reports a non-empty list.
+                        # If the list is empty or missing, treat as unknown and allow.
+                        if avail_set and name_lc not in avail_set:
+                            nm = tool_rec.get('display_name') or tool_rec.get('name') or f"Tool {tid}"
+                            invalid_errors.append(f"{nm} is currently unavailable via {svc}")
+                            continue
                     resolved_tools.append(tool_rec)
 
                 if invalid_errors:
@@ -204,22 +263,29 @@ def analysis_create():
                     # Do not proceed with task creation in strict mode
                     return render_template('pages/analysis/create.html'), 400
 
-                custom_analysis = None
+                # Create one ToolRegistry custom analysis record per selection (non-blocking)
+                # If service supports idempotency, duplicates will be ignored upstream
                 try:
-                    # ToolRegistryService expects 'tool_ids' (not 'selected_tools')
-                    custom_analysis = tool_service.create_custom_analysis(  # type: ignore[attr-defined]
-                        model_slug=model_slug,
-                        app_number=app_number,  # type: ignore[arg-type]
-                        analysis_mode='custom',
-                        tool_ids=tool_ids,
-                        priority=priority,
-                    )
-                    flash(
-                        f"Created custom analysis request {custom_analysis.get('id', 'unknown')} with {len(tool_ids)} tools",
-                        'success'
-                    )
+                    created_custom_ids = []
+                    for mslug, anum in selection_pairs:
+                        try:
+                            ca = tool_service.create_custom_analysis(  # type: ignore[attr-defined]
+                                model_slug=mslug,
+                                app_number=anum,
+                                analysis_mode='custom',
+                                tool_ids=tool_ids,
+                                priority=priority,
+                            )
+                            if isinstance(ca, dict) and ca.get('id') is not None:
+                                created_custom_ids.append(ca.get('id'))
+                        except Exception as _ca_err:
+                            current_app.logger.warning(f"Custom analysis creation failed for {mslug}#{anum}: {_ca_err}")
+                    if created_custom_ids:
+                        flash(
+                            f"Created {len(created_custom_ids)} custom analysis request(s) with {len(tool_ids)} tools",
+                            'success'
+                        )
                 except (ValidationError, NotFoundError) as e:
-                    # Validation or missing app/profile/tool — inform user and keep them on the form
                     current_app.logger.warning(f"Custom analysis creation failed: {e}")
                     flash(f"Could not create custom analysis: {e}", 'danger')
                     return render_template('pages/analysis/create.html'), 400
@@ -259,41 +325,44 @@ def analysis_create():
                 # Create one task per analyzer service with its subset of tools
                 created_tasks = []
                 from app.extensions import db as _db  # lazy import
-                for service_name, ids in tools_by_service.items():
-                    analysis_type = service_to_engine.get(service_name, 'security')
-                    task = AnalysisTaskService.create_task(
-                        model_slug=model_slug,
-                        app_number=app_number,  # type: ignore[arg-type]
-                        analysis_type=analysis_type,
-                        priority=priority,
-                        custom_options={
-                            'selected_tools': ids,
-                            'selected_tool_names': [tool_names_by_id.get(i) for i in ids if tool_names_by_id.get(i)],
-                            'source': 'wizard_custom',
-                        }
-                    )
-                    # Also mirror selection at top-level metadata for convenience
-                    try:
-                        meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
-                        meta['selected_tools'] = ids
-                        if 'selected_tool_names' not in meta:
-                            meta['selected_tool_names'] = [tool_names_by_id.get(i) for i in ids if tool_names_by_id.get(i)]
-                        task.set_metadata(meta)
-                        _db.session.commit()
-                    except Exception:
-                        pass
-                    created_tasks.append(task)
+                for mslug, anum in selection_pairs:
+                    for service_name, ids in tools_by_service.items():
+                        analysis_type = service_to_engine.get(service_name, 'security')
+                        task = AnalysisTaskService.create_task(
+                            model_slug=mslug,
+                            app_number=anum,
+                            analysis_type=analysis_type,
+                            priority=priority,
+                            custom_options={
+                                'selected_tools': ids,
+                                'selected_tool_names': [tool_names_by_id.get(i) for i in ids if tool_names_by_id.get(i)],
+                                'source': 'wizard_custom',
+                            }
+                        )
+                        # Also mirror selection at top-level metadata for convenience
+                        try:
+                            meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
+                            meta['selected_tools'] = ids
+                            if 'selected_tool_names' not in meta:
+                                meta['selected_tool_names'] = [tool_names_by_id.get(i) for i in ids if tool_names_by_id.get(i)]
+                            task.set_metadata(meta)
+                            _db.session.commit()
+                        except Exception:
+                            pass
+                        created_tasks.append(task)
 
                 # If no valid services resolved (edge-case), fallback to single security task
                 if not created_tasks:
-                    task = AnalysisTaskService.create_task(
-                        model_slug=model_slug,
-                        app_number=app_number,  # type: ignore[arg-type]
-                        analysis_type='security',
-                        priority=priority,
-                        custom_options={'selected_tools': tool_ids, 'source': 'wizard_custom'}
-                    )
-                    created_tasks.append(task)
+                    # Fallback: create at least one task per selection using default security type
+                    for mslug, anum in selection_pairs:
+                        task = AnalysisTaskService.create_task(
+                            model_slug=mslug,
+                            app_number=anum,
+                            analysis_type='security',
+                            priority=priority,
+                            custom_options={'selected_tools': tool_ids, 'source': 'wizard_custom'}
+                        )
+                        created_tasks.append(task)
                 flash(f"Created {len(created_tasks)} task(s) for selected tools", 'success')
                 
             else:
@@ -305,15 +374,20 @@ def analysis_create():
                 }
                 
                 analysis_type = analysis_type_mapping.get(analysis_profile, analysis_profile)
-                
-                task = AnalysisTaskService.create_task(
-                    model_slug=model_slug,
-                    app_number=app_number,  # type: ignore[arg-type]
-                    analysis_type=analysis_type,
-                    priority=priority
-                )
-                
-                flash(f'Created {analysis_profile} analysis task {task.task_id}', 'success')
+                # Create a task for each selected pair
+                created = []
+                for mslug, anum in selection_pairs:
+                    task = AnalysisTaskService.create_task(
+                        model_slug=mslug,
+                        app_number=anum,
+                        analysis_type=analysis_type,
+                        priority=priority
+                    )
+                    created.append(task)
+                if len(created) == 1:
+                    flash(f'Created {analysis_profile} analysis task {created[0].task_id}', 'success')
+                else:
+                    flash(f'Created {len(created)} {analysis_profile} analysis tasks', 'success')
             
             return redirect(url_for('analysis.analysis_list'))
             
@@ -475,8 +549,6 @@ def task_detail_page(task_id: str):
     except Exception as e:
         current_app.logger.error(f"Task detail page error for {task_id}: {e}")
         abort(500, description="Internal server error")
-    except Exception as e:  # pragma: no cover
-        return render_template('partials/common/error.html', error=f'Error: {e}'), 500
 
 @analysis_bp.route('/api/tasks/inspect/list')
 def htmx_tasks_inspection_list():
