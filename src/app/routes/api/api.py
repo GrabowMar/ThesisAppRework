@@ -22,6 +22,7 @@ from .models import models_bp
 from .system import system_bp
 from .dashboard import dashboard_bp
 from .applications import applications_bp
+from .tool_registry import tool_registry_bp
 from .analysis import analysis_bp
 
 # Create the main API blueprint that will orchestrate all others
@@ -36,6 +37,7 @@ api_bp.register_blueprint(system_bp)
 api_bp.register_blueprint(dashboard_bp, url_prefix='/dashboard')
 api_bp.register_blueprint(applications_bp)
 api_bp.register_blueprint(analysis_bp)
+api_bp.register_blueprint(tool_registry_bp)
 
 # ----------------------------------------------------------------------------
 # Back-compat shims for pre-prefix dashboard endpoints
