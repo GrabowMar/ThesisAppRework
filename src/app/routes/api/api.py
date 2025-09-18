@@ -138,7 +138,8 @@ def models_paginated():
       source: data source identifier
     """
     from flask import request, jsonify
-    from app.models import ModelCapability
+    from app.models import ModelCapability, GeneratedApplication
+    from app.extensions import db
     from .common import get_pagination_params
     from ..shared_utils import _norm_caps
     
@@ -155,8 +156,19 @@ def models_paginated():
         installed_param = request.args.get('installed_only') or request.args.get('installed') or request.args.get('used')
         installed_only = str(installed_param).lower() in {'1', 'true', 'yes', 'on'}
         
-        # Get base models
+        # Get base models and determine which ones have applications
+        from app.models import GeneratedApplication
         base_models = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+        
+        # Get set of model slugs that have applications (used models)
+        used_model_slugs = set(
+            slug[0] for slug in 
+            db.session.query(GeneratedApplication.model_slug).distinct().all()
+        )
+        
+        # If filtering for "used" models, filter to only those with applications
+        if installed_only:
+            base_models = [m for m in base_models if getattr(m, 'canonical_slug', None) in used_model_slugs]
         
         # Price tier filtering function
         def price_bucket(val: float) -> str:
@@ -189,10 +201,6 @@ def models_paginated():
                 if bucket != price_tier:
                     continue
                     
-            if installed_only:
-                if not bool(getattr(m, 'installed', False)):
-                    continue
-                    
             filtered.append(m)
         
         # Calculate pagination
@@ -209,8 +217,9 @@ def models_paginated():
             caps_raw = m.get_capabilities() or {}
             caps_list = _norm_caps(caps_raw.get('capabilities') if isinstance(caps_raw, dict) else caps_raw)
             meta = m.get_metadata() or {}
+            slug = getattr(m, 'canonical_slug', None)
             return {
-                'slug': getattr(m, 'canonical_slug', None),
+                'slug': slug,
                 'model_id': getattr(m, 'model_id', None),
                 'name': getattr(m, 'model_name', None),
                 'provider': getattr(m, 'provider', None),
@@ -222,6 +231,7 @@ def models_paginated():
                 'performance_score': int((getattr(m, 'cost_efficiency', 0.0) or 0.0) * 10) if (getattr(m, 'cost_efficiency', 0.0) or 0) <= 1 else int(getattr(m, 'cost_efficiency', 0.0) or 0),
                 'status': 'active',
                 'installed': bool(getattr(m, 'installed', False)),
+                'has_applications': slug in used_model_slugs if slug else False,
                 'description': meta.get('openrouter_description') or meta.get('description') or None,
             }
         

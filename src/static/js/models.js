@@ -55,7 +55,21 @@ if (window.__MODELS_JS_LOADED__) {
         if (sel) sel.value = String(perPage);
         updateSourceButtons();
       } catch(e) {}
-      fetch('/api/models/sync', { method: 'POST' }).catch(()=>{}).finally(()=> loadModelsPaginated());
+      
+      // Start loading models immediately without waiting for sync
+      loadModelsPaginated();
+      
+      // Sync models in background (don't wait for it)
+      fetch('/api/models/sync', { method: 'POST' })
+        .then(() => {
+          // Refresh the display after sync completes
+          loadModelsPaginated();
+        })
+        .catch(() => {
+          // If sync fails, we still have the initial load
+          console.warn('Model sync failed, using cached data');
+        });
+      
       setupMultiselects();
     }
   });
@@ -184,9 +198,15 @@ function renderModelsTable(models) {
   tbody.innerHTML = models.map(m => {
     const caps = toArrayCaps(m.capabilities);
     const isFree = (+m.input_price_per_1k || 0) === 0 && (+m.output_price_per_1k || 0) === 0;
+    const hasApps = m.has_applications || false;
+    const badgesHtml = [
+      isFree ? '<span class="badge bg-success ms-1">free</span>' : '',
+      hasApps ? '<span class="badge bg-info ms-1">used</span>' : ''
+    ].filter(badge => badge).join('');
+    
     return `<tr>
       <td><input type="checkbox" onchange="toggleModelSelection('${m.slug}')" ${selectedModels.includes(m.slug) ? 'checked' : ''}></td>
-      <td><strong>${m.name}</strong> ${isFree ? '<span class="badge bg-success ms-1">free</span>' : ''}</td>
+      <td><strong>${m.name}</strong> ${badgesHtml}</td>
       <td>${m.provider || ''}</td>
       <td>${caps.slice(0,2).map(c => `<span class='badge bg-info me-1'>${c}</span>`).join('')}${caps.length>2 ? `<span class='text-muted small'>+${caps.length-2}</span>`:''}</td>
       <td>$${m.input_price_per_1k} / $${m.output_price_per_1k}</td>

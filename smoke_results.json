@@ -10,12 +10,12 @@
         "data": {
           "database": "connected",
           "status": "healthy",
-          "timestamp": "2025-09-18T14:02:10.354169+00:00",
+          "timestamp": "2025-09-18T14:29:22.825780+00:00",
           "version": "1.0"
         },
         "message": "Success",
         "success": true,
-        "timestamp": "2025-09-18T14:02:10.354169+00:00"
+        "timestamp": "2025-09-18T14:29:22.825780+00:00"
       }
     },
     "health": {
@@ -40,12 +40,12 @@
       "critical": true,
       "body": {
         "error": "Page Not Found",
-        "error_id": "c9de835a0e0b4e3e9646bdddda4dd309",
+        "error_id": "a00f2d4a83f448ffb6fa1530c02d5113",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/models/all",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-18T14:02:11.598158+00:00"
+        "timestamp": "2025-09-18T14:29:23.901909+00:00"
       }
     },
     "dashboard_stats": {
@@ -289,7 +289,7 @@
               "metadata": {},
               "model_slug": "x-ai_grok-code-fast-1",
               "provider": "x-ai",
-              "updated_at": "Thu, 18 Sep 2025 13:31:56 GMT"
+              "updated_at": "Thu, 18 Sep 2025 14:08:06 GMT"
             },
             {
               "app_number": 8,
@@ -306,7 +306,7 @@
               "metadata": {},
               "model_slug": "x-ai_grok-code-fast-1",
               "provider": "x-ai",
-              "updated_at": "Thu, 18 Sep 2025 13:31:56 GMT"
+              "updated_at": "Thu, 18 Sep 2025 14:08:06 GMT"
             },
             {
               "app_number": 7,
@@ -323,7 +323,7 @@
               "metadata": {},
               "model_slug": "x-ai_grok-code-fast-1",
               "provider": "x-ai",
-              "updated_at": "Thu, 18 Sep 2025 13:31:56 GMT"
+              "updated_at": "Thu, 18 Sep 2025 14:08:06 GMT"
             },
             {
               "app_number": 6,
@@ -340,7 +340,7 @@
               "metadata": {},
               "model_slug": "x-ai_grok-code-fast-1",
               "provider": "x-ai",
-              "updated_at": "Thu, 18 Sep 2025 13:31:56 GMT"
+              "updated_at": "Thu, 18 Sep 2025 14:08:06 GMT"
             },
             {
               "app_number": 5,
@@ -357,116 +357,10 @@
               "metadata": {},
               "model_slug": "x-ai_grok-code-fast-1",
               "provider": "x-ai",
-              "updated_at": "Thu, 18 Sep 2025 13:31:56 GMT"
+              "updated_at": "Thu, 18 Sep 2025 14:08:06 GMT"
             }
           ],
           "recent_models": [
-            {
-              "canonical_slug": "openai_gpt-4",
-              "capabilities": {
-                "architecture": {
-                  "input_modalities": [
-                    "text"
-                  ],
-                  "instruct_type": null,
-                  "modality": "text->text",
-                  "output_modalities": [
-                    "text"
-                  ],
-                  "tokenizer": "GPT"
-                },
-                "canonical_slug": "openai/gpt-4",
-                "context_length": 8191,
-                "created": 1685232000,
-                "description": "OpenAI's flagship model, GPT-4 is a large-scale multimodal language model capable of solving difficult problems with greater accuracy than previous models due to its broader general knowledge and advanced reasoning capabilities. Training data: up to Sep 2021.",
-                "hugging_face_id": null,
-                "id": "openai/gpt-4",
-                "name": "OpenAI: GPT-4",
-                "per_request_limits": null,
-                "pricing": {
-                  "completion": "0.00006",
-                  "image": "0",
-                  "internal_reasoning": "0",
-                  "prompt": "0.00003",
-                  "request": "0",
-                  "web_search": "0"
-                },
-                "supported_parameters": [
-                  "frequency_penalty",
-                  "logit_bias",
-                  "logprobs",
-                  "max_tokens",
-                  "presence_penalty",
-                  "response_format",
-                  "seed",
-                  "stop",
-                  "structured_outputs",
-                  "temperature",
-                  "tool_choice",
-                  "tools",
-                  "top_logprobs",
-                  "top_p"
-                ],
-                "top_provider": {
-                  "context_length": 8191,
-                  "is_moderated": true,
-                  "max_completion_tokens": 4096
-                }
-              },
-              "context_window": 8191,
-              "cost_efficiency": 0.0,
-              "created_at": "Thu, 18 Sep 2025 13:54:37 GMT",
-              "id": 277,
-              "input_price_per_token": 3e-05,
-              "is_free": false,
-              "max_output_tokens": 4096,
-              "metadata": {
-                "openrouter_canonical_slug": "openai/gpt-4",
-                "openrouter_created": 1685232000,
-                "openrouter_description": "OpenAI's flagship model, GPT-4 is a large-scale multimodal language model capable of solving difficult problems with greater accuracy than previous models due to its broader general knowledge and advanced reasoning capabilities. Training data: up to Sep 2021.",
-                "openrouter_model_id": "openai/gpt-4",
-                "openrouter_name": "OpenAI: GPT-4",
-                "openrouter_pricing": {
-                  "completion": "0.00006",
-                  "image": "0",
-                  "internal_reasoning": "0",
-                  "prompt": "0.00003",
-                  "request": "0",
-                  "web_search": "0"
-                },
-                "openrouter_supported_parameters": [
-                  "frequency_penalty",
-                  "logit_bias",
-                  "logprobs",
-                  "max_tokens",
-                  "presence_penalty",
-                  "response_format",
-                  "seed",
-                  "stop",
-                  "structured_outputs",
-                  "temperature",
-                  "tool_choice",
-                  "tools",
-                  "top_logprobs",
-                  "top_p"
-                ],
-                "openrouter_top_provider": {
-                  "context_length": 8191,
-                  "is_moderated": true,
-                  "max_completion_tokens": 4096
-                }
-              },
-              "model_id": "openai/gpt-4",
-              "model_name": "gpt-4",
-              "output_price_per_token": 6e-05,
-              "provider": "openai",
-              "safety_score": 0.0,
-              "supports_function_calling": false,
-              "supports_json_mode": false,
-              "supports_streaming": false,
-              "supports_vision": false,
-              "updated_at": "Thu, 18 Sep 2025 13:54:37 GMT"
-            },
             {
               "canonical_slug": "openai_gpt-4-0314",
               "capabilities": {
@@ -521,8 +415,8 @@
               },
               "context_window": 8191,
               "cost_efficiency": 0.0,
-              "created_at": "Thu, 18 Sep 2025 13:54:37 GMT",
-              "id": 276,
+              "created_at": "Thu, 18 Sep 2025 14:08:06 GMT",
+              "id": 277,
               "input_price_per_token": 3e-05,
               "is_free": false,
               "max_output_tokens": 4096,
@@ -571,7 +465,113 @@
               "supports_json_mode": false,
               "supports_streaming": false,
               "supports_vision": false,
-              "updated_at": "Thu, 18 Sep 2025 13:54:37 GMT"
+              "updated_at": "Thu, 18 Sep 2025 14:08:06 GMT"
+            },
+            {
+              "canonical_slug": "openai_gpt-4",
+              "capabilities": {
+                "architecture": {
+                  "input_modalities": [
+                    "text"
+                  ],
+                  "instruct_type": null,
+                  "modality": "text->text",
+                  "output_modalities": [
+                    "text"
+                  ],
+                  "tokenizer": "GPT"
+                },
+                "canonical_slug": "openai/gpt-4",
+                "context_length": 8191,
+                "created": 1685232000,
+                "description": "OpenAI's flagship model, GPT-4 is a large-scale multimodal language model capable of solving difficult problems with greater accuracy than previous models due to its broader general knowledge and advanced reasoning capabilities. Training data: up to Sep 2021.",
+                "hugging_face_id": null,
+                "id": "openai/gpt-4",
+                "name": "OpenAI: GPT-4",
+                "per_request_limits": null,
+                "pricing": {
+                  "completion": "0.00006",
+                  "image": "0",
+                  "internal_reasoning": "0",
+                  "prompt": "0.00003",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "supported_parameters": [
+                  "frequency_penalty",
+                  "logit_bias",
+                  "logprobs",
+                  "max_tokens",
+                  "presence_penalty",
+                  "response_format",
+                  "seed",
+                  "stop",
+                  "structured_outputs",
+                  "temperature",
+                  "tool_choice",
+                  "tools",
+                  "top_logprobs",
+                  "top_p"
+                ],
+                "top_provider": {
+                  "context_length": 8191,
+                  "is_moderated": true,
+                  "max_completion_tokens": 4096
+                }
+              },
+              "context_window": 8191,
+              "cost_efficiency": 0.0,
+              "created_at": "Thu, 18 Sep 2025 14:08:06 GMT",
+              "id": 276,
+              "input_price_per_token": 3e-05,
+              "is_free": false,
+              "max_output_tokens": 4096,
+              "metadata": {
+                "openrouter_canonical_slug": "openai/gpt-4",
+                "openrouter_created": 1685232000,
+                "openrouter_description": "OpenAI's flagship model, GPT-4 is a large-scale multimodal language model capable of solving difficult problems with greater accuracy than previous models due to its broader general knowledge and advanced reasoning capabilities. Training data: up to Sep 2021.",
+                "openrouter_model_id": "openai/gpt-4",
+                "openrouter_name": "OpenAI: GPT-4",
+                "openrouter_pricing": {
+                  "completion": "0.00006",
+                  "image": "0",
+                  "internal_reasoning": "0",
+                  "prompt": "0.00003",
+                  "request": "0",
+                  "web_search": "0"
+                },
+                "openrouter_supported_parameters": [
+                  "frequency_penalty",
+                  "logit_bias",
+                  "logprobs",
+                  "max_tokens",
+                  "presence_penalty",
+                  "response_format",
+                  "seed",
+                  "stop",
+                  "structured_outputs",
+                  "temperature",
+                  "tool_choice",
+                  "tools",
+                  "top_logprobs",
+                  "top_p"
+                ],
+                "openrouter_top_provider": {
+                  "context_length": 8191,
+                  "is_moderated": true,
+                  "max_completion_tokens": 4096
+                }
+              },
+              "model_id": "openai/gpt-4",
+              "model_name": "gpt-4",
+              "output_price_per_token": 6e-05,
+              "provider": "openai",
+              "safety_score": 0.0,
+              "supports_function_calling": false,
+              "supports_json_mode": false,
+              "supports_streaming": false,
+              "supports_vision": false,
+              "updated_at": "Thu, 18 Sep 2025 14:08:06 GMT"
             },
             {
               "canonical_slug": "openai_gpt-3.5-turbo",
@@ -627,7 +627,7 @@
               },
               "context_window": 16385,
               "cost_efficiency": 0.0,
-              "created_at": "Thu, 18 Sep 2025 13:54:37 GMT",
+              "created_at": "Thu, 18 Sep 2025 14:08:06 GMT",
               "id": 275,
               "input_price_per_token": 5e-07,
               "is_free": false,
@@ -677,7 +677,7 @@
               "supports_json_mode": false,
               "supports_streaming": false,
               "supports_vision": false,
-              "updated_at": "Thu, 18 Sep 2025 13:54:37 GMT"
+              "updated_at": "Thu, 18 Sep 2025 14:08:06 GMT"
             },
             {
               "canonical_slug": "gryphe_mythomax-l2-13b",
@@ -733,7 +733,7 @@
               },
               "context_window": 4096,
               "cost_efficiency": 0.0,
-              "created_at": "Thu, 18 Sep 2025 13:54:37 GMT",
+              "created_at": "Thu, 18 Sep 2025 14:08:06 GMT",
               "id": 274,
               "input_price_per_token": 6e-08,
               "is_free": false,
@@ -783,7 +783,7 @@
               "supports_json_mode": false,
               "supports_streaming": false,
               "supports_vision": false,
-              "updated_at": "Thu, 18 Sep 2025 13:54:37 GMT"
+              "updated_at": "Thu, 18 Sep 2025 14:08:06 GMT"
             },
             {
               "canonical_slug": "undi95_remm-slerp-l2-13b",
@@ -839,7 +839,7 @@
               },
               "context_window": 6144,
               "cost_efficiency": 0.0,
-              "created_at": "Thu, 18 Sep 2025 13:54:37 GMT",
+              "created_at": "Thu, 18 Sep 2025 14:08:06 GMT",
               "id": 273,
               "input_price_per_token": 4.5e-07,
               "is_free": false,
@@ -889,14 +889,14 @@
               "supports_json_mode": false,
               "supports_streaming": false,
               "supports_vision": false,
-              "updated_at": "Thu, 18 Sep 2025 13:54:37 GMT"
+              "updated_at": "Thu, 18 Sep 2025 14:08:06 GMT"
             }
           ],
-          "timestamp": "2025-09-18T14:02:11.694197+00:00"
+          "timestamp": "2025-09-18T14:29:23.920829+00:00"
         },
         "message": "Success",
         "success": true,
-        "timestamp": "2025-09-18T14:02:11.694197+00:00"
+        "timestamp": "2025-09-18T14:29:23.920829+00:00"
       }
     },
     "system_health": {
@@ -906,12 +906,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "7e77dd487cec4861b94ba29467a97950",
+        "error_id": "44a01728007d4225a21b8f97e6ad1023",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/system/health",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-18T14:02:11.732716+00:00"
+        "timestamp": "2025-09-18T14:29:23.939825+00:00"
       }
     },
     "analysis_stats": {
@@ -939,7 +939,7 @@
           "data": {
             "active_analyses": 0,
             "connected": true,
-            "last_update": "2025-09-18T14:02:12.122838+00:00",
+            "last_update": "2025-09-18T14:29:24.055686+00:00",
             "service": "celery_websocket"
           },
           "preference": "celery",
@@ -959,12 +959,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "bfc517d4f877466299a5aef298cf22b4",
+        "error_id": "9be56668f5344a5bb86e12140ef7ea3d",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/events/clear",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-18T14:02:12.132554+00:00"
+        "timestamp": "2025-09-18T14:29:24.079690+00:00"
       }
     },
     "ws_start": {
@@ -974,12 +974,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "5ef88da6b8a74656baa3255b14908966",
+        "error_id": "0d4ef164bbbb437f97fa55be3090e6ed",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/analysis/start",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-18T14:02:12.142777+00:00"
+        "timestamp": "2025-09-18T14:29:24.095549+00:00"
       }
     },
     "ws_analyses": {
@@ -989,12 +989,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "5ab289489e1949c59dd250a1acb489f3",
+        "error_id": "7f9d3255fefe4541a57f07606c815487",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/analyses",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-18T14:02:13.168989+00:00"
+        "timestamp": "2025-09-18T14:29:25.098207+00:00"
       }
     },
     "ws_events": {
@@ -1004,12 +1004,12 @@
       "critical": false,
       "body": {
         "error": "Page Not Found",
-        "error_id": "e472a27908d74da1aa9b49d24c648ca6",
+        "error_id": "4e19fece4fe048a6a3d23c2999e58c0f",
         "message": "The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.",
         "path": "/api/websocket/events",
         "status": "error",
         "status_code": 404,
-        "timestamp": "2025-09-18T14:02:13.186239+00:00"
+        "timestamp": "2025-09-18T14:29:25.101160+00:00"
       }
     },
     "active_tasks": {

@@ -3,7 +3,7 @@
     "module": "analysis",
     "model": "nousresearch_hermes-4-405b",
     "app_number": 1,
-    "timestamp": "2025-09-17T19:14:07.226749+00:00",
+    "timestamp": "2025-09-18T14:33:47.954027+00:00",
     "version": "1.0",
     "analysis_type": "static-analyzer"
   },
@@ -12,7 +12,7 @@
     "model_slug": "nousresearch_hermes-4-405b",
     "app_number": 1,
     "target_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\src\\generated\\apps\\nousresearch_hermes-4-405b\\app1",
-    "analysis_duration": 3.1811282634735107,
+    "analysis_duration": 3.9957668781280518,
     "tools_requested": [
       "bandit",
       "safety",
@@ -45,11 +45,11 @@
     },
     "findings": [],
     "metadata": {
-      "analysis_timestamp": "2025-09-17T19:14:07.223749+00:00",
+      "analysis_timestamp": "2025-09-18T14:33:47.953025+00:00",
       "detected_languages": [
         "javascript",
-        "python",
-        "html"
+        "html",
+        "python"
       ],
       "file_count": 12,
       "orchestrator_version": "2.0.0"
