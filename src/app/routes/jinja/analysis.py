@@ -247,11 +247,19 @@ def analysis_create():
                     if availability_enforced:
                         svc = normalized_service.get(str(tool_rec.get('service_name', '')).lower(), tool_rec.get('service_name') or 'unknown')
                         name_lc = str(tool_rec.get('name', '')).lower()
+                        # Canonicalize common aliases to match analyzer-reported names
+                        alias_map = {
+                            'zap-baseline': 'zap',
+                            'zap_baseline': 'zap',
+                            'owasp-zap': 'zap',
+                            'owasp_zap': 'zap',
+                        }
+                        name_cmp = alias_map.get(name_lc, name_lc)
                         avail_list = available_toolsets.get(svc) or []
                         avail_set = set(x.lower() for x in avail_list)
                         # IMPORTANT: Only enforce when a service reports a non-empty list.
                         # If the list is empty or missing, treat as unknown and allow.
-                        if avail_set and name_lc not in avail_set:
+                        if avail_set and name_cmp not in avail_set:
                             nm = tool_rec.get('display_name') or tool_rec.get('name') or f"Tool {tid}"
                             invalid_errors.append(f"{nm} is currently unavailable via {svc}")
                             continue

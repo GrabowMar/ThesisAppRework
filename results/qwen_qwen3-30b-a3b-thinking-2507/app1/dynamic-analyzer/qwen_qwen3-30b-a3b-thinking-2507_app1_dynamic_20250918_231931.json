@@ -1,0 +1,34 @@
+{
+  "metadata": {
+    "model_slug": "qwen_qwen3-30b-a3b-thinking-2507",
+    "app_number": 1,
+    "analysis_type": "dynamic",
+    "timestamp": "2025-09-18T23:19:31.292242",
+    "analyzer_version": "1.0.0"
+  },
+  "results": {
+    "type": "dynamic_analysis_result",
+    "status": "success",
+    "service": "dynamic-analyzer",
+    "analysis": {
+      "model_slug": "qwen_qwen3-30b-a3b-thinking-2507",
+      "app_number": 1,
+      "analysis_time": "2025-09-18T21:19:31.308190",
+      "tools_used": [],
+      "target_urls": [
+        "http://host.docker.internal:5071",
+        "http://host.docker.internal:8071"
+      ],
+      "results": {
+        "connectivity": []
+      },
+      "summary": {
+        "total_urls_tested": 2,
+        "reachable_urls": 0,
+        "vulnerabilities_found": 0,
+        "analysis_status": "completed"
+      }
+    },
+    "timestamp": "2025-09-18T21:19:31.308278"
+  }
+}

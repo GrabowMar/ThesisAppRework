@@ -1,0 +1,42 @@
+{
+  "metadata": {
+    "module": "analysis",
+    "model": "nousresearch_hermes-4-405b",
+    "app_number": 1,
+    "timestamp": "2025-09-18T21:13:01.282843+00:00",
+    "version": "1.0",
+    "analysis_type": "analysis"
+  },
+  "results": {
+    "success": true,
+    "model_slug": "nousresearch_hermes-4-405b",
+    "app_number": 1,
+    "target_path": "C:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\src\\generated\\apps\\nousresearch_hermes-4-405b\\app1",
+    "analysis_duration": 0.0035135746002197266,
+    "tools_requested": [
+      "zap-baseline"
+    ],
+    "tools_successful": 0,
+    "tools_failed": 1,
+    "tool_results": {},
+    "summary": {
+      "total_findings": 0,
+      "severity_breakdown": {},
+      "tools_breakdown": {},
+      "categories": [],
+      "tags": [],
+      "tool_status": {}
+    },
+    "findings": [],
+    "metadata": {
+      "analysis_timestamp": "2025-09-18T21:13:01.278116+00:00",
+      "detected_languages": [
+        "html",
+        "python",
+        "javascript"
+      ],
+      "file_count": 12,
+      "orchestrator_version": "2.0.0"
+    }
+  }
+}

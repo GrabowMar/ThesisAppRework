@@ -125,6 +125,22 @@ class AnalysisOrchestrator:
             # Determine tools to run
             if tools is None:
                 tools = self.get_tools_for_context(target_path, tags)
+
+            # Normalize tool names (aliases -> canonical); e.g., 'zap-baseline' -> 'zap'
+            def _canonical(name: str) -> str:
+                alias_map = {
+                    'zap-baseline': 'zap',
+                    'zap_baseline': 'zap',
+                    'owasp-zap': 'zap',
+                    'owasp_zap': 'zap',
+                }
+                key = (name or '').strip().lower()
+                return alias_map.get(key, key)
+
+            tools = [
+                _canonical(t) for t in (tools or [])
+                if isinstance(t, str) and t.strip()
+            ]
             
             if not tools:
                 return {
@@ -383,7 +399,7 @@ class AnalysisOrchestrator:
             'snyk': 'static-analyzer', 'eslint': 'static-analyzer', 'jshint': 'static-analyzer',
             'stylelint': 'static-analyzer', 'vulture': 'static-analyzer',
             # dynamic
-            'curl': 'dynamic-analyzer', 'wget': 'dynamic-analyzer', 'nmap': 'dynamic-analyzer', 'zap': 'dynamic-analyzer',
+            'curl': 'dynamic-analyzer', 'wget': 'dynamic-analyzer', 'nmap': 'dynamic-analyzer', 'zap': 'dynamic-analyzer', 'zap-baseline': 'dynamic-analyzer',
             # performance
             'ab': 'performance-tester', 'artillery': 'performance-tester', 'aiohttp': 'performance-tester', 'locust': 'performance-tester',
             # ai
@@ -477,7 +493,7 @@ class AnalysisOrchestrator:
             'snyk': 'static-analyzer', 'eslint': 'static-analyzer', 'jshint': 'static-analyzer',
             'stylelint': 'static-analyzer', 'vulture': 'static-analyzer',
             # dynamic
-            'curl': 'dynamic-analyzer', 'wget': 'dynamic-analyzer', 'nmap': 'dynamic-analyzer', 'zap': 'dynamic-analyzer',
+            'curl': 'dynamic-analyzer', 'wget': 'dynamic-analyzer', 'nmap': 'dynamic-analyzer', 'zap': 'dynamic-analyzer', 'zap-baseline': 'dynamic-analyzer',
             # performance
             'ab': 'performance-tester', 'artillery': 'performance-tester', 'aiohttp': 'performance-tester', 'locust': 'performance-tester',
             # ai

@@ -1,0 +1,34 @@
+{
+  "metadata": {
+    "model_slug": "nousresearch_hermes-4-405b",
+    "app_number": 1,
+    "analysis_type": "dynamic",
+    "timestamp": "2025-09-18T23:25:11.063414",
+    "analyzer_version": "1.0.0"
+  },
+  "results": {
+    "type": "dynamic_analysis_result",
+    "status": "success",
+    "service": "dynamic-analyzer",
+    "analysis": {
+      "model_slug": "nousresearch_hermes-4-405b",
+      "app_number": 1,
+      "analysis_time": "2025-09-18T21:25:11.075272",
+      "tools_used": [],
+      "target_urls": [
+        "http://host.docker.internal:5141",
+        "http://host.docker.internal:8141"
+      ],
+      "results": {
+        "connectivity": []
+      },
+      "summary": {
+        "total_urls_tested": 2,
+        "reachable_urls": 0,
+        "vulnerabilities_found": 0,
+        "analysis_status": "completed"
+      }
+    },
+    "timestamp": "2025-09-18T21:25:11.075328"
+  }
+}
