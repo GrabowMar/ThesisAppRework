@@ -8,7 +8,7 @@ Reports-related web routes that render Jinja templates.
 from flask import Blueprint, send_file
 
 from app.utils.template_paths import render_template_compat as render_template
-from app.constants import Paths
+from app.paths import REPORTS_DIR
 
 # Import shared utilities
 from ..shared_utils import _gather_file_reports, _get_recent_analyses
@@ -32,11 +32,11 @@ def reports_index():
 @reports_bp.route('/download/<path:fname>')
 def download_report(fname: str):
     """Download generated report files."""
-    target = Paths.REPORTS_DIR / fname
+    target = REPORTS_DIR / fname
     if not target.exists() or not target.is_file():
         from flask import abort
         abort(404)
-    if target.resolve().parent != Paths.REPORTS_DIR.resolve():
+    if target.resolve().parent != REPORTS_DIR.resolve():
         from flask import abort
         abort(400)
     return send_file(target, as_attachment=True, download_name=target.name)

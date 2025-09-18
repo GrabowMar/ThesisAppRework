@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from flask import Flask
 
 from app.models import db, ModelCapability, PortConfiguration, GeneratedApplication
-from app.constants import Paths
+from app.paths import PORT_CONFIG_JSON, GENERATED_APPS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -174,13 +174,14 @@ class ModelService:
             self.logger.info("Legacy model capabilities loading skipped - using OpenRouter API")
             
             # Populate port configurations  
-            port_config_file = Paths.PORT_CONFIG
+            port_config_file = PORT_CONFIG_JSON
             if port_config_file.exists():
                 populated['ports'] = self._populate_port_configurations(port_config_file)
                 self.logger.info(f"Populated {populated['ports']} port configurations")
             
             # Scan for generated applications
-            models_dir = Paths.MODELS_DIR
+            # New unified structure lives under generated/apps
+            models_dir = GENERATED_APPS_DIR
             if models_dir.exists():
                 populated['apps'] = self._populate_generated_applications(models_dir)
                 self.logger.info(f"Populated {populated['apps']} generated applications")

@@ -222,8 +222,8 @@ def _project_root() -> Path:
 
 def _gather_file_reports(limit: int | None = None):
     """Get generated file reports for download."""
-    from app.constants import Paths
-    reports_dir = Paths.REPORTS_DIR
+    from app.paths import REPORTS_DIR
+    reports_dir = REPORTS_DIR
     if not reports_dir.exists():
         return []
     files = []

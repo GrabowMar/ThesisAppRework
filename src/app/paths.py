@@ -8,6 +8,11 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]  # .../src/app -> project root
 SRC_DIR = PROJECT_ROOT / 'src'
 MISC_DIR = SRC_DIR / 'misc'
+REPORTS_DIR = PROJECT_ROOT / 'reports'
+
+# Legacy JSON files kept under misc/
+PORT_CONFIG_JSON = MISC_DIR / 'port_config.json'
+MODELS_SUMMARY_JSON = MISC_DIR / 'models_summary.json'
 
 # Unified directories (no nested duplicates)
 CODE_TEMPLATES_DIR = MISC_DIR / 'code_templates'
@@ -64,7 +69,8 @@ for _p in _GENERATED_DIRS:
         pass
 
 __all__ = [
-    'PROJECT_ROOT', 'SRC_DIR', 'MISC_DIR', 'CODE_TEMPLATES_DIR', 'APP_TEMPLATES_DIR', 'PROFILES_DIR', 'HISTORY_DIR',
+    'PROJECT_ROOT', 'SRC_DIR', 'MISC_DIR', 'REPORTS_DIR', 'PORT_CONFIG_JSON', 'MODELS_SUMMARY_JSON',
+    'CODE_TEMPLATES_DIR', 'APP_TEMPLATES_DIR', 'PROFILES_DIR', 'HISTORY_DIR',
     'GENERATED_ROOT', 'GENERATED_APPS_DIR', 'GENERATED_MARKDOWN_DIR', 'GENERATED_RAW_API_DIR',
     'GENERATED_RAW_API_RESPONSES_DIR', 'GENERATED_RAW_API_PAYLOADS_DIR', 'GENERATED_STATS_DIR',
     'GENERATED_STATS_GENERATION_DIR', 'GENERATED_STATS_BATCH_DIR', 'GENERATED_FAILURES_DIR',

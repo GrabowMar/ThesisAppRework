@@ -1,1 +1,0 @@
-Manual step: Delete src/app/models.py to ensure only app/models/ (package) is used for ORM models. This file is a reminder.
