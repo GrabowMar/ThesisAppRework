@@ -1537,7 +1537,30 @@ function refreshBatchApplicationsAggregate() {
 function loadAnalysisProfile(profileName) {
     analysisMode = 'profile';
     selectedAnalysisProfile = profileName;
-    selectedTools = []; // Clear custom tools when using profile
+    
+    // For performance profile, populate selectedTools with performance tool IDs
+    if (profileName === 'performance') {
+        // Ensure tools are loaded first
+        if (allTools.length === 0) {
+            console.log('Loading tools for performance profile...');
+            loadAnalysisTools().then(() => {
+                const performanceTools = allTools.filter(t => 
+                    (t.category || '').toLowerCase() === 'performance'
+                );
+                selectedTools = performanceTools.map(t => t.id);
+                console.log('Performance profile: selected tool IDs:', selectedTools);
+            });
+        } else {
+            // Tools already loaded
+            const performanceTools = allTools.filter(t => 
+                (t.category || '').toLowerCase() === 'performance'
+            );
+            selectedTools = performanceTools.map(t => t.id);
+            console.log('Performance profile: selected tool IDs:', selectedTools);
+        }
+    } else {
+        selectedTools = []; // Clear custom tools for other profiles
+    }
     
     // Hide custom tool picker
     document.getElementById('custom-tool-picker').classList.add('d-none');
