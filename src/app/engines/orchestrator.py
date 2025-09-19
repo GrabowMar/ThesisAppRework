@@ -126,6 +126,8 @@ class AnalysisOrchestrator:
             if tools is None:
                 tools = self.get_tools_for_context(target_path, tags)
 
+            logger.info(f"Analysis orchestrator: initial tools={tools}, tags={tags}")
+
             # Normalize tool names (aliases -> canonical); e.g., 'zap-baseline' -> 'zap'
             def _canonical(name: str) -> str:
                 alias_map = {
@@ -133,6 +135,9 @@ class AnalysisOrchestrator:
                     'zap_baseline': 'zap',
                     'owasp-zap': 'zap',
                     'owasp_zap': 'zap',
+                    # Keep performance tool names as-is for proper mapping
+                    'locust-performance': 'locust-performance',
+                    'ab-load-test': 'ab-load-test',
                 }
                 key = (name or '').strip().lower()
                 return alias_map.get(key, key)
@@ -141,6 +146,8 @@ class AnalysisOrchestrator:
                 _canonical(t) for t in (tools or [])
                 if isinstance(t, str) and t.strip()
             ]
+            
+            logger.info(f"Analysis orchestrator: normalized tools={tools}")
             
             if not tools:
                 return {
@@ -163,9 +170,12 @@ class AnalysisOrchestrator:
             service_for_tool: Dict[str, Optional[str]] = {}
 
             for tool_name in tools:
+                # Map database tool names to dynamic registry names for availability check
+                mapped_tool_name = self._map_tool_name_to_dynamic_registry(tool_name)
+                
                 # Prepare instance for local availability check
-                config = self._build_tool_config(tool_name, tool_configs)
-                tool = self.registry.get_tool(tool_name, config)
+                config = self._build_tool_config(mapped_tool_name, tool_configs)
+                tool = self.registry.get_tool(mapped_tool_name, config)
                 available = tool.is_available() if tool else False
                 availability[tool_name] = bool(available)
                 svc = self._map_tool_to_service(tool_name)
@@ -176,8 +186,14 @@ class AnalysisOrchestrator:
             # Decide delegation per service: if service up and any tool in group not locally available
             delegated_tools: Set[str] = set()
             for svc, svc_tools in service_groups.items():
-                if self._analyzer_service_up(svc) and any(not availability.get(t, False) for t in svc_tools):
+                service_up = self._analyzer_service_up(svc)
+                any_unavailable = any(not availability.get(t, False) for t in svc_tools)
+                
+                logger.info(f"Service delegation check: {svc} | service_up={service_up} | tools={svc_tools} | availability={[availability.get(t, False) for t in svc_tools]} | any_unavailable={any_unavailable}")
+                
+                if service_up and any_unavailable:
                     # Delegate this group to analyzer containers
+                    logger.info(f"Delegating tools {svc_tools} to container service {svc}")
                     try:
                         svc_result = self._run_via_container(svc, model_slug, app_number, svc_tools)
                         extracted, svc_findings = self._extract_container_tool_results(svc, svc_result, svc_tools)
@@ -200,6 +216,8 @@ class AnalysisOrchestrator:
                                     'error': f'Container delegation failed: {str(e)}'
                                 }
                                 failed_tools += 1
+                else:
+                    logger.info(f"Not delegating tools {svc_tools} to {svc}: service_up={service_up}, any_unavailable={any_unavailable}")
 
             # Run remaining tools locally
             for tool_name in tools:
@@ -390,6 +408,16 @@ class AnalysisOrchestrator:
         except Exception:
             return False
 
+    def _map_tool_name_to_dynamic_registry(self, tool_name: str) -> str:
+        """Map database tool names to dynamic registry tool names."""
+        name_mapping = {
+            'locust-performance': 'locust',
+            'ab-load-test': 'apache-bench',
+            'zap-baseline': 'zap',
+            # Add other mappings as needed
+        }
+        return name_mapping.get(tool_name, tool_name)
+
     def _map_tool_to_service(self, tool_name: str) -> Optional[str]:
         """Map a tool name to its analyzer service."""
         mapping = {
@@ -400,8 +428,10 @@ class AnalysisOrchestrator:
             'stylelint': 'static-analyzer', 'vulture': 'static-analyzer',
             # dynamic
             'curl': 'dynamic-analyzer', 'wget': 'dynamic-analyzer', 'nmap': 'dynamic-analyzer', 'zap': 'dynamic-analyzer', 'zap-baseline': 'dynamic-analyzer',
-            # performance
-            'ab': 'performance-tester', 'artillery': 'performance-tester', 'aiohttp': 'performance-tester', 'locust': 'performance-tester',
+            # performance - handle both database and dynamic registry naming
+            'ab': 'performance-tester', 'ab-load-test': 'performance-tester', 'apache-bench': 'performance-tester',
+            'artillery': 'performance-tester', 'aiohttp': 'performance-tester', 
+            'locust': 'performance-tester', 'locust-performance': 'performance-tester',
             # ai
             'ai-review': 'ai-analyzer', 'ai': 'ai-analyzer'
         }

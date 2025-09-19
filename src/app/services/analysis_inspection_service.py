@@ -569,19 +569,36 @@ class AnalysisInspectionService:
         try:
             if (not analysis_data.get('tools_used')) and isinstance(results, dict):
                 used = []
-                for lang_key, lang_block in results.items():
-                    if not isinstance(lang_block, dict):
-                        continue
-                    for tool_name, tool_block in lang_block.items():
-                        if not isinstance(tool_block, dict):
-                            continue
-                        # Consider executed tools or those with a non-skipped status
-                        executed = tool_block.get('executed') is True
-                        status_val = str(tool_block.get('status', '')).lower()
-                        if executed or (status_val and status_val not in ('skipped', 'not_run', 'noop')):
+                
+                # Check for orchestrator-style results first
+                if 'tools_requested' in results and 'tool_results' in results:
+                    # New orchestrator format
+                    tools_requested = results.get('tools_requested', [])
+                    tool_results = results.get('tool_results', {})
+                    
+                    for tool_name in tools_requested:
+                        tool_result = tool_results.get(tool_name, {})
+                        status = tool_result.get('status', '')
+                        if status and not status.startswith('❌') and 'not available' not in status.lower():
                             used.append(tool_name)
-                        if (not executed) or status_val in ('skipped', 'not_run', 'noop', 'no_files'):
+                        else:
                             tools_skipped.append(tool_name)
+                else:
+                    # Legacy format inspection
+                    for lang_key, lang_block in results.items():
+                        if not isinstance(lang_block, dict):
+                            continue
+                        for tool_name, tool_block in lang_block.items():
+                            if not isinstance(tool_block, dict):
+                                continue
+                            # Consider executed tools or those with a non-skipped status
+                            executed = tool_block.get('executed') is True
+                            status_val = str(tool_block.get('status', '')).lower()
+                            if executed or (status_val and status_val not in ('skipped', 'not_run', 'noop')):
+                                used.append(tool_name)
+                            if (not executed) or status_val in ('skipped', 'not_run', 'noop', 'no_files'):
+                                tools_skipped.append(tool_name)
+                
                 if used:
                     # Deduplicate and store
                     analysis_data['tools_used'] = sorted(set(used))

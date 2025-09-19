@@ -303,6 +303,18 @@ class TaskExecutionService:
                 config = get_config()
                 resolved_tools = config.get_default_tools(engine_name)
 
+            # Debug: Log the engine call parameters
+            try:
+                logger.info(
+                    "Task %s calling engine.run with model_slug=%s, app_number=%s, tools=%s",
+                    getattr(task, "task_id", "unknown"),
+                    task.target_model,
+                    task.target_app_number,
+                    resolved_tools
+                )
+            except Exception:
+                pass
+
             # Execute the analysis with resolved tools
             result = engine.run(
                 model_slug=task.target_model,
@@ -340,7 +352,17 @@ class TaskExecutionService:
                 "Failed to execute analysis for task %s: %s",
                 getattr(task, "task_id", "unknown"),
                 e,
+                exc_info=True  # Include full traceback in logs
             )
+            
+            # Store error message on task for debugging
+            try:
+                task.error_message = str(e)
+                task.status = AnalysisStatus.FAILED
+                db.session.commit()
+            except Exception:
+                pass
+            
             return {
                 'status': 'error',
                 'error': str(e),
