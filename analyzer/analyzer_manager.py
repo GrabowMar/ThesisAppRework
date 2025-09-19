@@ -135,7 +135,8 @@ class AnalyzerManager:
             )
         }
         
-        self.compose_file = Path("docker-compose.yml")
+        # Compose file located in the same directory as this script
+        self.compose_file = (Path(__file__).parent / "docker-compose.yml").resolve()
         # Save results under project root results folder
         self.results_dir = (Path(__file__).parent.parent / "results").resolve()
         self.results_dir.mkdir(parents=True, exist_ok=True)
@@ -769,7 +770,9 @@ class AnalyzerManager:
         # Compose directory path
         out_dir = self.results_dir / model_slug / f"app{app_number}" / container_dir
         out_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{model_slug}_app{app_number}_{analysis_type}_{timestamp}.json"
+        # Sanitize model_slug for filename to avoid path separators on Windows
+        safe_slug = str(model_slug).replace("/", "_").replace("\\", "_")
+        filename = f"{safe_slug}_app{app_number}_{analysis_type}_{timestamp}.json"
         filepath = out_dir / filename
 
         results_with_metadata = {

@@ -287,6 +287,10 @@ class DynamicAnalyzer(BaseWSService):
             for i, result in enumerate(connectivity_results):
                 if result.get('status') == 'success' and result.get('analysis', {}).get('reachable'):
                     reachable_urls.append(target_urls[i])
+
+            # If only ZAP was selected and we skipped connectivity, still attempt ZAP on provided targets
+            if (selected_set is not None and 'zap' in selected_set) and not connectivity_results:
+                reachable_urls = list(target_urls)
             
             # Vulnerability scanning on reachable URLs
             if reachable_urls and (selected_set is None or 'curl' in selected_set):
@@ -370,61 +374,94 @@ class DynamicAnalyzer(BaseWSService):
             }
 
     async def zap_scan(self, target: str) -> Dict[str, Any]:
-        """Run a lightweight OWASP ZAP spider + passive (and maybe active) scan if daemon available.
+        """Run a lightweight OWASP ZAP spider + passive scan using ZAP's HTTP API (async).
 
-        The dynamic analyzer container does not start a ZAP daemon yet; this function attempts to connect
-        to a daemon if one is externally provided (e.g., separate ZAP container mapped to ZAP_PORT env var).
-        If connection fails, returns status indicating unavailability rather than raising.
+        Keeps total time bounded so the manager (default 180s) doesn't time out.
         """
         if 'zap' not in self.available_tools:
             return {'status': 'tool_unavailable', 'tool': 'zap'}
-        try:
-            from zapv2 import ZAPv2  # type: ignore
-        except Exception as e:
-            return {'status': 'error', 'tool': 'zap', 'error': f'Import failure: {e}'}
+
+        import aiohttp
 
         zap_port = os.getenv('ZAP_PORT', '8090')
+        zap_host = os.getenv('ZAP_HOST', 'localhost')
         zap_api = os.getenv('ZAP_API_KEY', '')
-        zap_url = f'http://localhost:{zap_port}'
+        base_url = f'http://{zap_host}:{zap_port}'
+
+        def _params(extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+            p: Dict[str, Any] = {}
+            if zap_api:
+                p['apikey'] = zap_api
+            if extra:
+                p.update(extra)
+            return p
+
+        timeout = aiohttp.ClientTimeout(total=20)
         try:
-            zap = ZAPv2(apikey=zap_api, proxies={'http': zap_url, 'https': zap_url})
-            # Quick version check to validate connectivity
-            try:
-                _ = zap.core.version
-            except Exception:
-                return {'status': 'unreachable', 'tool': 'zap', 'message': f'No ZAP daemon at {zap_url}'}
-            # Spider
-            spider_id = zap.spider.scan(target)
-            await self._await_condition(lambda: int(zap.spider.status(spider_id)) >= 100, timeout=120)
-            # Passive scan progress wait (brief)
-            await self._await_condition(lambda: int(zap.pscan.records_to_scan) == 0, timeout=60, sleep=2)
-            # Optional short active scan (capped)
-            active_result = {}
-            try:
-                ascan_id = zap.ascan.scan(target, recurse=True, inscopeonly=False)
-                await self._await_condition(lambda: int(zap.ascan.status(ascan_id)) >= 100, timeout=180, sleep=3)
-                active_result['status'] = 'completed'
-            except Exception as e:
-                active_result['status'] = 'skipped'
-                active_result['reason'] = str(e)
-            # Alerts
-            alerts = zap.core.alerts(baseurl=target)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                # Quick connectivity check
+                async with session.get(f"{base_url}/JSON/core/view/version/", params=_params()) as r:
+                    if r.status != 200:
+                        return {'status': 'unreachable', 'tool': 'zap', 'message': f'No ZAP daemon at {base_url} (HTTP {r.status})'}
+                    try:
+                        _ = (await r.json()).get('version')
+                    except Exception:
+                        return {'status': 'unreachable', 'tool': 'zap', 'message': f'Invalid response from {base_url}'}
+
+                # Start spider (recurse=true)
+                async with session.get(f"{base_url}/JSON/spider/action/scan/", params=_params({'url': target, 'recurse': 'true'})) as s:
+                    data = await s.json()
+                    spider_id = data.get('scan') if s.status == 200 else None
+                if spider_id is None:
+                    return {'status': 'error', 'tool': 'zap', 'error': f'Failed to start spider: HTTP {s.status}'}
+
+                # Wait for spider to reach 100% (cap at ~45s)
+                spider_deadline = __import__('time').time() + 45
+                while __import__('time').time() < spider_deadline:
+                    async with session.get(f"{base_url}/JSON/spider/view/status/", params=_params({'scanId': spider_id})) as st:
+                        try:
+                            pct = int((await st.json()).get('status', 0))
+                        except Exception:
+                            pct = 0
+                    if pct >= 100:
+                        break
+                    await asyncio.sleep(2)
+
+                # Wait briefly for passive scanner to drain (cap at ~30s)
+                pscan_deadline = __import__('time').time() + 30
+                while __import__('time').time() < pscan_deadline:
+                    async with session.get(f"{base_url}/JSON/pscan/view/recordsToScan/", params=_params()) as p:
+                        try:
+                            remaining = int((await p.json()).get('recordsToScan', 0))
+                        except Exception:
+                            remaining = 0
+                    if remaining == 0:
+                        break
+                    await asyncio.sleep(2)
+
+                # Skip active scan by default to keep runtime bounded
+                active_result: Dict[str, Any] = {'status': 'skipped', 'reason': 'disabled_by_default'}
+
+                # Fetch alerts for the target
+                async with session.get(f"{base_url}/JSON/core/view/alerts/", params=_params({'baseurl': target})) as ar:
+                    alerts_obj = await ar.json()
+                    alerts_list = alerts_obj.get('alerts', []) if isinstance(alerts_obj, dict) else []
+
             severity_count = {'High': 0, 'Medium': 0, 'Low': 0, 'Informational': 0}
-            for a in alerts:
+            for a in alerts_list:
                 risk = a.get('risk', '')
                 if risk in severity_count:
                     severity_count[risk] += 1
+
             return {
                 'status': 'success',
                 'tool': 'zap',
                 'target': target,
                 'alert_counts': severity_count,
-                'total_alerts': len(alerts),
+                'total_alerts': len(alerts_list),
                 'active_scan': active_result,
-                'alerts_sample': alerts[:25]
+                'alerts_sample': alerts_list[:25]
             }
-        except asyncio.TimeoutError:
-            return {'status': 'timeout', 'tool': 'zap', 'target': target}
         except Exception as e:
             return {'status': 'error', 'tool': 'zap', 'error': str(e)}
 
