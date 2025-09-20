@@ -132,6 +132,10 @@ class AnalysisOrchestrator:
             # Normalize tool names (aliases -> canonical)
             def _canonical(name: str) -> str:
                 alias_map = {
+                    'zap-baseline': 'zap',
+                    'zap_baseline': 'zap',
+                    'owasp-zap': 'zap',
+                    'owasp_zap': 'zap',
                     # Keep performance tool names as-is for proper mapping
                     'locust-performance': 'locust-performance',
                     'ab-load-test': 'ab-load-test',
@@ -410,6 +414,7 @@ class AnalysisOrchestrator:
         name_mapping = {
             'locust-performance': 'locust',
             'ab-load-test': 'apache-bench',
+            'zap-baseline': 'zap',
             'ai-code-review': 'ai-review',
             # Add other mappings as needed
         }
@@ -424,8 +429,9 @@ class AnalysisOrchestrator:
             'snyk': 'static-analyzer', 'eslint': 'static-analyzer', 'jshint': 'static-analyzer',
             'stylelint': 'static-analyzer', 'vulture': 'static-analyzer',
             
-            # Dynamic analyzer container tools (port 2002)
+            # Dynamic analyzer container tools (port 2002) - includes integrated ZAP
             'curl': 'dynamic-analyzer', 'wget': 'dynamic-analyzer', 'nmap': 'dynamic-analyzer',
+            'zap': 'dynamic-analyzer', 'zap-baseline': 'dynamic-analyzer',
             
             # Performance tester container tools (port 2003)
             'ab': 'performance-tester', 'ab-load-test': 'performance-tester', 'apache-bench': 'performance-tester',
@@ -440,6 +446,13 @@ class AnalysisOrchestrator:
 
     def _run_via_container(self, service_name: str, model_slug: str, app_number: int, tools: List[str]) -> Dict[str, Any]:
         """Delegate execution to analyzer containers via analyzer_integration subprocess bridge."""
+        
+        # For dynamic analysis, provide default tools if none specified
+        if service_name == 'dynamic-analyzer' and not tools:
+            # Default to available dynamic tools: curl for connectivity, nmap for ports, zap for security
+            tools = ['curl', 'nmap', 'zap']
+            logger.info(f"Dynamic analysis: no tools specified, using default tools: {tools}")
+        
         # Route based on service name
         if service_name == 'static-analyzer':
             return analyzer_bridge.analysis_executor.run_static_analysis(model_slug, app_number, tools=tools)
@@ -524,8 +537,9 @@ class AnalysisOrchestrator:
             'snyk': 'static-analyzer', 'eslint': 'static-analyzer', 'jshint': 'static-analyzer',
             'stylelint': 'static-analyzer', 'vulture': 'static-analyzer',
             
-            # Dynamic analyzer container tools
+            # Dynamic analyzer container tools (includes integrated ZAP)
             'curl': 'dynamic-analyzer', 'wget': 'dynamic-analyzer', 'nmap': 'dynamic-analyzer',
+            'zap': 'dynamic-analyzer', 'zap-baseline': 'dynamic-analyzer',
             
             # Performance tester container tools
             'ab': 'performance-tester', 'artillery': 'performance-tester', 'aiohttp': 'performance-tester', 

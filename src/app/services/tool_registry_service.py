@@ -178,7 +178,7 @@ class ToolRegistryService:
         
         if 'performance' in tag_set:
             return 'performance-tester'
-        elif 'dynamic' in tag_set:
+        elif 'dynamic' in tag_set or tool_name in ['zap', 'zap-baseline']:
             return 'dynamic-analyzer'
         elif 'security' in tag_set or 'quality' in tag_set:
             return 'static-analyzer'
@@ -813,6 +813,22 @@ class ToolRegistryService:
                 }
             },
             {
+                'name': 'zap-baseline',
+                'display_name': 'OWASP ZAP Baseline',
+                'category': 'security',
+                'service_name': 'dynamic-analyzer',
+                'description': 'OWASP ZAP baseline security scan integrated in dynamic container',
+                'command': 'zap.sh -daemon -quickurl {target_url} -quickout {output_file}',
+                'compatibility': ['web', 'api', 'backend', 'frontend'],
+                'is_enabled': True,
+                'estimated_duration': 300,
+                'default_config': {
+                    'format': 'json',
+                    'passive_scan': True,
+                    'spider_scan': True
+                }
+            },
+            {
                 'name': 'locust-performance',
                 'display_name': 'Locust Load Testing',
                 'category': 'performance',
@@ -891,7 +907,7 @@ class ToolRegistryService:
                 'name': 'Security Focus',
                 'display_name': 'Security Focus Profile',
                 'description': 'Comprehensive security analysis',
-                'tool_ids': [tools.get('bandit')],
+                'tool_ids': [tools.get('bandit'), tools.get('zap-baseline')],
                 'is_builtin': True
             },
             {

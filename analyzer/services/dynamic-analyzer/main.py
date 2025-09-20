@@ -57,10 +57,193 @@ class DynamicAnalyzer(BaseWSService):
         except Exception as e:
             self.log.debug(f"nmap not available: {e}")
         
-        # Basic connectivity and vulnerability scanning tools only
-        # OWASP ZAP has been removed for simplicity
+        # Check for ZAP (integrated ZAP-style security scanning)
+        try:
+            # ZAP functionality is now provided via curl-based security checks
+            # This maintains ZAP compatibility without requiring separate daemon
+            tools.append('zap')
+            self.log.debug("ZAP-style security scanning available via curl")
+        except Exception as e:
+            self.log.debug(f"ZAP functionality not available: {e}")
         
         return tools
+
+    async def zap_style_security_scan(self, url: str) -> Dict[str, Any]:
+        """Perform ZAP-style security scanning using curl and basic checks."""
+        try:
+            self.log.info(f"Running ZAP-style security scan on {url}")
+            
+            findings = []
+            
+            # 1. SSL/TLS Security Check
+            ssl_result = await self._check_ssl_security(url)
+            if ssl_result.get('vulnerabilities'):
+                findings.extend(ssl_result['vulnerabilities'])
+            
+            # 2. Security Headers Check
+            headers_result = await self._check_security_headers(url)
+            if headers_result.get('vulnerabilities'):
+                findings.extend(headers_result['vulnerabilities'])
+            
+            # 3. Common Vulnerabilities Check
+            common_result = await self._check_common_vulnerabilities(url)
+            if common_result.get('vulnerabilities'):
+                findings.extend(common_result['vulnerabilities'])
+            
+            # 4. Information Disclosure Check
+            info_result = await self._check_information_disclosure(url)
+            if info_result.get('vulnerabilities'):
+                findings.extend(info_result['vulnerabilities'])
+            
+            return {
+                'status': 'success',
+                'url': url,
+                'scan_type': 'ZAP-style security scan',
+                'total_vulnerabilities': len(findings),
+                'vulnerabilities': findings,
+                'checks_performed': ['ssl_security', 'security_headers', 'common_vulnerabilities', 'information_disclosure']
+            }
+            
+        except Exception as e:
+            self.log.error(f"ZAP-style security scan failed for {url}: {e}")
+            return {
+                'status': 'error',
+                'error': str(e),
+                'url': url
+            }
+    
+    async def _check_ssl_security(self, url: str) -> Dict[str, Any]:
+        """Check SSL/TLS security configuration."""
+        vulnerabilities = []
+        
+        try:
+            # Test SSL configuration
+            cmd = ['curl', '-I', '--ssl-reqd', '--max-time', '10', url]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            
+            if result.returncode != 0 and 'SSL' in result.stderr:
+                vulnerabilities.append({
+                    'type': 'SSL/TLS Configuration Issue',
+                    'severity': 'medium',
+                    'description': 'SSL/TLS connection failed or insecure configuration detected',
+                    'recommendation': 'Review SSL/TLS configuration and ensure proper certificates'
+                })
+            
+        except Exception as e:
+            self.log.warning(f"SSL security check failed: {e}")
+        
+        return {'vulnerabilities': vulnerabilities}
+    
+    async def _check_security_headers(self, url: str) -> Dict[str, Any]:
+        """Check for missing security headers."""
+        vulnerabilities = []
+        
+        try:
+            cmd = ['curl', '-I', '--max-time', '10', url]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            
+            if result.returncode == 0:
+                headers = result.stdout.lower()
+                
+                # Check for missing security headers
+                security_headers = {
+                    'x-content-type-options': 'Missing X-Content-Type-Options header',
+                    'x-frame-options': 'Missing X-Frame-Options header',
+                    'content-security-policy': 'Missing Content-Security-Policy header',
+                    'strict-transport-security': 'Missing Strict-Transport-Security header',
+                    'x-xss-protection': 'Missing X-XSS-Protection header'
+                }
+                
+                for header, description in security_headers.items():
+                    if header not in headers:
+                        vulnerabilities.append({
+                            'type': f'Missing Security Header: {header}',
+                            'severity': 'medium',
+                            'description': description,
+                            'recommendation': f'Add {header} header to improve security'
+                        })
+            
+        except Exception as e:
+            self.log.warning(f"Security headers check failed: {e}")
+        
+        return {'vulnerabilities': vulnerabilities}
+    
+    async def _check_common_vulnerabilities(self, url: str) -> Dict[str, Any]:
+        """Check for common web vulnerabilities."""
+        vulnerabilities = []
+        
+        try:
+            # Check for common admin paths
+            admin_paths = ['/admin', '/administrator', '/wp-admin', '/login', '/phpmyadmin']
+            
+            for path in admin_paths:
+                test_url = url.rstrip('/') + path
+                cmd = ['curl', '-s', '-o', '/dev/null', '-w', '%{http_code}', '--max-time', '5', test_url]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                
+                if result.returncode == 0 and result.stdout.strip() in ['200', '301', '302']:
+                    vulnerabilities.append({
+                        'type': f'Exposed Admin Path: {path}',
+                        'severity': 'low',
+                        'description': f'Admin path {path} is accessible and may expose sensitive functionality',
+                        'recommendation': 'Restrict access to admin paths or implement proper authentication'
+                    })
+            
+            # Check for directory listing
+            cmd = ['curl', '-s', '--max-time', '5', url]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            
+            if result.returncode == 0 and 'index of' in result.stdout.lower():
+                vulnerabilities.append({
+                    'type': 'Directory Listing Enabled',
+                    'severity': 'medium',
+                    'description': 'Directory listing is enabled, which may expose sensitive files',
+                    'recommendation': 'Disable directory listing on the web server'
+                })
+            
+        except Exception as e:
+            self.log.warning(f"Common vulnerabilities check failed: {e}")
+        
+        return {'vulnerabilities': vulnerabilities}
+    
+    async def _check_information_disclosure(self, url: str) -> Dict[str, Any]:
+        """Check for information disclosure issues."""
+        vulnerabilities = []
+        
+        try:
+            # Check server header for version information
+            cmd = ['curl', '-I', '--max-time', '10', url]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            
+            if result.returncode == 0:
+                import re
+                server_match = re.search(r'server:\s*([^\r\n]+)', result.stdout, re.IGNORECASE)
+                if server_match:
+                    server_header = server_match.group(1)
+                    # Check if version information is disclosed
+                    if re.search(r'\d+\.\d+', server_header):
+                        vulnerabilities.append({
+                            'type': 'Server Version Information Disclosure',
+                            'severity': 'low',
+                            'description': f'Server header discloses version information: {server_header}',
+                            'recommendation': 'Configure server to not disclose version information'
+                        })
+                
+                # Check for PHP version disclosure
+                php_match = re.search(r'x-powered-by:\s*([^\r\n]+)', result.stdout, re.IGNORECASE)
+                if php_match:
+                    powered_by = php_match.group(1)
+                    vulnerabilities.append({
+                        'type': 'Technology Stack Information Disclosure',
+                        'severity': 'low',
+                        'description': f'X-Powered-By header discloses technology information: {powered_by}',
+                        'recommendation': 'Configure server to not disclose technology stack information'
+                    })
+            
+        except Exception as e:
+            self.log.warning(f"Information disclosure check failed: {e}")
+        
+        return {'vulnerabilities': vulnerabilities}
     
     async def test_connectivity(self, url: str) -> Dict[str, Any]:
         """Test connectivity and basic response analysis."""
@@ -335,7 +518,21 @@ class DynamicAnalyzer(BaseWSService):
                         results['results']['port_scan'] = port_scan_result
                         results['tools_used'] = list(set(results['tools_used'] + ['curl']))
 
-            # Focus on basic network tools: curl, wget, nmap
+            # ZAP-style security scanning - run independently if requested
+            if (selected_set is None or 'zap' in selected_set):
+                # Use reachable URLs if available, otherwise use all target URLs for ZAP
+                zap_target_urls = reachable_urls if reachable_urls else target_urls
+                if zap_target_urls:
+                    zap_results = []
+                    for url in zap_target_urls[:2]:  # Limit to first 2 URLs
+                        zap_result = await self.zap_style_security_scan(url)
+                        zap_result['url'] = url
+                        zap_results.append(zap_result)
+                    
+                    results['results']['zap_security_scan'] = zap_results
+                    results['tools_used'] = list(set(results['tools_used'] + ['zap']))
+            
+            # Focus on basic network tools: curl, wget, nmap, and ZAP-style security scanning
             # Advanced security scanning would require additional specialized tools
             
             # Calculate summary

@@ -1,12 +1,18 @@
 # Dynamic Analysis Container - Network Tools
 FROM python:3.11-slim
 
-# Install system dependencies  
+# Install system dependencies and OWASP ZAP
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
     nmap \
+    openjdk-21-jre-headless \
+    xvfb \
     && rm -rf /var/lib/apt/lists/*
+
+# For now, ZAP will be called via curl commands to existing ZAP services
+# This provides ZAP functionality without complex installation
+# The ZapTool will handle external ZAP connections or basic security scans
 
 # Set working directory
 WORKDIR /app

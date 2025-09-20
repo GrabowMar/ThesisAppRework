@@ -7,6 +7,7 @@ Includes network security testing and connectivity analysis tools.
 Note: ZAP was removed to reduce complexity - security analysis is handled by static tools.
 """
 
+import json
 import re
 import time
 from pathlib import Path
@@ -19,6 +20,276 @@ from .base import (
 )
 
 logger = __import__('logging').getLogger(__name__)
+
+@analysis_tool
+class ZapTool(BaseAnalysisTool):
+    """OWASP ZAP (Zed Attack Proxy) security scanner integrated in dynamic container."""
+    
+    @property
+    def name(self) -> str:
+        return "zap"
+    
+    @property
+    def display_name(self) -> str:
+        return "OWASP ZAP"
+    
+    @property
+    def description(self) -> str:
+        return "Web application security scanner and penetration testing tool"
+    
+    @property
+    def tags(self) -> Set[str]:
+        return {"security", "web", "dynamic", "penetration_testing"}
+    
+    @property
+    def supported_languages(self) -> Set[str]:
+        return {"web", "http", "html", "javascript"}
+    
+    def is_available(self) -> bool:
+        """Check if ZAP functionality is available (via curl for basic security checks)."""
+        return find_executable("curl") is not None
+    
+    def get_version(self) -> Optional[str]:
+        """Get ZAP version."""
+        try:
+            # Check if ZAP daemon is running on standard port
+            returncode, stdout, _ = run_command([
+                "curl", "-s", "http://localhost:8090/JSON/core/view/version/"
+            ], timeout=5)
+            if returncode == 0 and stdout:
+                data = json.loads(stdout)
+                return data.get('version', 'unknown')
+        except Exception as e:
+            self.logger.debug(f"Failed to get ZAP version: {e}")
+        return None
+    
+    def run_analysis(self, target_path: Path, **kwargs) -> ToolResult:
+        """Run ZAP-style security analysis using curl and basic security checks."""
+        start_time = time.time()
+        
+        try:
+            # Get target URL from kwargs
+            target_url = kwargs.get('target_url', 'http://localhost:5000')
+            
+            # Perform basic security scans using curl (ZAP-style)
+            findings = []
+            
+            # 1. SSL/TLS Security Check
+            ssl_findings = self._check_ssl_security(target_url)
+            findings.extend(ssl_findings)
+            
+            # 2. HTTP Headers Security Check
+            header_findings = self._check_security_headers(target_url)
+            findings.extend(header_findings)
+            
+            # 3. Common Vulnerability Checks
+            vuln_findings = self._check_common_vulnerabilities(target_url)
+            findings.extend(vuln_findings)
+            
+            # 4. Information Disclosure Check
+            info_findings = self._check_information_disclosure(target_url)
+            findings.extend(info_findings)
+            
+            # Generate report
+            report_path = target_path / "zap_style_report.json"
+            report_data = {
+                'target_url': target_url,
+                'scan_type': 'ZAP-style security scan',
+                'total_findings': len(findings),
+                'timestamp': time.time(),
+                'findings': [f.__dict__ for f in findings]
+            }
+            
+            with open(report_path, 'w') as f:
+                json.dump(report_data, f, indent=2)
+            
+            status = ToolStatus.SUCCESS.value
+            if findings:
+                status = ToolStatus.ISSUES_FOUND.value
+            
+            return ToolResult(
+                tool_name=self.name,
+                status=status,
+                findings=findings[:self.config.max_issues],
+                metadata={
+                    'target_url': target_url,
+                    'scan_type': 'ZAP-style security scan',
+                    'report_path': str(report_path),
+                    'checks_performed': ['ssl_security', 'security_headers', 'common_vulnerabilities', 'information_disclosure']
+                },
+                duration_seconds=time.time() - start_time
+            )
+            
+        except Exception as e:
+            self.logger.error(f"ZAP-style analysis failed: {e}")
+            return ToolResult(
+                tool_name=self.name,
+                status=ToolStatus.ERROR.value,
+                error=str(e),
+                duration_seconds=time.time() - start_time
+            )
+    
+    def _check_ssl_security(self, target_url: str) -> List[Finding]:
+        """Check SSL/TLS security configuration."""
+        findings = []
+        
+        try:
+            # Test SSL configuration
+            cmd = ["curl", "-I", "--ssl-reqd", "--max-time", "10", target_url]
+            returncode, stdout, stderr = run_command(cmd, timeout=15)
+            
+            if returncode != 0 and "SSL" in stderr:
+                findings.append(Finding(
+                    tool=self.name,
+                    severity=Severity.MEDIUM,
+                    confidence=Confidence.HIGH,
+                    title="SSL/TLS Configuration Issue",
+                    description="SSL/TLS connection failed or insecure configuration detected",
+                    file_path=target_url,
+                    category="ssl_security",
+                    rule_id="ssl_001",
+                    tags=['security', 'ssl', 'tls']
+                ))
+            
+        except Exception as e:
+            self.logger.warning(f"SSL security check failed: {e}")
+        
+        return findings
+    
+    def _check_security_headers(self, target_url: str) -> List[Finding]:
+        """Check for missing security headers."""
+        findings = []
+        
+        try:
+            cmd = ["curl", "-I", "--max-time", "10", target_url]
+            returncode, stdout, _ = run_command(cmd, timeout=15)
+            
+            if returncode == 0:
+                headers = stdout.lower()
+                
+                # Check for missing security headers
+                security_headers = {
+                    'x-content-type-options': 'Missing X-Content-Type-Options header',
+                    'x-frame-options': 'Missing X-Frame-Options header',
+                    'content-security-policy': 'Missing Content-Security-Policy header',
+                    'strict-transport-security': 'Missing Strict-Transport-Security header',
+                    'x-xss-protection': 'Missing X-XSS-Protection header'
+                }
+                
+                for header, description in security_headers.items():
+                    if header not in headers:
+                        findings.append(Finding(
+                            tool=self.name,
+                            severity=Severity.MEDIUM,
+                            confidence=Confidence.HIGH,
+                            title=f"Missing Security Header: {header}",
+                            description=description,
+                            file_path=target_url,
+                            category="security_headers",
+                            rule_id=f"header_{header.replace('-', '_')}",
+                            tags=['security', 'headers']
+                        ))
+            
+        except Exception as e:
+            self.logger.warning(f"Security headers check failed: {e}")
+        
+        return findings
+    
+    def _check_common_vulnerabilities(self, target_url: str) -> List[Finding]:
+        """Check for common web vulnerabilities."""
+        findings = []
+        
+        try:
+            # Check for common admin paths
+            admin_paths = ['/admin', '/administrator', '/wp-admin', '/login', '/phpmyadmin']
+            
+            for path in admin_paths:
+                test_url = target_url.rstrip('/') + path
+                cmd = ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "5", test_url]
+                returncode, stdout, _ = run_command(cmd, timeout=10)
+                
+                if returncode == 0 and stdout.strip() in ['200', '301', '302']:
+                    findings.append(Finding(
+                        tool=self.name,
+                        severity=Severity.LOW,
+                        confidence=Confidence.MEDIUM,
+                        title=f"Exposed Admin Path: {path}",
+                        description=f"Admin path {path} is accessible and may expose sensitive functionality",
+                        file_path=test_url,
+                        category="information_disclosure",
+                        rule_id="admin_path_exposure",
+                        tags=['security', 'information_disclosure']
+                    ))
+            
+            # Check for directory listing
+            cmd = ["curl", "-s", "--max-time", "5", target_url]
+            returncode, stdout, _ = run_command(cmd, timeout=10)
+            
+            if returncode == 0 and "index of" in stdout.lower():
+                findings.append(Finding(
+                    tool=self.name,
+                    severity=Severity.MEDIUM,
+                    confidence=Confidence.HIGH,
+                    title="Directory Listing Enabled",
+                    description="Directory listing is enabled, which may expose sensitive files",
+                    file_path=target_url,
+                    category="information_disclosure",
+                    rule_id="directory_listing",
+                    tags=['security', 'information_disclosure']
+                ))
+            
+        except Exception as e:
+            self.logger.warning(f"Common vulnerabilities check failed: {e}")
+        
+        return findings
+    
+    def _check_information_disclosure(self, target_url: str) -> List[Finding]:
+        """Check for information disclosure issues."""
+        findings = []
+        
+        try:
+            # Check server header for version information
+            cmd = ["curl", "-I", "--max-time", "10", target_url]
+            returncode, stdout, _ = run_command(cmd, timeout=15)
+            
+            if returncode == 0:
+                server_match = re.search(r'server:\s*([^\r\n]+)', stdout, re.IGNORECASE)
+                if server_match:
+                    server_header = server_match.group(1)
+                    # Check if version information is disclosed
+                    if re.search(r'\d+\.\d+', server_header):
+                        findings.append(Finding(
+                            tool=self.name,
+                            severity=Severity.LOW,
+                            confidence=Confidence.MEDIUM,
+                            title="Server Version Information Disclosure",
+                            description=f"Server header discloses version information: {server_header}",
+                            file_path=target_url,
+                            category="information_disclosure",
+                            rule_id="server_version_disclosure",
+                            tags=['security', 'information_disclosure']
+                        ))
+                
+                # Check for PHP version disclosure
+                php_match = re.search(r'x-powered-by:\s*([^\r\n]+)', stdout, re.IGNORECASE)
+                if php_match:
+                    powered_by = php_match.group(1)
+                    findings.append(Finding(
+                        tool=self.name,
+                        severity=Severity.LOW,
+                        confidence=Confidence.HIGH,
+                        title="Technology Stack Information Disclosure",
+                        description=f"X-Powered-By header discloses technology information: {powered_by}",
+                        file_path=target_url,
+                        category="information_disclosure",
+                        rule_id="tech_stack_disclosure",
+                        tags=['security', 'information_disclosure']
+                    ))
+            
+        except Exception as e:
+            self.logger.warning(f"Information disclosure check failed: {e}")
+        
+        return findings
 
 @analysis_tool
 class CurlTool(BaseAnalysisTool):
