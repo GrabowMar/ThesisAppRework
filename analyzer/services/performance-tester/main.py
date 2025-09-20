@@ -97,7 +97,7 @@ class PerformanceTester(BaseWSService):
             
             for test_url in test_urls:
                 try:
-                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
                         async with session.get(test_url) as response:
                             if response.status < 500:  # Accept anything that's not a server error
                                 successful_url = test_url
@@ -139,15 +139,18 @@ class PerformanceTester(BaseWSService):
             requests = ab_config.get('requests', 100)
             concurrency = ab_config.get('concurrency', 10)
             
-            self.log.info(f"Running Apache Bench: {requests} requests, {concurrency} concurrent on {url}")
-            await self.send_progress('ab_start', f'Apache Bench starting: {url}', 
+            # Apache Bench requires a path component - ensure URL has trailing slash
+            ab_url = url.rstrip('/') + '/'
+            
+            self.log.info(f"Running Apache Bench: {requests} requests, {concurrency} concurrent on {ab_url}")
+            await self.send_progress('ab_start', f'Apache Bench starting: {ab_url}', 
                                    requests=requests, concurrency=concurrency)
             
             # Build command
-            cmd = ['ab', '-n', str(requests), '-c', str(concurrency), '-g', 'ab_results.tsv', url]
+            cmd = ['ab', '-n', str(requests), '-c', str(concurrency), '-g', 'ab_results.tsv', ab_url]
             
-            # Run test
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=str(self.test_output_dir))
+            # Run test with extended timeout for performance tests
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, cwd=str(self.test_output_dir))
             
             if result.returncode == 0:
                 # Parse results from stdout
@@ -158,17 +161,17 @@ class PerformanceTester(BaseWSService):
                 metrics.update({
                     'status': 'success',
                     'tool': 'apache_bench',
-                    'url': url,
+                    'url': ab_url,
                     'configuration': {'requests': requests, 'concurrency': concurrency}
                 })
                 
-                await self.send_progress('ab_complete', f'Apache Bench completed: {url}', 
+                await self.send_progress('ab_complete', f'Apache Bench completed: {ab_url}', 
                                        rps=metrics.get('requests_per_second', 0))
                 return metrics
             else:
                 error_msg = result.stderr or "Apache Bench failed"
                 self.log.error(f"Apache Bench failed: {error_msg}")
-                return {'status': 'error', 'tool': 'apache_bench', 'error': error_msg, 'url': url}
+                return {'status': 'error', 'tool': 'apache_bench', 'error': error_msg, 'url': ab_url}
                 
         except subprocess.TimeoutExpired:
             return {'status': 'timeout', 'tool': 'apache_bench', 'error': 'Test timed out', 'url': url}
@@ -256,8 +259,8 @@ class SimpleUser(HttpUser):
                 '--csv', csv_prefix
             ]
             
-            # Run test
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=str(self.test_output_dir))
+            # Run test with extended timeout for performance tests
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=900, cwd=str(self.test_output_dir))
             
             if result.returncode == 0:
                 # Parse CSV results
@@ -341,7 +344,7 @@ class SimpleUser(HttpUser):
                         errors.append(str(e))
                         return False
             
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=120)) as session:
                 tasks = [single_request(session) for _ in range(requests)]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
             
@@ -469,25 +472,34 @@ class SimpleUser(HttpUser):
     async def handle_message(self, websocket, message_data):
         """Handle incoming WebSocket messages."""
         try:
+            # Accept both legacy and new message types for compatibility
             message_type = message_data.get('type')
-            
-            if message_type == 'performance_analysis':
+            if message_type in ['performance_test', 'performance_analysis']:
                 model_slug = message_data.get('model_slug', 'unknown')
                 app_number = message_data.get('app_number', 0)
-                target_urls = message_data.get('target_urls', [])
-                config = message_data.get('config', {})
-                selected_tools = message_data.get('selected_tools', [])
                 
-                self.log.info(f"Received performance analysis request for {model_slug} app {app_number}")
+                # Handle both target_urls (new format) and target_url (legacy format)
+                target_urls = message_data.get('target_urls', [])
+                if not target_urls and message_data.get('target_url'):
+                    target_urls = [message_data.get('target_url')]
+                
+                # Handle tools field from analyzer_manager
+                selected_tools = message_data.get('tools', message_data.get('selected_tools', []))
+                
+                # Build config from message data
+                config = message_data.get('config', {})
+                if message_data.get('users'):
+                    config.setdefault('locust', {})['users'] = message_data.get('users')
+                if message_data.get('duration'):
+                    config.setdefault('locust', {})['run_time'] = f"{message_data.get('duration')}s"
+                
+                self.log.info(f"Received performance test request for {model_slug} app {app_number}")
                 result = await self.test_application_performance(
                     model_slug, app_number, target_urls, config, selected_tools
                 )
                 
-                await websocket.send(json.dumps({
-                    'type': 'analysis_result',
-                    'id': message_data.get('id'),
-                    'result': result
-                }))
+                # Return result directly (not nested in wrapper)
+                await websocket.send(json.dumps(result))
             
             elif message_type == 'health_check':
                 await websocket.send(json.dumps({

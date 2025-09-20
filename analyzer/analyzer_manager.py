@@ -606,7 +606,10 @@ class AnalyzerManager:
             "id": str(uuid.uuid4())
         }
         
-        return await self.send_websocket_message('performance-tester', message, timeout=duration + 60)
+        # Use longer timeout for performance tests since they can take a while
+        # Use environment variable if set, otherwise calculate based on duration
+        perf_timeout = int(os.environ.get('PERFORMANCE_TIMEOUT', str(max(duration * 2 + 300, 600))))
+        return await self.send_websocket_message('performance-tester', message, timeout=perf_timeout)
     
     async def run_ai_analysis(self, model_slug: str, app_number: int,
                             ai_model: Optional[str] = None, tools: Optional[List[str]] = None) -> Dict[str, Any]:
