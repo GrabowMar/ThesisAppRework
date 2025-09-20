@@ -82,7 +82,7 @@ class ConfigManager:
             services=services,
             source_mount=paths.get('source_mount', '/app/sources'),
             local_generated=paths.get('local_generated', 'src/generated/apps'),
-            results_dir=paths.get('results_dir', 'analyzer/results'),
+            results_dir=paths.get('results_dir', 'results'),
             default_tools=tools,
             valid_tools=valid_tools,
             timeouts=timeouts
@@ -120,7 +120,7 @@ class ConfigManager:
             services=services,
             source_mount=os.environ.get('ANALYZER_SOURCE_MOUNT', '/app/sources'),
             local_generated=os.environ.get('LOCAL_GENERATED_PATH', 'src/generated/apps'),
-            results_dir=os.environ.get('ANALYZER_RESULTS_DIR', 'analyzer/results'),
+            results_dir=os.environ.get('ANALYZER_RESULTS_DIR', 'results'),
             default_tools={
                 'security': ['bandit', 'safety', 'pylint'],
                 'static': ['pylint', 'mypy', 'flake8'],

@@ -24,7 +24,7 @@
   "analyzer_paths": {
     "source_mount": "/app/sources",
     "local_generated": "src/generated/apps",
-    "results_dir": "analyzer/results"
+    "results_dir": "results"
   },
   "default_tools": {
     "security": ["bandit", "safety", "pylint"],

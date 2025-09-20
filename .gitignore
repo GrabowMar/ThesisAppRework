@@ -198,8 +198,8 @@ logs/
 *.log
 *.log.*
 
-# Analyzer results
-analyzer/results/
+# Analysis results
+results/
 
 # Configuration files with sensitive data
 config_local.py

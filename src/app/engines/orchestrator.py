@@ -16,7 +16,7 @@ from .base import (
 )
 from ..utils.json_results_manager import JsonResultsManager
 from ..utils.helpers import get_app_directory
-from ..paths import GENERATED_APPS_DIR
+from ..paths import GENERATED_APPS_DIR, PROJECT_ROOT
 from ..services import analyzer_integration as analyzer_bridge
 import socket
 
@@ -30,12 +30,13 @@ class AnalysisOrchestrator:
         Initialize analysis orchestrator.
         
         Args:
-            base_path: Base path for results storage
+            base_path: Base path for results storage (deprecated, will use PROJECT_ROOT)
         """
         self.registry = get_tool_registry()
-        self.base_path = base_path or Path.cwd()
+        # Always use PROJECT_ROOT to ensure consistent results location
+        self.base_path = PROJECT_ROOT
         # Store under project-root results directory
-        self.results_manager = JsonResultsManager(self.base_path / "results", "analysis")
+        self.results_manager = JsonResultsManager(PROJECT_ROOT / "results", "analysis")
         
     def discover_tools(self) -> Dict[str, Any]:
         """Discover available tools on the system."""

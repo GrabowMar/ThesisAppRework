@@ -34,7 +34,7 @@ Celery task definitions; gating logic uses `DISABLED_ANALYSIS_MODELS` env to ear
 ORM models (capabilities, generated apps, analyses). Large analyzer outputs stored in JSON columns; parsing deferred to services.
 
 ## Analyzer Stack (`analyzer/`)
-`docker-compose.yml` defines: gateway (8765), static-analyzer (2001), dynamic-analyzer (2002), performance-tester (2003), ai-analyzer (2004), redis (6379). Results persisted under per-service volumes and/or `analyzer/results/`.
+`docker-compose.yml` defines: gateway (8765), static-analyzer (2001), dynamic-analyzer (2002), performance-tester (2003), ai-analyzer (2004), redis (6379). Results persisted under per-service volumes and/or `results/`.
 
 ## Generated Applications (`generated/`)
 Layout: `generated/<model_slug>/app<number>/` (slug keeps hyphens). Ports resolved primarily via DB (`PortConfiguration`); fallback JSON only if absent. Compose files built via `scripts/build_start_app.py`.
