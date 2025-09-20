@@ -4,12 +4,12 @@ Dynamic Analyzer Service - Web Application Security Scanner
 ==========================================================
 
 Refactored to use BaseWSService with strict tool selection gating.
-Connects to separate OWASP ZAP container for vulnerability scanning.
+Provides connectivity testing and basic vulnerability scanning.
+OWASP ZAP integration has been removed for simplicity.
 """
 
 import asyncio
 import json
-import os
 import subprocess
 from datetime import datetime
 from typing import Dict, List, Any, Optional
@@ -18,7 +18,7 @@ from analyzer.shared.service_base import BaseWSService
 
 
 class DynamicAnalyzer(BaseWSService):
-    """Dynamic web application security analyzer with ZAP integration."""
+    """Dynamic web application security analyzer with connectivity testing and basic vulnerability scanning."""
     
     def __init__(self):
         super().__init__(service_name="dynamic-analyzer", default_port=2002, version="1.0.0")
@@ -56,15 +56,9 @@ class DynamicAnalyzer(BaseWSService):
                 self.log.debug("nmap available")
         except Exception as e:
             self.log.debug(f"nmap not available: {e}")
-        # Check for OWASP ZAP (removed for simplicity)
-        # ZAP adds complexity and we have other security tools in static analyzer
-        # If ZAP is needed later, it can be added as a separate container
-        # try:
-        #     __import__('zapv2')  # type: ignore
-        #     tools.append('zap')
-        #     self.log.debug("ZAP client library available")
-        # except Exception as e:
-        #     self.log.debug(f"ZAP client not available: {e}")
+        
+        # Basic connectivity and vulnerability scanning tools only
+        # OWASP ZAP has been removed for simplicity
         
         return tools
     
@@ -291,8 +285,8 @@ class DynamicAnalyzer(BaseWSService):
                 if result.get('status') == 'success' and result.get('analysis', {}).get('reachable'):
                     reachable_urls.append(target_urls[i])
 
-            # If only ZAP was selected and we skipped connectivity, still attempt ZAP on provided targets
-            if (selected_set is not None and 'zap' in selected_set) and not connectivity_results:
+            # If we skipped connectivity checks, attempt vulnerability scanning on provided targets
+            if not connectivity_results and target_urls:
                 reachable_urls = list(target_urls)
             
             # Vulnerability scanning on reachable URLs
@@ -341,9 +335,8 @@ class DynamicAnalyzer(BaseWSService):
                         results['results']['port_scan'] = port_scan_result
                         results['tools_used'] = list(set(results['tools_used'] + ['curl']))
 
-            # Remove ZAP scanning to reduce complexity
             # Focus on basic network tools: curl, wget, nmap
-            # ZAP can be added later as a separate specialized container if needed
+            # Advanced security scanning would require additional specialized tools
             
             # Calculate summary
             total_vulnerabilities = 0

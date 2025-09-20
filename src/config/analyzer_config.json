@@ -30,14 +30,16 @@
     "security": ["bandit", "safety", "pylint"],
     "static": ["pylint", "mypy", "flake8"],
     "performance": ["ab", "wrk"],
-    "dynamic": ["selenium", "playwright"]
+    "dynamic": ["curl", "wget", "nmap"],
+    "ai": ["requirements-scanner"]
   },
   "valid_tools": {
-    "all": ["bandit", "safety", "pylint", "eslint", "npm_audit", "semgrep", "snyk", "mypy", "flake8", "ab", "wrk", "selenium", "playwright"],
+    "all": ["bandit", "safety", "pylint", "eslint", "npm_audit", "semgrep", "snyk", "mypy", "flake8", "ab", "wrk", "curl", "wget", "nmap", "requirements-scanner"],
     "security": ["bandit", "safety", "pylint", "eslint", "npm_audit", "semgrep", "snyk"],
     "static": ["pylint", "mypy", "flake8", "eslint"],
     "performance": ["ab", "wrk"],
-    "dynamic": ["selenium", "playwright"]
+    "dynamic": ["curl", "wget", "nmap"],
+    "ai": ["requirements-scanner", "requirements-analyzer", "gpt4all-requirements", "openrouter-requirements"]
   },
   "analysis_timeouts": {
     "default": 300,

@@ -190,19 +190,19 @@ class AIAnalyzer(BaseWSService):
     
     def _detect_available_tools(self) -> List[str]:
         """Detect available AI analysis tools."""
-        tools = ["ai-review", "ai-code-review"]  # Always available as core AI analysis tools
+        tools = ["requirements-scanner", "requirements-analyzer"]  # Core requirements analysis tools
         
         # Check GPT4All availability
         try:
             import importlib.util
             if importlib.util.find_spec("aiohttp"):
-                tools.append("gpt4all")
+                tools.append("gpt4all-requirements")
         except ImportError:
             pass
         
         # Check OpenRouter availability
         if self.openrouter_api_key:
-            tools.append("openrouter")
+            tools.append("openrouter-requirements")
         
         print(f"[ai-analyzer] Available tools: {tools}")
         return tools
@@ -493,7 +493,7 @@ Focus on whether the functionality described in the requirement is actually impl
                 config = message_data.get("config", None)
                 analysis_id = message_data.get("id")
                 # Tool selection normalized
-                tools = list(self.extract_selected_tools(message_data) or ["ai-review"])
+                tools = list(self.extract_selected_tools(message_data) or ["requirements-scanner"])
                 
                 self.log.info(f"Starting AI analysis for {model_slug} app {app_number}")
                 if config:

@@ -10,7 +10,7 @@ Features:
 - Docker container management (start, stop, restart, status)
 - Real-time WebSocket communication with analyzer services
 - Batch analysis capabilities
-- Security scanning (Bandit, Safety, OWASP ZAP)
+- Security scanning (Bandit, Safety, Static Analysis)
 - Performance testing (Locust-based load testing)
 - AI-powered code analysis (OpenRouter integration)
 - Static code analysis (PyLint, ESLint, etc.)
@@ -537,8 +537,8 @@ class AnalyzerManager:
     async def run_dynamic_analysis(self, model_slug: str, app_number: int,
                                   target_urls: Optional[List[str]] = None,
                                   tools: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Run dynamic (ZAP-like) analysis against running app endpoints."""
-        logger.info(f"🕷️  Running dynamic (ZAP) analysis on {model_slug} app {app_number}")
+        """Run dynamic analysis against running app endpoints."""
+        logger.info(f"🕷️  Running dynamic analysis on {model_slug} app {app_number}")
         resolved_urls: List[str] = []
         if target_urls:
             resolved_urls = list(target_urls)
@@ -1086,7 +1086,7 @@ CONTAINER MANAGEMENT:
 
 ANALYSIS OPERATIONS:
     analyze <model> <app> [type]     Run analysis on specific app
-                                                                     Types: comprehensive, security, static, performance, dynamic (zap), ai
+                                                                     Types: comprehensive, security, static, performance, dynamic, ai
   
   batch <models_file>              Run batch analysis from JSON file
                                    Format: [["model1", 1], ["model2", 2], ...]
