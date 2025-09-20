@@ -70,7 +70,7 @@ services:
           memory: 512M
           cpus: '0.25'
 
-  # Dynamic Security Analyzer (OWASP ZAP)
+  # Dynamic Security Analyzer (network tools)
   dynamic-analyzer:
     build:
       context: .
@@ -82,13 +82,8 @@ services:
       - WEBSOCKET_HOST=0.0.0.0
       - WEBSOCKET_PORT=2002
       - PYTHONPATH=/app
-      - ZAP_PORT=8090
-      - ZAP_HOST=zap-daemon
     volumes:
       - dynamic-results:/app/results
-      - zap-data:/zap/data
-    depends_on:
-      - zap-daemon
     healthcheck:
       test: ["CMD", "python", "health_check.py"]
       interval: 30s
@@ -102,11 +97,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
-          cpus: '1.0'
-        reservations:
           memory: 1G
           cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
 
   # Performance Tester (Locust)
   performance-tester:
@@ -176,42 +171,6 @@ services:
           memory: 1G
           cpus: '0.5'
 
-  # OWASP ZAP Daemon (headless)
-  zap-daemon:
-    image: ghcr.io/zaproxy/zaproxy:stable
-    command: [
-      "zap.sh", "-daemon",
-      "-host", "0.0.0.0",
-      "-port", "8090",
-      "-config", "api.addrs.addr.name=.*",
-      "-config", "api.addrs.addr.regex=true",
-      "-config", "api.disablekey=true"
-    ]
-    environment:
-      - JAVA_OPTS=-Xmx2g
-    ports:
-      - "8090:8090"
-    volumes:
-      - zap-data:/home/zap/.ZAP
-    healthcheck:
-      test: ["CMD", "bash", "-lc", "curl -sSf http://localhost:8090/JSON/core/view/version/ > /dev/null"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 20s
-    user: "1000:1000"
-    restart: unless-stopped
-    networks:
-      - analyzer-network
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: '1.0'
-        reservations:
-          memory: 1G
-          cpus: '0.5'
-
   # Redis for caching and task queues
   redis:
     image: redis:7-alpine
@@ -245,8 +204,6 @@ volumes:
   performance-reports:
     driver: local
   ai-results:
-    driver: local
-  zap-data:
     driver: local
   redis-data:
     driver: local

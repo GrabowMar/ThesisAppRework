@@ -118,10 +118,11 @@ class ToolRegistryService:
     def _ensure_engines_imported(self):
         """Ensure all engine modules are imported to register tools."""
         try:
-            # Import all engine modules to trigger tool registration
-            import app.engines.backend_security  # noqa: F401
-            import app.engines.frontend_security  # noqa: F401
-            import app.engines.performance  # noqa: F401
+            # Import all container-based engine modules to trigger tool registration
+            import app.engines.static      # noqa: F401
+            import app.engines.dynamic     # noqa: F401  
+            import app.engines.ai          # noqa: F401
+            import app.engines.performance # noqa: F401
             # Module imports trigger @analysis_tool decorators which register tools
         except ImportError as e:
             logger.warning(f"Failed to import some engine modules: {e}")
@@ -177,7 +178,7 @@ class ToolRegistryService:
         
         if 'performance' in tag_set:
             return 'performance-tester'
-        elif 'dynamic' in tag_set or tool_name in ['zap', 'zap-baseline']:
+        elif 'dynamic' in tag_set:
             return 'dynamic-analyzer'
         elif 'security' in tag_set or 'quality' in tag_set:
             return 'static-analyzer'
@@ -812,22 +813,6 @@ class ToolRegistryService:
                 }
             },
             {
-                'name': 'zap-baseline',
-                'display_name': 'OWASP ZAP Baseline',
-                'category': 'security',
-                'service_name': 'dynamic-analyzer',
-                'description': 'OWASP ZAP baseline security scan',
-                'command': 'zap-baseline.py -t {target_url} -J {output_file}',
-                'compatibility': ['web', 'api', 'backend', 'frontend'],
-                'is_enabled': True,
-                'estimated_duration': 300,
-                'default_config': {
-                    'format': 'json',
-                    'passive_scan': True,
-                    'spider_scan': True
-                }
-            },
-            {
                 'name': 'locust-performance',
                 'display_name': 'Locust Load Testing',
                 'category': 'performance',
@@ -906,7 +891,7 @@ class ToolRegistryService:
                 'name': 'Security Focus',
                 'display_name': 'Security Focus Profile',
                 'description': 'Comprehensive security analysis',
-                'tool_ids': [tools.get('bandit'), tools.get('zap-baseline')],
+                'tool_ids': [tools.get('bandit')],
                 'is_builtin': True
             },
             {

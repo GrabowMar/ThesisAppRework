@@ -1,7 +1,7 @@
-# Dynamic Analysis Container - OWASP ZAP Security Scanner
+# Dynamic Analysis Container - Network Tools
 FROM python:3.11-slim
 
-# Install system dependencies
+# Install system dependencies  
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
@@ -19,15 +19,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Create non-root user
 RUN useradd -u 1000 -m analyzer
-USER analyzer
 
 # Copy shared analyzer package and service code
 COPY --chown=analyzer:analyzer __init__.py ./analyzer/__init__.py
 COPY --chown=analyzer:analyzer shared ./analyzer/shared
 COPY --chown=analyzer:analyzer services/dynamic-analyzer/ .
 
+# Switch to non-root user
+USER analyzer
+
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD python health_check.py
 
 # Expose port

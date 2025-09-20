@@ -129,13 +129,9 @@ class AnalysisOrchestrator:
 
             logger.info(f"Analysis orchestrator: initial tools={tools}, tags={tags}")
 
-            # Normalize tool names (aliases -> canonical); e.g., 'zap-baseline' -> 'zap'
+            # Normalize tool names (aliases -> canonical)
             def _canonical(name: str) -> str:
                 alias_map = {
-                    'zap-baseline': 'zap',
-                    'zap_baseline': 'zap',
-                    'owasp-zap': 'zap',
-                    'owasp_zap': 'zap',
                     # Keep performance tool names as-is for proper mapping
                     'locust-performance': 'locust-performance',
                     'ab-load-test': 'ab-load-test',
@@ -414,7 +410,6 @@ class AnalysisOrchestrator:
         name_mapping = {
             'locust-performance': 'locust',
             'ab-load-test': 'apache-bench',
-            'zap-baseline': 'zap',
             'ai-code-review': 'ai-review',
             # Add other mappings as needed
         }
@@ -423,19 +418,23 @@ class AnalysisOrchestrator:
     def _map_tool_to_service(self, tool_name: str) -> Optional[str]:
         """Map a tool name to its analyzer service."""
         mapping = {
-            # static
+            # Static analyzer container tools (port 2001)
             'bandit': 'static-analyzer', 'safety': 'static-analyzer', 'pylint': 'static-analyzer',
             'mypy': 'static-analyzer', 'flake8': 'static-analyzer', 'semgrep': 'static-analyzer',
             'snyk': 'static-analyzer', 'eslint': 'static-analyzer', 'jshint': 'static-analyzer',
             'stylelint': 'static-analyzer', 'vulture': 'static-analyzer',
-            # dynamic
-            'curl': 'dynamic-analyzer', 'wget': 'dynamic-analyzer', 'nmap': 'dynamic-analyzer', 'zap': 'dynamic-analyzer', 'zap-baseline': 'dynamic-analyzer',
-            # performance - handle both database and dynamic registry naming
+            
+            # Dynamic analyzer container tools (port 2002)
+            'curl': 'dynamic-analyzer', 'wget': 'dynamic-analyzer', 'nmap': 'dynamic-analyzer',
+            
+            # Performance tester container tools (port 2003)
             'ab': 'performance-tester', 'ab-load-test': 'performance-tester', 'apache-bench': 'performance-tester',
             'artillery': 'performance-tester', 'aiohttp': 'performance-tester', 
             'locust': 'performance-tester', 'locust-performance': 'performance-tester',
-            # ai
-            'ai-review': 'ai-analyzer', 'ai': 'ai-analyzer', 'ai-code-review': 'ai-analyzer'
+            
+            # AI analyzer container tools (port 2004)
+            'ai-review': 'ai-analyzer', 'ai': 'ai-analyzer', 'ai-code-review': 'ai-analyzer',
+            'ai-requirements': 'ai-analyzer'
         }
         return mapping.get((tool_name or '').lower())
 
@@ -519,17 +518,21 @@ class AnalysisOrchestrator:
         If multiple categories detected, returns 'comprehensive'. If none, returns None.
         """
         mapping = {
-            # static
+            # Static analyzer container tools
             'bandit': 'static-analyzer', 'safety': 'static-analyzer', 'pylint': 'static-analyzer',
             'mypy': 'static-analyzer', 'flake8': 'static-analyzer', 'semgrep': 'static-analyzer',
             'snyk': 'static-analyzer', 'eslint': 'static-analyzer', 'jshint': 'static-analyzer',
             'stylelint': 'static-analyzer', 'vulture': 'static-analyzer',
-            # dynamic
-            'curl': 'dynamic-analyzer', 'wget': 'dynamic-analyzer', 'nmap': 'dynamic-analyzer', 'zap': 'dynamic-analyzer', 'zap-baseline': 'dynamic-analyzer',
-            # performance
-            'ab': 'performance-tester', 'artillery': 'performance-tester', 'aiohttp': 'performance-tester', 'locust': 'performance-tester',
-            # ai
-            'ai-review': 'ai-analyzer', 'ai': 'ai-analyzer'
+            
+            # Dynamic analyzer container tools
+            'curl': 'dynamic-analyzer', 'wget': 'dynamic-analyzer', 'nmap': 'dynamic-analyzer',
+            
+            # Performance tester container tools
+            'ab': 'performance-tester', 'artillery': 'performance-tester', 'aiohttp': 'performance-tester', 
+            'locust': 'performance-tester', 'apache-bench': 'performance-tester',
+            
+            # AI analyzer container tools
+            'ai-review': 'ai-analyzer', 'ai': 'ai-analyzer', 'ai-requirements': 'ai-analyzer'
         }
         if not tools:
             return None
@@ -539,6 +542,7 @@ class AnalysisOrchestrator:
             return None
         if len(services) == 1:
             return next(iter(services))
+        return 'comprehensive'
         return 'comprehensive'
     
     def _resolve_target_path(self, model_slug: str, app_number: int) -> Path:

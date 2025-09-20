@@ -2,8 +2,8 @@
 Analysis Engines Package
 ========================
 
-New dynamic analysis system with tool-based architecture.
-Replaces the old rigid type-based system with flexible tagging.
+Container-based analysis system with tool-based architecture.
+Organized by analyzer containers: static, dynamic, ai, and performance.
 """
 
 # Import the orchestrator for easy access
@@ -15,10 +15,11 @@ from .base import (
     Severity, Confidence, get_tool_registry, register_tool, analysis_tool
 )
 
-# Import tool implementations to trigger registration
-from . import backend_security
-from . import frontend_security  
-from . import performance
+# Import container-based tool implementations to trigger registration
+from . import static      # Static analyzer container tools  # noqa: F401
+from . import dynamic     # Dynamic analyzer container tools  # noqa: F401
+from . import ai          # AI analyzer container tools  # noqa: F401
+from . import performance # Performance tester container tools  # noqa: F401
 
 __all__ = [
     # Main orchestrator
