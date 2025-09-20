@@ -7,7 +7,7 @@ Organized by analyzer containers: static, dynamic, ai, and performance.
 """
 
 # Import the orchestrator for easy access
-from .orchestrator import AnalysisOrchestrator, get_analysis_orchestrator
+from .orchestrator import AnalysisOrchestrator, get_analysis_orchestrator, reset_analysis_orchestrator
 
 # Import base classes and registry
 from .base import (
@@ -25,6 +25,7 @@ __all__ = [
     # Main orchestrator
     'AnalysisOrchestrator',
     'get_analysis_orchestrator',
+    'reset_analysis_orchestrator',
     
     # Base classes
     'BaseAnalysisTool',

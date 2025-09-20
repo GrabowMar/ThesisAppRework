@@ -50,7 +50,7 @@ services:
       - PYTHONPATH=/app
     volumes:
       - ../src/generated/apps:/app/sources:ro
-      - static-results:/app/results
+      - ../results:/app/results
     healthcheck:
       test: ["CMD", "python", "health_check.py"]
       interval: 30s
@@ -83,7 +83,7 @@ services:
       - WEBSOCKET_PORT=2002
       - PYTHONPATH=/app
     volumes:
-      - dynamic-results:/app/results
+      - ../results:/app/results
     healthcheck:
       test: ["CMD", "python", "health_check.py"]
       interval: 30s
@@ -116,7 +116,7 @@ services:
       - WEBSOCKET_PORT=2003
       - PYTHONPATH=/app
     volumes:
-      - performance-reports:/app/reports
+      - ../results:/app/reports
     healthcheck:
       test: ["CMD", "python", "health_check.py"]
       interval: 30s
@@ -151,7 +151,7 @@ services:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
     volumes:
       - ../src/generated/apps:/app/sources:ro
-      - ai-results:/app/results
+      - ../results:/app/results
     healthcheck:
       test: ["CMD", "python", "health_check.py"]
       interval: 30s
@@ -197,14 +197,6 @@ services:
           cpus: '0.1'
 
 volumes:
-  static-results:
-    driver: local
-  dynamic-results:
-    driver: local
-  performance-reports:
-    driver: local
-  ai-results:
-    driver: local
   redis-data:
     driver: local
 

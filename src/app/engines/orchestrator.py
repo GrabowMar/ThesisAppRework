@@ -676,3 +676,8 @@ def get_analysis_orchestrator(base_path: Optional[Path] = None) -> AnalysisOrche
     if _orchestrator is None:
         _orchestrator = AnalysisOrchestrator(base_path)
     return _orchestrator
+
+def reset_analysis_orchestrator():
+    """Reset the global orchestrator instance to force reinitialization."""
+    global _orchestrator
+    _orchestrator = None
