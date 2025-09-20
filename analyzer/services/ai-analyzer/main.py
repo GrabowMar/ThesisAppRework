@@ -1,617 +1,303 @@
 #!/usr/bin/env python3
 """
-AI Analyzer Service - AI-Powered Code Analysis
-==============================================
+AI Analyzer Service - Requirement-Based Code Analysis
+=====================================================
 
-Refactored to use BaseWSService for uniform server lifecycle and logging.
+AI-powered analyzer that checks if applications meet specific functional requirements
+using GPT4All or OpenRouter APIs. Based on gpt4all_analysis.py logic with static-analyzer structure.
 """
 
 import asyncio
 import json
 import os
+import re
+import time
+import logging
+import sys
+from dataclasses import dataclass, asdict, field
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from pathlib import Path
+from typing import Dict, List, Any, Optional, Tuple
+
+# Add the analyzer directory to Python path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
 from analyzer.shared.service_base import BaseWSService
 import aiohttp
-from pathlib import Path
 
-class AIAnalyzer(BaseWSService):
-    """AI-powered code analysis service."""
-    
-    def __init__(self):
-        super().__init__(service_name="ai-analyzer", default_port=2004, version="1.0.0")
-        self.openrouter_api_key = os.getenv('OPENROUTER_API_KEY')
-        self.default_model = os.getenv('AI_MODEL', 'anthropic/claude-3-haiku')
-        self.available_models = self._get_available_models()
-    
-    def _get_available_models(self) -> List[str]:
-        """Get list of available AI models."""
-        # Common models available on OpenRouter
-        models = [
-            'anthropic/claude-3-haiku',
-            'anthropic/claude-3-sonnet',
-            'openai/gpt-4o-mini',
-            'openai/gpt-3.5-turbo',
-            'meta-llama/llama-3.1-8b-instruct',
-            'google/gemini-flash-1.5'
-        ]
-        self.log.debug(f"Available AI models: {len(models)}")
-        return models
-    
-    async def read_source_files(self, source_path: str) -> Dict[str, str]:
-        """Read source files from application directory."""
-        try:
-            files_content = {}
-            source_dir = Path(source_path)
-            
-            if not source_dir.exists():
-                return files_content
-            
-            # Common source file extensions
-            extensions = ['.py', '.js', '.jsx', '.ts', '.tsx', '.css', '.html', '.json', '.yaml', '.yml', '.md']
-            
-            for ext in extensions:
-                for file_path in source_dir.rglob(f'*{ext}'):
-                    if file_path.is_file() and file_path.stat().st_size < 100000:  # Max 100KB
-                        try:
-                            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                                content = f.read()
-                                relative_path = str(file_path.relative_to(source_dir))
-                                files_content[relative_path] = content
-                        except Exception as e:
-                            self.log.debug(f"Could not read {file_path}: {e}")
-            
-            self.log.debug(f"Read {len(files_content)} source files from {source_path}")
-            return files_content
-            
-        except Exception as e:
-            self.log.error(f"Error reading source files: {e}")
-            return {}
-    
-    async def analyze_with_ai(self, prompt: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Analyze code using AI model via OpenRouter with custom configuration."""
-        # Get configuration parameters
-        openrouter_config = config.get('openrouter', {}) if config else {}
-        
-        try:
-            if not self.openrouter_api_key:
-                return {
-                    'status': 'error',
-                    'error': 'OpenRouter API key not configured'
-                }
-            
-            model_to_use = openrouter_config.get('model', self.default_model)
-            max_tokens = openrouter_config.get('max_tokens', 4000)
-            temperature = openrouter_config.get('temperature', 0.1)
-            top_p = openrouter_config.get('top_p', 1.0)
-            frequency_penalty = openrouter_config.get('frequency_penalty', 0.0)
-            presence_penalty = openrouter_config.get('presence_penalty', 0.0)
-            stop_sequences = openrouter_config.get('stop', [])
-            stream = openrouter_config.get('stream', False)
-            timeout = openrouter_config.get('timeout', 120)
-            
-            headers = {
-                'Authorization': f'Bearer {self.openrouter_api_key}',
-                'Content-Type': 'application/json',
-                'HTTP-Referer': 'http://localhost:2004',
-                'X-Title': 'AI Code Analyzer'
-            }
-            
-            # Add custom headers if specified
-            if openrouter_config.get('custom_headers'):
-                headers.update(openrouter_config['custom_headers'])
-            
-            # Prepare system prompt
-            system_prompt = openrouter_config.get('system_prompt')
-            if not system_prompt:
-                system_prompt = '''You are an expert code analyst. Analyze the provided code for:
-1. Security vulnerabilities and concerns
-2. Code quality issues and improvements
-3. Performance bottlenecks
-4. Best practices violations
-5. Architecture and design patterns
-6. Maintainability concerns
 
-Provide structured analysis with specific recommendations.'''
-            
-            messages = [
-                {
-                    'role': 'system',
-                    'content': system_prompt
-                },
-                {
-                    'role': 'user',
-                    'content': prompt
-                }
-            ]
-            
-            payload = {
-                'model': model_to_use,
-                'messages': messages,
-                'max_tokens': max_tokens,
-                'temperature': temperature,
-                'top_p': top_p,
-                'frequency_penalty': frequency_penalty,
-                'presence_penalty': presence_penalty,
-                'stream': stream
-            }
-            
-            if stop_sequences:
-                payload['stop'] = stop_sequences
-            
-            # Add reasoning parameters if enabled
-            if openrouter_config.get('reasoning_enabled', False):
-                reasoning_config = {
-                    'effort': openrouter_config.get('reasoning_effort', 'medium')
-                }
-                if not openrouter_config.get('include_reasoning', True):
-                    reasoning_config['exclude'] = True
-                payload['reasoning'] = reasoning_config
-            
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
-                async with session.post(
-                    'https://openrouter.ai/api/v1/chat/completions',
-                    headers=headers,
-                    json=payload
-                ) as response:
-                    
-                    if response.status == 200:
-                        result = await response.json()
-                        
-                        if 'choices' in result and len(result['choices']) > 0:
-                            choice = result['choices'][0]
-                            message = choice['message']
-                            analysis_text = message['content']
-                            
-                            # Extract reasoning if present
-                            reasoning = None
-                            if 'reasoning' in message and openrouter_config.get('include_reasoning'):
-                                reasoning = message['reasoning']
-                            
-                            return {
-                                'status': 'success',
-                                'model': model_to_use,
-                                'analysis': analysis_text,
-                                'reasoning': reasoning,
-                                'usage': result.get('usage', {}),
-                                'timestamp': datetime.now().isoformat(),
-                                'config_used': openrouter_config
-                            }
-                        else:
-                            return {
-                                'status': 'error',
-                                'error': 'No response from AI model',
-                                'model': model_to_use,
-                                'config_used': openrouter_config
-                            }
-                    else:
-                        error_text = await response.text()
-                        return {
-                            'status': 'error',
-                            'error': f'API error {response.status}: {error_text}',
-                            'model': model_to_use,
-                            'config_used': openrouter_config
-                        }
-                        
-        except asyncio.TimeoutError:
-            return {
-                'status': 'timeout',
-                'error': 'AI analysis request timed out',
-                'model': openrouter_config.get('model', self.default_model),
-                'config_used': openrouter_config
-            }
-        except Exception as e:
-            return {
-                'status': 'error',
-                'error': str(e),
-                'model': openrouter_config.get('model', self.default_model),
-                'config_used': openrouter_config
-            }
-    
-    async def analyze_with_gpt4all(self, prompt: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Analyze code using local GPT4All model with custom configuration."""
-        gpt4all_config = config.get('gpt4all', {}) if config else {}
-        
-        try:
-            # GPT4All configuration
-            api_url = gpt4all_config.get('api_url', os.getenv('GPT4ALL_API_URL', 'http://localhost:4891/v1'))
-            preferred_model = gpt4all_config.get('preferred_model', 'Llama 3 8B Instruct')
-            max_tokens = gpt4all_config.get('max_tokens', 4000)
-            temperature = gpt4all_config.get('temperature', 0.1)
-            timeout = gpt4all_config.get('timeout', 120)
-            
-            # Available models preference order
-            preferred_models = [
-                "Llama 3 8B Instruct",
-                "DeepSeek-R1-Distill-Qwen-7B", 
-                "Nous Hermes 2 Mistral DPO",
-                "GPT4All Falcon",
-                "Mistral 7B Instruct"
-            ]
-            
-            # Check server availability
-            try:
-                async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15)) as session:
-                    async with session.get(f"{api_url}/models") as response:
-                        if response.status != 200:
-                            return {
-                                'status': 'error',
-                                'error': 'GPT4All server not available',
-                                'config_used': gpt4all_config
-                            }
-                        
-                        models_data = await response.json()
-                        available_models = []
-                        for model in models_data.get('data', []):
-                            if isinstance(model, dict) and 'id' in model:
-                                available_models.append(model['id'])
-                            elif isinstance(model, str):
-                                available_models.append(model)
-                        
-                        # Select best available model
-                        model_to_use = preferred_model
-                        if preferred_model and preferred_model in available_models:
-                            model_to_use = preferred_model
-                        else:
-                            for model in preferred_models:
-                                if model in available_models:
-                                    model_to_use = model
-                                    break
-                            else:
-                                if available_models:
-                                    model_to_use = available_models[0]
-                                else:
-                                    model_to_use = "Llama 3 8B Instruct"
-                        
-                        self.log.info(f"Using GPT4All model: {model_to_use}")
-                        
-            except Exception as e:
-                return {
-                    'status': 'error',
-                    'error': f'Failed to connect to GPT4All server: {str(e)}',
-                    'config_used': gpt4all_config
-                }
-            
-            # Prepare system prompt for code analysis
-            system_prompt = gpt4all_config.get('system_prompt', '''You are an expert code reviewer focused on determining if code meets specific requirements.
-Analyze the provided code and determine if it satisfies the given requirement.
-Focus on concrete evidence in the code, not assumptions.
-Some code may be summarized or simplified - look for key patterns and functionality.
-Respond with JSON containing only the following fields:
-{
-  "met": true/false,
-  "confidence": "HIGH"/"MEDIUM"/"LOW",
-  "explanation": "Brief explanation with specific code evidence"
-}''')
-            
-            messages = [
-                {
-                    "role": "system",
-                    "content": system_prompt
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-            
-            payload = {
-                "model": model_to_use,
-                "messages": messages,
-                "max_tokens": max_tokens,
-                "temperature": temperature
-            }
-            
-            # Make request to GPT4All
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
-                async with session.post(
-                    f"{api_url}/chat/completions",
-                    headers={'Content-Type': 'application/json'},
-                    json=payload
-                ) as response:
-                    
-                    if response.status == 200:
-                        result = await response.json()
-                        
-                        if 'choices' in result and len(result['choices']) > 0:
-                            choice = result['choices'][0]
-                            message = choice['message']
-                            analysis_text = message['content']
-                            
-                            # Try to parse JSON response
-                            try:
-                                # Look for JSON in the response
-                                import re
-                                json_match = re.search(r'```(?:json)?\\s*({.*?})\\s*```', analysis_text, re.DOTALL)
-                                if json_match:
-                                    json_content = json.loads(json_match.group(1))
-                                else:
-                                    json_match = re.search(r'({.*?})', analysis_text, re.DOTALL)
-                                    if json_match:
-                                        json_content = json.loads(json_match.group(1))
-                                    else:
-                                        # Fallback parsing
-                                        json_content = {
-                                            "met": "meets the requirement" in analysis_text.lower() or "requirement is met" in analysis_text.lower(),
-                                            "confidence": "LOW",
-                                            "explanation": analysis_text[:200] + ("..." if len(analysis_text) > 200 else "")
-                                        }
-                                        
-                                return {
-                                    'status': 'success',
-                                    'model': model_to_use,
-                                    'analysis': json_content,
-                                    'raw_response': analysis_text,
-                                    'usage': result.get('usage', {}),
-                                    'timestamp': datetime.now().isoformat(),
-                                    'config_used': gpt4all_config
-                                }
-                                
-                            except json.JSONDecodeError:
-                                # Return raw analysis if JSON parsing fails
-                                return {
-                                    'status': 'success',
-                                    'model': model_to_use,
-                                    'analysis': analysis_text,
-                                    'usage': result.get('usage', {}),
-                                    'timestamp': datetime.now().isoformat(),
-                                    'config_used': gpt4all_config
-                                }
-                        else:
-                            return {
-                                'status': 'error',
-                                'error': 'No response from GPT4All model',
-                                'model': model_to_use,
-                                'config_used': gpt4all_config
-                            }
-                    else:
-                        error_text = await response.text()
-                        return {
-                            'status': 'error',
-                            'error': f'GPT4All API error {response.status}: {error_text}',
-                            'model': model_to_use,
-                            'config_used': gpt4all_config
-                        }
-                        
-        except asyncio.TimeoutError:
-            return {
-                'status': 'timeout',
-                'error': 'GPT4All analysis request timed out',
-                'model': gpt4all_config.get('preferred_model', 'Llama 3 8B Instruct'),
-                'config_used': gpt4all_config
-            }
-        except Exception as e:
-            return {
-                'status': 'error',
-                'error': f'GPT4All analysis failed: {str(e)}',
-                'model': gpt4all_config.get('preferred_model', 'Llama 3 8B Instruct'),
-                'config_used': gpt4all_config
-            }
-    
-    def _fallback_analyze_code(self, requirement: str, code: str, is_frontend: bool) -> Dict[str, Any]:
-        """Fallback analysis using basic pattern matching when AI unavailable."""
-        self.log.info(f"Using fallback analysis for {'frontend' if is_frontend else 'backend'} code")
-        
-        req_lower = requirement.lower()
-        
-        result = {
-            "met": False,
-            "confidence": "LOW",
-            "explanation": f"Fallback analysis: Unable to analyze with AI API. Basic pattern matching used."
+@dataclass
+class RequirementResult:
+    """Result of a requirement analysis."""
+    met: bool = False
+    confidence: str = "LOW"
+    explanation: str = ""
+    error: Optional[str] = None
+    frontend_analysis: Optional[Dict] = None
+    backend_analysis: Optional[Dict] = None
+
+
+@dataclass
+class RequirementCheck:
+    """Container for a requirement and its analysis result."""
+    requirement: str
+    result: RequirementResult = field(default_factory=RequirementResult)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            'requirement': self.requirement,
+            'result': asdict(self.result)
         }
         
-        if is_frontend:
-            # Basic frontend pattern matching
-            if any(term in req_lower for term in ['form', 'input', 'submit']):
-                result["met"] = any(term in code.lower() for term in ['<form', 'input', 'submit', 'button'])
-            elif any(term in req_lower for term in ['navigation', 'menu', 'nav']):
-                result["met"] = any(term in code.lower() for term in ['nav', 'menu', 'header', 'sidebar'])
-            elif any(term in req_lower for term in ['responsive', 'mobile']):
-                result["met"] = any(term in code.lower() for term in ['@media', 'mobile', 'responsive', 'grid', 'flex'])
-        else:
-            # Basic backend pattern matching
-            if any(term in req_lower for term in ['database', 'db', 'sql']):
-                result["met"] = any(term in code.lower() for term in ['database', 'db', 'sql', 'query', 'select', 'insert'])
-            elif any(term in req_lower for term in ['api', 'endpoint', 'route']):
-                result["met"] = any(term in code.lower() for term in ['@app.route', 'def ', 'api', 'endpoint', 'get', 'post'])
-            elif any(term in req_lower for term in ['authentication', 'auth', 'login']):
-                result["met"] = any(term in code.lower() for term in ['auth', 'login', 'password', 'token', 'session'])
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'RequirementCheck':
+        """Create from dictionary."""
+        result_data = data.get('result', {})
+        result = RequirementResult(**result_data)
+        return cls(requirement=data['requirement'], result=result)
+
+
+class JsonResultsManager:
+    """Manages saving and loading of analysis results in JSON format."""
+    
+    def __init__(self, base_path: Path, module_name: str = "ai_analyzer"):
+        self.base_path = Path(base_path)
+        self.module_name = module_name
+        self.results_dir = self.base_path / "results" / module_name
+        self.results_dir.mkdir(parents=True, exist_ok=True)
+    
+    def save_data(self, data: Dict[str, Any], filename: str) -> Optional[Path]:
+        """Save data to JSON file."""
+        try:
+            file_path = self.results_dir / f"{filename}.json"
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+            return file_path
+        except Exception as e:
+            logging.error(f"Failed to save data to {filename}: {e}")
+            return None
+    
+    def load_data(self, filename: str) -> Optional[Dict[str, Any]]:
+        """Load data from JSON file."""
+        try:
+            file_path = self.results_dir / f"{filename}.json"
+            if file_path.exists():
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception as e:
+            logging.error(f"Failed to load data from {filename}: {e}")
+        return None
+
+
+class AIAnalyzer(BaseWSService):
+    """AI-powered requirement analyzer for web applications."""
+    
+    def __init__(self):
+        print("[ai-analyzer] Initializing AIAnalyzer...")
+        try:
+            super().__init__(service_name="ai-analyzer", default_port=2004, version="1.0.0")
+            print("[ai-analyzer] BaseWSService initialized")
+            
+            # API configuration
+            self.openrouter_api_key = os.getenv('OPENROUTER_API_KEY')
+            self.gpt4all_api_url = os.getenv('GPT4ALL_API_URL', 'http://localhost:4891/v1')
+            self.gpt4all_timeout = int(os.getenv('GPT4ALL_TIMEOUT', '30'))
+            
+            # Default models
+            self.default_openrouter_model = os.getenv('AI_MODEL', 'anthropic/claude-3-haiku')
+            self.preferred_gpt4all_model = os.getenv('GPT4ALL_MODEL', 'Llama 3 8B Instruct')
+            
+            # GPT4All available models cache
+            self.gpt4all_available_models = []
+            self.last_check_time = 0
+            self.gpt4all_is_available = False
+            
+            print("[ai-analyzer] Setting up results manager...")
+            # Results manager - use /tmp for container environment
+            self.results_manager = JsonResultsManager(base_path=Path("/tmp"), module_name="ai_analyzer")
+            
+            print("[ai-analyzer] Loading application requirements...")
+            # Load application requirements
+            self.requirements_cache = {}
+            self._load_app_requirements()
+            
+            self.log.info("AI Analyzer initialized")
+            print("[ai-analyzer] AIAnalyzer initialization complete")
+            if not self.openrouter_api_key:
+                self.log.warning("OPENROUTER_API_KEY not set - OpenRouter analysis will be unavailable")
+                
+        except Exception as e:
+            print(f"[ai-analyzer] ERROR during initialization: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+    
+    def _load_app_requirements(self):
+        """Load application requirements from all_app_requirements.json."""
+        print("[ai-analyzer] Looking for application requirements...")
+        try:
+            # Look for requirements file in various locations
+            possible_paths = [
+                Path("/app/all_app_requirements.json"),
+                Path("/app/src/misc/all_app_requirements.json"),
+                Path("/app/misc/all_app_requirements.json"),
+                Path(__file__).parent / "all_app_requirements.json"
+            ]
+            
+            print(f"[ai-analyzer] Checking paths: {[str(p) for p in possible_paths]}")
+            
+            requirements_data = None
+            found_path = None
+            for path in possible_paths:
+                print(f"[ai-analyzer] Checking {path}: exists={path.exists()}")
+                if path.exists():
+                    print(f"[ai-analyzer] Loading requirements from: {path}")
+                    found_path = path
+                    with open(path, 'r', encoding='utf-8') as f:
+                        requirements_data = json.load(f)
+                    break
+            
+            if requirements_data:
+                print(f"[ai-analyzer] Successfully loaded requirements data from {found_path}")
+                # Parse and cache requirements by app number
+                for app_key, app_data in requirements_data.items():
+                    if app_key.startswith('APP_'):
+                        try:
+                            app_num = int(app_key.split('_')[1])
+                            backend_reqs = app_data.get('BACKEND', [])
+                            frontend_reqs = app_data.get('FRONTEND', [])
+                            all_reqs = backend_reqs + frontend_reqs
+                            self.requirements_cache[app_num] = (all_reqs, f"App {app_num}")
+                            print(f"[ai-analyzer] Loaded {len(all_reqs)} requirements for App {app_num}")
+                        except (ValueError, IndexError) as e:
+                            print(f"[ai-analyzer] Could not parse app key {app_key}: {e}")
+                
+                print(f"[ai-analyzer] Loaded requirements for {len(self.requirements_cache)} applications")
+                if hasattr(self, 'log'):
+                    self.log.info(f"Loaded requirements for {len(self.requirements_cache)} applications")
+            else:
+                print("[ai-analyzer] WARNING: Could not find all_app_requirements.json file")
+                if hasattr(self, 'log'):
+                    self.log.warning("Could not find all_app_requirements.json file")
+                
+        except Exception as e:
+            print(f"[ai-analyzer] ERROR: Failed to load application requirements: {e}")
+            import traceback
+            traceback.print_exc()
+            if hasattr(self, 'log'):
+                self.log.error(f"Failed to load application requirements: {e}")
+    
+    def _detect_available_tools(self) -> List[str]:
+        """Detect available AI analysis tools."""
+        tools = ["ai-review", "ai-code-review"]  # Always available as core AI analysis tools
         
-        if result["met"]:
-            result["confidence"] = "MEDIUM"
-        return result
-    
-    async def analyze_code_structure(self, files_content: Dict[str, str]) -> Dict[str, Any]:
-        """Analyze code structure and patterns."""
+        # Check GPT4All availability
         try:
-            analysis = {
-                'file_count': len(files_content),
-                'languages': [],
-                'structure': {},
-                'complexity_indicators': {}
-            }
-            
-            # Detect languages
-            language_indicators = {
-                '.py': 'Python',
-                '.js': 'JavaScript',
-                '.jsx': 'React/JavaScript',
-                '.ts': 'TypeScript',
-                '.tsx': 'React/TypeScript',
-                '.css': 'CSS',
-                '.html': 'HTML',
-                '.json': 'JSON',
-                '.yaml': 'YAML',
-                '.yml': 'YAML',
-                '.md': 'Markdown'
-            }
-            
-            detected_languages = set()
-            for file_path in files_content.keys():
-                for ext, lang in language_indicators.items():
-                    if file_path.endswith(ext):
-                        detected_languages.add(lang)
-            
-            analysis['languages'] = list(detected_languages)
-            
-            # Analyze structure
-            frontend_files = []
-            backend_files = []
-            config_files = []
-            
-            for file_path, content in files_content.items():
-                if any(file_path.endswith(ext) for ext in ['.html', '.css', '.js', '.jsx', '.ts', '.tsx']):
-                    frontend_files.append(file_path)
-                elif file_path.endswith('.py'):
-                    backend_files.append(file_path)
-                elif any(file_path.endswith(ext) for ext in ['.json', '.yaml', '.yml', '.md']):
-                    config_files.append(file_path)
-            
-            analysis['structure'] = {
-                'frontend_files': frontend_files,
-                'backend_files': backend_files,
-                'config_files': config_files
-            }
-            
-            # Calculate complexity indicators
-            total_lines = sum(len(content.split('\n')) for content in files_content.values())
-            total_chars = sum(len(content) for content in files_content.values())
-            
-            analysis['complexity_indicators'] = {
-                'total_lines_of_code': total_lines,
-                'total_characters': total_chars,
-                'average_file_size': total_lines / len(files_content) if files_content else 0,
-                'largest_file': max((len(content.split('\n')), path) 
-                                  for path, content in files_content.items())[1] if files_content else None
-            }
-            
-            return analysis
-            
-        except Exception as e:
-            return {'status': 'error', 'error': str(e)}
+            import importlib.util
+            if importlib.util.find_spec("aiohttp"):
+                tools.append("gpt4all")
+        except ImportError:
+            pass
+        
+        # Check OpenRouter availability
+        if self.openrouter_api_key:
+            tools.append("openrouter")
+        
+        print(f"[ai-analyzer] Available tools: {tools}")
+        return tools
     
-    async def generate_code_summary(self, files_content: Dict[str, str]) -> str:
-        """Generate a summary of the codebase for AI analysis."""
+    async def analyze_app_requirements(self, model_slug: str, app_number: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None, selected_tools: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Analyze application against requirements using AI."""
         try:
-            summary_parts = []
-            
-            # Add basic info
-            summary_parts.append(f"Codebase Analysis - {len(files_content)} files")
-            summary_parts.append("=" * 50)
-            
-            # Group files by type
-            file_groups = {
-                'Python Files': [f for f in files_content.keys() if f.endswith('.py')],
-                'JavaScript/TypeScript Files': [f for f in files_content.keys() 
-                                              if any(f.endswith(ext) for ext in ['.js', '.jsx', '.ts', '.tsx'])],
-                'HTML/CSS Files': [f for f in files_content.keys() 
-                                 if any(f.endswith(ext) for ext in ['.html', '.css'])],
-                'Configuration Files': [f for f in files_content.keys() 
-                                      if any(f.endswith(ext) for ext in ['.json', '.yaml', '.yml'])]
-            }
-            
-            # Add file listings and content samples
-            for group_name, file_list in file_groups.items():
-                if file_list:
-                    summary_parts.append(f"\n{group_name}:")
-                    summary_parts.append("-" * len(group_name))
-                    
-                    for file_path in file_list[:5]:  # Limit to first 5 files per group
-                        content = files_content[file_path]
-                        lines = content.split('\n')
-                        
-                        summary_parts.append(f"\n📄 {file_path} ({len(lines)} lines):")
-                        
-                        # Add content sample (first 30 lines)
-                        sample_lines = lines[:30]
-                        if len(lines) > 30:
-                            sample_lines.append(f"... ({len(lines) - 30} more lines)")
-                        
-                        summary_parts.append('\n'.join(sample_lines))
-                        summary_parts.append("")
-            
-            return '\n'.join(summary_parts)
-            
-        except Exception as e:
-            return f"Error generating summary: {e}"
-    
-    async def analyze_application_ai(self, model_slug: str, app_number: int, source_path: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Perform comprehensive AI analysis of application."""
-        try:
-            self.log.info(f"AI analyzing {model_slug} app {app_number}")
-            
-            # Read source files
-            files_content = await self.read_source_files(source_path)
-            
-            if not files_content:
+            # Find application path
+            app_path = self._resolve_app_path(model_slug, app_number)
+            if not app_path or not app_path.exists():
                 return {
                     'status': 'error',
-                    'error': f'No source files found in {source_path}',
+                    'error': f'Application path not found: {model_slug} app {app_number}',
                     'model_slug': model_slug,
-                    'app_number': app_number,
-                    'config_used': config or {}
+                    'app_number': app_number
                 }
             
-            # Analyze code structure
-            structure_analysis = await self.analyze_code_structure(files_content)
+            self.log.info(f"AI analysis of {model_slug} app {app_number}")
+            await self.send_progress('starting', f"Starting AI analysis for {model_slug} app {app_number}", analysis_id=analysis_id,
+                                 model_slug=model_slug, app_number=app_number)
             
-            # Generate code summary for AI
-            code_summary = await self.generate_code_summary(files_content)
+            # Get requirements for this app
+            requirements, app_name = self.requirements_cache.get(app_number, ([], f"App {app_number}"))
+            if not requirements:
+                return {
+                    'status': 'error',
+                    'error': f'No requirements found for app {app_number}',
+                    'model_slug': model_slug,
+                    'app_number': app_number
+                }
             
-            # Perform AI analysis with configuration
-            ai_prompt = f"""Please analyze this web application codebase:
-
-{code_summary}
-
-Focus on:
-1. Security vulnerabilities and potential attack vectors
-2. Code quality issues and technical debt
-3. Performance optimization opportunities  
-4. Best practices compliance
-5. Architecture assessment
-6. Maintainability and scalability concerns
-
-Provide specific, actionable recommendations with examples."""
+            await self.send_progress('loading_requirements', f"Loaded {len(requirements)} requirements", analysis_id=analysis_id)
             
-            ai_analysis = await self.analyze_with_ai(ai_prompt, config)
+            # Read application code
+            code_content = await self._read_app_code(app_path)
+            if not code_content:
+                return {
+                    'status': 'error',
+                    'error': f'Could not read application code from {app_path}',
+                    'model_slug': model_slug,
+                    'app_number': app_number
+                }
             
-            # Compile results
+            await self.send_progress('analyzing_code', f"Analyzing {len(code_content)} characters of code", analysis_id=analysis_id)
+            
+            # Analyze each requirement
             results = {
                 'model_slug': model_slug,
                 'app_number': app_number,
+                'app_name': app_name,
                 'analysis_time': datetime.now().isoformat(),
-                'source_path': source_path,
-                'structure_analysis': structure_analysis,
-                'ai_analysis': ai_analysis,
-                'files_analyzed': len(files_content),
-                'service': self.info.name,
-                'version': self.info.version,
-                'config_used': config or {}
+                'tools_used': selected_tools or ['ai-review'],
+                'configuration_applied': config is not None,
+                'results': {
+                    'requirement_checks': [],
+                    'summary': {}
+                }
             }
             
-            # Add summary metrics
-            if ai_analysis.get('status') == 'success':
-                analysis_text = ai_analysis.get('analysis', '')
+            requirement_checks = []
+            total_met = 0
+            total_requirements = len(requirements)
+            
+            for i, requirement in enumerate(requirements, 1):
+                await self.send_progress('checking_requirement', f"Checking requirement {i}/{total_requirements}", analysis_id=analysis_id)
                 
-                # Simple keyword-based scoring
-                security_keywords = ['vulnerability', 'security', 'attack', 'injection', 'xss', 'csrf']
-                quality_keywords = ['refactor', 'improve', 'clean', 'optimize', 'simplify']
-                performance_keywords = ['performance', 'slow', 'optimize', 'cache', 'efficient']
+                check = RequirementCheck(requirement=requirement)
+                try:
+                    # Analyze requirement using AI
+                    check.result = await self._analyze_requirement(code_content, requirement, config)
+                    if check.result.met:
+                        total_met += 1
+                except Exception as e:
+                    check.result.error = str(e)
+                    self.log.error(f"Error analyzing requirement '{requirement}': {e}")
                 
-                summary = {
-                    'security_mentions': sum(1 for kw in security_keywords if kw in analysis_text.lower()),
-                    'quality_mentions': sum(1 for kw in quality_keywords if kw in analysis_text.lower()),
-                    'performance_mentions': sum(1 for kw in performance_keywords if kw in analysis_text.lower()),
-                    'analysis_length': len(analysis_text),
-                    'confidence_score': 'high' if len(analysis_text) > 1000 else 'medium' if len(analysis_text) > 500 else 'low'
-                }
-                
-                results['summary'] = summary
+                requirement_checks.append(check.to_dict())
+            
+            results['results']['requirement_checks'] = requirement_checks
+            results['results']['summary'] = {
+                'total_requirements': total_requirements,
+                'requirements_met': total_met,
+                'requirements_not_met': total_requirements - total_met,
+                'compliance_percentage': (total_met / total_requirements * 100) if total_requirements > 0 else 0,
+                'analysis_status': 'completed'
+            }
+            
+            await self.send_progress('completed', f"Analysis completed: {total_met}/{total_requirements} requirements met", 
+                                 analysis_id=analysis_id, total_issues=total_requirements - total_met)
             
             return results
             
         except Exception as e:
             self.log.error(f"AI analysis failed: {e}")
+            await self.send_progress('failed', f"AI analysis failed: {e}", analysis_id=analysis_id)
             return {
                 'status': 'error',
                 'error': str(e),
@@ -619,23 +305,203 @@ Provide specific, actionable recommendations with examples."""
                 'app_number': app_number
             }
     
+    def _resolve_app_path(self, model_slug: str, app_number: int) -> Optional[Path]:
+        """Resolve application path for analysis."""
+        # Try multiple possible locations
+        possible_paths = [
+            Path('/app/sources') / model_slug / f'app{app_number}',
+            Path('/app/generated/apps') / model_slug / f'app{app_number}',
+            Path('/app/misc/models') / model_slug / f'app{app_number}',
+        ]
+        
+        for path in possible_paths:
+            if path.exists():
+                return path
+        
+        return None
+    
+    async def _read_app_code(self, app_path: Path) -> str:
+        """Read all relevant code files from the application."""
+        code_content = ""
+        
+        # Common file extensions to analyze
+        extensions = ['.py', '.js', '.jsx', '.ts', '.tsx', '.html', '.css', '.vue', '.php', '.java', '.cs']
+        
+        try:
+            for ext in extensions:
+                for file_path in app_path.rglob(f'*{ext}'):
+                    # Skip common directories
+                    if any(part in str(file_path) for part in ['node_modules', '__pycache__', '.git', 'venv']):
+                        continue
+                    
+                    try:
+                        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                            content = f.read()
+                            code_content += f"\n\n=== {file_path.relative_to(app_path)} ===\n{content}"
+                    except Exception as e:
+                        self.log.debug(f"Could not read file {file_path}: {e}")
+                        continue
+        except Exception as e:
+            self.log.error(f"Error reading application code: {e}")
+        
+        return code_content
+    
+    async def _analyze_requirement(self, code_content: str, requirement: str, config: Optional[Dict[str, Any]] = None) -> RequirementResult:
+        """Analyze a single requirement against the code using AI."""
+        # Try GPT4All first, then fallback to OpenRouter
+        result = await self._try_gpt4all_analysis(code_content, requirement, config)
+        if result is None and self.openrouter_api_key:
+            result = await self._try_openrouter_analysis(code_content, requirement, config)
+        
+        if result is None:
+            return RequirementResult(
+                met=False,
+                confidence="LOW",
+                explanation="No AI service available for analysis",
+                error="Both GPT4All and OpenRouter unavailable"
+            )
+        
+        return result
+    
+    async def _try_gpt4all_analysis(self, code_content: str, requirement: str, config: Optional[Dict[str, Any]] = None) -> Optional[RequirementResult]:
+        """Try analysis using GPT4All API."""
+        try:
+            prompt = self._build_analysis_prompt(code_content, requirement)
+            
+            async with aiohttp.ClientSession() as session:
+                payload = {
+                    "model": self.preferred_gpt4all_model,
+                    "messages": [
+                        {"role": "user", "content": prompt}
+                    ],
+                    "max_tokens": 500,
+                    "temperature": 0.1
+                }
+                
+                async with session.post(
+                    f"{self.gpt4all_api_url}/chat/completions",
+                    json=payload,
+                    timeout=self.gpt4all_timeout
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        ai_response = data['choices'][0]['message']['content']
+                        return self._parse_ai_response(ai_response)
+                    else:
+                        self.log.warning(f"GPT4All API error: {response.status}")
+                        return None
+        except Exception as e:
+            self.log.debug(f"GPT4All analysis failed: {e}")
+            return None
+    
+    async def _try_openrouter_analysis(self, code_content: str, requirement: str, config: Optional[Dict[str, Any]] = None) -> Optional[RequirementResult]:
+        """Try analysis using OpenRouter API."""
+        try:
+            if not self.openrouter_api_key:
+                return None
+            
+            prompt = self._build_analysis_prompt(code_content, requirement)
+            
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    "Authorization": f"Bearer {self.openrouter_api_key}",
+                    "Content-Type": "application/json"
+                }
+                
+                payload = {
+                    "model": self.default_openrouter_model,
+                    "messages": [
+                        {"role": "user", "content": prompt}
+                    ],
+                    "max_tokens": 500,
+                    "temperature": 0.1
+                }
+                
+                async with session.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=30
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        ai_response = data['choices'][0]['message']['content']
+                        return self._parse_ai_response(ai_response)
+                    else:
+                        self.log.warning(f"OpenRouter API error: {response.status}")
+                        return None
+        except Exception as e:
+            self.log.debug(f"OpenRouter analysis failed: {e}")
+            return None
+    
+    def _build_analysis_prompt(self, code_content: str, requirement: str) -> str:
+        """Build analysis prompt for AI."""
+        # Truncate code if too long
+        max_code_length = 8000
+        if len(code_content) > max_code_length:
+            code_content = code_content[:max_code_length] + "\n[...truncated...]"
+        
+        return f"""Analyze the following web application code to determine if it meets this specific requirement:
+
+REQUIREMENT: {requirement}
+
+CODE:
+{code_content}
+
+Please analyze the code and respond in this exact format:
+MET: [YES/NO]
+CONFIDENCE: [HIGH/MEDIUM/LOW]
+EXPLANATION: [Brief explanation of your analysis]
+
+Focus on whether the functionality described in the requirement is actually implemented in the code."""
+    
+    def _parse_ai_response(self, response: str) -> RequirementResult:
+        """Parse AI response into RequirementResult."""
+        result = RequirementResult()
+        
+        try:
+            # Extract structured information from response
+            met_match = re.search(r'MET:\s*(YES|NO)', response, re.IGNORECASE)
+            if met_match:
+                result.met = met_match.group(1).upper() == 'YES'
+            
+            confidence_match = re.search(r'CONFIDENCE:\s*(HIGH|MEDIUM|LOW)', response, re.IGNORECASE)
+            if confidence_match:
+                result.confidence = confidence_match.group(1).upper()
+            
+            explanation_match = re.search(r'EXPLANATION:\s*(.+)', response, re.IGNORECASE | re.DOTALL)
+            if explanation_match:
+                result.explanation = explanation_match.group(1).strip()
+            else:
+                result.explanation = response  # Fallback to full response
+        
+        except Exception as e:
+            result.explanation = f"Error parsing AI response: {e}"
+            result.error = str(e)
+        
+        return result
+    
     async def handle_message(self, websocket, message_data):
         """Handle incoming WebSocket messages."""
         try:
+            print(f"[ai-analyzer] Received message: {message_data}")
             msg_type = message_data.get("type", "unknown")
             
-            if msg_type == "ai_analysis":
+            if msg_type == "ai_analyze":
                 model_slug = message_data.get("model_slug", "unknown")
                 app_number = message_data.get("app_number", 1)
-                source_path = message_data.get("source_path", "")
+                config = message_data.get("config", None)
+                analysis_id = message_data.get("id")
+                # Tool selection normalized
+                tools = list(self.extract_selected_tools(message_data) or ["ai-review"])
                 
-                if not source_path:
-                    # Generate default path - apps are mounted at /app/sources
-                    source_path = f"/app/sources/{model_slug}/app{app_number}"
+                self.log.info(f"Starting AI analysis for {model_slug} app {app_number}")
+                if config:
+                    self.log.info(f"Using custom configuration: {list(config.keys())}")
                 
-                self.log.debug(f"Starting AI analysis for {model_slug} app {app_number}")
-                
-                analysis_results = await self.analyze_application_ai(model_slug, app_number, source_path)
+                analysis_results = await self.analyze_app_requirements(
+                    model_slug, app_number, config, analysis_id=analysis_id, selected_tools=tools
+                )
                 
                 response = {
                     "type": "ai_analysis_result",
@@ -646,18 +512,23 @@ Provide specific, actionable recommendations with examples."""
                 }
                 
                 await websocket.send(json.dumps(response))
-                self.log.debug(f"AI analysis completed for {model_slug} app {app_number}")
-                
-            elif msg_type == "list_models":
+                self.log.info(f"AI analysis completed for {model_slug} app {app_number}")
+            
+            elif msg_type == "server_status":
                 response = {
-                    "type": "models_list",
-                    "available_models": self.available_models,
-                    "default_model": self.default_model,
-                    "service": self.info.name
+                    "type": "server_status",
+                    "service": self.info.name,
+                    "version": self.info.version,
+                    "status": "healthy",
+                    "available_tools": self._detect_available_tools(),
+                    "requirements_loaded": len(self.requirements_cache),
+                    "timestamp": datetime.now().isoformat()
                 }
+                print(f"[ai-analyzer] Sending server_status response: {response}")
                 await websocket.send(json.dumps(response))
                 
             else:
+                print(f"[ai-analyzer] Unknown message type: {msg_type}")
                 response = {
                     "type": "error",
                     "message": f"Unknown message type: {msg_type}",
@@ -666,6 +537,9 @@ Provide specific, actionable recommendations with examples."""
                 await websocket.send(json.dumps(response))
                 
         except Exception as e:
+            print(f"[ai-analyzer] Error handling message: {e}")
+            import traceback
+            traceback.print_exc()
             self.log.error(f"Error handling message: {e}")
             error_response = {
                 "type": "error",
@@ -677,15 +551,38 @@ Provide specific, actionable recommendations with examples."""
             except Exception:
                 pass
 
+
 async def main():
-    # Log API key presence for visibility
-    if not os.getenv('OPENROUTER_API_KEY'):
-        print("[ai-analyzer] WARNING: OPENROUTER_API_KEY not set - AI analysis will be limited")
-    service = AIAnalyzer()
-    await service.run()
+    """Main entry point for the AI analyzer service."""
+    try:
+        print("[ai-analyzer] Starting AI Analyzer Service...")
+        
+        # Log API key presence for visibility
+        if not os.getenv('OPENROUTER_API_KEY'):
+            print("[ai-analyzer] WARNING: OPENROUTER_API_KEY not set - OpenRouter analysis will be limited")
+        
+        if not os.getenv('GPT4ALL_API_URL'):
+            print("[ai-analyzer] INFO: GPT4ALL_API_URL not set - using default http://localhost:4891/v1")
+        
+        print("[ai-analyzer] Initializing service...")
+        service = AIAnalyzer()
+        print("[ai-analyzer] Service initialized, starting server...")
+        await service.run()
+        
+    except Exception as e:
+        print(f"[ai-analyzer] FATAL ERROR: Failed to start service: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
 
 if __name__ == "__main__":
+    print("[ai-analyzer] Entry point reached")
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        pass
+        print("[ai-analyzer] Service stopped by user")
+    except Exception as e:
+        print(f"[ai-analyzer] Service crashed: {e}")
+        import traceback
+        traceback.print_exc()

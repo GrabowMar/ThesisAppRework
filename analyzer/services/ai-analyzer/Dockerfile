@@ -1,4 +1,4 @@
-# AI Requirements Tester Container - OpenRouter AI Analysis
+# AI Requirements Analyzer Container - GPT4All & OpenRouter Analysis
 FROM python:3.11-slim
 
 # Install system dependencies
@@ -24,6 +24,9 @@ USER analyzer
 COPY --chown=analyzer:analyzer __init__.py ./analyzer/__init__.py
 COPY --chown=analyzer:analyzer shared ./analyzer/shared
 COPY --chown=analyzer:analyzer services/ai-analyzer/ .
+
+# Copy application requirements file (already copied with service code above)
+# COPY --chown=analyzer:analyzer src/misc/all_app_requirements.json ./all_app_requirements.json
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

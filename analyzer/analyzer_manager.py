@@ -609,7 +609,7 @@ class AnalyzerManager:
         return await self.send_websocket_message('performance-tester', message, timeout=duration + 60)
     
     async def run_ai_analysis(self, model_slug: str, app_number: int,
-                            ai_model: Optional[str] = None) -> Dict[str, Any]:
+                            ai_model: Optional[str] = None, tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run AI-powered code analysis."""
         logger.info(f"🤖 Running AI analysis on {model_slug} app {app_number}")
         
@@ -620,10 +620,11 @@ class AnalyzerManager:
         )
         
         message = {
-            "type": "ai_analysis",
+            "type": "ai_analyze",
             "model_slug": model_slug,
             "app_number": app_number,
             "source_path": request.source_path,
+            "tools": tools or [],
             "ai_model": ai_model or "anthropic/claude-3-haiku",
             "timestamp": datetime.now().isoformat(),
             "id": str(uuid.uuid4())
@@ -1205,7 +1206,7 @@ async def main():
                 except Exception as e:
                     logger.warning(f"Could not save dynamic analysis results: {e}")
             elif analysis_type == 'ai':
-                results = await manager.run_ai_analysis(model_slug, app_number)
+                results = await manager.run_ai_analysis(model_slug, app_number, tools=tools_arg)
                 try:
                     await manager.save_analysis_results(model_slug, app_number, 'ai', results)
                 except Exception as e:

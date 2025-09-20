@@ -23,7 +23,7 @@ async def check_health() -> Dict[str, Any]:
         websocket = await websockets.connect(uri)
         
         try:
-            # Send simple health check message
+            # Send simple health check message - use health_check as expected by BaseWSService
             message = {
                 "type": "health_check",
                 "timestamp": datetime.now().isoformat(),
@@ -36,7 +36,7 @@ async def check_health() -> Dict[str, Any]:
             response = await asyncio.wait_for(websocket.recv(), timeout=5.0)
             response_data = json.loads(response)
             
-            if response_data.get('status') == 'healthy':
+            if response_data.get('type') == 'health_check_response' or response_data.get('status') == 'healthy':
                 return {
                     "status": "healthy",
                     "service": "ai-analyzer",

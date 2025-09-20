@@ -662,6 +662,10 @@ class AnalysisExecutor:
         """Run security analysis via subprocess bridge to analyzer_manager.py."""
         return self._run_analyzer_subprocess('security', model_slug, app_number, tools=tools, options=options)
     
+    def run_ai_analysis(self, model_slug: str, app_number: int, tools: Optional[List[str]] = None, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Run AI analysis via subprocess bridge to analyzer_manager.py."""
+        return self._run_analyzer_subprocess('ai', model_slug, app_number, tools=tools, options=options)
+    
     def run_performance_test(self, model_slug: str, app_number: int, test_config: Optional[Dict[str, Any]] = None, tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run performance test via subprocess bridge to analyzer_manager.py.
 

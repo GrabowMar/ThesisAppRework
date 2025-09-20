@@ -169,10 +169,14 @@ class TaskExecutionService:
                         task_db.progress_percentage = 100.0
                         task_db.completed_at = datetime.utcnow()
                         
-                        # Store analysis results if available
+                        # Store analysis results if available (merge with existing metadata)
                         if result and result.get('payload'):
                             try:
-                                task_db.set_metadata(result['payload'])
+                                # Preserve existing metadata (like custom_options) and merge execution results
+                                existing_metadata = task_db.get_metadata()
+                                merged_metadata = existing_metadata.copy()
+                                merged_metadata.update(result['payload'])
+                                task_db.set_metadata(merged_metadata)
                             except Exception as e:
                                 logger.warning("Failed to store analysis results for task %s: %s", task_db.task_id, e)
                         
@@ -411,10 +415,14 @@ class TaskExecutionService:
                     task_db.progress_percentage = 100.0
                     task_db.completed_at = datetime.utcnow()
                     
-                    # Store analysis results if available
+                    # Store analysis results if available (merge with existing metadata)
                     if result and result.get('payload'):
                         try:
-                            task_db.set_metadata(result['payload'])
+                            # Preserve existing metadata (like custom_options) and merge execution results
+                            existing_metadata = task_db.get_metadata()
+                            merged_metadata = existing_metadata.copy()
+                            merged_metadata.update(result['payload'])
+                            task_db.set_metadata(merged_metadata)
                             # Extract summary information and update task fields (supports both payload shapes)
                             payload = result['payload']
                             if isinstance(payload, dict):

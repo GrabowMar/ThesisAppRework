@@ -30,7 +30,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 
 import websockets
-from websockets.asyncio.server import serve
+from websockets import serve
 
 
 def _setup_logging() -> logging.Logger:

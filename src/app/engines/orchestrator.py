@@ -414,6 +414,7 @@ class AnalysisOrchestrator:
             'locust-performance': 'locust',
             'ab-load-test': 'apache-bench',
             'zap-baseline': 'zap',
+            'ai-code-review': 'ai-review',
             # Add other mappings as needed
         }
         return name_mapping.get(tool_name, tool_name)
@@ -433,7 +434,7 @@ class AnalysisOrchestrator:
             'artillery': 'performance-tester', 'aiohttp': 'performance-tester', 
             'locust': 'performance-tester', 'locust-performance': 'performance-tester',
             # ai
-            'ai-review': 'ai-analyzer', 'ai': 'ai-analyzer'
+            'ai-review': 'ai-analyzer', 'ai': 'ai-analyzer', 'ai-code-review': 'ai-analyzer'
         }
         return mapping.get((tool_name or '').lower())
 
@@ -447,7 +448,7 @@ class AnalysisOrchestrator:
         if service_name == 'performance-tester':
             return analyzer_bridge.analysis_executor.run_performance_test(model_slug, app_number, tools=tools)
         if service_name == 'ai-analyzer':
-            return analyzer_bridge.analysis_executor.run_security_analysis(model_slug, app_number, tools=tools)
+            return analyzer_bridge.analysis_executor.run_ai_analysis(model_slug, app_number, tools=tools)
         raise ValueError(f"Unknown analyzer service: {service_name}")
 
     def _extract_container_tool_results(self, service_name: str, container_result: Dict[str, Any], requested_tools: List[str]) -> Tuple[Dict[str, Any], List[Finding]]:
