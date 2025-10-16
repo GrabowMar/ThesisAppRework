@@ -12,4 +12,5 @@
 {% block scripts %}
 {{ super() }}
 <script src="{{ url_for('static', filename='js/sample_generator_wizard.js') }}"></script>
+{# templates_manager.js is NOT needed for wizard - only for templates tab in main.html #}
 {% endblock %}

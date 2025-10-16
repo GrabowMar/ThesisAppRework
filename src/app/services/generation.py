@@ -186,9 +186,21 @@ class CodeGenerator:
         # Build prompt
         prompt = self._build_prompt(config)
         
+        # Get the actual OpenRouter model ID from the database
+        # canonical_slug is like: anthropic_claude-4.5-haiku-20251001
+        # model_id is like: anthropic/claude-haiku-4.5 (what OpenRouter expects)
+        from app.models import ModelCapability
+        model = ModelCapability.query.filter_by(canonical_slug=config.model_slug).first()
+        if not model:
+            logger.error(f"Model not found in database: {config.model_slug}")
+            return False, "", f"Model not found in database: {config.model_slug}"
+        
+        openrouter_model = model.model_id
+        logger.info(f"Using OpenRouter model: {openrouter_model} (from slug: {config.model_slug})")
+        
         # API request
         payload = {
-            "model": config.model_slug,
+            "model": openrouter_model,
             "messages": [
                 {
                     "role": "system",

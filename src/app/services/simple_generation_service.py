@@ -205,9 +205,20 @@ class SimpleGenerationService:
         # Build prompt
         prompt = self._build_prompt(template_content, request.component)
         
+        # Get the actual OpenRouter model ID from the database
+        # canonical_slug is like: anthropic_claude-4.5-haiku-20251001
+        # model_id is like: anthropic/claude-haiku-4.5 (what OpenRouter expects)
+        from app.models import ModelCapability
+        model = ModelCapability.query.filter_by(canonical_slug=request.model_slug).first()
+        if not model:
+            raise ValueError(f"Model not found in database: {request.model_slug}")
+        
+        openrouter_model = model.model_id
+        logger.info(f"Using OpenRouter model: {openrouter_model} (from slug: {request.model_slug})")
+        
         # Prepare API request
         payload = {
-            "model": request.model_slug,
+            "model": openrouter_model,
             "messages": [
                 {
                     "role": "system",

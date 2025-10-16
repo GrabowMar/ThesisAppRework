@@ -226,8 +226,11 @@ function updateNavigationButtons() {
   const show = (el) => { if (el) el.classList.remove('d-none'); };
   const hide = (el) => { if (el) el.classList.add('d-none'); };
   
-  // Previous button availability
-  prevBtn.disabled = currentStep === 1;
+  // Previous button availability - enable unless on first step
+  if (prevBtn) {
+    prevBtn.disabled = currentStep === 1;
+    console.log('[Wizard] Previous button disabled:', currentStep === 1);
+  }
   
   // Check if step is valid
   const stepValid = canProceedFromStep(currentStep);
@@ -387,10 +390,19 @@ async function loadTemplates() {
       // V2 uses string IDs, map to numeric app_num for wizard compatibility
       template.app_num = index + 1;
       template.display_name = template.name;
+    });
+    
+    // Update cache with modified templates
+    templatesCache = templates;
+    console.log('[Wizard] Templates cache updated:', templatesCache.map(t => ({ id: t.id, app_num: t.app_num, name: t.name })));
+    
+    // Render items
+    templates.forEach(template => {
       const item = createTemplateListItem(template);
       listContainer.appendChild(item);
     });
-    console.log('[Wizard] Templates UI updated with V2 requirements');  
+    console.log('[Wizard] Templates UI updated with V2 requirements');
+    console.log('[Wizard] Template items added to wizard list, ready for clicks');  
   } catch (error) {
     console.error('[Wizard] Error loading templates:', error);
     listContainer.innerHTML = `<div class="text-center text-danger p-4"><i class="fas fa-exclamation-triangle fa-2x mb-2"></i><p class="fw-bold">Error loading templates</p><p class="small">${error.message}</p><button class="btn btn-sm btn-outline-primary mt-2" onclick="loadTemplates()">Retry</button></div>`;
@@ -410,6 +422,8 @@ function createTemplateListItem(template) {
   const description = template.description || template.desc || '';
   const requirementId = template.id || ''; // Store V2 requirement ID
   
+  console.log('[Wizard] Creating template item:', { appNum, name, requirementId });
+  
   // Store the app_num and requirement_id as data attributes
   item.setAttribute('data-app-num', appNum);
   if (requirementId) {
@@ -420,9 +434,12 @@ function createTemplateListItem(template) {
   item.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
+    console.log('[Wizard] Template item clicked, app_num:', appNum);
     const templateAppNum = parseInt(item.getAttribute('data-app-num'), 10);
     if (templateAppNum) {
       toggleTemplateSelection(templateAppNum);
+    } else {
+      console.error('[Wizard] No app_num found for clicked template');
     }
   });
   
@@ -450,7 +467,7 @@ function createTemplateListItem(template) {
         ${descriptionHtml}
       </div>
       <div class="form-check">
-        <input class="form-check-input" type="checkbox" ${isSelected ? 'checked' : ''}>
+        <input class="form-check-input" type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();">
       </div>
     </div>
   `;
@@ -755,13 +772,7 @@ async function startGeneration() {
     return;
   }
   
-  const payload = {
-    template_ids: selectedTemplates,
-    models: selectedModels,
-    parallel_workers: 3
-  };
-  
-  console.log('[Wizard] Starting batch generation:', payload);
+  console.log('[Wizard] Starting batch generation');
   
   // Show loading state
   const startBtn = document.getElementById('start-btn');
@@ -769,47 +780,114 @@ async function startGeneration() {
   if (startBtn) startBtn.classList.add('d-none');
   if (loadingBtn) loadingBtn.classList.remove('d-none');
   
-  // Show progress immediately
+  // Calculate total and prepare tracking
   const totalGenerations = selectedTemplates.length * selectedModels.length;
   const totalEl = document.getElementById('progress-total');
   const statusTotalEl = document.getElementById('status-total');
   if (totalEl) totalEl.textContent = totalGenerations;
   if (statusTotalEl) statusTotalEl.textContent = totalGenerations;
   
+  const results = [];
+  let completed = 0;
+  let failed = 0;
+  
   try {
-    const response = await fetch('/api/sample-gen/generate/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+    // Generate each combination
+    for (const templateId of selectedTemplates) {
+      for (const modelSlug of selectedModels) {
+        console.log(`[Wizard] Generating: template ${templateId}, model ${modelSlug}`);
+        
+        try {
+          const response = await fetch('/api/gen/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              template_id: templateId,
+              model_slug: modelSlug,
+              app_num: templateId,  // Use template_id as app_num
+              generate_frontend: true,
+              generate_backend: true,
+              scaffold: true
+            })
+          });
+          
+          const result = await response.json();
+          
+          if (response.ok && result.success) {
+            completed++;
+            results.push({
+              success: true,
+              template_id: templateId,
+              model: modelSlug,
+              result_id: `${templateId}_${modelSlug.replace(/\//g, '_')}`,
+              message: 'Generated successfully'
+            });
+          } else {
+            failed++;
+            results.push({
+              success: false,
+              template_id: templateId,
+              model: modelSlug,
+              error: result.message || result.error || 'Generation failed'
+            });
+          }
+        } catch (error) {
+          failed++;
+          results.push({
+            success: false,
+            template_id: templateId,
+            model: modelSlug,
+            error: error.message
+          });
+        }
+        
+        // Update progress
+        const progressCompleted = completed + failed;
+        const progressPercent = (progressCompleted / totalGenerations) * 100;
+        updateProgress(progressPercent, progressCompleted, totalGenerations, completed, failed);
+      }
+    }
+    
+    showNotification(`Generation completed: ${completed} succeeded, ${failed} failed`, completed === totalGenerations ? 'success' : 'warning');
+    
+    // Display results
+    displayBatchResults({
+      results: results,
+      progress: {
+        completed_tasks: completed,
+        failed_tasks: failed,
+        total_tasks: totalGenerations
+      }
     });
-    
-    const result = await response.json();
-    console.log('[Wizard] Generation response:', result);
-    
-    if (!response.ok || !result.success) {
-      throw new Error(result.message || result.error || 'Generation request failed');
-    }
-    
-    // Batch generation completes synchronously - results are in response.data
-    const batchResults = result.data;
-    console.log('[Wizard] Batch results:', batchResults);
-    
-    showNotification('Generation completed!', 'success');
-    
-    // Display results immediately
-    if (batchResults && typeof batchResults === 'object') {
-      displayBatchResults(batchResults);
-    } else {
-      showNotification('Generation completed but no results returned', 'warning');
-    }
   } catch (error) {
-    console.error('Error starting generation:', error);
-    showNotification('Failed to start generation: ' + error.message, 'danger');
+    console.error('Error during generation:', error);
+    showNotification('Generation failed: ' + error.message, 'danger');
   } finally {
     // Restore button state
     if (startBtn) startBtn.classList.remove('d-none');
     if (loadingBtn) loadingBtn.classList.add('d-none');
   }
+}
+
+function updateProgress(percent, completed, total, succeeded, failed) {
+  const progressEl = document.getElementById('overall-progress-bar');
+  const percentEl = document.getElementById('progress-percentage');
+  const progressCompletedEl = document.getElementById('progress-completed');
+  const statusCompletedEl = document.getElementById('status-completed');
+  const statusFailedEl = document.getElementById('status-failed');
+  const statusInProgressEl = document.getElementById('status-in-progress');
+  
+  if (progressEl) {
+    progressEl.style.width = `${percent}%`;
+    if (percent >= 100) {
+      progressEl.classList.remove('progress-bar-animated');
+    }
+  }
+  if (percentEl) percentEl.textContent = `${Math.round(percent)}%`;
+  if (progressCompletedEl) progressCompletedEl.textContent = completed;
+  if (statusCompletedEl) statusCompletedEl.textContent = succeeded;
+  if (statusFailedEl) statusFailedEl.textContent = failed;
+  if (statusInProgressEl) statusInProgressEl.textContent = Math.max(0, total - completed);
 }
 
 function displayBatchResults(batchResults) {
