@@ -261,7 +261,7 @@ class ModelService:
             ).first()
             
             if not existing:
-                port_config = PortConfiguration(
+                port_config = PortConfiguration(  # type: ignore[call-arg]
                     model=config['model_name'],
                     app_num=config['app_number'],
                     backend_port=config['backend_port'],
@@ -324,7 +324,7 @@ class ModelService:
                         elif (app_dir / 'frontend' / 'index.html').exists():
                             frontend_framework = 'vanilla'
                     
-                    app = GeneratedApplication(
+                    app = GeneratedApplication(  # type: ignore[call-arg]
                         model_slug=model_slug,
                         app_number=app_number,
                         app_type='fullstack' if has_backend and has_frontend else 'backend' if has_backend else 'frontend',

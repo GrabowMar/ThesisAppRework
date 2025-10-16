@@ -374,8 +374,8 @@ def _get_recent_analyses(limit: int = 20):
             analyses.append({
                 'id': analysis.id,
                 'type': 'security',
-                'model_slug': analysis.application.model_slug if analysis.application else 'Unknown',
-                'app_number': analysis.application.app_number if analysis.application else 0,
+                'model_slug': analysis.application.model_slug if analysis.application else 'Unknown',  # type: ignore[attr-defined]
+                'app_number': analysis.application.app_number if analysis.application else 0,  # type: ignore[attr-defined]
                 'status': analysis.status,
                 'created_at': analysis.created_at,
                 'completed_at': analysis.completed_at,

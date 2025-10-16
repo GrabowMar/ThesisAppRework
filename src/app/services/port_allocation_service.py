@@ -188,7 +188,7 @@ class PortAllocationService:
                 raise ValueError("Port conflict: ports already in use")
             
             # Create new allocation
-            port_config = PortConfiguration(
+            port_config = PortConfiguration(  # type: ignore[call-arg]
                 model=model_name,
                 app_num=app_num,
                 backend_port=backend_port,

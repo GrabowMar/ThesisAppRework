@@ -5,7 +5,6 @@ Simple Tool Results Service
 Service for storing and retrieving tool results from database for performance.
 """
 
-import json
 import logging
 from typing import Dict, Any, Optional
 
@@ -138,7 +137,7 @@ class SimpleToolResultsService:
                 has_output = bool(raw_output.get('stdout') or raw_output.get('stderr'))
                 
                 # Create record
-                tool_record = ToolResult(
+                tool_record = ToolResult(  # type: ignore[call-arg]
                     task_id=task_id,
                     tool_name=tool_name,
                     display_name=metadata['name'],
@@ -181,7 +180,7 @@ class SimpleToolResultsService:
                     not_available_tools += 1
             
             # Create summary
-            summary = ToolSummary(
+            summary = ToolSummary(  # type: ignore[call-arg]
                 task_id=task_id,
                 total_tools=total_tools,
                 executed_tools=executed_tools,

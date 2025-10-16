@@ -7,7 +7,7 @@ Provides high-level interface for requesting analysis and receiving results.
 """
 import asyncio
 import logging
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, Optional
 import websockets
 from websockets.exceptions import ConnectionClosed
 
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class AnalyzerClient:
     """WebSocket client for analyzer services."""
     
-    def __init__(self, uri: str = "ws://localhost:8765", client_id: str = None):
+    def __init__(self, uri: str = "ws://localhost:8765", client_id: Optional[str] = None):
         self.uri = uri
         self.client_id = client_id or f"client_{id(self)}"
         self.websocket = None
@@ -98,8 +98,15 @@ class AnalyzerClient:
     async def _listen_for_messages(self):
         """Listen for incoming WebSocket messages."""
         try:
+            if self.websocket is None:
+                return
             async for message_data in self.websocket:
                 try:
+                    # Handle both str and bytes
+                    if isinstance(message_data, bytes):
+                        message_data = message_data.decode('utf-8')
+                    elif not isinstance(message_data, str):
+                        message_data = str(message_data)
                     message = WebSocketMessage.from_json(message_data)
                     await self._handle_message(message)
                 except Exception as e:
@@ -227,7 +234,7 @@ class AnalyzerClient:
         
         await self.send_message(message)
     
-    async def get_status(self, analysis_id: str = None) -> WebSocketMessage:
+    async def get_status(self, analysis_id: Optional[str] = None) -> WebSocketMessage:
         """Get status of analysis or overall system."""
         if not self.connected:
             raise ConnectionError("Not connected to gateway")
@@ -271,7 +278,7 @@ class AnalyzerClient:
 async def analyze_code(
     uri: str,
     request: AnalysisRequest,
-    progress_handler: Callable = None,
+    progress_handler: Optional[Callable] = None,
     timeout: float = 300.0
 ) -> Dict[str, Any]:
     """
@@ -304,7 +311,7 @@ async def batch_analyze(
     uri: str,
     requests: list[AnalysisRequest],
     batch_name: str = "Batch Analysis",
-    progress_handler: Callable = None,
+    progress_handler: Optional[Callable] = None,
     timeout: float = 600.0
 ) -> Dict[str, Any]:
     """

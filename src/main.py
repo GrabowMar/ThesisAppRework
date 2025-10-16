@@ -19,7 +19,7 @@ logger = setup_application_logging()
 try:
     scripts_dir = Path(__file__).parent.parent / "scripts"
     sys.path.insert(0, str(scripts_dir))
-    from scripts.log_cleanup import cleanup_logs_startup
+    from log_cleanup import cleanup_logs_startup  # type: ignore[import-not-found]
     cleanup_logs_startup()
 except Exception as e:
     logger.warning(f"Log cleanup at startup failed: {e}")

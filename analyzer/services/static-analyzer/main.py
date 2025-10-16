@@ -421,12 +421,13 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     results['eslint'] = eslint_result
                 else:
                     eslint_data = eslint_result if isinstance(eslint_result, list) else []
-                    total_issues = sum(len(file_result.get('messages', [])) for file_result in eslint_data)
+                    total_issues = sum(len(file_result.get('messages', [])) if isinstance(file_result, dict) else 0 for file_result in eslint_data)
                     severity_counts = {'error': 0, 'warning': 0}
                     for file_result in eslint_data:
-                        for message in file_result.get('messages', []):
-                            severity = 'error' if message.get('severity') == 2 else 'warning'
-                            severity_counts[severity] += 1
+                        if isinstance(file_result, dict):
+                            for message in file_result.get('messages', []):
+                                severity = 'error' if message.get('severity') == 2 else 'warning'
+                                severity_counts[severity] += 1
                     
                     results['eslint'] = {
                         'tool': 'eslint',
@@ -553,7 +554,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 results['stylelint'] = stylelint_result
             else:
                 stylelint_data = stylelint_result if isinstance(stylelint_result, list) else []
-                total_issues = sum(len(file_result.get('warnings', [])) for file_result in stylelint_data)
+                total_issues = sum(len(file_result.get('warnings', [])) if isinstance(file_result, dict) else 0 for file_result in stylelint_data)
                 results['stylelint'] = {
                     'tool': 'stylelint',
                     'executed': True,

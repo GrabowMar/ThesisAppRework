@@ -26,13 +26,11 @@ except Exception:  # pragma: no cover
 
 try:  # pragma: no cover - import guards for early boot scenarios
     from app.extensions import db
-    from app.models import EventLog
 except Exception:  # pragma: no cover
     db = None  # type: ignore
-    EventLog = None  # type: ignore
 
 
-@dataclass(slots=True)
+@dataclass
 class OrchestrationEventPublisher:
     """Best-effort event publisher for analysis orchestration."""
 
@@ -106,35 +104,37 @@ class OrchestrationEventPublisher:
         return base
 
     def _persist_event(self, event_type: str, payload: Dict[str, Any], severity: str) -> None:
-        if not EventLog or not db:  # pragma: no cover - guard for tests
-            return
-        session = None
-        try:
-            session = db.create_scoped_session()
-            log = EventLog(
-                event_id=f"orchestrator-{uuid.uuid4().hex}",
-                event_type="analysis",
-                event_name=event_type,
-                source="orchestrator",
-                user_id=None,
-                session_id=None,
-                severity=severity,
-                category="analysis",
-                message=payload.get("message") or payload.get("state") or payload.get("stage"),
-            )
-            log.set_event_data(payload)
-            log.timestamp = datetime.now(timezone.utc)
-            session.add(log)
-            session.commit()
-        except Exception as exc:  # pragma: no cover - telemetry errors ignored
-            if session is not None:
-                with suppress(Exception):
-                    session.rollback()
-            self._logger.debug("Failed to persist orchestration event %s: %s", event_type, exc)
-        finally:
-            if session is not None:
-                with suppress(Exception):
-                    session.remove()
+        # EventLog model not currently available - persistence disabled
+        return
+        # if not EventLog or not db:  # pragma: no cover - guard for tests
+        #     return
+        # session = None
+        # try:
+        #     session = db.create_scoped_session()
+        #     log = EventLog(
+        #         event_id=f"orchestrator-{uuid.uuid4().hex}",
+        #         event_type="analysis",
+        #         event_name=event_type,
+        #         source="orchestrator",
+        #         user_id=None,
+        #         session_id=None,
+        #         severity=severity,
+        #         category="analysis",
+        #         message=payload.get("message") or payload.get("state") or payload.get("stage"),
+        #     )
+        #     log.set_event_data(payload)
+        #     log.timestamp = datetime.now(timezone.utc)
+        #     session.add(log)
+        #     session.commit()
+        # except Exception as exc:  # pragma: no cover - telemetry errors ignored
+        #     if session is not None:
+        #         with suppress(Exception):
+        #             session.rollback()
+        #     self._logger.debug("Failed to persist orchestration event %s: %s", event_type, exc)
+        # finally:
+        #     if session is not None:
+        #         with suppress(Exception):
+        #             session.remove()
 
     def _normalize(self, value: Any) -> Any:
         if isinstance(value, dict):

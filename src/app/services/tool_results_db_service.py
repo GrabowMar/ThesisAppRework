@@ -105,7 +105,7 @@ class ToolResultsDBService:
                 has_output = bool(stdout or stderr)
                 
                 # Create database record
-                tool_result = ToolExecutionResult(
+                tool_result = ToolExecutionResult(  # type: ignore[call-arg]
                     task_id=task_id,
                     tool_name=tool_name,
                     display_name=metadata['name'],
@@ -156,7 +156,7 @@ class ToolResultsDBService:
                 summary_stats['total_issues_found'] += total_issues
             
             # Create summary record
-            summary = ToolExecutionSummary(
+            summary = ToolExecutionSummary(  # type: ignore[call-arg]
                 task_id=task_id,
                 total_tools=summary_stats['total_tools'],
                 executed_tools=summary_stats['executed_tools'],

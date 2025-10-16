@@ -86,11 +86,12 @@ def preview_generation():
 @scaffold_bp.route('/ports', methods=['GET'])
 def get_ports():
     try:
+        model_name = request.args.get('model_name', '')
         model_index = int(request.args.get('model_index', 0))
         app_number = int(request.args.get('app_number', 1))
     except ValueError:
         return jsonify({"success": False, "error": "Invalid numeric parameters"}), 400
-    p = svc().get_app_ports(model_index, app_number)
+    p = svc().get_app_ports(model_name, model_index, app_number)
     return jsonify({"success": True, "data": {"backend": p.backend, "frontend": p.frontend}})
 
 @scaffold_bp.route('/generate', methods=['POST'])

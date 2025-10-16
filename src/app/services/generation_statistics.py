@@ -710,9 +710,11 @@ def _get_task_statistics() -> Dict[str, Any]:
         success_rate = (completed_tasks / (completed_tasks + failed_tasks) * 100) if (completed_tasks + failed_tasks) > 0 else 0.0
         
         # Calculate average duration for completed tasks
+        from sqlalchemy import func
         avg_duration_result = AnalysisTask.query.filter(
-            AnalysisTask.status == AnalysisStatus.COMPLETED,
-            AnalysisTask.actual_duration.isnot(None)
+            AnalysisTask.status == AnalysisStatus.COMPLETED  # type: ignore[arg-type]
+        ).filter(
+            AnalysisTask.actual_duration.isnot(None)  # type: ignore[attr-defined]
         ).with_entities(func.avg(AnalysisTask.actual_duration)).scalar()
         avg_duration = float(avg_duration_result) if avg_duration_result else 0.0
         

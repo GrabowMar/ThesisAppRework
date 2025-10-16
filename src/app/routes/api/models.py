@@ -587,7 +587,7 @@ def models_comparison_refresh():
                         'cost_per_call': cost_per_call
                     }
                 else:  # slug resolved but row missing (edge case)
-                    metrics[slug] = {
+                    metrics[slug] = {  # type: ignore[assignment]
                         'model_id': slug,
                         'provider': None,
                         'context_window': 0,
@@ -638,7 +638,7 @@ def models_comparison_refresh():
         baseline_metrics: dict[str, float | int | bool] = {}
         if baseline_kind.startswith('model:'):
             bslug = baseline_kind.split(':',1)[1]
-            baseline_metrics = metrics.get(bslug) or (metrics.get(model_slugs[0]) if model_slugs else {})
+            baseline_metrics = metrics.get(bslug) or (metrics.get(model_slugs[0]) if model_slugs else {})  # type: ignore[assignment]
         elif baseline_kind in ('avg','average'):
             baseline_metrics = _aggregate('avg')
         elif baseline_kind in ('median','med'):
@@ -649,17 +649,17 @@ def models_comparison_refresh():
         # Summary stats for research insight
         summary = {}
         for k in numeric_keys:
-            vals = [float(metrics[s][k]) for s in model_slugs if isinstance(metrics.get(s, {}).get(k), (int,float))]
+            vals = [float(metrics[s][k]) for s in model_slugs if isinstance(metrics.get(s, {}).get(k), (int,float))]  # type: ignore[arg-type]
             if not vals:
                 continue
             try:
                 summary[k] = {
                     'avg': round(sum(vals)/len(vals), 6),
                     'median': round(median(vals), 6),
-                    'min': min(vals),
-                    'max': max(vals),
-                    'min_slug': next((s for s in model_slugs if float(metrics[s][k]) == min(vals)), None),
-                    'max_slug': next((s for s in model_slugs if float(metrics[s][k]) == max(vals)), None),
+                    'min': min(vals),  # type: ignore[arg-type]
+                    'max': max(vals),  # type: ignore[arg-type]
+                    'min_slug': next((s for s in model_slugs if float(metrics[s][k]) == min(vals)), None),  # type: ignore[arg-type]
+                    'max_slug': next((s for s in model_slugs if float(metrics[s][k]) == max(vals)), None),  # type: ignore[arg-type]
                 }
             except Exception:
                 continue

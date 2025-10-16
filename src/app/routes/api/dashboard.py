@@ -55,7 +55,7 @@ def api_dashboard_overview():
         # Active applications
         active_apps = (
             db.session.query(db.func.count(GeneratedApplication.id))
-            .filter(GeneratedApplication.container_status == 'running')
+            .filter(GeneratedApplication.container_status == 'running')  # type: ignore[arg-type]
             .scalar()
         )
 
