@@ -5,7 +5,7 @@
       <div class="card-body">
         <div class="d-flex align-items-center mb-3">
           <div class="me-2">
-            <i class="fas fa-id-badge text-primary"></i>
+            <i class="fas fa-id-badge text-primary" aria-hidden="true"></i>
           </div>
           <h3 class="card-title mb-0">Identity</h3>
         </div>
@@ -41,12 +41,12 @@
                 <div class="d-flex flex-wrap gap-1">
                   {% if app_data.backend_framework %}
                     <span class="badge bg-success-lt">
-                      <i class="fas fa-server me-1"></i>{{ app_data.backend_framework }}
+                      <i class="fas fa-server me-1" aria-hidden="true"></i>{{ app_data.backend_framework }}
                     </span>
                   {% endif %}
                   {% if app_data.frontend_framework %}
                     <span class="badge bg-info-lt">
-                      <i class="fas fa-desktop me-1"></i>{{ app_data.frontend_framework }}
+                      <i class="fas fa-desktop me-1" aria-hidden="true"></i>{{ app_data.frontend_framework }}
                     </span>
                   {% endif %}
                 </div>
@@ -65,7 +65,7 @@
       <div class="card-body">
         <div class="d-flex align-items-center mb-3">
           <div class="me-2">
-            <i class="fas fa-life-ring text-success"></i>
+            <i class="fas fa-life-ring text-success" aria-hidden="true"></i>
           </div>
           <h3 class="card-title mb-0">Lifecycle</h3>
         </div>

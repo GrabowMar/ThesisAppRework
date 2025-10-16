@@ -115,6 +115,7 @@
 
   // Toast notification system
   function showToast(message, type) {
+    if (!message) return;
     type = type || 'info';
     var bgClass = type === 'error' ? 'bg-danger' : type === 'success' ? 'bg-success' : 'bg-info';
     var icon = type === 'error' ? 'fa-circle-exclamation' : type === 'success' ? 'fa-circle-check' : 'fa-circle-info';
@@ -123,14 +124,18 @@
     if (!container) {
       container = document.createElement('div');
       container.id = 'toast-container';
-      container.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;max-width:350px;';
+      container.className = 'position-fixed top-0 end-0 p-3';
+      container.style.zIndex = '9999';
+      container.setAttribute('aria-live', 'polite');
+      container.setAttribute('aria-atomic', 'true');
       document.body.appendChild(container);
     }
     
     var toast = document.createElement('div');
     toast.className = 'alert ' + bgClass + ' text-white d-flex align-items-center mb-2';
     toast.style.cssText = 'box-shadow:0 4px 12px rgba(0,0,0,0.15);animation:slideIn 0.3s ease;';
-    toast.innerHTML = '<i class="fas ' + icon + ' me-2"></i><span>' + message + '</span>';
+    toast.setAttribute('role', 'alert');
+    toast.innerHTML = '<i class="fas ' + icon + ' me-2" aria-hidden="true"></i><span>' + message + '</span>';
     
     container.appendChild(toast);
     

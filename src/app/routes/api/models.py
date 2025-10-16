@@ -162,11 +162,48 @@ def api_models_paginated():
         per_page = int(request.args.get('per_page', 100))
         source = request.args.get('source', 'database')  # database or openrouter
         
-        # Filter params
+        # Filter params - support both singular and plural parameter names
         search = (request.args.get('search') or '').strip().lower()
-        providers = {p.lower() for p in request.args.getlist('providers') if p.strip()}
-        caps_filter = {c.lower() for c in request.args.getlist('capabilities') if c.strip()}
+        
+        # Provider filter - accept both 'provider' (singular) and 'providers' (plural)
+        provider_single = request.args.get('provider', '').strip()
+        provider_list = request.args.getlist('providers')
+        if provider_single:
+            providers = {provider_single.lower()}
+        elif provider_list:
+            providers = {p.lower() for p in provider_list if p.strip()}
+        else:
+            providers = set()
+        
+        # Capabilities filter - accept both 'capability' and 'capabilities'
+        cap_single = request.args.get('capability', '').strip()
+        cap_list = request.args.getlist('capabilities')
+        if cap_single:
+            caps_filter = {cap_single.lower()}
+        elif cap_list:
+            caps_filter = {c.lower() for c in cap_list if c.strip()}
+        else:
+            caps_filter = set()
+        
         price_tier = (request.args.get('price') or '').lower()
+        context_size = (request.args.get('context') or '').lower()
+        has_apps = request.args.get('has_apps') == '1'
+        installed_only = request.args.get('installed_only') == '1'
+        free_models = request.args.get('free_models') == '1'
+        
+        # Advanced filters
+        features = request.args.getlist('features')  # function_calling, vision, json_mode, streaming
+        modalities = request.args.getlist('modalities')  # text, image, audio, video
+        parameters = request.args.getlist('parameters')  # temperature, top_p, etc.
+        max_output_size = (request.args.get('max_output') or '').lower()
+        tokenizer_filter = (request.args.get('tokenizer') or '').lower()
+        instruct_type_filter = (request.args.get('instruct_type') or '').lower()
+        cost_efficiency_filter = (request.args.get('cost_efficiency') or '').lower()
+        safety_score_filter = (request.args.get('safety_score') or '').lower()
+        
+        current_app.logger.info(f"[Models API] Filters - search: {search}, provider: {providers}, price: {price_tier}, "
+                               f"context: {context_size}, has_apps: {has_apps}, installed: {installed_only}, "
+                               f"free: {free_models}, features: {features}, modalities: {modalities}")
         
         # Get all models
         base = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
@@ -189,29 +226,176 @@ def api_models_paginated():
                 return 'free'
             if val < 0.001:
                 return 'low'
-            if val < 0.005:
-                return 'mid'
+            if val <= 0.01:
+                return 'medium'
             return 'high'
+        
+        def context_bucket(val: int) -> str:
+            if val < 8000:
+                return 'small'
+            if val < 32000:
+                return 'medium'
+            if val < 128000:
+                return 'large'
+            return 'xlarge'
+        
+        def max_output_bucket(val: int) -> str:
+            if val < 4000:
+                return 'small'
+            if val < 16000:
+                return 'medium'
+            return 'large'
         
         # Apply filters
         filtered = []
         for m in base:
             name_l = (m.model_name or '').lower()
             slug_l = (m.canonical_slug or '').lower()
-            if search and search not in name_l and search not in slug_l:
+            desc = (m.get_metadata() or {}).get('description', '').lower()
+            
+            # Text search
+            if search and not (search in name_l or search in slug_l or search in desc):
                 continue
+            
+            # Provider filter
             if providers and m.provider.lower() not in providers:
                 continue
+            
+            # Capabilities filter
             caps_raw = m.get_capabilities() or {}
             caps_list = _norm_caps(caps_raw.get('capabilities') if isinstance(caps_raw, dict) else caps_raw)
             caps_lower = {c.lower() for c in caps_list}
             if caps_filter and not caps_filter.issubset(caps_lower):
                 continue
+            
+            # Price filter
             if price_tier:
                 bucket = price_bucket(m.input_price_per_token or 0.0)
                 if bucket != price_tier:
                     continue
+            
+            # Context size filter
+            if context_size:
+                ctx_bucket = context_bucket(m.context_window or 0)
+                if ctx_bucket != context_size:
+                    continue
+            
+            # Free models filter
+            if free_models:
+                if (m.input_price_per_token or 0.0) > 0 or (m.output_price_per_token or 0.0) > 0:
+                    continue
+            
+            # Installed only filter
+            if installed_only and not getattr(m, 'installed', False):
+                continue
+            
+            # Has applications filter
+            if has_apps:
+                # Check if model has any applications in the database
+                # This would need to be implemented based on your schema
+                pass
+            
+            # Feature filters
+            if features:
+                arch = caps_raw.get('architecture', {}) if isinstance(caps_raw, dict) else {}
+                supported_params = caps_raw.get('supported_parameters', []) if isinstance(caps_raw, dict) else []
+                
+                supports_function_calling = 'tools' in supported_params or 'tool_choice' in supported_params
+                supports_vision = any('image' in str(mod).lower() for mod in arch.get('input_modalities', []))
+                supports_json = 'response_format' in supported_params or 'json' in str(caps_raw).lower()
+                supports_streaming = 'stream' in supported_params
+                
+                if 'function_calling' in features and not supports_function_calling:
+                    continue
+                if 'vision' in features and not supports_vision:
+                    continue
+                if 'json_mode' in features and not supports_json:
+                    continue
+                if 'streaming' in features and not supports_streaming:
+                    continue
+            
+            # Modality filters
+            if modalities:
+                arch = caps_raw.get('architecture', {}) if isinstance(caps_raw, dict) else {}
+                modality_str = (arch.get('modality') or '').lower()
+                input_mods = [str(m).lower() for m in arch.get('input_modalities', [])]
+                
+                has_required_modalities = True
+                for mod in modalities:
+                    mod_lower = mod.lower()
+                    if not (mod_lower in modality_str or any(mod_lower in im for im in input_mods)):
+                        has_required_modalities = False
+                        break
+                
+                if not has_required_modalities:
+                    continue
+            
+            # Parameter filters
+            if parameters:
+                arch = caps_raw.get('architecture', {}) if isinstance(caps_raw, dict) else {}
+                supported_params = caps_raw.get('supported_parameters', []) if isinstance(caps_raw, dict) else []
+                supported_params_lower = [str(p).lower() for p in supported_params]
+                
+                has_required_params = all(param.lower() in supported_params_lower for param in parameters)
+                if not has_required_params:
+                    continue
+            
+            # Max output filter
+            if max_output_size:
+                output_bucket = max_output_bucket(m.max_output_tokens or 0)
+                if output_bucket != max_output_size:
+                    continue
+            
+            # Tokenizer filter
+            if tokenizer_filter:
+                arch = caps_raw.get('architecture', {}) if isinstance(caps_raw, dict) else {}
+                tok = (arch.get('tokenizer') or '').lower()
+                if tokenizer_filter == 'gpt' and not ('gpt' in tok or 'claude' in tok):
+                    continue
+                elif tokenizer_filter == 'llama' and 'llama' not in tok:
+                    continue
+                elif tokenizer_filter == 'qwen' and 'qwen' not in tok:
+                    continue
+                elif tokenizer_filter == 'mistral' and 'mistral' not in tok:
+                    continue
+                elif tokenizer_filter == 'other' and any(x in tok for x in ['gpt', 'claude', 'llama', 'qwen', 'mistral']):
+                    continue
+            
+            # Instruction type filter
+            if instruct_type_filter:
+                arch = caps_raw.get('architecture', {}) if isinstance(caps_raw, dict) else {}
+                inst_type = arch.get('instruct_type')
+                
+                if instruct_type_filter == 'none':
+                    # Base model - no instruction tuning
+                    if inst_type is not None and inst_type != '' and inst_type.lower() != 'none':
+                        continue
+                elif instruct_type_filter == 'chat':
+                    if not inst_type or 'chat' not in inst_type.lower():
+                        continue
+                elif instruct_type_filter == 'instruction':
+                    if not inst_type or 'instruct' not in inst_type.lower():
+                        continue
+            
+            # Cost efficiency filter
+            if cost_efficiency_filter:
+                cost_eff = m.cost_efficiency or 0.0
+                if cost_efficiency_filter == 'high' and cost_eff < 0.7:
+                    continue
+                elif cost_efficiency_filter == 'medium' and not (0.3 <= cost_eff < 0.7):
+                    continue
+                elif cost_efficiency_filter == 'low' and cost_eff >= 0.3:
+                    continue
+            
+            # Safety score filter (if available in your schema)
+            if safety_score_filter:
+                # Implement based on your schema
+                pass
+            
             filtered.append(m)
+        
+        current_app.logger.info(f"[Models API] Filtered {len(filtered)} models from {len(base)} total")
+        current_app.logger.info(f"[Models API] Filtered {len(filtered)} models from {len(base)} total")
         
         # Calculate pagination
         total = len(filtered)
@@ -278,20 +462,21 @@ def api_models_paginated():
             'pagination': {
                 'page': page,
                 'per_page': per_page,
-                'total': total,
+                'total_items': total,
                 'total_pages': total_pages,
+                'current_page': page,
                 'has_prev': page > 1,
                 'has_next': page < total_pages
             },
             'filters': {
                 'providers': sorted(providers_set),
                 'capabilities': sorted(all_capabilities),
-                'price_tiers': ['free', 'low', 'mid', 'high']
+                'price_tiers': ['free', 'low', 'medium', 'high']
             }
         }
         return api_success(result)
     except Exception as e:
-        current_app.logger.error(f"Error in paginated models: {e}")
+        current_app.logger.error(f"Error in paginated models: {e}", exc_info=True)
         return api_error(str(e), status=500)
 
 

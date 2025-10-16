@@ -53,12 +53,12 @@
 
     <div class="row g-2 align-items-center">
       <div class="col-auto">
-        <label class="d-flex align-items-center gap-2 mb-0">
+        <label class="d-flex align-items-center gap-2 mb-0" for="model-filter">
           <span class="text-muted d-flex align-items-center gap-1">
             <i class="fas fa-brain" aria-hidden="true"></i>
             <span>Model</span>
           </span>
-          <select class="form-select form-select-sm" style="min-width: 140px;" id="model-filter" onchange="applyApplicationFilters()">
+          <select class="form-select form-select-sm" style="min-width: 140px;" id="model-filter" onchange="applyApplicationFilters()" aria-label="Filter by model">
             <option value="">All Models</option>
             {% if available_models is defined %}
               {% for model in available_models %}
@@ -69,12 +69,12 @@
         </label>
       </div>
       <div class="col-auto">
-        <label class="d-flex align-items-center gap-2 mb-0">
+        <label class="d-flex align-items-center gap-2 mb-0" for="status-filter">
           <span class="text-muted d-flex align-items-center gap-1">
             <i class="fas fa-toggle-on" aria-hidden="true"></i>
             <span>Status</span>
           </span>
-          <select class="form-select form-select-sm" style="min-width: 120px;" id="status-filter" onchange="applyApplicationFilters()">
+          <select class="form-select form-select-sm" style="min-width: 120px;" id="status-filter" onchange="applyApplicationFilters()" aria-label="Filter by status">
             <option value="">All Statuses</option>
             {% set status_options = ['running','stopped','error','pending','not_created'] %}
             {% for status in status_options %}
@@ -84,12 +84,12 @@
         </label>
       </div>
       <div class="col-auto">
-        <label class="d-flex align-items-center gap-2 mb-0">
+        <label class="d-flex align-items-center gap-2 mb-0" for="type-filter">
           <span class="text-muted d-flex align-items-center gap-1">
             <i class="fas fa-layer-group" aria-hidden="true"></i>
             <span>Type</span>
           </span>
-          <select class="form-select form-select-sm" style="min-width: 120px;" id="type-filter" onchange="applyApplicationFilters()">
+          <select class="form-select form-select-sm" style="min-width: 120px;" id="type-filter" onchange="applyApplicationFilters()" aria-label="Filter by type">
             <option value="">All Types</option>
             <option value="web_app" {% if type_val == 'web_app' %}selected{% endif %}>Web App</option>
             <option value="api_service" {% if type_val == 'api_service' %}selected{% endif %}>API</option>
@@ -98,8 +98,8 @@
         </label>
       </div>
       <div class="col-auto ms-auto">
-        <button class="btn btn-sm btn-ghost-secondary" onclick="clearAllApplicationFilters()" type="button">
-          <i class="fas fa-times-circle me-1"></i>Clear Filters
+        <button class="btn btn-sm btn-ghost-secondary" onclick="clearAllApplicationFilters()" type="button" aria-label="Clear all filters">
+          <i class="fas fa-times-circle me-1" aria-hidden="true"></i>Clear Filters
         </button>
       </div>
     </div>
@@ -108,22 +108,22 @@
 		<table class="table table-striped table-vcenter table-hover table-sm card-table mb-0" id="applications-table">
 			<thead>
 				<tr>
-					<th class="w-1"><input type="checkbox" id="select-all-apps" class="form-check-input m-0" onchange="toggleSelectAllApplications()" aria-label="Select all"></th>
-					<th>Model</th>
-					<th>Provider</th>
-					<th class="text-center">App</th>
-					<th>Type</th>
-					<th class="text-center">Status</th>
-					<th>Ports</th>
-					<th class="text-end">Size</th>
-					<th class="text-center">Analysis</th>
-					<th class="w-1"></th>
+					<th scope="col" class="w-1"><input type="checkbox" id="select-all-apps" class="form-check-input m-0" onchange="toggleSelectAllApplications()" aria-label="Select all applications"></th>
+					<th scope="col">Model</th>
+					<th scope="col">Provider</th>
+					<th scope="col" class="text-center">App</th>
+					<th scope="col">Type</th>
+					<th scope="col" class="text-center">Status</th>
+					<th scope="col">Ports</th>
+					<th scope="col" class="text-end">Size</th>
+					<th scope="col" class="text-center">Analysis</th>
+					<th scope="col" class="w-1"><span class="visually-hidden">Actions</span></th>
 				</tr>
 			</thead>
 			<tbody id="applications-table-body">
 				{% for app in applications %}
 				<tr data-model="{{ app.model_slug }}" data-app="{{ app.app_number }}" {% if app.id %}data-app-id="{{ app.id }}"{% endif %}>
-					<td><input type="checkbox" class="form-check-input m-0 app-checkbox" value="{{ app.model_slug }}-{{ app.app_number }}" aria-label="Select"></td>
+					<td><input type="checkbox" class="form-check-input m-0 app-checkbox" value="{{ app.model_slug }}-{{ app.app_number }}" aria-label="Select {{ app.model_display_name }} App {{ app.app_number }}"></td>
 					<td>
 						<div class="text-truncate">{{ app.model_display_name }}</div>
 					</td>
@@ -174,11 +174,11 @@
 						{% endif %}
 					</td>
 					<td>
-						<div class="btn-group btn-group-sm" role="group">
+						<div class="btn-group btn-group-sm" role="group" aria-label="Application actions">
 							{# View Details Button #}
 							<button class="btn btn-ghost-primary" 
 								onclick="window.location.href='/applications/{{ app.model_slug }}/{{ app.app_number }}'" 
-								title="View details">
+								aria-label="View details for {{ app.model_display_name }} App {{ app.app_number }}">
 								<i class="fas fa-eye"></i>
 							</button>
 							

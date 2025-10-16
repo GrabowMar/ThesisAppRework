@@ -42,8 +42,8 @@
       <div class="card-body">
         <div class="row align-items-center">
           <div class="col-auto">
-            <span class="bg-{{ card.accent }} text-white avatar"><!-- Tabler Icon -->
-              <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <span class="bg-{{ card.accent }} text-white avatar" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="{{ card.label }} icon">
                 {% if card.icon == 'robot' %}<path d="M7 7h10v2l2 2v6l-2 2v1a1 1 0 0 1 -1 1h-6a1 1 0 0 1 -1 -1v-1l-2 -2v-6l2 -2v-2z"></path><path d="M10 16h4"></path><circle cx="8.5" cy="11.5" r=".5" fill="currentColor"></circle><circle cx="15.5" cy="11.5" r=".5" fill="currentColor"></circle>{% elif card.icon == 'apps' %}<rect x="4" y="4" width="6" height="6" rx="1"></rect><rect x="14" y="4" width="6" height="6" rx="1"></rect><rect x="4" y="14" width="6" height="6" rx="1"></rect><rect x="14" y="14" width="6" height="6" rx="1"></rect>{% elif card.icon == 'shield-check' %}<path d="M9 12l2 2l4 -4"></path><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"></path>{% elif card.icon == 'activity' %}<polyline points="22,12 18,12 15,21 9,3 6,12 2,12"></polyline>{% endif %}
               </svg>
             </span>

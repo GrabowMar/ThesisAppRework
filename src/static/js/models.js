@@ -17,8 +17,11 @@
 
 // models.js (post-trimming) – legacy bulk client table logic retained until fully replaced.
 if (window.__MODELS_JS_LOADED__) {
-  console.debug('models.js already loaded – skipping re‑init');
-} else { // SINGLE EXECUTION BLOCK
+  console.debug('models.js already loaded – skipping re‑init but ensuring global functions are available');
+  // Even if already loaded, we need to ensure functions are globally available
+  // This happens when the page is navigated via HTMX or browser back/forward
+  // The actual function definitions remain in memory from first load
+} else { // SINGLE EXECUTION BLOCK - First time initialization
   window.__MODELS_JS_LOADED__ = true;
 
 /** @typedef {Object} EnrichedModel
@@ -56,11 +59,9 @@ if (window.__MODELS_JS_LOADED__) {
       if (perPageSelect) perPageSelect.value = String(perPage);
       updateSourceButtons();
 
-      const savedSelection = JSON.parse(localStorage.getItem('models_selected') || '[]');
-      if (Array.isArray(savedSelection)) {
-        selectedModels = savedSelection;
-        updateBatchSelectionCount();
-      }
+      // Don't auto-restore selection - user must manually select models
+      selectedModels = [];
+      updateBatchSelectionCount();
     } catch (e) {}
   }
 
@@ -280,64 +281,109 @@ function buildFilterParams() {
   const p = new URLSearchParams();
   
   // Text search
-  const q = document.getElementById('model-search')?.value.trim();
+  const q = document.getElementById('model-search')?.value?.trim();
   if (q) p.append('search', q);
   
-  // Basic filters
-  const provider = document.getElementById('provider-filter')?.value;
-  if (provider) p.append('provider', provider);
+  // Basic filters - ensure we're reading the value property correctly
+  const providerEl = document.getElementById('provider-filter');
+  const provider = providerEl?.value?.trim();
+  if (provider) {
+    console.log('[Filter Debug] Provider filter:', provider);
+    p.append('provider', provider);
+  }
   
-  const price = document.getElementById('price-filter')?.value;
-  if (price) p.append('price', price);
+  const priceEl = document.getElementById('price-filter');
+  const price = priceEl?.value?.trim();
+  if (price) {
+    console.log('[Filter Debug] Price filter:', price);
+    p.append('price', price);
+  }
   
-  const context = document.getElementById('context-filter')?.value;
-  if (context) p.append('context', context);
+  const contextEl = document.getElementById('context-filter');
+  const context = contextEl?.value?.trim();
+  if (context) {
+    console.log('[Filter Debug] Context filter:', context);
+    p.append('context', context);
+  }
   
   // Checkbox filters
   if (document.getElementById('filter-has-apps')?.checked) {
+    console.log('[Filter Debug] Has apps filter: true');
     p.append('has_apps', '1');
   }
   if (document.getElementById('filter-installed-only')?.checked) {
+    console.log('[Filter Debug] Installed only filter: true');
     p.append('installed_only', '1');
   }
   if (document.getElementById('filter-free-models')?.checked) {
+    console.log('[Filter Debug] Free models filter: true');
     p.append('free_models', '1');
   }
   
   // Feature support filters
   const featureFilters = document.querySelectorAll('.feature-filter:checked');
+  if (featureFilters.length > 0) {
+    console.log('[Filter Debug] Feature filters:', Array.from(featureFilters).map(cb => cb.value));
+  }
   featureFilters.forEach(cb => {
     p.append('features', cb.value);
   });
   
   // Modality filters
   const modalityFilters = document.querySelectorAll('.modality-filter:checked');
+  if (modalityFilters.length > 0) {
+    console.log('[Filter Debug] Modality filters:', Array.from(modalityFilters).map(cb => cb.value));
+  }
   modalityFilters.forEach(cb => {
     p.append('modalities', cb.value);
   });
   
   // Parameter support filters
   const paramFilters = document.querySelectorAll('.param-filter:checked');
+  if (paramFilters.length > 0) {
+    console.log('[Filter Debug] Parameter filters:', Array.from(paramFilters).map(cb => cb.value));
+  }
   paramFilters.forEach(cb => {
     p.append('parameters', cb.value);
   });
   
   // Advanced filters
-  const maxOutput = document.getElementById('max-output-filter')?.value;
-  if (maxOutput) p.append('max_output', maxOutput);
+  const maxOutputEl = document.getElementById('max-output-filter');
+  const maxOutput = maxOutputEl?.value?.trim();
+  if (maxOutput) {
+    console.log('[Filter Debug] Max output filter:', maxOutput);
+    p.append('max_output', maxOutput);
+  }
   
-  const tokenizer = document.getElementById('tokenizer-filter')?.value;
-  if (tokenizer) p.append('tokenizer', tokenizer);
+  const tokenizerEl = document.getElementById('tokenizer-filter');
+  const tokenizer = tokenizerEl?.value?.trim();
+  if (tokenizer) {
+    console.log('[Filter Debug] Tokenizer filter:', tokenizer);
+    p.append('tokenizer', tokenizer);
+  }
   
-  const instructType = document.getElementById('instruct-type-filter')?.value;
-  if (instructType) p.append('instruct_type', instructType);
+  const instructTypeEl = document.getElementById('instruct-type-filter');
+  const instructType = instructTypeEl?.value?.trim();
+  if (instructType) {
+    console.log('[Filter Debug] Instruct type filter:', instructType);
+    p.append('instruct_type', instructType);
+  }
   
-  const costEfficiency = document.getElementById('cost-efficiency-filter')?.value;
-  if (costEfficiency) p.append('cost_efficiency', costEfficiency);
+  const costEfficiencyEl = document.getElementById('cost-efficiency-filter');
+  const costEfficiency = costEfficiencyEl?.value?.trim();
+  if (costEfficiency) {
+    console.log('[Filter Debug] Cost efficiency filter:', costEfficiency);
+    p.append('cost_efficiency', costEfficiency);
+  }
   
-  const safetyScore = document.getElementById('safety-score-filter')?.value;
-  if (safetyScore) p.append('safety_score', safetyScore);
+  const safetyScoreEl = document.getElementById('safety-score-filter');
+  const safetyScore = safetyScoreEl?.value?.trim();
+  if (safetyScore) {
+    console.log('[Filter Debug] Safety score filter:', safetyScore);
+    p.append('safety_score', safetyScore);
+  }
   
+  console.log('[Filter Debug] Final params:', p.toString());
   return p;
 }
 function showLoading(s) {
@@ -347,6 +393,7 @@ function showLoading(s) {
 /** Load complete model list (unfiltered) */
 function loadModelsPaginated() {
   if (!window.fetch) return;
+  console.log('[Filter Debug] loadModelsPaginated() called');
   showLoading(true);
   const params = buildFilterParams();
   params.append('page', String(currentPage));
@@ -357,6 +404,8 @@ function loadModelsPaginated() {
   } else {
     params.append('source', currentSource);
   }
+  
+  console.log('[Filter Debug] Request URL:', '/api/models/paginated?' + params.toString());
   
   const abortController = new AbortController();
   const timeoutId = setTimeout(() => abortController.abort(), 10000); // 10s timeout
@@ -370,9 +419,11 @@ function loadModelsPaginated() {
       return r.json();
     })
     .then(response => {
+      console.log('[Filter Debug] API response:', response);
       // Unwrap standardized API envelope {success: true, data: {...}}
       const d = response.data || response;
       modelsData = d.models || [];
+      console.log('[Filter Debug] Models returned:', modelsData.length);
       updateStatistics(d.statistics || {});
       updateFilterOptions(d.filters || d.available_filters || null);
       totalPages = (d.pagination && d.pagination.total_pages) || 1;
@@ -396,6 +447,7 @@ function loadModelsPaginated() {
 }
 /** Fetch filtered models using current UI selections */
 function applyFilters() { 
+  console.log('[Filter Debug] applyFilters() called');
   currentPage = 1; 
   updateFilterSummaries();
   updateActiveFiltersCount();
@@ -430,7 +482,14 @@ function clearAllFilters() {
   const selects = ['provider-filter', 'price-filter', 'context-filter', 'max-output-filter', 'tokenizer-filter', 'instruct-type-filter', 'cost-efficiency-filter', 'safety-score-filter'];
   selects.forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.value = '';
+    if (el) {
+      el.value = '';
+      // Clear data-selected attribute
+      if (el.dataset) {
+        delete el.dataset.selected;
+        delete el.dataset.selectionApplied;
+      }
+    }
   });
   
   // Uncheck all checkbox filters
@@ -655,6 +714,22 @@ function renderModelsTable(models) {
     </tr>`;
   }).join('');
 }
+/** Clear all model selections */
+function clearModelSelection() {
+  selectedModels = [];
+  // Uncheck all checkboxes
+  const checkboxes = document.querySelectorAll('#models-table-body input[type=checkbox]');
+  checkboxes.forEach(cb => cb.checked = false);
+  // Uncheck master checkbox
+  const master = document.getElementById('select-all-models');
+  if (master) master.checked = false;
+  // Update UI
+  updateBatchSelectionCount();
+  updateCompareButton();
+  // Clear from localStorage
+  try { localStorage.removeItem('models_selected'); } catch(e) {}
+}
+
 /** Toggle inclusion of a single model in bulk selection */
 function toggleModelSelection(slug) {
   const i = selectedModels.indexOf(slug);
@@ -901,29 +976,109 @@ function tagInstalledModels() {
     .catch(() => alert('Tag installed failed'));
 }
 function setupFilterHandlers() {
+  console.log('[Filter Debug] Setting up filter handlers');
+  
   const providerSelect = document.getElementById('provider-filter');
   if (providerSelect) {
     providerSelect.removeEventListener('change', onSelectFilterChange);
     providerSelect.addEventListener('change', onSelectFilterChange);
+    console.log('[Filter Debug] Provider filter handler attached');
+  } else {
+    console.warn('[Filter Debug] Provider filter element not found');
   }
 
   const capabilitySelect = document.getElementById('capability-filter');
   if (capabilitySelect) {
     capabilitySelect.removeEventListener('change', onSelectFilterChange);
     capabilitySelect.addEventListener('change', onSelectFilterChange);
+    console.log('[Filter Debug] Capability filter handler attached');
   }
 
   const priceFilter = document.getElementById('price-filter');
   if (priceFilter) {
     priceFilter.removeEventListener('change', onPriceFilterChange);
     priceFilter.addEventListener('change', onPriceFilterChange);
+    console.log('[Filter Debug] Price filter handler attached');
+  } else {
+    console.warn('[Filter Debug] Price filter element not found');
   }
 
   const searchInput = document.getElementById('model-search');
   if (searchInput) {
     searchInput.removeEventListener('input', debounceSearch);
     searchInput.addEventListener('input', debounceSearch);
+    console.log('[Filter Debug] Search input handler attached');
+  } else {
+    console.warn('[Filter Debug] Search input element not found');
   }
+  
+  // Attach handlers to context filter
+  const contextFilter = document.getElementById('context-filter');
+  if (contextFilter) {
+    contextFilter.removeEventListener('change', applyFilters);
+    contextFilter.addEventListener('change', applyFilters);
+    console.log('[Filter Debug] Context filter handler attached');
+  } else {
+    console.warn('[Filter Debug] Context filter element not found');
+  }
+  
+  // Attach handlers to checkbox filters
+  const checkboxFilters = [
+    'filter-has-apps',
+    'filter-installed-only',
+    'filter-free-models'
+  ];
+  
+  checkboxFilters.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.removeEventListener('change', applyFilters);
+      el.addEventListener('change', applyFilters);
+      console.log(`[Filter Debug] ${id} handler attached`);
+    }
+  });
+  
+  // Attach handlers to feature filters
+  const featureFilters = document.querySelectorAll('.feature-filter');
+  featureFilters.forEach(el => {
+    el.removeEventListener('change', applyFilters);
+    el.addEventListener('change', applyFilters);
+  });
+  console.log(`[Filter Debug] ${featureFilters.length} feature filter handlers attached`);
+  
+  // Attach handlers to modality filters
+  const modalityFilters = document.querySelectorAll('.modality-filter');
+  modalityFilters.forEach(el => {
+    el.removeEventListener('change', applyFilters);
+    el.addEventListener('change', applyFilters);
+  });
+  console.log(`[Filter Debug] ${modalityFilters.length} modality filter handlers attached`);
+  
+  // Attach handlers to parameter filters
+  const paramFilters = document.querySelectorAll('.param-filter');
+  paramFilters.forEach(el => {
+    el.removeEventListener('change', applyFilters);
+    el.addEventListener('change', applyFilters);
+  });
+  console.log(`[Filter Debug] ${paramFilters.length} parameter filter handlers attached`);
+  
+  // Attach handlers to advanced filters
+  const advancedFilters = [
+    'max-output-filter',
+    'tokenizer-filter',
+    'instruct-type-filter',
+    'cost-efficiency-filter',
+    'safety-score-filter'
+  ];
+  
+  advancedFilters.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.removeEventListener('change', applyFilters);
+      el.addEventListener('change', applyFilters);
+      console.log(`[Filter Debug] ${id} handler attached`);
+    }
+  });
 }
 
 function updateFilterSummaries() {
@@ -980,13 +1135,17 @@ function updateBatchSelectionCount() {
   const el = document.getElementById('selected-models-count');
   if (el) el.textContent = selectedModels.length;
   const indicator = document.getElementById('models-selection-indicator');
+  const clearBtn = document.getElementById('clear-selection-btn');
+  
   if (indicator) {
     if (selectedModels.length > 0) {
       indicator.textContent = `${selectedModels.length} selected`;
       indicator.className = 'text-primary small fw-bold';
+      if (clearBtn) clearBtn.style.display = 'inline-block';
     } else {
       indicator.textContent = '';
       indicator.className = 'text-muted small';
+      if (clearBtn) clearBtn.style.display = 'none';
     }
   }
 }
@@ -1408,6 +1567,7 @@ function batchDelete() {
 // Expose functions if needed globally
   window.debounceSearch = debounceSearch;
   window.clearSearch = clearSearch;
+  window.clearModelSelection = clearModelSelection;
   window.toggleModelSelection = toggleModelSelection;
   window.toggleSelectAll = toggleSelectAll;
   window.viewModelDetails = viewModelDetails;
@@ -1418,6 +1578,48 @@ function batchDelete() {
   window.tagInstalledModels = tagInstalledModels;
   window.setModelsSource = setModelsSource;
   window.changePerPage = changePerPage;
+  window.applyFilters = applyFilters;
+  window.clearAllFilters = clearAllFilters;
+  window.toggleAdvancedFilters = toggleAdvancedFilters;
+  window.showProviderDropdown = showProviderDropdown;
+  window.closeProviderModal = closeProviderModal;
+  window.showVariantDropdown = showVariantDropdown;
+  window.closeVariantModal = closeVariantModal;
+  window.openOnOpenRouter = openOnOpenRouter;
+  window.compareSelectedModels = compareSelectedModels;
+  window.gotoModelsPage = gotoModelsPage;
+  window.updateBatchSelectionCount = updateBatchSelectionCount;
+  window.setupFilterHandlers = setupFilterHandlers;
+  window.updateFilterSummaries = updateFilterSummaries;
+  window.batchExportJSON = batchExportJSON;
+  window.batchExportCSV = batchExportCSV;
+  window.batchExportComparison = batchExportComparison;
+  window.batchMarkInstalled = batchMarkInstalled;
+  window.batchMarkInstalled = batchMarkInstalled;
+  window.batchUpdateStatus = batchUpdateStatus;
+  window.batchDelete = batchDelete;
+} // End of guard block
+
+// Export functions to global window scope (outside guard so they're ALWAYS available)
+// This is critical for inline onclick/onchange handlers in HTML templates
+if (typeof debounceSearch !== 'undefined') {
+  console.log('[Filter Debug] Exporting models.js functions to window');
+  window.debounceSearch = debounceSearch;
+  window.clearSearch = clearSearch;
+  window.clearModelSelection = clearModelSelection;
+  window.toggleModelSelection = toggleModelSelection;
+  window.toggleSelectAll = toggleSelectAll;
+  window.viewModelDetails = viewModelDetails;
+  window.refreshModels = refreshModels;
+  window.syncFromOpenRouter = syncFromOpenRouter;
+  window.openComparison = openComparison;
+  window.exportModelsData = exportModelsData;
+  window.tagInstalledModels = tagInstalledModels;
+  window.setModelsSource = setModelsSource;
+  window.changePerPage = changePerPage;
+  window.applyFilters = applyFilters;
+  window.clearAllFilters = clearAllFilters;
+  window.toggleAdvancedFilters = toggleAdvancedFilters;
   window.showProviderDropdown = showProviderDropdown;
   window.closeProviderModal = closeProviderModal;
   window.showVariantDropdown = showVariantDropdown;
@@ -1434,6 +1636,9 @@ function batchDelete() {
   window.batchMarkInstalled = batchMarkInstalled;
   window.batchUpdateStatus = batchUpdateStatus;
   window.batchDelete = batchDelete;
-  window.setupFilterHandlers = setupFilterHandlers;
-  window.updateFilterSummaries = updateFilterSummaries;
+  window.rescanUsedModels = rescanUsedModels;
+  window.useSelectedForScaffolding = useSelectedForScaffolding;
+  console.log('[Filter Debug] applyFilters is now:', typeof window.applyFilters);
+} else {
+  console.warn('[Filter Debug] debounceSearch is undefined - functions NOT exported');
 }
