@@ -302,10 +302,10 @@ class AnalyzerManager:
     
     def start_services(self) -> bool:
         """Start all analyzer services using Docker Compose."""
-        logger.info("🚀 Starting analyzer infrastructure...")
+        logger.info("[START] Starting analyzer infrastructure...")
         
         if not self.compose_file.exists():
-            logger.error(f"❌ Docker Compose file not found: {self.compose_file}")
+            logger.error(f"[ERROR] Docker Compose file not found: {self.compose_file}")
             return False
         
         # Build and start services
@@ -314,35 +314,35 @@ class AnalyzerManager:
         )  # 5 minutes for building
         
         if returncode == 0:
-            logger.info("✅ All services started successfully!")
+            logger.info("[OK] All services started successfully!")
             
             # Wait for services to initialize
-            logger.info("⏳ Waiting for services to initialize...")
+            logger.info("[WAIT] Waiting for services to initialize...")
             time.sleep(15)
             
             # Check service health (but don't wait for it)
             asyncio.create_task(self.check_all_services_health())
             return True
         else:
-            logger.error(f"❌ Failed to start services: {stderr}")
+            logger.error(f"[ERROR] Failed to start services: {stderr}")
             return False
     
     def stop_services(self) -> bool:
         """Stop all analyzer services."""
-        logger.info("🛑 Stopping analyzer infrastructure...")
+        logger.info("[STOP] Stopping analyzer infrastructure...")
         
         returncode, stdout, stderr = self.run_command(self._compose_cmd + ['down'])
         
         if returncode == 0:
-            logger.info("✅ All services stopped successfully!")
+            logger.info("[OK] All services stopped successfully!")
             return True
         else:
-            logger.error(f"❌ Failed to stop services: {stderr}")
+            logger.error(f"[ERROR] Failed to stop services: {stderr}")
             return False
     
     def restart_services(self) -> bool:
         """Restart all analyzer services."""
-        logger.info("🔄 Restarting analyzer infrastructure...")
+        logger.info("[SYNC] Restarting analyzer infrastructure...")
         self.stop_services()
         time.sleep(3)
         return self.start_services()
@@ -384,10 +384,10 @@ class AnalyzerManager:
     
     def show_status(self) -> None:
         """Show comprehensive status of all services."""
-        logger.info("📊 Checking service status...")
+        logger.info("[STATS] Checking service status...")
         
         print("\n" + "=" * 80)
-        print("🐳 ANALYZER INFRASTRUCTURE STATUS")
+        print("[DOCKER] ANALYZER INFRASTRUCTURE STATUS")
         print("=" * 80)
         
         # Docker container status
@@ -401,20 +401,20 @@ class AnalyzerManager:
             state = container_data.get('state', 'Not found')
             status = container_data.get('status', 'Unknown')
             
-            state_icon = "✅" if state == "running" else "❌"
+            state_icon = "[OK]" if state == "running" else "[ERROR]"
             print(f"{state_icon} {service_name:20} | {state:10} | {status}")
         
         # Port accessibility
-        print("\n📡 PORT ACCESSIBILITY:")
+        print("\n[SIGNAL] PORT ACCESSIBILITY:")
         print("-" * 50)
         
         for service_name, service_info in self.services.items():
             accessible = self.check_port_accessibility('localhost', service_info.port)
-            access_icon = "✅" if accessible else "❌"
+            access_icon = "[OK]" if accessible else "[ERROR]"
             print(f"{access_icon} {service_name:20} | localhost:{service_info.port:5} | {'ACCESSIBLE' if accessible else 'NOT ACCESSIBLE'}")
         
         # WebSocket health check
-        print("\n💓 SERVICE HEALTH:")
+        print("\n[HEALTH] SERVICE HEALTH:")
         print("-" * 50)
         
         # Check if we can run health checks (avoid event loop conflicts)
@@ -425,7 +425,7 @@ class AnalyzerManager:
                 # If we're already in an event loop, skip detailed health check
                 logger.info("Already in event loop, skipping detailed health check")
                 for service_name in self.services.keys():
-                    print(f"ℹ️  {service_name:20} | RUNNING    | Use 'health' command for details")
+                    print(f"[INFO]  {service_name:20} | RUNNING    | Use 'health' command for details")
             except RuntimeError:
                 # No running loop, safe to create one
                 loop = asyncio.new_event_loop()
@@ -435,11 +435,11 @@ class AnalyzerManager:
                     
                     for service_name, health_data in health_results.items():
                         if health_data.get('status') == 'healthy':
-                            health_icon = "✅"
+                            health_icon = "[OK]"
                             health_status = "HEALTHY"
                             extra_info = f"v{health_data.get('version', 'unknown')}"
                         else:
-                            health_icon = "❌" 
+                            health_icon = "[ERROR]" 
                             health_status = "UNHEALTHY"
                             extra_info = health_data.get('error', 'Unknown error')[:30]
                         
@@ -456,7 +456,7 @@ class AnalyzerManager:
         """Show logs from services."""
         if service:
             if service not in self.services:
-                logger.error(f"❌ Unknown service: {service}")
+                logger.error(f"[ERROR] Unknown service: {service}")
                 return
             
             logger.info(f"📋 Showing logs for {service} (last {lines} lines)...")
@@ -473,7 +473,7 @@ class AnalyzerManager:
             print("=" * 80)
             print(stdout)
         else:
-            logger.error(f"❌ Failed to get logs: {stderr}")
+            logger.error(f"[ERROR] Failed to get logs: {stderr}")
     
     # =================================================================
     # WEBSOCKET COMMUNICATION
@@ -772,7 +772,7 @@ class AnalyzerManager:
             # Broaden to common static tools across Python/JS/CSS
             tools = ['pylint', 'flake8', 'mypy', 'eslint', 'stylelint']
         
-        logger.info(f"🔍 Running static analysis on {model_slug} app {app_number}")
+        logger.info(f"[SEARCH] Running static analysis on {model_slug} app {app_number}")
         
         request = AnalysisRequest(
             model_slug=model_slug,
@@ -796,7 +796,7 @@ class AnalyzerManager:
     
     async def run_comprehensive_analysis(self, model_slug: str, app_number: int) -> Dict[str, Dict[str, Any]]:
         """Run comprehensive analysis (security, static, performance, dynamic) without AI."""
-        logger.info(f"🎯 Running comprehensive analysis on {model_slug} app {app_number}")
+        logger.info(f"[ANALYZE] Running comprehensive analysis on {model_slug} app {app_number}")
 
         # Prepare tasks (no AI per request)
         analysis_tasks = [
@@ -816,12 +816,12 @@ class AnalyzerManager:
 
                 status = result.get('status', 'unknown')
                 if status == 'success':
-                    logger.info(f"✅ {analysis_type.title()} analysis completed")
+                    logger.info(f"[OK] {analysis_type.title()} analysis completed")
                 else:
                     logger.warning(f"⚠️ {analysis_type.title()} analysis failed: {result.get('error', 'Unknown error')}")
 
             except Exception as e:
-                logger.error(f"❌ {analysis_type.title()} analysis error: {e}")
+                logger.error(f"[ERROR] {analysis_type.title()} analysis error: {e}")
                 results[analysis_type] = {'status': 'error', 'error': str(e)}
 
         # Save consolidated results using the new method
@@ -864,7 +864,7 @@ class AnalyzerManager:
                 batch_results['results'][app_key] = result
                 
             except Exception as e:
-                logger.error(f"❌ Failed to analyze {app_key}: {e}")
+                logger.error(f"[ERROR] Failed to analyze {app_key}: {e}")
                 batch_results['results'][app_key] = {'status': 'error', 'error': str(e)}
         
         # Calculate summary
@@ -888,7 +888,7 @@ class AnalyzerManager:
         # Save batch results
         await self.save_batch_results(batch_results)
         
-        logger.info(f"✅ Batch analysis completed: {successful}/{len(models_and_apps)} successful")
+        logger.info(f"[OK] Batch analysis completed: {successful}/{len(models_and_apps)} successful")
         return batch_results
     
     # =================================================================
@@ -926,10 +926,10 @@ class AnalyzerManager:
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(results_with_metadata, f, indent=2, default=str)
-            logger.info(f"💾 Results saved to: {filepath}")
+            logger.info(f"[SAVE] Results saved to: {filepath}")
             return filepath
         except Exception as e:
-            logger.error(f"❌ Failed to save results: {e}")
+            logger.error(f"[ERROR] Failed to save results: {e}")
             raise
     
     async def save_batch_results(self, batch_results: Dict[str, Any]) -> Path:
@@ -943,10 +943,10 @@ class AnalyzerManager:
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(batch_results, f, indent=2, default=str)
-            logger.info(f"💾 Batch results saved to: {filepath}")
+            logger.info(f"[SAVE] Batch results saved to: {filepath}")
             return filepath
         except Exception as e:
-            logger.error(f"❌ Failed to save batch results: {e}")
+            logger.error(f"[ERROR] Failed to save batch results: {e}")
             raise
     
     def _extract_findings_from_analyzer_result(self, analyzer_name: str, result: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -1585,7 +1585,7 @@ class AnalyzerManager:
             # 3. Save the detailed consolidated JSON file
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(task_metadata, f, indent=2, default=str)
-            logger.info(f"💾 Consolidated task results saved to: {filepath}")
+            logger.info(f"[SAVE] Consolidated task results saved to: {filepath}")
 
             # 4. If universal format helpers are available, write that too
             if build_universal_payload and write_universal_file:
@@ -1601,17 +1601,17 @@ class AnalyzerManager:
                         detected_languages=[] # Placeholder
                     )
                     universal_filepath = Path(write_universal_file(self.results_dir, model_slug, app_number, task_id, payload))
-                    logger.info(f"💾 Universal results saved to: {universal_filepath}")
+                    logger.info(f"[SAVE] Universal results saved to: {universal_filepath}")
                 except Exception as e:
                     logger.warning(f"Could not write universal results file: {e}")
 
             # 5. Prune legacy directories
             self.prune_legacy_results(model_slug, app_number)
-            logger.info(f"📊 Aggregated {aggregated_findings.get('findings_total', 0)} findings from {len(tools_executed)} tools")
+            logger.info(f"[STATS] Aggregated {aggregated_findings.get('findings_total', 0)} findings from {len(tools_executed)} tools")
             
             return filepath
         except Exception as e:
-            logger.error(f"❌ Failed to save consolidated task results: {e}")
+            logger.error(f"[ERROR] Failed to save consolidated task results: {e}")
             raise
 
     def _ordered_services(self, consolidated_results: Dict[str, Any]) -> Dict[str, Any]:
@@ -2101,7 +2101,7 @@ async def main():
                 if JSON_MODE:
                     print(json.dumps({"status": "error", "error": "usage: analyze <model> <app_number> [type]"}))
                 else:
-                    print("❌ Usage: python analyzer_manager.py analyze <model> <app_number> [type]")
+                    print("[ERROR] Usage: python analyzer_manager.py analyze <model> <app_number> [type]")
                 return
             
             model_slug = sys.argv[2]
@@ -2124,7 +2124,7 @@ async def main():
                 tools_arg = collected if collected else None
             
             if not JSON_MODE:
-                print(f"🎯 Analyzing {model_slug} app {app_number} ({analysis_type})")
+                print(f"[ANALYZE] Analyzing {model_slug} app {app_number} ({analysis_type})")
             
             if analysis_type == 'comprehensive':
                 results = await manager.run_comprehensive_analysis(model_slug, app_number)
@@ -2168,7 +2168,7 @@ async def main():
                 if JSON_MODE:
                     print(json.dumps({"status": "error", "error": f"unknown_type:{analysis_type}"}))
                 else:
-                    print(f"❌ Unknown analysis type: {analysis_type}")
+                    print(f"[ERROR] Unknown analysis type: {analysis_type}")
                 return
             
             if JSON_MODE:
@@ -2178,7 +2178,7 @@ async def main():
                 except Exception as e:
                     print(json.dumps({"status": "error", "error": f"json_dump_failed:{str(e)}"}))
             else:
-                print("✅ Analysis completed. Results summary:")
+                print("[OK] Analysis completed. Results summary:")
                 if isinstance(results, dict):
                     # For comprehensive results (dict of dicts), print each section
                     if any(isinstance(v, dict) for v in results.values()):
@@ -2192,12 +2192,12 @@ async def main():
         
         elif command == 'batch':
             if len(sys.argv) < 3:
-                print("❌ Usage: python analyzer_manager.py batch <models_file.json>")
+                print("[ERROR] Usage: python analyzer_manager.py batch <models_file.json>")
                 return
             
             models_file = Path(sys.argv[2])
             if not models_file.exists():
-                print(f"❌ File not found: {models_file}")
+                print(f"[ERROR] File not found: {models_file}")
                 return
             
             try:
@@ -2205,16 +2205,16 @@ async def main():
                     models_and_apps = json.load(f)
                 
                 results = await manager.run_batch_analysis(models_and_apps)
-                print("✅ Batch analysis completed:")
+                print("[OK] Batch analysis completed:")
                 print(f"  Success rate: {results['summary']['success_rate']:.1f}%")
                 print(f"  Duration: {results['summary']['total_duration']:.1f}s")
                 
             except Exception as e:
-                print(f"❌ Failed to run batch analysis: {e}")
+                print(f"[ERROR] Failed to run batch analysis: {e}")
         
         elif command == 'batch-models':
             if len(sys.argv) < 3:
-                print("❌ Usage: python analyzer_manager.py batch-models <model1,model2,...>")
+                print("[ERROR] Usage: python analyzer_manager.py batch-models <model1,model2,...>")
                 return
             
             model_names = sys.argv[2].split(',')
@@ -2223,7 +2223,7 @@ async def main():
             print(f"📦 Running batch analysis on {len(models_and_apps)} models (app 1)")
             
             results = await manager.run_batch_analysis(models_and_apps)
-            print("✅ Batch analysis completed:")
+            print("[OK] Batch analysis completed:")
             print(f"  Success rate: {results['summary']['success_rate']:.1f}%")
             print(f"  Duration: {results['summary']['total_duration']:.1f}s")
         
@@ -2232,7 +2232,7 @@ async def main():
             test_results = await manager.test_all_services()
             
             summary = test_results['summary']
-            print("\n📊 TEST RESULTS:")
+            print("\n[STATS] TEST RESULTS:")
             print(f"  Healthy services: {summary['healthy_services']}/{summary['total_services']}")
             print(f"  Successful pings: {summary['successful_pings']}/{summary['total_services']}")
             print(f"  Functional tests: {summary['functional_tests_passed']}")
@@ -2267,20 +2267,20 @@ async def main():
         
         elif command == 'ping':
             if len(sys.argv) < 3:
-                print("❌ Usage: python analyzer_manager.py ping <service_name>")
+                print("[ERROR] Usage: python analyzer_manager.py ping <service_name>")
                 return
             
             service_name = sys.argv[2]
             if service_name not in manager.services:
-                print(f"❌ Unknown service: {service_name}")
+                print(f"[ERROR] Unknown service: {service_name}")
                 print(f"Available services: {', '.join(manager.services.keys())}")
                 return
             
             result = await manager._test_service_ping(service_name)
             if result['status'] == 'success':
-                print(f"✅ {service_name} responded in {result['response_time']:.3f}s")
+                print(f"[OK] {service_name} responded in {result['response_time']:.3f}s")
             else:
-                print(f"❌ {service_name} ping failed: {result.get('error')}")
+                print(f"[ERROR] {service_name} ping failed: {result.get('error')}")
         
         elif command == 'results':
             if len(sys.argv) > 2:
@@ -2292,7 +2292,7 @@ async def main():
                     if JSON_MODE:
                         print(json.dumps({"status": "error", "error": "result_not_found", "query": query}))
                     else:
-                        print(f"❌ Result not found for query: {query}")
+                        print(f"[ERROR] Result not found for query: {query}")
                         print("Tip: You can pass a filename, partial name, relative path under 'results/', an absolute path, or a glob like '**/static-analyzer/*.json'.")
                     return
 
@@ -2330,7 +2330,7 @@ async def main():
                     if JSON_MODE:
                         print(json.dumps({"status": "error", "error": str(e), "path": str(filepath)}))
                     else:
-                        print(f"❌ Failed to read results: {e}")
+                        print(f"[ERROR] Failed to read results: {e}")
             else:
                 # List results
                 results = manager.list_results()
@@ -2350,7 +2350,7 @@ async def main():
                 print_help()
         
         else:
-            print(f"❌ Unknown command: {command}")
+            print(f"[ERROR] Unknown command: {command}")
             print("Use 'python analyzer_manager.py help' for usage information")
     
     except KeyboardInterrupt:
