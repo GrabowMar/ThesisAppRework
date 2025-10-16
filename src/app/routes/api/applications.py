@@ -305,13 +305,3 @@ def bulk_docker_operations():
     """Perform bulk Docker operations on applications."""
     # TODO: Move implementation from api.py
     return api_error("Bulk docker operations endpoint not yet migrated", 501)
-
-@applications_bp.route('/applications/refresh-all-statuses', methods=['POST'])
-def refresh_all_application_statuses():
-    """Refresh all application container statuses from Docker and update database."""
-    try:
-        from app.services.application_service import refresh_all_application_statuses as refresh_func
-        result = refresh_func()
-        return api_success(result, message=f"Refreshed status for {result['total_checked']} applications. Updated: {result['updated']}, Errors: {result['errors']}")
-    except Exception as e:
-        return api_error(f"Failed to refresh application statuses: {str(e)}", status=500)

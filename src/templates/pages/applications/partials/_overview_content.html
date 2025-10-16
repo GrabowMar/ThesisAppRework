@@ -8,78 +8,6 @@
   {% include 'pages/applications/partials/table_block.html' %}
 </div>
 
-<!-- Generate Application Modal -->
-<div class="modal fade" id="generateAppModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">
-          <i class="fas fa-plus me-2"></i>Generate Application
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <form id="generateAppForm" 
-              hx-post="/applications/generate" 
-              hx-target="#generateAppResult" 
-              hx-swap="innerHTML">
-          <div class="mb-3">
-            <label class="form-label">Model</label>
-            <select class="form-select" name="model_slug" required title="Select a model">
-              <option value="" disabled selected>Select model</option>
-              {% for model in available_models %}
-              <option value="{{ model.slug }}">{{ model.display_name }}</option>
-              {% endfor %}
-            </select>
-            <div class="form-hint">Choose the AI model to generate the application</div>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Application Number</label>
-            <input type="number" 
-                   name="app_number" 
-                   class="form-control" 
-                   min="1" 
-                   max="30" 
-                   required 
-                   title="Application number (1-30)" />
-            <div class="form-hint">Range 1-30 maps to different prompt templates</div>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Application Type</label>
-            <select class="form-select" name="app_type" title="Select application type">
-              <option value="web_app" selected>Web App</option>
-              <option value="api_service">API Service</option>
-              <option value="frontend_only">Frontend Only</option>
-              <option value="cli_tool">CLI Tool</option>
-              <option value="desktop_app">Desktop App</option>
-            </select>
-            <div class="form-hint">Type determines the application structure and dependencies</div>
-          </div>
-          <div class="mb-3">
-            <label class="form-check">
-              <input class="form-check-input" type="checkbox" name="auto_start" />
-              <span class="form-check-label">Auto-start container after generation</span>
-            </label>
-          </div>
-          <div class="mb-3">
-            <label class="form-check">
-              <input class="form-check-input" type="checkbox" name="auto_analyze" />
-              <span class="form-check-label">Run analysis after generation</span>
-            </label>
-          </div>
-          <div id="generateAppResult" class="small"></div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" form="generateAppForm" class="btn btn-primary">
-          <i class="fas fa-hammer me-1"></i>Generate
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <!-- Application Details Modal (for quick view) -->
 <div class="modal fade" id="applicationDetailsModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
@@ -187,22 +115,6 @@ function showApplicationsErrorBanner(msg){
   const span = banner.querySelector('.msg');
   if(span) span.textContent = msg;
 }
-
-// Application generation handling
-document.addEventListener('DOMContentLoaded', function() {
-  const form = document.getElementById('generateAppForm');
-  if (form) {
-    form.addEventListener('htmx:afterRequest', function(evt) {
-      if (evt.detail.xhr.status === 200) {
-        setTimeout(() => {
-          const modal = bootstrap.Modal.getInstance(document.getElementById('generateAppModal'));
-          if (modal) modal.hide();
-          htmx.trigger('body', 'refresh-applications-table');
-        }, 2000);
-      }
-    });
-  }
-});
 
 // Get selected applications helper
 function getSelectedApplications() {

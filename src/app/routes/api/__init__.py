@@ -30,7 +30,6 @@ from .app_scaffolding import scaffold_bp
 from .sample_generation import sample_gen_bp
 from .tasks_realtime import tasks_rt_bp
 from .template_store import bp as template_store_bp
-from .migration import migration_bp
 from .tool_registry import tool_registry_bp
 from .container_tools import container_tools_bp
 
@@ -46,7 +45,6 @@ __all__ = [
     'sample_gen_bp',
     'tasks_rt_bp',
     'template_store_bp',
-    'migration_bp',
     'tool_registry_bp',
     'container_tools_bp'
 ]

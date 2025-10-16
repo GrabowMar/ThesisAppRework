@@ -15,7 +15,7 @@ from .jinja.sample_generator import sample_generator_bp
 from .api import (
     api_bp, core_bp, models_bp as api_models_bp, system_bp, dashboard_bp,
     applications_bp, analysis_bp as api_analysis_bp, scaffold_bp, sample_gen_bp, 
-    tasks_rt_bp, template_store_bp, migration_bp
+    tasks_rt_bp, template_store_bp
 )
 
 # Enhanced results API
@@ -51,7 +51,6 @@ __all__ = [
     'scaffold_bp',
     'tasks_rt_bp',
     'template_store_bp',
-    'migration_bp',
 
     # Enhanced results API
     'results_api_bp',

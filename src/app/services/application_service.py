@@ -149,79 +149,10 @@ def stop_model_containers(model_slug: str) -> Dict[str, Any]:
     db.session.commit()
     return {"model_slug": model_slug, "affected": len(apps), "stopped": stopped}
 
-def refresh_all_application_statuses() -> Dict[str, Any]:
-    """Refresh all application container statuses from Docker and update database.
-    
-    Returns summary of refresh operation including number of apps updated.
-    """
-    from ..extensions import db
-    from .service_locator import ServiceLocator
-    from typing import cast, TYPE_CHECKING
-    
-    if TYPE_CHECKING:
-        from .docker_manager import DockerManager
-    
-    # Get all applications from database
-    apps = GeneratedApplication.query.all()
-    total_count = len(apps)
-    updated_count = 0
-    error_count = 0
-    
-    # Get docker manager
-    docker_mgr = ServiceLocator.get_docker_manager()
-    if not docker_mgr:
-        raise RuntimeError("Docker manager unavailable")
-    
-    # Cast to proper type for method access
-    docker_mgr = cast('DockerManager', docker_mgr)
-    
-    for app in apps:
-        try:
-            # Get real Docker status
-            status_summary = docker_mgr.container_status_summary(app.model_slug, app.app_number)
-            states = status_summary.get('states', [])
-            
-            # Determine actual status
-            if any(s.lower() == 'running' for s in states):
-                new_status = 'running'
-            elif states:  # Has containers but not running
-                new_status = 'stopped'
-            else:  # No containers
-                # Check if compose file exists
-                preflight = docker_mgr.compose_preflight(app.model_slug, app.app_number)
-                if preflight.get('compose_file_exists'):
-                    new_status = 'not_created'
-                else:
-                    new_status = 'no_compose'
-            
-            # Update if status changed
-            if app.container_status != new_status:
-                app.update_container_status(new_status)
-                updated_count += 1
-            else:
-                # Update timestamp even if status didn't change
-                app.last_status_check = utc_now()
-                
-        except Exception as e:
-            error_count += 1
-            # Log error but continue with other apps
-            print(f"Error checking status for {app.model_slug}/app{app.app_number}: {e}")
-    
-    # Commit all changes
-    db.session.commit()
-    
-    return {
-        "total_checked": total_count,
-        "updated": updated_count,
-        "errors": error_count,
-        "timestamp": db.session.query(db.func.now()).scalar()
-    }
-
 __all__ = [
     'NotFoundError', 'ValidationError',
     'list_applications', 'create_application', 'get_application',
     'update_application', 'delete_application',
     'start_application', 'stop_application', 'restart_application',
-    'start_model_containers', 'stop_model_containers',
-    'refresh_all_application_statuses'
+    'start_model_containers', 'stop_model_containers'
 ]

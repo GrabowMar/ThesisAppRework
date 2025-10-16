@@ -35,8 +35,6 @@
       <span class="text-muted small" id="applications-source-indicator"></span>
       <div class="btn-list">
         <button class="btn btn-sm btn-primary" onclick="refreshApplications()" title="Refresh applications" type="button"><i class="fas fa-sync me-1" aria-hidden="true"></i>Refresh</button>
-        <button class="btn btn-sm btn-warning" onclick="refreshAllStatuses()" title="Rescan Docker status" type="button"><i class="fas fa-sync-alt me-1" aria-hidden="true"></i>Rescan</button>
-        <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#generateAppModal" title="Generate application" type="button"><i class="fas fa-plus me-1" aria-hidden="true"></i>Generate</button>
         <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#batchApplicationsModal" title="Batch operations" onclick="updateBatchSelectionCount()" type="button"><i class="fas fa-layer-group me-1" aria-hidden="true"></i>Batch Ops</button>
       </div>
       <span class="text-primary small fw-bold" id="applications-selection-indicator"></span>
@@ -346,45 +344,6 @@ if (!window.__appsStatusInterval) {
 // ---- Application Management Functions (Consolidated) ----
 function getSelectedApplications() {
   return Array.from(document.querySelectorAll('.app-checkbox:checked')).map(cb => cb.value);
-}
-
-function refreshAllStatuses() {
-  const button = event.target.closest('button');
-  if (!button) return;
-  
-  const originalHtml = button.innerHTML;
-  const originalDisabled = button.disabled;
-  
-  button.disabled = true;
-  button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-  
-  showNotification('Refreshing all application statuses from Docker...', 'info');
-  
-  fetch('/api/applications/refresh-all-statuses', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' }
-  })
-  .then(response => response.json())
-  .then(data => {
-    if (data.success) {
-      showNotification(data.message, 'success');
-      // Refresh the applications table
-      if (typeof refreshApplications === 'function') {
-        setTimeout(refreshApplications, 500);
-      } else {
-        setTimeout(() => window.location.reload(), 1000);
-      }
-    } else {
-      showNotification(`Status refresh failed: ${data.error}`, 'danger');
-    }
-  })
-  .catch(error => {
-    showNotification(`Status refresh failed: ${error.message}`, 'danger');
-  })
-  .finally(() => {
-    button.disabled = originalDisabled;
-    button.innerHTML = originalHtml;
-  });
 }
 
 function performAppAction(modelSlug, appNumber, action) {
