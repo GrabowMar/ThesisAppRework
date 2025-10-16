@@ -25,6 +25,8 @@ RULES:
 - Use appropriate HTTP status codes and response formats
 - Generate complete, working code - no placeholders or TODOs
 
+IMPORTANT: This task is critical to the success of the project. Take your time to ensure all requirements are implemented correctly and completely.
+
 Return ONLY the Python code wrapped in ```python code blocks.
 ```
 
@@ -176,39 +178,43 @@ services:
 
 ## Backend Requirements
 
-- Accept XML file upload via POST endpoint
-- Accept XSD schema file upload via POST endpoint
-- Validate XML against provided XSD schema using lxml library
-- Return validation results with detailed error messages if validation fails
-- Store validation history with timestamps in SQLite database
-- Provide endpoint to retrieve past validation results
+You MUST implement all of the following requirements completely:
+
+1. Accept XML file upload via POST endpoint
+2. Accept XSD schema file upload via POST endpoint
+3. Validate XML against provided XSD schema using lxml library
+4. Return validation results with detailed error messages if validation fails
+5. Store validation history with timestamps in SQLite database
+6. Provide endpoint to retrieve past validation results
 
 ---
 
 ## Implementation Guidelines
 
+Think step by step as you implement each requirement:
+
 ### Database Models
-- Use SQLAlchemy ORM with proper model definitions
-- Include timestamps (created_at, updated_at) where appropriate
-- Add proper relationships and constraints
-- Initialize database with `db.create_all()` in app context
+1. Use SQLAlchemy ORM with proper model definitions
+2. Include timestamps (created_at, updated_at) where appropriate
+3. Add proper relationships and constraints
+4. Initialize database with `db.create_all()` in app context
 
 ### API Endpoints
-- Follow RESTful conventions (GET, POST, PUT, DELETE)
-- Use proper HTTP status codes (200, 201, 400, 404, 500)
-- Return JSON responses with consistent structure
-- Add input validation and error handling
+1. Follow RESTful conventions (GET, POST, PUT, DELETE)
+2. Use proper HTTP status codes (200, 201, 400, 404, 500)
+3. Return JSON responses with consistent structure
+4. Add input validation and error handling
 
 ### Error Handling
-- Catch and handle exceptions gracefully
-- Return meaningful error messages
-- Log errors for debugging
+1. Catch and handle exceptions gracefully
+2. Return meaningful error messages
+3. Log errors for debugging
 
 ### Code Quality
-- Add docstrings to functions and classes
-- Use type hints where appropriate
-- Follow PEP 8 style guidelines
-- Keep functions focused and modular
+1. Add docstrings to functions and classes
+2. Use type hints where appropriate
+3. Follow PEP 8 style guidelines
+4. Keep functions focused and modular
 
 ---
 
@@ -262,6 +268,8 @@ RULES:
 - Use clean, semantic JSX structure
 - Include inline styles or use className for CSS (App.css will exist)
 - Generate complete, working code - no placeholders or TODOs
+
+IMPORTANT: This task is critical to the success of the project. Take your time to ensure all requirements are implemented correctly and completely.
 
 Return ONLY the JSX/JavaScript code wrapped in ```jsx code blocks.
 ```
@@ -414,14 +422,16 @@ services:
 
 ## Frontend Requirements
 
-- Form to upload XML file (with file input and preview)
-- Form to upload XSD schema file (with file input and preview)
-- Submit button to trigger validation
-- Display validation results clearly (success or error messages)
-- Show validation history in a table with timestamps
-- Ability to re-run validation on previous submissions
-- Loading indicator during validation process
-- Error handling for file upload failures
+You MUST implement all of the following requirements completely:
+
+1. Form to upload XML file (with file input and preview)
+2. Form to upload XSD schema file (with file input and preview)
+3. Submit button to trigger validation
+4. Display validation results clearly (success or error messages)
+5. Show validation history in a table with timestamps
+6. Ability to re-run validation on previous submissions
+7. Loading indicator during validation process
+8. Error handling for file upload failures
 
 ---
 
