@@ -1,0 +1,55 @@
+{# Shared collapsible right content sidebar
+Usage:
+  {% from 'shared/ui/content_sidebar.html' import content_sidebar %}
+  {% call content_sidebar(title='Filters', id='applications-sidebar', icon='fas fa-sliders') %}
+    ... your sidebar content ...
+  {% endcall %}
+#}
+{# Content Sidebar Macro - Collapsible right sidebar for filters/actions #}
+{% macro content_sidebar(title='Sidebar', id='content-sidebar', icon='fa-solid fa-sliders', collapse_pref_key='content_sidebar_collapsed') %}
+  <div id="{{ id }}" class="content-sidebar">
+    <div class="content-sidebar-inner">
+      <div class="content-sidebar-header d-flex justify-content-between align-items-center py-1 px-2">
+        <div class="d-flex align-items-center gap-2">
+          <i class="{{ icon }} text-muted"></i>
+          <strong class="small">{{ title }}</strong>
+        </div>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Sidebar controls">
+          <button class="btn btn-outline-secondary" type="button" title="Refresh" onclick="window.dispatchEvent(new CustomEvent('content-sidebar:refresh'))">
+            <i class="fas fa-rotate"></i>
+          </button>
+          <button class="btn btn-outline-secondary" type="button" title="Collapse" onclick="toggleContentSidebar('{{ collapse_pref_key }}')">
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+      </div>
+      <div class="content-sidebar-body px-2 py-2">
+        {{ caller() }}
+      </div>
+    </div>
+  </div>
+  <button id="content-sidebar-toggle" class="content-sidebar-toggle btn btn-primary btn-icon" type="button" title="Toggle filters" onclick="toggleContentSidebar('{{ collapse_pref_key }}')">
+    <i class="fas fa-sliders"></i>
+  </button>
+  <script>
+  (function(){
+    try {
+      var key='{{ collapse_pref_key }}';
+      var collapsed = localStorage.getItem(key) === '1';
+      var pw = document.querySelector('.page-wrapper');
+      if(collapsed && pw){ pw.classList.add('content-sidebar-collapsed'); }
+      window.toggleContentSidebar = function(prefKey){
+        var k = prefKey || key;
+        var wrapper = document.querySelector('.page-wrapper');
+        if(!wrapper) return;
+        var isCollapsed = wrapper.classList.toggle('content-sidebar-collapsed');
+        try { localStorage.setItem(k, isCollapsed ? '1' : '0'); } catch(_){ }
+      }
+      // Optional: expose refresh hook; pages can listen to trigger HTMX updates
+      window.addEventListener('content-sidebar:refresh', function(){
+        if(window.refreshApplications){ window.refreshApplications(); }
+      });
+    } catch(_) {}
+  })();
+  </script>
+{% endmacro %}

@@ -1,0 +1,286 @@
+{# Modern Task Detail Interface with Sidebar #}
+{% extends 'layouts/base.html' %}
+{% set has_right_sidebar = true %}
+{% set page_title = 'Task ' + task.task_id %}
+{% set page_icon = 'fa-solid fa-microscope' %}
+{% set page_subtitle = 'Analysis Results & Details' %}
+
+{% block content %}
+  {% include 'pages/analysis/partials/task_detail_content.html' %}
+{% endblock %}
+
+{% block right_sidebar %}
+<aside class="d-flex flex-column gap-3" id="task-detail-sidebar" aria-label="Task Detail Sidebar">
+  <!-- Task Status Card -->
+  <div class="card card-sm shadow-sm" id="task-status-card">
+    <div class="card-header py-1 px-2 d-flex justify-content-between align-items-center small text-uppercase letter-spacing-tight">
+      <span class="fw-semibold">Task Status</span>
+      <div class="btn-group btn-group-sm" role="group">
+        <button class="btn btn-icon btn-outline-secondary" id="task-refresh-status" data-bs-toggle="tooltip" data-bs-title="Refresh status" aria-label="Refresh status" onclick="refreshTaskStatus()">
+          <i class="fas fa-rotate"></i>
+        </button>
+      </div>
+    </div>
+    <div class="card-body py-2 px-2" aria-live="polite" aria-atomic="true">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        {% set st = (task.derived_status or task.status)|lower %}
+        {% if st == 'running' %}
+          <span class="badge bg-warning-lt text-uppercase"><i class="fas fa-spinner fa-spin me-1"></i>{{ st }}</span>
+        {% elif st in ['completed','success'] %}
+          <span class="badge bg-success-lt text-uppercase"><i class="fas fa-check me-1"></i>{{ st }}</span>
+        {% elif st == 'failed' %}
+          <span class="badge bg-danger-lt text-uppercase"><i class="fas fa-times me-1"></i>{{ st }}</span>
+        {% elif st == 'pending' %}
+          <span class="badge bg-secondary-lt text-uppercase"><i class="fas fa-clock me-1"></i>{{ st }}</span>
+        {% elif st == 'cancelled' %}
+          <span class="badge bg-muted-lt text-uppercase"><i class="fas fa-ban me-1"></i>{{ st }}</span>
+        {% else %}
+          <span class="badge bg-secondary text-uppercase">{{ task.status }}</span>
+        {% endif %}
+        <div class="small text-muted">{{ task.progress_percentage or 0 }}%</div>
+      </div>
+      <div class="progress progress-xs mb-2"
+           data-progress="{{ task.progress_percentage or 0 }}"
+           role="progressbar"
+           aria-valuemin="0"
+           aria-valuemax="100"
+           aria-valuenow="{{ '%.0f'|format(task.progress_percentage or 0) }}"
+           aria-label="{{ 'Task progress: %.0f%%'|format(task.progress_percentage or 0) }}">
+        <div class="progress-bar"></div>
+      </div>
+      <div class="small text-muted">{{ task.issues_found or 0 }} issues found</div>
+    </div>
+  </div>
+
+  <!-- Quick Actions Card -->
+  <div class="card card-sm shadow-sm" id="task-actions-card">
+    <div class="card-header py-1 px-2 d-flex justify-content-between align-items-center small text-uppercase letter-spacing-tight">
+      <span class="fw-semibold">Quick Actions</span>
+    </div>
+    <div class="card-body py-2 px-2">
+      <div class="d-grid gap-1">
+        <a href="/analysis/api/tasks/{{ task.task_id }}/results.json" target="_blank" class="btn btn-outline-info btn-sm">
+          <i class="fas fa-file-code me-1"></i> Raw JSON
+        </a>
+        <button class="btn btn-outline-success btn-sm" onclick="exportSarif()">
+          <i class="fas fa-download me-1"></i> Export SARIF
+        </button>
+        <button class="btn btn-outline-warning btn-sm" onclick="recreateFromJson()" id="recreate-btn" 
+                data-bs-toggle="tooltip" data-bs-title="Force reload tool data from JSON file and refresh display">
+          <i class="fas fa-sync me-1"></i> Recreate from JSON
+        </button>
+        <a href="/analysis/tasks" class="btn btn-outline-secondary btn-sm">
+          <i class="fas fa-arrow-left me-1"></i> All Tasks
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Analysis Metadata Card -->
+  <div class="card card-sm shadow-sm" id="analysis-meta-card">
+    <div class="card-header py-1 px-2 small text-uppercase letter-spacing-tight">
+      <span class="fw-semibold">Analysis Info</span>
+    </div>
+    <div class="card-body py-2 px-2 small">
+      <div class="row g-1 mb-1">
+        <div class="col-4 text-muted">Type:</div>
+        <div class="col-8">{{ task.analysis_type }}</div>
+      </div>
+      <div class="row g-1 mb-1">
+        <div class="col-4 text-muted">Model:</div>
+        <div class="col-8">{{ task.target_model }}</div>
+      </div>
+      <div class="row g-1 mb-1">
+        <div class="col-4 text-muted">App:</div>
+        <div class="col-8">#{{ task.target_app_number }}</div>
+      </div>
+      <div class="row g-1 mb-1">
+        <div class="col-4 text-muted">Priority:</div>
+        <div class="col-8"><span class="badge bg-info text-dark">{{ task.priority }}</span></div>
+      </div>
+      {% if task.created_at %}
+      <div class="row g-1 mb-1">
+        <div class="col-4 text-muted">Created:</div>
+        <div class="col-8">{{ task.created_at.strftime('%Y-%m-%d %H:%M') if task.created_at else '-' }}</div>
+      </div>
+      {% endif %}
+      {% if task.elapsed_seconds is defined %}
+      <div class="row g-1">
+        <div class="col-4 text-muted">Duration:</div>
+        <div class="col-8">{{ '%.1f'|format(task.elapsed_seconds) }}s</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</aside>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  
+  <!-- Enhanced Analysis Results API -->
+  <script src="{{ url_for('static', filename='js/analysis-results.js') }}"></script>
+  
+  <!-- Task-specific data -->
+  <div id="task-data" data-task-id="{{ task.task_id }}" style="display: none;"></div>
+  
+  <script>
+    function refreshTaskStatus() {
+      htmx.get('/analysis/api/tasks/{{ task.task_id }}/detail', {
+        target: '#task-status-card .card-body',
+        swap: 'innerHTML'
+      });
+    }
+    
+    function exportSarif() {
+      window.open('/analysis/api/tasks/{{ task.task_id }}/export/sarif', '_blank');
+    }
+    
+    function recreateFromJson() {
+      const btn = document.getElementById('recreate-btn');
+      const originalText = btn.innerHTML;
+      
+      // Show loading state
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Recreating...';
+      btn.disabled = true;
+      
+      // Debug: Log the actual URL being called
+      const taskId = '{{ task.task_id }}';
+      const url = `/analysis/api/v2/tasks/${taskId}/recreate_from_json`;
+      console.log('Recreate URL:', url);
+      console.log('Task ID:', taskId);
+      
+      // Make API call to recreate from JSON
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Show success message with summary
+          const summary = data.analysis_summary || {};
+          const details = data.processing_details || {};
+          
+          btn.innerHTML = '<i class="fas fa-check me-1"></i> Recreated!';
+          btn.classList.remove('btn-outline-warning');
+          btn.classList.add('btn-outline-success');
+          
+          // Show detailed success information in console and tooltip
+          const successInfo = [
+            `✅ Successfully recreated analysis data`,
+            `📊 Total findings: ${summary.total_findings || 0}`,
+            `🔧 Tools executed: ${summary.tools_executed || 0} (${summary.tools_successful || 0} successful, ${summary.tools_failed || 0} failed)`,
+            `⚡ Services processed: ${summary.services_executed || 0}`,
+            `🔒 Security findings: ${details.security_findings || 0}`,
+            `📝 Quality issues: ${details.quality_issues || 0}`,
+            `🎯 AI compliance: ${summary.ai_compliance_percentage || 0}%`,
+            `📁 Source: ${data.source_file || 'N/A'}`
+          ];
+          
+          console.log('Recreate Success Details:\n' + successInfo.join('\n'));
+          
+          // Update tooltip with success summary
+          btn.setAttribute('data-bs-title', 
+            `Recreated: ${summary.total_findings || 0} findings, ${summary.tools_executed || 0} tools, ${summary.ai_compliance_percentage || 0}% compliance`
+          );
+          
+          // Reload the page after a short delay to show updated data
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        } else {
+          // Show error
+          btn.innerHTML = '<i class="fas fa-times me-1"></i> Failed';
+          btn.classList.remove('btn-outline-warning');
+          btn.classList.add('btn-outline-danger');
+          
+          // Reset button after delay
+          setTimeout(() => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            btn.classList.remove('btn-outline-danger');
+            btn.classList.add('btn-outline-warning');
+          }, 3000);
+          
+          console.error('Recreate failed:', data.error);
+        }
+      })
+      .catch(error => {
+        console.error('Recreate error:', error);
+        
+        // Show error state
+        btn.innerHTML = '<i class="fas fa-times me-1"></i> Error';
+        btn.classList.remove('btn-outline-warning');
+        btn.classList.add('btn-outline-danger');
+        
+        // Reset button after delay
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+          btn.classList.remove('btn-outline-danger');
+          btn.classList.add('btn-outline-warning');
+        }, 3000);
+      });
+    }
+
+    function showToolOutput(toolName) {
+      // Placeholder function to show tool output
+      // This would typically open a modal or navigate to a detail view
+      alert(`Show output for tool: ${toolName}\n\nThis feature can be implemented to show raw tool output, logs, or detailed results.`);
+    }
+    
+    // Auto-refresh for running tasks
+    {% if task.status in ['running', 'pending'] %}
+    setInterval(refreshTaskStatus, 5000);
+    {% endif %}
+
+    // Tab switching with lazy loading
+    document.addEventListener('DOMContentLoaded', function() {
+      const taskTabs = document.getElementById('task-tabs');
+      if (taskTabs) {
+        taskTabs.addEventListener('shown.bs.tab', function(event) {
+          const tabId = event.target.getAttribute('href').substring(1); // Remove #
+          
+          // Load data when tab is activated
+          if (analysisResults) {
+            switch(tabId) {
+              case 'overview':
+                if (!analysisResults.loadingStates.get('overview')) {
+                  analysisResults.loadOverview();
+                }
+                break;
+              case 'security':
+                if (!analysisResults.loadingStates.get('security')) {
+                  analysisResults.loadSecurity();
+                }
+                break;
+              case 'performance':
+                if (!analysisResults.loadingStates.get('performance')) {
+                  analysisResults.loadPerformance();
+                }
+                break;
+              case 'quality':
+                if (!analysisResults.loadingStates.get('quality')) {
+                  analysisResults.loadQuality();
+                }
+                break;
+              case 'requirements':
+                if (!analysisResults.loadingStates.get('requirements')) {
+                  analysisResults.loadRequirements();
+                }
+                break;
+              case 'tools':
+                if (!analysisResults.loadingStates.get('tools')) {
+                  analysisResults.loadTools();
+                }
+                break;
+            }
+          }
+        });
+      }
+    });
+  </script>
+{% endblock %}

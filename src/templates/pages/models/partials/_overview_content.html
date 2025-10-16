@@ -1,0 +1,371 @@
+{# Models table content using Tabler defaults #}
+{% set provider_selected = request.args.getlist('providers') if request else [] %}
+{% set capability_selected = request.args.getlist('capabilities') if request else [] %}
+{% set price_filter_val = request.args.get('price','') if request else '' %}
+{% set per_page_val = request.args.get('per_page','25') if request else '25' %}
+{% set search_term = request.args.get('search','') if request else '' %}
+{% if provider_options is not defined %}
+	{% set provider_options = [] %}
+{% endif %}
+{% if capability_options is not defined %}
+	{% set capability_options = ['coding','analysis','reasoning','multimodal','language','vision','function_calling','json_mode','streaming'] %}
+{% endif %}
+<div class="card card-table-compact mb-3">
+	<div class="card-header d-flex flex-wrap align-items-center gap-3">
+		<div class="d-flex flex-wrap align-items-center gap-2">
+			<h3 class="card-title d-flex align-items-center gap-2 mb-0">
+				<i class="fas fa-brain"></i>
+				<span>Models</span>
+			</h3>
+			<div class="d-flex flex-wrap align-items-center gap-2 status-indicators">
+				<span class="badge bg-primary-lt d-inline-flex align-items-center gap-2"><i class="fas fa-brain"></i><span id="total-models">{{ models_stats.total_models }}</span></span>
+				<span class="badge bg-success-lt d-inline-flex align-items-center gap-2"><i class="fas fa-check-circle"></i><span id="active-models">{{ models_stats.active_models }}</span></span>
+				<span class="badge bg-info-lt d-inline-flex align-items-center gap-2"><i class="fas fa-building"></i><span id="unique-providers">{{ models_stats.unique_providers }}</span></span>
+				<span class="badge bg-warning-lt d-inline-flex align-items-center gap-2 text-dark"><i class="fas fa-dollar-sign"></i><span id="avg-cost">{{ models_stats.avg_cost_per_1k|round(4) }}</span></span>
+			</div>
+		</div>
+		<div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+			<label class="d-flex align-items-center gap-2 mb-0">
+				<span class="text-muted">Limit</span>
+				<select id="models-per-page" class="form-select form-select-sm w-auto" onchange="changePerPage(this.value)">
+					<option value="10" {% if per_page_val|string == '10' %}selected{% endif %}>10</option>
+					<option value="25" {% if per_page_val|string == '25' %}selected{% endif %}>25</option>
+					<option value="50" {% if per_page_val|string == '50' %}selected{% endif %}>50</option>
+					<option value="100" {% if per_page_val|string == '100' %}selected{% endif %}>100</option>
+				</select>
+			</label>
+			<div class="btn-group btn-group-sm" role="group" aria-label="Model data source">
+				<button type="button" class="btn btn-outline-secondary active" id="src-db" onclick="setModelsSource('db')"><i class="fas fa-database me-1" aria-hidden="true"></i>All</button>
+				<button type="button" class="btn btn-outline-secondary" id="src-used" onclick="setModelsSource('used')" title="Locally installed / used"><i class="fas fa-tag me-1" aria-hidden="true"></i>Used</button>
+				<button type="button" class="btn btn-outline-secondary" id="src-openrouter" onclick="setModelsSource('openrouter')"><i class="fas fa-cloud me-1" aria-hidden="true"></i>OpenRouter</button>
+			</div>
+			<span class="text-muted small" id="models-source-indicator"></span>
+			<div class="btn-list">
+				<button class="btn btn-sm btn-primary" onclick="compareSelectedModels()" title="Compare selected models" type="button" id="compare-models-btn" disabled><i class="fas fa-balance-scale me-1" aria-hidden="true"></i>Compare</button>
+				<button class="btn btn-sm btn-warning" onclick="syncFromOpenRouter()" title="Sync from OpenRouter" type="button"><i class="fas fa-cloud me-1" aria-hidden="true"></i>Sync</button>
+				<button class="btn btn-sm btn-info" onclick="rescanUsedModels()" title="Rescan used models from generated/apps folder" type="button"><i class="fas fa-sync-alt me-1" aria-hidden="true"></i>Rescan</button>
+				<button class="btn btn-sm btn-success" onclick="useSelectedForScaffolding()" title="Use selected models for scaffolding" type="button"><i class="fas fa-layer-group me-1" aria-hidden="true"></i>Scaffolding</button>
+			</div>
+			<span class="text-primary small fw-bold" id="models-selection-indicator"></span>
+		</div>
+	</div>
+	<div class="card-body border-top py-3">
+		{# Search Bar Row #}
+		<div class="row g-2 mb-3">
+			<div class="col-12">
+				<div class="input-group input-group-flat">
+					<span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
+					<input type="text" id="model-search" class="form-control" placeholder="Search by model name, ID, or description..." value="{{ search_term }}" onkeyup="debounceSearch()" aria-label="Search models" />
+					<button class="btn btn-outline-secondary" onclick="clearSearch()" type="button" title="Clear search" aria-label="Clear search"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+					<button class="btn btn-outline-primary" onclick="toggleAdvancedFilters()" type="button" title="Advanced filters" aria-label="Toggle advanced filters">
+						<i class="fas fa-filter me-1" aria-hidden="true"></i>
+						<span class="d-none d-md-inline">Advanced Filters</span>
+						<span class="badge bg-primary ms-1" id="active-filters-count" style="display: none;">0</span>
+					</button>
+				</div>
+			</div>
+		</div>
+
+		{# Quick Filters Row #}
+		<div class="row g-2 align-items-center">
+			<div class="col-auto">
+				<label class="d-flex align-items-center gap-2 mb-0">
+					<span class="text-muted d-flex align-items-center gap-1">
+						<i class="fas fa-building" aria-hidden="true"></i>
+						<span>Provider</span>
+					</span>
+					<select class="form-select form-select-sm" style="min-width: 140px;" id="provider-filter" onchange="applyFilters()">
+						<option value="">All Providers</option>
+						{% for provider in provider_options %}
+						<option value="{{ provider }}">{{ provider }}</option>
+						{% endfor %}
+					</select>
+				</label>
+			</div>
+			<div class="col-auto">
+				<label class="d-flex align-items-center gap-2 mb-0">
+					<span class="text-muted d-flex align-items-center gap-1">
+						<i class="fas fa-dollar-sign" aria-hidden="true"></i>
+						<span>Price</span>
+					</span>
+					<select class="form-select form-select-sm" style="min-width: 120px;" id="price-filter" onchange="applyFilters()">
+						<option value="">All Prices</option>
+						<option value="free">Free Only</option>
+						<option value="low">Low (&lt;$0.001)</option>
+						<option value="medium">Medium ($0.001-$0.01)</option>
+						<option value="high">High (&gt;$0.01)</option>
+					</select>
+				</label>
+			</div>
+			<div class="col-auto">
+				<label class="d-flex align-items-center gap-2 mb-0">
+					<span class="text-muted d-flex align-items-center gap-1">
+						<i class="fas fa-memory" aria-hidden="true"></i>
+						<span>Context</span>
+					</span>
+					<select class="form-select form-select-sm" style="min-width: 130px;" id="context-filter" onchange="applyFilters()">
+						<option value="">Any Size</option>
+						<option value="small">&lt;8K</option>
+						<option value="medium">8K-32K</option>
+						<option value="large">32K-128K</option>
+						<option value="xlarge">&gt;128K</option>
+					</select>
+				</label>
+			</div>
+			<div class="col-auto">
+				<label class="form-check mb-0">
+					<input class="form-check-input" type="checkbox" id="filter-has-apps" onchange="applyFilters()">
+					<span class="form-check-label">Has Applications</span>
+				</label>
+			</div>
+			<div class="col-auto ms-auto">
+				<button class="btn btn-sm btn-ghost-secondary" onclick="clearAllFilters()" type="button">
+					<i class="fas fa-times-circle me-1"></i>Clear Filters
+				</button>
+			</div>
+		</div>
+
+		{# Advanced Filters Panel (Collapsible) #}
+		<div id="advanced-filters-panel" class="mt-3" style="display: none;">
+			<div class="card">
+				<div class="card-header">
+					<h4 class="card-title mb-0"><i class="fas fa-sliders-h me-2"></i>Advanced Filters</h4>
+				</div>
+				<div class="card-body">
+					<div class="row g-4">
+						
+						{# Column 1: Feature Support #}
+						<div class="col-md-6 col-lg-3">
+							<h6 class="mb-3 fw-bold text-primary"><i class="fas fa-cogs me-1"></i> Feature Support</h6>
+							<div class="form-selectgroup form-selectgroup-boxes d-flex flex-column gap-2">
+								<label class="form-selectgroup-item">
+									<input type="checkbox" class="form-selectgroup-input feature-filter" id="filter-function-calling" value="function_calling" onchange="applyFilters()">
+									<div class="form-selectgroup-label d-flex align-items-center p-2">
+										<div class="me-2"><i class="fas fa-code text-primary"></i></div>
+										<div class="form-selectgroup-label-content">
+											<span class="form-selectgroup-title small mb-0">Function Calling</span>
+										</div>
+									</div>
+								</label>
+								<label class="form-selectgroup-item">
+									<input type="checkbox" class="form-selectgroup-input feature-filter" id="filter-vision" value="vision" onchange="applyFilters()">
+									<div class="form-selectgroup-label d-flex align-items-center p-2">
+										<div class="me-2"><i class="fas fa-eye text-info"></i></div>
+										<div class="form-selectgroup-label-content">
+											<span class="form-selectgroup-title small mb-0">Vision</span>
+										</div>
+									</div>
+								</label>
+								<label class="form-selectgroup-item">
+									<input type="checkbox" class="form-selectgroup-input feature-filter" id="filter-json-mode" value="json_mode" onchange="applyFilters()">
+									<div class="form-selectgroup-label d-flex align-items-center p-2">
+										<div class="me-2"><i class="fas fa-brackets-curly text-success"></i></div>
+										<div class="form-selectgroup-label-content">
+											<span class="form-selectgroup-title small mb-0">JSON Mode</span>
+										</div>
+									</div>
+								</label>
+								<label class="form-selectgroup-item">
+									<input type="checkbox" class="form-selectgroup-input feature-filter" id="filter-streaming" value="streaming" onchange="applyFilters()">
+									<div class="form-selectgroup-label d-flex align-items-center p-2">
+										<div class="me-2"><i class="fas fa-stream text-warning"></i></div>
+										<div class="form-selectgroup-label-content">
+											<span class="form-selectgroup-title small mb-0">Streaming</span>
+										</div>
+									</div>
+								</label>
+							</div>
+						</div>
+
+						{# Column 2: Input Modalities & Architecture #}
+						<div class="col-md-6 col-lg-3">
+							<h6 class="mb-3 fw-bold text-primary"><i class="fas fa-layer-group me-1"></i> Modalities & Architecture</h6>
+							
+							<div class="mb-3">
+								<label class="form-label small fw-semibold mb-2">Input Modalities</label>
+								<div class="d-flex flex-column gap-1">
+									<label class="form-check">
+										<input class="form-check-input modality-filter" type="checkbox" id="filter-text-input" value="text" onchange="applyFilters()">
+										<span class="form-check-label small">Text</span>
+									</label>
+									<label class="form-check">
+										<input class="form-check-input modality-filter" type="checkbox" id="filter-image-input" value="image" onchange="applyFilters()">
+										<span class="form-check-label small">Image</span>
+									</label>
+									<label class="form-check">
+										<input class="form-check-input modality-filter" type="checkbox" id="filter-audio-input" value="audio" onchange="applyFilters()">
+										<span class="form-check-label small">Audio</span>
+									</label>
+									<label class="form-check">
+										<input class="form-check-input modality-filter" type="checkbox" id="filter-video-input" value="video" onchange="applyFilters()">
+										<span class="form-check-label small">Video</span>
+									</label>
+								</div>
+							</div>
+
+							<div class="mb-2">
+								<label class="form-label small fw-semibold mb-2">Instruction Type</label>
+								<select class="form-select form-select-sm" id="instruct-type-filter" onchange="applyFilters()">
+									<option value="">Any</option>
+									<option value="none">Base Model</option>
+									<option value="chat">Chat</option>
+									<option value="instruction">Instruction</option>
+								</select>
+							</div>
+
+							<div>
+								<label class="form-label small fw-semibold mb-2">Tokenizer</label>
+								<select class="form-select form-select-sm" id="tokenizer-filter" onchange="applyFilters()">
+									<option value="">Any</option>
+									<option value="gpt">GPT / Claude</option>
+									<option value="llama">Llama</option>
+									<option value="qwen">Qwen</option>
+									<option value="mistral">Mistral</option>
+									<option value="other">Other</option>
+								</select>
+							</div>
+						</div>
+
+						{# Column 3: Parameters & Technical #}
+						<div class="col-md-6 col-lg-3">
+							<h6 class="mb-3 fw-bold text-primary"><i class="fas fa-sliders-h me-1"></i> Parameters & Technical</h6>
+							
+							<div class="mb-3">
+								<label class="form-label small fw-semibold mb-2">Supported Parameters</label>
+								<div class="d-flex flex-column gap-1">
+									<label class="form-check">
+										<input class="form-check-input param-filter" type="checkbox" id="filter-temperature" value="temperature" onchange="applyFilters()">
+										<span class="form-check-label small">Temperature</span>
+									</label>
+									<label class="form-check">
+										<input class="form-check-input param-filter" type="checkbox" id="filter-top-p" value="top_p" onchange="applyFilters()">
+										<span class="form-check-label small">Top-P</span>
+									</label>
+									<label class="form-check">
+										<input class="form-check-input param-filter" type="checkbox" id="filter-top-k" value="top_k" onchange="applyFilters()">
+										<span class="form-check-label small">Top-K</span>
+									</label>
+									<label class="form-check">
+										<input class="form-check-input param-filter" type="checkbox" id="filter-frequency-penalty" value="frequency_penalty" onchange="applyFilters()">
+										<span class="form-check-label small">Frequency Penalty</span>
+									</label>
+									<label class="form-check">
+										<input class="form-check-input param-filter" type="checkbox" id="filter-presence-penalty" value="presence_penalty" onchange="applyFilters()">
+										<span class="form-check-label small">Presence Penalty</span>
+									</label>
+									<label class="form-check">
+										<input class="form-check-input param-filter" type="checkbox" id="filter-tools" value="tools" onchange="applyFilters()">
+										<span class="form-check-label small">Tools</span>
+									</label>
+								</div>
+							</div>
+
+							<div>
+								<label class="form-label small fw-semibold mb-2">Max Output Tokens</label>
+								<select class="form-select form-select-sm" id="max-output-filter" onchange="applyFilters()">
+									<option value="">Any</option>
+									<option value="small">&lt;4K</option>
+									<option value="medium">4K-16K</option>
+									<option value="large">&gt;16K</option>
+								</select>
+							</div>
+						</div>
+
+						{# Column 4: Status & Quality Metrics #}
+						<div class="col-md-6 col-lg-3">
+							<h6 class="mb-3 fw-bold text-primary"><i class="fas fa-chart-line me-1"></i> Status & Quality</h6>
+							
+							<div class="mb-3">
+								<label class="form-label small fw-semibold mb-2">Model Status</label>
+								<div class="d-flex flex-column gap-1">
+									<label class="form-check">
+										<input class="form-check-input" type="checkbox" id="filter-free-models" onchange="applyFilters()">
+										<span class="form-check-label small"><i class="fas fa-gift text-success me-1"></i>Free Models</span>
+									</label>
+									<label class="form-check">
+										<input class="form-check-input" type="checkbox" id="filter-installed-only" onchange="applyFilters()">
+										<span class="form-check-label small"><i class="fas fa-download text-info me-1"></i>Installed Only</span>
+									</label>
+								</div>
+							</div>
+
+							<div class="mb-3">
+								<label class="form-label small fw-semibold mb-2">Cost Efficiency</label>
+								<select class="form-select form-select-sm" id="cost-efficiency-filter" onchange="applyFilters()">
+									<option value="">Any</option>
+									<option value="high">&gt; 0.7 (High)</option>
+									<option value="medium">0.3 - 0.7 (Medium)</option>
+									<option value="low">&lt; 0.3 (Low)</option>
+								</select>
+							</div>
+
+							<div>
+								<label class="form-label small fw-semibold mb-2">Safety Score</label>
+								<select class="form-select form-select-sm" id="safety-score-filter" onchange="applyFilters()">
+									<option value="">Any</option>
+									<option value="high">&gt; 0.7 (High)</option>
+									<option value="medium">0.3 - 0.7 (Medium)</option>
+									<option value="low">&lt; 0.3 (Low)</option>
+								</select>
+							</div>
+						</div>
+					</div>
+
+					{# Filter Actions #}
+					<div class="row mt-4">
+						<div class="col-12">
+							<div class="d-flex justify-content-between align-items-center">
+								<button class="btn btn-outline-secondary btn-sm" onclick="clearAllFilters()" type="button">
+									<i class="fas fa-times-circle me-1"></i>Clear All Filters
+								</button>
+								<button class="btn btn-primary btn-sm" onclick="toggleAdvancedFilters()" type="button">
+									<i class="fas fa-check me-1"></i>Apply & Close
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-striped table-vcenter table-hover table-sm card-table mb-0" id="models-table">
+			<thead>
+				<tr>
+					<th class="w-1">
+						<label class="form-check">
+							<input type="checkbox" id="select-all-models" class="form-check-input" onchange="toggleSelectAll()" />
+						</label>
+					</th>
+					<th class="text-nowrap">Model</th>
+					<th class="text-nowrap">Provider</th>
+					<th class="text-nowrap">Modality</th>
+					<th class="text-nowrap">Tokenizer</th>
+					<th class="text-nowrap">Type</th>
+					<th class="text-nowrap">Price / 1M</th>
+					<th class="text-nowrap">Context</th>
+					<th class="text-nowrap">Max Output</th>
+					<th class="text-nowrap">Cost Eff.</th>
+					<th class="text-nowrap">Features</th>
+					<th class="w-1 text-nowrap">Actions</th>
+				</tr>
+			</thead>
+			<tbody id="models-table-body"></tbody>
+		</table>
+	</div>
+	<div class="card-footer d-flex align-items-center gap-2 justify-content-between" id="models-pagination-bar">
+		<div id="models-page-summary" class="text-muted">Page 1</div>
+		<nav aria-label="Models pagination">
+			<ul class="pagination pagination-sm mb-0" id="models-pagination"></ul>
+		</nav>
+	</div>
+</div>
+<div id="comparison-panel" class="mt-3"></div>
+<div id="loading-spinner" class="text-center py-4">
+  <div class="spinner-border text-primary" role="status">
+    <span class="visually-hidden">Loading...</span>
+  </div>
+  <p class="text-muted mt-2">Loading models...</p>
+</div>
+
+</div>

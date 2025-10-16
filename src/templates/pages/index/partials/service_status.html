@@ -1,0 +1,174 @@
+{# Enhanced Analyzer Services Status Partial #}
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Analyzer Services</h3>
+    <div class="card-actions">
+      <div class="btn-list">
+        <button type="button" class="btn btn-sm btn-outline-primary" 
+                onclick="refreshAnalyzerServices()">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+          Check
+        </button>
+        <button type="button" class="btn btn-sm" 
+                onclick="showServiceDetails()">
+          Details
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="card-body" id="analyzer-services-content">
+    <div class="text-center py-3">
+      <div class="spinner-border spinner-border-sm text-info" role="status">
+        <span class="visually-hidden">Loading analyzer services...</span>
+      </div>
+      <p class="text-muted mt-2 mb-0 small">Checking Docker analyzer containers...</p>
+    </div>
+  </div>
+  <div class="card-footer bg-light small" id="services-summary">
+    <div class="row text-center">
+      <div class="col-3">
+        <div class="fw-bold text-success" id="services-running">0</div>
+        <div class="text-muted">Running</div>
+      </div>
+      <div class="col-3">
+        <div class="fw-bold text-warning" id="services-stopped">0</div>
+        <div class="text-muted">Stopped</div>
+      </div>
+      <div class="col-3">
+        <div class="fw-bold text-danger" id="services-error">0</div>
+        <div class="text-muted">Error</div>
+      </div>
+      <div class="col-3">
+        <div class="fw-bold text-info" id="services-total">5</div>
+        <div class="text-muted">Total</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Service Details Modal -->
+<div class="modal fade" id="serviceDetailsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fab fa-docker me-2"></i>Analyzer Service Details
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="service-details-content">
+        <div class="text-center py-3">
+          <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading service details...</span>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-info" onclick="refreshAnalyzerServices()">
+          <i class="fas fa-sync-alt me-1"></i>Refresh Services
+        </button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showServiceDetails() {
+  const modal = new bootstrap.Modal(document.getElementById('serviceDetailsModal'));
+  modal.show();
+  
+  // Load detailed service information
+  fetch('/api/dashboard/system-health-comprehensive')
+    .then(response => response.json())
+    .then(data => {
+      const content = document.getElementById('service-details-content');
+      if (data.components && data.components.analyzers) {
+        content.innerHTML = renderServiceDetailsTable(data.components.analyzers);
+      } else {
+        content.innerHTML = '<div class="alert alert-warning">No analyzer service data available</div>';
+      }
+    })
+    .catch(error => {
+      document.getElementById('service-details-content').innerHTML = 
+        `<div class="alert alert-danger">Error loading service details: ${error.message}</div>`;
+    });
+}
+
+function renderServiceDetailsTable(analyzers) {
+  let html = `
+    <div class="table-responsive">
+      <table class="table table-sm table-striped table-vcenter card-table mb-0">
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Port</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+  
+  Object.entries(analyzers).forEach(([name, service]) => {
+    const statusClass = getServiceStatusClass(service.status);
+    const statusIcon = getServiceStatusIcon(service.status);
+    
+    html += `
+      <tr>
+        <td><strong>${name}</strong></td>
+        <td><code>${service.port}</code></td>
+        <td><span class="badge bg-outline-secondary">${service.type}</span></td>
+        <td><span class="text-${statusClass}">${statusIcon} ${service.status}</span></td>
+        <td class="small text-muted">${service.message || 'No details'}</td>
+      </tr>
+    `;
+  });
+  
+  html += `
+        </tbody>
+      </table>
+    </div>
+  `;
+  
+  return html;
+}
+
+function getServiceStatusClass(status) {
+  switch (status) {
+    case 'healthy': return 'success';
+    case 'unhealthy': case 'error': return 'danger';
+    case 'unknown': return 'warning';
+    default: return 'secondary';
+  }
+}
+
+function getServiceStatusIcon(status) {
+  switch (status) {
+    case 'healthy': return '<i class="fas fa-check-circle"></i>';
+    case 'unhealthy': case 'error': return '<i class="fas fa-times-circle"></i>';
+    case 'unknown': return '<i class="fas fa-question-circle"></i>';
+    default: return '<i class="fas fa-circle"></i>';
+  }
+}
+
+// Update services summary when data is loaded
+function updateServicesSummary(analyzers) {
+  if (!analyzers) return;
+  
+  const services = Object.values(analyzers);
+  const running = services.filter(s => s.status === 'healthy').length;
+  const stopped = services.filter(s => s.status === 'unhealthy').length;
+  const errors = services.filter(s => s.status === 'error').length;
+  const total = services.length;
+  
+  document.getElementById('services-running').textContent = running;
+  document.getElementById('services-stopped').textContent = stopped;
+  document.getElementById('services-error').textContent = errors;
+  document.getElementById('services-total').textContent = total;
+  
+  // Show summary
+  document.getElementById('services-summary').style.display = 'block';
+}
+</script>

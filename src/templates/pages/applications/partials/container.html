@@ -1,0 +1,136 @@
+{% set status = app_data.container_status|default('unknown') %}
+{% set status_label = status|replace('_', ' ')|title %}
+{% set status_color = 'success' if status == 'running' else ('warning' if status in ['building', 'starting'] else 'secondary') %}
+
+{# Container management overview - redesigned compact layout #}
+<div class="row row-cards g-3 align-items-stretch">
+  <div class="col-sm-6 col-xl-3">
+    <div class="card card-sm h-100">
+      <div class="card-status-top bg-{{ status_color }}"></div>
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <span class="text-secondary text-uppercase fw-semibold small">Lifecycle state</span>
+            <div class="display-7 fw-semibold mt-1">{{ status_label }}</div>
+          </div>
+          <span class="badge bg-{{ status_color }}-lt text-{{ status_color }}">{{ status_label }}</span>
+        </div>
+        <ul class="list-group list-group-flush list-group-borderless mt-3 small">
+          <li class="list-group-item px-0 d-flex justify-content-between">
+            <span class="text-secondary">Last change</span>
+            <span class="text-muted">{{ app_data.updated_at or '—' }}</span>
+          </li>
+          <li class="list-group-item px-0 d-flex justify-content-between">
+            <span class="text-secondary">Container ID</span>
+            <span class="text-muted">{{ app_data.container_id or 'n/a' }}</span>
+          </li>
+        </ul>
+      </div>
+      <div class="card-footer border-top-0 pt-0">
+        <div class="d-grid">
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  hx-get="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/status"
+                  hx-target="#docker-diagnostics-panel"
+                  hx-swap="innerHTML">
+            <i class="fas fa-sync me-1"></i>Refresh status
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="card card-sm h-100">
+      <div class="card-body">
+        <span class="text-secondary text-uppercase fw-semibold small">Runtime summary</span>
+        <div class="mt-3">
+          <dl class="row row-sm g-2 mb-0 small">
+            <dt class="col-6 text-secondary">Model</dt>
+            <dd class="col-6 text-end text-muted"><code>{{ app_data.model_slug }}</code></dd>
+            <dt class="col-6 text-secondary">Application</dt>
+            <dd class="col-6 text-end text-muted">#{{ app_data.app_number }}</dd>
+            <dt class="col-6 text-secondary">Compose</dt>
+            <dd class="col-6 text-end">
+              {% if app_data.has_docker_compose %}
+                <span class="badge bg-success-lt text-success">Enabled</span>
+              {% else %}
+                <span class="badge bg-secondary-lt text-secondary">Single service</span>
+              {% endif %}
+            </dd>
+            <dt class="col-6 text-secondary">Published ports</dt>
+            <dd class="col-6 text-end text-muted">{{ app_data.ports|length }}</dd>
+          </dl>
+        </div>
+        {% if app_data.ports %}
+          <div class="pt-3 mt-3 border-top">
+            <div class="text-secondary small fw-semibold mb-2">First port</div>
+            <div class="d-flex gap-2 flex-wrap">
+              {% for port in app_data.ports[:2] %}
+                <span class="badge bg-primary-lt text-primary">{{ port }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="card card-sm h-100">
+      <div class="card-body">
+        <span class="text-secondary text-uppercase fw-semibold small">Controls</span>
+        <div class="d-grid gap-2 mt-3">
+          {% if status == 'running' %}
+            <button type="button" class="btn btn-danger btn-sm" onclick="stopApplication()">
+              <i class="fas fa-stop me-1"></i>Stop container
+            </button>
+          {% else %}
+            <button type="button" class="btn btn-success btn-sm" onclick="startApplication()">
+              <i class="fas fa-play me-1"></i>Start container
+            </button>
+          {% endif %}
+          <button type="button" class="btn btn-warning btn-sm" onclick="restartApplication()">
+            <i class="fas fa-rotate me-1"></i>Restart
+          </button>
+          {% if app_data.has_docker_compose %}
+            <button type="button" class="btn btn-primary btn-sm" onclick="buildApplication()">
+              <i class="fas fa-hammer me-1"></i>Rebuild images
+            </button>
+          {% endif %}
+          <a class="btn btn-outline-primary btn-sm" href="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs">
+            <i class="fas fa-file-lines me-1"></i>Open full logs
+          </a>
+        </div>
+        <p class="text-secondary small mt-3 mb-0">Commands dispatch through existing API endpoints and refresh this section after completion.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-sm-6 col-xl-3">
+    <div class="card card-sm h-100">
+      <div class="card-body d-flex flex-column">
+        <span class="text-secondary text-uppercase fw-semibold small">Diagnostics</span>
+        <div id="docker-diagnostics-panel" class="flex-grow-1 mt-3">
+          <div class="alert alert-secondary small mb-0" role="alert">
+            Refresh status to retrieve live container metrics and health probes.
+          </div>
+        </div>
+        <div class="mt-3 pt-3 border-top">
+          <div class="text-secondary small fw-semibold mb-2">Recent log output</div>
+          {% if container_logs %}
+            <pre class="bg-dark text-white rounded p-2 small mb-2" style="max-height: 7rem; overflow:auto;">
+{{ container_logs|trim|truncate(240, True, '…') }}
+            </pre>
+            <button class="btn btn-outline-secondary btn-sm" onclick="copyAdjacentPre(this)">
+              <i class="fas fa-copy me-1"></i>Copy snippet
+            </button>
+          {% else %}
+            <div class="alert alert-info small mb-0" role="alert">
+              Logs become available once the container has produced output.
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

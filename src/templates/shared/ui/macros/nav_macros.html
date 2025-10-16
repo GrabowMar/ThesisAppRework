@@ -1,0 +1,235 @@
+{#
+  Navigation Macros
+  Purpose: Helper macros for Tabler navigation components with sidebar collapse support
+  Note: These macros work with the sidebar shrink functionality
+#}
+
+{# Standard navigation link with active state detection and collapse support #}
+{% macro nav_link(endpoint, label, icon_svg='', extra_classes='') %}
+  {%- set is_active = (request.endpoint == endpoint) or (request.endpoint and request.endpoint.startswith(endpoint + '.')) -%}
+  <a class="nav-link {{ 'active' if is_active }} {{ extra_classes }}" 
+     href="{{ url_for(endpoint) }}"
+     hx-boost="true"
+     title="{{ label }}"
+     {% if is_active %}aria-current="page"{% endif %}>
+    {% if icon_svg %}
+    <span class="nav-link-icon d-md-none d-lg-inline-block">
+      {{ icon_svg|safe }}
+    </span>
+    {% endif %}
+    <span class="nav-link-title sidebar-text">{{ label }}</span>
+  </a>
+{% endmacro %}
+
+{# Dropdown navigation item for use inside dropdown menus #}
+{% macro nav_dropdown_item(endpoint, label, icon_svg='', extra_classes='') %}
+  {%- set is_active = (request.endpoint == endpoint) or (request.endpoint and request.endpoint.startswith(endpoint + '.')) -%}
+  <a class="dropdown-item {{ 'active' if is_active }} {{ extra_classes }}" 
+     href="{{ url_for(endpoint) }}"
+     hx-boost="true"
+     {% if is_active %}aria-current="page"{% endif %}>
+    {% if icon_svg %}
+    <span class="dropdown-item-icon">
+      {{ icon_svg|safe }}
+    </span>
+    {% endif %}
+    {{ label }}
+  </a>
+{% endmacro %}
+
+{# Navigation link with badge support - badge also hides when sidebar collapsed #}
+{% macro nav_link_with_badge(endpoint, label, icon_svg='', badge_text='', badge_color='blue', extra_classes='') %}
+  {%- set is_active = (request.endpoint == endpoint) or (request.endpoint and request.endpoint.startswith(endpoint + '.')) -%}
+  <a class="nav-link d-flex align-items-center {{ 'active' if is_active }} {{ extra_classes }}" 
+     href="{{ url_for(endpoint) }}"
+     hx-boost="true"
+     title="{{ label }}"
+     {% if is_active %}aria-current="page"{% endif %}>
+    {% if icon_svg %}
+    <span class="nav-link-icon d-md-none d-lg-inline-block">
+      {{ icon_svg|safe }}
+    </span>
+    {% endif %}
+    <span class="nav-link-title sidebar-text">{{ label }}</span>
+    {% if badge_text %}
+    <span class="badge bg-{{ badge_color }} ms-auto sidebar-text">{{ badge_text }}</span>
+    {% endif %}
+  </a>
+{% endmacro %}
+
+{# Navigation section divider with optional label #}
+{% macro nav_divider(label='', extra_classes='') %}
+  <li class="nav-item {{ extra_classes }}">
+    <div class="nav-link nav-link-divider"></div>
+    {% if label %}
+    <div class="nav-link sidebar-text text-uppercase text-muted small fw-bold px-3 mt-2 mb-1">
+      {{ label }}
+    </div>
+    {% endif %}
+  </li>
+{% endmacro %}
+
+{# Breadcrumb navigation helper #}
+{% macro breadcrumb(items, extra_classes='') %}
+  <nav aria-label="breadcrumb" class="{{ extra_classes }}">
+    <ol class="breadcrumb breadcrumb-arrows">
+      {% for item in items %}
+        <li class="breadcrumb-item {% if loop.last %}active{% endif %}" 
+            {% if loop.last %}aria-current="page"{% endif %}>
+          {% if not loop.last and item.url %}
+            <a href="{{ item.url }}" hx-boost="true">{{ item.label }}</a>
+          {% else %}
+            {{ item.label }}
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ol>
+  </nav>
+{% endmacro %}
+
+{# Status indicator with text and animation options #}
+{% macro status_indicator(status='green', text='', animated=false, extra_classes='') %}
+  <span class="status-indicator-wrapper d-flex align-items-center {{ extra_classes }}">
+    <span class="status-indicator {% if animated %}status-indicator-animated{% endif %} bg-{{ status }}"></span>
+    {% if text %}<span class="ms-2 text-secondary">{{ text }}</span>{% endif %}
+  </span>
+{% endmacro %}
+
+{# User avatar dropdown menu with customizable content #}
+{% macro user_menu(user_name='User', user_role='Administrator', avatar_url='', avatar_initials='U') %}
+  <div class="nav-item dropdown">
+    <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown" aria-label="Open user menu">
+      {% if avatar_url %}
+        <span class="avatar avatar-sm"></span>
+      {% else %}
+        <span class="avatar avatar-sm">{{ avatar_initials }}</span>
+      {% endif %}
+      <div class="d-none d-xl-block ps-2">
+        <div>{{ user_name }}</div>
+        <div class="mt-1 small text-secondary">{{ user_role }}</div>
+      </div>
+    </a>
+    <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+      {{ caller() if caller }}
+    </div>
+  </div>
+{% endmacro %}
+
+{# Page actions button group wrapper #}
+{% macro page_actions() %}
+  <div class="btn-list">
+    {{ caller() if caller }}
+  </div>
+{% endmacro %}
+
+{# Card component with optional header actions #}
+{% macro card(title='', subtitle='', extra_classes='') %}
+  <div class="card {{ extra_classes }}">
+    {% if title %}
+    <div class="card-header">
+      <div class="row align-items-center">
+        <div class="col">
+          <h3 class="card-title">{{ title }}</h3>
+          {% if subtitle %}
+          <div class="card-subtitle text-secondary mt-1">{{ subtitle }}</div>
+          {% endif %}
+        </div>
+        {% if caller and caller.header_actions %}
+        <div class="col-auto ms-auto">
+          <div class="btn-list">
+            {{ caller.header_actions() }}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+    <div class="card-body">
+      {{ caller() if caller }}
+    </div>
+  </div>
+{% endmacro %}
+
+{# Empty state placeholder with icon and optional action #}
+{% macro empty_state(icon_svg='', title='No data', description='', action_text='', action_url='') %}
+  <div class="empty">
+    <div class="empty-img">
+      {% if icon_svg %}
+        {{ icon_svg|safe }}
+      {% else %}
+        <i class="fa-regular fa-file-lines fa-2x text-secondary" aria-hidden="true"></i>
+      {% endif %}
+    </div>
+    <p class="empty-title">{{ title }}</p>
+    {% if description %}
+    <p class="empty-subtitle text-secondary">{{ description }}</p>
+    {% endif %}
+    {% if action_text and action_url %}
+    <div class="empty-action">
+      <a href="{{ action_url }}" class="btn btn-primary" hx-boost="true">
+        {{ action_text }}
+      </a>
+    </div>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{# Loading indicator with customizable size and text #}
+{% macro loading_spinner(size='md', text='Loading...') %}
+  <div class="d-flex align-items-center justify-content-center p-3">
+    <div class="spinner-border spinner-border-{{ size }} text-primary me-2" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    {% if text %}
+    <span class="text-secondary">{{ text }}</span>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{# Alert component with dismissible option #}
+{% macro alert(type='info', title='', dismissible=true, extra_classes='') %}
+  <div class="alert alert-{{ type }} {{ 'alert-dismissible' if dismissible }} {{ extra_classes }}" role="alert">
+    {% if title %}
+    <div class="d-flex">
+      <div>
+        <h4 class="alert-title">{{ title }}</h4>
+        <div class="text-secondary">{{ caller() if caller }}</div>
+      </div>
+    </div>
+    {% else %}
+      {{ caller() if caller }}
+    {% endif %}
+    {% if dismissible %}
+    <a class="btn-close" data-bs-dismiss="alert" aria-label="close"></a>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{# Progress bar with label and percentage #}
+{% macro progress_bar(value, max_value=100, label='', color='blue', show_percentage=true, extra_classes='') %}
+  {% set percentage = ((value / max_value) * 100) | round | int %}
+  <div class="progress {{ extra_classes }}">
+    <div class="progress-bar bg-{{ color }}" 
+         role="progressbar" 
+        
+         aria-valuenow="{{ value }}" 
+         aria-valuemin="0" 
+         aria-valuemax="{{ max_value }}">
+    </div>
+  </div>
+  {% if label or show_percentage %}
+  <div class="d-flex justify-content-between align-items-center mt-1">
+    {% if label %}<small class="text-secondary">{{ label }}</small>{% endif %}
+    {% if show_percentage %}<small class="text-secondary">{{ percentage }}%</small>{% endif %}
+  </div>
+  {% endif %}
+{% endmacro %}
+
+{# Mobile sidebar toggle button - for mobile devices #}
+{% macro sidebar_toggle_button(extra_classes='') %}
+  <button class="btn btn-outline-primary btn-sm sidebar-toggle-mobile {{ extra_classes }}"
+          type="button"
+          title="Toggle sidebar">
+    <i class="fa-solid fa-bars" aria-hidden="true"></i>
+  </button>
+{% endmacro %}

@@ -1,0 +1,264 @@
+"""
+Flask Extensions Configuration
+
+This module initializes Flask extensions used throughout the application.
+Extensions are created here and then initialized in the app factory.
+"""
+
+from flask import Flask, current_app
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+import requests
+import logging
+from typing import Optional
+
+# Initialize extensions
+db = SQLAlchemy()
+migrate = Migrate()
+
+# SocketIO placeholder - will be initialized if available
+socketio = None
+try:
+    from flask_socketio import SocketIO
+    # Use threading async mode for Windows compatibility and to avoid eventlet/gevent dependency
+    socketio = SocketIO(cors_allowed_origins="*", async_mode='threading', logger=False, engineio_logger=False)
+    SOCKETIO_AVAILABLE = True
+except ImportError:
+    SOCKETIO_AVAILABLE = False
+
+class AppComponents:
+    """Centralized component manager for Flask app."""
+    
+    def __init__(self):
+        self.celery = None
+        self.task_manager = None
+        self.analyzer_integration = None
+        self.background_service = None
+        self.websocket_service = None
+    
+    def init_app(self, app: Flask):
+        """Initialize components with Flask app."""
+        app.extensions['app_components'] = self
+    
+    def set_celery(self, celery):
+        """Set Celery instance."""
+        self.celery = celery
+    
+    def set_task_manager(self, task_manager):
+        """Set task manager instance."""
+        self.task_manager = task_manager
+    
+    def set_analyzer_integration(self, analyzer_integration):
+        """Set analyzer integration instance."""
+        self.analyzer_integration = analyzer_integration
+    
+    def set_background_service(self, background_service):
+        """Set background service instance."""
+        self.background_service = background_service
+    
+    def set_websocket_service(self, websocket_service):
+        """Set WebSocket service instance."""
+        self.websocket_service = websocket_service
+
+def get_components() -> Optional[AppComponents]:
+    """Get components from current Flask app."""
+    return current_app.extensions.get('app_components')
+
+def get_celery():
+    """Get Celery instance from app components."""
+    components = get_components()
+    return components.celery if components else None
+
+def get_task_manager():
+    """Get task manager from app components."""
+    components = get_components()
+    return components.task_manager if components else None
+
+def get_analyzer_integration():
+    """Get analyzer integration from app components."""
+    components = get_components()
+    return components.analyzer_integration if components else None
+
+def get_background_service():
+    """Get background service from app components."""
+    components = get_components()
+    return components.background_service if components else None
+
+def get_websocket_service():
+    """Get WebSocket service from app components."""
+    components = get_components()
+    svc = components.websocket_service if components else None
+    # Prefer Celery-backed service. If current looks like mock, proactively swap to Celery.
+    try:
+        if not components:
+            return None
+
+        strict = bool(current_app and current_app.config.get('WEBSOCKET_STRICT_CELERY', False))
+        pref = (current_app.config.get('WEBSOCKET_SERVICE_PREFERENCE')
+                if current_app else None) or 'auto'
+
+        def _is_mock(service_obj) -> bool:
+            try:
+                # Status-based detection
+                st = service_obj.get_status() if hasattr(service_obj, 'get_status') else None
+                if isinstance(st, dict) and (st.get('service') == 'mock_websocket' or st.get('mock_mode') is True):
+                    return True
+                # Class-name heuristic as fallback
+                cls = getattr(service_obj, '__class__', None)
+                name = getattr(cls, '__name__', '') if cls else ''
+                return name.lower().startswith('mock')
+            except Exception:
+                # If we can't read status, treat as needing a switch
+                return True
+
+        # Determine if we should replace current service
+        should_prefer_celery = strict or (pref != 'mock')
+        if svc is None or (_is_mock(svc) and should_prefer_celery):
+            from .extensions import SOCKETIO_AVAILABLE, socketio as _sio  # self-import safe inside function
+            from app.services.celery_websocket_service import initialize_celery_websocket_service
+            sio = _sio if (SOCKETIO_AVAILABLE and _sio) else None
+            try:
+                new_svc = initialize_celery_websocket_service(sio)
+                components.set_websocket_service(new_svc)
+                return new_svc
+            except Exception:
+                # In strict mode, fail hard to prevent mock usage
+                if strict:
+                    raise
+                # Otherwise, return whatever we have (possibly mock)
+                return svc
+    except Exception:
+        # Best-effort enforcement; if anything fails, return what we have
+        pass
+    return svc
+
+# Configure requests for containerized services
+requests_session = requests.Session()
+# Note: timeout should be set per request, not on session
+
+def init_extensions(app):
+    """Initialize Flask extensions with the app instance."""
+    db.init_app(app)
+    migrate.init_app(app, db)
+    
+    # Initialize SocketIO if available
+    if SOCKETIO_AVAILABLE and socketio:
+        try:
+            # Already created with async_mode; just bind to app
+            socketio.init_app(app)
+            app.logger.info("SocketIO initialized successfully")
+        except Exception as e:
+            app.logger.warning(f"Failed to initialize SocketIO: {e}")
+    else:
+        app.logger.info("SocketIO not available - running without real-time features")
+    
+    # Initialize app components
+    components = AppComponents()
+    components.init_app(app)
+    
+    # Configure logging for containerized services communication
+    logging.getLogger('requests').setLevel(logging.WARNING)
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
+    
+    # Set up testing services configuration
+    app.config.setdefault('TESTING_SERVICES_BASE_URL', 'http://localhost:8000')
+    app.config.setdefault('TESTING_SERVICES_TIMEOUT', 300)
+    app.config.setdefault('TESTING_SERVICES_ENABLED', True)
+    
+    app.logger.info("Extensions initialized with containerized testing services support")
+    
+    return components
+
+def get_session():
+    """Get database session context manager that guarantees a Flask app context.
+
+    This is safe to use from both request handlers (where an app/request context
+    already exists) and background workers (Celery) where there may be no app
+    context. When no app context is active, we create one using the app factory
+    and tear it down on exit.
+    """
+
+    class SessionManager:
+        def __init__(self):
+            self._ctx = None  # Flask app context to pop on exit when we pushed it
+
+        def __enter__(self):
+            # Always push a dedicated app context for DB work to ensure scoped session binding
+            try:
+                from app.factory import get_flask_app as _get_flask_app
+                app = _get_flask_app()
+                self._ctx = app.app_context()
+                self._ctx.push()
+            except Exception as e:  # Best-effort: leave _ctx as None and let db.session fail if needed
+                print(f"Warning: get_session could not push app context: {e}")
+            return db.session
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            try:
+                if exc_type:
+                    db.session.rollback()
+                else:
+                    try:
+                        db.session.commit()
+                    except Exception:
+                        db.session.rollback()
+                        raise
+            finally:
+                # Pop app context we created, if any
+                if self._ctx is not None:
+                    try:
+                        self._ctx.pop()
+                    except Exception:
+                        pass
+
+    return SessionManager()
+
+def init_db():
+    """Initialize database tables."""
+    try:
+        # Models should already be imported by factory.py, so no need to re-import here
+        db.create_all()
+    except Exception:
+        # Re-raise so callers can log details
+        raise
+
+
+def deep_merge_dicts(base: dict, update: dict) -> dict:
+    """Recursively merge update dict into base dict."""
+    result = base.copy()
+
+    for key, value in update.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = deep_merge_dicts(result[key], value)
+        else:
+            result[key] = value
+
+    return result
+
+
+def dicts_to_csv(data: list[dict], filename: Optional[str] = None) -> str:
+    """Convert list of dictionaries to CSV string."""
+    if not data:
+        return ""
+
+    import io
+    import csv
+
+    # Get all unique keys from all dictionaries
+    fieldnames = set()
+    for item in data:
+        if isinstance(item, dict):
+            fieldnames.update(item.keys())
+
+    fieldnames = sorted(fieldnames)
+
+    # Create CSV string
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer.writeheader()
+
+    for item in data:
+        if isinstance(item, dict):
+            writer.writerow(item)
+
+    return output.getvalue()

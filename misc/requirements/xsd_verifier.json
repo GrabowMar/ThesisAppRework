@@ -1,0 +1,23 @@
+{
+  "app_id": "xsd_verifier",
+  "name": "XSD Validator",
+  "description": "A tool to validate XML documents against XSD schemas",
+  "backend_requirements": [
+    "Accept XML file upload via POST endpoint",
+    "Accept XSD schema file upload via POST endpoint",
+    "Validate XML against provided XSD schema using lxml library",
+    "Return validation results with detailed error messages if validation fails",
+    "Store validation history with timestamps in SQLite database",
+    "Provide endpoint to retrieve past validation results"
+  ],
+  "frontend_requirements": [
+    "Form to upload XML file (with file input and preview)",
+    "Form to upload XSD schema file (with file input and preview)",
+    "Submit button to trigger validation",
+    "Display validation results clearly (success or error messages)",
+    "Show validation history in a table with timestamps",
+    "Ability to re-run validation on previous submissions",
+    "Loading indicator during validation process",
+    "Error handling for file upload failures"
+  ]
+}

@@ -1,0 +1,229 @@
+{# Main Sample Generator Interface #}
+
+{# Status moved to sidebar (sg-stats-card). Keeping fragment include logic only for non-sidebar contexts if re-used elsewhere. #}
+
+{% set sg_stubbed = (status.stubbed if status is defined and status.stubbed is not none else false) %}
+
+<!-- Main Tabbed Interface -->
+<div id="sample-generator" data-sg-stubbed="{{ 'true' if sg_stubbed else 'false' }}">
+  <div class="card">
+    <div class="card-header">
+      <ul class="nav nav-tabs card-header-tabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <a href="#scaffolding" class="nav-link active" data-bs-toggle="tab" role="tab" aria-label="Scaffolding Generation">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 6l8 -3l8 3" /><path d="M4 6l0 12" /><path d="M20 6l0 12" /><path d="M12 3l0 18" /><path d="M7 10l5 -2l5 2" /><path d="M7 14l5 -2l5 2" /></svg>
+            <span class="d-none d-md-inline">1. Scaffolding Generation</span>
+            <span class="d-md-none">Scaffold</span>
+          </a>
+        </li>
+        <li class="nav-item" role="presentation">
+          <a href="#generation" class="nav-link" data-bs-toggle="tab" role="tab" aria-label="Setup & Generation">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3c7.2 0 9 1.8 9 9s-1.8 9 -9 9s-9 -1.8 -9 -9s1.8 -9 9 -9z" /><path d="M12 7v5l3 3" /></svg>
+            <span class="d-none d-md-inline">2. Setup & Generation</span>
+            <span class="d-md-none">Generate</span>
+          </a>
+        </li>
+        <li class="nav-item" role="presentation">
+          <a href="#results" class="nav-link" data-bs-toggle="tab" role="tab" aria-label="Preview & Results">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" /><path d="M9 14l2 2l4 -4" /></svg>
+            <span class="d-none d-md-inline">3. Preview & Results</span>
+            <span class="d-md-none">Results</span>
+          </a>
+        </li>
+        <li class="nav-item ms-auto" role="presentation">
+          <a href="#templates" class="nav-link" data-bs-toggle="tab" role="tab" aria-label="Templates">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 8l-4 4l4 4" /><path d="M17 8l4 4l-4 4" /><path d="M14 4l-4 16" /></svg>
+            <span class="d-none d-lg-inline">Templates</span>
+          </a>
+        </li>
+        <li class="nav-item" role="presentation">
+          <a href="#batch" class="nav-link" data-bs-toggle="tab" role="tab" aria-label="Batch">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 2l.117 .007a1 1 0 0 1 .876 .876l.007 .117v4l.005 .15a2 2 0 0 0 1.838 1.844l.157 .006h4l.117 .007a1 1 0 0 1 .876 .876l.007 .117v9a3 3 0 0 1 -2.824 2.995l-.176 .005h-10a3 3 0 0 1 -2.995 -2.824l-.005 -.176v-14a3 3 0 0 1 2.824 -2.995l.176 -.005h5z" /><path d="M19 7h-4l-.001 -4.001z" /></svg>
+            <span class="d-none d-lg-inline">Batch</span>
+          </a>
+        </li>
+        <li class="nav-item" role="presentation">
+          <a href="#logs" class="nav-link" data-bs-toggle="tab" role="tab" aria-label="Logs">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6l0 13" /><path d="M12 6l0 13" /><path d="M21 6l0 13" /></svg>
+            <span class="d-none d-lg-inline">Logs</span>
+          </a>
+        </li>
+        <li class="nav-item" role="presentation">
+          <a href="#api-logs" class="nav-link" data-bs-toggle="tab" role="tab" aria-label="API Logs">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7h-3a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-3" /><path d="M9 15h3l8.5 -8.5a1.5 1.5 0 0 0 -3 -3l-8.5 8.5v3" /><path d="M16 5l3 3" /></svg>
+            <span class="d-none d-lg-inline">API Debug</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+  <div class="card-body">
+    <div class="tab-content">
+      
+      <!-- Step 1: Scaffolding Generation -->
+      <div class="tab-pane active show" id="scaffolding" role="tabpanel" aria-labelledby="scaffolding-tab">
+        {% include 'pages/sample_generator/partials/scaffolding_tab.html' %}
+      </div>
+      
+      <!-- Step 2: Setup & Generation -->
+      <div class="tab-pane" id="generation" role="tabpanel" aria-labelledby="generation-tab">
+        {% include 'pages/sample_generator/partials/generation_tab.html' %}
+      </div>
+      
+      <!-- Step 3: Preview & Results -->
+      <div class="tab-pane" id="results" role="tabpanel" aria-labelledby="results-tab">
+        {% include 'pages/sample_generator/partials/results_tab.html' %}
+      </div>
+      
+      <!-- Template Management -->
+      <div class="tab-pane" id="templates" role="tabpanel" aria-labelledby="templates-tab">
+        {% include 'pages/sample_generator/partials/templates_tab.html' %}
+      </div>
+      
+      <!-- Batch Operations -->
+      <div class="tab-pane" id="batch" role="tabpanel" aria-labelledby="batch-tab">
+        {% include 'pages/sample_generator/partials/batch_tab.html' %}
+      </div>
+      
+      <!-- System Logs -->
+      <div class="tab-pane" id="logs" role="tabpanel" aria-labelledby="logs-tab">
+        {% include 'pages/sample_generator/partials/management_tab.html' %}
+      </div>
+      
+      <!-- API Logs & Debugging -->
+      <div class="tab-pane" id="api-logs" role="tabpanel" aria-labelledby="api-logs-tab">
+        {% include 'pages/sample_generator/partials/api_logs_tab.html' %}
+      </div>
+      
+    </div>
+  </div>
+  </div>
+
+  <!-- Progress Modal -->
+  <div class="modal fade" id="progress-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Generation Progress</h5>
+  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="progress-content">
+          <div class="progress mb-3">
+            <div class="progress-bar" id="generation-progress-bar" data-initial-width="0"></div>
+          </div>
+          <div id="progress-details"></div>
+        </div>
+      </div>
+
+        
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+  </div>
+
+    <!-- Template Editor Modal -->
+    <div class="modal fade" id="template-modal" tabindex="-1" aria-labelledby="template-modal-label" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="template-modal-label">Template editor</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="template-modal-path">
+            <div class="mb-3">
+              <label for="template-modal-name" class="form-label">Template name</label>
+              <input type="text" class="form-control" id="template-modal-name" placeholder="app_01_awesome_app.md">
+            </div>
+            <div class="mb-3">
+              <label for="template-modal-app" class="form-label">App number</label>
+              <input type="number" class="form-control" id="template-modal-app" min="1" value="1">
+            </div>
+            <div class="mb-3">
+              <label for="template-modal-content" class="form-label">Prompt content</label>
+              <textarea class="form-control" id="template-modal-content" rows="12" spellcheck="false"></textarea>
+              <div class="form-text">Supports Markdown. Placeholders like <code>{{project_name}}</code> are preserved.</div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-danger me-auto" id="delete-template-btn">Delete</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-primary" id="save-template-btn">Save changes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Result Viewer Modal -->
+    <div class="modal fade" id="result-modal" tabindex="-1" aria-labelledby="result-modal-label" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="result-modal-label">Result details</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
+              <span class="badge bg-primary" id="result-modal-status">Status</span>
+              <div class="small" id="result-modal-meta">Model · Duration</div>
+            </div>
+            <pre class="bg-light-subtle border rounded p-3" id="result-modal-content">No content loaded</pre>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" id="copy-content-btn">Copy</button>
+            <button type="button" class="btn btn-outline-primary" id="regenerate-btn">Regenerate</button>
+            <button type="button" class="btn btn-outline-danger" id="delete-result-btn">Delete</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cleanup Modal -->
+    <div class="modal fade" id="cleanup-modal" tabindex="-1" aria-labelledby="cleanup-modal-label" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="cleanup-modal-label">Cleanup old results</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label for="cleanup-age" class="form-label">Maximum age (days)</label>
+              <input type="number" class="form-control" id="cleanup-age" min="1" value="30">
+            </div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" id="cleanup-dryrun" checked>
+              <label class="form-check-label" for="cleanup-dryrun">Dry run (show what would be deleted)</label>
+            </div>
+            <div class="small text-muted" id="cleanup-summary">No cleanup executed yet.</div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-primary" id="execute-cleanup-btn">Run cleanup</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Batch Confirmation Modal -->
+    <div class="modal fade" id="batch-confirm-modal" tabindex="-1" aria-labelledby="batch-confirm-label" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="batch-confirm-label">Confirm batch execution</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" id="batch-preview-body">
+            <p class="text-muted mb-0">Batch preview unavailable.</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="confirm-batch-btn">Run batch</button>
+          </div>
+        </div>
+      </div>
+    </div>
+</div>

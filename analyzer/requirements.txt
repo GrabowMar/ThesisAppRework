@@ -1,0 +1,10 @@
+websockets>=12.0
+aiohttp>=3.9.0
+asyncio-mqtt>=0.16.0
+aiofiles>=23.0.0
+pydantic>=2.5.0
+python-multipart>=0.0.6
+# Windows-specific dependency needed for Docker named pipe (npipe://) access.
+# "pypiwin32" has been superseded by "pywin32"; using conditional marker keeps it
+# from being installed on non-Windows platforms.
+pywin32; sys_platform == "win32"

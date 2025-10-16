@@ -1,0 +1,79 @@
+# Analyzer .dockerignore
+# Git and version control
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+*.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# Test results
+.pytest_cache/
+.coverage
+htmlcov/
+*results*.json
+*report*.json
+
+# Documentation
+docs/
+*.md
+README*
+
+# Development
+.env.example
+docker-compose.override.yml
+
+# Backup files
+*_backup.py
+*_old.py
+*_comprehensive.py
+*_clean.py
+
+# Test files (exclude from containers)
+test_*.py

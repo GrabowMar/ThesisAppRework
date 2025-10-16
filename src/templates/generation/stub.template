@@ -1,0 +1,7 @@
+"""Stub generation template used for tests.
+Placeholder variables: {{ model_slug }}, {{ app_number }}
+"""
+
+class Service:
+    def perform(self):
+        return "stub-ok-{{ model_slug }}-{{ app_number }}"

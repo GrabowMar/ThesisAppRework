@@ -1,0 +1,231 @@
+{# Application Detail - Clean Tabler Implementation #}
+{% extends 'layouts/base.html' %}
+{% set active_page = 'applications' %}
+{% set page_title = view.title if view else 'Application Detail' %}
+
+{% block content %}
+<div class="page-header">
+  <div class="row align-items-center">
+    <div class="col-auto">
+      <span class="avatar avatar-lg rounded"><i class="{{ view.icon if view else 'fas fa-cube' }}"></i></span>
+    </div>
+    <div class="col">
+      <div class="page-pretitle text-secondary">{{ view.pretitle if view else 'Application Detail' }}</div>
+      <h2 class="page-title">{{ view.title if view else 'Application' }}</h2>
+      {% if view and view.subtitle %}
+      <div class="text-secondary mt-1">{{ view.subtitle }}</div>
+      {% endif %}
+      {% if view and view.badges %}
+      <div class="mt-2">
+        {% for badge in view.badges %}
+          <span class="{{ badge.variant }}">
+            {% if badge.icon %}<i class="{{ badge.icon }} me-1"></i>{% endif %}
+            {{ badge.label }}
+          </span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    <div class="col-auto ms-auto">
+      <div class="btn-list">
+        {% if view and view.actions %}
+        {% for action in view.actions %}
+          {% if action.visible %}
+            {% if action.type == 'link' %}
+              <a href="{{ action.href }}" class="btn {{ action.classes }}"{% if action.target %} target="{{ action.target }}"{% endif %}>
+                {% if action.icon %}<i class="{{ action.icon }} me-1"></i>{% endif %}
+                {{ action.label }}
+              </a>
+            {% else %}
+              <button class="btn {{ action.classes }}"{% if action.onclick %} onclick="{{ action.onclick }}"{% endif %}>
+                {% if action.icon %}<i class="{{ action.icon }} me-1"></i>{% endif %}
+                {{ action.label }}
+              </button>
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  {% for metric in metrics or [] %}
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="text-secondary text-uppercase fw-semibold small">{{ metric.label }}</div>
+        <div class="h2 mb-0 {{ metric.tone }}">{{ metric.value }}</div>
+        {% if metric.hint %}<div class="text-secondary small mt-1">{{ metric.hint }}</div>{% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card mb-3">
+  <div class="card-header">
+    <ul class="nav nav-tabs card-header-tabs" role="tablist">
+      {% for section in sections %}
+      <li class="nav-item" role="presentation">
+        <a href="#tab-{{ section.id }}" class="nav-link{% if loop.first %} active{% endif %}" data-bs-toggle="tab" role="tab" aria-controls="tab-{{ section.id }}">
+          <i class="{{ section.icon }} me-1"></i>{{ section.label }}
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="card-body">
+    <div class="tab-content">
+      {% for section in sections %}
+      <div class="tab-pane{% if loop.first %} active show{% endif %}" id="tab-{{ section.id }}" role="tabpanel"
+           hx-get="{{ section.hx }}"
+           hx-trigger="load once"
+           hx-swap="innerHTML"
+           hx-indicator="#tab-{{ section.id }}-spinner">
+        <div class="text-center py-5" id="tab-{{ section.id }}-spinner">
+          <div class="spinner-border text-primary mb-3" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <div class="text-secondary">Loading {{ section.label|lower }}...</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div id="modal-container"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Toast notification helper
+function showToast(message, type = 'info') {
+  const toastContainer = document.getElementById('toast-container') || (() => {
+    const container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '1100';
+    document.body.appendChild(container);
+    return container;
+  })();
+  
+  const toast = document.createElement('div');
+  toast.className = `alert alert-${type} alert-dismissible fade show`;
+  toast.role = 'alert';
+  toast.innerHTML = `
+    ${message}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  `;
+  
+  toastContainer.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
+
+function copyAdjacentPre(btn) {
+  const pre = btn.closest('.card')?.querySelector('pre');
+  if (!pre) {
+    showToast('Nothing to copy', 'warning');
+    return;
+  }
+  
+  navigator.clipboard.writeText(pre.innerText).then(() => {
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-check me-1"></i>Copied';
+    btn.classList.add('btn-success');
+    btn.classList.remove('btn-outline-primary');
+    setTimeout(() => {
+      btn.innerHTML = orig;
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-outline-primary');
+    }, 1200);
+  }).catch(() => {
+    showToast('Failed to copy to clipboard', 'danger');
+  });
+}
+
+function startApplication() {
+  showToast('Starting application...', 'info');
+  htmx.ajax('POST', '/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/start', {
+    target: '#tab-container',
+    swap: 'innerHTML'
+  }).then(() => {
+    showToast('Application started successfully', 'success');
+  }).catch(() => {
+    showToast('Failed to start application', 'danger');
+  });
+}
+
+function stopApplication() {
+  showToast('Stopping application...', 'info');
+  htmx.ajax('POST', '/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/stop', {
+    target: '#tab-container',
+    swap: 'innerHTML'
+  }).then(() => {
+    showToast('Application stopped successfully', 'success');
+  }).catch(() => {
+    showToast('Failed to stop application', 'danger');
+  });
+}
+
+function restartApplication() {
+  showToast('Restarting application...', 'info');
+  htmx.ajax('POST', '/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/restart', {
+    target: '#tab-container',
+    swap: 'innerHTML'
+  }).then(() => {
+    showToast('Application restarted successfully', 'success');
+  }).catch(() => {
+    showToast('Failed to restart application', 'danger');
+  });
+}
+
+function buildApplication() {
+  showToast('Building application...', 'info');
+  htmx.ajax('POST', '/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/build', {
+    target: '#tab-container',
+    swap: 'innerHTML'
+  }).then(() => {
+    showToast('Build completed successfully', 'success');
+  }).catch(() => {
+    showToast('Build failed', 'danger');
+  });
+}
+
+function analyzeApplication(type) {
+  showToast(`Starting ${type} analysis...`, 'info');
+  htmx.ajax('POST', `/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/analyze/${type}`, {
+    target: '#tab-analyses',
+    swap: 'innerHTML'
+  }).then(() => {
+    showToast('Analysis started', 'success');
+  }).catch(() => {
+    showToast('Failed to start analysis', 'danger');
+  });
+}
+
+function openPromptsModal() {
+  htmx.ajax('GET', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/prompts/modal', {
+    target: '#modal-container',
+    swap: 'innerHTML'
+  }).catch(() => {
+    showToast('Failed to load prompts', 'danger');
+  });
+}
+
+// Listen for HTMX events
+document.body.addEventListener('htmx:afterRequest', function(evt) {
+  if (evt.detail.successful) {
+    console.log('HTMX request successful:', evt.detail.pathInfo.requestPath);
+  } else {
+    console.error('HTMX request failed:', evt.detail.pathInfo.requestPath);
+  }
+});
+
+document.body.addEventListener('htmx:responseError', function(evt) {
+  showToast('A server error occurred. Please try again.', 'danger');
+});
+</script>
+{% endblock %}

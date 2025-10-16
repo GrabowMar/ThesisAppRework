@@ -1,0 +1,207 @@
+# Modern Docker Compose for Analyzer Infrastructure
+# Uses 2025 best practices: no version field, health checks, non-root users
+
+services:
+  # WebSocket Gateway
+  gateway:
+    build: .
+    ports:
+      - "8765:8765"
+    environment:
+      - GATEWAY_HOST=0.0.0.0
+      - GATEWAY_PORT=8765
+      - STATIC_ANALYZER_URL=ws://static-analyzer:2001
+      - DYNAMIC_ANALYZER_URL=ws://dynamic-analyzer:2002
+      - PERF_TESTER_URL=ws://performance-tester:2003
+      - AI_ANALYZER_URL=ws://ai-analyzer:2004
+      - PYTHONPATH=/app
+    depends_on:
+      - static-analyzer
+      - dynamic-analyzer
+      - performance-tester
+      - ai-analyzer
+    healthcheck:
+      test: ["CMD", "python", "-c", "import asyncio, websockets; asyncio.run(websockets.connect('ws://localhost:8765').__aenter__())"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.2'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+  # Static Security & Quality Analyzer
+  static-analyzer:
+    build:
+      context: .
+      dockerfile: ./services/static-analyzer/Dockerfile
+    ports:
+      - "2001:2001"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2001
+      - PYTHONPATH=/app
+    volumes:
+      - ../generated/apps:/app/sources:ro
+      - ../results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  # Dynamic Security Analyzer (network tools)
+  dynamic-analyzer:
+    build:
+      context: .
+      dockerfile: ./services/dynamic-analyzer/Dockerfile
+    ports:
+      - "2002:2002"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2002
+      - PYTHONPATH=/app
+    volumes:
+      - ../results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+  # Performance Tester (Locust)
+  performance-tester:
+    build:
+      context: .
+      dockerfile: ./services/performance-tester/Dockerfile
+    ports:
+      - "2003:2003"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2003
+      - PYTHONPATH=/app
+    volumes:
+      - ../results:/app/reports
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  # AI-Powered Requirements & Code Analyzer
+  ai-analyzer:
+    build:
+      context: .
+      dockerfile: ./services/ai-analyzer/Dockerfile
+    ports:
+      - "2004:2004"
+    environment:
+      - LOG_LEVEL=INFO
+      - WEBSOCKET_HOST=0.0.0.0
+      - WEBSOCKET_PORT=2004
+      - PYTHONPATH=/app
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    volumes:
+      - ../generated/apps:/app/sources:ro
+      - ../results:/app/results
+    healthcheck:
+      test: ["CMD", "python", "health_check.py"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+  # Redis for caching and task queues
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      # Use shell form to ensure non-zero exit on failure and wait a bit for startup
+      test: ["CMD-SHELL", "redis-cli -h 127.0.0.1 -p 6379 ping || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    user: "999:999"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.1'
+
+volumes:
+  redis-data:
+    driver: local
+
+networks:
+  analyzer-network:
+    driver: bridge

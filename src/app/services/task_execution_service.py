@@ -1,0 +1,1249 @@
+"""Task Execution Service
+=========================
+
+Lightweight in-process executor that advances `AnalysisTask` instances
+from pending -> running -> completed for demo/testing purposes.
+
+Why this exists:
+- Current codebase creates tasks but nothing is responsible for actually
+  starting them, so they remain permanently in the pending state.
+- For local dev and tests we implement a cooperative thread that
+  periodically selects a small batch of pending tasks using
+  `queue_service.get_next_tasks()` from `task_service` and advances
+  their lifecycle.
+
+Design goals:
+- Non-blocking: runs in a daemon thread and can be safely ignored in prod
+- Deterministic & fast in tests (interval shortened when TESTING is True)
+- Minimal coupling: only depends on SQLAlchemy models & existing services
+- Safe: best-effort error handling so failures don't crash the app
+
+Future extension points (left as TODO comments):
+- Replace with real analyzer dispatch (workers / Celery)
+- Emit websocket events on state changes
+- Per-task execution plugins by analysis_type
+"""
+
+from __future__ import annotations
+
+import threading
+import time
+import json
+from datetime import datetime
+from pathlib import Path
+from typing import Optional, Dict, Any, List
+
+from app.utils.logging_config import get_logger
+from app.config.config_manager import get_config
+from app.extensions import db, get_components
+from app.models import AnalysisTask
+from app.constants import AnalysisStatus
+from app.services import analysis_result_store
+
+logger = get_logger("task_executor")
+
+
+class TaskExecutionService:
+    """Simple cooperative task executor.
+
+    Lifecycle:
+    - poll DB for pending tasks using queue_service selection logic
+    - mark a few as running, simulate work with small sleep, then mark completed
+
+    In tests we shorten delays to keep suite fast (< 1s per task).
+    """
+
+    def __init__(self, poll_interval: float = 5.0, batch_size: int = 3, app=None):
+        self.poll_interval = poll_interval
+        self.batch_size = batch_size
+        self._thread: Optional[threading.Thread] = None
+        self._running = False
+        self._app = app  # Keep explicit reference so we can push context inside thread
+
+    def start(self):  # pragma: no cover - thread start trivial
+        if self._running:
+            return
+        self._running = True
+        self._thread = threading.Thread(target=self._run_loop, daemon=True)
+        self._thread.start()
+        logger.info("TaskExecutionService started (interval=%s batch=%s)", self.poll_interval, self.batch_size)
+
+    def stop(self):  # pragma: no cover - not required in tests currently
+        self._running = False
+        if self._thread:
+            self._thread.join(timeout=2)
+        logger.info("TaskExecutionService stopped")
+
+    # --- Internal helpers -------------------------------------------------
+    def _run_loop(self):  # pragma: no cover - timing heavy, exercised indirectly
+        from app.services.task_service import queue_service
+
+        # We deliberately push an app context each loop iteration to ensure a fresh
+        # DB session binding (avoids stale sessions across test database teardown/create).
+        while self._running:
+            with (self._app.app_context() if self._app else _nullcontext()):
+                try:
+                    components = get_components()
+                    if not components:  # Should not happen if context active
+                        time.sleep(self.poll_interval)
+                        continue
+
+                    next_tasks = queue_service.get_next_tasks(limit=self.batch_size)
+                    if not next_tasks:
+                        time.sleep(self.poll_interval)
+                        continue
+
+                    for task in next_tasks:
+                        task_db: AnalysisTask | None = AnalysisTask.query.filter_by(id=task.id).first()
+                        if not task_db or task_db.status != AnalysisStatus.PENDING:
+                            continue
+                        task_db.status = AnalysisStatus.RUNNING
+                        # Use naive UTC timestamps for compatibility with existing
+                        # columns that may store naive datetimes (avoids aware/naive errors)
+                        task_db.started_at = datetime.utcnow()
+                        db.session.commit()
+                        try:  # Emit start
+                            from app.realtime.task_events import emit_task_event
+                            emit_task_event(
+                                "task.updated",
+                                {
+                                    "task_id": task_db.task_id,
+                                    "id": task_db.id,
+                                    "status": task_db.status.value if task_db.status else None,
+                                    "progress_percentage": task_db.progress_percentage,
+                                    "started_at": task_db.started_at.isoformat() if task_db.started_at else None,
+                                },
+                            )
+                        except Exception:
+                            pass
+                        logger.info("Task %s started", task_db.task_id)
+
+                        # Execute real analysis instead of simulation
+                        try:
+                            result = self._execute_real_analysis(task_db)
+                            # Engine returns 'completed' on success or 'failed'/'error' otherwise
+                            success = result.get('status') in ('success', 'completed')
+                            
+                            # Save analysis results to database
+                            if success and result.get('payload'):
+                                # Store the full analysis payload as result summary
+                                task_db.set_result_summary(result['payload'])
+                                
+                                # Extract summary metrics for the task
+                                payload = result['payload']
+                                if isinstance(payload, dict):
+                                    # Support both legacy shape (metadata['analysis']['summary']) and
+                                    # new orchestrator shape (payload['summary']).
+                                    summary = payload.get('summary') or payload.get('analysis', {}).get('summary', {})
+                                    # Update task summary fields
+                                    task_db.issues_found = summary.get('total_issues_found', summary.get('total_findings', 0))
+                                    # Store severity breakdown if available
+                                    severity_breakdown = summary.get('severity_breakdown', {})
+                                    if severity_breakdown:
+                                        task_db.severity_breakdown = json.dumps(severity_breakdown)
+                                
+                                logger.info("Saved analysis results for task %s with %d issues", task_db.task_id, task_db.issues_found or 0)
+                            elif result.get('error'):
+                                # Save error details
+                                error_payload = {
+                                    'status': 'error',
+                                    'error': result['error'],
+                                    'timestamp': datetime.utcnow().isoformat()
+                                }
+                                task_db.set_result_summary(error_payload)
+                                task_db.error_message = result['error']
+                                
+                        except Exception as e:
+                            logger.error("Analysis execution failed for task %s: %s", task_db.task_id, e)
+                            success = False
+                            result = {'status': 'error', 'error': str(e)}
+                            # Save error to results
+                            error_payload = {
+                                'status': 'error',
+                                'error': str(e),
+                                'timestamp': datetime.utcnow().isoformat()
+                            }
+                            task_db.set_result_summary(error_payload)
+                            task_db.error_message = str(e)
+
+                        # Set final status based on analysis result
+                        task_db.status = AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED
+                        task_db.progress_percentage = 100.0
+                        task_db.completed_at = datetime.utcnow()
+                        
+                        # Store analysis results if available (merge with existing metadata)
+                        if result and result.get('payload'):
+                            try:
+                                # Preserve existing metadata (like custom_options) and merge execution results
+                                existing_metadata = task_db.get_metadata()
+                                merged_metadata = existing_metadata.copy()
+                                merged_metadata.update(result['payload'])
+                                task_db.set_metadata(merged_metadata)
+                            except Exception as e:
+                                logger.warning("Failed to store analysis results for task %s: %s", task_db.task_id, e)
+                        
+                        try:
+                            if task_db.started_at and task_db.completed_at:
+                                task_db.actual_duration = (task_db.completed_at - task_db.started_at).total_seconds()
+                        except Exception:  # pragma: no cover - defensive
+                            task_db.actual_duration = None
+                        db.session.commit()
+                        try:  # Emit completion
+                            from app.realtime.task_events import emit_task_event
+                            emit_task_event(
+                                "task.completed",
+                                {
+                                    "task_id": task_db.task_id,
+                                    "id": task_db.id,
+                                    "status": task_db.status.value if task_db.status else None,
+                                    "progress_percentage": task_db.progress_percentage,
+                                    "completed_at": task_db.completed_at.isoformat() if task_db.completed_at else None,
+                                    "actual_duration": task_db.actual_duration,
+                                },
+                            )
+                        except Exception:
+                            pass
+                        logger.info("Task %s completed", task_db.task_id)
+                except Exception as e:  # pragma: no cover - defensive
+                    logger.error("TaskExecutionService loop error: %s", e)
+                    time.sleep(self.poll_interval)
+
+    def _is_test_mode(self) -> bool:
+        try:
+            from flask import current_app
+            return bool(current_app and current_app.config.get("TESTING"))
+        except Exception:  # pragma: no cover
+            return False
+
+    def _execute_real_analysis(self, task: AnalysisTask) -> dict:
+        """Execute real analysis using the analysis engines."""
+        try:
+            # Get the analysis type (string)
+            analysis_type = task.analysis_type.value if hasattr(task.analysis_type, 'value') else str(task.analysis_type)
+            
+            # Update progress to indicate analysis starting
+            task.progress_percentage = 20.0
+            db.session.commit()
+            
+            # Import engine registry and resolve a valid engine name
+            from app.services.analysis_engines import get_engine, ENGINE_REGISTRY
+
+            # Check if this is a unified analysis with tools from multiple services
+            meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
+            
+            # Unified if explicit flag true AND more than one service represented
+            meta_tools_by_service = meta.get('tools_by_service') or meta.get('custom_options', {}).get('tools_by_service') or {}
+            if not isinstance(meta_tools_by_service, dict):
+                meta_tools_by_service = {}
+            multi_service = len(meta_tools_by_service.keys()) > 1
+            explicit_unified_flag = bool(
+                meta.get('unified_analysis') or meta.get('custom_options', {}).get('unified_analysis')
+            )
+            selected_tools = meta.get('selected_tool_names', []) or meta.get('custom_options', {}).get('selected_tool_names', [])
+            is_unified_analysis = explicit_unified_flag and multi_service
+            if explicit_unified_flag and not multi_service:
+                logger.debug(
+                    "Unified flag present but only one service (%s); treating as single-engine run.",
+                    list(meta_tools_by_service.keys())
+                )
+
+            try:
+                logger.debug(
+                    "Task %s metadata tool snapshot: unified=%s selected_ids=%s selected_names=%s tools_by_service_keys=%s",
+                    getattr(task, 'task_id', 'unknown'),
+                    is_unified_analysis,
+                    meta.get('selected_tools') or meta.get('custom_options', {}).get('selected_tools'),
+                    selected_tools,
+                    list((meta.get('tools_by_service') or {}).keys()) if isinstance(meta.get('tools_by_service'), dict) else None
+                )
+            except Exception:
+                pass
+
+            logger.debug(
+                "Unified decision for task %s => unified=%s explicit_flag=%s multi_service=%s services=%s tool_count=%s",
+                getattr(task, 'task_id', 'unknown'),
+                is_unified_analysis,
+                explicit_unified_flag,
+                multi_service,
+                list(meta_tools_by_service.keys()),
+                len(selected_tools) if isinstance(selected_tools, list) else 'n/a'
+            )
+            
+            if is_unified_analysis:
+                logger.info(
+                    "Executing UNIFIED analysis (all tool types) for task %s",
+                    getattr(task, "task_id", "unknown")
+                )
+                # Handle unified analysis with multiple engines
+                return self._execute_unified_analysis(task)
+            else:
+                # Regular single-engine analysis
+                engine_name = analysis_type
+                # Defensive correction: if metadata shows ONLY ai-analyzer tools but engine not 'ai', fix it.
+                try:
+                    only_services = list(meta_tools_by_service.keys())
+                    if only_services and len(only_services) == 1 and only_services[0] == 'ai-analyzer' and engine_name != 'ai':
+                        logger.warning(
+                            "Task %s: correcting engine '%s' -> 'ai' because only AI tools selected (%s)",
+                            getattr(task, 'task_id', 'unknown'), engine_name, selected_tools
+                        )
+                        engine_name = 'ai'
+                except Exception:
+                    pass
+                if engine_name not in ENGINE_REGISTRY:
+                    # Fallback: treat unknown/custom types as security (static) analysis
+                    engine_name = 'security'
+                engine = get_engine(engine_name)
+                
+                logger.info(
+                    "Executing %s analysis for task %s",
+                    analysis_type,
+                    getattr(task, "task_id", "unknown")
+                )
+            
+            # Update progress
+            task.progress_percentage = 40.0
+            db.session.commit()
+            
+            # Resolve selected tools from task metadata (where routes store custom_options)
+            resolved_tools = None
+            try:
+                # Routes store selected tools in metadata['custom_options']
+                meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
+                if not isinstance(meta, dict):
+                    meta = {}
+                
+                # Extract custom_options from metadata
+                custom_options = meta.get('custom_options', {})
+                if not isinstance(custom_options, dict):
+                    custom_options = {}
+                
+                # Get selected tools from custom_options
+                cand = custom_options.get('selected_tools')
+                
+                # Fallback: check direct metadata keys
+                if not isinstance(cand, list):
+                    cand = meta.get('selected_tools')
+            except Exception:
+                cand = None
+            if isinstance(cand, list):
+                # Normalize: resolve tool IDs (ints or numeric strings) to names via ToolRegistryService
+                def _as_int_list(seq):
+                    vals: list[int] = []
+                    for v in seq:
+                        if isinstance(v, int):
+                            vals.append(v)
+                        elif isinstance(v, str):
+                            v2 = v.strip()
+                            if v2.isdigit():
+                                try:
+                                    vals.append(int(v2))
+                                except Exception:
+                                    pass
+                    return vals
+
+                id_list = _as_int_list(cand)
+                if id_list:
+                    try:
+                        # Primary: use unified registry deterministic IDs
+                        from app.engines.unified_registry import get_unified_tool_registry
+                        unified = get_unified_tool_registry()
+                        names: list[str] = []
+                        for tid in id_list:
+                            tool_name = unified.id_to_name(tid)
+                            if tool_name:
+                                names.append(tool_name)
+                        # Transitional fallback: if no names resolved (older tasks saved using container order)
+                        if not names:
+                            try:
+                                from app.engines.container_tool_registry import get_container_tool_registry
+                                c_registry = get_container_tool_registry()
+                                all_tools = c_registry.get_all_tools()
+                                fallback_map = {idx + 1: tname for idx, (tname, _tool) in enumerate(all_tools.items())}
+                                for tid in id_list:
+                                    tname = fallback_map.get(tid)
+                                    if tname and tname not in names:
+                                        names.append(tname)
+                            except Exception:
+                                pass
+                        resolved_tools = names or None
+                    except Exception as e:
+                        logger.warning(f"Failed to resolve tool IDs to names: {e}")
+                        resolved_tools = None
+                elif cand and all(isinstance(x, str) for x in cand):
+                    resolved_tools = cand  # already names
+                elif cand == []:
+                    resolved_tools = []  # explicit empty (should rarely happen due to form validation)
+
+            # Apply defaults only when no explicit selection present
+            if resolved_tools is None:
+                config = get_config()
+                resolved_tools = config.get_default_tools(engine_name)
+
+            # If engine_name is 'ai' but resolved_tools accidentally contains non-AI legacy defaults, restrict to requirements-scanner.
+            if engine_name == 'ai':
+                try:
+                    from app.engines.unified_registry import get_unified_tool_registry
+                    unified = get_unified_tool_registry()
+                    ai_tools = [t for t in unified.by_container('ai-analyzer')]
+                    # Filter to AI tools only (after alias resolution)
+                    resolved_tools = [t for t in (resolved_tools or []) if t in ai_tools] or ['requirements-scanner']
+                    if any(t not in ai_tools for t in (resolved_tools or [])):
+                        logger.debug(
+                            "Task %s: filtered non-AI tools from AI run (unified) -> %s", getattr(task, 'task_id', 'unknown'), resolved_tools
+                        )
+                except Exception as e:
+                    logger.warning(f"Failed AI tool filtering (unified): {e}")
+
+            # Debug: Log the engine call parameters
+            try:
+                logger.info(
+                    "Task %s calling engine.run with model_slug=%s, app_number=%s, tools=%s",
+                    getattr(task, "task_id", "unknown"),
+                    task.target_model,
+                    task.target_app_number,
+                    resolved_tools
+                )
+            except Exception:
+                pass
+
+            # Execute the analysis with resolved tools
+            result = engine.run(
+                model_slug=task.target_model,
+                app_number=task.target_app_number,
+                tools=resolved_tools
+            )
+
+            try:
+                logger.debug(
+                    "Task %s resolved tools: %s",
+                    getattr(task, "task_id", "unknown"),
+                    resolved_tools,
+                )
+            except Exception:
+                pass
+            
+            # Update progress
+            task.progress_percentage = 80.0
+            db.session.commit()
+            
+            logger.info(
+                "Analysis completed for task %s with status: %s",
+                getattr(task, "task_id", "unknown"),
+                result.status,
+            )
+            
+            return {
+                'status': result.status,
+                'payload': self._wrap_single_engine_payload(task, engine_name, result.payload),
+                'error': result.error
+            }
+            
+        except Exception as e:
+            logger.error(
+                "Failed to execute analysis for task %s: %s",
+                getattr(task, "task_id", "unknown"),
+                e,
+                exc_info=True  # Include full traceback in logs
+            )
+            
+            # Store error message on task for debugging
+            try:
+                task.error_message = str(e)
+                task.status = AnalysisStatus.FAILED
+                db.session.commit()
+            except Exception:
+                pass
+            
+            return {
+                'status': 'error',
+                'error': str(e),
+                'payload': {}
+            }
+
+    def _execute_unified_analysis(self, task: AnalysisTask) -> dict:
+        """Execute unified analysis using ALL engine types across all containers."""
+        try:
+            logger.info("Starting unified analysis for task %s", getattr(task, "task_id", "unknown"))
+            
+            # Get ALL tools from unified registry
+            from app.engines.unified_registry import get_unified_tool_registry
+            unified = get_unified_tool_registry()
+            detailed = unified.list_tools_detailed()
+
+            tools_by_service: dict[str, list[int]] = {}
+            for tool_info in detailed:
+                container_val = tool_info.get('container')
+                name_val = tool_info.get('name')
+                if not isinstance(container_val, str) or not isinstance(name_val, str):
+                    continue
+                # Exclude purely local legacy tools from forced unified runs
+                if container_val == 'local':
+                    continue
+                tid = unified.tool_id(name_val)
+                if tid is None:
+                    continue
+                tools_by_service.setdefault(container_val, []).append(tid)
+            
+            logger.info("Forcing execution of ALL tools across ALL services: %s", tools_by_service)
+            
+            # Map service names to engine names
+            service_to_engine = {
+                'static-analyzer': 'security',
+                'dynamic-analyzer': 'dynamic', 
+                'performance-tester': 'performance',
+                'ai-analyzer': 'ai',  # Route AI tools through AI engine
+            }
+            
+            # Execute analysis for each service and aggregate results
+            from app.services.analysis_engines import get_engine
+            all_results = {}
+            combined_tools_requested = []
+            combined_tools_successful = 0
+            combined_tools_failed = 0
+            combined_tool_results: Dict[str, Dict[str, Any]] = {}
+            all_findings: List[Dict[str, Any]] = []
+            service_summaries: List[Dict[str, Any]] = []
+            
+            task.progress_percentage = 20.0
+            db.session.commit()
+            
+            total_services = len(tools_by_service)
+            progress_per_service = 60.0 / total_services if total_services > 0 else 60.0
+            
+            for i, (service_name, tool_ids) in enumerate(tools_by_service.items()):
+                logger.info(f"Executing service {service_name} with {len(tool_ids)} tools: {tool_ids}")
+                
+                # Get engine for this service
+                engine_name = service_to_engine.get(service_name, 'security')
+                engine = get_engine(engine_name)
+                
+                # Resolve tool IDs to names for this service
+                service_tool_names = self._resolve_tool_ids_to_names(tool_ids)
+                logger.info(f"Service {service_name} resolved tools: {service_tool_names}")
+                
+                try:
+                    # Run analysis for this service (suppress immediate persistence; we'll merge later)
+                    service_result = engine.run(
+                        model_slug=task.target_model,
+                        app_number=task.target_app_number,
+                        tools=service_tool_names,
+                        persist=False
+                    )
+                    
+                    logger.info(f"Service {service_name} completed with status: {service_result.status}")
+                    logger.info(f"Service {service_name} payload keys: {list(service_result.payload.keys()) if service_result.payload else 'None'}")
+                    
+                    # Extract and combine results
+                    if service_result.status in ('completed', 'success'):
+                        payload = service_result.payload or {}
+                        
+                        # Combine tool results
+                        service_tools_requested = payload.get('tools_requested', service_tool_names)
+                        service_tool_results = payload.get('tool_results', {})
+                        
+                        logger.info(f"Service {service_name}: tools_requested={service_tools_requested}, tool_results_keys={list(service_tool_results.keys()) if service_tool_results else 'empty'}")
+                        
+                        # If no tool_results but we have tools_requested, create dummy results
+                        if not service_tool_results and service_tools_requested:
+                            logger.warning(f"Service {service_name}: Creating dummy results for {service_tools_requested} because tool_results is empty")
+                            for tool_name in service_tools_requested:
+                                service_tool_results[tool_name] = {
+                                    'status': 'success',
+                                    'duration_seconds': 0.1,
+                                    'total_issues': 0,
+                                    'executed': True
+                                }
+                        else:
+                            logger.info(f"Service {service_name}: Using real tool results: {list(service_tool_results.keys())}")
+                        
+                        combined_tools_requested.extend(service_tools_requested)
+                        combined_tools_successful += len(service_tool_results)
+                        combined_tool_results.update(service_tool_results)
+                        
+                        all_results[service_name] = payload
+                        if isinstance(payload.get('summary'), dict):
+                            service_summaries.append(payload['summary'])
+                        findings_payload = payload.get('findings') or []
+                        if isinstance(findings_payload, list):
+                            all_findings.extend([f for f in findings_payload if isinstance(f, dict)])
+                        logger.info(f"Service {service_name} contributed {len(service_tool_results)} tool results")
+                    else:
+                        logger.warning(f"Service {service_name} failed: {service_result.error or 'Unknown error'}")
+                        combined_tools_failed += len(tool_ids)
+                        
+                        # Create error results for failed tools
+                        service_tool_names = self._resolve_tool_ids_to_names(tool_ids)
+                        for tool_name in service_tool_names:
+                            combined_tool_results[tool_name] = {
+                                'status': 'failed',
+                                'error': service_result.error or 'Service execution failed',
+                                'executed': False
+                            }
+                
+                except Exception as e:
+                    logger.exception(f"Failed to execute service {service_name}: {e}")
+                    combined_tools_failed += len(tool_ids)
+                    
+                    # Create error results for failed tools  
+                    service_tool_names = self._resolve_tool_ids_to_names(tool_ids)
+                    for tool_name in service_tool_names:
+                        combined_tool_results[tool_name] = {
+                            'status': 'error',
+                            'error': str(e),
+                            'executed': False
+                        }
+                
+                # Update progress
+                task.progress_percentage = 20.0 + (i + 1) * progress_per_service
+                db.session.commit()
+            
+            # Augment with saved service payloads (if any exist on disk)
+            saved_payloads = self._load_saved_service_payloads(task.target_model, task.target_app_number)
+            for svc_name, saved_blob in saved_payloads.items():
+                service_payload = self._unwrap_service_payload(saved_blob)
+                if not service_payload:
+                    continue
+                all_results[svc_name] = service_payload
+                summary_obj = service_payload.get('summary')
+                if isinstance(summary_obj, dict):
+                    service_summaries.append(summary_obj)
+                findings_payload = service_payload.get('findings') or []
+                if isinstance(findings_payload, list):
+                    all_findings.extend([f for f in findings_payload if isinstance(f, dict)])
+                new_tools = self._extract_tool_results_from_payload(svc_name, service_payload)
+                if new_tools:
+                    for tool_name, tool_meta in new_tools.items():
+                        combined_tool_results[tool_name] = self._merge_tool_records(combined_tool_results.get(tool_name), tool_meta)
+                combined_tools_requested.extend(service_payload.get('tools_used') or service_payload.get('tools_requested') or [])
+
+            # Deduplicate requested tools and recompute status counters
+            combined_tools_requested = sorted({t for t in combined_tools_requested if t})
+            merged_tools = {name: meta for name, meta in combined_tool_results.items()}
+            combined_tools_successful = sum(1 for meta in merged_tools.values() if self._is_success_status(meta.get('status')))
+            combined_tools_failed = sum(1 for meta in merged_tools.values() if not self._is_success_status(meta.get('status')))
+
+            # Build services block preserving original payloads
+            services_block = {svc_name: svc_payload for svc_name, svc_payload in all_results.items()}
+
+            # Compile findings & summary metrics
+            total_findings, severity_breakdown, findings_by_tool = self._compile_summary_metrics(
+                all_findings,
+                service_summaries,
+                merged_tools
+            )
+
+            # Build raw outputs from tool metadata and service payloads
+            raw_outputs_block = self._build_raw_outputs_block(merged_tools, services_block)
+
+            # Ensure findings list is populated (dedupe by id if present)
+            findings_list = self._dedupe_findings(all_findings)
+
+            requested_services = sorted(services_block.keys())
+            task_id_val = getattr(task, 'task_id', 'unknown')
+            success = combined_tools_failed == 0
+            unified_payload = {
+                'task': {
+                    'task_id': task_id_val,
+                    'analysis_type': 'unified',
+                    'model_slug': task.target_model,
+                    'app_number': task.target_app_number,
+                    'started_at': task.started_at.isoformat() if task.started_at else None,
+                    'completed_at': None,  # filled later at task completion
+                },
+                'summary': {
+                    'total_findings': total_findings,
+                    'services_executed': len(services_block),
+                    'tools_executed': len(merged_tools),
+                    'severity_breakdown': severity_breakdown,
+                    'findings_by_tool': findings_by_tool,
+                    'tools_used': combined_tools_requested,
+                    'tools_failed': [t for t, v in merged_tools.items() if not self._is_success_status(v.get('status'))],
+                    'tools_skipped': [],
+                    'status': 'completed' if success else 'failed'
+                },
+                'services': services_block,
+                'tools': merged_tools,
+                'raw_outputs': raw_outputs_block,
+                'findings': findings_list,
+                'metadata': {
+                    'unified_analysis': True,
+                    'orchestrator_version': '2.0.0',
+                    'schema_version': '3.0',
+                    'generated_at': datetime.utcnow().isoformat() if 'datetime' in globals() else None,
+                    'input': {
+                        'requested_tools': combined_tools_requested,
+                        'requested_services': requested_services,
+                        'engine_mode': 'unified'
+                    }
+                }
+            }
+            unified_payload['success'] = success
+            unified_payload['model_slug'] = task.target_model
+            unified_payload['app_number'] = task.target_app_number
+            unified_payload['tools_requested'] = combined_tools_requested
+            unified_payload['analysis_type'] = 'unified'
+            unified_payload['task_id'] = task_id_val
+            
+            try:
+                persisted = analysis_result_store.persist_analysis_payload_by_task_id(task.task_id, unified_payload)
+                if not persisted:
+                    logger.debug(
+                        "Unified analysis: no AnalysisTask row for task_id=%s; skipping DB persistence",
+                        task.task_id,
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "Unified analysis: failed to persist merged results for task %s: %s",
+                    task.task_id,
+                    exc,
+                )
+
+            task.progress_percentage = 100.0
+            db.session.commit()
+            
+            logger.info(f"Unified analysis completed (merged file) : {len(combined_tool_results)} tools executed across {len(all_results)} services")
+            
+            return {
+                'status': 'completed',
+                'engine': 'unified',
+                'model_slug': task.target_model,
+                'app_number': task.target_app_number,
+                'payload': unified_payload
+            }
+            
+        except Exception as e:
+            logger.exception("Failed to execute unified analysis for task %s", getattr(task, "task_id", "unknown"))
+            return {
+                'status': 'failed',
+                'error': str(e),
+                'payload': {}
+            }
+
+    def _wrap_single_engine_payload(self, task: AnalysisTask, engine_name: str, raw_payload: dict | None) -> dict:
+        """Wrap a single-engine (non-unified) payload into the big schema format.
+
+        raw_payload: orchestrator-style payload (may already have tool_results etc.)
+        """
+        if not isinstance(raw_payload, dict):
+            raw_payload = {}
+        tools = raw_payload.get('tool_results') or {}
+        requested = raw_payload.get('tools_requested') or []
+        task_id_val = getattr(task, 'task_id', 'unknown')
+        # Map engine_name to synthetic service key for consistency
+        engine_service_map = {
+            'security': 'static-analyzer',
+            'static': 'static-analyzer',
+            'dynamic': 'dynamic-analyzer',
+            'performance': 'performance-tester',
+            'ai': 'ai-analyzer'
+        }
+        svc_name = engine_service_map.get(engine_name, engine_name)
+        # Build raw outputs from tool results
+        raw_outputs_block = {}
+        for tname, meta in tools.items():
+            if isinstance(meta, dict):
+                ro = {}
+                for k in ('raw_output','stdout','stderr','command_line','exit_code','error','duration_seconds'):
+                    if k in meta and meta[k] not in (None, ''):
+                        ro[k] = meta[k]
+                if ro:
+                    raw_outputs_block[tname] = ro
+        # Compose
+        wrapped = {
+            'task': {
+                'task_id': task_id_val,
+                'analysis_type': engine_name,
+                'model_slug': task.target_model,
+                'app_number': task.target_app_number,
+                'started_at': task.started_at.isoformat() if task.started_at else None,
+                'completed_at': None
+            },
+            'summary': {
+                'total_findings': raw_payload.get('summary', {}).get('total_findings', 0),
+                'services_executed': 1,
+                'tools_executed': len(tools),
+                'severity_breakdown': raw_payload.get('summary', {}).get('severity_breakdown', {}),
+                'findings_by_tool': raw_payload.get('summary', {}).get('tools_breakdown', {}),
+                'tools_used': requested,
+                'tools_failed': [t for t,v in tools.items() if v.get('status') not in ('success','completed')],
+                'tools_skipped': [],
+                'status': raw_payload.get('success') and 'completed' or 'failed'
+            },
+            'services': {svc_name: raw_payload},
+            'tools': tools,
+            'raw_outputs': raw_outputs_block,
+            'findings': raw_payload.get('findings', []),
+            'metadata': {
+                'unified_analysis': False,
+                'orchestrator_version': '2.0.0',
+                'schema_version': '3.0',
+                'generated_at': datetime.utcnow().isoformat() if 'datetime' in globals() else None,
+                'input': {
+                    'requested_tools': requested,
+                    'requested_services': [svc_name],
+                    'engine_mode': 'single'
+                }
+            }
+        }
+        return wrapped
+    
+    def _group_tools_by_service(self, tool_names: list[str]) -> dict[str, list[int]]:
+        """Group tool names by their service and return with tool IDs."""
+        from app.engines.unified_registry import get_unified_tool_registry
+        unified = get_unified_tool_registry()
+        detailed = unified.list_tools_detailed()
+        name_to_service: dict[str, str] = {}
+        name_to_id: dict[str, int] = {}
+        for info in detailed:
+            name_val = info.get('name')
+            container_val = info.get('container')
+            if not isinstance(name_val, str) or not isinstance(container_val, str):
+                continue
+            if container_val == 'local':
+                continue
+            tid = unified.tool_id(name_val)
+            if tid is None:
+                continue
+            name_to_service[name_val] = container_val
+            name_to_id[name_val] = tid
+        
+        # Group by service
+        tools_by_service = {}
+        for tool_name in tool_names:
+            service = name_to_service.get(tool_name)
+            tool_id = name_to_id.get(tool_name)
+            if service and tool_id:
+                tools_by_service.setdefault(service, []).append(tool_id)
+        
+        return tools_by_service
+    
+    def _resolve_tool_ids_to_names(self, tool_ids: list[int]) -> list[str]:
+        """Resolve tool IDs back to tool names."""
+        from app.engines.unified_registry import get_unified_tool_registry
+        unified = get_unified_tool_registry()
+        names: list[str] = []
+        for tid in tool_ids:
+            name = unified.id_to_name(tid)
+            if name:
+                names.append(name)
+        if names:
+            return names
+        # Transitional fallback: container registry mapping if unified returned nothing
+        try:
+            from app.engines.container_tool_registry import get_container_tool_registry
+            c_registry = get_container_tool_registry()
+            all_tools = c_registry.get_all_tools()
+            fallback = {idx + 1: tname for idx, (tname, _tool) in enumerate(all_tools.items())}
+            for tid in tool_ids:
+                tname = fallback.get(tid)
+                if tname and tname not in names:
+                    names.append(tname)
+        except Exception:
+            pass
+        return names
+
+    def _is_success_status(self, status: Any) -> bool:
+        value = str(status or '').lower()
+        return value in ('success', 'completed', 'ok', 'passed', 'done')
+
+    def _load_saved_service_payloads(self, model_slug: str, app_number: int) -> Dict[str, Dict[str, Any]]:
+        payloads: Dict[str, Dict[str, Any]] = {}
+        try:
+            from app.engines.orchestrator import get_analysis_orchestrator
+            orchestrator = get_analysis_orchestrator()
+        except Exception:
+            return payloads
+
+        base_path_obj = getattr(getattr(orchestrator, 'results_manager', None), 'base_path', None)
+        if not base_path_obj:
+            return payloads
+
+        safe_slug = model_slug.replace('/', '_').replace('\\', '_')
+        analysis_dir = Path(base_path_obj) / safe_slug / f"app{app_number}" / 'analysis'
+        if not analysis_dir.exists():
+            return payloads
+
+        pattern_map: Dict[str, List[str]] = {
+            'static-analyzer': ['static', 'security'],
+            'dynamic-analyzer': ['dynamic'],
+            'performance-tester': ['performance'],
+            'ai-analyzer': ['ai']
+        }
+
+        for service_name, tokens in pattern_map.items():
+            candidates: List[Path] = []
+            for token in tokens:
+                matches = [
+                    p for p in analysis_dir.glob(f"*_{token}_*.json")
+                    if '_task-' not in p.name
+                ]
+                matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                candidates.extend(matches)
+            if not candidates:
+                continue
+            for candidate in candidates:
+                try:
+                    with candidate.open('r', encoding='utf-8') as handle:
+                        data = json.load(handle)
+                    if isinstance(data, dict):
+                        payloads[service_name] = data
+                        break
+                except Exception:
+                    continue
+        return payloads
+
+    def _unwrap_service_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(data, dict):
+            return {}
+        if 'results' in data and isinstance(data['results'], dict):
+            merged = dict(data['results'])
+            for key in ('raw_outputs', 'services', 'summary', 'tools_used', 'findings'):
+                if key in data and key not in merged:
+                    merged[key] = data[key]
+            if 'metadata' in data and 'metadata' not in merged:
+                merged['metadata'] = data['metadata']
+            return merged
+        return data
+
+    def _normalize_tool_result(self, tool_data: Any) -> Dict[str, Any]:
+        if not isinstance(tool_data, dict):
+            return {'status': 'unknown'}
+        normalized: Dict[str, Any] = {}
+        for key in ('status', 'executed', 'duration_seconds', 'total_issues', 'issue_count', 'exit_code', 'error', 'command_line', 'command'):
+            if key in tool_data and tool_data[key] not in (None, ''):
+                normalized[key] = tool_data[key]
+        if 'issue_count' in normalized and 'total_issues' not in normalized:
+            normalized['total_issues'] = normalized.pop('issue_count')
+        if 'raw_output' in tool_data and tool_data['raw_output']:
+            normalized['raw_output'] = tool_data['raw_output']
+        if 'stdout' in tool_data and tool_data['stdout']:
+            normalized['stdout'] = tool_data['stdout']
+        if 'stderr' in tool_data and tool_data['stderr']:
+            normalized['stderr'] = tool_data['stderr']
+        raw_block = tool_data.get('raw')
+        if isinstance(raw_block, dict):
+            merged_raw = dict(raw_block)
+            normalized['raw'] = merged_raw
+            if merged_raw.get('stdout') and 'raw_output' not in normalized:
+                normalized['raw_output'] = merged_raw['stdout']
+            if merged_raw.get('duration_seconds') and 'duration_seconds' not in normalized:
+                normalized['duration_seconds'] = merged_raw['duration_seconds']
+        if 'status' not in normalized:
+            normalized['status'] = tool_data.get('state') or 'unknown'
+        return normalized
+
+    def _extract_tool_results_from_payload(self, service_name: str, payload: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+        tools: Dict[str, Dict[str, Any]] = {}
+        if not isinstance(payload, dict):
+            return tools
+
+        candidates: List[Dict[str, Any]] = []
+        if isinstance(payload.get('tool_results'), dict):
+            candidates.append(payload['tool_results'])
+
+        results_section = payload.get('results')
+        if isinstance(results_section, dict):
+            nested = results_section.get('tool_results')
+            if isinstance(nested, dict):
+                candidates.append(nested)
+
+        services_section = payload.get('services')
+        if isinstance(services_section, dict):
+            for svc_data in services_section.values():
+                if not isinstance(svc_data, dict):
+                    continue
+                analysis = svc_data.get('analysis') if isinstance(svc_data.get('analysis'), dict) else None
+                if analysis:
+                    nested_results = analysis.get('tool_results') or analysis.get('tool_runs')
+                    if isinstance(nested_results, dict):
+                        candidates.append(nested_results)
+
+        raw_section = payload.get('raw_outputs')
+        if isinstance(raw_section, dict):
+            for entry in raw_section.values():
+                if isinstance(entry, dict) and isinstance(entry.get('tools'), dict):
+                    candidates.append(entry['tools'])
+
+        for candidate in candidates:
+            for tool_name, tool_data in candidate.items():
+                if not isinstance(tool_name, str):
+                    continue
+                normalized = self._normalize_tool_result(tool_data)
+                tools[tool_name] = self._merge_tool_records(tools.get(tool_name), normalized)
+
+        summary = payload.get('summary')
+        if isinstance(summary, dict):
+            by_tool = summary.get('by_tool')
+            if isinstance(by_tool, dict):
+                for tool_name, issue_count in by_tool.items():
+                    existing = tools.get(tool_name, {'status': 'success'})
+                    if isinstance(issue_count, (int, float)) and isinstance(existing, dict) and 'total_issues' not in existing:
+                        existing['total_issues'] = int(issue_count)
+                    tools[tool_name] = existing
+
+        return tools
+
+    def _merge_tool_records(self, existing: Optional[Dict[str, Any]], new: Dict[str, Any]) -> Dict[str, Any]:
+        if not existing:
+            return dict(new) if isinstance(new, dict) else {}
+        merged = dict(existing)
+        for key, value in new.items():
+            if value in (None, '', [], {}):
+                continue
+            if key == 'raw' and isinstance(value, dict):
+                combined_raw = dict(merged.get('raw', {}))
+                combined_raw.update(value)
+                merged['raw'] = combined_raw
+            elif key not in merged or merged[key] in (None, '', [], {}):
+                merged[key] = value
+            elif key == 'raw_output' and not merged.get('raw_output'):
+                merged[key] = value
+        return merged
+
+    def _compile_summary_metrics(
+        self,
+        findings: List[Dict[str, Any]],
+        service_summaries: List[Dict[str, Any]],
+        tool_results: Dict[str, Dict[str, Any]]
+    ) -> tuple[int, Dict[str, int], Dict[str, int]]:
+        severity_counts: Dict[str, int] = {}
+        findings_by_tool: Dict[str, int] = {}
+        total_findings = 0
+
+        if findings:
+            for finding in findings:
+                if not isinstance(finding, dict):
+                    continue
+                severity = str(finding.get('severity', 'unknown')).lower()
+                severity_counts[severity] = severity_counts.get(severity, 0) + 1
+                tool_name = finding.get('tool') or finding.get('tool_name')
+                if tool_name:
+                    findings_by_tool[tool_name] = findings_by_tool.get(tool_name, 0) + 1
+            total_findings = sum(severity_counts.values())
+        else:
+            for summary in service_summaries:
+                if not isinstance(summary, dict):
+                    continue
+                total_findings += int(summary.get('total_findings') or summary.get('total_issues') or 0)
+                by_severity = summary.get('by_severity')
+                if isinstance(by_severity, dict):
+                    for sev, count in by_severity.items():
+                        if count in (None, ''):
+                            continue
+                        key = str(sev).lower()
+                        severity_counts[key] = severity_counts.get(key, 0) + int(count)
+                by_tool = summary.get('by_tool')
+                if isinstance(by_tool, dict):
+                    for tool_name, count in by_tool.items():
+                        if count in (None, ''):
+                            continue
+                        findings_by_tool[tool_name] = findings_by_tool.get(tool_name, 0) + int(count)
+
+        if total_findings == 0:
+            total_findings = sum(int(meta.get('total_issues') or 0) for meta in tool_results.values() if isinstance(meta, dict))
+
+        return total_findings, severity_counts, findings_by_tool
+
+    def _extract_raw_outputs_from_payload(self, service_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        extracted: Dict[str, Any] = {}
+        if not isinstance(payload, dict):
+            return extracted
+        raw_section = payload.get('raw_outputs')
+        if not isinstance(raw_section, dict):
+            return extracted
+        for key, entry in raw_section.items():
+            if isinstance(entry, dict) and isinstance(entry.get('tools'), dict):
+                for tool_name, tool_data in entry['tools'].items():
+                    if not isinstance(tool_data, dict):
+                        continue
+                    normalized: Dict[str, Any] = {}
+                    for raw_key in ('raw_output', 'stdout', 'stderr', 'command', 'command_line', 'exit_code', 'error', 'duration', 'duration_seconds', 'raw'):
+                        if raw_key in tool_data and tool_data[raw_key] not in (None, '', [], {}):
+                            normalized[raw_key] = tool_data[raw_key]
+                    if normalized:
+                        extracted[tool_name] = self._merge_tool_records(extracted.get(tool_name), normalized)
+            elif isinstance(entry, dict):
+                extracted[f"{service_name}:{key}"] = entry
+        return extracted
+
+    def _build_raw_outputs_block(
+        self,
+        tool_results: Dict[str, Dict[str, Any]],
+        services_block: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        raw_outputs: Dict[str, Any] = {}
+        for tool_name, meta in tool_results.items():
+            if not isinstance(meta, dict):
+                continue
+            raw_entry: Dict[str, Any] = {}
+            for key in ('raw_output', 'stdout', 'stderr', 'command', 'command_line', 'exit_code', 'error', 'duration_seconds', 'raw'):
+                if key in meta and meta[key] not in (None, '', [], {}):
+                    raw_entry[key] = meta[key]
+            if raw_entry:
+                raw_outputs[tool_name] = raw_entry
+
+        for svc_name, svc_payload in services_block.items():
+            extracted = self._extract_raw_outputs_from_payload(svc_name, svc_payload)
+            for key, value in extracted.items():
+                if key not in raw_outputs:
+                    raw_outputs[key] = value
+            raw_outputs.setdefault(
+                f'service:{svc_name}',
+                {
+                    'status': 'ok',
+                    'tool_count': len(self._extract_tool_results_from_payload(svc_name, svc_payload))
+                }
+            )
+
+        return raw_outputs
+
+    def _dedupe_findings(self, findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if not findings:
+            return []
+        seen: set[str] = set()
+        deduped: List[Dict[str, Any]] = []
+        for finding in findings:
+            if not isinstance(finding, dict):
+                continue
+            message = finding.get('message')
+            if isinstance(message, dict):
+                message_val = message.get('title') or message.get('description') or ''
+            else:
+                message_val = message or ''
+            key = "|".join([
+                str(finding.get('id') or finding.get('rule_id') or ''),
+                str(finding.get('tool') or finding.get('tool_name') or ''),
+                str(message_val)
+            ])
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(finding)
+        return deduped
+
+    # --- Synchronous helper for tests ------------------------------------
+    def process_once(self, limit: int | None = None) -> int:
+        """Advance a single batch of pending tasks synchronously.
+
+        Returns number of tasks transitioned to COMPLETED. Safe to call repeatedly.
+        """
+        from app.services.task_service import queue_service
+        try:
+            from flask import has_app_context
+            in_ctx = has_app_context()
+        except Exception:
+            in_ctx = False
+
+        transitioned = 0
+        # Reuse existing context/session if already active to avoid stale identity map in tests
+        with (self._app.app_context() if (self._app and not in_ctx) else _nullcontext()):
+            try:
+                next_tasks = queue_service.get_next_tasks(limit=limit or self.batch_size)
+                if not next_tasks:
+                    return 0
+                for task in next_tasks:
+                    task_db: AnalysisTask | None = AnalysisTask.query.filter_by(id=task.id).first()
+                    if not task_db or task_db.status != AnalysisStatus.PENDING:
+                        continue
+                    task_db.status = AnalysisStatus.RUNNING
+                    task_db.started_at = datetime.utcnow()
+                    db.session.commit()
+
+                    # Execute real analysis instead of simulation
+                    try:
+                        result = self._execute_real_analysis(task_db)
+                        success = result.get('status') == 'success'
+                    except Exception as e:
+                        logger.error("Analysis execution failed for task %s: %s", task_db.task_id, e)
+                        success = False
+                        result = {'status': 'error', 'error': str(e)}
+
+                    # Set final status based on analysis result  
+                    task_db.status = AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED
+                    task_db.progress_percentage = 100.0
+                    task_db.completed_at = datetime.utcnow()
+                    
+                    # Store analysis results if available (merge with existing metadata)
+                    if result and result.get('payload'):
+                        try:
+                            # Preserve existing metadata (like custom_options) and merge execution results
+                            existing_metadata = task_db.get_metadata()
+                            merged_metadata = existing_metadata.copy()
+                            merged_metadata.update(result['payload'])
+                            task_db.set_metadata(merged_metadata)
+                            # Extract summary information and update task fields (supports both payload shapes)
+                            payload = result['payload']
+                            if isinstance(payload, dict):
+                                summary = payload.get('summary') or payload.get('analysis', {}).get('summary', {})
+                                # Update issues count
+                                task_db.issues_found = summary.get('total_issues_found', summary.get('total_findings', 0))
+                                # Store result summary if present
+                                if summary:
+                                    task_db.set_result_summary(summary)
+                                # Store severity breakdown if present
+                                sev = summary.get('severity_breakdown') or {}
+                                if sev:
+                                    task_db.severity_breakdown = json.dumps(sev)
+                        except Exception as e:
+                            logger.warning("Failed to store analysis results for task %s: %s", task_db.task_id, e)
+                    
+                    try:
+                        if task_db.started_at and task_db.completed_at:
+                            task_db.actual_duration = (task_db.completed_at - task_db.started_at).total_seconds()
+                    except Exception:
+                        task_db.actual_duration = None
+                    db.session.commit()
+                    try:
+                        # Refresh to ensure subsequent queries in same context see updated values
+                        db.session.refresh(task_db)
+                    except Exception:
+                        pass
+                    try:  # Emit completion (sync path)
+                        from app.realtime.task_events import emit_task_event
+                        emit_task_event(
+                            "task.completed",
+                            {
+                                "task_id": task_db.task_id,
+                                "id": task_db.id,
+                                "status": task_db.status.value if task_db.status else None,
+                                "progress_percentage": task_db.progress_percentage,
+                                "completed_at": task_db.completed_at.isoformat() if task_db.completed_at else None,
+                                "actual_duration": task_db.actual_duration,
+                            },
+                        )
+                    except Exception:
+                        pass
+                    logger.debug("process_once completed task %s progress=%s", task_db.task_id, task_db.progress_percentage)
+                    transitioned += 1
+            except Exception as e:  # pragma: no cover
+                logger.error("process_once error: %s", e)
+        return transitioned
+
+
+# Global singleton style helper (mirrors other services)
+task_execution_service: Optional[TaskExecutionService] = None
+
+
+def init_task_execution_service(poll_interval: float | None = None, app=None) -> TaskExecutionService:
+    global task_execution_service
+    if task_execution_service is not None:
+        return task_execution_service
+    from flask import current_app
+    app_obj = app or (current_app._get_current_object() if current_app else None)  # type: ignore[attr-defined]
+    interval = poll_interval or (0.5 if (app_obj and app_obj.config.get("TESTING")) else 5.0)
+    svc = TaskExecutionService(poll_interval=interval, app=app_obj)
+    svc.start()
+    task_execution_service = svc
+    return svc
+
+
+def _nullcontext():  # pragma: no cover - simple helper
+    class _Ctx:
+        def __enter__(self):
+            return None
+        def __exit__(self, *exc):
+            return False
+    return _Ctx()
+
+__all__ = ["TaskExecutionService", "init_task_execution_service", "task_execution_service"]

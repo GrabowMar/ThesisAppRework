@@ -1,0 +1,157 @@
+{#
+  Sidebar Navigation Component
+  - Collapsible sidebar with desktop/mobile responsive behavior
+  - Active link detection with aria-current
+  - HTMX-compatible for smooth navigation
+  - Styling in theme.css, behavior in sidebar.js
+#}
+{% set ep = request.endpoint or '' %}
+{% set sidebar_nav = [
+  {
+    'label': 'Dashboard',
+    'url': url_for('main.dashboard'),
+    'icon': 'fa-solid fa-gauge-high',
+    'nav_target': 'dashboard',
+    'is_active': ep == 'main.dashboard',
+    'title': 'Dashboard',
+    'margin': 'mb-1'
+  },
+  {
+    'label': 'Analysis Hub',
+    'url': url_for('analysis.analysis_index'),
+    'icon': 'fa-solid fa-chart-column',
+    'nav_target': 'analysis',
+    'is_active': ep.startswith('analysis.'),
+    'title': 'Analysis Hub',
+    'margin': 'mb-1'
+  },
+  {
+    'label': 'Models',
+    'url': url_for('main.models_overview'),
+    'icon': 'fa-solid fa-cubes-stacked',
+    'nav_target': 'models',
+    'is_active': ep.startswith('main.models'),
+    'title': 'Models',
+    'margin': 'mb-1'
+  },
+  {
+    'label': 'Applications',
+    'url': url_for('main.applications_index'),
+    'icon': 'fa-solid fa-laptop-code',
+    'nav_target': 'applications',
+    'is_active': ep.startswith('main.applications'),
+    'title': 'Applications',
+    'margin': 'mb-1'
+  },
+  {
+    'label': 'Sample Generator',
+    'url': url_for('sample_generator.index'),
+    'icon': 'fa-solid fa-code',
+    'nav_target': 'sample-generator',
+    'is_active': ep.startswith('sample_generator.'),
+    'title': 'Sample Generator',
+    'margin': 'mb-1'
+  },
+  {
+    'label': 'Reports',
+    'url': url_for('reports.reports_index'),
+    'icon': 'fa-solid fa-file-lines',
+    'nav_target': 'reports',
+    'is_active': ep.startswith('reports.'),
+    'title': 'Reports',
+    'margin': 'mb-1'
+  },
+  {
+    'label': 'Statistics',
+    'url': url_for('statistics.statistics_overview'),
+    'icon': 'fa-solid fa-chart-line',
+    'nav_target': 'statistics',
+    'is_active': ep.startswith('statistics.'),
+    'title': 'Statistics',
+    'margin': 'mb-1'
+  },
+  {
+    'label': 'Documentation',
+    'url': url_for('docs.docs_index'),
+    'icon': 'fa-solid fa-book',
+    'nav_target': 'docs',
+    'is_active': ep.startswith('docs.'),
+    'title': 'Documentation & About',
+    'margin': 'mb-2'
+  }
+] %}
+
+<!-- Desktop sidebar -->
+<aside class="sidebar bg-dark text-white d-flex flex-column flex-shrink-0" id="sidebar" aria-label="Main navigation">
+  <div class="sidebar-content d-flex flex-column h-100">
+    {# Brand/Logo Section with Toggle Button #}
+    <div class="sidebar-brand px-3 py-4 border-bottom border-secondary d-flex align-items-center justify-content-between">
+      <a href="{{ url_for('main.dashboard') }}" 
+         class="d-flex align-items-center text-white text-decoration-none brand-link"
+         hx-boost="true"
+         title="Go to Dashboard">
+        <span class="fw-semibold fs-5 sidebar-text">Thesis</span>
+      </a>
+      <button id="sidebar-toggle" 
+              class="btn btn-link text-white p-1 sidebar-toggle-btn"
+              type="button"
+              aria-label="Collapse sidebar"
+              aria-expanded="true"
+              title="Toggle Sidebar">
+        <i class="fa-solid fa-angles-left" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    {# Navigation Menu #}
+    <nav class="sidebar-nav flex-grow-1 py-3" role="navigation" aria-label="Main menu">
+      <ul class="nav nav-pills flex-column px-3" data-nav-root>
+        {%- for item in sidebar_nav -%}
+        <li class="nav-item {{ item.margin }}">
+          <a href="{{ item.url }}" 
+             class="nav-link text-white d-flex align-items-center py-2 px-3 rounded {% if item.is_active %}active{% endif %}" 
+             hx-boost="true" 
+             title="{{ item.title }}"
+             data-nav-target="{{ item.nav_target }}"
+             data-active="{{ 'true' if item.is_active else 'false' }}"
+             {% if item.is_active %}aria-current="page"{% endif %}>
+            <i class="{{ item.icon }} me-3 nav-icon flex-shrink-0" aria-hidden="true"></i>
+            <span class="sidebar-text">{{ item.label }}</span>
+          </a>
+        </li>
+        {%- endfor -%}
+      </ul>
+    </nav>
+
+    {# Footer Section with System Info #}
+    <div class="sidebar-footer border-top border-secondary px-3 py-4 mt-auto small">
+      <div class="d-flex flex-column gap-3">
+        {# System Status #}
+        <div class="d-flex align-items-center justify-content-center gap-2 sidebar-text">
+          <span class="status-indicator status-indicator-animated bg-success" 
+                style="width: 6px; height: 6px;" 
+                aria-hidden="true"></span>
+          <span class="text-white-50">System Online</span>
+        </div>
+
+        {# Version & Copyright #}
+        <div class="text-center sidebar-text text-white-50">
+          <div class="fw-medium">v1.0.0</div>
+          <div class="small">© 2024 Thesis Platform</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- Mobile sidebar toggle button (visible only on mobile) -->
+<button class="sidebar-toggle-mobile d-lg-none btn btn-primary btn-sm position-fixed shadow"
+        id="mobile-sidebar-toggle"
+        type="button"
+        aria-controls="sidebar"
+        aria-expanded="false"
+        aria-label="Open navigation menu"
+        title="Open navigation menu"
+        style="bottom: 1rem; right: 1rem; z-index: 1000; border-radius: 50%; width: 48px; height: 48px;">
+  <i class="fa-solid fa-bars" aria-hidden="true"></i>
+</button>
+{# Sidebar styles + behavior: static/css/theme.css & static/js/sidebar.js #}

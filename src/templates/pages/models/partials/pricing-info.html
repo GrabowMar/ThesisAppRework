@@ -1,0 +1,133 @@
+{% set nested_pricing = enriched_data.get('capabilities', {}).get('pricing', {}) %}
+{% set prompt_price = nested_pricing.get('prompt') %}
+{% if prompt_price %}
+  {% set prompt_price = prompt_price | float %}
+{% else %}
+  {% set prompt_price = enriched_data.get('openrouter_prompt_price') %}
+{% endif %}
+
+{% set completion_price = nested_pricing.get('completion') %}
+{% if completion_price %}
+  {% set completion_price = completion_price | float %}
+{% else %}
+  {% set completion_price = enriched_data.get('openrouter_completion_price') %}
+{% endif %}
+
+{% set additional_pricing = [
+  ('Per request', nested_pricing.get('request') or enriched_data.get('openrouter_pricing_request')),
+  ('Per image', nested_pricing.get('image') or enriched_data.get('openrouter_pricing_image')),
+  ('Web search', nested_pricing.get('web_search') or enriched_data.get('openrouter_pricing_web_search')),
+  ('Internal reasoning', nested_pricing.get('internal_reasoning') or enriched_data.get('openrouter_pricing_internal_reasoning')),
+  ('Cache read', enriched_data.get('openrouter_pricing_input_cache_read')),
+  ('Cache write', enriched_data.get('openrouter_pricing_input_cache_write'))
+] %}
+
+<header class="detail-section-title">
+  <div class="detail-section-title__icon">
+    <i class="ti ti-currency-dollar"></i>
+  </div>
+  <div>
+    <h2 class="detail-section-title__label">Pricing</h2>
+    <p class="detail-section-title__hint">Token costs, optional add-ons, and cost efficiency signals</p>
+  </div>
+</header>
+
+<div class="detail-grid">
+  <article class="card detail-card">
+    <div class="card-body detail-stat">
+      <div class="detail-stat__icon bg-success-lt text-success"><i class="ti ti-arrow-down"></i></div>
+      <div class="detail-stat__content">
+        <div class="detail-stat-label">Input price</div>
+        <div class="detail-stat-value">
+          {% if prompt_price %}
+            ${{ '%.6f'|format(prompt_price) }}
+          {% else %}
+            <span class="text-muted">Unavailable</span>
+          {% endif %}
+        </div>
+        <div class="detail-stat-hint">per 1K prompt tokens</div>
+      </div>
+    </div>
+  </article>
+
+  <article class="card detail-card">
+    <div class="card-body detail-stat">
+      <div class="detail-stat__icon bg-primary-lt text-primary"><i class="ti ti-arrow-up"></i></div>
+      <div class="detail-stat__content">
+        <div class="detail-stat-label">Output price</div>
+        <div class="detail-stat-value">
+          {% if completion_price %}
+            ${{ '%.6f'|format(completion_price) }}
+          {% else %}
+            <span class="text-muted">Unavailable</span>
+          {% endif %}
+        </div>
+        <div class="detail-stat-hint">per 1K completion tokens</div>
+      </div>
+    </div>
+  </article>
+
+  <article class="card detail-card">
+    <div class="card-body detail-stat">
+      <div class="detail-stat__icon bg-info-lt text-info"><i class="ti ti-scale"></i></div>
+      <div class="detail-stat__content">
+        <div class="detail-stat-label">Cost efficiency</div>
+        <div class="detail-stat-value">
+          {% if model.cost_efficiency %}
+            {{ '%.2f'|format(model.cost_efficiency) }}
+          {% else %}
+            <span class="text-muted">Not scored</span>
+          {% endif %}
+        </div>
+        <div class="detail-stat-hint">Composite price/performance indicator</div>
+      </div>
+    </div>
+  </article>
+
+  {% if model.is_free %}
+    <article class="card detail-card detail-card--wide">
+      <div class="card-body">
+        <div class="alert alert-success mb-0" role="alert">
+          <i class="ti ti-gift me-1"></i>
+          <strong>Free model</strong> — usage does not incur token charges.
+        </div>
+      </div>
+    </article>
+  {% endif %}
+
+  <article class="card detail-card detail-card--wide">
+    <div class="card-body">
+      <h3 class="detail-card__title mb-2"><i class="ti ti-file-invoice me-1"></i>Additional pricing</h3>
+      {% set addon_ns = namespace(has_addons=false) %}
+      <div class="detail-datalist">
+        {% for pair in additional_pricing %}
+          {% set label = pair[0] %}
+          {% set raw_value = pair[1] %}
+          {% if raw_value is not none and raw_value != '' %}
+            {% set numeric = raw_value | float %}
+            {% if numeric %}
+              {% set addon_ns.has_addons = true %}
+              <div class="detail-datalist__item">
+                <dt>{{ label }}</dt>
+                <dd>${{ '%.6f'|format(numeric) }}</dd>
+              </div>
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% if not addon_ns.has_addons %}
+        <p class="text-muted mb-0">No additional provider fees published.</p>
+      {% endif %}
+    </div>
+  </article>
+
+  <article class="card detail-card detail-card--wide">
+    <div class="card-body">
+      <h3 class="detail-card__title mb-2"><i class="ti ti-info-circle me-1"></i>Pricing notes</h3>
+      <p class="text-muted mb-0">
+        Values originate from OpenRouter catalog metadata and may lag behind live provider pricing.
+        Always confirm rates on the provider dashboard before deploying cost-sensitive workloads.
+      </p>
+    </div>
+  </article>
+</div>

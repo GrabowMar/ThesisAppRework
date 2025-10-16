@@ -1,0 +1,92 @@
+{# Application Artifacts Section Partial #}
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h5 class="card-title mb-0">
+          <i class="fas fa-archive me-2"></i>Project Artifacts
+        </h5>
+      </div>
+      <div class="card-body">
+        {% if artifacts.project_index or artifacts.readme or artifacts.compose_path %}
+          <div class="list-group">
+            {% if artifacts.project_index and artifacts.project_index.exists() %}
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <div>
+                <i class="fas fa-list-ul me-2 text-primary"></i>
+                <strong>PROJECT_INDEX.md</strong>
+                <p class="mb-0 text-muted small">Project structure and file overview</p>
+              </div>
+              <button class="btn btn-sm btn-outline-primary" 
+                      hx-get="/application/{{ application.model_slug }}/{{ application.app_number }}/file?path=PROJECT_INDEX.md"
+                      hx-target="#file-preview-modal .modal-body"
+                      data-bs-toggle="modal"
+                      data-bs-target="#file-preview-modal">
+                <i class="fas fa-eye"></i> View
+              </button>
+            </div>
+            {% endif %}
+            
+            {% if artifacts.readme and artifacts.readme.exists() %}
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <div>
+                <i class="fas fa-book me-2 text-info"></i>
+                <strong>README.md</strong>
+                <p class="mb-0 text-muted small">Application documentation</p>
+              </div>
+              <button class="btn btn-sm btn-outline-primary" 
+                      hx-get="/application/{{ application.model_slug }}/{{ application.app_number }}/file?path=README.md"
+                      hx-target="#file-preview-modal .modal-body"
+                      data-bs-toggle="modal"
+                      data-bs-target="#file-preview-modal">
+                <i class="fas fa-eye"></i> View
+              </button>
+            </div>
+            {% endif %}
+            
+            {% if artifacts.compose_path and artifacts.compose_path.exists() %}
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <div>
+                <i class="fas fa-cube me-2 text-success"></i>
+                <strong>docker-compose.yml</strong>
+                <p class="mb-0 text-muted small">Container orchestration configuration</p>
+              </div>
+              <button class="btn btn-sm btn-outline-primary" 
+                      hx-get="/application/{{ application.model_slug }}/{{ application.app_number }}/file?path=docker-compose.yml"
+                      hx-target="#file-preview-modal .modal-body"
+                      data-bs-toggle="modal"
+                      data-bs-target="#file-preview-modal">
+                <i class="fas fa-eye"></i> View
+              </button>
+            </div>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="text-center text-muted py-3">
+            <i class="fas fa-archive fa-2x mb-2"></i>
+            <p>No project artifacts found for this application.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- File Preview Modal -->
+<div class="modal fade" id="file-preview-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">File Preview</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="text-center">
+          <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

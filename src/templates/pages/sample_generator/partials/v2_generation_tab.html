@@ -1,0 +1,863 @@
+<!-- V2 Template System UI Component -->
+<!-- Modular template generation with scaffolding selection -->
+
+<div class="container-fluid">
+    <!-- Step 1: Scaffolding Selection -->
+    <div class="card card-table-compact mb-3">
+        <div class="card-header d-flex flex-wrap align-items-center gap-3 py-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-uppercase rounded-pill px-3">Step 1</span>
+                <div>
+                    <h3 class="card-title mb-0 d-flex align-items-center gap-2">
+                        <i class="fas fa-layer-group text-primary"></i>
+                        <span>Select Scaffolding</span>
+                    </h3>
+                    <div class="text-muted small">Choose the base project structure for your applications</div>
+                </div>
+            </div>
+        </div>
+        <div class="card-body border-top p-0">
+            <div id="scaffolding-selection-list" class="p-3">
+                <div class="row g-3">
+                    <!-- Active Scaffolding -->
+                    <div class="col-12">
+                        <div class="card card-link cursor-pointer hover-shadow border border-primary" onclick="selectScaffolding('react-flask', 'React + Flask')">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="flex-fill">
+                                        <h4 class="card-title mb-2">React + Flask Scaffolding</h4>
+                                        <div class="text-muted small mb-3">Flask backend + React frontend with Vite + Hot reload dev environment</div>
+                                        <div>
+                                            <span class="badge bg-blue-lt me-1"><i class="fas fa-server me-1"></i>Flask 3.0</span>
+                                            <span class="badge bg-green-lt me-1"><i class="fab fa-react me-1"></i>React 18</span>
+                                            <span class="badge bg-purple-lt"><i class="fas fa-bolt me-1"></i>Vite 5</span>
+                                        </div>
+                                    </div>
+                                    <div class="ms-auto">
+                                        <i class="fas fa-check-circle fa-3x text-success" id="scaffolding-check-react-flask" style="display:none;"></i>
+                                        <i class="fas fa-layer-group fa-3x text-primary opacity-50" id="scaffolding-icon-react-flask"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Coming Soon Scaffoldings (Grayed Out) -->
+                    <div class="col-md-6">
+                        <div class="card opacity-50" style="pointer-events: none;">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="flex-fill">
+                                        <h5 class="card-title mb-2">Vue + Django <span class="badge bg-secondary ms-2">Coming Soon</span></h5>
+                                        <div class="text-muted small mb-2">Django REST + Vue 3 + Pinia</div>
+                                        <div>
+                                            <span class="badge bg-secondary-lt me-1">Django 4</span>
+                                            <span class="badge bg-secondary-lt me-1">Vue 3</span>
+                                        </div>
+                                    </div>
+                                    <div class="ms-auto">
+                                        <i class="fas fa-lock fa-2x text-muted"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card opacity-50" style="pointer-events: none;">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="flex-fill">
+                                        <h5 class="card-title mb-2">Angular + Express <span class="badge bg-secondary ms-2">Coming Soon</span></h5>
+                                        <div class="text-muted small mb-2">Node.js Express + Angular + TypeScript</div>
+                                        <div>
+                                            <span class="badge bg-secondary-lt me-1">Express 4</span>
+                                            <span class="badge bg-secondary-lt me-1">Angular 17</span>
+                                        </div>
+                                    </div>
+                                    <div class="ms-auto">
+                                        <i class="fas fa-lock fa-2x text-muted"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card opacity-50" style="pointer-events: none;">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="flex-fill">
+                                        <h5 class="card-title mb-2">Next.js Full-Stack <span class="badge bg-secondary ms-2">Coming Soon</span></h5>
+                                        <div class="text-muted small mb-2">Next.js 14 + Server Actions + Prisma</div>
+                                        <div>
+                                            <span class="badge bg-secondary-lt me-1">Next.js 14</span>
+                                            <span class="badge bg-secondary-lt me-1">Prisma</span>
+                                        </div>
+                                    </div>
+                                    <div class="ms-auto">
+                                        <i class="fas fa-lock fa-2x text-muted"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card opacity-50" style="pointer-events: none;">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center">
+                                    <div class="flex-fill">
+                                        <h5 class="card-title mb-2">Svelte + FastAPI <span class="badge bg-secondary ms-2">Coming Soon</span></h5>
+                                        <div class="text-muted small mb-2">FastAPI + Svelte + TypeScript</div>
+                                        <div>
+                                            <span class="badge bg-secondary-lt me-1">FastAPI</span>
+                                            <span class="badge bg-secondary-lt me-1">Svelte 4</span>
+                                        </div>
+                                    </div>
+                                    <div class="ms-auto">
+                                        <i class="fas fa-lock fa-2x text-muted"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scaffolding Preview -->
+            <div id="scaffolding-preview" class="border-top bg-light-subtle p-3" style="display:none;">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="fas fa-eye me-2 text-primary"></i>
+                    <h6 class="mb-0">Scaffolding Structure Preview</h6>
+                </div>
+                <div id="scaffolding-preview-content" class="bg-white p-3 rounded border">
+                    <pre class="mb-0"><code>backend/
+  ├── app.py                  # Flask app with health endpoint
+  ├── requirements.txt        # Flask 3.0, Flask-CORS, SQLAlchemy
+  └── Dockerfile             # Python 3.11 container
+
+frontend/
+  ├── src/
+  │   ├── App.jsx            # React root component
+  │   └── App.css            # Base styling
+  ├── index.html             # HTML entry point
+  ├── package.json           # React 18, Vite 5, Axios
+  ├── vite.config.js         # Vite configuration
+  └── Dockerfile             # Node 20 container
+
+docker-compose.yml           # Service orchestration</code></pre>
+                </div>
+            </div>
+
+            <div id="step1-error" class="alert alert-danger d-none m-3">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <div>Please select a scaffolding template to continue.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 2: Templates & Models Selection -->
+    <div class="card card-table-compact mb-3">
+        <div class="card-header d-flex flex-wrap align-items-center gap-3 py-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-uppercase rounded-pill px-3">Step 2</span>
+                <div>
+                    <h3 class="card-title mb-0 d-flex align-items-center gap-2">
+                        <i class="fas fa-code text-primary"></i>
+                        <span>Select Templates &amp; Models</span>
+                    </h3>
+                    <div class="text-muted small">Choose application templates and AI models for generation</div>
+                </div>
+            </div>
+            <div class="ms-auto d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="previewQuery()">
+                    <i class="fas fa-eye me-1"></i>Preview Query
+                </button>
+            </div>
+        </div>
+        <div class="card-body border-top p-0">
+            <div class="row g-0">
+                <!-- Template Selection (Left Column) -->
+                <div class="col-lg-6 border-end">
+                    <div class="p-3 border-bottom bg-light">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <h6 class="mb-0"><i class="fas fa-file-code me-2 text-primary"></i>Application Templates <span class="badge bg-secondary" id="template-count">0</span></h6>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline-success btn-sm" onclick="selectAllTemplates()">
+                                    <i class="fas fa-check-all"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="clearAllTemplates()">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <input type="text" class="form-control form-control-sm mt-2" placeholder="Search templates..." id="template-search" oninput="filterTemplates(this.value)">
+                    </div>
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <div id="template-selection-list" class="list-group list-group-flush">
+                            <!-- Populated via JavaScript -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Model Selection (Right Column) -->
+                <div class="col-lg-6">
+                    <div class="p-3 border-bottom bg-light">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <h6 class="mb-0"><i class="fas fa-brain me-2 text-primary"></i>AI Models <span class="badge bg-secondary" id="model-count">0</span></h6>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline-success btn-sm" onclick="selectAllModels()">
+                                    <i class="fas fa-check-all"></i>
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" onclick="clearAllModels()">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <input type="text" class="form-control form-control-sm mt-2" placeholder="Search models..." id="model-search" oninput="filterModels(this.value)">
+                    </div>
+                    <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                        <div id="model-selection-list" class="list-group list-group-flush">
+                            <!-- Populated via JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="step2-error" class="alert alert-danger d-none m-3">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <div>Please select at least one template and one model to continue.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Step 3: Generation Controls -->
+    <div class="card card-table-compact mb-3">
+        <div class="card-header d-flex flex-wrap align-items-center gap-3 py-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary text-uppercase rounded-pill px-3">Step 3</span>
+                <div>
+                    <h3 class="card-title mb-0 d-flex align-items-center gap-2">
+                        <i class="fas fa-play text-primary"></i>
+                        <span>Generate Applications</span>
+                    </h3>
+                    <div class="text-muted small">Configure and run the generation process</div>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label"><strong>Components to Generate</strong></label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="v2-gen-backend" checked>
+                        <label class="form-check-label" for="v2-gen-backend">
+                            <i class="fas fa-server text-primary"></i> Generate Backend (Flask)
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="v2-gen-frontend" checked>
+                        <label class="form-check-label" for="v2-gen-frontend">
+                            <i class="fab fa-react text-success"></i> Generate Frontend (React)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="col-md-6 mb-3">
+                    <label class="form-label"><strong>Advanced Options</strong></label>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label for="v2-temperature" class="form-label small">Temperature</label>
+                            <input type="number" class="form-control form-control-sm" id="v2-temperature" 
+                                   value="0.7" min="0" max="2" step="0.1">
+                        </div>
+                        <div class="col-6">
+                            <label for="v2-max-tokens" class="form-label small">Max Tokens</label>
+                            <input type="number" class="form-control form-control-sm" id="v2-max-tokens" 
+                                   value="4000" min="1000" max="8000" step="500">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-grid gap-2">
+                <button type="button" class="btn btn-success btn-lg" onclick="generateBatch()">
+                    <i class="fas fa-play-circle me-2"></i>Generate Selected Applications
+                </button>
+            </div>
+
+            <!-- Progress & Results -->
+            <div id="v2-progress" class="mt-3" style="display: none;">
+                <div class="progress">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" id="v2-progress-bar"></div>
+                </div>
+                <div class="text-center mt-2" id="v2-progress-text">Initializing...</div>
+            </div>
+
+            <div id="v2-results" class="mt-3" style="display: none;"></div>
+            <div id="v2-error" class="mt-3" style="display: none;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Query Preview Modal -->
+<div class="modal fade" id="queryPreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-code me-2"></i>Query Preview - What Will Be Sent to AI
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info mb-3">
+                    <strong>Preview Mode:</strong> This shows the exact prompts that will be sent to the selected AI models. 
+                    Each template-model pair generates two queries (Backend + Frontend).
+                </div>
+
+                <ul class="nav nav-tabs mb-3" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" data-bs-toggle="tab" href="#query-backend-tab">
+                            <i class="fas fa-server me-1"></i>Backend Query
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#query-frontend-tab">
+                            <i class="fab fa-react me-1"></i>Frontend Query
+                        </a>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="query-backend-tab">
+                        <div class="mb-2">
+                            <strong>Template:</strong> <span id="query-template-name-backend"></span> |
+                            <strong>Model:</strong> <span id="query-model-name-backend"></span> |
+                            <strong>Length:</strong> <span id="query-length-backend"></span> chars
+                        </div>
+                        <pre id="query-backend-content" class="bg-light p-3 rounded border" style="max-height: 500px; overflow-y: auto; font-size: 12px;"></pre>
+                    </div>
+                    <div class="tab-pane fade" id="query-frontend-tab">
+                        <div class="mb-2">
+                            <strong>Template:</strong> <span id="query-template-name-frontend"></span> |
+                            <strong>Model:</strong> <span id="query-model-name-frontend"></span> |
+                            <strong>Length:</strong> <span id="query-length-frontend"></span> chars
+                        </div>
+                        <pre id="query-frontend-content" class="bg-light p-3 rounded border" style="max-height: 500px; overflow-y: auto; font-size: 12px;"></pre>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning mt-3">
+                    <strong>Note:</strong> Actual generation may vary based on model temperature and randomness settings. 
+                    These queries are rendered from Jinja2 templates with requirement data and scaffolding code.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="copyQueryToClipboard()">
+                    <i class="fas fa-copy me-1"></i>Copy Backend Query
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// V2 Template System JavaScript
+(function() {
+    'use strict';
+
+    let scaffoldingType = null;
+    let allTemplates = [];
+    let allModels = [];
+    let selectedTemplates = new Set();
+    let selectedModels = new Set();
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', async function() {
+        console.log('[V2] Initializing V2 generation tab...');
+        await loadV2Requirements();
+        await loadModels();
+        console.log('[V2] Initialization complete');
+    });
+
+    // Select scaffolding
+    window.selectScaffolding = function(type, name) {
+        scaffoldingType = type;
+        
+        // Update UI
+        document.querySelectorAll('.card-link').forEach(card => {
+            card.classList.remove('border-primary');
+        });
+        event.currentTarget.classList.add('border-primary');
+        
+        // Show check icon
+        document.querySelectorAll('[id^="scaffolding-check-"]').forEach(icon => icon.style.display = 'none');
+        document.querySelectorAll('[id^="scaffolding-icon-"]').forEach(icon => icon.style.display = 'block');
+        
+        const checkIcon = document.getElementById('scaffolding-check-' + type);
+        const mainIcon = document.getElementById('scaffolding-icon-' + type);
+        if (checkIcon && mainIcon) {
+            checkIcon.style.display = 'block';
+            mainIcon.style.display = 'none';
+        }
+        
+        // Show preview
+        document.getElementById('scaffolding-preview').style.display = 'block';
+        document.getElementById('step1-error').classList.add('d-none');
+    };
+
+    // Load V2 requirements
+    async function loadV2Requirements() {
+        try {
+            console.log('[V2] Fetching requirements from /api/v2/templates/requirements');
+            const response = await fetch('/api/v2/templates/requirements');
+            const data = await response.json();
+            
+            console.log('[V2] Requirements response:', data);
+            
+            // V2 API returns {success, data: [{requirement_id, name, description, ...}]}
+            if (data.success && data.data) {
+                allTemplates = Array.isArray(data.data) ? data.data : [];
+            } else if (Array.isArray(data)) {
+                allTemplates = data;
+            } else {
+                allTemplates = [];
+            }
+            
+            console.log(`[V2] Loaded ${allTemplates.length} requirement templates`);
+            renderTemplateList();
+        } catch (error) {
+            console.error('[V2] Failed to load V2 requirements:', error);
+            document.getElementById('template-selection-list').innerHTML = `
+                <div class="text-center text-muted p-4">
+                    <i class="fas fa-exclamation-circle fa-2x mb-2 opacity-50"></i>
+                    <p>Failed to load templates</p>
+                    <p class="small">${error.message}</p>
+                </div>
+            `;
+        }
+    }
+
+    // Render template list (compact format)
+    function renderTemplateList(filter = '') {
+        const container = document.getElementById('template-selection-list');
+        const filtered = allTemplates.filter(t => 
+            !filter || 
+            (t.name && t.name.toLowerCase().includes(filter.toLowerCase())) || 
+            (t.description && t.description.toLowerCase().includes(filter.toLowerCase()))
+        );
+
+        if (filtered.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted p-3">No templates found</div>';
+            return;
+        }
+
+        // V2 API returns id (string) and name (string)
+        container.innerHTML = filtered.map(template => `
+            <a href="#" class="list-group-item list-group-item-action py-2 ${selectedTemplates.has(template.id) ? 'active' : ''}" 
+               onclick="toggleTemplate('${template.id}'); return false;">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" ${selectedTemplates.has(template.id) ? 'checked' : ''} onclick="event.stopPropagation();">
+                    </div>
+                    <div class="flex-fill">
+                        <div class="fw-bold">${template.name || template.id}</div>
+                        <div class="text-muted small">${template.description || ''}</div>
+                    </div>
+                    <div>
+                        <span class="badge bg-primary">${template.id}</span>
+                    </div>
+                </div>
+            </a>
+        `).join('');
+
+        document.getElementById('template-count').textContent = selectedTemplates.size;
+    }
+
+    // Load models
+    async function loadModels() {
+        try {
+            console.log('[V2] Loading models from /api/models...');
+            const response = await fetch('/api/models');
+            const data = await response.json();
+            
+            console.log('[V2] Models response:', data);
+            
+            if (data.success && data.data) {
+                allModels = Array.isArray(data.data) ? data.data : [];
+            } else if (Array.isArray(data)) {
+                allModels = data;
+            } else {
+                allModels = [];
+            }
+            
+            console.log(`[V2] Loaded ${allModels.length} models`);
+            renderModelList();
+        } catch (error) {
+            console.error('[V2] Failed to load models:', error);
+            document.getElementById('model-selection-list').innerHTML = `
+                <div class="text-center text-muted p-4">
+                    <i class="fas fa-exclamation-circle fa-2x mb-2 opacity-50"></i>
+                    <p>Failed to load models</p>
+                    <p class="small">${error.message}</p>
+                </div>
+            `;
+        }
+    }
+
+    // Render model list (compact, grouped by publisher)
+    function renderModelList(filter = '') {
+        const container = document.getElementById('model-selection-list');
+        const filtered = allModels.filter(m => {
+            if (!filter) return true;
+            const searchLower = filter.toLowerCase();
+            const modelId = m.model_id || m.id || '';
+            const modelName = m.model_name || m.name || '';
+            return modelId.toLowerCase().includes(searchLower) || 
+                   modelName.toLowerCase().includes(searchLower);
+        });
+
+        if (filtered.length === 0) {
+            container.innerHTML = '<div class="text-center text-muted p-3">No models found</div>';
+            return;
+        }
+
+        // Group by provider (publisher)
+        const byPublisher = {};
+        filtered.forEach(model => {
+            const modelId = model.model_id || model.id || 'unknown';
+            const provider = model.provider || modelId.split('/')[0] || modelId.split('_')[0] || 'Other';
+            if (!byPublisher[provider]) byPublisher[provider] = [];
+            byPublisher[provider].push(model);
+        });
+
+        container.innerHTML = Object.entries(byPublisher).map(([publisher, models]) => `
+            <div class="list-group-item p-0">
+                <div class="bg-light px-3 py-2 border-bottom">
+                    <strong class="text-uppercase small">${publisher}</strong>
+                    <span class="badge bg-secondary ms-2">${models.length}</span>
+                </div>
+                ${models.map(model => {
+                    const modelId = model.model_id || model.id || 'unknown';
+                    const modelName = model.model_name || model.name || modelId;
+                    return `
+                    <a href="#" class="d-block px-3 py-2 text-decoration-none ${selectedModels.has(modelId) ? 'bg-primary-subtle' : ''}" 
+                       onclick="toggleModel('${modelId.replace(/'/g, "\\'")}'); return false;"
+                       style="border-bottom: 1px solid #dee2e6;">
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" ${selectedModels.has(modelId) ? 'checked' : ''} onclick="event.stopPropagation();">
+                            </div>
+                            <div class="flex-fill small">
+                                ${modelName}
+                            </div>
+                        </div>
+                    </a>
+                    `;
+                }).join('')}
+            </div>
+        `).join('');
+
+        document.getElementById('model-count').textContent = selectedModels.size;
+    }
+
+    // Toggle template selection
+    window.toggleTemplate = function(id) {
+        // V2 uses string IDs (requirement_id), keep as string
+        const templateId = String(id);
+        
+        if (selectedTemplates.has(templateId)) {
+            selectedTemplates.delete(templateId);
+        } else {
+            selectedTemplates.add(templateId);
+        }
+        renderTemplateList(document.getElementById('template-search').value);
+    };
+
+    // Toggle model selection
+    window.toggleModel = function(id) {
+        if (selectedModels.has(id)) {
+            selectedModels.delete(id);
+        } else {
+            selectedModels.add(id);
+        }
+        renderModelList(document.getElementById('model-search').value);
+    };
+
+    // Select/clear all templates
+    window.selectAllTemplates = function() {
+        allTemplates.forEach(t => selectedTemplates.add(t.id));
+        renderTemplateList(document.getElementById('template-search').value);
+    };
+
+    window.clearAllTemplates = function() {
+        selectedTemplates.clear();
+        renderTemplateList(document.getElementById('template-search').value);
+    };
+
+    // Select/clear all models
+    window.selectAllModels = function() {
+        allModels.forEach(m => selectedModels.add(m.id));
+        renderModelList(document.getElementById('model-search').value);
+    };
+
+    window.clearAllModels = function() {
+        selectedModels.clear();
+        renderModelList(document.getElementById('model-search').value);
+    };
+
+    // Filter templates
+    window.filterTemplates = function(value) {
+        renderTemplateList(value);
+    };
+
+    // Filter models
+    window.filterModels = function(value) {
+        renderModelList(value);
+    };
+
+    // Preview query that will be sent to AI
+    window.previewQuery = async function() {
+        if (!scaffoldingType) {
+            alert('Please select a scaffolding type first');
+            return;
+        }
+
+        if (selectedTemplates.size === 0) {
+            alert('Please select at least one template');
+            return;
+        }
+
+        if (selectedModels.size === 0) {
+            alert('Please select at least one model');
+            return;
+        }
+
+        // Get first selected template and model for preview
+        const templateId = Array.from(selectedTemplates)[0];
+        const modelId = Array.from(selectedModels)[0];
+        const template = allTemplates.find(t => t.id === templateId);
+        const model = allModels.find(m => (m.model_id || m.id) === modelId);
+
+        try {
+            // Fetch rendered templates
+            const response = await fetch('/api/v2/templates/preview', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    requirement_id: templateId,
+                    scaffolding_type: scaffoldingType
+                })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                // Update backend tab
+                document.getElementById('query-template-name-backend').textContent = template.name;
+                document.getElementById('query-model-name-backend').textContent = (model && model.model_name) || modelId;
+                document.getElementById('query-length-backend').textContent = data.data.backend_prompt.length.toLocaleString();
+                document.getElementById('query-backend-content').textContent = data.data.backend_prompt;
+
+                // Update frontend tab
+                document.getElementById('query-template-name-frontend').textContent = template.name;
+                document.getElementById('query-model-name-frontend').textContent = (model && model.model_name) || modelId;
+                document.getElementById('query-length-frontend').textContent = data.data.frontend_prompt.length.toLocaleString();
+                document.getElementById('query-frontend-content').textContent = data.data.frontend_prompt;
+
+                // Show modal
+                const modal = new bootstrap.Modal(document.getElementById('queryPreviewModal'));
+                modal.show();
+            } else {
+                alert('Preview failed: ' + data.message);
+            }
+        } catch (error) {
+            alert('Preview failed: ' + error.message);
+        }
+    };
+
+    // Copy query to clipboard
+    window.copyQueryToClipboard = function() {
+        const content = document.getElementById('query-backend-content').textContent;
+        navigator.clipboard.writeText(content).then(() => {
+            alert('Backend query copied to clipboard!');
+        });
+    };
+
+    // Generate batch
+    window.generateBatch = async function() {
+        if (!scaffoldingType) {
+            document.getElementById('step1-error').classList.remove('d-none');
+            return;
+        }
+
+        if (selectedTemplates.size === 0 || selectedModels.size === 0) {
+            document.getElementById('step2-error').classList.remove('d-none');
+            return;
+        }
+
+        const genBackend = document.getElementById('v2-gen-backend').checked;
+        const genFrontend = document.getElementById('v2-gen-frontend').checked;
+        const temperature = parseFloat(document.getElementById('v2-temperature').value);
+        const maxTokens = parseInt(document.getElementById('v2-max-tokens').value);
+
+        if (!genBackend && !genFrontend) {
+            alert('Please select at least one component to generate');
+            return;
+        }
+
+        // Show progress
+        const progressDiv = document.getElementById('v2-progress');
+        const resultsDiv = document.getElementById('v2-results');
+        const errorDiv = document.getElementById('v2-error');
+        
+        progressDiv.style.display = 'block';
+        resultsDiv.style.display = 'none';
+        errorDiv.style.display = 'none';
+
+        const totalJobs = selectedTemplates.size * selectedModels.size * (genBackend ? 1 : 0) * (genFrontend ? 1 : 0);
+        let completed = 0;
+        const results = [];
+
+        try {
+            for (const templateId of selectedTemplates) {
+                for (const modelId of selectedModels) {
+                    const template = allTemplates.find(t => t.id === templateId);
+                    const model = allModels.find(m => (m.model_id || m.id) === modelId);
+                    
+                    // Generate backend
+                    if (genBackend) {
+                        const modelName = (model && model.model_name) || modelId;
+                        updateProgress(++completed, totalJobs, `Generating ${template.name} backend with ${modelName}...`);
+                        
+                        const response = await fetch('/api/v2/templates/generate/backend', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                requirement_id: templateId,
+                                model: modelId,
+                                temperature,
+                                max_tokens: maxTokens
+                            })
+                        });
+                        const data = await response.json();
+                        results.push({
+                            template: template.name,
+                            model: (model && model.model_name) || modelId,
+                            component: 'Backend',
+                            success: data.success,
+                            data: data.data,
+                            message: data.message
+                        });
+                    }
+
+                    // Generate frontend
+                    if (genFrontend) {
+                        const modelName = (model && model.model_name) || modelId;
+                        updateProgress(++completed, totalJobs, `Generating ${template.name} frontend with ${modelName}...`);
+                        
+                        const response = await fetch('/api/v2/templates/generate/frontend', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                requirement_id: templateId,
+                                model: modelId,
+                                temperature,
+                                max_tokens: maxTokens
+                            })
+                        });
+                        const data = await response.json();
+                        results.push({
+                            template: template.name,
+                            model: (model && model.model_name) || modelId,
+                            component: 'Frontend',
+                            success: data.success,
+                            data: data.data,
+                            message: data.message
+                        });
+                    }
+                }
+            }
+
+            // Show results
+            progressDiv.style.display = 'none';
+            displayBatchResults(results);
+
+        } catch (error) {
+            progressDiv.style.display = 'none';
+            errorDiv.style.display = 'block';
+            errorDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-exclamation-triangle"></i> Generation Failed</h6>
+                    <p>${error.message}</p>
+                </div>
+            `;
+        }
+    };
+
+    // Update progress bar
+    function updateProgress(completed, total, text) {
+        const percent = Math.round((completed / total) * 100);
+        document.getElementById('v2-progress-bar').style.width = percent + '%';
+        document.getElementById('v2-progress-bar').textContent = percent + '%';
+        document.getElementById('v2-progress-text').textContent = text;
+    }
+
+    // Display batch results
+    function displayBatchResults(results) {
+        const successCount = results.filter(r => r.success).length;
+        const failCount = results.length - successCount;
+
+        let html = `
+            <div class="alert alert-${successCount > 0 ? 'success' : 'warning'}">
+                <h5><i class="fas fa-check-circle"></i> Batch Generation Complete</h5>
+                <p><strong>${successCount}</strong> successful, <strong>${failCount}</strong> failed out of <strong>${results.length}</strong> total</p>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Template</th>
+                            <th>Model</th>
+                            <th>Component</th>
+                            <th>Status</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        results.forEach(result => {
+            html += `
+                <tr class="${result.success ? 'table-success' : 'table-danger'}">
+                    <td>${result.template}</td>
+                    <td><code class="small">${result.model}</code></td>
+                    <td>${result.component}</td>
+                    <td>
+                        ${result.success ? 
+                            '<i class="fas fa-check-circle text-success"></i> Success' : 
+                            '<i class="fas fa-times-circle text-danger"></i> Failed'}
+                    </td>
+                    <td>
+                        ${result.success ? 
+                            `${result.data.duration.toFixed(2)}s, ${result.data.total_tokens} tokens` : 
+                            result.message}
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += '</tbody></table></div>';
+        
+        document.getElementById('v2-results').innerHTML = html;
+        document.getElementById('v2-results').style.display = 'block';
+    }
+
+})();
+</script>

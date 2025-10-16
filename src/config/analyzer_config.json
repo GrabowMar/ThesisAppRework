@@ -1,0 +1,55 @@
+{
+  "analyzer_services": {
+    "host": "localhost",
+    "base_port": 2001,
+    "services": {
+      "static": {
+        "port": 2001,
+        "name": "static-analyzer"
+      },
+      "dynamic": {
+        "port": 2002,
+        "name": "dynamic-analyzer"
+      },
+      "performance": {
+        "port": 2003,
+        "name": "performance-tester"
+      },
+      "ai": {
+        "port": 2004,
+        "name": "ai-analyzer"
+      }
+    }
+  },
+  "analyzer_paths": {
+    "source_mount": "/app/sources",
+    "local_generated": "generated/apps",
+    "results_dir": "results"
+  },
+  "default_tools": {
+    "security": ["bandit", "safety", "pylint"],
+    "static": ["pylint", "mypy", "flake8"],
+    "performance": ["ab", "wrk"],
+    "dynamic": ["curl", "wget", "nmap"],
+    "ai": ["requirements-scanner"]
+  },
+  "valid_tools": {
+    "all": ["bandit", "safety", "pylint", "eslint", "npm_audit", "semgrep", "snyk", "mypy", "flake8", "ab", "wrk", "curl", "wget", "nmap", "requirements-scanner"],
+    "security": ["bandit", "safety", "pylint", "eslint", "npm_audit", "semgrep", "snyk"],
+    "static": ["pylint", "mypy", "flake8", "eslint"],
+    "performance": ["ab", "wrk"],
+    "dynamic": ["curl", "wget", "nmap"],
+    "ai": ["requirements-scanner", "requirements-analyzer", "gpt4all-requirements", "openrouter-requirements"]
+  },
+  "analysis_timeouts": {
+    "default": 300,
+    "security": 600,
+    "performance": 900,
+    "dynamic": 1200
+  },
+  "flask_server": {
+    "host": "127.0.0.1",
+    "port": 5000,
+    "debug": true
+  }
+}

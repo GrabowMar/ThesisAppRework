@@ -1,0 +1,73 @@
+{#
+  Header Component: PC-optimized, minimal DOM, responsive navigation
+  - Responsive mobile/desktop layout with burger menu
+  - Theme toggle and user menu
+  - Breadcrumb navigation for context
+#}
+
+  <header class="navbar navbar-expand-md app-header d-print-none" 
+          role="banner" 
+          aria-label="Main header">
+    <div class="container-xl">
+      {# Left: Brand + breadcrumb #}
+      <div class="d-flex align-items-center me-auto gap-3 flex-wrap flex-lg-nowrap">
+        <a class="navbar-brand navbar-brand-autodark d-flex align-items-center gap-2" 
+           href="{{ url_for('main.dashboard') }}" 
+           aria-label="Go to dashboard">
+          <span class="brand-icon">
+            <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
+          </span>
+          <span class="brand-text d-none d-sm-inline-flex fw-semibold">Thesis Platform</span>
+        </a>
+
+        {# Breadcrumb: small and unobtrusive on desktop #}
+        <div class="breadcrumb-wrapper d-none d-lg-block text-muted small">
+          {% from 'shared/ui/macros/nav_macros.html' import breadcrumb %}
+          {% set _bs = [] %}
+          {% set _ = _bs.append({'label': 'Dashboard', 'url': url_for('main.dashboard')}) %}
+          {% if request and request.endpoint %}
+            {% if 'models' in request.endpoint %}
+              {% set _ = _bs.append({'label': 'Models', 'url': url_for('main.models_overview')}) %}
+            {% elif 'analysis' in request.endpoint %}
+              {% set _ = _bs.append({'label': 'Analysis', 'url': url_for('analysis.analysis_index')}) %}
+            {% endif %}
+          {% endif %}
+          {{ breadcrumb(_bs, 'mb-0') }}
+        </div>
+      </div>
+
+      {# Right: theme toggle & user menu #}
+      <nav class="navbar-nav flex-row align-items-center gap-3 ms-auto" role="navigation" aria-label="Header actions">
+        <div class="nav-item">
+          <button class="btn btn-icon btn-ghost-secondary" 
+                  id="theme-toggle" 
+                  type="button" 
+                  aria-label="Toggle theme" 
+                  title="Toggle theme">
+            <i class="fa-solid fa-moon" id="theme-toggle-icon" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <div class="nav-item dropdown">
+          <a href="#" 
+             class="nav-link d-flex align-items-center p-0" 
+             data-bs-toggle="dropdown" 
+             aria-label="User menu">
+            <span class="avatar avatar-sm bg-primary text-white">A</span>
+          </a>
+          <div class="dropdown-menu dropdown-menu-end shadow-sm">
+            <a class="dropdown-item" href="#">
+              <i class="fa-solid fa-user me-2"></i>Profile
+            </a>
+            <a class="dropdown-item" href="#">
+              <i class="fa-solid fa-gear me-2"></i>Settings
+            </a>
+            <div class="dropdown-divider"></div>
+            <a class="dropdown-item text-danger" href="#">
+              <i class="fa-solid fa-right-from-bracket me-2"></i>Logout
+            </a>
+          </div>
+        </div>
+      </nav>
+    </div>
+  </header>

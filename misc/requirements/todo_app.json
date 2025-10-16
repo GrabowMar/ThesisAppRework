@@ -1,0 +1,26 @@
+{
+  "app_id": "todo_app",
+  "name": "Simple Todo List",
+  "description": "A basic todo list application to manage tasks",
+  "backend_requirements": [
+    "Create new todo item with title and optional description",
+    "Retrieve all todo items",
+    "Update todo item (title, description, completed status)",
+    "Delete todo item by ID",
+    "Mark todo as completed or uncompleted",
+    "Store todos in SQLite database with timestamps",
+    "Filter todos by completion status (all, active, completed)"
+  ],
+  "frontend_requirements": [
+    "Form to add new todo with title and description fields",
+    "Display list of all todos with title, description, and completed status",
+    "Checkbox to mark todo as completed/uncompleted",
+    "Edit button to modify existing todo",
+    "Delete button to remove todo",
+    "Filter buttons to show all, active, or completed todos",
+    "Count of active todos",
+    "Clear completed todos button",
+    "Loading states during API operations",
+    "Confirmation dialog before deleting todos"
+  ]
+}

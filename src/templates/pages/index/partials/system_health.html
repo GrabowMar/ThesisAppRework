@@ -1,0 +1,101 @@
+{# Enhanced System Health Partial - supports comprehensive health monitoring #}
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <h5 class="mb-0">
+      <i class="fas fa-heartbeat me-2 text-danger"></i>System Health
+    </h5>
+    <div class="btn-group btn-group-sm">
+      <button type="button" class="btn btn-outline-primary" 
+              onclick="refreshSystemHealth()">
+        <i class="fas fa-sync-alt me-1"></i>Refresh
+      </button>
+      <button type="button" class="btn btn-outline-info" 
+              onclick="toggleHealthDetails()">
+        <i class="fas fa-info-circle me-1"></i>Details
+      </button>
+    </div>
+  </div>
+  <div class="card-body" id="system-health-content"
+       hx-get="/api/dashboard/system-health-comprehensive"
+       hx-trigger="load, every 30s"
+       hx-target="#system-health-content"
+       hx-swap="innerHTML">
+    <div class="text-center py-3" id="health-spinner">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading comprehensive health status...</span>
+      </div>
+      <p class="text-muted mt-2 mb-0">Checking all system components...</p>
+    </div>
+  </div>
+  <div class="card-footer bg-light" id="health-summary">
+    <div class="row text-center small">
+      <div class="col-md-3">
+        <span class="text-muted">Overall:</span>
+        <span class="ms-1 fw-bold" id="overall-health-status">Checking...</span>
+      </div>
+      <div class="col-md-3">
+        <span class="text-muted">Components:</span>
+        <span class="ms-1" id="health-components-count">0</span>
+      </div>
+      <div class="col-md-3">
+        <span class="text-muted">Healthy:</span>
+        <span class="ms-1 text-success" id="healthy-components">0</span>
+      </div>
+      <div class="col-md-3">
+        <span class="text-muted">Issues:</span>
+        <span class="ms-1 text-warning" id="unhealthy-components">0</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleHealthDetails() {
+  const footer = document.getElementById('health-summary');
+  if (footer) {
+    footer.style.display = footer.style.display === 'none' ? 'block' : 'none';
+  }
+}
+
+// Process health data when received via HTMX
+document.addEventListener('htmx:afterRequest', function(event) {
+  if (event.detail.xhr.responseURL.includes('system-health-comprehensive')) {
+    try {
+      const data = JSON.parse(event.detail.xhr.responseText);
+      updateHealthSummary(data);
+    } catch (e) {
+      console.warn('Could not parse health response for summary');
+    }
+  }
+});
+
+function updateHealthSummary(healthData) {
+  const components = healthData.components || {};
+  const totalComponents = Object.keys(components).length;
+  const healthyComponents = Object.values(components).filter(c => c.status === 'healthy').length;
+  const unhealthyComponents = totalComponents - healthyComponents;
+  
+  // Update summary footer
+  document.getElementById('overall-health-status').textContent = healthData.overall_status || 'Unknown';
+  document.getElementById('health-components-count').textContent = totalComponents;
+  document.getElementById('healthy-components').textContent = healthyComponents;
+  document.getElementById('unhealthy-components').textContent = unhealthyComponents;
+  
+  // Style overall status
+  const statusEl = document.getElementById('overall-health-status');
+  statusEl.className = 'ms-1 fw-bold';
+  switch (healthData.overall_status) {
+    case 'healthy':
+      statusEl.classList.add('text-success');
+      break;
+    case 'degraded':
+      statusEl.classList.add('text-warning');
+      break;
+    case 'unhealthy':
+      statusEl.classList.add('text-danger');
+      break;
+    default:
+      statusEl.classList.add('text-muted');
+  }
+}
+</script>

@@ -1,0 +1,68 @@
+<div class="row row-cards g-2 mb-3">
+  {% set totals = summary.totals or {} %}
+  {% set last24 = summary.recent.last_24h if summary.recent else {} %}
+  {% set last7 = summary.recent.last_7d if summary.recent else {} %}
+  {% set cards = [
+    {
+      'label': 'Models',
+      'value': totals.get('models', 0),
+      'accent': 'primary',
+      'icon': 'robot',
+      'sub': last7.get('applications', 0),
+      'sub_label': 'new apps this week'
+    },
+    {
+      'label': 'Applications', 
+      'value': totals.get('applications', 0),
+      'accent': 'info',
+      'icon': 'apps',
+      'sub': last24.get('applications', 0),
+      'sub_label': 'generated in 24h'
+    },
+    {
+      'label': 'Security Analyses',
+      'value': totals.get('security', 0),
+      'accent': 'success',
+      'icon': 'shield-check',
+      'sub': last24.get('security', 0),
+      'sub_label': 'run in 24h'
+    },
+    {
+      'label': 'Performance Tests',
+      'value': totals.get('performance', 0),
+      'accent': 'warning', 
+      'icon': 'activity',
+      'sub': last24.get('performance', 0),
+      'sub_label': 'run in 24h'
+    }
+  ] %}
+  {% for card in cards %}
+  <div class="col-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="row align-items-center">
+          <div class="col-auto">
+            <span class="bg-{{ card.accent }} text-white avatar"><!-- Tabler Icon -->
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                {% if card.icon == 'robot' %}<path d="M7 7h10v2l2 2v6l-2 2v1a1 1 0 0 1 -1 1h-6a1 1 0 0 1 -1 -1v-1l-2 -2v-6l2 -2v-2z"></path><path d="M10 16h4"></path><circle cx="8.5" cy="11.5" r=".5" fill="currentColor"></circle><circle cx="15.5" cy="11.5" r=".5" fill="currentColor"></circle>{% elif card.icon == 'apps' %}<rect x="4" y="4" width="6" height="6" rx="1"></rect><rect x="14" y="4" width="6" height="6" rx="1"></rect><rect x="4" y="14" width="6" height="6" rx="1"></rect><rect x="14" y="14" width="6" height="6" rx="1"></rect>{% elif card.icon == 'shield-check' %}<path d="M9 12l2 2l4 -4"></path><path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"></path>{% elif card.icon == 'activity' %}<polyline points="22,12 18,12 15,21 9,3 6,12 2,12"></polyline>{% endif %}
+              </svg>
+            </span>
+          </div>
+          <div class="col">
+            <div class="font-weight-medium">{{ card.value }}</div>
+            <div class="text-muted">{{ card.label }}</div>
+          </div>
+        </div>
+        <div class="d-flex align-items-baseline">
+          <div class="h1 mb-0 me-2">{{ card.sub }}</div>
+          <div class="me-auto">
+            <span class="text-green d-inline-flex align-items-center lh-1">
+              {{ card.sub_label }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>

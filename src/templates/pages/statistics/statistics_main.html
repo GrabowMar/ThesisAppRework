@@ -1,0 +1,16 @@
+{# Standard wrapper for Statistics pages. Clean layout without embedded headers. #}
+{% extends 'layouts/base.html' %}
+{% set page_title = page_title or 'Statistics' %}
+{% set page_icon = page_icon or 'fa-solid fa-chart-line' %}
+{% block content %}
+  {% if main_partial %}
+    {% include main_partial ignore missing %}
+  {% else %}
+    {% include 'pages/statistics/partials/main.html' ignore missing %}
+  {% endif %}
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  {% include 'pages/statistics/partials/scripts.html' ignore missing %}
+{% endblock %}

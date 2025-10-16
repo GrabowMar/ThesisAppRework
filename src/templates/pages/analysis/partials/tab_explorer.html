@@ -1,0 +1,565 @@
+{# Raw Data Explorer Tab - Collapsible raw outputs and tool details #}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h5 class="mb-0">
+    <i class="fas fa-database text-secondary me-2"></i>Raw Data Explorer
+  </h5>
+  <div class="d-flex gap-2">
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="fas fa-eye me-1"></i>View Mode
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="#" onclick="setViewMode('structured')">Structured View</a></li>
+        <li><a class="dropdown-item" href="#" onclick="setViewMode('json')">Raw JSON</a></li>
+        <li><a class="dropdown-item" href="#" onclick="setViewMode('compact')">Compact View</a></li>
+      </ul>
+    </div>
+    <button class="btn btn-outline-secondary btn-sm" onclick="expandAllSections()">
+      <i class="fas fa-expand me-1"></i>Expand All
+    </button>
+    <button class="btn btn-outline-secondary btn-sm" onclick="collapseAllSections()">
+      <i class="fas fa-compress me-1"></i>Collapse All
+    </button>
+    <button class="btn btn-primary btn-sm d-flex align-items-center" type="button" id="generate-json-btn" onclick="generateJsonPayload()">
+      <span class="spinner-border spinner-border-sm me-2 d-none" id="generate-json-spinner" role="status" aria-hidden="true"></span>
+      <span>Generate JSON</span>
+    </button>
+    <button class="btn btn-outline-info btn-sm" onclick="downloadRawData()">
+      <i class="fas fa-download me-1"></i>Download Raw JSON
+    </button>
+  </div>
+</div>
+
+<div class="text-end text-muted small mb-2" id="generate-json-status"></div>
+
+<!-- Analysis Overview -->
+<div class="card mb-3">
+  <div class="card-header d-flex align-items-center gap-2">
+    <i class="fas fa-info-circle text-info"></i>
+    <strong>Analysis Metadata</strong>
+    <button class="btn btn-sm btn-ghost-secondary ms-auto" data-bs-toggle="collapse" data-bs-target="#metadata-content">
+      <i class="fas fa-chevron-down"></i>
+    </button>
+  </div>
+  <div class="collapse" id="metadata-content">
+    <div class="card-body">
+      <div id="analysis-metadata-content">
+        <div class="d-flex justify-content-center p-3">
+          <div class="spinner-border text-primary" role="status"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Service Results -->
+<div class="card mb-3">
+  <div class="card-header d-flex align-items-center gap-2">
+    <i class="fas fa-cubes text-primary"></i>
+    <strong>Analyzer Services</strong>
+    <span class="badge bg-primary-lt" id="services-count">Loading...</span>
+    <button class="btn btn-sm btn-ghost-secondary ms-auto" data-bs-toggle="collapse" data-bs-target="#services-content">
+      <i class="fas fa-chevron-down"></i>
+    </button>
+  </div>
+  <div class="collapse" id="services-content">
+    <div class="card-body p-0">
+      <div id="services-accordion">
+        <div class="d-flex justify-content-center p-4">
+          <div class="spinner-border text-primary" role="status"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tool Raw Outputs -->
+<div class="card mb-3">
+  <div class="card-header d-flex align-items-center gap-2">
+    <i class="fas fa-tools text-warning"></i>
+    <strong>Tool Raw Outputs</strong>
+    <span class="badge bg-warning-lt" id="tools-count">Loading...</span>
+    <button class="btn btn-sm btn-ghost-secondary ms-auto" data-bs-toggle="collapse" data-bs-target="#tools-content">
+      <i class="fas fa-chevron-down"></i>
+    </button>
+  </div>
+  <div class="collapse" id="tools-content">
+    <div class="card-body p-0">
+      <div id="tools-accordion">
+        <div class="d-flex justify-content-center p-4">
+          <div class="spinner-border text-primary" role="status"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Complete Raw JSON -->
+<div class="card">
+  <div class="card-header d-flex align-items-center gap-2">
+    <i class="fas fa-code text-success"></i>
+    <strong>Complete Raw JSON</strong>
+    <button class="btn btn-sm btn-ghost-secondary ms-auto" data-bs-toggle="collapse" data-bs-target="#json-content">
+      <i class="fas fa-chevron-down"></i>
+    </button>
+  </div>
+  <div class="collapse" id="json-content">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <small class="text-muted">Complete analysis result JSON</small>
+        <button class="btn btn-outline-secondary btn-sm" onclick="copyJsonToClipboard()">
+          <i class="fas fa-copy me-1"></i>Copy to Clipboard
+        </button>
+      </div>
+      <pre class="bg-light p-3 rounded"><code id="raw-json-content">Loading...</code></pre>
+    </div>
+  </div>
+</div>
+
+<script>
+let rawAnalysisData = null;
+let currentViewMode = 'structured';
+
+document.addEventListener('DOMContentLoaded', function() {
+  loadRawData();
+});
+
+async function loadRawData() {
+  try {
+    const response = await fetch('/analysis/api/tasks/{{ task.task_id }}/results.json');
+    rawAnalysisData = await response.json();
+    
+    updateMetadata(rawAnalysisData);
+    updateServicesView(rawAnalysisData);
+    updateToolsView(rawAnalysisData);
+    updateRawJsonView(rawAnalysisData);
+    
+  } catch (error) {
+    console.error('Error loading raw data:', error);
+    showRawDataError();
+  }
+}
+
+async function generateJsonPayload() {
+  const button = document.getElementById('generate-json-btn');
+  const spinner = document.getElementById('generate-json-spinner');
+  const statusEl = document.getElementById('generate-json-status');
+
+  if (statusEl) {
+    statusEl.textContent = '';
+    statusEl.classList.remove('text-success', 'text-danger');
+    statusEl.classList.add('text-muted');
+  }
+
+  if (button) {
+    button.disabled = true;
+  }
+  if (spinner) {
+    spinner.classList.remove('d-none');
+  }
+
+  try {
+    const response = await fetch('/analysis/api/tasks/{{ task.task_id }}/generate-json', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json'
+      },
+      cache: 'no-store'
+    });
+
+    let result = {};
+    try {
+      result = await response.json();
+    } catch (parseError) {
+      result = {};
+    }
+
+    if (!response.ok) {
+      const message = result.error || response.statusText || 'Failed to persist JSON results.';
+      if (statusEl) {
+        statusEl.classList.remove('text-muted');
+        statusEl.classList.add('text-danger');
+        statusEl.textContent = message;
+      }
+      return;
+    }
+
+    const generatedAt = result.generated_at ? new Date(result.generated_at).toLocaleString() : null;
+    if (statusEl) {
+      statusEl.classList.remove('text-muted');
+      statusEl.classList.add('text-success');
+      const parts = ['Results JSON saved'];
+      if (generatedAt) {
+        parts.push(`at ${generatedAt}`);
+      }
+      if (result.record_key) {
+        parts.push(`(${result.record_key})`);
+      }
+      statusEl.textContent = parts.join(' ');
+      if (result.database) {
+        statusEl.textContent += ` • ${result.database}`;
+      }
+    }
+
+    await loadRawData();
+  } catch (error) {
+    console.error('Error generating results JSON:', error);
+    if (statusEl) {
+      statusEl.classList.remove('text-muted');
+      statusEl.classList.add('text-danger');
+      statusEl.textContent = 'Failed to generate JSON results.';
+    }
+  } finally {
+    if (spinner) {
+      spinner.classList.add('d-none');
+    }
+    if (button) {
+      button.disabled = false;
+    }
+  }
+}
+
+function updateMetadata(data) {
+  const metadata = data.metadata || {};
+  
+  let html = '<div class="row g-3">';
+  
+  // Basic metadata
+  html += '<div class="col-md-6">';
+  html += '<div class="table-responsive">';
+  html += '<table class="table table-sm table-striped table-vcenter card-table mb-0">';
+  html += `<tr><th>Analysis Type</th><td>${metadata.analysis_type || 'Unknown'}</td></tr>`;
+  html += `<tr><th>Version</th><td>${metadata.version || 'N/A'}</td></tr>`;
+  html += `<tr><th>Analyzer Version</th><td>${metadata.analyzer_version || 'N/A'}</td></tr>`;
+  html += `<tr><th>Module</th><td>${metadata.module || 'N/A'}</td></tr>`;
+  html += `<tr><th>Model</th><td>${metadata.model_slug || 'N/A'}</td></tr>`;
+  html += `<tr><th>App Number</th><td>${metadata.app_number || 'N/A'}</td></tr>`;
+  html += `<tr><th>Timestamp</th><td>${metadata.timestamp ? new Date(metadata.timestamp).toLocaleString() : 'N/A'}</td></tr>`;
+  html += '</table>';
+  html += '</div>';
+  html += '</div>';
+  
+  // Summary stats
+  html += '<div class="col-md-6">';
+  html += '<div class="table-responsive">';
+  html += '<table class="table table-sm table-striped table-vcenter card-table mb-0">';
+  
+  const summary = data.results?.summary || {};
+  html += `<tr><th>Total Findings</th><td>${summary.total_findings || 0}</td></tr>`;
+  html += `<tr><th>Services Executed</th><td>${summary.services_executed || 0}</td></tr>`;
+  html += `<tr><th>Tools Executed</th><td>${summary.tools_executed || 0}</td></tr>`;
+  html += `<tr><th>Status</th><td><span class="badge bg-${summary.status === 'completed' ? 'success' : 'warning'}">${summary.status || 'Unknown'}</span></td></tr>`;
+  
+  if (summary.severity_breakdown) {
+    html += `<tr><th>High Severity</th><td>${summary.severity_breakdown.high || 0}</td></tr>`;
+    html += `<tr><th>Medium Severity</th><td>${summary.severity_breakdown.medium || 0}</td></tr>`;
+    html += `<tr><th>Low Severity</th><td>${summary.severity_breakdown.low || 0}</td></tr>`;
+  }
+  
+  html += '</table>';
+  html += '</div>';
+  html += '</div>';
+  
+  html += '</div>';
+  
+  document.getElementById('analysis-metadata-content').innerHTML = html;
+}
+
+function updateServicesView(data) {
+  const services = data.results?.services || {};
+  const serviceNames = Object.keys(services);
+  
+  document.getElementById('services-count').textContent = serviceNames.length;
+  
+  if (serviceNames.length === 0) {
+    document.getElementById('services-accordion').innerHTML = 
+      '<div class="text-center p-4 text-muted">No service data available</div>';
+    return;
+  }
+  
+  let html = '<div class="accordion" id="servicesAccordion">';
+  
+  serviceNames.forEach((serviceName, index) => {
+    const serviceData = services[serviceName];
+    const findingsCount = serviceData.findings?.length || 0;
+    const toolsUsed = serviceData.tools_used?.length || 0;
+    
+    html += `
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="service-heading-${index}">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                  data-bs-target="#service-collapse-${index}">
+            <div class="d-flex align-items-center justify-content-between w-100 me-3">
+              <div class="d-flex align-items-center gap-2">
+                <i class="fas fa-cube"></i>
+                <strong>${serviceName}</strong>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary">${findingsCount} findings</span>
+                <span class="badge bg-secondary">${toolsUsed} tools</span>
+              </div>
+            </div>
+          </button>
+        </h2>
+        <div id="service-collapse-${index}" class="accordion-collapse collapse">
+          <div class="accordion-body">
+            ${renderServiceDetails(serviceData)}
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  
+  html += '</div>';
+  document.getElementById('services-accordion').innerHTML = html;
+}
+
+function renderServiceDetails(serviceData) {
+  let html = '<div class="row g-3">';
+  
+  // Basic service info
+  html += '<div class="col-md-4">';
+  html += '<h6>Service Summary</h6>';
+  html += '<div class="table-responsive">';
+  html += '<table class="table table-sm table-striped table-vcenter card-table mb-0">';
+  html += `<tr><th>Model</th><td>${serviceData.model_slug || 'N/A'}</td></tr>`;
+  html += `<tr><th>App Number</th><td>${serviceData.app_number || 'N/A'}</td></tr>`;
+  html += `<tr><th>Success</th><td><span class="badge bg-${serviceData.success ? 'success' : 'danger'}">${serviceData.success ? 'Yes' : 'No'}</span></td></tr>`;
+  html += `<tr><th>Duration</th><td>${serviceData.analysis_duration || 'N/A'}s</td></tr>`;
+  html += `<tr><th>Timestamp</th><td>${serviceData.timestamp ? new Date(serviceData.timestamp).toLocaleString() : 'N/A'}</td></tr>`;
+  html += '</table>';
+  html += '</div>';
+  html += '</div>';
+  
+  // Tools used
+  html += '<div class="col-md-4">';
+  html += '<h6>Tools Used</h6>';
+  if (serviceData.tools_used && serviceData.tools_used.length > 0) {
+    html += '<div class="d-flex flex-wrap gap-1">';
+    serviceData.tools_used.forEach(tool => {
+      html += `<span class="badge bg-secondary">${tool}</span>`;
+    });
+    html += '</div>';
+  } else {
+    html += '<div class="text-muted">No tools executed</div>';
+  }
+  html += '</div>';
+  
+  // Findings summary
+  html += '<div class="col-md-4">';
+  html += '<h6>Findings Summary</h6>';
+  if (serviceData.summary) {
+    const summary = serviceData.summary;
+    html += '<div class="table-responsive">';
+    html += '<table class="table table-sm table-striped table-vcenter card-table mb-0">';
+    html += `<tr><th>Total Issues</th><td>${summary.total_issues || 0}</td></tr>`;
+    
+    if (summary.by_severity) {
+      Object.entries(summary.by_severity).forEach(([sev, count]) => {
+        html += `<tr><th>${sev.charAt(0).toUpperCase() + sev.slice(1)}</th><td>${count}</td></tr>`;
+      });
+    }
+    
+    html += '</table>';
+    html += '</div>';
+  } else {
+    html += '<div class="text-muted">No summary available</div>';
+  }
+  html += '</div>';
+  
+  // Raw outputs section
+  html += '<div class="col-12 mt-3">';
+  html += '<h6>Raw Outputs</h6>';
+  if (serviceData.raw_outputs) {
+    html += '<div class="accordion" id="rawOutputsAccordion">';
+    Object.entries(serviceData.raw_outputs).forEach(([key, value], idx) => {
+      html += `
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                    data-bs-target="#rawOutput-${idx}">
+              <strong>${key}</strong>
+            </button>
+          </h2>
+          <div id="rawOutput-${idx}" class="accordion-collapse collapse">
+            <div class="accordion-body">
+              <pre class="bg-light p-2 rounded"><code>${JSON.stringify(value, null, 2)}</code></pre>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    html += '</div>';
+  } else {
+    html += '<div class="text-muted">No raw outputs available</div>';
+  }
+  html += '</div>';
+  
+  html += '</div>';
+  return html;
+}
+
+function updateToolsView(data) {
+  const tools = data.results?.tools || {};
+  const toolNames = Object.keys(tools);
+  
+  document.getElementById('tools-count').textContent = toolNames.length;
+  
+  if (toolNames.length === 0) {
+    document.getElementById('tools-accordion').innerHTML = 
+      '<div class="text-center p-4 text-muted">No tool data available</div>';
+    return;
+  }
+  
+  let html = '<div class="accordion" id="toolsAccordion">';
+  
+  toolNames.forEach((toolName, index) => {
+    const toolData = tools[toolName];
+    const status = toolData.status || 'unknown';
+    const statusClass = status === 'success' ? 'success' : 
+                       status === 'error' ? 'danger' : 'secondary';
+    
+    html += `
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="tool-heading-${index}">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                  data-bs-target="#tool-collapse-${index}">
+            <div class="d-flex align-items-center justify-content-between w-100 me-3">
+              <div class="d-flex align-items-center gap-2">
+                <i class="fas fa-wrench"></i>
+                <strong>${toolName}</strong>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-${statusClass}">${status}</span>
+                ${toolData.total_issues ? `<span class="badge bg-warning">${toolData.total_issues} issues</span>` : ''}
+                ${toolData.duration_seconds ? `<span class="badge bg-info">${toolData.duration_seconds}s</span>` : ''}
+              </div>
+            </div>
+          </button>
+        </h2>
+        <div id="tool-collapse-${index}" class="accordion-collapse collapse">
+          <div class="accordion-body">
+            ${renderToolDetails(toolData, toolName)}
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  
+  html += '</div>';
+  document.getElementById('tools-accordion').innerHTML = html;
+}
+
+function renderToolDetails(toolData, toolName) {
+  let html = '<div class="row g-3">';
+  
+  // Tool execution details
+  html += '<div class="col-md-6">';
+  html += '<h6>Execution Details</h6>';
+  html += '<div class="table-responsive">';
+  html += '<table class="table table-sm table-striped table-vcenter card-table mb-0">';
+  html += `<tr><th>Status</th><td><span class="badge bg-${toolData.status === 'success' ? 'success' : 'danger'}">${toolData.status || 'Unknown'}</span></td></tr>`;
+  html += `<tr><th>Executed</th><td>${toolData.executed ? 'Yes' : 'No'}</td></tr>`;
+  html += `<tr><th>Duration</th><td>${toolData.duration_seconds || 'N/A'}s</td></tr>`;
+  html += `<tr><th>Exit Code</th><td>${toolData.exit_code !== undefined ? toolData.exit_code : 'N/A'}</td></tr>`;
+  html += `<tr><th>Total Issues</th><td>${toolData.total_issues || 0}</td></tr>`;
+  if (toolData.command_line) {
+    html += `<tr><th>Command</th><td><code class="small">${toolData.command_line}</code></td></tr>`;
+  }
+  if (toolData.error) {
+    html += `<tr><th>Error</th><td><span class="text-danger">${toolData.error}</span></td></tr>`;
+  }
+  html += '</table>';
+  html += '</div>';
+  html += '</div>';
+  
+  // Raw output
+  html += '<div class="col-md-6">';
+  html += '<h6>Raw Output</h6>';
+  if (toolData.raw_output) {
+    html += `<pre class="bg-light p-2 rounded small">${toolData.raw_output}</pre>`;
+  } else {
+    html += '<div class="text-muted">No raw output available</div>';
+  }
+  html += '</div>';
+  
+  // Full tool data
+  html += '<div class="col-12 mt-3">';
+  html += '<h6>Complete Tool Data</h6>';
+  html += `<pre class="bg-light p-2 rounded"><code>${JSON.stringify(toolData, null, 2)}</code></pre>`;
+  html += '</div>';
+  
+  html += '</div>';
+  return html;
+}
+
+function updateRawJsonView(data) {
+  const jsonStr = JSON.stringify(data, null, 2);
+  document.getElementById('raw-json-content').textContent = jsonStr;
+}
+
+function setViewMode(mode) {
+  currentViewMode = mode;
+  // Implement different view modes if needed
+  console.log('View mode changed to:', mode);
+}
+
+function expandAllSections() {
+  document.querySelectorAll('.collapse').forEach(el => {
+    el.classList.add('show');
+  });
+  document.querySelectorAll('.accordion-button').forEach(el => {
+    el.classList.remove('collapsed');
+  });
+}
+
+function collapseAllSections() {
+  document.querySelectorAll('.collapse').forEach(el => {
+    el.classList.remove('show');
+  });
+  document.querySelectorAll('.accordion-button').forEach(el => {
+    el.classList.add('collapsed');
+  });
+}
+
+function downloadRawData() {
+  if (!rawAnalysisData) return;
+  
+  const blob = new Blob([JSON.stringify(rawAnalysisData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `raw-analysis-data-{{ task.task_id }}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function copyJsonToClipboard() {
+  const jsonContent = document.getElementById('raw-json-content').textContent;
+  navigator.clipboard.writeText(jsonContent).then(() => {
+    // Show success feedback
+    const button = event.target.closest('button');
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+    button.classList.add('btn-success');
+    button.classList.remove('btn-outline-secondary');
+    
+    setTimeout(() => {
+      button.innerHTML = originalText;
+      button.classList.remove('btn-success');
+      button.classList.add('btn-outline-secondary');
+    }, 2000);
+  });
+}
+
+function showRawDataError() {
+  const errorMsg = '<div class="text-center p-4 text-danger">Error loading raw data</div>';
+  document.getElementById('analysis-metadata-content').innerHTML = errorMsg;
+  document.getElementById('services-accordion').innerHTML = errorMsg;
+  document.getElementById('tools-accordion').innerHTML = errorMsg;
+  document.getElementById('raw-json-content').textContent = 'Error loading data';
+}
+</script>

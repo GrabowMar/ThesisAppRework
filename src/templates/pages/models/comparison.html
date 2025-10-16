@@ -1,0 +1,493 @@
+{# Model Comparison migrated fully to pages/models #}
+{% extends 'layouts/base.html' %}
+{% set page_title = 'Model Comparison' %}
+{% set page_icon = 'fa-solid fa-table-columns' %}
+{% set page_subtitle = 'Compare models side by side' %}
+{% block content %}
+
+    <div class="card mb-3">
+      <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <h3 class="card-title mb-0"><i class="fa-solid fa-sliders-h me-2"></i>Comparison Settings</h3>
+        <div class="btn-group btn-group-sm" role="group">
+          <a href="/statistics" class="btn btn-outline-secondary" title="View generation statistics">
+            <i class="fa-solid fa-chart-line me-1"></i>Statistics
+          </a>
+          <button type="button" class="btn btn-outline-info" id="show-gen-stats" title="Show generation stats for selected models">
+            <i class="fa-solid fa-chart-bar me-1"></i>Gen Stats
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="d-flex gap-2 flex-wrap small mb-3">
+          <div class="form-inline d-flex align-items-center gap-1">
+            <label class="form-label mb-0 me-1">Baseline</label>
+            <select id="baseline-select" class="form-select form-select-sm" title="Baseline aggregation strategy">
+              <option value="avg">Average</option>
+              <option value="median">Median</option>
+            </select>
+          </div>
+          <div class="form-inline d-flex align-items-center gap-1">
+            <label class="form-label mb-0 me-1">Highlight</label>
+            <select id="highlight-select" class="form-select form-select-sm" title="Highlight model for pairwise comparison"><option value="">None</option></select>
+          </div>
+          <div class="form-inline d-flex align-items-center gap-1">
+            <label class="form-label mb-0 me-1">Mode</label>
+            <select id="compare-mode" class="form-select form-select-sm" title="Comparison mode (baseline or highlight)">
+              <option value="baseline">Vs Baseline</option>
+              <option value="highlight">Vs Highlight</option>
+            </select>
+          </div>
+          <div class="form-inline d-flex align-items-center gap-1">
+            <div class="form-check form-switch mb-0">
+              <input class="form-check-input" type="checkbox" id="toggle-normalize">
+              <label class="form-check-label" for="toggle-normalize">Normalize</label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="mb-2">
+          <div class="d-flex justify-content-between align-items-center flex-wrap mb-1">
+            <label class="form-label mb-1">Quick Select Models</label>
+            <div class="btn-group btn-group-sm" role="group">
+              <button type="button" class="btn btn-outline-secondary" id="copy-share-link" title="Copy shareable link"><i class="fa-solid fa-link"></i></button>
+              <button type="button" class="btn btn-outline-secondary" id="clear-selection" title="Clear selection"><i class="fa-solid fa-times"></i></button>
+            </div>
+          </div>
+          <div id="model-picker" class="d-flex flex-wrap"></div>
+        </div>
+  <form id="comparison-form">
+          <div class="row g-3">
+            <div class="col-md-5">
+              <label class="form-label">Model Slugs (comma-separated)</label>
+              <input type="text" class="form-control" id="models-input" placeholder="model_a,model_b" value="{{ selected_models|join(',') if selected_models else '' }}" />
+              <small class="form-hint">Up to 8; duplicates removed</small>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Use Case (placeholder)</label>
+              <select id="use-case" class="form-select" title="Intended usage scenario (placeholder)">
+                <option value="general">General</option>
+                <option value="code">Code</option>
+                <option value="analysis">Analysis</option>
+                <option value="creative">Creative</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Weights (perf,cost,avail)</label>
+              <input type="text" id="weights" class="form-control" value="50,30,20" title="Weights for composite scoring (perf,cost,availability)" />
+            </div>
+            <div class="col-md-2">
+              <label class="form-label invisible">Update</label>
+              <button class="btn btn-primary w-100" id="update-btn" type="submit"><i class="fa-solid fa-sync me-1"></i><span class="btn-text">Update</span></button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  <div id="comparison-matrix" class="mb-3">
+          {% if models %}
+            <div class="card mb-3">
+              <div class="card-header d-flex align-items-center">
+                <h3 class="card-title mb-0"><i class="fa-solid fa-table me-2"></i>Core Metrics</h3>
+                <span class="badge bg-info ms-2">{{ models|length }} models</span>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm table-bordered mb-0">
+                  <thead>
+                    <tr><th>Metric</th>{% for m in models %}<th>{{ m.name }}</th>{% endfor %}</tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Provider</td>{% for m in models %}<td>{{ m.provider }}</td>{% endfor %}</tr>
+                    <tr><td>Context Window</td>{% for m in models %}<td>{{ m.context_length or '-' }}</td>{% endfor %}</tr>
+                    <tr><td>Input $/1K</td>{% for m in models %}<td>{{ m.input_price if m.input_price is not none else '-' }}</td>{% endfor %}</tr>
+                    <tr><td>Output $/1K</td>{% for m in models %}<td>{{ m.output_price if m.output_price is not none else '-' }}</td>{% endfor %}</tr>
+                    <tr><td>Performance Score</td>{% for m in models %}<td>{{ m.performance_score or '-' }}</td>{% endfor %}</tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {% if pricing %}
+            <div class="card mb-3">
+              <div class="card-header"><h3 class="card-title mb-0"><i class="fa-solid fa-scale-balanced me-2"></i>Pricing Deltas (vs first)</h3></div>
+              <div class="table-responsive">
+                <table class="table table-sm table-striped mb-0">
+                  <thead><tr><th>Model</th><th>Input $/1K</th><th>Δ Input</th><th>Output $/1K</th><th>Δ Output</th></tr></thead>
+                  <tbody>
+                    {% for p in pricing %}
+                      <tr>
+                        <td>{{ p.name }}</td>
+                        <td>{{ '%.4f'|format(p.input_price or 0) }}</td>
+                        <td>{% if p.input_delta is not none %}{% if p.input_delta>0 %}<span class="text-danger">+{{ '%.4f'|format(p.input_delta) }}</span>{% elif p.input_delta<0 %}<span class="text-success">{{ '%.4f'|format(p.input_delta) }}</span>{% else %}<span class="text-muted">0</span>{% endif %}{% else %}-{% endif %}</td>
+                        <td>{{ '%.4f'|format(p.output_price or 0) }}</td>
+                        <td>{% if p.output_delta is not none %}{% if p.output_delta>0 %}<span class="text-danger">+{{ '%.4f'|format(p.output_delta) }}</span>{% elif p.output_delta<0 %}<span class="text-success">{{ '%.4f'|format(p.output_delta) }}</span>{% else %}<span class="text-muted">0</span>{% endif %}{% else %}-{% endif %}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {% endif %}
+            {% if capability_rows %}
+            <div class="card">
+              <div class="card-header"><h3 class="card-title mb-0"><i class="fa-solid fa-toolbox me-2"></i>Capabilities</h3></div>
+              <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                  <thead><tr><th>Capability</th>{% for m in models %}<th>{{ m.name }}</th>{% endfor %}</tr></thead>
+                  <tbody>
+                  {% for row in capability_rows %}
+                    <tr>
+                      <td>{{ row.capability }}</td>
+                      {% for supported in row.support %}
+                        <td>{% if supported %}<span class="badge bg-success">Yes</span>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            {% endif %}
+          {% else %}
+            <div class="card">
+              <div class="card-body text-center text-muted py-5">
+                <i class="fa-solid fa-balance-scale fa-3x mb-3"></i>
+                <div>Select models to compare.</div>
+              </div>
+            </div>
+          {% endif %}
+  </div>
+
+  {# Generation Statistics Panel #}
+  <div id="generation-stats-panel" class="mb-3" style="display: none;">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title mb-0"><i class="fa-solid fa-chart-line me-2"></i>Generation Statistics</h3>
+        <button class="btn btn-sm btn-outline-secondary" onclick="hideGenerationStats()">
+          <i class="fa-solid fa-times"></i>
+        </button>
+      </div>
+      <div class="card-body" id="generation-stats-content">
+        <div class="text-center text-muted py-5">
+          <i class="fa-solid fa-spinner fa-spin fa-2x mb-3"></i>
+          <div>Loading generation statistics...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="insights-panel"></div>
+  <div id="initial-selected" data-models='{{ (selected_models or [])|tojson|safe }}' hidden></div>
+      </div>
+  </div>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script>
+// Comparison page enhanced script
+let availableModels=[];let selectedSet=new Set();
+// Inject initial selection from server (Jinja) for first render fallback
+// Retrieve initial selected models from hidden data attribute to avoid static parsing issues
+const initialSelected = (function(){
+  try { const el=document.getElementById('initial-selected'); if(!el) return []; return JSON.parse(el.dataset.models || '[]'); } catch(e){ return []; }
+})();
+const metricDefinitions=[
+  {key:'provider',label:'Provider',fmt:v=>v||'-'},
+  {key:'context_window',label:'Context Window',fmt:n=>n?.toLocaleString()||'-',higherBetter:true},
+  {key:'max_output_tokens',label:'Max Output',fmt:n=>n?.toLocaleString()||'-',higherBetter:true},
+  {key:'input_price_per_1k',label:'Input $/1K',fmt:n=>n===0?'<span class="text-success">0</span>':(n?.toFixed(6)||'-'),higherBetter:false},
+  {key:'output_price_per_1k',label:'Output $/1K',fmt:n=>n===0?'<span class="text-success">0</span>':(n?.toFixed(6)||'-'),higherBetter:false},
+  {key:'cost_per_call',label:'Cost / Call',fmt:n=>n?.toFixed(6)||'-',higherBetter:false},
+  {key:'throughput',label:'Throughput (synthetic)',fmt:n=>n||'-',higherBetter:true},
+  {key:'latency_ms',label:'Latency (ms)',fmt:n=>n||'-',higherBetter:false},
+  {key:'cost_efficiency',label:'Cost Efficiency',fmt:n=>n?.toFixed(3)||'-',higherBetter:true},
+  {key:'safety_score',label:'Safety Score',fmt:n=>n?.toFixed(2)||'-',higherBetter:true},
+  {key:'caps_count',label:'#Capabilities',fmt:n=>n||0,higherBetter:true},
+];
+
+function loadAvailableModels(){fetch('/api/models/all').then(r=>r.json()).then(d=>{availableModels=(d.models||[]);renderModelPicker();populateHighlightSelect();});}
+function renderModelPicker(){const target=document.getElementById('model-picker');if(!target)return;const sel=[...selectedSet];if(!sel.length){target.innerHTML='<span class="text-muted small">No models selected yet.</span>';updatePersistence();return;}target.innerHTML=sel.map(slug=>`<button type="button" class="btn btn-sm btn-outline-primary me-1 mb-1" onclick="togglePick('${slug}')">${slug} <i class="fas fa-times small ms-1"></i></button>`).join('');document.getElementById('models-input').value=sel.join(',');populateHighlightSelect();updatePersistence();}
+function togglePick(slug){if(selectedSet.has(slug))selectedSet.delete(slug);else selectedSet.add(slug);renderModelPicker();}
+
+function updatePersistence(){try {const arr=[...selectedSet];localStorage.setItem('models_selected', JSON.stringify(arr));document.cookie = 'comparison_models='+encodeURIComponent(arr.join(','))+'; path=/; max-age=604800'; // 7 days
+  // Update URL (no reload) for shareable link
+  const url=new URL(window.location.href); if(arr.length) url.searchParams.set('models', arr.join(',')); else url.searchParams.delete('models'); window.history.replaceState({}, '', url.toString());} catch(e){} }
+
+function readCookieSelection(){try {const m = document.cookie.split(';').map(v=>v.trim()).find(v=>v.startsWith('comparison_models=')); if(!m) return []; const val=decodeURIComponent(m.split('=')[1]||''); return val.split(',').map(s=>s.trim()).filter(Boolean); } catch(e){ return []; }}
+function populateHighlightSelect(){const sel=document.getElementById('highlight-select');if(!sel)return;const current=[...selectedSet];const value=sel.value;sel.innerHTML='<option value="">None</option>'+current.map(s=>`<option value="${s}">${s}</option>`).join('');if(current.includes(value)) sel.value=value;}
+
+function refreshComparison(){
+  const inputVal=document.getElementById('models-input').value.trim();
+  const updateBtn=document.getElementById('update-btn');
+  if(!inputVal){document.getElementById('comparison-matrix').innerHTML='<div class="card"><div class="card-body text-center text-muted py-5">Enter model slugs first.</div></div>';return;}
+  const slugs=[...new Set(inputVal.split(',').map(s=>s.trim()).filter(Boolean))];
+  // Sync selectedSet explicitly
+  selectedSet=new Set(slugs);
+  renderModelPicker();
+  const baseline=document.getElementById('baseline-select').value;
+  // Loading state
+  document.getElementById('comparison-matrix').innerHTML='<div class="card"><div class="card-body text-center text-muted py-5"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading...</div></div>';
+  if(updateBtn){updateBtn.disabled=true;updateBtn.classList.add('disabled');}
+  fetch('/api/models/comparison/refresh',{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({models:slugs,baseline})})
+    .then(r=>{
+      if(!r.ok) {
+        return r.text().then(text => {
+          throw new Error(`HTTP ${r.status}: ${text}`);
+        });
+      }
+      return r.json();
+    })
+    .then(data=>{renderComparison(data);})
+    .catch(err=>{
+      console.error('Comparison refresh failed',err);
+      const errorMsg = err.message || 'Unknown error occurred';
+      document.getElementById('comparison-matrix').innerHTML=`<div class="card"><div class="card-body text-center text-danger py-5"><i class="fa-solid fa-exclamation-triangle me-2"></i>Comparison refresh failed: ${errorMsg}</div></div>`;
+    })
+    .finally(()=>{if(updateBtn){updateBtn.disabled=false;updateBtn.classList.remove('disabled');}});
+}
+
+function renderComparison(data){
+  const container=document.getElementById('comparison-matrix');
+  const slugs=data.models||[];if(!slugs.length){container.innerHTML='<div class="card"><div class="card-body text-center text-muted py-5">No models returned.</div></div>';return;}
+  const metrics=data.metrics||{};const baselineMetrics=data.baseline_metrics||{};const highlight=document.getElementById('highlight-select').value;const compareMode=document.getElementById('compare-mode').value;const normalize=document.getElementById('toggle-normalize').checked;
+  let html='<div class="card mb-3"><div class="card-header d-flex align-items-center flex-wrap"><h3 class="card-title mb-0"><i class="fa-solid fa-table me-2"></i>Expanded Metrics</h3><span class="badge bg-info ms-2">'+slugs.length+' models</span><span class="ms-2 small text-muted">Baseline: '+data.baseline+'</span></div><div class="table-responsive"><table class="table table-sm table-bordered table-hover mb-0 align-middle"><thead><tr><th>Metric</th>';
+  slugs.forEach(s=>{html+='<th>'+s+(highlight===s?' <span class="badge bg-primary">★</span>':'')+'</th>';});html+='</tr></thead><tbody>';
+  metricDefinitions.forEach(def=>{html+='<tr><td class="fw-semibold">'+def.label+'</td>'+slugs.map(s=>formatMetricCell(def,metrics[s],baselineMetrics,metrics[highlight],compareMode,normalize)).join('')+'</tr>';});
+  // Boolean capability flags grouped row
+  const boolFlags=['supports_function_calling','supports_vision','supports_streaming','supports_json_mode','is_free'];
+  boolFlags.forEach(flag=>{html+='<tr><td>'+flag.replace(/_/g,' ')+'</td>'+slugs.map(s=>{const val=!!metrics[s][flag];return '<td>'+(val?'<span class="badge bg-success">Yes</span>':'<span class="text-muted">-</span>')+'</td>';}).join('')+'</tr>';});
+  html+='</tbody></table></div></div>';
+  container.innerHTML=html;
+  renderInsights(data,slugs,metrics);
+}
+
+function formatMetricCell(def,row,baselineRow,highlightRow,mode,normalize){if(!row) return '<td>-</td>';const val=row[def.key];const base = mode==='baseline'?baselineRow:highlightRow||baselineRow;let cls='';let diffDisplay='';if(base && typeof val==='number' && typeof base[def.key]==='number'){const diff=val - base[def.key];const better = def.higherBetter ? diff>0 : diff<0;const worse = def.higherBetter ? diff<0 : diff>0; if(diff!==0){diffDisplay='<div class="small '+(better?'text-success':(worse?'text-danger':'text-muted'))+'">'+(diff>0?'+':'')+formatNumber(diff,def)+'</div>';}
+  if(better) cls='table-success'; else if(worse) cls='table-danger';}
+  let display=def.fmt(val);
+  if(normalize && typeof val==='number' && base && typeof base[def.key]==='number' && base[def.key]!==0){display='<div>'+ (val/base[def.key]).toFixed(2)+'x</div>';}
+  return '<td class="position-relative '+cls+'">'+display+diffDisplay+'</td>';
+}
+function formatNumber(num,def){if(!isFinite(num)) return num; if(Math.abs(num)>=1000) return num.toFixed(0); if(Math.abs(num)>=1) return num.toFixed(2); return num.toFixed(4);} 
+
+function renderInsights(data,slugs,metrics){const panel=document.getElementById('insights-panel');const summary=data.summary||{}; if(!Object.keys(summary).length){panel.innerHTML='';return;} let cardsHtml='<div class="row g-3">';const interesting=['cost_per_call','input_price_per_1k','output_price_per_1k','throughput','latency_ms','context_window','cost_efficiency']; interesting.forEach(k=>{const s=summary[k]; if(!s) return; cardsHtml+='<div class="col-md-3 col-sm-6"><div class="card h-100"><div class="card-body p-2">';cardsHtml+='<div class="d-flex justify-content-between align-items-start"><span class="fw-semibold text-uppercase small">'+k.replace(/_/g,' ')+'</span></div>';cardsHtml+='<div class="mt-1 small">Avg: <strong>'+s.avg+'</strong> | Med: <strong>'+s.median+'</strong></div>';cardsHtml+='<div class="mt-1 small">Min: <span class="text-success">'+s.min+'</span> ('+(s.min_slug||'-')+')<br>Max: <span class="text-danger">'+s.max+'</span> ('+(s.max_slug||'-')+')</div>';cardsHtml+='</div></div></div>';});cardsHtml+='</div>';panel.innerHTML='<div class="card"><div class="card-header d-flex align-items-center"><h3 class="card-title mb-0"><i class="fa-solid fa-chart-line me-2"></i>Research Insights</h3></div><div class="card-body">'+cardsHtml+'<div class="small text-muted mt-2">Color coding in table: green = better vs reference, red = worse.</div></div></div>';
+}
+
+// Generation Stats Integration
+function showGenerationStats() {
+  const panel = document.getElementById('generation-stats-panel');
+  const content = document.getElementById('generation-stats-content');
+  const models = [...selectedSet];
+  
+  if (!models.length) {
+    alert('Please select at least one model to view generation statistics');
+    return;
+  }
+  
+  // Show panel with loading state
+  panel.style.display = 'block';
+  content.innerHTML = '<div class="text-center py-5"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading generation statistics...</div>';
+  
+  // Fetch generation stats for selected models
+  fetch('/api/statistics/generation/by-models', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ models: models })
+  })
+  .then(r => {
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  })
+  .then(data => {
+    renderGenerationStats(data, models);
+  })
+  .catch(err => {
+    console.error('Failed to load generation stats:', err);
+    content.innerHTML = `<div class="alert alert-danger"><i class="fa-solid fa-exclamation-triangle me-2"></i>Failed to load generation statistics: ${err.message}</div>`;
+  });
+}
+
+function hideGenerationStats() {
+  document.getElementById('generation-stats-panel').style.display = 'none';
+}
+
+function renderGenerationStats(data, models) {
+  const content = document.getElementById('generation-stats-content');
+  
+  if (!data || !data.stats || !data.stats.length) {
+    content.innerHTML = '<div class="alert alert-info"><i class="fa-solid fa-info-circle me-2"></i>No generation data available for the selected models.</div>';
+    return;
+  }
+  
+  const stats = data.stats;
+  
+  // Create summary cards
+  let html = '<div class="row g-3 mb-4">';
+  
+  // Total runs card
+  const totalRuns = stats.reduce((sum, s) => sum + (s.total_runs || 0), 0);
+  html += `
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="subheader">Total Runs</div>
+          </div>
+          <div class="h1 mb-0">${totalRuns}</div>
+          <div class="text-muted small">Across ${models.length} model${models.length > 1 ? 's' : ''}</div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Success rate card
+  const totalSuccess = stats.reduce((sum, s) => sum + (s.successful_runs || 0), 0);
+  const successRate = totalRuns > 0 ? ((totalSuccess / totalRuns) * 100).toFixed(1) : 0;
+  html += `
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="subheader">Success Rate</div>
+          </div>
+          <div class="h1 mb-0">${successRate}%</div>
+          <div class="text-muted small">${totalSuccess} / ${totalRuns} successful</div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Total cost card
+  const totalCost = stats.reduce((sum, s) => sum + (s.total_cost || 0), 0);
+  html += `
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="subheader">Total Cost</div>
+          </div>
+          <div class="h1 mb-0">$${totalCost.toFixed(4)}</div>
+          <div class="text-muted small">Combined generation cost</div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // Avg tokens card
+  const totalTokens = stats.reduce((sum, s) => sum + (s.total_tokens || 0), 0);
+  const avgTokens = totalRuns > 0 ? (totalTokens / totalRuns).toFixed(0) : 0;
+  html += `
+    <div class="col-md-3">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex align-items-center">
+            <div class="subheader">Avg Tokens/Run</div>
+          </div>
+          <div class="h1 mb-0">${avgTokens}</div>
+          <div class="text-muted small">${totalTokens.toLocaleString()} total</div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  html += '</div>';
+  
+  // Detailed table
+  html += `
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title"><i class="fa-solid fa-table me-2"></i>Per-Model Statistics</h3>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th class="text-end">Total Runs</th>
+              <th class="text-end">Success Rate</th>
+              <th class="text-end">Avg Tokens</th>
+              <th class="text-end">Total Cost</th>
+              <th class="text-end">Avg Cost/Run</th>
+            </tr>
+          </thead>
+          <tbody>
+  `;
+  
+  stats.forEach(s => {
+    const successPct = s.total_runs > 0 ? ((s.successful_runs / s.total_runs) * 100).toFixed(1) : 0;
+    const avgTokensModel = s.total_runs > 0 ? (s.total_tokens / s.total_runs).toFixed(0) : 0;
+    const avgCost = s.total_runs > 0 ? (s.total_cost / s.total_runs).toFixed(4) : 0;
+    const badgeClass = successPct >= 90 ? 'bg-success' : successPct >= 70 ? 'bg-warning' : 'bg-danger';
+    
+    html += `
+      <tr>
+        <td><strong>${s.model_slug}</strong></td>
+        <td class="text-end">${s.total_runs}</td>
+        <td class="text-end">
+          <span class="badge ${badgeClass}">${successPct}%</span>
+          <span class="text-muted small">(${s.successful_runs}/${s.total_runs})</span>
+        </td>
+        <td class="text-end">${avgTokensModel}</td>
+        <td class="text-end">$${s.total_cost.toFixed(4)}</td>
+        <td class="text-end">$${avgCost}</td>
+      </tr>
+    `;
+  });
+  
+  html += `
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  
+  // Action buttons
+  html += `
+    <div class="mt-3 text-end">
+      <a href="/statistics?filter_model=${models[0]}" class="btn btn-outline-primary">
+        <i class="fa-solid fa-chart-bar me-1"></i>View Full Statistics
+      </a>
+    </div>
+  `;
+  
+  content.innerHTML = html;
+}
+
+document.addEventListener('DOMContentLoaded',()=>{loadAvailableModels(); // prime available (even if not listing all, we need validation/highlight list)
+  if(initialSelected && Array.isArray(initialSelected) && initialSelected.length && !selectedSet.size){initialSelected.forEach(s=>selectedSet.add(s));renderModelPicker();}
+  document.getElementById('baseline-select').addEventListener('change',refreshComparison);
+  document.getElementById('highlight-select').addEventListener('change',refreshComparison);
+  document.getElementById('compare-mode').addEventListener('change',refreshComparison);
+  document.getElementById('toggle-normalize').addEventListener('change',refreshComparison);
+  const shareBtn=document.getElementById('copy-share-link'); if(shareBtn){shareBtn.addEventListener('click',copyShareLink);} const clearBtn=document.getElementById('clear-selection'); if(clearBtn){clearBtn.addEventListener('click',()=>{selectedSet.clear();renderModelPicker();refreshComparison();});}
+  const form=document.getElementById('comparison-form');
+  if(form){form.addEventListener('submit',e=>{e.preventDefault();refreshComparison();});}
+  // Generation stats integration
+  const genStatsBtn=document.getElementById('show-gen-stats'); if(genStatsBtn){genStatsBtn.addEventListener('click',showGenerationStats);}
+  const closeGenStatsBtn=document.getElementById('close-gen-stats'); if(closeGenStatsBtn){closeGenStatsBtn.addEventListener('click',hideGenerationStats);}
+});
+
+// Preselect from query/localStorage after models load
+function preselectFromContext(){try {const params=new URLSearchParams(window.location.search);let fromQuery=(params.get('models')||'').split(',').map(s=>s.trim()).filter(Boolean);if(!fromQuery.length){fromQuery=readCookieSelection();}
+  if(!fromQuery.length){const stored=JSON.parse(localStorage.getItem('models_selected')||'[]');if(Array.isArray(stored) && stored.length) fromQuery=stored;}
+  if(!fromQuery.length && initialSelected?.length){fromQuery=initialSelected;}
+  fromQuery.forEach(s=>selectedSet.add(s));renderModelPicker();if(fromQuery.length) refreshComparison();}catch(e){}}
+// Hook after available models fetched
+const _origLoad=loadAvailableModels;loadAvailableModels=function(){fetch('/api/models/all').then(r=>r.json()).then(d=>{availableModels=(d.models||[]);preselectFromContext();});};
+
+// Ensure selection sync when user edits the text input manually
+document.addEventListener('blur',e=>{if(e.target && e.target.id==='models-input'){const parts=e.target.value.split(',').map(s=>s.trim()).filter(Boolean);selectedSet=new Set(parts);renderModelPicker();}},true);
+
+// After each refresh, sync selectedSet with returned model order
+const _origRenderComparison = renderComparison;
+renderComparison = function(data){
+  // Only override current selection if API actually returned resolved models
+  if(data && Array.isArray(data.models) && data.models.length){
+    selectedSet = new Set(data.models);
+  }
+  _origRenderComparison(data);
+  renderModelPicker();
+};
+
+function copyShareLink(){try {const url=new URL(window.location.href);const models=[...selectedSet];if(models.length) url.searchParams.set('models', models.join(',')); else url.searchParams.delete('models'); navigator.clipboard.writeText(url.toString()).then(()=>{const btn=document.getElementById('copy-share-link'); if(btn){btn.classList.remove('btn-outline-secondary');btn.classList.add('btn-success');setTimeout(()=>{btn.classList.add('btn-outline-secondary');btn.classList.remove('btn-success');},1200);} });}catch(e){alert('Copy failed');}}
+</script>
+{% endblock %}

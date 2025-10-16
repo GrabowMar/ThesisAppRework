@@ -1,0 +1,190 @@
+{# Step 1: Scaffolding Generation - Create Project Structure First #}
+<div class="alert alert-info mb-4">
+  <div class="d-flex align-items-center">
+    <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 8l0 4" /><path d="M12 16l.01 0" /></svg>
+    <div>
+      <h4 class="alert-title">Step 1: Create Project Scaffolding</h4>
+      <div class="text-secondary">Generate empty project structures (folders, Docker files, package.json) for multiple models and applications</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Left Column: Model Configuration -->
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" /><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" /></svg>
+          Models Configuration
+        </h3>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-inline me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 8l0 4" /><path d="M12 16l.01 0" /></svg>
+          Enter OpenRouter URL or comma-separated models
+        </p>
+
+        <!-- Models Input -->
+        <div class="mb-3">
+          <label class="form-label" for="scaffold-models-input">Models Input</label>
+          <textarea id="scaffold-models-input" class="form-control font-monospace" rows="4" placeholder="https://openrouter.ai/chat?models=...&#10;&#10;OR&#10;&#10;mistralai/mistral-small:free,openai/gpt-4"></textarea>
+          <small class="form-hint">URL from OpenRouter or comma/newline-separated list</small>
+        </div>
+
+        <!-- Configuration -->
+        <div class="row g-3 mb-3">
+          <div class="col-6">
+            <label class="form-label">Apps per Model</label>
+            <input type="number" id="scaffold-apps-per-model" class="form-control" min="1" max="100" value="30">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Port Increment</label>
+            <input type="number" id="scaffold-port-increment" class="form-control" min="10" max="1000" value="100">
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="d-grid gap-2">
+          <button id="scaffold-parse-btn" class="btn btn-primary">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12z" /><path d="M16 3v4" /><path d="M8 3v4" /><path d="M4 11h16" /></svg>
+            Parse Models
+          </button>
+          <button id="scaffold-validate-templates-btn" class="btn btn-outline-secondary">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" /><path d="M9 14l2 2l4 -4" /></svg>
+            Validate Templates
+          </button>
+        </div>
+
+        <div id="scaffold-parse-feedback" class="mt-3"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Preview & Actions -->
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" /></svg>
+          Scaffolding Preview
+        </h3>
+      </div>
+      <div class="card-body">
+          <!-- Summary Stats -->
+          <div class="row g-2 mb-3">
+            <div class="col-6 col-md-3">
+              <div class="card card-sm bg-primary-lt">
+                <div class="card-body p-2 text-center">
+                  <div class="h3 mb-0" id="scaffold-total-models">0</div>
+                  <div class="text-muted small">Models</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="card card-sm bg-success-lt">
+                <div class="card-body p-2 text-center">
+                  <div class="h3 mb-0" id="scaffold-total-apps">0</div>
+                  <div class="text-muted small">Total Apps</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="card card-sm bg-azure-lt">
+                <div class="card-body p-2 text-center">
+                  <div class="h3 mb-0" id="scaffold-total-folders">0</div>
+                  <div class="text-muted small">Folders</div>
+                </div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="card card-sm bg-yellow-lt">
+                <div class="card-body p-2 text-center">
+                  <div class="h3 mb-0" id="scaffold-total-files">0</div>
+                  <div class="text-muted small">Files</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Configuration Summary -->
+          <div class="alert alert-info mb-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 8l0 4" /><path d="M12 16l.01 0" /></svg>
+            <strong>Configuration:</strong> <span id="scaffold-config-summary">Apps/model: 30, Ports/app: 100</span>
+          </div>
+
+          <!-- Models Table -->
+          <div class="table-responsive mb-3">
+            <table class="table table-sm table-vcenter card-table">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th class="text-center">Apps</th>
+                  <th>Ports</th>
+                  <th class="text-end">Size</th>
+                </tr>
+              </thead>
+              <tbody id="scaffold-models-table">
+                <tr><td colspan="4" class="text-center text-muted py-3">No models</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Structure Preview -->
+          <div class="card card-sm bg-secondary-lt">
+            <div class="card-header">
+              <div class="card-title small">Directory Structure</div>
+            </div>
+            <div class="card-body p-2">
+              <pre class="mb-0 small font-monospace" style="max-height: 150px; overflow-y: auto;" id="scaffold-structure-preview">generated/apps/
+├── model_name/
+│   ├── app_1/
+│   │   ├── frontend/
+│   │   ├── backend/
+│   │   └── docker-compose.yml
+│   └── app_2/
+└── ...</pre>
+            </div>
+          </div>
+
+        <div id="scaffold-metadata" class="mt-2 small text-muted"></div>
+      </div>
+
+      <!-- Actions Footer -->
+      <div class="card-footer">
+        <div class="d-flex gap-2">
+          <button id="scaffold-dryrun-btn" class="btn btn-outline-primary" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" /></svg>
+            Dry Run
+          </button>
+          <button id="scaffold-generate-btn" class="btn btn-success" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 4v16l13 -8z" /></svg>
+            Generate
+          </button>
+          <button id="proceed-to-generation-btn" class="btn btn-primary ms-auto" disabled>
+            <span>Next Step</span>
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon ms-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 6l6 6l-6 6" /></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Generation Log -->
+<div class="card mt-4">
+  <div class="card-header">
+    <h3 class="card-title">
+      <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6l0 13" /><path d="M12 6l0 13" /><path d="M21 6l0 13" /></svg>
+      Scaffolding Log
+    </h3>
+    <div class="card-actions">
+      <button class="btn btn-sm btn-icon" id="clear-scaffold-log-btn" type="button" title="Clear log">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 7l16 0" /><path d="M10 11l0 6" /><path d="M14 11l0 6" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" /></svg>
+      </button>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    <pre id="scaffold-log" class="mb-0 p-3 small font-monospace" style="max-height: 250px; overflow-y: auto;">Ready to generate scaffolding...</pre>
+  </div>
+</div>

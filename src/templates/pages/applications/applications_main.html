@@ -1,0 +1,67 @@
+{# Applications main page - clean and minimal #}
+{% extends 'layouts/base.html' %}
+{% set active_page = 'applications' %}
+{% set page_title = 'Applications' %}
+{% set page_icon = 'fa-solid fa-cubes' %}
+{% set page_subtitle = 'Manage your AI-generated applications' %}
+{% set has_right_sidebar = false %}
+
+{% block content %}
+  {% include 'pages/applications/partials/_overview_content.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Core filter functions only
+let searchTimeout;
+
+function debounceApplicationSearch() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(applyApplicationFilters, 300);
+}
+
+function clearApplicationSearch() {
+  const searchInput = document.getElementById('application-search');
+  if (searchInput) {
+    searchInput.value = '';
+    applyApplicationFilters();
+  }
+}
+
+function applyApplicationFilters(extra = {}) {
+  const params = new URLSearchParams();
+  
+  // Get filter values
+  const search = document.getElementById('application-search')?.value;
+  const modelSelect = document.getElementById('model-filter');
+  const modelFilter = modelSelect ? Array.from(modelSelect.selectedOptions).map(opt => opt.value).filter(Boolean).join(',') : '';
+  const statusSelect = document.getElementById('status-filter');
+  const statusFilter = statusSelect ? Array.from(statusSelect.selectedOptions).map(opt => opt.value).filter(Boolean).join(',') : '';
+  const typeFilter = document.getElementById('type-filter')?.value;
+  const perPageSelect = document.getElementById('apps-per-page');
+  const perPageValue = extra.per_page || perPageSelect?.value;
+  
+  // Build params
+  if (search) params.set('search', search);
+  if (modelFilter) params.set('model', modelFilter);
+  if (statusFilter) params.set('status', statusFilter);
+  if (typeFilter) params.set('type', typeFilter);
+  if (perPageValue) params.set('per_page', perPageValue);
+  if (extra.page) params.set('page', extra.page);
+
+  htmx.ajax('GET', `/applications/table?${params.toString()}`, {
+    target: '#applications-table-section',
+    swap: 'outerHTML'
+  });
+}
+
+function refreshApplications() {
+  htmx.ajax('GET', '/applications/table', {
+    target: '#applications-table-section',
+    swap: 'outerHTML'
+  });
+}
+
+// Initialize on load
+</script>
+{% endblock %}

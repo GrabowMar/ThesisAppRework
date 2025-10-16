@@ -1,0 +1,221 @@
+{# Main tasks table partial for the analysis hub #}
+<div id="tasks-table-section">
+  <div class="card card-table-compact mb-3">
+    <div class="card-header d-flex flex-wrap align-items-center gap-3">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+          <i class="fa-solid fa-tasks"></i>
+          <span>Analysis Tasks</span>
+        </h3>
+        {% if tasks_stats %}
+        <div class="d-flex flex-wrap align-items-center gap-2 status-indicators">
+          <span class="badge bg-primary-lt d-inline-flex align-items-center gap-2"><i class="fa-solid fa-list-check"></i><span id="tasks-total">{{ tasks_stats.total }}</span></span>
+          <span class="badge bg-warning-lt d-inline-flex align-items-center gap-2"><i class="fa-solid fa-play"></i><span id="tasks-running">{{ tasks_stats.running }}</span></span>
+          <span class="badge bg-success-lt d-inline-flex align-items-center gap-2"><i class="fa-solid fa-check"></i><span id="tasks-completed">{{ tasks_stats.completed }}</span></span>
+          <span class="badge bg-danger-lt d-inline-flex align-items-center gap-2"><i class="fa-solid fa-xmark"></i><span id="tasks-failed">{{ tasks_stats.failed }}</span></span>
+        </div>
+        {% endif %}
+      </div>
+      <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+        <a href="/analysis/create" class="btn btn-primary btn-sm"><i class="fa-solid fa-plus me-1"></i>New Analysis</a>
+      </div>
+    </div>
+    <div class="card-body border-top py-2">
+      <form id="main-task-filter-form" class="row g-2 align-items-end"
+            hx-get="/analysis/api/tasks/inspect/list"
+            hx-target="#tasks-table-section"
+            hx-trigger="change from:.tasks-filter, keyup delay:400ms from:input[name='search']">
+        {% set status_val = request.args.get('status') if request else '' %}
+        <div class="col-auto">
+          <label class="form-label text-muted small mb-1" for="tasks-filter-status">Status:</label>
+          <select id="tasks-filter-status" name="status" class="form-select form-select-sm tasks-filter" title="Filter by status">
+            <option value="">All</option>
+            {% for s in ['PENDING','RUNNING','COMPLETED','FAILED'] %}
+            <option value="{{ s }}" {% if status_val == s %}selected{% endif %}>{{ s|capitalize }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% set type_val = request.args.get('analysis_type') if request else '' %}
+        <div class="col-auto">
+          <label class="form-label text-muted small mb-1" for="tasks-filter-type">Type:</label>
+          <select id="tasks-filter-type" name="analysis_type" class="form-select form-select-sm tasks-filter" title="Filter by analysis type">
+            <option value="">All</option>
+            {% if analysis_types %}
+              {% for at in analysis_types %}
+              <option value="{{ at }}" {% if type_val == at %}selected{% endif %}>{{ at }}</option>
+              {% endfor %}
+            {% else %}
+              {% for at in ['security','performance','compatibility','lint'] %}
+              <option value="{{ at }}" {% if type_val == at %}selected{% endif %}>{{ at|capitalize }}</option>
+              {% endfor %}
+            {% endif %}
+          </select>
+        </div>
+        {% set pr_val = request.args.get('priority') if request else '' %}
+        <div class="col-auto">
+          <label class="form-label text-muted small mb-1" for="tasks-filter-priority">Priority:</label>
+          <select id="tasks-filter-priority" name="priority" class="form-select form-select-sm tasks-filter" title="Filter by priority">
+            <option value="">All</option>
+            {% for p in ['LOW','NORMAL','HIGH'] %}
+            <option value="{{ p }}" {% if pr_val == p %}selected{% endif %}>{{ p|capitalize }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto">
+          <label class="form-label text-muted small mb-1" for="tasks-filter-model">Model:</label>
+          <input id="tasks-filter-model" type="text" name="model" class="form-control form-control-sm tasks-filter" placeholder="model slug" value="{{ request.args.get('model','') if request else '' }}">
+        </div>
+        <div class="col-12 col-lg">
+          <label class="form-label text-muted small mb-1" for="tasks-filter-search">Search:</label>
+          <div class="input-group input-group-sm input-group-flat">
+            <span class="input-group-text"><i class="fa-solid fa-search" aria-hidden="true"></i></span>
+            <input id="tasks-filter-search" type="text" name="search" class="form-control" placeholder="task id/name" value="{{ request.args.get('search','') if request else '' }}" aria-label="Search tasks">
+            <button class="btn btn-sm btn-outline-secondary" type="button" onclick="this.closest('form').querySelector('input[name=search]').value=''; htmx.trigger(this.closest('form'), 'change')" title="Clear" aria-label="Clear search">
+              <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+        {% set limit_val = request.args.get('per_page', '25') if request else '25' %}
+        <div class="col-auto">
+          <label class="form-label text-muted small mb-1" for="tasks-filter-limit">Limit:</label>
+          <select id="tasks-filter-limit" name="per_page" class="form-select form-select-sm tasks-filter" title="Result limit">
+            {% for n in [25,50,100] %}
+            <option value="{{ n }}" {% if limit_val|string == n|string %}selected{% endif %}>{{ n }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto d-flex align-items-end">
+          <div class="btn-group btn-group-sm" role="group" aria-label="Task filters">
+            <button type="submit" class="btn btn-sm btn-primary"><i class="fa-solid fa-filter me-1" aria-hidden="true"></i>Apply</button>
+            <button type="reset" class="btn btn-sm btn-outline-secondary" onclick="this.form.reset(); htmx.trigger(this.form,'change')">Reset</button>
+            <button type="button" class="btn btn-sm btn-outline-primary" title="Refresh" aria-label="Refresh task list" hx-get="/analysis/api/tasks/inspect/list" hx-target="#tasks-table-section" hx-include="#main-task-filter-form">
+              <i class="fa-solid fa-sync" aria-hidden="true"></i>
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="table-responsive" id="tasks-table-scroll">
+      <table id="tasks-table" class="table table-striped table-vcenter table-hover table-sm card-table mb-0">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Progress</th>
+              <th>Model</th>
+              <th>App</th>
+              <th>Priority</th>
+              <th>Created</th>
+              <th></th>
+            </tr>
+          </thead>
+
+          {% if tasks and tasks|length > 0 %}
+          <tbody>
+            {% for t in tasks %}
+            <tr class="small">
+              <td class="text-truncate" title="{{ t.task_id }}">{{ t.task_id }}</td>
+              <td class="text-truncate" title="{{ t.task_name }}">{{ t.task_name or '-' }}</td>
+              <td>{{ t.analysis_type.value if t.analysis_type else t.analysis_type }}</td>
+              <td>
+                {% set status_color = {
+                  'PENDING': 'warning',
+                  'RUNNING': 'primary', 
+                  'COMPLETED': 'success',
+                  'FAILED': 'danger'
+                } %}
+                <span class="badge bg-{{ status_color.get(t.status.value if t.status else t.status, 'secondary') }} text-uppercase">
+                  {{ t.status.value if t.status else t.status }}
+                </span>
+              </td>
+              <td>
+                <div class="progress progress-xs progress-fixed" title="{{ '%.0f'|format(t.progress_percentage or 0) }}%"
+                     data-progress="{{ t.progress_percentage or 0 }}"
+                     role="progressbar"
+                     aria-valuemin="0"
+                     aria-valuemax="100"
+                     aria-valuenow="{{ '%.0f'|format(t.progress_percentage or 0) }}"
+                     aria-label="{{ 'Task progress: %.0f%%'|format(t.progress_percentage or 0) }}">
+                  <div class="progress-bar"></div>
+                </div>
+              </td>
+              <td>{{ t.target_model }}</td>
+              <td>{{ t.target_app_number }}</td>
+              <td><span class="badge bg-indigo-lt text-dark">{{ t.priority.value if t.priority else t.priority }}</span></td>
+              <td class="text-muted">{{ t.created_at.strftime('%Y-%m-%d %H:%M') if t.created_at else '' }}</td>
+              <td class="text-end">
+                <a href="/analysis/tasks/{{ t.task_id }}" class="btn btn-outline-primary btn-sm" hx-boost="true" title="View details">
+                  <i class="fa fa-magnifying-glass"></i>
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          {% else %}
+          <tbody>
+            <tr>
+              <td colspan="10" class="py-5 text-center">
+                <i class="fa-solid fa-tasks text-muted mb-3"></i>
+                <h5 class="text-muted">No tasks found</h5>
+                <p class="text-muted mb-3">No analysis tasks match your current filters.</p>
+                <a href="/analysis/create" class="btn btn-primary">
+                  <i class="fa-solid fa-plus me-1"></i>Start New Analysis
+                </a>
+              </td>
+            </tr>
+          </tbody>
+          {% endif %}
+        </table>
+      </div>
+      <div class="card-footer d-flex align-items-center gap-2 justify-content-between" id="tasks-pagination-bar">
+        <div id="tasks-page-summary" class="text-muted">
+          {% if tasks %}Showing {{ tasks|length }} tasks{% endif %}
+        </div>
+        <nav aria-label="Tasks pagination">
+          {% if pagination and pagination.pages > 1 %}
+          <ul class="pagination pagination-sm mb-0" id="tasks-pagination">
+            {%- if pagination.has_prev %}
+            <li class="page-item">
+              <a class="page-link" href="#"
+                 hx-get="/analysis/api/tasks/inspect/list?page={{ pagination.prev_num }}"
+                 hx-target="#tasks-table-section"
+                 hx-include="#main-task-filter-form">Previous</a>
+            </li>
+            {%- endif %}
+            {%- for page_num in pagination.iter_pages() %}
+              {%- if page_num %}
+                {%- if page_num != pagination.page %}
+                <li class="page-item">
+                  <a class="page-link" href="#"
+                     hx-get="/analysis/api/tasks/inspect/list?page={{ page_num }}"
+                     hx-target="#tasks-table-section"
+                     hx-include="#main-task-filter-form">{{ page_num }}</a>
+                </li>
+                {%- else %}
+                <li class="page-item active">
+                  <span class="page-link">{{ page_num }}</span>
+                </li>
+                {%- endif %}
+              {%- else %}
+              <li class="page-item disabled">
+                <span class="page-link">…</span>
+              </li>
+              {%- endif %}
+            {%- endfor %}
+            {%- if pagination.has_next %}
+            <li class="page-item">
+              <a class="page-link" href="#"
+                 hx-get="/analysis/api/tasks/inspect/list?page={{ pagination.next_num }}"
+                 hx-target="#tasks-table-section"
+                 hx-include="#main-task-filter-form">Next</a>
+            </li>
+            {%- endif %}
+          </ul>
+          {% endif %}
+        </nav>
+      </div>
+    </div>
+  </div>
+</div>

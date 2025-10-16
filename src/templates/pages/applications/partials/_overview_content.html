@@ -1,0 +1,298 @@
+{# Applications Overview Content - Clean and minimal #}
+<div id="applications-table-wrapper" class="w-100">
+  <div id="applications-table-refresher"
+       hx-get="/applications/table"
+       hx-target="#applications-table-section"
+       hx-trigger="load, refresh-applications-table from:body"
+       hx-swap="outerHTML"></div>
+  {% include 'pages/applications/partials/table_block.html' %}
+</div>
+
+<!-- Generate Application Modal -->
+<div class="modal fade" id="generateAppModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-plus me-2"></i>Generate Application
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="generateAppForm" 
+              hx-post="/applications/generate" 
+              hx-target="#generateAppResult" 
+              hx-swap="innerHTML">
+          <div class="mb-3">
+            <label class="form-label">Model</label>
+            <select class="form-select" name="model_slug" required title="Select a model">
+              <option value="" disabled selected>Select model</option>
+              {% for model in available_models %}
+              <option value="{{ model.slug }}">{{ model.display_name }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-hint">Choose the AI model to generate the application</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Application Number</label>
+            <input type="number" 
+                   name="app_number" 
+                   class="form-control" 
+                   min="1" 
+                   max="30" 
+                   required 
+                   title="Application number (1-30)" />
+            <div class="form-hint">Range 1-30 maps to different prompt templates</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Application Type</label>
+            <select class="form-select" name="app_type" title="Select application type">
+              <option value="web_app" selected>Web App</option>
+              <option value="api_service">API Service</option>
+              <option value="frontend_only">Frontend Only</option>
+              <option value="cli_tool">CLI Tool</option>
+              <option value="desktop_app">Desktop App</option>
+            </select>
+            <div class="form-hint">Type determines the application structure and dependencies</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-check">
+              <input class="form-check-input" type="checkbox" name="auto_start" />
+              <span class="form-check-label">Auto-start container after generation</span>
+            </label>
+          </div>
+          <div class="mb-3">
+            <label class="form-check">
+              <input class="form-check-input" type="checkbox" name="auto_analyze" />
+              <span class="form-check-label">Run analysis after generation</span>
+            </label>
+          </div>
+          <div id="generateAppResult" class="small"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="submit" form="generateAppForm" class="btn btn-primary">
+          <i class="fas fa-hammer me-1"></i>Generate
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Application Details Modal (for quick view) -->
+<div class="modal fade" id="applicationDetailsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" id="application-details-modal-content">
+      <!-- Content loaded dynamically -->
+    </div>
+  </div>
+</div>
+
+<!-- Batch Operations Modal -->
+<div class="modal fade" id="batchApplicationsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="fas fa-layer-group me-2"></i>Batch Operations
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted mb-3">
+          Perform operations on <span id="selected-applications-count">0</span> selected applications.
+        </p>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <h6>Container Operations</h6>
+            <div class="list-group">
+              <button class="list-group-item list-group-item-action" onclick="batchOperation('start')">
+                <i class="fas fa-play me-2 text-success"></i>Start All
+              </button>
+              <button class="list-group-item list-group-item-action" onclick="batchOperation('stop')">
+                <i class="fas fa-stop me-2 text-danger"></i>Stop All
+              </button>
+              <button class="list-group-item list-group-item-action" onclick="batchOperation('restart')">
+                <i class="fas fa-rotate me-2 text-warning"></i>Restart All
+              </button>
+              <button class="list-group-item list-group-item-action" onclick="batchOperation('build')">
+                <i class="fas fa-hammer me-2 text-primary"></i>Build All
+              </button>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <h6>Analysis & Export</h6>
+            <div class="list-group">
+              <button class="list-group-item list-group-item-action" onclick="batchOperation('analyze')">
+                <i class="fas fa-flask me-2 text-info"></i>Run Analysis
+              </button>
+              <button class="list-group-item list-group-item-action" onclick="batchOperation('export')">
+                <i class="fas fa-download me-2 text-secondary"></i>Export Selected
+              </button>
+              <button class="list-group-item list-group-item-action text-danger" onclick="batchOperation('delete')">
+                <i class="fas fa-trash me-2"></i>Delete Selected
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="batchOperationResult" class="mt-3"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Prevent HTMX from blanking the applications table on empty/erroneous responses
+document.body.addEventListener('htmx:beforeSwap', function(evt) {
+  if (evt.detail.target && evt.detail.target.id === 'applications-table-section') {
+    const status = evt.detail.xhr ? evt.detail.xhr.status : 0;
+    if (!evt.detail.xhr.response || evt.detail.xhr.response.trim() === '' || status === 204) {
+      evt.preventDefault();
+      return;
+    }
+    const txt = evt.detail.xhr.response.trim().toLowerCase();
+    if (txt.startsWith('<!doctype') || txt.startsWith('<html')) {
+      console.warn('[HTMX Guard] Full document response blocked from swapping into applications-table-section');
+      evt.preventDefault();
+      showApplicationsErrorBanner('Received unexpected full-page response (possibly an error). Table preserved.');
+      return;
+    }
+  }
+});
+
+// Global htmx error handler
+document.body.addEventListener('htmx:sendError', function(e){
+  showApplicationsErrorBanner('Network error while loading applications table.');
+});
+document.body.addEventListener('htmx:responseError', function(e){
+  const xhr = e.detail.xhr;
+  showApplicationsErrorBanner('Failed to load table (' + xhr.status + ').');
+});
+
+function showApplicationsErrorBanner(msg){
+  let banner = document.getElementById('applications-table-error');
+  if(!banner){
+    banner = document.createElement('div');
+    banner.id = 'applications-table-error';
+    banner.className = 'alert alert-warning alert-dismissible fade show my-2 py-2 px-3';
+    banner.innerHTML = '<strong>Applications:</strong> <span class="msg"></span>' +
+      '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>';
+    const wrapper = document.getElementById('applications-table-wrapper') || document.body;
+    wrapper.prepend(banner);
+  }
+  const span = banner.querySelector('.msg');
+  if(span) span.textContent = msg;
+}
+
+// Application generation handling
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('generateAppForm');
+  if (form) {
+    form.addEventListener('htmx:afterRequest', function(evt) {
+      if (evt.detail.xhr.status === 200) {
+        setTimeout(() => {
+          const modal = bootstrap.Modal.getInstance(document.getElementById('generateAppModal'));
+          if (modal) modal.hide();
+          htmx.trigger('body', 'refresh-applications-table');
+        }, 2000);
+      }
+    });
+  }
+});
+
+// Get selected applications helper
+function getSelectedApplications() {
+  return Array.from(document.querySelectorAll('.app-checkbox:checked')).map(cb => cb.value);
+}
+
+// Update batch selection count
+function updateBatchSelectionCount() {
+  const count = getSelectedApplications().length;
+  const element = document.getElementById('selected-applications-count');
+  if (element) element.textContent = count;
+}
+
+// Consolidated batch operation function
+function batchOperation(operation) {
+  const selected = getSelectedApplications();
+  if (selected.length === 0) {
+    alert('Please select at least one application.');
+    return;
+  }
+
+  const resultDiv = document.getElementById('batchOperationResult');
+  if (resultDiv) {
+    resultDiv.innerHTML = `<div class="alert alert-info"><i class="fas fa-spinner fa-spin me-2"></i>Processing ${operation} for ${selected.length} applications...</div>`;
+  }
+
+  const promises = selected.map(appKey => {
+    const [modelSlug, appNumber] = appKey.split('-');
+    
+    switch(operation) {
+      case 'start':
+      case 'stop':
+      case 'restart':
+      case 'build':
+        return fetch(`/api/app/${modelSlug}/${appNumber}/${operation}`, { method: 'POST' });
+      case 'analyze':
+        return fetch(`/api/applications/${modelSlug}/${appNumber}/analyze`, { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ analysis_type: 'full' })
+        });
+      case 'export':
+        window.open(`/applications/${modelSlug}/${appNumber}/export.csv`, '_blank');
+        return Promise.resolve({ ok: true });
+      case 'delete':
+        return fetch(`/api/applications/${modelSlug}/${appNumber}`, { method: 'DELETE' });
+      default:
+        return Promise.reject(new Error(`Unknown operation: ${operation}`));
+    }
+  });
+
+  Promise.allSettled(promises).then(results => {
+    const successful = results.filter(r => r.status === 'fulfilled' && r.value.ok).length;
+    const failed = results.length - successful;
+    
+    let message = `Operation completed: ${successful} successful`;
+    if (failed > 0) message += `, ${failed} failed`;
+    
+    if (resultDiv) {
+      resultDiv.innerHTML = `<div class="alert alert-${failed > 0 ? 'warning' : 'success'}">${message}</div>`;
+    }
+    
+    // Refresh table if any operation succeeded
+    if (successful > 0) {
+      setTimeout(() => {
+        htmx.trigger('body', 'refresh-applications-table');
+      }, 1000);
+    }
+  }).catch(error => {
+    if (resultDiv) {
+      resultDiv.innerHTML = `<div class="alert alert-danger">Batch operation failed: ${error.message}</div>`;
+    }
+  });
+}
+
+// Update selection count when checkboxes change
+document.addEventListener('change', function(evt) {
+  if (evt.target.classList.contains('app-checkbox')) {
+    updateBatchSelectionCount();
+  }
+});
+
+// Quick view application details
+function viewApplicationDetails(modelSlug, appNumber) {
+  htmx.ajax('GET', `/applications/${modelSlug}/${appNumber}/quick-view`, {
+    target: '#application-details-modal-content',
+    swap: 'innerHTML'
+  });
+  
+  const modal = new bootstrap.Modal(document.getElementById('applicationDetailsModal'));
+  modal.show();
+}
+</script>

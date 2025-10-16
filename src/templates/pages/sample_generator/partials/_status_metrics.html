@@ -1,0 +1,40 @@
+{# Sidebar status metrics for the sample generator #}
+{% set metrics = status or {} %}
+{% set healthy = metrics.system_healthy if metrics.system_healthy is not none else false %}
+
+<div class="sg-stats-inline" role="group" aria-label="Generation activity summary">
+  <div class="sg-stat">
+    <div class="sg-stat-number">{{ metrics.in_flight_count or 0 }}</div>
+    <div class="sg-stat-label">In Flight</div>
+  </div>
+  <div class="sg-stat">
+    <div class="sg-stat-number">{{ metrics.available_slots or 0 }}</div>
+    <div class="sg-stat-label">Slots</div>
+  </div>
+  <div class="sg-stat">
+    <div class="sg-stat-number">{{ metrics.max_concurrent or 0 }}</div>
+    <div class="sg-stat-label">Max</div>
+  </div>
+</div>
+
+<div class="mt-2 d-flex flex-wrap gap-2 align-items-center" aria-live="polite">
+  <span class="badge {{ 'bg-success' if healthy else 'bg-warning text-dark' }}">
+    {{ 'Healthy' if healthy else 'Needs attention' }}
+  </span>
+  <span class="small text-muted">
+    {{ metrics.total_results or 0 }} results · {{ metrics.total_templates or 0 }} templates · {{ metrics.total_models or 0 }} models
+  </span>
+</div>
+
+{% if metrics.in_flight_keys %}
+  <div class="mt-2">
+    <span class="badge bg-primary me-1">Keys</span>
+    <span class="small text-muted">{{ metrics.in_flight_keys | join(', ') }}</span>
+  </div>
+{% endif %}
+
+{% if metrics.stubbed %}
+  <div class="alert alert-warning mt-3 mb-0 py-2 px-3 small" role="status">
+    Running in degraded mode. Some live metrics may be unavailable.
+  </div>
+{% endif %}

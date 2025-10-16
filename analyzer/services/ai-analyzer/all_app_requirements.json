@@ -1,0 +1,422 @@
+{
+  "APP_1": {
+    "BACKEND": [
+      "Secure User Registration:: Create a `POST /api/register` endpoint that validates user input, checks for uniqueness, and stores the user with a securely hashed password.",
+      "Stateful User Login:: Create a `POST /api/login` endpoint that authenticates a user by verifying their credentials and establishes a persistent user session upon success.",
+      "Session Management:: Implement session-based logic with a `POST /api/logout` endpoint to destroy the session and a `GET /api/user` endpoint to retrieve the current user's data if a session exists.",
+      "Protected Content Endpoint:: Create a `GET /api/dashboard` endpoint that is strictly protected and only returns data if the user is authenticated with a valid session."
+    ],
+    "FRONTEND": [
+      "User Registration Form:: A view with a form for username, email, and password. Implement real-time client-side validation.",
+      "User Login Form:: A view with a form to accept a user's email and password.",
+      "Protected Dashboard View:: A view accessible only after login. It should display a welcome message and a logout button. Unauthenticated users should be redirected.",
+      "Client-Side View Routing:: Manage the display of the three views (Login, Register, Dashboard) within the single `App` component using conditional rendering based on application state."
+    ]
+  },
+  "APP_2": {
+    "BACKEND": [
+      "Room and Message Persistence:: Implement HTTP endpoints to manage chat rooms (`GET /api/rooms`, `POST /api/rooms`) and retrieve message history for a room (`GET /api/messages/<room_id>`).",
+      "Real-Time Connection & Room Management:: Implement WebSocket event handlers (`connect`, `disconnect`, `join_room`, `leave_room`) to manage user presence in chat rooms and broadcast join/leave notifications to the correct room members.",
+      "Live Message Broadcasting:: Create a `send_message` WebSocket event that receives a message from a client, persists it to the database for history, and then broadcasts it in real-time to all other clients in the sender's room.",
+      "User Presence Indicators:: Implement a `typing` WebSocket event that broadcasts a user's typing status to their room, allowing the UI to show \"User is typing...\" notifications."
+    ],
+    "FRONTEND": [
+      "Connection & Room Selection:: An initial view where a user can enter a username and select from a list of available chat rooms (fetched via HTTP) to join.",
+      "Real-Time Message Display:: A main chat view that displays a list of messages for the current room. This list must update in real-time as new messages are received via the WebSocket `message` event, and it must auto-scroll to the bottom.",
+      "Message Sending:: An input form that allows the user to type and send messages. Sending a message should emit a `send_message` event over the WebSocket.",
+      "Live User Presence:: A sidebar that displays a list of users currently in the room. This list must update in real-time based on `user_joined` and `user_left` events. The UI must also display a \"User is typing...\" indicator when a `typing` event is received."
+    ]
+  },
+  "APP_3": {
+    "BACKEND": [
+      "Feedback Submission with Validation:: Create a `POST /api/feedback` endpoint that accepts submission data. It must perform strict server-side validation on all fields (name, email, message length, etc.).",
+      "Data Persistence:: Upon successful validation, store the complete feedback submission in the SQLite database.",
+      "Feedback Retrieval:: An admin-focused `GET /api/feedback` endpoint that returns a paginated and filterable list of all feedback submissions.",
+      "Simple Analytics Endpoint:: A `GET /api/analytics` endpoint that performs data aggregation to return key metrics, such as the total number of submissions and the average rating."
+    ],
+    "FRONTEND": [
+      "Dynamic Feedback Form:: Create a multi-field form for feedback submission. The \"Category\" field must be a dropdown dynamically populated with data fetched from the `GET /api/categories` endpoint.",
+      "Real-Time Client-Side Validation:: As a user interacts with a form field, validate the input in real-time. Display clear, specific error messages next to any invalid fields.",
+      "Submission Handling & State:: Manage the submission process. When the user clicks \"Submit,\" disable the form, show a loading state, and make the API call to `POST /api/feedback`.",
+      "Submission Confirmation View:: Upon a successful API response, use conditional rendering to show a \"Success\" view that displays a confirmation message to the user."
+    ]
+  },
+  "APP_4": {
+    "BACKEND": [
+      "User Authentication & Post Management:: Implement user registration/login and full CRUD for blog posts, restricting edit/delete operations to the post owner.",
+      "Content Processing & Security:: When posts are created or updated, process the provided Markdown content into HTML and sanitize the result using `bleach` to prevent XSS attacks.",
+      "Nested Comment System:: Implement endpoints to allow authenticated users to post comments (`POST /api/posts/<id>/comments`) and retrieve them in a nested structure.",
+      "Taxonomy & Discovery:: Provide endpoints to list all blog posts with pagination and filtering (`GET /api/posts`), and an endpoint to list all available categories (`GET /api/categories`)."
+    ],
+    "FRONTEND": [
+      "Content Browse & Discovery:: A home page that displays a paginated list of all blog posts, with UI controls for filtering by category.",
+      "Post Viewing with Nested Comments:: A detailed post view that safely renders the post's HTML content and displays its comment section as a threaded/nested structure.",
+      "Rich Text Markdown Editor:: A dedicated view for creating and editing posts that features a rich text editor for writing in Markdown and a live preview pane.",
+      "User Authentication & Interaction:: Provide forms for registration and login. Authenticated users must be able to create posts and comments."
+    ]
+  },
+  "APP_5": {
+    "BACKEND": [
+      "Product Catalog Management:: Implement endpoints to list all available products with filtering (`GET /api/products`) and retrieve the details for a single product (`GET /api/products/<id>`).",
+      "Session-Based Shopping Cart:: Implement endpoints to manage a shopping cart stored in the user's session, including adding, updating, and viewing the cart.",
+      "Transactional Checkout Process:: Create a `POST /api/checkout` endpoint that validates cart inventory, creates an `Orders` record, and decrements product stock within a single, atomic database transaction.",
+      "Order History Retrieval:: Implement a protected endpoint (`GET /api/orders`) that allows an authenticated user to view a history of their past orders."
+    ],
+    "FRONTEND": [
+      "Product Discovery & Browse:: A main view that displays a grid of all products, with client-side controls for filtering and searching.",
+      "Shopping Cart Management:: A dedicated cart view to modify item quantities and see totals, plus a global cart icon in the header that always shows the correct item count.",
+      "Multi-Step Checkout Form:: A checkout \"wizard\" that guides the user through distinct steps for entering shipping and payment information.",
+      "Order Confirmation & History:: A success page displayed after checkout and a separate view for users to see their past orders."
+    ]
+  },
+  "APP_6": {
+    "BACKEND": [
+      "Note Management (CRUD):: Implement endpoints for full Create, Read, Update, and Delete operations on notes. Notes contain a title and HTML content.",
+      "Content Organization:: Create endpoints to manage `Categories` and `Tags`, and to associate them with notes, allowing for robust organization.",
+      "Note Lifecycle Management:: Implement endpoints for archiving and restoring notes (`POST /api/notes/<id>/archive`, `POST /api/notes/<id>/restore`) and a separate, lightweight endpoint for auto-saving (`POST /api/notes/<id>/auto-save`).",
+      "Full-Text Search:: Provide a single endpoint (`GET /api/search`) that performs a case-insensitive, full-text search across all note titles and content."
+    ],
+    "FRONTEND": [
+      "Note Browsing & Organization:: An interface with a sidebar for categories and a main pane listing note previews. The view must include a search bar to filter notes.",
+      "Rich Text Note Editor:: A dedicated view for creating and editing notes using a rich text editor component (e.g., `react-quill`). The editor must feature a debounced auto-save mechanism that saves changes a few seconds after the user stops typing.",
+      "Note Lifecycle Actions:: Provide UI controls to create new notes, archive existing notes (moving them from the main list), and view/restore them from a dedicated \"Archived\" view.",
+      "Client-Side View Management:: Use conditional rendering to seamlessly switch between the main notes list, the note editor, and the archived notes view based on the user's actions."
+    ]
+  },
+  "APP_7": {
+    "BACKEND": [
+      "Secure File Upload & Processing:: A `POST /api/upload` endpoint that handles file uploads, performs security validation (MIME type using `python-magic`, file size), generates a unique stored filename, and creates image thumbnails using `Pillow`.",
+      "File & Folder Management:: Endpoints to list all files and folders (`GET /api/files`) and to create new folders (`POST /api/folders`) to establish a basic organizational hierarchy.",
+      "File Retrieval & Previewing:: Two separate endpoints to securely download the original file (`GET /api/files/<id>/download`) and to serve its generated preview/thumbnail (`GET /api/files/<id>/preview`).",
+      "File Deletion:: An endpoint (`DELETE /api/files/<id>`) to securely delete a file from the storage directory and its associated metadata from the database."
+    ],
+    "FRONTEND": [
+      "Advanced Upload Interface:: A component featuring a drag-and-drop zone and a traditional file input button that allows for selecting multiple files at once.",
+      "Real-Time Upload Progress:: A UI that displays a queue of selected files, with individual, real-time progress bars and status indicators for each file during the upload process.",
+      "File Browser & Listing:: A main view that displays a grid or list of already uploaded files, with buttons to download or delete each file.",
+      "Image Preview Modal:: A lightbox or modal component that appears when an image thumbnail is clicked, displaying a larger version of the image."
+    ]
+  },
+  "APP_8": {
+    "BACKEND": [
+      "Thread & Content Management:: Implement full CRUD endpoints for authenticated users to create, read, update, and delete forum threads.",
+      "Nested Comment System:: Create endpoints to allow users to post comments on threads (`POST /api/threads/<id>/comments`) and reply to other comments, forming a nested structure. The retrieval endpoint must return comments in this threaded format.",
+      "Voting Mechanism:: Provide endpoints for authenticated users to upvote or downvote both threads and comments. The system must prevent a user from voting on the same item more than once.",
+      "User Authentication & Authorization:: A secure user registration and login system. The authorization logic must ensure users can only edit or delete their own content."
+    ],
+    "FRONTEND": [
+      "Forum Browsing & Discovery:: A main view displaying a list of all threads, with functionality to filter by category and sort by criteria like recent activity or vote score.",
+      "Thread Viewing with Nested Comments:: A detailed view for a single thread that recursively renders the entire comment tree, showing replies indented under their parents.",
+      "User Interaction & Engagement:: Provide UI elements for creating new threads, posting comments/replies, and upvoting/downvoting both threads and comments with optimistic UI updates.",
+      "User Authentication:: Simple forms for user registration and login to enable participation in the forum."
+    ]
+  },
+  "APP_9": {
+    "BACKEND": [
+      "Inventory Item CRUD:: Implement endpoints for full Create, Read, Update, and soft-delete operations on inventory items, including their core metadata (SKU, price, category, etc.).",
+      "Transactional Stock Management:: An endpoint (`POST /api/inventory/adjust`) to adjust stock levels. This operation must be transactional and create a record in a `Stock_Movements` audit trail table.",
+      "Inventory Reporting & Alerts:: An endpoint to retrieve a summary report (`GET /api/reports/summary`) and another to list all items currently below their defined minimum stock level (`GET /api/inventory/low-stock`).",
+      "Category & Supplier Management:: Simple CRUD endpoints for managing item categories and suppliers to organize the inventory data."
+    ],
+    "FRONTEND": [
+      "Inventory Dashboard & Analytics:: A main dashboard view that displays key metrics (total value, low stock count) and visualizes data, such as items per category, using charts.",
+      "Data Table for Item Management:: A comprehensive table view for listing all inventory items, with robust client-side controls for searching, sorting, and filtering.",
+      "Item Creation & Editing Form:: A single, reusable form, likely presented in a modal, for creating new items and editing existing ones, complete with real-time validation.",
+      "Stock Level Alerts & Adjustments:: A dedicated view or dashboard section to display low-stock alerts and provide a simple interface to trigger stock adjustments."
+    ]
+  },
+  "APP_10": {
+    "BACKEND": [
+      "Post & Comment Management:: Implement full CRUD endpoints for creating, reading, and deleting short text-based posts (microblogs) and their associated comments.",
+      "Social Graph & Interactions:: Create endpoints for users to follow/unfollow each other (`POST /api/users/<id>/follow`) and to like/unlike posts (`POST /api/posts/<id>/like`).",
+      "Personalized Feed Generation:: A protected endpoint (`GET /api/feed`) that generates a reverse-chronological, paginated feed of posts from only the users that the current user follows.",
+      "User Profiles & Discovery:: Provide endpoints to retrieve a user's public profile and a list of their posts (`GET /api/users/<id>`), and a search endpoint (`GET /api/search`) to find users or posts."
+    ],
+    "FRONTEND": [
+      "Infinite Scroll Timeline Feed:: A main view displaying a personalized feed of posts that automatically loads more content as the user scrolls down, using the Intersection Observer API.",
+      "Post Creation & Interaction:: A component to compose and submit new posts, and interactive buttons on each post for liking and commenting with optimistic UI updates.",
+      "User Profile & Following:: A profile view displaying a user's information and their posts, with a button to follow or unfollow them that provides immediate visual feedback.",
+      "Dynamic Content Rendering:: Logic within the post component to parse post content and render `@mentions` and `#hashtags` as clickable links."
+    ]
+  },
+  "APP_11": {
+    "BACKEND": [
+      "Poll Creation & Management:: Full CRUD endpoints for users to create, read, update, and delete polls with various options and settings (e.g., end dates).",
+      "Secure Voting System:: A single endpoint (`POST /api/polls/<id>/vote`) to cast votes, which performs validation to ensure the poll is active and prevents duplicate voting by the same user.",
+      "Real-Time Results Aggregation:: An endpoint (`GET /api/polls/<id>/results`) to retrieve the current results for a poll, with vote counts and percentages calculated on-the-fly.",
+      "User Authentication:: A standard system for user registration and login, required for creating polls and tracking votes."
+    ],
+    "FRONTEND": [
+      "Poll Discovery & Creation:: A main view to browse existing polls and a dedicated form/view to create new polls with custom options and settings.",
+      "Interactive Voting Interface:: A view that presents a poll's options to the user, allows them to cast their vote, and provides immediate feedback upon submission.",
+      "Live Results Visualization:: A results view that displays vote counts and percentages for each option using a visual bar chart. The results should auto-update periodically.",
+      "Time-Aware Display:: The UI must display the status of polls (active/closed) and show a live countdown timer for polls with a specific end date."
+    ]
+  },
+  "APP_12": {
+    "BACKEND": [
+      "Resource & Availability Management:: Implement endpoints to manage bookable resources (`GET /api/resources`) and to check their availability for a given date and time (`GET /api/availability`).",
+      "Transactional Reservation Creation:: A `POST /api/reservations` endpoint that uses a database transaction to perform a final availability check (preventing overlaps) and insert the new booking atomically.",
+      "Reservation Lifecycle Management:: Provide endpoints for an authenticated user to view their own reservations (`GET /api/reservations/my`) and to cancel an existing reservation (`DELETE /api/reservations/<id>`).",
+      "User Authentication:: A standard system for user registration and login, which is required to create and manage reservations."
+    ],
+    "FRONTEND": [
+      "Interactive Booking Calendar:: An interface featuring an interactive calendar where users can select a date to check for availability.",
+      "Time Slot Selection:: A UI that displays available time slots for a selected date (fetched from the API) and allows the user to select their desired time. Unavailable slots should be visually disabled.",
+      "Multi-Step Booking Form:: A guided workflow that takes the user from their selected time slot to entering their details and confirming the reservation.",
+      "Reservation Management View:: A dedicated view for authenticated users to see a list of their upcoming and past reservations, with options to cancel them."
+    ]
+  },
+  "APP_13": {
+    "BACKEND": [
+      "Secure Image Upload & Processing:: A `POST /api/upload` endpoint that handles image uploads, validates file types (MIME type) and size, generates thumbnails using `Pillow`, and extracts key EXIF metadata.",
+      "Image & Album Organization:: Endpoints for creating albums (`POST /api/albums`), listing images and albums (`GET /api/images`, `GET /api/albums`), and associating images with a specific album (`POST /api/albums/<id>/images`).",
+      "Image Retrieval & Serving:: Separate, secure endpoints to serve the full-resolution original image (`GET /api/images/<id>/download`) and its generated thumbnail (`GET /api/images/<id>/thumbnail`).",
+      "User Authentication & Ownership:: A standard system for user registration and login, ensuring that all images and albums are associated with a user and that actions like deletion are restricted to the owner."
+    ],
+    "FRONTEND": [
+      "Responsive Image Gallery:: A main view that displays image thumbnails in a responsive grid layout (e.g., masonry) with lazy loading for performance. It should include basic filtering or search capabilities.",
+      "Full-Screen Image Viewer (Lightbox):: A modal overlay that appears when a thumbnail is clicked, displaying the full-resolution image with navigation controls (next/previous) and a view for image metadata.",
+      "Image Upload Interface:: A component that allows users to upload new images, preferably via a drag-and-drop zone, with real-time progress indicators.",
+      "Album Management:: UI elements for users to create new albums and to view the contents of an existing album as a distinct gallery view."
+    ]
+  },
+  "APP_14": {
+    "BACKEND": [
+      "Secure File Upload & Processing:: A `POST /api/upload` endpoint that handles file uploads, performs security validation (MIME type using `python-magic`, file size), generates a unique stored filename, and creates image thumbnails using `Pillow`.",
+      "File & Folder Management:: Endpoints to list files and folders (`GET /api/files`) and to create new folders (`POST /api/folders`), establishing a basic organizational hierarchy.",
+      "File Retrieval & Previewing:: Two separate endpoints to securely download the original file (`GET /api/files/<id>/download`) and to serve its generated preview/thumbnail (`GET /api/files/<id>/preview`).",
+      "File Deletion:: An endpoint (`DELETE /api/files/<id>`) to securely delete a file from storage and its associated metadata from the database."
+    ],
+    "FRONTEND": [
+      "Advanced Upload Interface:: A component featuring a drag-and-drop zone and a traditional file input button that allows for selecting multiple files.",
+      "Real-Time Upload Progress:: A UI that displays a queue of selected files, with individual, real-time progress bars and status indicators for each file during the upload process.",
+      "File Browser & Listing:: A main view that displays a grid or list of already uploaded files, with buttons to download or delete each file.",
+      "Image Preview Modal:: A lightbox or modal component that appears when an image thumbnail is clicked, displaying a larger version of the image."
+    ]
+  },
+  "APP_15": {
+    "BACKEND": [
+      "Board, Column, & Task Management:: Implement full CRUD endpoints for managing the core entities: boards, columns (lists), and tasks (cards).",
+      "Atomic Task Movement:: A critical endpoint (`POST /api/tasks/<id>/move`) that transactionally updates a task's column and its position within that column, re-ordering other tasks as necessary to maintain data integrity.",
+      "Activity Logging:: A system to automatically create an immutable log entry in a dedicated `Task_Activities` table for every significant action (e.g., task creation, movement).",
+      "User Authentication & Collaboration:: A standard user authentication system, with endpoints to invite users to a board."
+    ],
+    "FRONTEND": [
+      "Interactive Kanban Board View:: The main UI that renders columns and tasks, and implements drag-and-drop functionality for moving tasks between and within columns using a library like `react-beautiful-dnd`.",
+      "Task Creation & Details Modal:: A modal interface for creating new tasks and for viewing/editing the detailed information of an existing task when a task card is clicked.",
+      "Optimistic UI for Drag-and-Drop:: When a user drops a task in a new position, the UI must update **instantly** to show the change. After the UI updates, an API call must be sent to the backend to persist the new state.",
+      "Filtering & Search:: Provide simple client-side controls to filter the displayed tasks on the board by a text-based search query."
+    ]
+  },
+  "APP_16": {
+    "BACKEND": [
+      "Device Management & Registration:: Implement HTTP endpoints to register new IoT devices (`POST /api/devices`), retrieve a list of all devices (`GET /api/devices`), and view the details of a specific device.",
+      "Real-Time Device Communication:: Implement WebSocket event handlers (`device_status_update`, `sensor_data_update`) for real-time monitoring and an HTTP endpoint (`POST /api/devices/<id>/commands`) to send commands to devices.",
+      "Sensor Data Collection & History:: Create an endpoint for devices to post sensor data (`POST /api/devices/<id>/data`) and another endpoint for users to retrieve historical sensor data for a device (`GET /api/devices/<id>/data`).",
+      "Automation Engine:: Provide full CRUD endpoints for managing automation rules (`GET`, `POST`, `PUT`, `DELETE /api/automation/rules`) that can trigger actions based on sensor data (e.g., \"IF temperature > 30 THEN send 'turn_on_fan' command\")."
+    ],
+    "FRONTEND": [
+      "Real-Time Device Dashboard:: A main dashboard view that displays a grid of all registered IoT devices, showing their live status (e.g., online/offline, key sensor readings) updated in real-time via WebSockets.",
+      "Interactive Device Control Interface:: A detailed view for a single device, showing its complete data and providing interactive controls (e.g., switches, sliders) to send commands to the device via the API.",
+      "Historical Data Visualization:: A view that displays historical sensor data for a device using charts (e.g., a line chart from `react-chartjs-2`) with options to select time ranges.",
+      "Automation Rule Management:: A UI for creating, viewing, and deleting automation rules (e.g., \"IF temperature > 30 THEN turn on fan\")."
+    ]
+  },
+  "APP_17": {
+    "BACKEND": [
+      "Workout & Exercise Management:: Implement full CRUD endpoints for logging workout sessions and managing a library of exercises, including custom user-created exercises.",
+      "Progress & Measurement Tracking:: Create endpoints to log various user progress metrics over time, such as body weight, and other body measurements.",
+      "Goal Setting & Achievement:: Provide endpoints for users to set personal fitness goals (e.g., target weight, lift amount) and update their progress towards them.",
+      "Statistics & Analytics:: An endpoint that aggregates user data to provide performance statistics, such as total workout volume, personal records for specific exercises, and progress trends."
+    ],
+    "FRONTEND": [
+      "Workout Logging Interface:: An interactive view to log a new workout session, allowing users to search and add exercises from a library, and input sets, reps, and weight for each.",
+      "Progress Tracking & Visualization:: A dashboard or dedicated view that uses charts to visualize the user's progress over time (e.g., a line chart for weight, a bar chart for strength gains).",
+      "Exercise Library:: A searchable and filterable view that displays a library of available exercises, including instructions and muscle groups targeted.",
+      "Goal Management:: A UI for users to set new fitness goals (e.g., \"Run 5k in under 25 minutes\") and view their progress towards active goals."
+    ]
+  },
+  "APP_18": {
+    "BACKEND": [
+      "Wiki Page Management:: Implement full CRUD endpoints for creating, reading, and updating wiki pages. Updating a page must create a new revision.",
+      "Content Versioning & History:: A system to automatically save a new revision of a page on every update, with endpoints to view the complete history of a page (`GET /api/pages/<slug>/history`) and revert to a previous revision (`POST /api/pages/<slug>/revert`).",
+      "Search & Discovery:: A full-text search endpoint (`GET /api/search`) that searches across all current page titles and content, and endpoints to manage page organization through categories.",
+      "User Authentication & Contributions:: A standard user auth system where all page edits (revisions) are associated with the user who made the change."
+    ],
+    "FRONTEND": [
+      "Wiki Page Viewer:: A view that fetches and safely renders the HTML content of a wiki page, including a table of contents and internal wiki-links.",
+      "Markdown Editor with Live Preview:: A dedicated editing view that provides a rich text or raw markdown editor alongside a live preview of the rendered HTML.",
+      "Version History & Diff Viewer:: An interface to view the list of revisions for a page. It should allow a user to select two versions and see a visual \"diff\" of the changes between them.",
+      "Content Discovery:: A global search bar that allows users to find pages, and a navigation system (e.g., sidebar) for Browse pages by category."
+    ]
+  },
+  "APP_19": {
+    "BACKEND": [
+      "Secure Wallet & Address Management:: Endpoints to create wallets for users, and to generate new, unique (but fake) receiving addresses for different cryptocurrencies (e.g., BTC, ETH).",
+      "Balance & Transaction History:: An endpoint to fetch the current balance for each currency in a wallet and a separate endpoint to retrieve a paginated history of all simulated transactions.",
+      "Transaction Processing (Mocked):: A `POST /api/transactions/send` endpoint that simulates sending cryptocurrency. It must validate that the sender has a sufficient balance and then create transaction records for both the sender (debit) and receiver (credit).",
+      "User Authentication & Security:: A standard user login system, with a mock \"PIN\" check for authorizing sensitive actions like sending transactions."
+    ],
+    "FRONTEND": [
+      "Wallet Dashboard:: A main view that displays the user's total portfolio value and a breakdown of balances for each cryptocurrency they hold.",
+      "Send & Receive Interface:: Two distinct views: one for sending crypto (with fields for recipient address and amount) and one for receiving, which displays the user's wallet address and a corresponding QR code.",
+      "Transaction History:: A view that displays a list of all past transactions (sent and received) with details like date, amount, and status.",
+      "Security Confirmation:: A modal or confirmation step that requires the user to re-authenticate or enter a PIN before finalizing a \"send\" transaction, simulating a key security feature."
+    ]
+  },
+  "APP_20": {
+    "BACKEND": [
+      "Map & Marker Management:: Implement full CRUD endpoints for creating custom maps, and for adding, updating, and deleting location markers (pins) on a specific map.",
+      "Route Planning:: Provide endpoints to create a route by saving an ordered sequence of waypoints (coordinates) and to retrieve the waypoints for a given route.",
+      "Location Search & Geocoding (Mocked):: Create a search endpoint (`GET /api/search`) that accepts a text address and returns mock latitude/longitude coordinates.",
+      "User Authentication & Ownership:: A standard user authentication system to ensure that maps, markers, and routes are associated with a user and can only be modified by their owner."
+    ],
+    "FRONTEND": [
+      "Interactive Map Display:: The core component of the app, which renders a map using a library like `react-leaflet`. It must allow users to pan and zoom and must display markers and routes fetched from the backend.",
+      "Marker Creation & Management:: Functionality for users to click on the map to add a new marker (pin), provide a title and description, and see it displayed.",
+      "Route Planning Interface:: UI controls that allow a user to create a route by sequentially clicking points on the map. The resulting route should be drawn as a polyline on the map.",
+      "Location Search:: A search bar that allows users to look up a location. Upon selection, the map should pan and zoom to the corresponding coordinates returned by the backend."
+    ]
+  },
+  "APP_21": {
+    "BACKEND": [
+      "Recipe & Ingredient Management:: Implement full CRUD endpoints for recipes (including ingredients and instructions) and a searchable database of ingredients with their nutritional data.",
+      "Meal Planning & Shopping List:: Create endpoints to allow users to build a weekly or monthly meal plan by assigning recipes to specific dates. Include an endpoint to automatically generate a consolidated shopping list from a given meal plan.",
+      "Nutrition Calculation:: A system that automatically calculates and provides estimated nutritional information (calories, macros) for any given recipe based on its list of ingredients and their quantities.",
+      "User Authentication & Interaction:: A standard user authentication system to allow users to save their own recipes and meal plans, plus endpoints for users to rate and review recipes created by others."
+    ],
+    "FRONTEND": [
+      "Recipe Discovery & Viewing:: A main view to browse and search for recipes, and a detailed view to display a single recipe's ingredients, step-by-step instructions, and nutritional information.",
+      "Recipe Creation & Editing:: A form-based interface for users to create their own new recipes, including adding ingredients with quantities and writing out the cooking instructions.",
+      "Visual Meal Planner:: An interactive calendar view where users can drag and drop recipes onto specific dates to create a weekly or monthly meal plan.",
+      "Shopping List Generator:: A view that automatically generates a consolidated shopping list from a selected meal plan, with checkboxes for users to mark off items as they shop."
+    ]
+  },
+  "APP_22": {
+    "BACKEND": [
+      "Course & Lesson Management:: Implement endpoints to list available language courses and to retrieve the individual lessons (containing text and audio references) for a specific course.",
+      "Vocabulary Training with Spaced Repetition:: An endpoint to retrieve vocabulary words due for review based on a Spaced Repetition System (SRS) algorithm. Also, an endpoint to record the result of a user's practice session on a word, which updates its review schedule.",
+      "Grammar Exercises & Quizzes:: Provide endpoints to retrieve grammar exercises and a system to submit answers for a lesson-specific quiz, which are then scored by the backend.",
+      "User Progress Tracking:: A standard user authentication system and an endpoint to retrieve a user's progress, including completed lessons and vocabulary mastery levels."
+    ],
+    "FRONTEND": [
+      "Interactive Lesson View:: A component that displays lesson content, including text and playing audio files for pronunciation, with a button to mark the lesson as complete.",
+      "Vocabulary Flashcard Trainer:: A flashcard-style interface for practicing vocabulary words retrieved from the Spaced Repetition System. Users can flip cards to see translations and mark if they knew the word or not.",
+      "Quiz & Assessment Interface:: A view that presents a multiple-choice quiz for a lesson, allowing the user to submit their answers and receive an immediate score and feedback.",
+      "Personalized Dashboard:: A main dashboard that shows the user's learning streak, overall progress through their current course, and a chart visualizing their vocabulary mastery over time."
+    ]
+  },
+  "APP_23": {
+    "BACKEND": [
+      "Transaction Management:: Implement full CRUD endpoints for logging income and expense transactions and assigning them to user-defined categories.",
+      "Budget Creation & Monitoring:: Create endpoints that allow users to set monthly or weekly budgets for specific spending categories and an endpoint to check their current spending against those budgets.",
+      "Financial Goal Setting:: Provide a system for users to set savings or debt-reduction goals and log contributions towards them.",
+      "Financial Reporting:: An endpoint that aggregates transaction data to provide a summary report, such as a monthly breakdown of spending by category or a simple income vs. expense statement."
+    ],
+    "FRONTEND": [
+      "Financial Dashboard:: A main view displaying key financial metrics like current account balances (mocked), a summary of recent income vs. expenses, and the status of user-created budgets.",
+      "Transaction Management:: An interface for manually adding new transactions (income or expense) and a view that displays a filterable and searchable list of all past transactions.",
+      "Budget Tracking Interface:: A view where users can create budgets for different spending categories and visually track their current spending against those budget limits using progress bars.",
+      "Goal Progress View:: A dedicated view for users to set financial goals (e.g., \"Save $1000 for vacation\") and see their progress towards achieving them."
+    ]
+  },
+  "APP_24": {
+    "BACKEND": [
+      "Professional Profile Management:: Full CRUD endpoints for users to create and manage their professional profiles, including sections for work experience and education.",
+      "Connection Management:: Endpoints to handle the connection lifecycle: sending a connection request (`POST /api/connections/request`), accepting a request (`PUT /api/connections/<id>/accept`), and viewing one's list of connections (`GET /api/connections`).",
+      "Job Marketplace:: Full CRUD endpoints for users to post new job listings and for other users to search/filter and view those listings.",
+      "User-to-User Messaging:: A simple, real-time messaging system (using WebSockets with Flask-SocketIO) that allows connected users to send and receive private messages."
+    ],
+    "FRONTEND": [
+      "Professional Profile View:: A view to display a user's professional profile, including their work experience and education. The view should also contain a form to allow the owner to edit their own profile.",
+      "Network Management:: An interface to view a user's current connections, manage pending connection requests (accept/decline), and search for other professionals on the platform to connect with.",
+      "Job Board & Search:: A view for searching and filtering available job postings, with an interface to view the details of a specific job.",
+      "Private Messaging Interface:: A simple real-time chat interface for users to communicate with their established connections, using Socket.IO."
+    ]
+  },
+  "APP_25": {
+    "BACKEND": [
+      "Mood & Stress Tracking:: Implement endpoints for users to log their daily mood and stress levels, including associated emotions or triggers.",
+      "Secure Journaling:: Provide full CRUD endpoints for creating and retrieving journal entries. The content of the entries must be encrypted before being stored in the database and decrypted only when requested by the authenticated user.",
+      "Wellness & Goal Management:: Create endpoints to manage a library of evidence-based coping strategies and allow users to set and track their personal wellness goals.",
+      "Crisis Support & Resources:: A dedicated, non-protected endpoint (`GET /api/resources/crisis`) to retrieve a static list of immediate crisis support resources (e.g., emergency hotlines)."
+    ],
+    "FRONTEND": [
+      "Daily Check-in & Mood Tracker:: An intuitive interface for users to easily log their daily mood and stress levels (e.g., using sliders or an emoji selector).",
+      "Secure Journal:: A private view with a text editor for users to write and review their journal entries. The interface should feel safe and secluded from other parts of the app.",
+      "Progress & Insights Visualization:: A dashboard that uses simple, clear charts and visualizations to show mood trends over time, helping users identify patterns.",
+      "Coping Strategies & Crisis Support:: A view that lists helpful coping strategies and provides immediate, one-click access to a list of crisis support hotlines."
+    ]
+  },
+  "APP_26": {
+    "BACKEND": [
+      "Carbon Footprint Logging:: Create endpoints for users to log their daily activities that contribute to their carbon footprint, such as transportation, energy usage, and diet choices.",
+      "Resource Consumption Tracking:: Implement endpoints to allow users to log their consumption of resources like water and electricity, and to track their waste and recycling efforts.",
+      "Sustainability Challenges & Goals:: Provide a system with endpoints for users to join pre-defined environmental challenges (e.g., \"No single-use plastic for a week\") and to set personal sustainability goals.",
+      "Personalized Recommendations & Community:: Implement an endpoint to provide users with personalized, evidence-based eco-friendly tips, and another to show an anonymized community leaderboard or collective impact score."
+    ],
+    "FRONTEND": [
+      "Environmental Dashboard:: A main view that displays the user's overall carbon footprint score, progress in current sustainability challenges, and personalized eco-tips.",
+      "Activity Logging Interface:: Simple forms for users to log their daily activities related to transport, energy use, and waste, providing instant feedback on the calculated carbon impact.",
+      "Sustainability Challenges View:: An interface to browse available environmental challenges (e.g., \"Meatless Mondays\"), join them, and track progress towards completion.",
+      "Progress Visualization:: A dedicated view that uses charts to show the user's carbon footprint trend over time, broken down by category (transport, energy, etc.), to help them identify areas for improvement."
+    ]
+  },
+  "APP_27": {
+    "BACKEND": [
+      "Player Roster & Profile Management:: Implement full CRUD endpoints for managing player profiles, including personal details, positions, and current status (e.g., active, injured).",
+      "Schedule & Attendance Management:: Create endpoints to schedule team events like training sessions and matches, and to log which players attended each event.",
+      "Performance & Health Logging:: Provide endpoints for coaches to log player performance statistics from matches (e.g., goals, assists) and to record and track player injuries.",
+      "Team Communication:: A simple system for coaches or managers to post announcements (`POST /api/announcements`) that can be retrieved by the team."
+    ],
+    "FRONTEND": [
+      "Team Roster & Profiles:: A view to display the full team roster. Clicking a player should navigate to a detailed profile page showing their information, stats, and injury history.",
+      "Event Calendar & Scheduling:: An interactive calendar that displays all upcoming training sessions and matches. Provide an interface for coaches to schedule new events.",
+      "Performance Dashboard:: A view that uses charts and graphs to visualize key team and individual player statistics over time, such as goals per game or training attendance rates.",
+      "Health & Injury Status Board:: A simple view that lists all players' current health status, highlighting any ongoing injuries and their expected recovery timelines."
+    ]
+  },
+  "APP_28": {
+    "BACKEND": [
+      "Artwork Upload & Processing:: A `POST /api/artworks/upload` endpoint that handles image uploads, validates that they are images, generates a high-quality thumbnail using `Pillow`, and stores the artwork with its metadata.",
+      "Gallery Curation:: Full CRUD endpoints for creating and managing galleries (`/api/galleries`). Include an endpoint to add/remove artworks from a specific gallery.",
+      "Portfolio & Artwork Retrieval:: Endpoints to retrieve all data needed for a public portfolio, including the artist's profile (`GET /api/artists/<id>`), a list of their galleries, and the artworks within each.",
+      "User Authentication & Ownership:: A standard user auth system to allow an artist to log in and manage their own portfolio (artworks and galleries)."
+    ],
+    "FRONTEND": [
+      "Responsive Artwork Gallery:: A main view that displays artwork thumbnails in a responsive grid layout (e.g., masonry) with lazy loading to ensure fast initial page load.",
+      "Full-Screen Artwork Viewer (Lightbox):: A modal overlay that appears when a thumbnail is clicked, displaying the full-resolution artwork with navigation controls (next/previous) and a panel for the artwork's title and description.",
+      "Artwork Upload & Management:: An interface for the authenticated artist to upload new artwork images and edit their metadata (title, description, gallery assignment).",
+      "Gallery Curation:: UI elements for the artist to create new galleries (e.g., \"Oil Paintings 2024\") and to view the contents of an existing gallery as a filtered collection."
+    ]
+  },
+  "APP_29": {
+    "BACKEND": [
+      "Event Creation & Management:: Implement full CRUD endpoints for creating and managing the core details of an event (name, date, location, description).",
+      "Guest & RSVP Tracking:: Provide endpoints to manage a guest list for an event, send mock invitations, and track guest RSVP statuses (Attending, Declined, Maybe).",
+      "Budget & Expense Management:: A system to set an overall budget for an event and endpoints to log individual expenses against different categories (e.g., Venue, Catering), which are then subtracted from the total budget.",
+      "Task & Timeline Management:: Endpoints to create a checklist of tasks or a timeline of milestones associated with an event, with due dates and a boolean completion status."
+    ],
+    "FRONTEND": [
+      "Event Dashboard:: A central view for a selected event that provides a summary of key information: guest RSVP count, budget status (e.g., \"$500/$2000 spent\"), and a list of upcoming tasks.",
+      "Guest List Management:: An interactive table or list for managing the event's guest list, including adding guests and updating their RSVP status.",
+      "Budget Tracker:: An interface to log expenses against different categories and visualize the budget, showing total spent versus total budgeted.",
+      "Interactive Checklist/Timeline:: A view that displays the event's to-do list, allowing the planner to check off completed tasks."
+    ]
+  },
+  "APP_30": {
+    "BACKEND": [
+      "Project & Document Management:: Full CRUD endpoints for creating and managing research projects. Within each project, provide endpoints to upload, list, and delete documents (e.g., PDFs, datasets).",
+      "Collaborator & Permissions Management:: Implement endpoints to invite other registered users to a project (`POST /api/projects/<id>/invite`) and to manage their roles and permissions (e.g., 'editor', 'viewer').",
+      "Task Management & Milestones:: A system to create, assign, update the status of, and delete tasks within a specific research project.",
+      "Discussion & Annotation System:: Provide endpoints to allow collaborators on a project to leave comments on the project itself or on specific documents within it to facilitate discussions."
+    ],
+    "FRONTEND": [
+      "Project Dashboard & File Explorer:: A main view that lists all research projects a user is a member of. Clicking on a project should navigate to a file explorer view that lists all documents and folders within that project.",
+      "Collaborative Document Viewer:: An interface to view a selected document (e.g., a PDF placeholder or rendered text). This view must include a sidebar or section to display and add comments, facilitating discussion around the document.",
+      "Project Task Board:: A simple task management interface within each project view, displaying tasks as a list or on a simple Kanban-like board (To Do, In Progress, Done). Users should be able to create new tasks and update their status.",
+      "Collaboration Management:: UI elements within each project for the project owner to invite new members by email and to manage the roles (e.g., 'editor', 'viewer') of existing members."
+    ]
+  }
+}

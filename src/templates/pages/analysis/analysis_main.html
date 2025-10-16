@@ -1,0 +1,18 @@
+{# Simplified Analysis Tasks Page - minimal and stable (reuses inspection table) #}
+{% extends 'layouts/base.html' %}
+
+{% block title %}Analysis Tasks - {{ super() }}{% endblock %}
+{% set page_title = 'Analysis Tasks' %}
+{% set page_icon = 'fa-solid fa-tasks' %}
+
+{% block content %}
+  {% if show_legacy_notice %}
+  <div class="alert alert-info py-2 small mb-3">
+    <strong>Unified View:</strong> The dedicated inspection page was merged into this tasks hub. Update any old bookmarks.
+  </div>
+  {% endif %}
+  <div id="main-tasks-table-wrapper" class="htmx-indicator-parent" hx-indicator="#global-spinner"
+       hx-get="/analysis/api/tasks/inspect/list" hx-trigger="load" hx-swap="innerHTML">
+    <div class="p-4 text-center text-muted">Loading tasks…</div>
+  </div>
+{% endblock %}

@@ -1,0 +1,599 @@
+{# Applications table content using Tabler defaults #}
+{% set models_selected_raw = request.args.get('model','') if request else '' %}
+{% set selected_models = models_selected_raw.split(',') if models_selected_raw else [] %}
+{% set selected_models = selected_models|select|list %}
+{% set statuses_selected_raw = request.args.get('status','') if request else '' %}
+{% set selected_statuses = statuses_selected_raw.split(',') if statuses_selected_raw else [] %}
+{% set selected_statuses = selected_statuses|select|list %}
+{% set type_val = request.args.get('type','') if request else '' %}
+{% set per_page_val = request.args.get('per_page','25') if request else '25' %}
+{% set search_term = request.args.get('search','') if request else '' %}
+<div class="card card-table-compact mb-3">
+  <div class="card-header d-flex flex-wrap align-items-center gap-3">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+        <i class="fas fa-laptop-code"></i>
+        <span>Applications</span>
+      </h3>
+      <div class="d-flex flex-wrap align-items-center gap-2 status-indicators">
+        <span class="badge bg-primary-lt d-inline-flex align-items-center gap-2"><i class="fas fa-laptop-code"></i><span id="total-applications">{{ applications_stats.total_applications if applications_stats is defined else applications|length }}</span></span>
+        <span class="badge bg-success-lt d-inline-flex align-items-center gap-2"><i class="fas fa-check-circle"></i><span id="running-applications">{{ applications_stats.running_applications if applications_stats is defined else 0 }}</span></span>
+        <span class="badge bg-info-lt d-inline-flex align-items-center gap-2"><i class="fas fa-chart-line"></i><span id="analyzed-applications">{{ applications_stats.analyzed_applications if applications_stats is defined else 0 }}</span></span>
+        <span class="badge bg-warning-lt d-inline-flex align-items-center gap-2 text-dark"><i class="fas fa-brain"></i><span id="unique-models">{{ applications_stats.unique_models if applications_stats is defined else 0 }}</span></span>
+      </div>
+    </div>
+    <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+      <label class="d-flex align-items-center gap-2 mb-0">
+        <span class="text-muted small">Limit:</span>
+        <select id="apps-per-page" class="form-select form-select-sm" style="width: auto;" onchange="changeApplicationsPerPage(this.value)">
+          <option value="10" {% if per_page_val|string == '10' %}selected{% endif %}>10</option>
+          <option value="25" {% if per_page_val|string == '25' %}selected{% endif %}>25</option>
+          <option value="50" {% if per_page_val|string == '50' %}selected{% endif %}>50</option>
+          <option value="100" {% if per_page_val|string == '100' %}selected{% endif %}>100</option>
+        </select>
+      </label>
+      <span class="text-muted small" id="applications-source-indicator"></span>
+      <div class="btn-list">
+        <button class="btn btn-sm btn-primary" onclick="refreshApplications()" title="Refresh applications" type="button"><i class="fas fa-sync me-1" aria-hidden="true"></i>Refresh</button>
+        <button class="btn btn-sm btn-warning" onclick="refreshAllStatuses()" title="Rescan Docker status" type="button"><i class="fas fa-sync-alt me-1" aria-hidden="true"></i>Rescan</button>
+        <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#generateAppModal" title="Generate application" type="button"><i class="fas fa-plus me-1" aria-hidden="true"></i>Generate</button>
+        <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#batchApplicationsModal" title="Batch operations" onclick="updateBatchSelectionCount()" type="button"><i class="fas fa-layer-group me-1" aria-hidden="true"></i>Batch Ops</button>
+      </div>
+      <span class="text-primary small fw-bold" id="applications-selection-indicator"></span>
+    </div>
+  </div>
+  <div class="card-body border-top py-3">
+    <div class="row g-2 mb-3">
+      <div class="col-12">
+        <div class="input-group input-group-flat">
+          <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
+          <input type="text" id="application-search" class="form-control" placeholder="Search by model, app number, or type..." value="{{ search_term }}" onkeyup="debounceApplicationSearch()" aria-label="Search applications" />
+          <button class="btn btn-outline-secondary" onclick="clearApplicationSearch()" type="button" title="Clear search" aria-label="Clear search"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-2 align-items-center">
+      <div class="col-auto">
+        <label class="d-flex align-items-center gap-2 mb-0">
+          <span class="text-muted d-flex align-items-center gap-1">
+            <i class="fas fa-brain" aria-hidden="true"></i>
+            <span>Model</span>
+          </span>
+          <select class="form-select form-select-sm" style="min-width: 140px;" id="model-filter" onchange="applyApplicationFilters()">
+            <option value="">All Models</option>
+            {% if available_models is defined %}
+              {% for model in available_models %}
+              <option value="{{ model.slug }}" {% if model.slug in selected_models %}selected{% endif %}>{{ model.display_name }}</option>
+              {% endfor %}
+            {% endif %}
+          </select>
+        </label>
+      </div>
+      <div class="col-auto">
+        <label class="d-flex align-items-center gap-2 mb-0">
+          <span class="text-muted d-flex align-items-center gap-1">
+            <i class="fas fa-toggle-on" aria-hidden="true"></i>
+            <span>Status</span>
+          </span>
+          <select class="form-select form-select-sm" style="min-width: 120px;" id="status-filter" onchange="applyApplicationFilters()">
+            <option value="">All Statuses</option>
+            {% set status_options = ['running','stopped','error','pending','not_created'] %}
+            {% for status in status_options %}
+            <option value="{{ status }}" {% if status in selected_statuses %}selected{% endif %}>{{ status.replace('_',' ')|title }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+      <div class="col-auto">
+        <label class="d-flex align-items-center gap-2 mb-0">
+          <span class="text-muted d-flex align-items-center gap-1">
+            <i class="fas fa-layer-group" aria-hidden="true"></i>
+            <span>Type</span>
+          </span>
+          <select class="form-select form-select-sm" style="min-width: 120px;" id="type-filter" onchange="applyApplicationFilters()">
+            <option value="">All Types</option>
+            <option value="web_app" {% if type_val == 'web_app' %}selected{% endif %}>Web App</option>
+            <option value="api_service" {% if type_val == 'api_service' %}selected{% endif %}>API</option>
+            <option value="cli_tool" {% if type_val == 'cli_tool' %}selected{% endif %}>CLI</option>
+          </select>
+        </label>
+      </div>
+      <div class="col-auto ms-auto">
+        <button class="btn btn-sm btn-ghost-secondary" onclick="clearAllApplicationFilters()" type="button">
+          <i class="fas fa-times-circle me-1"></i>Clear Filters
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="table-responsive" id="applications-table-scroll">
+		<table class="table table-striped table-vcenter table-hover table-sm card-table mb-0" id="applications-table">
+			<thead>
+				<tr>
+					<th class="w-1"><input type="checkbox" id="select-all-apps" class="form-check-input m-0" onchange="toggleSelectAllApplications()" aria-label="Select all"></th>
+					<th>Model</th>
+					<th>Provider</th>
+					<th class="text-center">App</th>
+					<th>Type</th>
+					<th class="text-center">Status</th>
+					<th>Ports</th>
+					<th class="text-end">Size</th>
+					<th class="text-center">Analysis</th>
+					<th class="w-1"></th>
+				</tr>
+			</thead>
+			<tbody id="applications-table-body">
+				{% for app in applications %}
+				<tr data-model="{{ app.model_slug }}" data-app="{{ app.app_number }}" {% if app.id %}data-app-id="{{ app.id }}"{% endif %}>
+					<td><input type="checkbox" class="form-check-input m-0 app-checkbox" value="{{ app.model_slug }}-{{ app.app_number }}" aria-label="Select"></td>
+					<td>
+						<div class="text-truncate">{{ app.model_display_name }}</div>
+					</td>
+					<td>
+						<span class="badge bg-azure-lt">{{ app.model_provider }}</span>
+					</td>
+					<td class="text-center">
+						<strong>{{ app.app_number }}</strong>
+					</td>
+					<td>
+						<span class="text-muted small">{{ app.app_type|replace('_', ' ')|title }}</span>
+					</td>
+					<td class="text-center">
+						{% set status_lower = app.status|lower|replace('_', ' ')|replace('?', '')|trim %}
+						{% if status_lower == 'running' %}
+							<span class="badge bg-success">Running</span>
+						{% elif status_lower == 'stopped' %}
+							<span class="badge bg-secondary">Stopped</span>
+						{% elif status_lower == 'error' or status_lower == 'failed' %}
+							<span class="badge bg-danger">Error</span>
+						{% elif status_lower == 'building' %}
+							<span class="badge bg-warning">Building</span>
+						{% elif 'no compose' in status_lower or status_lower == 'not created' %}
+							<span class="badge bg-muted">Not Created</span>
+						{% else %}
+							<span class="badge bg-secondary">{{ status_lower|title }}</span>
+						{% endif %}
+					</td>
+					<td class="text-muted small">
+						{% if app.ports %}
+							{{ app.ports[0].host_port }}{% if app.ports|length > 1 %}, {{ app.ports[1].host_port }}{% endif %}{% if app.ports|length > 2 %}, +{{ app.ports|length - 2 }}{% endif %}
+						{% else %}
+							—
+						{% endif %}
+					</td>
+					<td class="text-end text-muted small">
+						{{ app.container_size if app.container_size else '—' }}
+					</td>
+					<td class="text-center">
+						{% if app.analysis_status == 'completed' %}
+							<span class="badge bg-success">Done</span>
+						{% elif app.analysis_status == 'running' %}
+							<span class="badge bg-warning">Running</span>
+						{% elif app.analysis_status == 'failed' %}
+							<span class="badge bg-danger">Failed</span>
+						{% else %}
+							<span class="text-muted small">—</span>
+						{% endif %}
+					</td>
+					<td>
+						<div class="btn-group btn-group-sm" role="group">
+							<button class="btn btn-ghost-primary" onclick="window.location.href='/applications/{{ app.model_slug }}/{{ app.app_number }}'" title="View details">
+								<i class="fas fa-eye"></i>
+							</button>
+							{% if app.status == 'running' and app.ports %}
+							<a href="http://localhost:{{ app.ports[0].host_port }}" target="_blank" rel="noopener" class="btn btn-ghost-success" title="Visit application">
+								<i class="fas fa-external-link-alt"></i>
+							</a>
+							{% else %}
+							<button class="btn btn-ghost-secondary" onclick="performAppAction('{{ app.model_slug }}', '{{ app.app_number }}', 'start')" title="Start application">
+								<i class="fas fa-play"></i>
+							</button>
+							{% endif %}
+						</div>
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+	<div class="card-footer d-flex align-items-center gap-2 justify-content-between" id="applications-pagination-bar">
+		<div id="applications-page-summary" class="text-muted">
+			Showing {{ applications|length }} of {{ total_applications }} applications
+		</div>
+		<nav aria-label="Applications pagination">
+			{% if pagination is defined and pagination %}
+			<ul class="pagination pagination-sm mb-0" id="applications-pagination">
+				{% if pagination.has_prev %}
+				<li class="page-item">
+					<button class="page-link" onclick="changeApplicationsPage('{{ pagination.prev_num }}')">Previous</button>
+				</li>
+				{% endif %}
+				{% for page_num in pagination.iter_pages() %}
+					{% if page_num %}
+						{% if page_num != pagination.page %}
+						<li class="page-item">
+							<button class="page-link" onclick="changeApplicationsPage('{{ page_num }}')">{{ page_num }}</button>
+						</li>
+						{% else %}
+						<li class="page-item active">
+							<span class="page-link">{{ page_num }}</span>
+						</li>
+						{% endif %}
+					{% else %}
+					<li class="page-item disabled">
+						<span class="page-link">…</span>
+					</li>
+					{% endif %}
+				{% endfor %}
+				{% if pagination.has_next %}
+				<li class="page-item">
+					<button class="page-link" onclick="changeApplicationsPage('{{ pagination.next_num }}')">Next</button>
+				</li>
+				{% endif %}
+			</ul>
+			{% endif %}
+		</nav>
+	</div>
+  </div>
+</div>
+
+<script>
+// ---- Fixed Status Polling (Prevents false "Running" status) ----
+function pollApplicationStatuses() {
+  const rows = Array.from(document.querySelectorAll('#applications-table-body tr[data-model][data-app]'));
+  if (!rows.length) return;
+  
+  // Only check uncertain statuses or stale ones
+  const batch = rows.slice(0, 15).filter(row => {
+    const statusBadge = row.querySelector('td:nth-child(5) .badge');
+    if (!statusBadge) return false;
+    const statusText = statusBadge.textContent.trim().toLowerCase();
+    
+    // Always check uncertain statuses
+    if (statusText.includes('unknown') || statusText.includes('pending') || statusText.includes('not created')) {
+      return true;
+    }
+    
+    // Check fresh statuses less frequently (every 5th poll cycle)
+    if (!row.dataset.pollCount) row.dataset.pollCount = '0';
+    const pollCount = parseInt(row.dataset.pollCount) + 1;
+    row.dataset.pollCount = pollCount.toString();
+    
+    // Check every 5th cycle for definitive statuses (running/stopped)
+    return pollCount % 5 === 0;
+  });
+  
+  batch.forEach(row => {
+    const model = row.getAttribute('data-model');
+    const app = row.getAttribute('data-app');
+    if (!model || !app) return;
+    
+    fetch(`/api/app/${model}/${app}/status`)
+      .then(resp => resp.ok ? resp.json() : Promise.reject('API Error'))
+      .then(data => {
+        if (!data?.success) return;
+        
+        const statusBadge = row.querySelector('td:nth-child(5) .badge');
+        if (!statusBadge) return;
+        
+        const statusData = data.data || {};
+        
+        // Use Docker status from API response (which now updates DB)
+        const dockerStatus = statusData.docker_status || 'unknown';
+        const isRunning = statusData.running === true;
+        const hasContainers = statusData.states?.length > 0;
+        const composeExists = statusData.compose_file_exists === true;
+        
+        // Update status badge based on Docker status
+        let badgeClass = 'badge bg-muted-lt';
+        let badgeContent = '<i class="fas fa-question me-1"></i>Unknown';
+        
+        if (dockerStatus === 'running' && isRunning) {
+          badgeClass = 'badge bg-success-lt';
+          badgeContent = '<i class="fas fa-play me-1"></i>Running';
+        } else if (dockerStatus === 'stopped' && hasContainers) {
+          badgeClass = 'badge bg-secondary-lt';
+          badgeContent = '<i class="fas fa-stop me-1"></i>Stopped';
+        } else if (dockerStatus === 'not_created' && composeExists) {
+          badgeClass = 'badge bg-warning-lt';
+          badgeContent = '<i class="fas fa-plus me-1"></i>Not Created';
+        } else if (dockerStatus === 'no_compose') {
+          badgeClass = 'badge bg-danger-lt';
+          badgeContent = '<i class="fas fa-exclamation me-1"></i>No Compose';
+        }
+        
+        statusBadge.className = badgeClass;
+        statusBadge.innerHTML = badgeContent;
+        
+        // Add diagnostic tooltip with timing info
+        const tips = [];
+        if (!statusData.docker_connected) tips.push('Docker disconnected');
+        if (statusData.status_age_minutes !== null) {
+          tips.push(`Last checked: ${Math.round(statusData.status_age_minutes)}m ago`);
+        }
+        if (statusData.status_is_fresh) tips.push('Status is fresh');
+        if (statusData.states?.length) tips.push(`Containers: ${statusData.states.join(', ')}`);
+        if (tips.length) statusBadge.setAttribute('title', tips.join(' | '));
+      })
+      .catch(() => {
+        // Silently handle errors - don't spam console
+      });
+  });
+}
+
+// Run polling and rebind handlers
+document.addEventListener('DOMContentLoaded', () => {
+  setTimeout(pollApplicationStatuses, 500);
+});
+
+document.body.addEventListener('htmx:afterSwap', (e) => {
+  if (e.target?.id === 'applications-table-section') {
+    setTimeout(() => {
+      pollApplicationStatuses();
+    }, 100);
+  }
+});
+
+// Single interval for polling (only when page visible)
+if (!window.__appsStatusInterval) {
+  window.__appsStatusInterval = setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      pollApplicationStatuses();
+    }
+  }, 60000); // Check every 60 seconds instead of 45 (less aggressive since we use DB cache)
+}
+
+// ---- Application Management Functions (Consolidated) ----
+function getSelectedApplications() {
+  return Array.from(document.querySelectorAll('.app-checkbox:checked')).map(cb => cb.value);
+}
+
+function refreshAllStatuses() {
+  const button = event.target.closest('button');
+  if (!button) return;
+  
+  const originalHtml = button.innerHTML;
+  const originalDisabled = button.disabled;
+  
+  button.disabled = true;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  
+  showNotification('Refreshing all application statuses from Docker...', 'info');
+  
+  fetch('/api/applications/refresh-all-statuses', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showNotification(data.message, 'success');
+      // Refresh the applications table
+      if (typeof refreshApplications === 'function') {
+        setTimeout(refreshApplications, 500);
+      } else {
+        setTimeout(() => window.location.reload(), 1000);
+      }
+    } else {
+      showNotification(`Status refresh failed: ${data.error}`, 'danger');
+    }
+  })
+  .catch(error => {
+    showNotification(`Status refresh failed: ${error.message}`, 'danger');
+  })
+  .finally(() => {
+    button.disabled = originalDisabled;
+    button.innerHTML = originalHtml;
+  });
+}
+
+function performAppAction(modelSlug, appNumber, action) {
+  const button = event.target.closest('button, a');
+  if (!button) return;
+  
+  const originalHtml = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  
+  const apiAction = action === 'rebuild' ? 'build' : action;
+  const url = `/api/app/${modelSlug}/${appNumber}/${apiAction}`;
+  
+  fetch(url, { method: 'POST', headers: { 'HX-Request': 'true' } })
+    .then(resp => {
+      if (resp.ok) {
+        showNotification(`${action} completed successfully`, 'success');
+        // Refresh table to show updated status
+        setTimeout(() => {
+          if (typeof refreshApplications === 'function') {
+            refreshApplications();
+          } else {
+            htmx.trigger('body', 'refresh-applications-table');
+          }
+        }, 1000);
+      } else {
+        throw new Error(`HTTP ${resp.status}`);
+      }
+    })
+    .catch(err => {
+      showNotification(`${action} failed: ${err.message}`, 'danger');
+    })
+    .finally(() => {
+      button.disabled = false;
+      button.innerHTML = originalHtml;
+    });
+}
+
+function runAnalysis(modelSlug, appNumber, analysisType) {
+  const button = event.target.closest('button');
+  if (!button) return;
+  
+  const originalHtml = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Running...';
+  
+  const row = button.closest('tr');
+  const appId = row ? row.getAttribute('data-app-id') : null;
+  const url = appId ? `/api/applications/${appId}/analyze` : `/api/applications/${modelSlug}/${appNumber}/analyze`;
+  
+  fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ analysis_type: analysisType })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showNotification(`${analysisType} analysis started`, 'success');
+      setTimeout(() => {
+        if (typeof refreshApplications === 'function') {
+          refreshApplications();
+        }
+      }, 1000);
+    } else {
+      showNotification(`Analysis failed: ${data.error}`, 'danger');
+    }
+  })
+  .catch(error => {
+    showNotification(`Analysis failed: ${error.message}`, 'danger');
+  })
+  .finally(() => {
+    button.disabled = false;
+    button.innerHTML = originalHtml;
+  });
+}
+
+function viewAppLogs(modelSlug, appNumber) {
+  window.open(`/applications/${modelSlug}/${appNumber}/logs`, '_blank');
+}
+
+function cloneApplication(modelSlug, appNumber) {
+  const newAppNumber = prompt('Enter new application number (1-30):');
+  if (!newAppNumber || isNaN(newAppNumber) || newAppNumber < 1 || newAppNumber > 30) {
+    return;
+  }
+  
+  fetch(`/api/applications/${modelSlug}/${appNumber}/clone`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_app_number: parseInt(newAppNumber) })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showNotification('Application cloned successfully', 'success');
+      if (typeof refreshApplications === 'function') refreshApplications();
+    } else {
+      showNotification(`Clone failed: ${data.error}`, 'danger');
+    }
+  })
+  .catch(error => {
+    showNotification(`Clone failed: ${error.message}`, 'danger');
+  });
+}
+
+function shareApplication(modelSlug, appNumber) {
+  const url = `${window.location.origin}/applications/${modelSlug}/${appNumber}`;
+  navigator.clipboard.writeText(url).then(() => {
+    showNotification('Application URL copied to clipboard', 'success');
+  }).catch(() => {
+    prompt('Copy this URL:', url);
+  });
+}
+
+function deleteApplication(modelSlug, appNumber) {
+  if (!confirm(`Are you sure you want to delete ${modelSlug} App ${appNumber}? This action cannot be undone.`)) {
+    return;
+  }
+  
+  fetch(`/api/applications/${modelSlug}/${appNumber}`, { method: 'DELETE' })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showNotification('Application deleted successfully', 'success');
+        if (typeof refreshApplications === 'function') refreshApplications();
+      } else {
+        showNotification(`Delete failed: ${data.error}`, 'danger');
+      }
+    })
+    .catch(error => {
+      showNotification(`Delete failed: ${error.message}`, 'danger');
+    });
+}
+
+// ---- Selection Management ----
+function toggleSelectAllApplications() {
+  const selectAll = document.getElementById('select-all-apps');
+  const checkboxes = document.querySelectorAll('.app-checkbox');
+  
+  checkboxes.forEach(checkbox => {
+    checkbox.checked = selectAll.checked;
+  });
+  
+  updateSelectionIndicator();
+}
+
+function updateSelectionIndicator() {
+  const selected = getSelectedApplications();
+  const indicator = document.getElementById('applications-selection-indicator');
+  
+  if (indicator) {
+    indicator.textContent = selected.length > 0 ? `${selected.length} selected` : '';
+  }
+}
+
+// ---- Pagination Functions ----
+function changeApplicationsPage(page) { 
+  if (window.applyApplicationFilters) { 
+    applyApplicationFilters({page}); 
+  } 
+}
+
+function changeApplicationsPerPage(perPage) { 
+  if (window.applyApplicationFilters) { 
+    applyApplicationFilters({per_page: perPage}); 
+  } 
+}
+
+// ---- Notification System ----
+function showNotification(message, type = 'info') {
+  const statusArea = document.getElementById('applications-selection-indicator');
+  if (statusArea) {
+    statusArea.innerHTML = `<span class="text-${type}">${message}</span>`;
+    setTimeout(() => {
+      updateSelectionIndicator();
+    }, 3000);
+  } else {
+    console.log(`[${type.toUpperCase()}] ${message}`);
+  }
+}
+
+// ---- Event Listeners ----
+document.addEventListener('change', function(evt) {
+  if (evt.target.classList.contains('app-checkbox')) {
+    updateSelectionIndicator();
+    // Update batch selection count if function exists
+    if (typeof updateBatchSelectionCount === 'function') {
+      updateBatchSelectionCount();
+    }
+  }
+});
+
+// Event delegation for data-action buttons
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-action]');
+  if (!btn) return;
+  
+  const row = btn.closest('tr');
+  const modelSlug = row?.getAttribute('data-model');
+  const appNumber = row?.getAttribute('data-app');
+  const action = btn.getAttribute('data-action');
+  
+  if (modelSlug && appNumber && action) {
+    e.preventDefault();
+    performAppAction(modelSlug, appNumber, action);
+  }
+});
+
+</script>
+
+

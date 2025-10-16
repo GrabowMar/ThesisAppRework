@@ -1,0 +1,116 @@
+{% if analyses %}
+<table class="table table-striped table-vcenter table-hover table-sm card-table mb-0">
+  <thead>
+    <tr>
+      <th class="text-nowrap">Analysis</th>
+      <th class="text-nowrap">Type</th>
+      <th class="text-nowrap">App</th>
+      <th class="text-nowrap">Status</th>
+      <th class="text-nowrap">Time</th>
+      <th class="w-1 text-nowrap">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for analysis in analyses %}
+    {% set tone = {
+      'completed': 'success',
+      'success': 'success',
+      'running': 'info',
+      'pending': 'warning',
+      'failed': 'danger',
+      'error': 'danger'
+    }.get(analysis.status, 'secondary') %}
+    <tr>
+      <td class="text-nowrap">
+        <div class="d-flex align-items-center gap-2">
+          {% if analysis.status == 'completed' %}
+            <i class="fas fa-check-circle text-success"></i>
+          {% elif analysis.status == 'running' %}
+            <i class="fas fa-spinner fa-spin text-info"></i>
+          {% elif analysis.status == 'pending' %}
+            <i class="fas fa-clock text-warning"></i>
+          {% elif analysis.status in ['failed', 'error'] %}
+            <i class="fas fa-times-circle text-danger"></i>
+          {% else %}
+            <i class="fas fa-flask text-muted"></i>
+          {% endif %}
+          <strong>#{{ analysis.id }}</strong>
+        </div>
+      </td>
+      <td>
+        <span class="badge bg-info-lt">{{ analysis.category|title }}</span>
+      </td>
+      <td class="text-nowrap">
+        {% if analysis.application_id %}
+          <span class="text-truncate">App #{{ analysis.application_id }}</span>
+        {% else %}
+          <span class="text-muted">—</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if analysis.status == 'completed' %}
+          <span class="badge bg-success-lt">
+            <i class="fas fa-check me-1"></i>Completed
+          </span>
+        {% elif analysis.status == 'running' %}
+          <span class="badge bg-info-lt">
+            <i class="fas fa-spinner fa-spin me-1"></i>Running
+          </span>
+        {% elif analysis.status == 'pending' %}
+          <span class="badge bg-warning-lt">
+            <i class="fas fa-clock me-1"></i>Pending
+          </span>
+        {% elif analysis.status == 'failed' %}
+          <span class="badge bg-danger-lt">
+            <i class="fas fa-times me-1"></i>Failed
+          </span>
+        {% else %}
+          <span class="badge bg-muted-lt">{{ analysis.status|title }}</span>
+        {% endif %}
+      </td>
+      <td class="text-nowrap text-muted">
+        {% if analysis.completed_at %}
+          {{ analysis.completed_at.strftime('%m/%d %H:%M') }}
+        {% elif analysis.created_at %}
+          {{ analysis.created_at.strftime('%m/%d %H:%M') }}
+        {% else %}
+          —
+        {% endif %}
+      </td>
+      <td>
+        <div class="btn-group" role="group">
+          <a href="/analysis/{{ analysis.id }}" class="btn btn-outline-primary btn-sm" title="View details">
+            <i class="fas fa-eye"></i>
+          </a>
+          {% if analysis.status == 'completed' %}
+          <button class="btn btn-outline-success btn-sm" onclick="downloadAnalysisResults({{ analysis.id }})" title="Download results">
+            <i class="fas fa-download"></i>
+          </button>
+          {% elif analysis.status in ['failed', 'error'] %}
+          <button class="btn btn-outline-warning btn-sm" onclick="retryAnalysis({{ analysis.id }})" title="Retry analysis">
+            <i class="fas fa-redo"></i>
+          </button>
+          {% endif %}
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">
+  <div class="empty-icon">
+    <i class="fas fa-flask text-muted"></i>
+  </div>
+  <p class="empty-title">No analyses yet</p>
+  <p class="empty-subtitle text-muted">
+    Start your first analysis to see results here.
+  </p>
+  <div class="empty-action">
+    <a href="{{ url_for('analysis.analysis_index') }}" class="btn btn-primary">
+      <i class="fas fa-plus me-2"></i>
+      New Analysis
+    </a>
+  </div>
+</div>
+{% endif %}

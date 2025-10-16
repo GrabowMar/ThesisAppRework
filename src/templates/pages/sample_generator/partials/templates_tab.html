@@ -1,0 +1,198 @@
+<!-- Templates Management - Completely Revamped -->
+<div class="row g-4">
+  <!-- Left Column: Template Library -->
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <h3 class="card-title">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 4h3l2 2h5a2 2 0 0 1 2 2v7a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2" /></svg>
+          Template Library
+        </h3>
+        <div class="card-actions">
+          <button id="create-template-btn" class="btn btn-sm btn-primary" type="button" title="Create new template">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
+          </button>
+          <button id="reload-templates-library-btn" class="btn btn-sm btn-icon" type="button" title="Reload templates">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+          </button>
+        </div>
+      </div>
+      
+      <div class="card-body">
+        <!-- Search and Filters -->
+        <div class="mb-3">
+          <div class="input-group">
+            <span class="input-group-text">
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" /><path d="M21 21l-6 -6" /></svg>
+            </span>
+            <input type="search" id="template-search" class="form-control" placeholder="Search templates..." aria-label="Search templates">
+          </div>
+        </div>
+
+        <!-- Filter by Context -->
+        <div class="mb-3">
+          <label class="form-label small">Filter by context</label>
+          <select id="template-context-filter" class="form-select form-select-sm">
+            <option value="">All contexts</option>
+            <option value="frontend">Frontend</option>
+            <option value="backend">Backend</option>
+            <option value="fullstack">Full-stack</option>
+          </select>
+        </div>
+
+        <!-- Template Stats -->
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <div class="card card-sm bg-primary-lt">
+              <div class="card-body p-2 text-center">
+                <div class="text-muted small">Total</div>
+                <div class="h3 mb-0" id="total-templates-count">0</div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card card-sm bg-success-lt">
+              <div class="card-body p-2 text-center">
+                <div class="text-muted small">Filtered</div>
+                <div class="h3 mb-0" id="filtered-templates-count">0</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Template List -->
+        <div class="list-group list-group-flush" id="templates-list" style="max-height: 500px; overflow-y: auto;">
+          <div class="text-center text-secondary py-5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg mb-2" width="48" height="48" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /></svg>
+            <div class="small">Loading templates...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-footer text-secondary small">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 8l0 4" /><path d="M12 16l.01 0" /></svg>
+        App prompt templates from <code>misc/app_templates/</code> (project root)
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Template Details & Preview -->
+  <div class="col-lg-8">
+    <div class="card h-100">
+      <div class="card-header">
+        <h3 class="card-title">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" /></svg>
+          Template Details
+        </h3>
+        <div class="card-actions">
+          <span class="badge bg-azure-lt" id="template-detail-badge">Select a template</span>
+          <button id="edit-template-btn" class="btn btn-sm btn-primary" type="button" disabled title="Edit template">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" /><path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" /><path d="M16 5l3 3" /></svg>
+          </button>
+          <button id="duplicate-template-btn" class="btn btn-sm btn-icon" type="button" disabled title="Duplicate template">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z" /><path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2" /></svg>
+          </button>
+          <button id="delete-template-btn" class="btn btn-sm btn-icon btn-ghost-danger" type="button" disabled title="Delete template">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 7l16 0" /><path d="M10 11l0 6" /><path d="M14 11l0 6" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" /></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="card-body" id="template-detail-view">
+        <!-- Empty State -->
+        <div id="template-empty-state" class="empty">
+          <div class="empty-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg" width="48" height="48" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M9 14l6 0" /><path d="M12 11l0 6" /></svg>
+          </div>
+          <p class="empty-title">No template selected</p>
+          <p class="empty-subtitle text-secondary">
+            Select a template from the library to view its details and content
+          </p>
+        </div>
+
+        <!-- Template Details Content (Hidden by default) -->
+        <div id="template-detail-content" class="d-none">
+          <!-- Template Header -->
+          <div class="mb-4">
+            <div class="row g-3">
+              <div class="col-md-8">
+                <h2 class="mb-2" id="template-detail-name">—</h2>
+                <div class="text-secondary" id="template-detail-path">—</div>
+              </div>
+              <div class="col-md-4 text-md-end">
+                <div class="mb-2">
+                  <span class="badge bg-blue-lt me-1" id="template-detail-app-badge">App #1</span>
+                  <span class="badge bg-purple-lt" id="template-detail-context-badge">Context</span>
+                </div>
+                <div class="text-secondary small" id="template-detail-size">0 KB</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Template Metadata -->
+          <div class="card card-sm mb-3">
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <div class="text-secondary small mb-1">Application Number</div>
+                  <div class="fw-bold" id="template-detail-app-num">—</div>
+                </div>
+                <div class="col-md-4">
+                  <div class="text-secondary small mb-1">Context Type</div>
+                  <div class="fw-bold" id="template-detail-context">—</div>
+                </div>
+                <div class="col-md-4">
+                  <div class="text-secondary small mb-1">Complexity</div>
+                  <div id="template-detail-complexity">
+                    <div class="progress" style="height: 8px;">
+                      <div class="progress-bar bg-blue" role="progressbar" style="width: 0%"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Requirements Section -->
+          <div class="mb-3">
+            <label class="form-label fw-bold">
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" /><path d="M9 14l2 2l4 -4" /></svg>
+              Requirements
+            </label>
+            <div class="text-secondary" id="template-detail-reqs">No requirements specified</div>
+          </div>
+
+          <!-- Extra Prompt Section -->
+          <div class="mb-3">
+            <label class="form-label fw-bold">
+              <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 9h8" /><path d="M8 13h6" /><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12z" /></svg>
+              Extra Prompt
+            </label>
+            <div class="text-secondary" id="template-detail-extra">No extra prompt</div>
+          </div>
+
+          <!-- Template Content Preview -->
+          <div>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <label class="form-label fw-bold mb-0">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 8l-4 4l4 4" /><path d="M17 8l4 4l-4 4" /><path d="M14 4l-4 16" /></svg>
+                Template Content
+              </label>
+              <div class="btn-group btn-group-sm">
+                <button class="btn btn-sm" id="template-preview-copy-btn" type="button" title="Copy to clipboard">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 8m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z" /><path d="M16 8v-2a2 2 0 0 0 -2 -2h-8a2 2 0 0 0 -2 2v8a2 2 0 0 0 2 2h2" /></svg>
+                </button>
+                <button class="btn btn-sm" id="template-preview-expand-btn" type="button" title="Expand">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M16 4l4 0l0 4" /><path d="M14 10l6 -6" /><path d="M8 20l-4 0l0 -4" /><path d="M4 20l6 -6" /></svg>
+                </button>
+              </div>
+            </div>
+            <div class="border rounded p-3 bg-secondary-lt" style="max-height: 400px; overflow-y: auto;">
+              <pre class="mb-0 small" id="template-detail-preview">Loading template content...</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

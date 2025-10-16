@@ -1,0 +1,272 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Documentation - AI Model Analysis Platform{% endblock %}
+
+{% block content %}
+<div class="page-body mt-0">
+    <div class="container-fluid">
+        <!-- Quick Stats -->
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-md-3">
+                    <div class="card card-sm">
+                        <div class="card-body text-center">
+                            <div class="text-primary h1 mb-1">
+                                <i class="fas fa-robot"></i>
+                            </div>
+                            <div class="h3 mb-1">25+</div>
+                            <div class="text-secondary small">AI Models</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card card-sm">
+                        <div class="card-body text-center">
+                            <div class="text-success h1 mb-1">
+                                <i class="fas fa-shield-alt"></i>
+                            </div>
+                            <div class="h3 mb-1">5</div>
+                            <div class="text-secondary small">Analysis Types</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card card-sm">
+                        <div class="card-body text-center">
+                            <div class="text-info h1 mb-1">
+                                <i class="fab fa-docker"></i>
+                            </div>
+                            <div class="h3 mb-1">4</div>
+                            <div class="text-secondary small">Microservices</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card card-sm">
+                        <div class="card-body text-center">
+                            <div class="text-warning h1 mb-1">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="h3 mb-1">Real-time</div>
+                            <div class="text-secondary small">Analytics</div>
+                        </div>
+                    </div>
+                </div>
+            </div>        <!-- Documentation Grid -->
+        <div class="row g-4 mb-4">
+            <!-- Core Documentation -->
+            <div class="col-lg-8">
+                <div class="card h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="card-title text-white mb-0">
+                            <i class="fas fa-book me-2"></i>
+                            Core Documentation
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            {% for doc in docs_files %}
+                                {% if doc.path == 'docs' %}
+                                    <div class="col-md-6">
+                                        <a href="{{ url_for('docs.docs_file', filepath=doc.filename) }}" class="card card-link card-link-pop">
+                                            <div class="card-body">
+                                                <div class="d-flex align-items-center">
+                                                    <div class="me-3">
+                                                        <div class="avatar bg-primary-lt">
+                                                            <i class="fas fa-file-alt"></i>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="font-weight-medium">{{ doc.name }}</div>
+                                                        <div class="text-secondary small mt-1">
+                                                            {% if doc.filename == 'OVERVIEW.md' %}Essential platform introduction{% endif %}
+                                                            {% if doc.filename == 'ARCHITECTURE.md' %}System design and components{% endif %}
+                                                            {% if doc.filename == 'DEVELOPMENT_GUIDE.md' %}Setup and development workflow{% endif %}
+                                                            {% if doc.filename == 'API_REFERENCE.md' %}Complete API documentation{% endif %}
+                                                            {% if doc.filename not in ['OVERVIEW.md', 'ARCHITECTURE.md', 'DEVELOPMENT_GUIDE.md', 'API_REFERENCE.md'] %}Technical documentation{% endif %}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="col-lg-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h3 class="card-title mb-0">
+                            <i class="fas fa-lightning-bolt me-2"></i>
+                            Quick Actions
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-primary">
+                                <i class="fas fa-tachometer-alt me-2"></i>
+                                Go to Dashboard
+                            </a>
+                            <a href="{{ url_for('main.models_overview') }}" class="btn btn-outline-success">
+                                <i class="fas fa-robot me-2"></i>
+                                Browse Models
+                            </a>
+                            <a href="{{ url_for('analysis.analysis_index') }}" class="btn btn-outline-info">
+                                <i class="fas fa-chart-line me-2"></i>
+                                Start Analysis
+                            </a>
+                            <hr class="my-3">
+                            <small class="text-secondary text-center">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Need help? Check the overview first!
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Platform Overview -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-rocket me-2"></i>
+                            What You Can Do
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <div class="feature-icon-lg bg-primary-lt text-primary mb-3">
+                                    <i class="fas fa-code"></i>
+                                </div>
+                                <h4 class="h5">Generate Applications</h4>
+                                <p class="text-secondary mb-0">Create web applications using 25+ AI models from OpenAI, Anthropic, Google, and more.</p>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-icon-lg bg-success-lt text-success mb-3">
+                                    <i class="fas fa-shield-alt"></i>
+                                </div>
+                                <h4 class="h5">Security Analysis</h4>
+                                <p class="text-secondary mb-0">Comprehensive security scanning with static analysis, dynamic testing, and OWASP ZAP integration.</p>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-icon-lg bg-info-lt text-info mb-3">
+                                    <i class="fas fa-tachometer-alt"></i>
+                                </div>
+                                <h4 class="h5">Performance Testing</h4>
+                                <p class="text-secondary mb-0">Real-time performance monitoring with Locust-based load testing and detailed metrics.</p>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="feature-icon-lg bg-warning-lt text-warning mb-3">
+                                    <i class="fas fa-brain"></i>
+                                </div>
+                                <h4 class="h5">AI-Powered Analysis</h4>
+                                <p class="text-secondary mb-0">Advanced code analysis using AI models to identify patterns, issues, and optimization opportunities.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="fas fa-cogs me-2"></i>
+                            Tech Stack
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <div class="text-secondary small mb-1">Backend</div>
+                            <div class="d-flex flex-wrap gap-1 mb-2">
+                                <span class="badge bg-blue-lt text-blue">Flask</span>
+                                <span class="badge bg-green-lt text-green">SQLAlchemy</span>
+                                <span class="badge bg-orange-lt text-orange">Celery</span>
+                                <span class="badge bg-red-lt text-red">Redis</span>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="text-secondary small mb-1">Frontend</div>
+                            <div class="d-flex flex-wrap gap-1 mb-2">
+                                <span class="badge bg-purple-lt text-purple">HTMX</span>
+                                <span class="badge bg-indigo-lt text-indigo">Bootstrap 5</span>
+                                <span class="badge bg-cyan-lt text-cyan">Tabler.io</span>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="text-secondary small mb-1">Infrastructure</div>
+                            <div class="d-flex flex-wrap gap-1">
+                                <span class="badge bg-dark-lt text-dark">Docker</span>
+                                <span class="badge bg-blue-lt text-blue">PostgreSQL</span>
+                                <span class="badge bg-yellow-lt text-yellow">WebSockets</span>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        <div class="text-center">
+                            <a href="{{ url_for('docs.docs_file', filepath='ARCHITECTURE.md') }}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-sitemap me-1"></i>
+                                View Architecture
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Frontend Documentation -->
+        {% if docs_files|selectattr('path', 'equalto', 'docs/frontend')|list|length > 0 %}
+        <div class="row g-4 mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-success text-white">
+                        <h3 class="card-title text-white mb-0">
+                            <i class="fas fa-code me-2"></i>
+                            Frontend Documentation
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            {% for doc in docs_files %}
+                                {% if doc.path == 'docs/frontend' %}
+                                    <div class="col-md-6 col-lg-4">
+                                        <a href="{{ url_for('docs.docs_file', filepath='frontend/' + doc.filename) }}" class="card card-link">
+                                            <div class="card-body">
+                                                <div class="d-flex align-items-center">
+                                                    <div class="me-3">
+                                                        <div class="avatar bg-success-lt">
+                                                            <i class="fas fa-file-code"></i>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div class="font-weight-medium">{{ doc.name }}</div>
+                                                        <div class="text-secondary small mt-1">Frontend development guide</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Custom Styles -->
+
+{% endblock %}

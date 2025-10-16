@@ -1,0 +1,129 @@
+{# Task Detail Main Content with Tabs #}
+
+<!-- Main Tabbed Interface -->
+<div class="card" id="task-detail-main-card">
+  <div class="card-header">
+    <ul class="nav nav-tabs card-header-tabs" id="task-tabs" data-bs-toggle="tabs" aria-label="Task Detail Sections">
+      <li class="nav-item">
+        <a href="#overview" class="nav-link active" id="overview-tab" data-bs-toggle="tab">
+          <i class="fas fa-chart-line me-2" aria-hidden="true"></i>Overview
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="#security" class="nav-link" id="security-tab" data-bs-toggle="tab">
+          <i class="fas fa-shield-halved me-2" aria-hidden="true"></i>Security
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="#performance" class="nav-link" id="performance-tab" data-bs-toggle="tab">
+          <i class="fas fa-tachometer-alt me-2" aria-hidden="true"></i>Performance
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="#quality" class="nav-link" id="quality-tab" data-bs-toggle="tab">
+          <i class="fas fa-code me-2" aria-hidden="true"></i>Code Quality
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="#requirements" class="nav-link" id="requirements-tab" data-bs-toggle="tab">
+          <i class="fas fa-robot me-2" aria-hidden="true"></i>AI Requirements
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="#tools" class="nav-link" id="tools-tab" data-bs-toggle="tab">
+          <i class="fas fa-tools me-2" aria-hidden="true"></i>Tools
+        </a>
+      </li>
+      <li class="nav-item">
+        <a href="#explorer" class="nav-link" id="explorer-tab" data-bs-toggle="tab">
+          <i class="fas fa-database me-2" aria-hidden="true"></i>Raw Data
+        </a>
+      </li>
+    </ul>
+  </div>
+  <div class="card-body">
+    <div class="tab-content">
+      
+      <!-- Overview Tab -->
+      <div class="tab-pane active show" id="overview" role="tabpanel" aria-labelledby="overview-tab" data-tab="overview">
+        <div id="overview-content" data-tab-content="overview">
+          <div class="d-flex justify-content-center p-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading overview...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Security Tab -->
+      <div class="tab-pane" id="security" role="tabpanel" aria-labelledby="security-tab" data-tab="security">
+        <div id="security-content" data-tab-content="security">
+          <div class="d-flex justify-content-center p-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading security analysis...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Performance Tab -->
+      <div class="tab-pane" id="performance" role="tabpanel" aria-labelledby="performance-tab" data-tab="performance">
+        <div id="performance-content" data-tab-content="performance">
+          <div class="d-flex justify-content-center p-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading performance analysis...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Code Quality Tab -->
+      <div class="tab-pane" id="quality" role="tabpanel" aria-labelledby="quality-tab" data-tab="quality">
+        <div id="quality-content" data-tab-content="quality">
+          <div class="d-flex justify-content-center p-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading quality analysis...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- AI Requirements Tab -->
+      <div class="tab-pane" id="requirements" role="tabpanel" aria-labelledby="requirements-tab" data-tab="requirements">
+        <div id="requirements-content" data-tab-content="requirements">
+          <div class="d-flex justify-content-center p-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading AI requirements analysis...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Tools Tab -->
+      <div class="tab-pane" id="tools" role="tabpanel" aria-labelledby="tools-tab" data-tab="tools">
+        <div id="tools-content" data-tab-content="tools">
+          <div class="d-flex justify-content-center p-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading tools analysis...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Raw Data Explorer Tab -->
+      <div class="tab-pane" id="explorer" role="tabpanel" aria-labelledby="explorer-tab">
+        <div id="explorer-content" 
+             hx-get="/analysis/api/tasks/{{ task.task_id }}/tabs/explorer" 
+             hx-trigger="load delay:100ms from:#explorer-tab">
+          <div class="d-flex justify-content-center p-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading raw data explorer...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+</div>
+

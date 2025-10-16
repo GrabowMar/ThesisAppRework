@@ -1,0 +1,32 @@
+{# HTMX fragment: recent generation results table body rows #}
+{% if recent and recent|length %}
+  {% for r in recent %}
+    {% set ts = r.timestamp %}
+    {% if ts is string %}
+      {% set timestamp = ts %}
+    {% elif ts and ts.strftime is defined %}
+      {% set timestamp = ts.strftime('%Y-%m-%d %H:%M:%S') %}
+    {% else %}
+      {% set timestamp = '-' %}
+    {% endif %}
+    <tr>
+      <td>{{ timestamp }}</td>
+      <td>{{ r.app_name or ('App #' ~ (r.app_num or '?')) }}</td>
+      <td>{{ r.model or '—' }}</td>
+      <td>
+        <span class="badge {{ 'bg-success' if r.success else 'bg-danger' }}">
+          {{ 'Success' if r.success else 'Failed' }}
+        </span>
+      </td>
+      <td>{{ '%.1fs'|format(r.duration) if r.duration else '-' }}</td>
+      <td class="text-end">
+        <button type="button" class="btn btn-sm btn-outline-primary"
+                onclick="window.sampleGeneratorAppInstance?.viewResult('{{ r.result_id }}')">
+          View
+        </button>
+      </td>
+    </tr>
+  {% endfor %}
+{% else %}
+  <tr><td colspan="6" class="text-center text-muted py-4">No recent generations</td></tr>
+{% endif %}

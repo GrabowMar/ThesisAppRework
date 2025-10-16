@@ -1,0 +1,23 @@
+{
+  "app_id": "base64_converter",
+  "name": "Base64 Encoder/Decoder",
+  "description": "A simple tool to encode text to Base64 and decode Base64 back to text",
+  "backend_requirements": [
+    "Endpoint to encode plain text to Base64 format",
+    "Endpoint to decode Base64 string back to plain text",
+    "Handle encoding/decoding errors gracefully with proper error messages",
+    "Support for UTF-8 text encoding",
+    "Store conversion history with timestamps in SQLite database",
+    "Provide endpoint to retrieve conversion history"
+  ],
+  "frontend_requirements": [
+    "Text area for input (plain text or Base64)",
+    "Toggle or tabs to switch between Encode and Decode modes",
+    "Submit button to perform encoding/decoding",
+    "Text area to display the result",
+    "Copy to clipboard button for the result",
+    "Display conversion history with timestamps",
+    "Clear input/output button",
+    "Error messages for invalid Base64 input during decode"
+  ]
+}

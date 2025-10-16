@@ -1,0 +1,47 @@
+{# Enhanced Page Header Component #}
+{% macro enhanced_page_header(title, subtitle=None, icon=None, actions=None, breadcrumb=None) %}
+<div class="mb-4">
+  <div class="row align-items-center">
+    <div class="col-auto">
+      {% if icon %}
+      <div class="page-icon">
+        <i class="{{ icon }} text-primary"></i>
+      </div>
+      {% endif %}
+    </div>
+    <div class="col">
+      {% if breadcrumb %}
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb breadcrumb-dots mb-1">
+          {% for item in breadcrumb %}
+          <li class="breadcrumb-item{% if loop.last %} active{% endif %}">
+            {% if item.url and not loop.last %}
+              <a href="{{ item.url }}">{{ item.title }}</a>
+            {% else %}
+              {{ item.title }}
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ol>
+      </nav>
+      {% endif %}
+      <h1 class="page-title mb-0">{{ title }}</h1>
+      {% if subtitle %}
+      <p class="text-muted mt-1 mb-0">{{ subtitle }}</p>
+      {% endif %}
+    </div>
+    {% if actions %}
+    <div class="col-auto ms-auto">
+      <div class="btn-list">
+        {% for action in actions %}
+        <a href="{{ action.href }}" class="btn {{ action.class|default('btn-outline-primary') }}">
+          {% if action.icon %}<i class="{{ action.icon }} me-1"></i>{% endif %}
+          {{ action.label }}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}

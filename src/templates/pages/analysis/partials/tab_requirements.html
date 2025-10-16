@@ -1,0 +1,521 @@
+{# AI Requirements Tab - AI analysis and requirements compliance #}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h5 class="mb-0">
+    <i class="fas fa-robot text-success me-2"></i>AI Requirements Analysis
+  </h5>
+  <div class="d-flex gap-2">
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+        <i class="fas fa-filter me-1"></i>Filter
+      </button>
+      <ul class="dropdown-menu">
+        <li><a class="dropdown-item" href="#" onclick="filterRequirements('all')">All Requirements</a></li>
+        <li><a class="dropdown-item" href="#" onclick="filterRequirements('met')">Met Only</a></li>
+        <li><a class="dropdown-item" href="#" onclick="filterRequirements('not-met')">Not Met Only</a></li>
+        <li><a class="dropdown-item" href="#" onclick="filterRequirements('high')">High Priority</a></li>
+      </ul>
+    </div>
+    <button class="btn btn-outline-info btn-sm" onclick="exportRequirementsReport()">
+      <i class="fas fa-download me-1"></i>Export Report
+    </button>
+  </div>
+</div>
+
+<!-- Requirements Summary -->
+<div class="row g-3 mb-4">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-2">
+          <strong>Requirements Compliance Summary</strong>
+        </div>
+        <div id="compliance-badge">
+          <span class="badge bg-secondary">Loading...</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <div class="text-muted small">Total Requirements</div>
+            <div class="h4 mb-0" id="total-requirements">-</div>
+          </div>
+          <div class="col-md-3">
+            <div class="text-muted small">Met</div>
+            <div class="h4 mb-0 text-success" id="met-requirements">-</div>
+          </div>
+          <div class="col-md-3">
+            <div class="text-muted small">Not Met</div>
+            <div class="h4 mb-0 text-danger" id="not-met-requirements">-</div>
+          </div>
+          <div class="col-md-3">
+            <div class="text-muted small">Compliance</div>
+            <div class="h4 mb-0" id="compliance-percentage">-</div>
+          </div>
+        </div>
+        
+        <div class="mt-3">
+          <div class="text-muted small mb-1">Overall Compliance Progress</div>
+          <div class="progress">
+            <div class="progress-bar" id="compliance-progress"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="fas fa-info-circle text-info"></i>
+        <strong>Analysis Details</strong>
+      </div>
+      <div class="card-body">
+        <div id="analysis-metadata">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted small">Analysis Status:</span>
+            <span class="badge bg-secondary" id="analysis-status">Loading...</span>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted small">Target Model:</span>
+            <span class="small" id="target-model">{{ task.target_model }}</span>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted small">Application:</span>
+            <span class="small">#{{ task.target_app_number }}</span>
+          </div>
+          <div class="d-flex justify-content-between mb-2">
+            <span class="text-muted small">Analysis Time:</span>
+            <span class="small" id="analysis-time">-</span>
+          </div>
+          <div class="d-flex justify-content-between">
+            <span class="text-muted small">Configuration:</span>
+            <span class="small" id="config-applied">-</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Requirements Details -->
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <div class="d-flex align-items-center gap-2">
+      <strong>Detailed Requirements Analysis</strong>
+      <span class="badge bg-primary-lt" id="requirements-count">Loading...</span>
+    </div>
+    <div class="btn-group btn-group-sm">
+      <button class="btn btn-outline-secondary" onclick="expandAll()">Expand All</button>
+      <button class="btn btn-outline-secondary" onclick="collapseAll()">Collapse All</button>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    <div id="requirements-list">
+      <div class="d-flex justify-content-center p-4">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading requirements analysis...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AI Analysis Insights -->
+<div class="card mt-4">
+  <div class="card-header d-flex align-items-center gap-2">
+    <i class="fas fa-brain text-purple"></i>
+    <strong>AI Analysis Insights</strong>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="alert alert-info py-2">
+          <h6 class="alert-heading mb-1">
+            <i class="fas fa-shield-alt me-1"></i>Security Features
+          </h6>
+          <div id="security-features-summary">Loading security analysis...</div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="alert alert-warning py-2">
+          <h6 class="alert-heading mb-1">
+            <i class="fas fa-user-check me-1"></i>Authentication
+          </h6>
+          <div id="auth-features-summary">Loading authentication analysis...</div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="alert alert-success py-2">
+          <h6 class="alert-heading mb-1">
+            <i class="fas fa-sitemap me-1"></i>Frontend Architecture
+          </h6>
+          <div id="frontend-summary">Loading frontend analysis...</div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="alert alert-primary py-2">
+          <h6 class="alert-heading mb-1">
+            <i class="fas fa-server me-1"></i>Backend Architecture
+          </h6>
+          <div id="backend-summary">Loading backend analysis...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let requirementsData = null;
+let allRequirements = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+  loadRequirementsData();
+});
+
+async function loadRequirementsData() {
+  try {
+    const response = await fetch('/analysis/api/tasks/{{ task.task_id }}/results.json');
+    const data = await response.json();
+    
+    if (data.results && data.results.services && data.results.services['ai-analyzer']) {
+      const aiData = data.results.services['ai-analyzer'];
+      
+      if (aiData.raw_outputs && aiData.raw_outputs.analysis && aiData.raw_outputs.analysis.results) {
+        requirementsData = aiData.raw_outputs.analysis.results;
+        allRequirements = requirementsData.requirement_checks || [];
+        
+        updateRequirementsSummary(requirementsData);
+        updateAnalysisMetadata(aiData.raw_outputs.analysis);
+        renderRequirementsList(allRequirements);
+        updateAiInsights(allRequirements);
+      } else {
+        showNoRequirementsData();
+      }
+    } else {
+      showNoRequirementsData();
+    }
+  } catch (error) {
+    console.error('Error loading requirements data:', error);
+    showRequirementsError();
+  }
+}
+
+function updateRequirementsSummary(data) {
+  const summary = data.summary || {};
+  
+  const totalReqs = summary.total_requirements || 0;
+  const metReqs = summary.requirements_met || 0;
+  const notMetReqs = summary.requirements_not_met || 0;
+  const compliancePercent = summary.compliance_percentage || 0;
+  
+  document.getElementById('total-requirements').textContent = totalReqs;
+  document.getElementById('met-requirements').textContent = metReqs;
+  document.getElementById('not-met-requirements').textContent = notMetReqs;
+  document.getElementById('compliance-percentage').textContent = compliancePercent.toFixed(1) + '%';
+  document.getElementById('requirements-count').textContent = totalReqs;
+  
+  // Update progress bar
+  const progressBar = document.getElementById('compliance-progress');
+  progressBar.style.width = compliancePercent + '%';
+  
+  if (compliancePercent >= 80) {
+    progressBar.className = 'progress-bar bg-success';
+  } else if (compliancePercent >= 60) {
+    progressBar.className = 'progress-bar bg-warning';
+  } else {
+    progressBar.className = 'progress-bar bg-danger';
+  }
+  
+  // Update compliance badge
+  const badge = document.getElementById('compliance-badge');
+  let badgeClass = 'bg-danger';
+  let badgeText = 'Low Compliance';
+  
+  if (compliancePercent >= 80) {
+    badgeClass = 'bg-success';
+    badgeText = 'High Compliance';
+  } else if (compliancePercent >= 60) {
+    badgeClass = 'bg-warning';
+    badgeText = 'Medium Compliance';
+  }
+  
+  badge.innerHTML = `<span class="badge ${badgeClass}">${badgeText}</span>`;
+}
+
+function updateAnalysisMetadata(analysisData) {
+  document.getElementById('analysis-status').textContent = 
+    analysisData.results?.summary?.analysis_status || 'Unknown';
+  
+  document.getElementById('analysis-time').textContent = 
+    analysisData.analysis_time ? new Date(analysisData.analysis_time).toLocaleString() : '-';
+  
+  document.getElementById('config-applied').textContent = 
+    analysisData.configuration_applied ? 'Yes' : 'No';
+}
+
+function renderRequirementsList(requirements) {
+  if (requirements.length === 0) {
+    document.getElementById('requirements-list').innerHTML = 
+      '<div class="text-center p-4 text-muted">No requirements data available</div>';
+    return;
+  }
+  
+  let html = '<div class="accordion" id="requirementsAccordion">';
+  
+  requirements.forEach((req, index) => {
+    const result = req.result || {};
+    const isMet = result.met === true;
+    const confidence = result.confidence || 'UNKNOWN';
+    const explanation = result.explanation || 'No explanation provided';
+    
+    // Extract priority from requirement text
+    const priority = getPriorityFromRequirement(req.requirement);
+    const priorityClass = priority === 'HIGH' ? 'text-danger' : 
+                         priority === 'MEDIUM' ? 'text-warning' : 'text-info';
+    
+    html += `
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="heading${index}">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                  data-bs-target="#collapse${index}" aria-expanded="false">
+            <div class="d-flex align-items-center justify-content-between w-100 me-3">
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge ${isMet ? 'bg-success' : 'bg-danger'}">
+                  <i class="fas ${isMet ? 'fa-check' : 'fa-times'}"></i>
+                </span>
+                <span class="${priorityClass} fw-bold">[${priority}]</span>
+                <span class="fw-semibold">${getRequirementTitle(req.requirement)}</span>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-secondary-lt">${confidence}</span>
+              </div>
+            </div>
+          </button>
+        </h2>
+        <div id="collapse${index}" class="accordion-collapse collapse" 
+             data-bs-parent="#requirementsAccordion">
+          <div class="accordion-body">
+            <div class="row g-3">
+              <div class="col-md-8">
+                <h6>Requirement Description:</h6>
+                <p class="text-muted">${req.requirement}</p>
+                
+                <h6>Analysis Result:</h6>
+                <div class="alert ${isMet ? 'alert-success' : 'alert-danger'} py-2">
+                  <strong>Status:</strong> ${isMet ? 'REQUIREMENT MET' : 'REQUIREMENT NOT MET'}
+                </div>
+                
+                <h6>AI Explanation:</h6>
+                <p>${explanation}</p>
+              </div>
+              
+              <div class="col-md-4">
+                <div class="card card-sm">
+                  <div class="card-body py-2">
+                    <div class="d-flex justify-content-between mb-1">
+                      <span class="text-muted small">Status:</span>
+                      <span class="badge ${isMet ? 'bg-success' : 'bg-danger'}">${isMet ? 'Met' : 'Not Met'}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                      <span class="text-muted small">Confidence:</span>
+                      <span class="small">${confidence}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                      <span class="text-muted small">Priority:</span>
+                      <span class="small ${priorityClass}">${priority}</span>
+                    </div>
+                    ${result.error ? `
+                      <div class="mt-2">
+                        <span class="text-muted small">Error:</span>
+                        <div class="small text-danger">${result.error}</div>
+                      </div>
+                    ` : ''}
+                  </div>
+                </div>
+                
+                ${!isMet ? `
+                  <div class="mt-2">
+                    <button class="btn btn-outline-primary btn-sm w-100" onclick="suggestSolution(${index})">
+                      <i class="fas fa-lightbulb me-1"></i>Suggest Solution
+                    </button>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+  
+  html += '</div>';
+  document.getElementById('requirements-list').innerHTML = html;
+}
+
+function getPriorityFromRequirement(requirement) {
+  if (requirement.includes('HIGH') || requirement.includes('Protected Content') || requirement.includes('Client-Side View')) {
+    return 'HIGH';
+  } else if (requirement.includes('MEDIUM') || requirement.includes('User Registration') || requirement.includes('Session Management')) {
+    return 'MEDIUM';
+  }
+  return 'LOW';
+}
+
+function getRequirementTitle(requirement) {
+  // Extract the title part before the :: if present
+  const parts = requirement.split('::');
+  return parts[0].replace(/\[.*?\]\s*/, '').trim();
+}
+
+function updateAiInsights(requirements) {
+  // Security features analysis
+  const securityReqs = requirements.filter(r => 
+    r.requirement.toLowerCase().includes('security') || 
+    r.requirement.toLowerCase().includes('password') ||
+    r.requirement.toLowerCase().includes('authentication')
+  );
+  const securityMet = securityReqs.filter(r => r.result?.met).length;
+  
+  document.getElementById('security-features-summary').innerHTML = 
+    `<small>${securityMet}/${securityReqs.length} security requirements met. ${
+      securityMet === securityReqs.length ? 'Good security coverage!' : 'Needs security improvements.'
+    }</small>`;
+  
+  // Authentication analysis
+  const authReqs = requirements.filter(r => 
+    r.requirement.toLowerCase().includes('login') || 
+    r.requirement.toLowerCase().includes('session') ||
+    r.requirement.toLowerCase().includes('authentication')
+  );
+  const authMet = authReqs.filter(r => r.result?.met).length;
+  
+  document.getElementById('auth-features-summary').innerHTML = 
+    `<small>${authMet}/${authReqs.length} authentication requirements met. ${
+      authMet === authReqs.length ? 'Authentication properly implemented!' : 'Authentication needs work.'
+    }</small>`;
+  
+  // Frontend analysis
+  const frontendReqs = requirements.filter(r => 
+    r.requirement.toLowerCase().includes('view') || 
+    r.requirement.toLowerCase().includes('form') ||
+    r.requirement.toLowerCase().includes('client-side')
+  );
+  const frontendMet = frontendReqs.filter(r => r.result?.met).length;
+  
+  document.getElementById('frontend-summary').innerHTML = 
+    `<small>${frontendMet}/${frontendReqs.length} frontend requirements met. ${
+      frontendMet === frontendReqs.length ? 'Frontend well implemented!' : 'Frontend needs development.'
+    }</small>`;
+  
+  // Backend analysis
+  const backendReqs = requirements.filter(r => 
+    r.requirement.toLowerCase().includes('endpoint') || 
+    r.requirement.toLowerCase().includes('api') ||
+    r.requirement.toLowerCase().includes('post') ||
+    r.requirement.toLowerCase().includes('get')
+  );
+  const backendMet = backendReqs.filter(r => r.result?.met).length;
+  
+  document.getElementById('backend-summary').innerHTML = 
+    `<small>${backendMet}/${backendReqs.length} backend requirements met. ${
+      backendMet === backendReqs.length ? 'Backend well implemented!' : 'Backend needs development.'
+    }</small>`;
+}
+
+function filterRequirements(filter) {
+  let filteredReqs = allRequirements;
+  
+  if (filter === 'met') {
+    filteredReqs = allRequirements.filter(r => r.result?.met === true);
+  } else if (filter === 'not-met') {
+    filteredReqs = allRequirements.filter(r => r.result?.met === false);
+  } else if (filter === 'high') {
+    filteredReqs = allRequirements.filter(r => getPriorityFromRequirement(r.requirement) === 'HIGH');
+  }
+  
+  renderRequirementsList(filteredReqs);
+}
+
+function expandAll() {
+  document.querySelectorAll('#requirementsAccordion .accordion-collapse').forEach(el => {
+    el.classList.add('show');
+  });
+  document.querySelectorAll('#requirementsAccordion .accordion-button').forEach(el => {
+    el.classList.remove('collapsed');
+    el.setAttribute('aria-expanded', 'true');
+  });
+}
+
+function collapseAll() {
+  document.querySelectorAll('#requirementsAccordion .accordion-collapse').forEach(el => {
+    el.classList.remove('show');
+  });
+  document.querySelectorAll('#requirementsAccordion .accordion-button').forEach(el => {
+    el.classList.add('collapsed');
+    el.setAttribute('aria-expanded', 'false');
+  });
+}
+
+function suggestSolution(index) {
+  const req = allRequirements[index];
+  if (!req) return;
+  
+  // Simple solution suggestions based on requirement type
+  let suggestion = "Consider implementing the missing functionality as described in the requirement.";
+  
+  if (req.requirement.toLowerCase().includes('endpoint')) {
+    suggestion = "Create the missing API endpoint with proper request/response handling.";
+  } else if (req.requirement.toLowerCase().includes('form')) {
+    suggestion = "Implement the required form with proper validation and user interface.";
+  } else if (req.requirement.toLowerCase().includes('authentication')) {
+    suggestion = "Add authentication middleware and session management functionality.";
+  } else if (req.requirement.toLowerCase().includes('protected')) {
+    suggestion = "Implement route protection and access control mechanisms.";
+  }
+  
+  alert(`Suggestion for "${getRequirementTitle(req.requirement)}":\n\n${suggestion}`);
+}
+
+function exportRequirementsReport() {
+  if (!requirementsData) return;
+  
+  const report = {
+    analysis_metadata: {
+      task_id: "{{ task.task_id }}",
+      model: "{{ task.target_model }}",
+      app_number: {{ task.target_app_number }},
+      timestamp: new Date().toISOString()
+    },
+    summary: requirementsData.summary,
+    requirements: allRequirements
+  };
+  
+  const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `requirements-report-{{ task.task_id }}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function showNoRequirementsData() {
+  document.getElementById('requirements-list').innerHTML = 
+    '<div class="text-center p-4 text-muted">No AI requirements analysis data available</div>';
+  
+  ['total-requirements', 'met-requirements', 'not-met-requirements'].forEach(id => {
+    document.getElementById(id).textContent = '0';
+  });
+  
+  document.getElementById('compliance-percentage').textContent = '0%';
+  document.getElementById('analysis-status').textContent = 'Not Available';
+}
+
+function showRequirementsError() {
+  document.getElementById('requirements-list').innerHTML = 
+    '<div class="text-center p-4 text-danger">Error loading requirements analysis data</div>';
+}
+</script>

@@ -1,0 +1,62 @@
+{% set components = system.components or [] %}
+{% if components %}
+<table class="table table-striped table-vcenter table-hover table-sm card-table mb-0">
+  <thead>
+    <tr>
+      <th class="w-1">Status</th>
+      <th>Service</th>
+      <th>Message</th>
+      <th class="w-1 text-nowrap">Health</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for component in components %}
+    {% set status = component.status or 'unknown' %}
+    {% set tone = {
+      'healthy': 'success',
+      'warning': 'warning',
+      'degraded': 'warning',
+      'unhealthy': 'danger',
+      'error': 'danger',
+      'not_configured': 'secondary',
+      'unknown': 'secondary'
+    }.get(status, 'secondary') %}
+    <tr>
+      <td>
+        <span class="status-dot status-dot-animated bg-{{ tone }}"></span>
+      </td>
+      <td class="text-nowrap">
+        <div class="d-flex align-items-center gap-2">
+          {% if status == 'healthy' %}
+            <i class="fas fa-check-circle text-success"></i>
+          {% elif status in ['warning', 'degraded'] %}
+            <i class="fas fa-exclamation-triangle text-warning"></i>
+          {% elif status in ['unhealthy', 'error'] %}
+            <i class="fas fa-times-circle text-danger"></i>
+          {% else %}
+            <i class="fas fa-question-circle text-muted"></i>
+          {% endif %}
+          <strong>{{ component.label }}</strong>
+        </div>
+      </td>
+      <td>
+        <span class="text-truncate">{{ component.message or '—' }}</span>
+      </td>
+      <td>
+        <span class="badge bg-{{ tone }}-lt">{{ status|title }}</span>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">
+  <div class="empty-icon">
+    <i class="fas fa-server text-muted"></i>
+  </div>
+  <p class="empty-title">No system status available</p>
+  <p class="empty-subtitle text-muted">
+    System status information is currently unavailable.
+  </p>
+</div>
+{% endif %}

@@ -1,0 +1,96 @@
+{# Unified Base Layout: self-contained (no longer extends main.html) #}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>{% block title %}Thesis Platform{% endblock %}</title>
+  <script>
+  (function(){
+    try {
+      var stored = localStorage.getItem('app_theme');
+      var prefers = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var t = stored || (prefers ? 'dark':'light');
+      document.documentElement.setAttribute('data-bs-theme', t);
+      document.documentElement.setAttribute('data-theme', t);
+      if(localStorage.getItem('sidebarPref')==='collapsed'){
+        document.documentElement.classList.add('sidebar-init');
+        document.body && document.body.classList.add('sidebar-collapsed');
+      }
+    } catch(_){}
+  })();
+  </script>
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="preconnect" href="https://rsms.me">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta19/dist/css/tabler.min.css">
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+  {% block head_styles %}{% endblock %}
+</head>
+<body id="app-body">
+  <div class="page">
+    {% include 'shared/ui/sidebar.html' %}
+    <div class="sidebar-backdrop d-lg-none" id="sidebar-backdrop" aria-hidden="true"></div>
+    {% include 'shared/ui/header.html' %}
+    {% set has_right_sidebar = has_right_sidebar|default(false) %}
+    <div class="page-wrapper{% if has_right_sidebar %} has-right-sidebar{% endif %}{% if active_page %} page-{{ active_page }}{% endif %}">
+      <div class="page-body py-3">
+        <div class="container-xl page-body-container">
+          <div id="global-spinner" class="htmx-indicator text-center mb-3" aria-live="polite">
+            <div class="spinner-border text-primary spinner-border-sm me-2" role="status"></div>
+            <span class="small text-muted">Loading…</span>
+          </div>
+          <div class="row gx-4 gy-4 align-items-start">
+            <div class="col-12{% if has_right_sidebar %} col-lg-9 col-xl-9{% endif %}">
+              {% block main %}{% block content %}{% endblock %}{% endblock %}
+            </div>
+            {% if has_right_sidebar %}
+            <div class="col-12 col-lg-3 col-xl-3">
+              {% block right_sidebar %}{% endblock %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% include 'shared/ui/footer.html' %}
+
+  <!-- Modals / global components -->
+  <div class="modal modal-blur fade" id="search-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Search</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><input type="text" class="form-control" placeholder="Search..." autofocus></div></div></div>
+  </div>
+
+  <!-- JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta19/dist/js/tabler.min.js"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
+  <script src="{{ url_for('static', filename='js/sidebar.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script>
+  // Highlight active nav via data-nav-target matching active_page, fallback to path heuristic
+  (function(){
+    try {
+  var active = '{{ active_page|default("") }}';
+      if(!active){
+        var p = window.location.pathname;
+        if(p.startsWith('/applications')) active='applications';
+        else if(p.startsWith('/models')) active='models';
+        else if(p.startsWith('/analysis')) active='analysis';
+        else if(p.startsWith('/reports')) active='reports';
+        else if(p.startsWith('/statistics')) active='statistics';
+        else active='dashboard';
+      }
+      document.querySelectorAll('[data-nav-target]')
+        .forEach(el=> el.classList.toggle('active', el.getAttribute('data-nav-target')===active));
+    } catch(_) {}
+  })();
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

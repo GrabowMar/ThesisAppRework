@@ -1,0 +1,28 @@
+{# AI Models Overview - layout refactored: actions moved to right sidebar #}
+{% extends 'layouts/base.html' %}
+{% set has_right_sidebar = false %}
+{% set page_title = 'Models' %}
+{% set page_icon = 'fa-solid fa-brain' %}
+{% set page_subtitle = 'Interactive catalog of models' %}
+{# Global safe default so both content and right_sidebar blocks can see it #}
+{% if models_stats is not defined %}
+  {% set models_stats = {
+    'total_models': 0,
+    'active_models': 0,
+    'unique_providers': 0,
+    'avg_cost_per_1k': 0
+  } %}
+{% endif %}
+{% block content %}
+  <div id="models-overview-root">
+    {% include 'pages/models/partials/_overview_content.html' %}
+  </div>
+{% endblock %}
+
+{% block right_sidebar %}{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='js/models.js') }}" defer></script>
+  
+{% endblock %}

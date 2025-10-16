@@ -1,0 +1,87 @@
+{% if applications and applications|length > 0 %}
+  <div class="card mb-2">
+    <div class="table-responsive">
+      <table class="table table-sm table-striped table-vcenter card-table mb-0"
+             aria-label="Applications for selected model"
+             id="applications-selection-table">
+        <thead>
+          <tr>
+            <th aria-hidden="true"></th>
+            <th class="text-nowrap">App #</th>
+            <th>Status</th>
+            <th>Type</th>
+            <th>Framework</th>
+            <th>Description</th>
+            <th>Ports</th>
+            <th class="text-nowrap text-end">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for app in applications %}
+            {% set app_metadata = app.get_metadata() %}
+            {% set ports = app.get_ports() %}
+            <tr class="app-row app-card" data-app="{{ app.app_number }}" onclick="selectApp('{{ app.app_number }}', {})">
+              <td class="text-muted"><i class="fa-solid fa-window-maximize"></i></td>
+              <td class="fw-semibold text-nowrap">#{{ app.app_number }}</td>
+              <td>
+                <span class="badge bg-{{ 'success' if app.container_status == 'running' else 'warning' if app.container_status == 'stopped' else 'secondary' }} text-uppercase">
+                  {% if app.container_status == 'running' %}
+                    <i class="fas fa-play me-1"></i>{{ app.container_status }}
+                  {% elif app.container_status == 'stopped' %}
+                    <i class="fas fa-stop me-1"></i>{{ app.container_status }}
+                  {% else %}
+                    <i class="fas fa-question me-1"></i>{{ app.container_status or 'unknown' }}
+                  {% endif %}
+                </span>
+              </td>
+              <td><span class="badge bg-secondary-lt text-secondary">{{ app.app_type or 'Unknown' }}</span></td>
+              <td class="small">
+                {% if app.backend_framework %}
+                  <span class="badge bg-info text-dark me-1">{{ app.backend_framework }}</span>
+                {% endif %}
+                {% if app.frontend_framework %}
+                  <span class="badge bg-success text-dark">{{ app.frontend_framework }}</span>
+                {% endif %}
+                {% if not app.backend_framework and not app.frontend_framework %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="small">
+                {% if app_metadata.get('description') %}
+                  {{ app_metadata.get('description')[:120] }}{% if app_metadata.get('description')|length > 120 %}…{% endif %}
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="small">
+                {% if ports and (ports.get('frontend') or ports.get('backend')) %}
+                  {% if ports.get('frontend') %}
+                    <span class="badge bg-primary-lt text-primary me-1">FE {{ ports.get('frontend') }}</span>
+                  {% endif %}
+                  {% if ports.get('backend') %}
+                    <span class="badge bg-secondary-lt text-secondary">BE {{ ports.get('backend') }}</span>
+                  {% endif %}
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <button type="button" class="btn btn-sm btn-outline-success" onclick="event.stopPropagation(); selectApp('{{ app.app_number }}', {})">Select</button>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="mt-1 small text-muted">
+    {% set running_count = applications|selectattr('container_status', 'equalto', 'running')|list|length %}
+    Showing {{ applications|length }} application{{ 's' if applications|length != 1 else '' }}{% if running_count > 0 %}, <span class="text-success">{{ running_count }} running</span>{% endif %}.
+  </div>
+{% else %}
+  <div class="p-4 text-center text-muted">
+    <i class="fas fa-info-circle fa-2x mb-2"></i>
+    <p class="mb-0">No applications found for this model.</p>
+    <small class="text-muted">Applications may not have been generated yet, or may have been removed.</small>
+  </div>
+{% endif %}

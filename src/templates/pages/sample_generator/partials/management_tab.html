@@ -1,0 +1,120 @@
+{# Management & Logs - System Status and Activity Monitoring #}
+<div class="alert alert-teal mb-4">
+  <div class="d-flex">
+    <div>
+      <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 8l0 4" /><path d="M12 16l.01 0" /></svg>
+    </div>
+    <div>
+      <h4 class="alert-title">System Management</h4>
+      <div class="text-secondary">Monitor system health, view logs, and perform administrative tasks</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <!-- System Status -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12h4l3 8l4 -16l3 8h4" /></svg>
+          System Status
+        </h3>
+        <div class="card-actions">
+          <button id="refresh-system-status-btn" class="btn btn-sm btn-ghost-secondary" type="button" title="Refresh status">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="datagrid">
+          <div class="datagrid-item">
+            <div class="datagrid-title">Service Status</div>
+            <div class="datagrid-content">
+              <span class="badge bg-green" id="system-status">Active</span>
+            </div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">In-Flight Requests</div>
+            <div class="datagrid-content" id="in-flight-count">0</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Available Slots</div>
+            <div class="datagrid-content" id="available-slots">0</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Max Concurrent</div>
+            <div class="datagrid-content" id="max-concurrent">0</div>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer text-muted" id="system-status-timestamp">
+        Last updated: <span class="fst-italic">Never</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11" /></svg>
+          Quick Actions
+        </h3>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <button id="force-refresh-btn" class="btn btn-primary" type="button">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+            Refresh All Data
+          </button>
+          <button id="reload-templates-management-btn" class="btn" type="button">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /></svg>
+            Reload Templates
+          </button>
+          <button id="view-generated-folder-btn" class="btn" type="button" data-path="generated/apps">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2" /></svg>
+            Open Generated Apps
+          </button>
+        </div>
+        <div class="alert alert-yellow mt-3 mb-0">
+          <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v4" /><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" /><path d="M12 16h.01" /></svg>
+          Template changes require page refresh
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Activity Log -->
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">
+      <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6l0 13" /><path d="M12 6l0 13" /><path d="M21 6l0 13" /></svg>
+      Activity Log
+    </h3>
+    <div class="card-subtitle">Real-time generation activity</div>
+    <div class="card-actions btn-actions">
+      <button id="refresh-logs-btn" class="btn btn-sm btn-ghost-secondary" type="button" title="Refresh logs">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+      </button>
+      <button id="clear-logs-display-btn" class="btn btn-sm btn-ghost-secondary" type="button" title="Clear display">
+        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 7l16 0" /><path d="M10 11l0 6" /><path d="M14 11l0 6" /><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12" /><path d="M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3" /></svg>
+      </button>
+    </div>
+  </div>
+  <div class="card-body border-bottom">
+    <div class="mb-2">
+      <label for="log-filter" class="form-label">Filter logs</label>
+      <input type="text" class="form-control" id="log-filter" placeholder="Type to filter log entries...">
+    </div>
+  </div>
+  <div class="card-body bg-secondary-lt" style="max-height: 450px; overflow-y: auto;">
+    <pre class="mb-0 small text-monospace" id="management-log">No activity logged yet. Start a generation to see logs here.</pre>
+  </div>
+  <div class="card-footer text-muted">
+    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-inline me-1" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 8l0 4" /><path d="M12 16l.01 0" /></svg>
+    Logs stored in <code>generated/apps/_logs/</code> for each generation run
+  </div>
+</div>
