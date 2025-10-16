@@ -2,8 +2,11 @@
 {% set status_label = status|replace('_', ' ')|title %}
 {% set status_color = 'success' if status == 'running' else ('warning' if status in ['building', 'starting'] else 'secondary') %}
 
-{# Container management overview - redesigned compact layout #}
-<div class="row row-cards g-3 align-items-stretch">
+{# Container management overview - redesigned compact layout with real-time updates #}
+<div id="container-management-section" 
+     data-model-slug="{{ app_data.model_slug }}" 
+     data-app-number="{{ app_data.app_number }}"
+     class="row row-cards g-3 align-items-stretch">
   <div class="col-sm-6 col-xl-3">
     <div class="card card-sm h-100">
       <div class="card-status-top bg-{{ status_color }}"></div>
@@ -13,7 +16,7 @@
             <span class="text-secondary text-uppercase fw-semibold small">Lifecycle state</span>
             <div class="display-7 fw-semibold mt-1">{{ status_label }}</div>
           </div>
-          <span class="badge bg-{{ status_color }}-lt text-{{ status_color }}">{{ status_label }}</span>
+          <span id="container-status-badge" class="badge bg-{{ status_color }}-lt text-{{ status_color }}">{{ status_label }}</span>
         </div>
         <ul class="list-group list-group-flush list-group-borderless mt-3 small">
           <li class="list-group-item px-0 d-flex justify-content-between">
@@ -28,10 +31,7 @@
       </div>
       <div class="card-footer border-top-0 pt-0">
         <div class="d-grid">
-          <button type="button" class="btn btn-outline-secondary btn-sm"
-                  hx-get="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/status"
-                  hx-target="#docker-diagnostics-panel"
-                  hx-swap="innerHTML">
+          <button type="button" id="btn-diagnostics-refresh" class="btn btn-outline-secondary btn-sm">
             <i class="fas fa-sync me-1"></i>Refresh status
           </button>
         </div>
@@ -81,27 +81,33 @@
         <span class="text-secondary text-uppercase fw-semibold small">Controls</span>
         <div class="d-grid gap-2 mt-3">
           {% if status == 'running' %}
-            <button type="button" class="btn btn-danger btn-sm" onclick="stopApplication()">
+            <button type="button" id="btn-container-stop" class="btn btn-danger btn-sm">
               <i class="fas fa-stop me-1"></i>Stop container
             </button>
           {% else %}
-            <button type="button" class="btn btn-success btn-sm" onclick="startApplication()">
+            <button type="button" id="btn-container-start" class="btn btn-success btn-sm">
               <i class="fas fa-play me-1"></i>Start container
             </button>
           {% endif %}
-          <button type="button" class="btn btn-warning btn-sm" onclick="restartApplication()">
+          <button type="button" id="btn-container-restart" class="btn btn-warning btn-sm">
             <i class="fas fa-rotate me-1"></i>Restart
           </button>
           {% if app_data.has_docker_compose %}
-            <button type="button" class="btn btn-primary btn-sm" onclick="buildApplication()">
-              <i class="fas fa-hammer me-1"></i>Rebuild images
+            <button type="button" id="btn-container-build" class="btn btn-primary btn-sm">
+              <i class="fas fa-hammer me-1"></i>Build images
+            </button>
+            <button type="button" id="btn-container-rebuild" class="btn btn-outline-primary btn-sm">
+              <i class="fas fa-hammer me-1"></i>Rebuild (no cache)
             </button>
           {% endif %}
-          <a class="btn btn-outline-primary btn-sm" href="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs">
-            <i class="fas fa-file-lines me-1"></i>Open full logs
-          </a>
+          <button type="button" id="btn-logs-refresh" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-file-lines me-1"></i>Refresh logs
+          </button>
+          <button type="button" id="btn-logs-download" class="btn btn-outline-info btn-sm">
+            <i class="fas fa-download me-1"></i>Download logs
+          </button>
         </div>
-        <p class="text-secondary small mt-3 mb-0">Commands dispatch through existing API endpoints and refresh this section after completion.</p>
+        <p class="text-secondary small mt-3 mb-0">Real-time updates every 5 seconds. Commands execute asynchronously.</p>
       </div>
     </div>
   </div>
@@ -109,26 +115,28 @@
   <div class="col-sm-6 col-xl-3">
     <div class="card card-sm h-100">
       <div class="card-body d-flex flex-column">
-        <span class="text-secondary text-uppercase fw-semibold small">Diagnostics</span>
-        <div id="docker-diagnostics-panel" class="flex-grow-1 mt-3">
+        <span class="text-secondary text-uppercase fw-semibold small">Diagnostics & Logs</span>
+        <div id="diagnostics-panel" class="flex-grow-1 mt-3">
           <div class="alert alert-secondary small mb-0" role="alert">
-            Refresh status to retrieve live container metrics and health probes.
+            Auto-refreshing diagnostics every 5 seconds...
           </div>
         </div>
         <div class="mt-3 pt-3 border-top">
           <div class="text-secondary small fw-semibold mb-2">Recent log output</div>
-          {% if container_logs %}
-            <pre class="bg-dark text-white rounded p-2 small mb-2" style="max-height: 7rem; overflow:auto;">
+          <div id="logs-panel">
+            {% if container_logs %}
+              <pre class="bg-dark text-white rounded p-2 small mb-2" style="max-height: 7rem; overflow:auto;">
 {{ container_logs|trim|truncate(240, True, '…') }}
-            </pre>
-            <button class="btn btn-outline-secondary btn-sm" onclick="copyAdjacentPre(this)">
-              <i class="fas fa-copy me-1"></i>Copy snippet
-            </button>
-          {% else %}
-            <div class="alert alert-info small mb-0" role="alert">
-              Logs become available once the container has produced output.
-            </div>
-          {% endif %}
+              </pre>
+              <button class="btn btn-outline-secondary btn-sm" onclick="copyAdjacentPre(this)">
+                <i class="fas fa-copy me-1"></i>Copy snippet
+              </button>
+            {% else %}
+              <div class="alert alert-info small mb-0" role="alert">
+                Logs become available once the container has produced output.
+              </div>
+            {% endif %}
+          </div>
         </div>
       </div>
     </div>

@@ -1988,7 +1988,9 @@ class ProjectOrganizer:
         self.apps_root = self.output_dir / 'apps'
         self.apps_root.mkdir(parents=True, exist_ok=True)
         # Directory containing skeleton backend/frontend/docker-compose templates
-        self.code_templates_dir = code_templates_dir or Path('src') / 'misc' / 'code_templates'
+        # Use scaffolding directory which contains complete Docker setup
+        from app.paths import SCAFFOLDING_DIR
+        self.code_templates_dir = code_templates_dir or (SCAFFOLDING_DIR / 'react-flask')
         self._scaffold_cache: Set[str] = set()  # model_app key cache to avoid redundant copies
         # Use centralized port allocation service
         from app.services.port_allocation_service import get_port_allocation_service
@@ -2014,9 +2016,19 @@ class ProjectOrganizer:
         app_dir.mkdir(parents=True, exist_ok=True)
         key = f"{safe_model}_app{app_num}"
         
-        # Always scaffold - don't skip if in cache (to ensure completeness)
-        # Only skip if we're sure ALL files exist
-        should_scaffold = key not in self._scaffold_cache
+        # Check if critical scaffold files exist to determine if scaffolding is needed
+        critical_files = [
+            app_dir / "docker-compose.yml",
+            app_dir / "backend" / "Dockerfile",
+            app_dir / "frontend" / "Dockerfile"
+        ]
+        has_all_critical = all(f.exists() for f in critical_files)
+        
+        # Scaffold if: not in cache OR missing critical files
+        should_scaffold = (key not in self._scaffold_cache) or not has_all_critical
+        
+        if should_scaffold and not has_all_critical:
+            logger.info(f"Re-scaffolding {safe_model}/app{app_num} - missing critical Docker files")
         
         if not self.code_templates_dir.exists():
             logger.warning(f"Code templates directory not found: {self.code_templates_dir}")
@@ -2193,6 +2205,17 @@ class ProjectOrganizer:
                 except Exception as cleanup_err:  # noqa: BLE001
                     logger.debug("Unable to remove legacy generated file %s: %s", legacy_path, cleanup_err)
             
+            # PROTECTION: Don't overwrite Docker/infrastructure scaffolding files
+            protected_files = {
+                'Dockerfile', 'docker-compose.yml', '.dockerignore',
+                'nginx.conf', 'package.json', 'requirements.txt',
+                'vite.config.js', '.env.example'
+            }
+            
+            if file_path.name in protected_files and file_path.exists():
+                logger.info(f"Skipping overwrite of protected scaffold file: {file_path.name}")
+                return True
+            
             # Replace the file content (always overwrite in replacement mode)
             file_path.write_text(final_code, encoding='utf-8')
             
@@ -2274,6 +2297,17 @@ class ProjectOrganizer:
                     logger.debug(f"Created backup: {backup_path}")
                 except Exception as e:  # noqa: BLE001
                     logger.debug(f"Backup creation failed: {e}")
+        
+        # PROTECTION: Don't overwrite Docker/infrastructure scaffolding files
+        protected_files = {
+            'Dockerfile', 'docker-compose.yml', '.dockerignore',
+            'nginx.conf', 'package.json', 'requirements.txt',
+            'vite.config.js', '.env.example'
+        }
+        
+        if file_path.name in protected_files and file_path.exists():
+            logger.info(f"Skipping overwrite of protected scaffold file: {file_path.name}")
+            return True
         
         # Write the file
         file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2375,8 +2409,10 @@ class ProjectOrganizer:
             src_dir = frontend_dir / "src"
             src_dir.mkdir(parents=True, exist_ok=True)
             
-            # Create vite.config.js
-            vite_config = f'''import {{ defineConfig }} from 'vite'
+            # Create vite.config.js only if it doesn't exist (scaffolding should have created it)
+            vite_config_path = frontend_dir / "vite.config.js"
+            if not vite_config_path.exists():
+                vite_config = f'''import {{ defineConfig }} from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({{
@@ -2392,7 +2428,7 @@ export default defineConfig({{
   }}
 }})
 '''
-            (frontend_dir / "vite.config.js").write_text(vite_config, encoding='utf-8')
+                vite_config_path.write_text(vite_config, encoding='utf-8')
             
             # Create main.jsx entry point
             main_jsx = '''import React from 'react'

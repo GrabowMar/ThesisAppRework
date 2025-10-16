@@ -18,6 +18,12 @@ from .api import (
     tasks_rt_bp, template_store_bp
 )
 
+# Simple generation API (new simplified backend)
+from .api.simple_generation import simple_gen_bp
+
+# Generation V2 API (scaffolding-first approach)
+from .api.generation_v2 import gen_v2_bp
+
 # Enhanced results API
 from .api.results_v2 import results_api_bp
 
@@ -48,6 +54,8 @@ __all__ = [
     'applications_bp',
     'api_analysis_bp',
     'sample_gen_bp',
+    'simple_gen_bp',
+    'gen_v2_bp',
     'scaffold_bp',
     'tasks_rt_bp',
     'template_store_bp',
@@ -100,6 +108,8 @@ def register_blueprints(app):
     
     # These already have their prefixes defined in the blueprint files
     app.register_blueprint(sample_gen_bp)  # /api/sample-gen
+    app.register_blueprint(simple_gen_bp)  # /api/gen (NEW simplified API)
+    app.register_blueprint(gen_v2_bp)     # /api/gen/v2 (SCAFFOLDING-FIRST - USE THIS!)
     app.register_blueprint(scaffold_bp)   # /api/app-scaffold
     app.register_blueprint(tasks_rt_bp)   # /api/tasks
     app.register_blueprint(template_store_bp)  # /api/templates

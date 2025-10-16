@@ -175,18 +175,57 @@
 					</td>
 					<td>
 						<div class="btn-group btn-group-sm" role="group">
-							<button class="btn btn-ghost-primary" onclick="window.location.href='/applications/{{ app.model_slug }}/{{ app.app_number }}'" title="View details">
+							{# View Details Button #}
+							<button class="btn btn-ghost-primary" 
+								onclick="window.location.href='/applications/{{ app.model_slug }}/{{ app.app_number }}'" 
+								title="View details">
 								<i class="fas fa-eye"></i>
 							</button>
-							{% if app.status == 'running' and app.ports %}
-							<a href="http://localhost:{{ app.ports[0].host_port }}" target="_blank" rel="noopener" class="btn btn-ghost-success" title="Visit application">
-								<i class="fas fa-external-link-alt"></i>
-							</a>
+							
+							{# Container Control Buttons #}
+							{% if app.container_status == 'running' %}
+								{# Visit App Button - shown when running with ports #}
+								{% if app.ports %}
+								<a href="http://localhost:{{ app.ports[0].host_port }}" 
+									target="_blank" 
+									rel="noopener" 
+									class="btn btn-ghost-success" 
+									title="Visit application (port {{ app.ports[0].host_port }})">
+									<i class="fas fa-external-link-alt"></i>
+								</a>
+								{% endif %}
+								
+								{# Stop Button - shown when running #}
+								<button class="btn btn-ghost-danger" 
+									hx-post="/api/app/{{ app.model_slug }}/{{ app.app_number }}/stop"
+									hx-trigger="click"
+									hx-swap="none"
+									hx-indicator=".htmx-indicator"
+									title="Stop containers">
+									<i class="fas fa-stop"></i>
+								</button>
 							{% else %}
-							<button class="btn btn-ghost-secondary" onclick="performAppAction('{{ app.model_slug }}', '{{ app.app_number }}', 'start')" title="Start application">
-								<i class="fas fa-play"></i>
-							</button>
+								{# Start Button - shown when not running (auto-builds if needed) #}
+								<button class="btn btn-ghost-success" 
+									hx-post="/api/app/{{ app.model_slug }}/{{ app.app_number }}/start"
+									hx-trigger="click"
+									hx-swap="none"
+									hx-indicator=".htmx-indicator"
+									title="Start containers (builds if needed)">
+									<i class="fas fa-play"></i>
+								</button>
 							{% endif %}
+							
+							{# Rebuild Button - always available #}
+							<button class="btn btn-ghost-warning" 
+								hx-post="/api/app/{{ app.model_slug }}/{{ app.app_number }}/build"
+								hx-trigger="click"
+								hx-swap="none"
+								hx-vals='{"no_cache": true, "start_after": false}'
+								hx-indicator=".htmx-indicator"
+								title="Rebuild containers (no cache)">
+								<i class="fas fa-sync"></i>
+							</button>
 						</div>
 					</td>
 				</tr>
@@ -236,6 +275,51 @@
 </div>
 
 <script>
+// ---- HTMX Response Handlers ----
+document.body.addEventListener('htmx:afterRequest', function(evt) {
+  if (evt.detail.failed) {
+    // HTTP error (4xx, 5xx)
+    const xhr = evt.detail.xhr;
+    let message = 'Operation failed';
+    
+    try {
+      const response = JSON.parse(xhr.responseText);
+      message = response.message || response.error || message;
+      
+      // Special handling for "images not built" error
+      if (response.details && response.details.action_required === 'build') {
+        message = `⚠️ ${message}\n\nHint: ${response.details.hint}`;
+        // Auto-scroll to container tab if on detail page
+        const containerTab = document.querySelector('a[href="#container"]');
+        if (containerTab && !containerTab.classList.contains('active')) {
+          showNotification('Please build the container images first', 'warning');
+        }
+      }
+    } catch (e) {
+      // Not JSON, use default message
+    }
+    
+    showNotification(message, 'danger');
+  } else if (evt.detail.successful) {
+    // Success response
+    try {
+      const response = JSON.parse(evt.detail.xhr.responseText);
+      if (response.message) {
+        showNotification(response.message, 'success');
+      }
+      // Refresh table after successful operation
+      setTimeout(() => {
+        if (typeof refreshApplications === 'function') {
+          refreshApplications();
+        }
+      }, 1000);
+    } catch (e) {
+      // Not JSON or no message
+      showNotification('Operation completed', 'success');
+    }
+  }
+});
+
 // ---- Fixed Status Polling (Prevents false "Running" status) ----
 function pollApplicationStatuses() {
   const rows = Array.from(document.querySelectorAll('#applications-table-body tr[data-model][data-app]'));

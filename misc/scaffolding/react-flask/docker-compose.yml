@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ${PROJECT_NAME:-app}_backend
+    ports:
+      - "${BACKEND_PORT:-{{backend_port|5000}}}:{{backend_port|5000}}"
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - FLASK_RUN_HOST=0.0.0.0
+      - FLASK_RUN_PORT={{backend_port|5000}}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:{{frontend_port|8000}}}
+    volumes:
+      # Mount backend code for development (comment out for production)
+      - ./backend:/app
+      # Persist database
+      - backend-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:{{backend_port|5000}}/health", "||", "curl", "-f", "http://localhost:{{backend_port|5000}}/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ${PROJECT_NAME:-app}_frontend
+    ports:
+      - "${FRONTEND_PORT:-{{frontend_port|8000}}}:80"
+    environment:
+      - VITE_BACKEND_URL=http://localhost:${BACKEND_PORT:-{{backend_port|5000}}}
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
+
+volumes:
+  backend-data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge

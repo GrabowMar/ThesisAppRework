@@ -22,15 +22,31 @@
 - **Build Analyzer Images**: `pwsh -NoProfile -ExecutionPolicy Bypass -Command "& .\analyzer\build.ps1"`
 - **Flask App**: `cd src && python main.py` (requires Celery worker: `celery -A app.tasks worker --loglevel=info`)
 - **Initialize DB**: `cd src && python init_db.py`
+- **Test Simple Generation**: `python scripts/test_simple_generation.py`
 
 ## Patterns & Conventions
 - **Analyzer Services**: Each service runs in its own container, communicates via WebSocket, and writes results to `results/`
 - **Batch Files**: JSON arrays of `[model, app]` pairs for batch analysis
 - **Templates**: Use double-brace `{{placeholder}}` in code templates (see `misc/code_templates/`)
 - **App Templates**: Enhanced with procedural guardrails (60 templates in `misc/app_templates/`)
+- **Sample Generation**: NEW simplified system at `/api/gen/*` - see `docs/SIMPLE_GENERATION_SYSTEM.md`
+  - **CRITICAL**: Old complex system (`/api/sample-gen/*`) is DEPRECATED - DO NOT USE
+  - **CRITICAL**: Old service `sample_generation_service.py` (3700 lines) - DO NOT USE
+  - **USE ONLY**: `simple_generation_service.py` for all new generation work
+  - **USE ONLY**: `/api/gen/*` endpoints for all new frontend work
+  - Proper scaffolding from `misc/scaffolding/react-flask/`
+  - Backend: Clean code generation with proper file placement
+  - Frontend: React/Vite with proper port configuration
+  - See `docs/features/SAMPLE_GENERATOR_REWRITE.md` for complete details
   - Backend: 5-step workflow + 16-point validation (Flask/SQLAlchemy patterns)
   - Frontend: 8-step workflow + 20-point validation (React/Vite patterns)
   - All templates have `.bak` backups for rollback
+- **Containerization**: All generated apps include complete Docker infrastructure
+  - Scaffolding: `misc/scaffolding/react-flask/` (15 files: Dockerfiles, compose, configs)
+  - Port Allocation: Automatic via `PortAllocationService` (BASE_BACKEND_PORT=5001, BASE_FRONTEND_PORT=8001)
+  - Placeholders: `{{backend_port|5000}}` and `{{frontend_port|8000}}` syntax
+  - Substitution: Happens in `ProjectOrganizer._scaffold_if_needed()`
+  - Backfill: Use `scripts/backfill_docker_files.py` for existing apps
 - **Frontend**: Jinja2 templates, Bootstrap 5, HTMX for dynamic UI; no jQuery or inline SVG
 - **Environment**: Configure via `.env` (loads automatically in `factory.py`)
 - **Database**: SQLite for dev, PostgreSQL for prod; migrations via Flask CLI
@@ -47,6 +63,7 @@
 - **Analyzer Microservices**: static-analyzer (2001), dynamic-analyzer (2002), performance-tester (2003), ai-analyzer (2004)
 - **Configuration Management**: `src/app/config/config_manager.py` for analyzer settings
 - **Component System**: Extensions managed via `app/extensions.py` with component registry
+- **Container Management**: Full Docker lifecycle through UI (start/stop/restart/build/logs) via `DockerManager` service
 
 ## Troubleshooting & Tips
 - **Service Health**: `python analyzer/analyzer_manager.py health` or check `/health` endpoint

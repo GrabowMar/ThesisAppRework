@@ -90,6 +90,66 @@
         .forEach(el=> el.classList.toggle('active', el.getAttribute('data-nav-target')===active));
     } catch(_) {}
   })();
+
+  // Global HTMX error handler - show user-friendly notifications
+  document.body.addEventListener('htmx:responseError', function(evt) {
+    var detail = evt.detail;
+    var xhr = detail.xhr;
+    var status = xhr.status;
+    var message = 'Operation failed';
+    
+    // Try to parse error response
+    try {
+      var json = JSON.parse(xhr.responseText);
+      message = json.message || json.error || message;
+    } catch(e) {
+      // Fallback to status-based messages
+      if (status === 400) message = 'Invalid request';
+      else if (status === 404) message = 'Resource not found';
+      else if (status === 500) message = 'Server error - please try again';
+    }
+    
+    showToast(message, 'error');
+    console.error('HTMX Error:', status, message, evt);
+  });
+
+  // Toast notification system
+  function showToast(message, type) {
+    type = type || 'info';
+    var bgClass = type === 'error' ? 'bg-danger' : type === 'success' ? 'bg-success' : 'bg-info';
+    var icon = type === 'error' ? 'fa-circle-exclamation' : type === 'success' ? 'fa-circle-check' : 'fa-circle-info';
+    
+    var container = document.getElementById('toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'toast-container';
+      container.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;max-width:350px;';
+      document.body.appendChild(container);
+    }
+    
+    var toast = document.createElement('div');
+    toast.className = 'alert ' + bgClass + ' text-white d-flex align-items-center mb-2';
+    toast.style.cssText = 'box-shadow:0 4px 12px rgba(0,0,0,0.15);animation:slideIn 0.3s ease;';
+    toast.innerHTML = '<i class="fas ' + icon + ' me-2"></i><span>' + message + '</span>';
+    
+    container.appendChild(toast);
+    
+    setTimeout(function() {
+      toast.style.animation = 'slideOut 0.3s ease';
+      setTimeout(function() { toast.remove(); }, 300);
+    }, 4000);
+  }
+
+  // Simple CSS animations for toasts
+  if (!document.getElementById('toast-styles')) {
+    var style = document.createElement('style');
+    style.id = 'toast-styles';
+    style.textContent = '@keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } } @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(400px); opacity: 0; } }';
+    document.head.appendChild(style);
+  }
+
+  // Expose globally for manual use
+  window.showToast = showToast;
   </script>
   {% block scripts %}{% endblock %}
 </body>

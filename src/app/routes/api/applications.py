@@ -85,10 +85,50 @@ def start_app_container(model_slug, app_number):
     """Start a specific app container."""
     try:
         from app.services.service_locator import ServiceLocator
+        import docker
+        
         docker_mgr = ServiceLocator.get_docker_manager()
         if not docker_mgr:
             return api_error("Docker manager unavailable", status=503)
         docker_mgr = cast('DockerManager', docker_mgr)
+        
+        # Check if images exist first
+        project_name = docker_mgr._get_project_name(model_slug, app_number)
+        images_exist = False
+        missing_images = []
+        
+        if docker_mgr.client:
+            try:
+                # Check for backend and frontend images
+                backend_image = f"{project_name}-backend"
+                frontend_image = f"{project_name}-frontend"
+                
+                try:
+                    docker_mgr.client.images.get(backend_image)
+                except docker.errors.ImageNotFound:
+                    missing_images.append('backend')
+                
+                try:
+                    docker_mgr.client.images.get(frontend_image)
+                except docker.errors.ImageNotFound:
+                    missing_images.append('frontend')
+                
+                images_exist = len(missing_images) == 0
+            except Exception:
+                # If check fails, continue anyway (fallback to old behavior)
+                pass
+        
+        # If images don't exist, auto-build first
+        if not images_exist and missing_images:
+            build_result = docker_mgr.build_containers(model_slug, app_number, no_cache=False, start_after=True)
+            if build_result.get('success'):
+                # Build and start succeeded
+                build_result['status_summary'] = docker_mgr.container_status_summary(model_slug, app_number)
+                return api_success(build_result, message=f'Built and started containers for {model_slug}/app{app_number}')
+            else:
+                return api_error(f'Failed to build containers: {build_result.get("error", "Unknown error")}', status=500, details=build_result)
+        
+        # Images exist, just start them
         pre = docker_mgr.compose_preflight(model_slug, app_number)
         result = docker_mgr.start_containers(model_slug, app_number)
         result['preflight'] = pre
@@ -164,12 +204,14 @@ def app_compose_diagnostics(model_slug, app_number):
     """Return docker compose preflight + container status diagnostics."""
     try:
         from app.services.service_locator import ServiceLocator
+        
         docker_mgr = ServiceLocator.get_docker_manager()
         if not docker_mgr:
             return api_error("Docker manager unavailable", status=503)
         docker_mgr = cast('DockerManager', docker_mgr)
         diag = docker_mgr.compose_preflight(model_slug, app_number)
         diag['status_summary'] = docker_mgr.container_status_summary(model_slug, app_number)
+        
         return api_success(diag, message='Diagnostics collected')
     except Exception as e:
         return api_error(f'Error collecting diagnostics: {e}', status=500)
@@ -177,8 +219,30 @@ def app_compose_diagnostics(model_slug, app_number):
 @applications_bp.route('/app/<model_slug>/<int:app_number>/logs', methods=['GET'])
 def get_app_logs(model_slug, app_number):
     """Get logs for a specific app container."""
-    # TODO: Move implementation from api.py
-    return api_error("Get app logs endpoint not yet migrated", 501)
+    try:
+        from app.services.service_locator import ServiceLocator
+        
+        docker_mgr = ServiceLocator.get_docker_manager()
+        if not docker_mgr:
+            return api_error("Docker manager unavailable", status=503)
+        docker_mgr = cast('DockerManager', docker_mgr)
+        
+        lines = request.args.get('lines', 100, type=int)
+        
+        # Get logs for backend and frontend
+        backend_logs = docker_mgr.get_container_logs(model_slug, app_number, container_type='backend', tail=lines)
+        frontend_logs = docker_mgr.get_container_logs(model_slug, app_number, container_type='frontend', tail=lines)
+        
+        # Return JSON for API calls
+        return api_success({
+            'backend_logs': backend_logs,
+            'frontend_logs': frontend_logs,
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'lines': lines
+        }, message='Logs retrieved')
+    except Exception as e:
+        return api_error(f'Error retrieving logs: {e}', status=500)
 
 @applications_bp.route('/app/<model_slug>/<int:app_number>/diagnose', methods=['GET'])
 def diagnose_app(model_slug, app_number):
@@ -189,8 +253,25 @@ def diagnose_app(model_slug, app_number):
 @applications_bp.route('/app/<model_slug>/<int:app_number>/test-port/<int:port>', methods=['GET'])
 def test_app_port(model_slug, app_number, port):
     """Test if a specific port is accessible for an app."""
-    # TODO: Move implementation from api.py
-    return api_error("Test app port endpoint not yet migrated", 501)
+    try:
+        import socket
+        
+        # Try to connect to the port
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(2)  # 2 second timeout
+        result = sock.connect_ex(('localhost', port))
+        sock.close()
+        
+        accessible = result == 0
+        
+        return api_success({
+            'port': port,
+            'accessible': accessible,
+            'model_slug': model_slug,
+            'app_number': app_number
+        }, message=f'Port {port} is {"accessible" if accessible else "not accessible"}')
+    except Exception as e:
+        return api_error(f'Error testing port: {e}', status=500)
 
 @applications_bp.route('/app/<model_slug>/<int:app_number>/status', methods=['GET'])
 def get_app_status(model_slug, app_number):
