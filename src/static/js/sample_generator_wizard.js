@@ -37,8 +37,8 @@ function initializeWizard() {
 async function loadInitialData() {
   try {
     // Load templates
-    console.log('[Wizard] Loading templates from /api/sample-gen/templates...');
-    const templatesResponse = await fetch('/api/sample-gen/templates');
+    console.log('[Wizard] Loading templates from /api/gen/templates...');
+    const templatesResponse = await fetch('/api/gen/templates');
     if (templatesResponse.ok) {
       const templatesData = await templatesResponse.json();
       console.log('[Wizard] Templates response:', templatesData);
@@ -351,8 +351,8 @@ async function loadTemplates() {
   listContainer.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary"></div><p class="small text-muted mt-2">Loading templates...</p></div>';
   
   try {
-    console.log('[Wizard] Loading templates from V2 API...');
-    const response = await fetch('/api/v2/templates/requirements');
+    console.log('[Wizard] Loading templates from /api/gen/templates...');
+    const response = await fetch('/api/gen/templates');
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[Wizard] Template load error:', response.status, errorText);
@@ -698,7 +698,9 @@ function clearAllModels() {
 }
 
 function updateGenerationMatrix() {
-  const summaryEl = document.getElementById('matrix-summary');
+  const countEl = document.getElementById('matrix-count');
+  const templatesEl = document.getElementById('matrix-templates');
+  const modelsEl = document.getElementById('matrix-models');
   const previewEl = document.getElementById('generation-matrix-preview');
   
   const totalGenerations = selectedTemplates.length * selectedModels.length;
@@ -706,15 +708,15 @@ function updateGenerationMatrix() {
     templates: selectedTemplates.length,
     models: selectedModels.length,
     total: totalGenerations,
-    summaryEl: !!summaryEl,
+    countEl: !!countEl,
+    templatesEl: !!templatesEl,
+    modelsEl: !!modelsEl,
     previewEl: !!previewEl
   });
   
-  if (summaryEl) {
-    summaryEl.textContent = `${selectedTemplates.length} templates × ${selectedModels.length} models = ${totalGenerations} total generations`;
-  } else {
-    console.warn('[Wizard] matrix-summary element not found');
-  }
+  if (countEl) countEl.textContent = totalGenerations;
+  if (templatesEl) templatesEl.textContent = selectedTemplates.length;
+  if (modelsEl) modelsEl.textContent = selectedModels.length;
   
   if (previewEl && totalGenerations > 0 && totalGenerations <= 100) {
     // Show matrix table for reasonable sizes

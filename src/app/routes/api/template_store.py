@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify, request
 from werkzeug.exceptions import BadRequest, NotFound
 from app.services.template_store_service import get_template_store_service, TemplateStoreService, Profile
 
-bp = Blueprint('template_store_api', __name__, url_prefix='/api/templates')
+bp = Blueprint('template_store_api', __name__, url_prefix='/api/template-store')
 
 ts: TemplateStoreService = get_template_store_service()
 

@@ -17,11 +17,12 @@ from .common import api_success, api_error
 models_bp = Blueprint('models_api', __name__)
 
 
-@models_bp.route('/')
+@models_bp.route('/', strict_slashes=False)
 def api_models():
     """Get all models (standardized envelope)."""
     models = ModelCapability.query.all()
     data = [{
+        'id': model.model_id,  # Frontend expects 'id'
         'model_id': model.model_id,
         'canonical_slug': model.canonical_slug,
         'provider': model.provider,
@@ -150,6 +151,148 @@ def api_models_all():
     except Exception as e:
         current_app.logger.error(f"Error building models/all payload: {e}")
         return api_success({'models': [], 'statistics': {'total_models': 0, 'active_models': 0, 'unique_providers': 0, 'avg_cost_per_1k': 0}})
+
+
+@models_bp.route('/paginated')
+def api_models_paginated():
+    """Paginated models list with filtering support."""
+    try:
+        # Pagination params
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 100))
+        source = request.args.get('source', 'database')  # database or openrouter
+        
+        # Filter params
+        search = (request.args.get('search') or '').strip().lower()
+        providers = {p.lower() for p in request.args.getlist('providers') if p.strip()}
+        caps_filter = {c.lower() for c in request.args.getlist('capabilities') if c.strip()}
+        price_tier = (request.args.get('price') or '').lower()
+        
+        # Get all models
+        base = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+        
+        # If no models and source is openrouter, try loading
+        if not base and source == 'openrouter':
+            try:
+                from app.services.data_initialization import DataInitializationService
+                from app.extensions import db
+                data_init_service = DataInitializationService()
+                result = data_init_service.load_model_capabilities()
+                if result.get('openrouter_loaded', 0) > 0:
+                    db.session.commit()
+                    base = ModelCapability.query.order_by(ModelCapability.provider, ModelCapability.model_name).all()
+            except Exception:
+                pass
+        
+        def price_bucket(val: float) -> str:
+            if val == 0:
+                return 'free'
+            if val < 0.001:
+                return 'low'
+            if val < 0.005:
+                return 'mid'
+            return 'high'
+        
+        # Apply filters
+        filtered = []
+        for m in base:
+            name_l = (m.model_name or '').lower()
+            slug_l = (m.canonical_slug or '').lower()
+            if search and search not in name_l and search not in slug_l:
+                continue
+            if providers and m.provider.lower() not in providers:
+                continue
+            caps_raw = m.get_capabilities() or {}
+            caps_list = _norm_caps(caps_raw.get('capabilities') if isinstance(caps_raw, dict) else caps_raw)
+            caps_lower = {c.lower() for c in caps_list}
+            if caps_filter and not caps_filter.issubset(caps_lower):
+                continue
+            if price_tier:
+                bucket = price_bucket(m.input_price_per_token or 0.0)
+                if bucket != price_tier:
+                    continue
+            filtered.append(m)
+        
+        # Calculate pagination
+        total = len(filtered)
+        total_pages = max(1, (total + per_page - 1) // per_page)
+        page = max(1, min(page, total_pages))
+        start = (page - 1) * per_page
+        end = start + per_page
+        page_models = filtered[start:end]
+        
+        def map_model(m: ModelCapability):
+            caps_raw = m.get_capabilities() or {}
+            caps_list = _norm_caps(caps_raw.get('capabilities') if isinstance(caps_raw, dict) else caps_raw)
+            meta = m.get_metadata() or {}
+            
+            # Extract architecture info for frontend
+            arch = caps_raw.get('architecture', {}) if isinstance(caps_raw, dict) else {}
+            
+            # Check for feature support
+            supported_params = caps_raw.get('supported_parameters', []) if isinstance(caps_raw, dict) else []
+            
+            return {
+                'id': m.model_id,
+                'slug': m.canonical_slug,
+                'model_id': m.model_id,
+                'name': m.model_name,
+                'provider': m.provider,
+                'provider_logo': '/static/images/default-avatar.svg',
+                'capabilities': caps_list,
+                'capabilities_raw': caps_raw,  # Include full capabilities for frontend
+                'input_price_per_1k': round((m.input_price_per_token or 0.0) * 1000, 6),
+                'output_price_per_1k': round((m.output_price_per_token or 0.0) * 1000, 6),
+                'context_length': m.context_window or 0,
+                'max_output_tokens': m.max_output_tokens or 0,
+                'cost_efficiency': m.cost_efficiency or 0.0,
+                'performance_score': int((m.cost_efficiency or 0.0) * 10) if (m.cost_efficiency or 0) <= 1 else int(m.cost_efficiency or 0),
+                'status': 'active',
+                'description': meta.get('openrouter_description') or meta.get('description') or None,
+                'installed': bool(getattr(m, 'installed', False)),
+                # Feature flags for frontend
+                'supports_function_calling': 'tools' in supported_params or 'tool_choice' in supported_params,
+                'supports_vision': any('image' in str(mod).lower() for mod in arch.get('input_modalities', [])),
+                'supports_json_mode': 'response_format' in supported_params or 'json' in str(caps_raw).lower(),
+                'supports_streaming': 'stream' in supported_params,
+            }
+        
+        models_list = [map_model(m) for m in page_models]
+        providers_set = {m.provider for m in filtered}
+        
+        # Collect available filter values from ALL filtered results (not just current page)
+        all_capabilities = set()
+        for m in filtered:
+            caps_raw = m.get_capabilities() or {}
+            caps_list = _norm_caps(caps_raw.get('capabilities') if isinstance(caps_raw, dict) else caps_raw)
+            all_capabilities.update(caps_list)
+        
+        result = {
+            'models': models_list,
+            'statistics': {
+                'total_models': total,
+                'active_models': total,
+                'unique_providers': len(providers_set),
+                'avg_cost_per_1k': round(sum(map_model(x)['input_price_per_1k'] for x in filtered) / max(total, 1), 6)
+            },
+            'pagination': {
+                'page': page,
+                'per_page': per_page,
+                'total': total,
+                'total_pages': total_pages,
+                'has_prev': page > 1,
+                'has_next': page < total_pages
+            },
+            'filters': {
+                'providers': sorted(providers_set),
+                'capabilities': sorted(all_capabilities),
+                'price_tiers': ['free', 'low', 'mid', 'high']
+            }
+        }
+        return api_success(result)
+    except Exception as e:
+        current_app.logger.error(f"Error in paginated models: {e}")
+        return api_error(str(e), status=500)
 
 
 @models_bp.route('/filtered')

@@ -369,7 +369,9 @@ function loadModelsPaginated() {
       if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
       return r.json();
     })
-    .then(d => {
+    .then(response => {
+      // Unwrap standardized API envelope {success: true, data: {...}}
+      const d = response.data || response;
       modelsData = d.models || [];
       updateStatistics(d.statistics || {});
       updateFilterOptions(d.filters || d.available_filters || null);

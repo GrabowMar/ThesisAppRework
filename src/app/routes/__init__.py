@@ -14,21 +14,15 @@ from .jinja.sample_generator import sample_generator_bp
 # Refactored API blueprints - organized by domain
 from .api import (
     api_bp, core_bp, models_bp as api_models_bp, system_bp, dashboard_bp,
-    applications_bp, analysis_bp as api_analysis_bp, scaffold_bp, sample_gen_bp, 
-    tasks_rt_bp, template_store_bp
+    applications_bp, analysis_bp as api_analysis_bp, scaffold_bp, gen_bp,
+    tasks_rt_bp, template_store_bp, tool_registry_bp, container_tools_bp
 )
 
-# Simple generation API (new simplified backend)
-from .api.simple_generation import simple_gen_bp
-
-# Generation V2 API (scaffolding-first approach)
-from .api.generation_v2 import gen_v2_bp
-
 # Enhanced results API
-from .api.results_v2 import results_api_bp
+from .api.results import results_api_bp
 
-# V2 Template System API
-from .api.templates_v2 import templates_v2_bp
+# Template System API
+from .api.templates import templates_bp
 
 from .websockets import websocket_api_bp, register_websocket_routes, register_error_handlers
 from .shared_utils import register_template_globals_and_filters
@@ -53,18 +47,18 @@ __all__ = [
     'dashboard_bp',
     'applications_bp',
     'api_analysis_bp',
-    'sample_gen_bp',
-    'simple_gen_bp',
-    'gen_v2_bp',
     'scaffold_bp',
+    'gen_bp',
     'tasks_rt_bp',
     'template_store_bp',
+    'tool_registry_bp',
+    'container_tools_bp',
 
     # Enhanced results API
     'results_api_bp',
     
-    # V2 Template System API
-    'templates_v2_bp',
+    # Template System API
+    'templates_bp',
 
     # WebSocket blueprints and functions
     'websocket_api_bp',
@@ -107,14 +101,12 @@ def register_blueprints(app):
     # app.register_blueprint(migration_bp, url_prefix='/api')
     
     # These already have their prefixes defined in the blueprint files
-    app.register_blueprint(sample_gen_bp)  # /api/sample-gen
-    app.register_blueprint(simple_gen_bp)  # /api/gen (NEW simplified API)
-    app.register_blueprint(gen_v2_bp)     # /api/gen/v2 (SCAFFOLDING-FIRST - USE THIS!)
+    app.register_blueprint(gen_bp)  # /api/gen (scaffolding-first generation)
     app.register_blueprint(scaffold_bp)   # /api/app-scaffold
     app.register_blueprint(tasks_rt_bp)   # /api/tasks
-    app.register_blueprint(template_store_bp)  # /api/templates
-    app.register_blueprint(results_api_bp)  # /analysis/api/v2
-    app.register_blueprint(templates_v2_bp)  # /api/v2/templates
+    app.register_blueprint(template_store_bp)  # /api/template-store (template CRUD)
+    app.register_blueprint(results_api_bp)  # /analysis/api
+    app.register_blueprint(templates_bp)  # /api/templates (template rendering)
 
     # Register WebSocket API blueprint under both legacy (/api/websocket) and new (/ws-api) paths
     # The tests expect /api/websocket/* endpoints.

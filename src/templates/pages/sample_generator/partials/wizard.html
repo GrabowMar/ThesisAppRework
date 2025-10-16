@@ -1,5 +1,5 @@
 {# Sample Generation Wizard - Matching create.html Style #}
-<form id="sample-generator-form" method="POST" action="/api/sample-gen/generate/batch" onsubmit="event.preventDefault(); startGeneration(); return false;">
+<form id="sample-generator-form" method="POST" action="/api/gen/generate-full" onsubmit="event.preventDefault(); startGeneration(); return false;">
   <input type="hidden" name="template_ids" id="input-template-ids" />
   <input type="hidden" name="models" id="input-models" />
   <input type="hidden" name="parallel_workers" id="input-parallel-workers" value="3" />

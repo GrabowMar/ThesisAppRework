@@ -14,7 +14,7 @@ from ...services.service_locator import ServiceLocator
 logger = logging.getLogger(__name__)
 
 # Create blueprint for enhanced results API
-results_api_bp = Blueprint('results_api', __name__, url_prefix='/analysis/api/v2')
+results_api_bp = Blueprint('results_api', __name__, url_prefix='/analysis/api')
 
 
 def get_results_service() -> ResultsManagementService:

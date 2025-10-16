@@ -13,41 +13,9 @@ if TYPE_CHECKING:  # pragma: no cover
 # Create applications blueprint
 applications_bp = Blueprint('api_applications', __name__)
 
-@applications_bp.route('/applications')
-def get_applications():
-    """Get list of applications with optional filtering."""
-    # TODO: Move implementation from api.py
-    return api_error("Applications endpoint not yet migrated", 501)
-
-@applications_bp.route('/applications', methods=['POST'])
-def create_application():
-    """Create a new application."""
-    # TODO: Move implementation from api.py
-    return api_error("Create application endpoint not yet migrated", 501)
-
-@applications_bp.route('/applications/<int:app_id>')
-def get_application(app_id):
-    """Get specific application details."""
-    # TODO: Move implementation from api.py
-    return api_error("Get application endpoint not yet migrated", 501)
-
-@applications_bp.route('/applications/<int:app_id>', methods=['PUT'])
-def update_application(app_id):
-    """Update application details."""
-    # TODO: Move implementation from api.py
-    return api_error("Update application endpoint not yet migrated", 501)
-
-@applications_bp.route('/applications/<int:app_id>', methods=['DELETE'])
-def delete_application(app_id):
-    """Delete an application."""
-    # TODO: Move implementation from api.py
-    return api_error("Delete application endpoint not yet migrated", 501)
-
-@applications_bp.route('/applications/types')
-def get_application_types():
-    """Get available application types."""
-    # TODO: Move implementation from api.py
-    return api_error("Application types endpoint not yet migrated", 501)
+# NOTE: Generic /applications/* CRUD endpoints removed - they were unused stubs.
+# All actual application operations use the /app/{model_slug}/{app_number}/* pattern below.
+# If you need CRUD operations, use the model-specific endpoints or add them here.
 
 @applications_bp.route('/applications/<int:app_id>/start', methods=['POST'])
 def start_application(app_id):

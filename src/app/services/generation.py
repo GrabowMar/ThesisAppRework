@@ -507,7 +507,7 @@ class CodeMerger:
         return [m.strip() for m in matches if m.strip()]
 
 
-class GenerationServiceV2:
+class GenerationService:
     """Main service orchestrating the generation process."""
     
     def __init__(self):
@@ -611,9 +611,9 @@ class GenerationServiceV2:
 # Singleton
 _service = None
 
-def get_generation_service_v2() -> GenerationServiceV2:
+def get_generation_service() -> GenerationService:
     """Get singleton instance."""
     global _service
     if _service is None:
-        _service = GenerationServiceV2()
+        _service = GenerationService()
     return _service
