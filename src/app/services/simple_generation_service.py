@@ -46,7 +46,6 @@ import aiohttp
 
 from app.paths import (
     GENERATED_APPS_DIR,
-    APP_TEMPLATES_DIR,
     SCAFFOLDING_DIR,
 )
 from app.services.code_validator import validate_generated_code
@@ -90,11 +89,14 @@ class SimpleGenerationService:
     def get_ports(self, model_slug: str, app_num: int) -> Tuple[int, int]:
         """Get allocated ports for a model/app combination.
         
-        Simple formula: backend = 5001 + (app_num * 2), frontend = backend + 1000
+        Uses PortAllocationService to ensure unique ports across all models.
         """
-        backend_port = self.base_backend_port + (app_num * 2)
-        frontend_port = self.base_frontend_port + (app_num * 2)
-        return backend_port, frontend_port
+        from app.services.port_allocation_service import get_port_allocation_service
+        
+        port_service = get_port_allocation_service()
+        port_pair = port_service.get_or_allocate_ports(model_slug, app_num)
+        
+        return port_pair.backend, port_pair.frontend
     
     def get_app_dir(self, model_slug: str, app_num: int) -> Path:
         """Get the directory for a specific app."""
@@ -132,12 +134,17 @@ class SimpleGenerationService:
         
         logger.info(f"Scaffolding {model_slug}/app{app_num} with ports {backend_port}/{frontend_port}")
         
+        # Clean model slug for container naming (Docker doesn't like underscores at start)
+        # Convert: anthropic_claude-4.5-haiku -> anthropic-claude-4-5-haiku
+        safe_model_slug = model_slug.replace('_', '-').replace('.', '-')
+        project_name = f"{safe_model_slug}-app{app_num}"
+        
         # Substitution map
         substitutions = {
             'backend_port': str(backend_port),
             'frontend_port': str(frontend_port),
             'model_name': model_slug,
-            'PROJECT_NAME': f"{model_slug}_app{app_num}",
+            'PROJECT_NAME': project_name,
             'BACKEND_PORT': str(backend_port),
             'FRONTEND_PORT': str(frontend_port),
             'FLASK_RUN_PORT': str(backend_port),
@@ -185,6 +192,14 @@ class SimpleGenerationService:
                 logger.warning(f"Failed to copy {src_path}: {e}")
         
         logger.info(f"Scaffolded {files_copied} files for {model_slug}/app{app_num}")
+        
+        # Also create .env from .env.example for Docker Compose
+        env_example = app_dir / '.env.example'
+        env_file = app_dir / '.env'
+        if env_example.exists():
+            env_file.write_text(env_example.read_text(encoding='utf-8'), encoding='utf-8')
+            logger.debug(f"Created .env from .env.example")
+        
         return files_copied > 0
     
     async def generate_code(self, request: GenerationRequest) -> GenerationResult:
@@ -444,21 +459,167 @@ class SimpleGenerationService:
         return None
     
     async def _load_template(self, template_id: int, component: str) -> Optional[str]:
-        """Load template content from filesystem.
+        """Load template content - use Jinja2 templates from misc/templates/two-query/.
         
-        Looks for: misc/app_templates/app_{N}_{component}_*.md
+        For now, we use template_id to select different app scenarios:
+        1 = Todo App (CRUD)
+        2-10 = Other apps (future)
         """
-        pattern = f"app_{template_id}_{component}_*.md"
-        matches = list(APP_TEMPLATES_DIR.glob(pattern))
+        from jinja2 import Environment, FileSystemLoader
+        from app.paths import MISC_DIR
         
-        if not matches:
-            logger.warning(f"No template found for pattern: {pattern}")
+        template_dir = MISC_DIR / 'templates' / 'two-query'
+        
+        # Simple mapping: template_id determines the app type
+        app_configs = {
+            1: {
+                'name': 'Todo List Application',
+                'description': 'A simple CRUD todo list app with Flask backend and React frontend',
+                'backend_requirements': [
+                    'Create, read, update, and delete todo items',
+                    'Each todo has: title, description, completed status, timestamps',
+                    'Store todos in SQLite database using SQLAlchemy',
+                    'Provide RESTful API endpoints for all CRUD operations',
+                    'Include filtering by completion status (all/active/completed)',
+                    'Implement proper validation and error handling'
+                ],
+                'frontend_requirements': [
+                    'Display list of all todos with filtering options',
+                    'Add new todos with title and description',
+                    'Edit existing todos inline',
+                    'Delete todos with confirmation',
+                    'Toggle todo completion status',
+                    'Show statistics (total, active, completed)',
+                    'Responsive design that works on mobile and desktop'
+                ]
+            },
+            # Future: Add more template configurations
+        }
+        
+        config = app_configs.get(template_id)
+        if not config:
+            logger.warning(f"No configuration for template_id {template_id}")
             return None
         
         try:
-            return matches[0].read_text(encoding='utf-8')
+            env = Environment(loader=FileSystemLoader(template_dir))
+            template_file = f'{component}.md.jinja2'
+            template = env.get_template(template_file)
+            
+            # Get scaffolding content for placeholders
+            from app.paths import SCAFFOLDING_DIR
+            scaffolding_dir = SCAFFOLDING_DIR / 'react-flask'
+            
+            scaffolding_vars = {
+                'name': config['name'],
+                'description': config['description']
+            }
+            
+            if component == 'backend':
+                scaffolding_vars['backend_requirements'] = config['backend_requirements']
+                
+                # Load scaffolding app.py
+                scaffold_app_py = scaffolding_dir / 'backend' / 'app.py.template'
+                if not scaffold_app_py.exists():
+                    scaffold_app_py = scaffolding_dir / 'backend' / '..' / '..' / '..' / 'misc' / 'code_templates' / 'flask_backend_base.txt'
+                
+                # Use a minimal Flask scaffold
+                scaffolding_vars['scaffolding_app_py'] = """# Minimal Flask Application Scaffolding
+# This is a barebones working Flask app that does nothing by default
+
+from flask import Flask, jsonify
+from flask_cors import CORS
+import logging
+
+# Initialize Flask app
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'development-secret-key'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+CORS(app)
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Health check endpoint
+@app.route('/health', methods=['GET'])
+def health_check():
+    \"""Health check endpoint\"""
+    return jsonify({'status': 'healthy', 'message': 'Flask app is running'}), 200
+
+# Root endpoint
+@app.route('/', methods=['GET'])
+def index():
+    \"""Root endpoint\"""
+    return jsonify({'message': 'Flask API is running', 'version': '1.0.0'}), 200
+
+"""
+                
+                # Load requirements.txt
+                scaffold_req = scaffolding_dir / 'backend' / 'requirements.txt'
+                if scaffold_req.exists():
+                    scaffolding_vars['scaffolding_requirements_txt'] = scaffold_req.read_text()
+                else:
+                    scaffolding_vars['scaffolding_requirements_txt'] = """Flask==3.0.0
+Flask-CORS==4.0.0
+Flask-SQLAlchemy==3.1.1
+Werkzeug==3.0.1
+SQLAlchemy==2.0.25"""
+            
+            else:  # frontend
+                scaffolding_vars['frontend_requirements'] = config['frontend_requirements']
+                
+                # Load scaffolding files
+                scaffolding_vars['scaffolding_package_json'] = """{
+  "name": "frontend",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.0",
+    "vite": "^5.0.0"
+  }
+}"""
+                
+                scaffolding_vars['scaffolding_index_html'] = """<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>App</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/App.jsx"></script>
+  </body>
+</html>"""
+                
+                scaffolding_vars['scaffolding_app_jsx'] = """import React from 'react'
+import ReactDOM from 'react-dom/client'
+
+export default function App() {
+  return <div>Hello World</div>
+}"""
+                
+                scaffolding_vars['scaffolding_app_css'] = """body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 20px;
+}"""
+            
+            rendered = template.render(**scaffolding_vars)
+            return rendered
+            
         except Exception as e:
-            logger.error(f"Failed to load template {matches[0]}: {e}")
+            logger.error(f"Failed to render template: {e}")
             return None
     
     def _build_prompt(self, template_content: str, component: str) -> str:
