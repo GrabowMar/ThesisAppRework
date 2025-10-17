@@ -49,6 +49,7 @@ from app.paths import (
     APP_TEMPLATES_DIR,
     SCAFFOLDING_DIR,
 )
+from app.services.code_validator import validate_generated_code
 
 logger = logging.getLogger(__name__)
 
@@ -286,13 +287,17 @@ class SimpleGenerationService:
         """Extract code blocks from AI response and save to appropriate files.
         
         Simple extraction: look for ```language blocks and save based on patterns.
+        Also validates the code before saving.
         """
         app_dir = self.get_app_dir(model_slug, app_num)
         
         # Extract code blocks
         code_blocks = self._extract_code_blocks(content)
         
+        # Store extracted content for validation
+        extracted_files = {}
         saved_files = []
+        
         for language, code in code_blocks:
             # Determine target file
             target_path = self._determine_file_path(
@@ -300,23 +305,82 @@ class SimpleGenerationService:
             )
             
             if target_path:
+                # Store for validation
+                relative_path = str(target_path.relative_to(app_dir))
+                extracted_files[relative_path] = code
+                
                 try:
                     # Ensure directory exists
                     target_path.parent.mkdir(parents=True, exist_ok=True)
                     
                     # Write file
                     target_path.write_text(code, encoding='utf-8')
-                    saved_files.append(str(target_path.relative_to(app_dir)))
-                    logger.info(f"Saved: {target_path.relative_to(app_dir)}")
+                    saved_files.append(relative_path)
+                    logger.info(f"Saved: {relative_path}")
                     
                 except Exception as e:
                     logger.error(f"Failed to save {target_path}: {e}")
         
-        return {
+        # Validate generated code
+        validation_results = self._validate_saved_code(extracted_files, component)
+        
+        result = {
             'saved_files': saved_files,
             'blocks_extracted': len(code_blocks),
-            'app_dir': str(app_dir)
+            'app_dir': str(app_dir),
+            'validation': validation_results
         }
+        
+        # Log validation warnings/errors
+        if component == 'backend':
+            backend_val = validation_results.get('backend', {})
+            if backend_val.get('errors'):
+                logger.error(f"Backend validation errors: {backend_val['errors']}")
+            if backend_val.get('warnings'):
+                logger.warning(f"Backend validation warnings: {backend_val['warnings']}")
+        
+        elif component == 'frontend':
+            frontend_val = validation_results.get('frontend', {})
+            if frontend_val.get('errors'):
+                logger.error(f"Frontend validation errors: {frontend_val['errors']}")
+            if frontend_val.get('warnings'):
+                logger.warning(f"Frontend validation warnings: {frontend_val['warnings']}")
+        
+        return result
+    
+    def _validate_saved_code(self, extracted_files: Dict[str, str], component: str) -> Dict[str, Any]:
+        """Validate extracted code files.
+        
+        Args:
+            extracted_files: Dict of {relative_path: content}
+            component: "backend" or "frontend"
+            
+        Returns:
+            Validation results dict
+        """
+        # Prepare files for validation
+        app_py = None
+        requirements_txt = None
+        package_json = None
+        app_jsx = None
+        
+        for path, content in extracted_files.items():
+            if 'app.py' in path:
+                app_py = content
+            elif 'requirements.txt' in path:
+                requirements_txt = content
+            elif 'package.json' in path:
+                package_json = content
+            elif 'App.jsx' in path:
+                app_jsx = content
+        
+        # Run validation
+        return validate_generated_code(
+            app_py=app_py,
+            requirements_txt=requirements_txt,
+            package_json=package_json,
+            app_jsx=app_jsx
+        )
     
     def _extract_code_blocks(self, content: str) -> List[Tuple[str, str]]:
         """Extract code blocks from markdown-formatted content.

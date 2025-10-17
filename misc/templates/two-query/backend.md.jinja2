@@ -52,13 +52,18 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 import logging
 
+# Import ANY additional libraries you need (CRITICAL: these MUST be in requirements.txt)
+# Examples: lxml, bcrypt, jwt, requests, pillow, pandas, etc.
+
 # Initialize app
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your-secret-key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # ... add more config
 ```
 **✓ Checkpoint**: Verify all imports are at the top, app is initialized
+**✓ CRITICAL**: Create a mental list of ALL packages imported - you MUST include these in requirements.txt
 
 ---
 
@@ -189,6 +194,13 @@ if __name__ == '__main__':
 - [ ] Docstrings for all functions and endpoints
 - [ ] Consistent code style and formatting
 
+**Dependencies (CRITICAL - App Will Crash If Wrong):**
+- [ ] Every import in app.py has a corresponding entry in requirements.txt
+- [ ] All third-party packages have version numbers (e.g., lxml==5.1.0)
+- [ ] Standard library modules (os, sys, datetime, etc.) are NOT in requirements.txt
+- [ ] Flask, Flask-CORS, Flask-SQLAlchemy are included
+- [ ] If you use lxml, bcrypt, jwt, requests, pillow, pandas, etc. - they MUST be listed
+
 ---
 
 ### **5. Output Specification (Answer Engineering)**
@@ -219,7 +231,48 @@ Generate the following two files. Do **not** generate a `Dockerfile`.
 {{ scaffolding_requirements_txt }}
 ```
 
-Add any additional dependencies required by the specific functionality (e.g., bcrypt for passwords, lxml for XML processing).
+⚠️ **CRITICAL DEPENDENCY INSTRUCTIONS:**
+
+**YOU MUST analyze your app.py code and add EVERY third-party package you imported.**
+
+**Common packages that MUST be added if you use them:**
+- `lxml==5.1.0` - if you import lxml for XML/HTML processing
+- `bcrypt==4.1.2` - if you import bcrypt for password hashing
+- `PyJWT==2.8.0` - if you import jwt for tokens
+- `requests==2.31.0` - if you import requests for HTTP calls
+- `Pillow==10.2.0` - if you import PIL for image processing
+- `pandas==2.2.0` - if you import pandas for data analysis
+- `python-dotenv==1.0.0` - if you import dotenv for env vars
+- `werkzeug==3.0.1` - usually included with Flask, but add if you import werkzeug directly
+- `SQLAlchemy==2.0.25` - usually included with Flask-SQLAlchemy, but add if importing directly
+- `cryptography==42.0.0` - if you import cryptography
+- `celery==5.3.4` - if you import celery for async tasks
+- `redis==5.0.1` - if you import redis
+
+**Process for generating requirements.txt:**
+1. Review EVERY import statement in your app.py
+2. Identify which imports are third-party packages (not Python stdlib)
+3. Add each third-party package to requirements.txt with a version number
+4. Include the base packages: Flask==3.0.0, Flask-CORS==4.0.0, Flask-SQLAlchemy==3.1.1
+5. Double-check you didn't miss any package
+
+**Example - if app.py contains:**
+```python
+from flask import Flask  # → Flask==3.0.0
+from flask_cors import CORS  # → Flask-CORS==4.0.0
+from lxml import etree  # → lxml==5.1.0
+import requests  # → requests==2.31.0
+import datetime  # → STDLIB - don't add
+```
+
+**Then requirements.txt should be:**
+```
+Flask==3.0.0
+Flask-CORS==4.0.0
+Flask-SQLAlchemy==3.1.1
+lxml==5.1.0
+requests==2.31.0
+```
 
 ---
 
