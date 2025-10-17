@@ -7,7 +7,7 @@
  */
 
 class AnalysisResultsAPI {
-    constructor(taskId, baseUrl = '/analysis/api/v2') {
+    constructor(taskId, baseUrl = '/analysis/api') {
         this.taskId = taskId;
         this.baseUrl = baseUrl;
         this.cache = new Map();
