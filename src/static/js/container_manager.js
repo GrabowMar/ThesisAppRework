@@ -55,27 +55,20 @@ class ContainerManager {
      * Start containers
      */
     async start() {
+        if (!window.containerLogsModal) {
+            this.showToast('Logs modal not initialized', 'danger');
+            return;
+        }
+        
         try {
-            this.showToast('Starting containers...', 'info');
-            this.setButtonLoading('btn-container-start', true);
-            
-            const response = await fetch(`${this.baseUrl}/start`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.showToast('Containers started successfully!', 'success');
-                await this.refreshStatus();
-            } else {
-                this.showToast(`Failed to start: ${data.error || 'Unknown error'}`, 'danger');
-            }
+            await window.containerLogsModal.startOperation(
+                'Start Containers',
+                `${this.baseUrl}/start`,
+                {}
+            );
+            await this.refreshStatus();
         } catch (error) {
-            this.showToast(`Error starting containers: ${error.message}`, 'danger');
-        } finally {
-            this.setButtonLoading('btn-container-start', false);
+            console.error('Start error:', error);
         }
     }
 
@@ -87,27 +80,20 @@ class ContainerManager {
             return;
         }
         
+        if (!window.containerLogsModal) {
+            this.showToast('Logs modal not initialized', 'danger');
+            return;
+        }
+        
         try {
-            this.showToast('Stopping containers...', 'info');
-            this.setButtonLoading('btn-container-stop', true);
-            
-            const response = await fetch(`${this.baseUrl}/stop`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.showToast('Containers stopped successfully!', 'success');
-                await this.refreshStatus();
-            } else {
-                this.showToast(`Failed to stop: ${data.error || 'Unknown error'}`, 'danger');
-            }
+            await window.containerLogsModal.startOperation(
+                'Stop Containers',
+                `${this.baseUrl}/stop`,
+                {}
+            );
+            await this.refreshStatus();
         } catch (error) {
-            this.showToast(`Error stopping containers: ${error.message}`, 'danger');
-        } finally {
-            this.setButtonLoading('btn-container-stop', false);
+            console.error('Stop error:', error);
         }
     }
 
@@ -115,27 +101,20 @@ class ContainerManager {
      * Restart containers
      */
     async restart() {
+        if (!window.containerLogsModal) {
+            this.showToast('Logs modal not initialized', 'danger');
+            return;
+        }
+        
         try {
-            this.showToast('Restarting containers...', 'info');
-            this.setButtonLoading('btn-container-restart', true);
-            
-            const response = await fetch(`${this.baseUrl}/restart`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.showToast('Containers restarted successfully!', 'success');
-                await this.refreshStatus();
-            } else {
-                this.showToast(`Failed to restart: ${data.error || 'Unknown error'}`, 'danger');
-            }
+            await window.containerLogsModal.startOperation(
+                'Restart Containers',
+                `${this.baseUrl}/restart`,
+                {}
+            );
+            await this.refreshStatus();
         } catch (error) {
-            this.showToast(`Error restarting containers: ${error.message}`, 'danger');
-        } finally {
-            this.setButtonLoading('btn-container-restart', false);
+            console.error('Restart error:', error);
         }
     }
 
@@ -143,31 +122,20 @@ class ContainerManager {
      * Build containers (with cache)
      */
     async build() {
+        if (!window.containerLogsModal) {
+            this.showToast('Logs modal not initialized', 'danger');
+            return;
+        }
+        
         try {
-            this.showToast('Building containers...', 'info');
-            this.setButtonLoading('btn-container-build', true);
-            
-            const response = await fetch(`${this.baseUrl}/build`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    no_cache: false,
-                    start_after: true
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.showToast('Build completed! Containers are starting...', 'success');
-                await this.refreshStatus();
-            } else {
-                this.showToast(`Build failed: ${data.error || 'Unknown error'}`, 'danger');
-            }
+            await window.containerLogsModal.startOperation(
+                'Build Containers',
+                `${this.baseUrl}/build`,
+                { no_cache: false, start_after: true }
+            );
+            await this.refreshStatus();
         } catch (error) {
-            this.showToast(`Error building containers: ${error.message}`, 'danger');
-        } finally {
-            this.setButtonLoading('btn-container-build', false);
+            console.error('Build error:', error);
         }
     }
 
@@ -179,31 +147,20 @@ class ContainerManager {
             return;
         }
         
+        if (!window.containerLogsModal) {
+            this.showToast('Logs modal not initialized', 'danger');
+            return;
+        }
+        
         try {
-            this.showToast('Rebuilding containers (no cache)...', 'info');
-            this.setButtonLoading('btn-container-rebuild', true);
-            
-            const response = await fetch(`${this.baseUrl}/build`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    no_cache: true,
-                    start_after: true
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.success) {
-                this.showToast('Rebuild completed! Containers are starting...', 'success');
-                await this.refreshStatus();
-            } else {
-                this.showToast(`Rebuild failed: ${data.error || 'Unknown error'}`, 'danger');
-            }
+            await window.containerLogsModal.startOperation(
+                'Rebuild Containers (No Cache)',
+                `${this.baseUrl}/build`,
+                { no_cache: true, start_after: true }
+            );
+            await this.refreshStatus();
         } catch (error) {
-            this.showToast(`Error rebuilding containers: ${error.message}`, 'danger');
-        } finally {
-            this.setButtonLoading('btn-container-rebuild', false);
+            console.error('Rebuild error:', error);
         }
     }
 

@@ -97,10 +97,14 @@
 </div>
 
 <div id="modal-container"></div>
+
+{# Include container logs modal #}
+{% include 'pages/applications/partials/modals/container_logs_modal.html' %}
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/container_manager.js') }}"></script>
+<script src="{{ url_for('static', filename='js/container_logs.js') }}"></script>
 <script>
 // Toast notification helper
 function showToast(message, type = 'info') {

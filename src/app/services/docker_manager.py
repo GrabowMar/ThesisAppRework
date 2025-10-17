@@ -308,6 +308,12 @@ class DockerManager:
             'build': build_result,
             'up': up_result
         }
+        # Add top-level error if either step failed
+        if not merged['success']:
+            if not build_result.get('success'):
+                merged['error'] = build_result.get('error', 'Build failed')
+            elif not up_result.get('success'):
+                merged['error'] = up_result.get('error', 'Start failed')
         return merged
     
     def get_container_logs(self, model: str, app_num: int,
@@ -486,12 +492,19 @@ class DockerManager:
 
         start_ts = time.time()
         try:
+            # Pass PROJECT_NAME environment variable to subprocess
+            # This ensures docker-compose.yml can use ${PROJECT_NAME} for unique container names
+            import os
+            env = os.environ.copy()
+            env['PROJECT_NAME'] = project_name
+            
             result = subprocess.run(
                 cmd,
                 cwd=cwd,
                 capture_output=True,
                 text=True,
-                timeout=timeout
+                timeout=timeout,
+                env=env
             )
             duration = time.time() - start_ts
             success = result.returncode == 0
@@ -506,6 +519,7 @@ class DockerManager:
             out: Dict[str, Any] = {
                 'success': success,
                 'returncode': result.returncode,
+                'exit_code': result.returncode,  # Add for consistency with log modal
                 'stdout': result.stdout,
                 'stderr': result.stderr,
                 'command': ' '.join(cmd),
@@ -513,9 +527,16 @@ class DockerManager:
                 'duration_seconds': duration,
                 'diagnostics': cli_diagnostics
             }
-            if not success and result.stderr:
+            if not success:
                 # Provide a concise error summary for API layer convenience
-                out['error'] = result.stderr.strip().splitlines()[-1][:300]
+                # Extract the most relevant error message from stderr or stdout
+                error_text = result.stderr.strip() if result.stderr.strip() else result.stdout.strip()
+                # Try to extract the actual error message (often the last non-empty line)
+                if error_text:
+                    lines = [l.strip() for l in error_text.splitlines() if l.strip()]
+                    out['error'] = lines[-1] if lines else f'Command failed with exit code {result.returncode}'
+                else:
+                    out['error'] = f'Command failed with exit code {result.returncode}'
             return out
         except subprocess.TimeoutExpired:
             self.logger.error("Compose command timeout after %ss: %s", timeout, ' '.join(cmd))

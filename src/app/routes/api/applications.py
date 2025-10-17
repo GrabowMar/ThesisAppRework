@@ -301,7 +301,12 @@ def get_app_status(model_slug, app_number):
                 
             status_age_minutes = None
             if app.last_status_check:
-                age = datetime.now(timezone.utc) - app.last_status_check
+                # Ensure both datetimes are timezone-aware
+                now = datetime.now(timezone.utc)
+                last_check = app.last_status_check
+                if last_check.tzinfo is None:
+                    last_check = last_check.replace(tzinfo=timezone.utc)
+                age = now - last_check
                 status_age_minutes = age.total_seconds() / 60
         else:
             status_age_minutes = None
