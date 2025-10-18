@@ -1,0 +1,65 @@
+{
+  "id": "todo_api",
+  "name": "Todo API",
+  "description": "A REST API for managing todo items",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/todos",
+      "description": "Get all todos",
+      "input": null,
+      "output": [
+        {
+          "id": 1,
+          "title": "Buy groceries",
+          "completed": false,
+          "created_at": "2024-01-01T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/todos",
+      "description": "Create a new todo",
+      "input": {
+        "title": "string (required)"
+      },
+      "output": {
+        "id": 1,
+        "title": "Buy groceries",
+        "completed": false,
+        "created_at": "2024-01-01T00:00:00Z"
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/api/todos/{id}",
+      "description": "Update a todo",
+      "input": {
+        "title": "string (optional)",
+        "completed": "boolean (optional)"
+      },
+      "output": {
+        "id": 1,
+        "title": "Buy groceries",
+        "completed": true,
+        "created_at": "2024-01-01T00:00:00Z"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/todos/{id}",
+      "description": "Delete a todo",
+      "input": null,
+      "output": {
+        "message": "Todo deleted successfully"
+      }
+    }
+  ],
+  "verification": [
+    "Create a todo and verify it returns with an ID",
+    "Get all todos and verify the created todo is in the list",
+    "Update the todo's completed status and verify the change",
+    "Delete the todo and verify it's removed from the list"
+  ]
+}

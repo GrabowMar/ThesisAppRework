@@ -5,7 +5,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: ${PROJECT_NAME:-app}_backend
+    container_name: ${PROJECT_NAME:-app{{app_num}}}_backend
     ports:
       - "${BACKEND_PORT:-{{backend_port|5000}}}:{{backend_port|5000}}"
     environment:
@@ -32,7 +32,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: ${PROJECT_NAME:-app}_frontend
+    container_name: ${PROJECT_NAME:-app{{app_num}}}_frontend
     ports:
       - "${FRONTEND_PORT:-{{frontend_port|8000}}}:80"
     environment:

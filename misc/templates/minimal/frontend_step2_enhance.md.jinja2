@@ -1,0 +1,55 @@
+# Task: Enhance {{ name }} UI
+
+Add advanced features to create a professional application.
+
+## Enhancement Goals
+
+1. **Advanced Features**
+   - Add filtering by multiple criteria
+   - Add sorting (ascending/descending)
+   - Add search functionality
+   - Add pagination or "load more"
+
+2. **Better UX**
+   - Add form validation with real-time feedback
+   - Add confirmation dialogs (inline, no external components!)
+   - Add success messages
+   - Add keyboard shortcuts
+
+3. **Professional Styling**
+   - Smooth transitions and animations
+   - Hover effects
+   - Focus states
+   - Better spacing and typography
+   - Dark/light color scheme
+
+4. **Performance**
+   - Debounce search inputs (implement inline)
+   - Cache API responses
+   - Optimistic UI updates
+
+## CRITICAL: Everything in App.jsx
+
+- Implement modals/toasts as inline JSX in App component
+- Implement debounce function inline in App.jsx
+- Use unicode symbols: ✓ ✗ ⟳ 🗑️ ➕ ⬆️ ⬇️ 🔍 ⚙️
+
+Example inline modal:
+```jsx
+{showModal && (
+  <div className="modal-overlay" onClick={() => setShowModal(false)}>
+    <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <h2>Confirm Delete</h2>
+      <p>Are you sure?</p>
+      <button onClick={handleDelete}>Yes</button>
+      <button onClick={() => setShowModal(false)}>No</button>
+    </div>
+  </div>
+)}
+```
+
+## Target
+
+**Expand to 400-500 lines in App.jsx and 250-300 lines in App.css**
+
+Make it feature-rich and professional!
