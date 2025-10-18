@@ -913,6 +913,23 @@ def write_generation_summary(limit: Optional[int] = None) -> Path:
     return SUMMARY_PATH
 
 
+class GenerationStatistics:
+    """Legacy class wrapper providing static helpers for tests."""
+
+    @staticmethod
+    def get_stats() -> Dict[str, Any]:
+        """Return aggregate generation statistics."""
+        try:
+            return summarize_generation_counts()
+        except Exception:
+            return {}
+
+    @staticmethod
+    def write_summary(limit: Optional[int] = None) -> Path:
+        """Write a generation summary file and return its path."""
+        return write_generation_summary(limit=limit)
+
+
 __all__ = [
     "GenerationRecord",
     "load_generation_records",
@@ -920,4 +937,5 @@ __all__ = [
     "build_generation_table_data",
     "collect_file_system_metrics",
     "write_generation_summary",
+    "GenerationStatistics",
 ]

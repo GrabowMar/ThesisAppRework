@@ -36,7 +36,8 @@ logger = logging.getLogger(__name__)
 __all__ = [
     'EngineResult', 'BaseAnalyzerEngine', 'SecurityAnalyzerEngine', 
     'PerformanceAnalyzerEngine', 'StaticAnalyzerEngine', 'DynamicAnalyzerEngine',
-    'AIAnalyzerEngine', 'get_engine', 'ENGINE_REGISTRY'
+    'AIAnalyzerEngine', 'StaticAnalysisEngine', 'PerformanceAnalysisEngine',
+    'DynamicAnalysisEngine', 'AIAnalysisEngine', 'get_engine', 'ENGINE_REGISTRY'
 ]
 
 
@@ -337,6 +338,12 @@ ENGINE_REGISTRY: Dict[str, type] = {
     'dynamic': DynamicAnalyzerEngine,
     'ai': AIAnalyzerEngine,
 }
+
+# Backwards-compatible aliases expected by legacy imports/tests
+StaticAnalysisEngine = StaticAnalyzerEngine
+PerformanceAnalysisEngine = PerformanceAnalyzerEngine
+DynamicAnalysisEngine = DynamicAnalyzerEngine
+AIAnalysisEngine = AIAnalyzerEngine
 
 
 def get_engine(name: str) -> BaseAnalyzerEngine:

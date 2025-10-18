@@ -188,13 +188,12 @@ class PortAllocationService:
                 raise ValueError("Port conflict: ports already in use")
             
             # Create new allocation
-            port_config = PortConfiguration(  # type: ignore[call-arg]
-                model=model_name,
-                app_num=app_num,
-                backend_port=backend_port,
-                frontend_port=frontend_port,
-                is_available=True
-            )
+            port_config = PortConfiguration()
+            port_config.model = model_name
+            port_config.app_num = app_num
+            port_config.backend_port = backend_port
+            port_config.frontend_port = frontend_port
+            port_config.is_available = True
             db.session.add(port_config)
             db.session.commit()
             

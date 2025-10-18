@@ -261,12 +261,11 @@ class ModelService:
             ).first()
             
             if not existing:
-                port_config = PortConfiguration(  # type: ignore[call-arg]
-                    model=config['model_name'],
-                    app_num=config['app_number'],
-                    backend_port=config['backend_port'],
-                    frontend_port=config['frontend_port']
-                )
+                port_config = PortConfiguration()
+                port_config.model = config['model_name']
+                port_config.app_num = config['app_number']
+                port_config.backend_port = config['backend_port']
+                port_config.frontend_port = config['frontend_port']
                 db.session.add(port_config)
                 count += 1
         
@@ -324,18 +323,21 @@ class ModelService:
                         elif (app_dir / 'frontend' / 'index.html').exists():
                             frontend_framework = 'vanilla'
                     
-                    app = GeneratedApplication(  # type: ignore[call-arg]
-                        model_slug=model_slug,
-                        app_number=app_number,
-                        app_type='fullstack' if has_backend and has_frontend else 'backend' if has_backend else 'frontend',
-                        provider=provider,
-                        has_backend=has_backend,
-                        has_frontend=has_frontend,
-                        has_docker_compose=has_docker_compose,
-                        backend_framework=backend_framework,
-                        frontend_framework=frontend_framework,
-                        container_status='stopped'
+                    app = GeneratedApplication()
+                    app.model_slug = model_slug
+                    app.app_number = app_number
+                    app.app_type = (
+                        'fullstack' if has_backend and has_frontend
+                        else 'backend' if has_backend
+                        else 'frontend'
                     )
+                    app.provider = provider
+                    app.has_backend = has_backend
+                    app.has_frontend = has_frontend
+                    app.has_docker_compose = has_docker_compose
+                    app.backend_framework = backend_framework
+                    app.frontend_framework = frontend_framework
+                    app.container_status = 'stopped'
                     
                     # Store additional metadata
                     metadata = {

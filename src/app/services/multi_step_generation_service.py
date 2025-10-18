@@ -14,6 +14,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx  # Better async HTTP client for Windows (aiohttp has timeout issues)
@@ -408,7 +409,6 @@ class MultiStepGenerationService:
         # Auto-fix dependencies for backend
         if request.component == 'backend':
             try:
-                from pathlib import Path
                 app_dir = scaffold_service.get_app_dir(request.model_slug, request.app_num)
                 self._fix_backend_dependencies(app_dir)
             except Exception as e:
@@ -419,24 +419,35 @@ class MultiStepGenerationService:
     def _fix_backend_dependencies(self, app_dir) -> None:
         """Auto-detect and fix missing dependencies in requirements.txt."""
         
-        # Import here to avoid circular dependency
-        import sys
-        from pathlib import Path
-        scripts_dir = Path(__file__).parent.parent.parent.parent / 'scripts'
-        sys.path.insert(0, str(scripts_dir))
-        
+        import importlib.util
+
+        scripts_dir = Path(__file__).resolve().parents[3] / 'scripts'
+        module_path = scripts_dir / 'fix_dependencies.py'
+
+        if not module_path.exists():
+            logger.debug("fix_dependencies.py not found; skipping dependency check")
+            return
+
         try:
-            from fix_dependencies import fix_requirements_txt
-            success, message = fix_requirements_txt(app_dir)
-            if success:
-                logger.info(f"Dependency check: {message}")
-            else:
-                logger.warning(f"Dependency check failed: {message}")
+            spec = importlib.util.spec_from_file_location('fix_dependencies', module_path)
+            if not spec or not spec.loader:  # pragma: no cover - defensive
+                logger.debug("Unable to load fix_dependencies module spec")
+                return
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)  # type: ignore[attr-defined]
+            fixer = getattr(module, 'fix_requirements_txt', None)
+            if callable(fixer):
+                result = fixer(app_dir)
+                if not (isinstance(result, tuple) and len(result) == 2):
+                    logger.debug("Dependency fixer returned unexpected result; skipping logging")
+                    return
+                success, message = result
+                if success:
+                    logger.info(f"Dependency check: {message}")
+                else:
+                    logger.warning(f"Dependency check failed: {message}")
         except Exception as e:
             logger.warning(f"Could not auto-fix dependencies: {e}")
-        finally:
-            if str(scripts_dir) in sys.path:
-                sys.path.remove(str(scripts_dir))
 
 
 def get_multi_step_service() -> MultiStepGenerationService:

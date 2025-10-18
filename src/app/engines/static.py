@@ -11,6 +11,11 @@ from typing import Dict, Any
 
 from .container_tool_registry import get_container_tool_registry, AnalyzerContainer
 
+try:  # Lazy import to avoid heavy dependencies during static analysis
+    from app.services.analysis_engines import StaticAnalysisEngine as _StaticAnalysisEngine
+except Exception:  # pragma: no cover - fallback when services package unavailable
+    _StaticAnalysisEngine = None  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 
@@ -62,3 +67,36 @@ def get_static_tool_info(tool_name: str) -> Dict[str, Any]:
         'output_formats': tool.output_formats,
         'config_schema': tool.config_schema
     }
+
+
+if _StaticAnalysisEngine is not None:
+    class StaticAnalysisEngine(_StaticAnalysisEngine):  # type: ignore[misc]
+        """Compatibility wrapper mirroring the legacy class location."""
+
+        def run_security_scan(self, *args, **kwargs):  # type: ignore[override]
+            raise NotImplementedError("Legacy run_security_scan is no longer supported; use run() with orchestrator tags")
+
+        def run_quality_check(self, *args, **kwargs):  # type: ignore[override]
+            raise NotImplementedError("Legacy run_quality_check is no longer supported; use run() with orchestrator tags")
+
+        def analyze_complexity(self, *args, **kwargs):  # type: ignore[override]
+            raise NotImplementedError("Legacy analyze_complexity is no longer supported; use run() with orchestrator tags")
+else:  # pragma: no cover - fallback during limited environments
+    class StaticAnalysisEngine:  # type: ignore[too-many-ancestors]
+        """Stub implementation used when analysis engines are unavailable."""
+
+        def __init__(self, *args, **kwargs) -> None:
+            self.args = args
+            self.kwargs = kwargs
+
+        def run_security_scan(self, *args, **kwargs):
+            raise NotImplementedError("Static analysis orchestrator unavailable in this environment")
+
+        def run_quality_check(self, *args, **kwargs):
+            raise NotImplementedError("Static analysis orchestrator unavailable in this environment")
+
+        def analyze_complexity(self, *args, **kwargs):
+            raise NotImplementedError("Static analysis orchestrator unavailable in this environment")
+
+
+__all__ = ['get_static_analyzer_tools', 'get_available_static_tools', 'get_static_tool_info', 'StaticAnalysisEngine']

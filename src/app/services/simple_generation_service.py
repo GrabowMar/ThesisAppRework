@@ -82,9 +82,109 @@ class SimpleGenerationService:
         self.scaffolding_dir = SCAFFOLDING_DIR / 'react-flask'
         self.base_backend_port = 5001
         self.base_frontend_port = 8001
+        self.max_concurrent = int(os.getenv('SIMPLE_GENERATION_MAX_CONCURRENT', '4'))
         
         # Ensure directories exist
         GENERATED_APPS_DIR.mkdir(parents=True, exist_ok=True)
+
+    def get_generation_status(self) -> Dict[str, Any]:
+        """Return high-level status metrics for the UI dashboard."""
+        status: Dict[str, Any] = {
+            'in_flight_count': 0,
+            'available_slots': self.max_concurrent,
+            'max_concurrent': self.max_concurrent,
+            'in_flight_keys': [],
+            'active_tasks': 0,
+            'system_healthy': True,
+        }
+
+        try:
+            from sqlalchemy import func
+            from app.models import GeneratedApplication
+            from app.constants import AnalysisStatus
+
+            in_progress = (
+                GeneratedApplication.query
+                .filter(GeneratedApplication.generation_status == AnalysisStatus.RUNNING)
+            )
+
+            status['in_flight_count'] = in_progress.count()
+            status['available_slots'] = max(self.max_concurrent - status['in_flight_count'], 0)
+            status['active_tasks'] = status['in_flight_count']
+
+            if status['in_flight_count']:
+                recent = (
+                    in_progress.order_by(GeneratedApplication.updated_at.desc())
+                    .limit(5)
+                    .all()
+                )
+                status['in_flight_keys'] = [
+                    f"{app.model_slug}/app{app.app_number}"
+                    for app in recent
+                ]
+
+            total_apps = GeneratedApplication.query.count()
+            status['total_results'] = total_apps
+
+            # Consider system healthy if we can read from DB and scaffolding exists
+            status['system_healthy'] = self.scaffolding_dir.exists()
+
+            # Include timestamp of last generation if available
+            latest_created = (
+                GeneratedApplication.query
+                .with_entities(func.max(GeneratedApplication.created_at))
+                .scalar()
+            )
+            if latest_created:
+                status['last_generated_at'] = latest_created.isoformat()
+        except Exception:
+            # Leave defaults; caller will treat as stubbed
+            status.setdefault('total_results', 0)
+            status['system_healthy'] = False
+
+        return status
+
+    def get_summary_metrics(self) -> Dict[str, Any]:
+        """Return summary metrics used by the sample generator UI."""
+        summary: Dict[str, Any] = {
+            'total_results': 0,
+            'total_templates': 0,
+            'total_models': 0,
+            'recent_results': 0,
+        }
+
+        try:
+            from datetime import timedelta
+            from sqlalchemy import func
+            from app.models import GeneratedApplication, ModelCapability
+            from app.utils.time import utc_now
+
+            summary['total_results'] = GeneratedApplication.query.count()
+            summary['total_models'] = ModelCapability.query.count()
+
+            day_ago = utc_now() - timedelta(days=1)
+            summary['recent_results'] = (
+                GeneratedApplication.query
+                .filter(GeneratedApplication.created_at >= day_ago)
+                .count()
+            )
+
+            latest_model = (
+                ModelCapability.query
+                .order_by(ModelCapability.created_at.desc())
+                .with_entities(ModelCapability.canonical_slug)
+                .first()
+            )
+            if latest_model:
+                summary['latest_model'] = latest_model[0]
+
+            summary['total_templates'] = sum(
+                1 for path in self.scaffolding_dir.rglob('*') if path.is_file()
+            )
+        except Exception:
+            pass
+
+        return summary
         
     def get_ports(self, model_slug: str, app_num: int) -> Tuple[int, int]:
         """Get allocated ports for a model/app combination.

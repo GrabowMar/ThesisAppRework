@@ -7,6 +7,11 @@ from flask import Blueprint, request
 from typing import TYPE_CHECKING, cast
 from app.routes.api.common import api_error, api_success
 
+try:  # Pylance compatibility – docker stubs omit errors module
+    from docker.errors import ImageNotFound  # type: ignore
+except Exception:  # pragma: no cover - docker optional during tests
+    ImageNotFound = Exception  # type: ignore
+
 if TYPE_CHECKING:  # pragma: no cover
     from app.services.docker_manager import DockerManager
 
@@ -53,7 +58,6 @@ def start_app_container(model_slug, app_number):
     """Start a specific app container."""
     try:
         from app.services.service_locator import ServiceLocator
-        import docker
         
         docker_mgr = ServiceLocator.get_docker_manager()
         if not docker_mgr:
@@ -73,12 +77,12 @@ def start_app_container(model_slug, app_number):
                 
                 try:
                     docker_mgr.client.images.get(backend_image)
-                except docker.errors.ImageNotFound:
+                except ImageNotFound:
                     missing_images.append('backend')
                 
                 try:
                     docker_mgr.client.images.get(frontend_image)
-                except docker.errors.ImageNotFound:
+                except ImageNotFound:
                     missing_images.append('frontend')
                 
                 images_exist = len(missing_images) == 0

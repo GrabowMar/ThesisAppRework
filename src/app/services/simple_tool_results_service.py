@@ -6,7 +6,7 @@ Service for storing and retrieving tool results from database for performance.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional, cast
 
 from ..extensions import db
 from ..models.simple_tool_results import ToolResult, ToolSummary
@@ -137,23 +137,23 @@ class SimpleToolResultsService:
                 has_output = bool(raw_output.get('stdout') or raw_output.get('stderr'))
                 
                 # Create record
-                tool_record = ToolResult(  # type: ignore[call-arg]
-                    task_id=task_id,
-                    tool_name=tool_name,
-                    display_name=metadata['name'],
-                    description=metadata['description'],
-                    category=metadata['category'],
-                    icon=metadata['icon'],
-                    status=status,
-                    executed=executed,
-                    duration_seconds=duration,
-                    exit_code=exit_code,
-                    total_issues=issues,
-                    error_message=error_msg,
-                    has_output=has_output,
-                    in_summary_used=tool_name in tools_used,
-                    in_summary_failed=tool_name in tools_failed
-                )
+                tool_record = ToolResult()
+                tool_record_any = cast(Any, tool_record)
+                tool_record_any.task_id = task_id
+                tool_record_any.tool_name = tool_name
+                tool_record_any.display_name = metadata['name']
+                tool_record_any.description = metadata['description']
+                tool_record_any.category = metadata['category']
+                tool_record_any.icon = metadata['icon']
+                tool_record_any.status = status
+                tool_record_any.executed = executed
+                tool_record_any.duration_seconds = duration
+                tool_record_any.exit_code = exit_code
+                tool_record_any.total_issues = issues
+                tool_record_any.error_message = error_msg
+                tool_record_any.has_output = has_output
+                tool_record_any.in_summary_used = tool_name in tools_used
+                tool_record_any.in_summary_failed = tool_name in tools_failed
                 
                 # Store raw data
                 tool_record.set_raw_data({
@@ -180,15 +180,15 @@ class SimpleToolResultsService:
                     not_available_tools += 1
             
             # Create summary
-            summary = ToolSummary(  # type: ignore[call-arg]
-                task_id=task_id,
-                total_tools=total_tools,
-                executed_tools=executed_tools,
-                successful_tools=successful_tools,
-                failed_tools=failed_tools,
-                not_available_tools=not_available_tools,
-                total_issues_found=total_issues
-            )
+            summary = ToolSummary()
+            summary_any = cast(Any, summary)
+            summary_any.task_id = task_id
+            summary_any.total_tools = total_tools
+            summary_any.executed_tools = executed_tools
+            summary_any.successful_tools = successful_tools
+            summary_any.failed_tools = failed_tools
+            summary_any.not_available_tools = not_available_tools
+            summary_any.total_issues_found = total_issues
             
             # Store tools data
             summary.set_tools_data({

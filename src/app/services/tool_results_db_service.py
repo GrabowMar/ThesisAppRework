@@ -8,7 +8,7 @@ and managing tool execution data for performance optimization.
 
 import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, cast
 from datetime import datetime
 
 from ..extensions import db
@@ -105,26 +105,26 @@ class ToolResultsDBService:
                 has_output = bool(stdout or stderr)
                 
                 # Create database record
-                tool_result = ToolExecutionResult(  # type: ignore[call-arg]
-                    task_id=task_id,
-                    tool_name=tool_name,
-                    display_name=metadata['name'],
-                    description=metadata['description'],
-                    category=metadata['category'],
-                    icon=metadata['icon'],
-                    status=status,
-                    executed=executed,
-                    duration_seconds=duration,
-                    exit_code=exit_code,
-                    total_issues=total_issues,
-                    error_message=error_msg,
-                    has_output=has_output,
-                    output_size=len(stdout) + len(stderr),
-                    stdout_preview=stdout[:500] if stdout else None,
-                    stderr_preview=stderr[:500] if stderr else None,
-                    in_summary_used=tool_name in tools_used,
-                    in_summary_failed=tool_name in tools_failed
-                )
+                tool_result = ToolExecutionResult()
+                record = cast(Any, tool_result)
+                record.task_id = task_id
+                record.tool_name = tool_name
+                record.display_name = metadata['name']
+                record.description = metadata['description']
+                record.category = metadata['category']
+                record.icon = metadata['icon']
+                record.status = status
+                record.executed = executed
+                record.duration_seconds = duration
+                record.exit_code = exit_code
+                record.total_issues = total_issues
+                record.error_message = error_msg
+                record.has_output = has_output
+                record.output_size = len(stdout) + len(stderr)
+                record.stdout_preview = stdout[:500] if stdout else None
+                record.stderr_preview = stderr[:500] if stderr else None
+                record.in_summary_used = tool_name in tools_used
+                record.in_summary_failed = tool_name in tools_failed
                 
                 # Set additional metadata
                 if tool_data:
@@ -156,21 +156,21 @@ class ToolResultsDBService:
                 summary_stats['total_issues_found'] += total_issues
             
             # Create summary record
-            summary = ToolExecutionSummary(  # type: ignore[call-arg]
-                task_id=task_id,
-                total_tools=summary_stats['total_tools'],
-                executed_tools=summary_stats['executed_tools'],
-                successful_tools=summary_stats['successful_tools'],
-                failed_tools=summary_stats['failed_tools'],
-                not_available_tools=summary_stats['not_available_tools'],
-                security_tools=category_counts['security'],
-                quality_tools=category_counts['quality'],
-                performance_tools=category_counts['performance'],
-                dynamic_tools=category_counts['dynamic'],
-                other_tools=category_counts['other'],
-                total_execution_time=summary_stats['total_execution_time'],
-                total_issues_found=summary_stats['total_issues_found']
-            )
+            summary = ToolExecutionSummary()
+            summary_rec = cast(Any, summary)
+            summary_rec.task_id = task_id
+            summary_rec.total_tools = summary_stats['total_tools']
+            summary_rec.executed_tools = summary_stats['executed_tools']
+            summary_rec.successful_tools = summary_stats['successful_tools']
+            summary_rec.failed_tools = summary_stats['failed_tools']
+            summary_rec.not_available_tools = summary_stats['not_available_tools']
+            summary_rec.security_tools = category_counts['security']
+            summary_rec.quality_tools = category_counts['quality']
+            summary_rec.performance_tools = category_counts['performance']
+            summary_rec.dynamic_tools = category_counts['dynamic']
+            summary_rec.other_tools = category_counts['other']
+            summary_rec.total_execution_time = summary_stats['total_execution_time']
+            summary_rec.total_issues_found = summary_stats['total_issues_found']
             
             # Calculate average execution time
             summary.calculate_metrics()

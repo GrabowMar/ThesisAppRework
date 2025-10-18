@@ -11,6 +11,11 @@ from typing import Dict, Any
 
 from .container_tool_registry import get_container_tool_registry, AnalyzerContainer
 
+try:
+    from app.services.analysis_engines import DynamicAnalysisEngine as _DynamicAnalysisEngine
+except Exception:  # pragma: no cover
+    _DynamicAnalysisEngine = None  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 
@@ -62,5 +67,32 @@ def get_dynamic_tool_info(tool_name: str) -> Dict[str, Any]:
         'output_formats': tool.output_formats,
         'config_schema': tool.config_schema
     }
+
+
+if _DynamicAnalysisEngine is not None:
+    class DynamicAnalysisEngine(_DynamicAnalysisEngine):  # type: ignore[misc]
+        """Compatibility wrapper mirroring the legacy class location."""
+
+        def analyze_runtime_behavior(self, *args, **kwargs):  # type: ignore[override]
+            raise NotImplementedError("Legacy analyze_runtime_behavior is no longer supported; use run() with orchestrator tags")
+
+        def profile_memory(self, *args, **kwargs):  # type: ignore[override]
+            raise NotImplementedError("Legacy profile_memory is no longer supported; use run() with orchestrator tags")
+else:  # pragma: no cover
+    class DynamicAnalysisEngine:
+        """Stub implementation used when analysis engines are unavailable."""
+
+        def __init__(self, *args, **kwargs) -> None:
+            self.args = args
+            self.kwargs = kwargs
+
+        def analyze_runtime_behavior(self, *args, **kwargs):
+            raise NotImplementedError("Dynamic analysis orchestrator unavailable in this environment")
+
+        def profile_memory(self, *args, **kwargs):
+            raise NotImplementedError("Dynamic analysis orchestrator unavailable in this environment")
+
+
+__all__ = ['get_dynamic_analyzer_tools', 'get_available_dynamic_tools', 'get_dynamic_tool_info', 'DynamicAnalysisEngine']
 
 

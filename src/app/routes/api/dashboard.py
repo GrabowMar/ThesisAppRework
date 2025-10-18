@@ -6,9 +6,12 @@ Streamlined endpoints for dashboard overview, statistics, and HTMX fragments.
 Reduced from 32 endpoints to 12 by using query parameters.
 """
 
-from flask import Blueprint, current_app, request
 import logging
 from datetime import datetime, timezone, timedelta
+from dataclasses import asdict
+from typing import Any, Dict, cast
+
+from flask import Blueprint, current_app, request
 
 from app.extensions import db
 from app.models import (
@@ -58,7 +61,7 @@ def api_dashboard_overview():
 
         # Active models (those with apps)
         active_models = (
-            db.session.query(db.func.count(db.func.distinct(GeneratedApplication.model_id)))
+            db.session.query(db.func.count(db.func.distinct(GeneratedApplication.model_slug)))
             .scalar()
         )
 
@@ -222,14 +225,16 @@ def dashboard_system_status():
             # Comprehensive system health (original /system-health-comprehensive logic)
             from app.services.container_management_service import get_docker_manager
             docker_mgr = get_docker_manager()
+            if not docker_mgr or not hasattr(docker_mgr, 'get_container_status'):
+                docker_mgr = None
             
             # Get all container details
             containers_info = []
             for model_slug in ['anthropic_claude-3.7-sonnet', 'openai_gpt-4', 'x-ai_grok-code-fast-1']:
                 for app_num in [1, 2, 3]:
                     try:
-                        status = docker_mgr.get_container_status(model_slug, app_num)
-                        if status:
+                        status = docker_mgr.get_container_status(model_slug, app_num) if docker_mgr else None
+                        if status and isinstance(status, dict):
                             containers_info.append({
                                 'model': model_slug,
                                 'app': app_num,
@@ -383,24 +388,64 @@ def tool_registry_summary():
     try:
         from app.services.tool_registry_service import get_tool_registry_service
         registry = get_tool_registry_service()
-        
-        tools = registry.get_all_tools()
-        profiles = registry.get_all_profiles()
-        
-        # Group tools by category
+
+        raw_tools = registry.get_all_tools()
+        tools = list(raw_tools.values()) if isinstance(raw_tools, dict) else list(raw_tools or [])
+
+        get_profiles = getattr(registry, 'get_all_profiles', None)
+        raw_profiles = get_profiles() if callable(get_profiles) else []
+
+        if isinstance(raw_profiles, dict):  # pragma: no cover - defensive
+            raw_profiles_iter = list(raw_profiles.values())
+        elif isinstance(raw_profiles, (list, tuple, set)):
+            raw_profiles_iter = list(raw_profiles)
+        else:
+            raw_profiles_iter = [raw_profiles] if raw_profiles else []
+
+        profiles = []
+        for profile in raw_profiles_iter:
+            profile_any = cast(Any, profile)
+            if hasattr(profile_any, 'to_dict'):
+                profiles.append(profile_any.to_dict())
+            elif isinstance(profile_any, dict):
+                profiles.append(profile)
+            else:
+                profiles.append({'name': str(profile_any)})
+
+        def _serialise_tool(tool_obj: Any) -> Dict[str, Any]:
+            if hasattr(tool_obj, '__dataclass_fields__'):
+                data = asdict(tool_obj)
+                for key in ('tags', 'supported_languages', 'cli_flags', 'output_formats'):
+                    value = data.get(key)
+                    if isinstance(value, set):
+                        data[key] = sorted(value)
+                return data
+            if hasattr(tool_obj, 'to_dict'):
+                maybe_dict = tool_obj.to_dict()
+                return maybe_dict if isinstance(maybe_dict, dict) else {'value': maybe_dict}
+            candidate = cast(Any, tool_obj)
+            return {'repr': repr(candidate)}
+
+        # Group tools by category (fall back to container value when category absent)
         by_category = {}
         for tool in tools:
-            category = tool.category or 'Other'
-            if category not in by_category:
-                by_category[category] = []
-            by_category[category].append(tool)
-        
+            raw_category = getattr(tool, 'category', None)
+            if not raw_category:
+                raw_category = getattr(tool, 'container', None)
+            if raw_category and hasattr(raw_category, 'value'):
+                raw_category = getattr(raw_category, 'value', raw_category)
+            category = str(raw_category or 'Other')
+            by_category.setdefault(category, []).append(tool)
+
         return api_success({
             'total_tools': len(tools),
             'total_profiles': len(profiles),
-            'categories': {cat: len(tools_list) for cat, tools_list in by_category.items()},
-            'tools_by_category': {cat: [t.to_dict() for t in tools_list] for cat, tools_list in by_category.items()},
-            'profiles': [p.to_dict() for p in profiles]
+            'categories': {cat: len(tool_list) for cat, tool_list in by_category.items()},
+            'tools_by_category': {
+                cat: [_serialise_tool(t) for t in tool_list]
+                for cat, tool_list in by_category.items()
+            },
+            'profiles': profiles
         })
         
     except Exception as e:

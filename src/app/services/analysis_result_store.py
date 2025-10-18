@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from app.constants import SeverityLevel
@@ -333,3 +334,47 @@ def load_task_findings(task_id: str, limit: Optional[int] = None) -> List[Dict[s
     if limit is not None:
         query = query.limit(limit)
     return _serialise_findings(query.all())
+
+
+class AnalysisResultStore:
+    """File-based compatibility wrapper for legacy tests and tooling.
+
+    Historically, analysis results were persisted as JSON files beneath the
+    ``results/`` directory. Modern services store data in the database, but a
+    few tests (and possibly external scripts) still rely on the old API. This
+    lightweight adapter preserves the interface by serialising dictionaries to
+    disk while reusing the new storage layout.
+    """
+
+    def __init__(self, base_dir: Optional[Path] = None) -> None:
+        project_root = Path(__file__).resolve().parents[3]
+        default_dir = project_root / 'results'
+        self.base_dir = base_dir or default_dir
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _safe_model_dir(model_slug: str) -> str:
+        return model_slug.replace('/', '_').replace('\\', '_')
+
+    def _result_path(self, model_slug: str, app_number: int) -> Path:
+        safe_slug = self._safe_model_dir(model_slug)
+        return self.base_dir / safe_slug / f'app{app_number}' / 'analysis' / 'results.json'
+
+    def save_results(self, model_slug: str, app_number: int, results: Dict[str, Any]) -> bool:
+        """Persist results to a JSON file mirroring the legacy structure."""
+        path = self._result_path(model_slug, app_number)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        serialised = json.dumps(results or {}, indent=2, default=_json_default)
+        path.write_text(serialised, encoding='utf-8')
+        return True
+
+    def load_results(self, model_slug: str, app_number: int) -> Optional[Dict[str, Any]]:
+        """Load previously saved results if the JSON file exists."""
+        path = self._result_path(model_slug, app_number)
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding='utf-8'))
+            return data if isinstance(data, dict) else None
+        except (OSError, ValueError, TypeError):
+            return None

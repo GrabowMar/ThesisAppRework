@@ -24,6 +24,9 @@ for app_dir in sorted(apps_dir.iterdir()):
     
     total_apps += 1
     app_num = app_dir.name
+    lines = 0
+    jsx_lines = 0
+    css_lines = 0
     
     print(f"\n{'='*80}")
     print(f"APP: {app_num}")
