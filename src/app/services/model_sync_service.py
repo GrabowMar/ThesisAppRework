@@ -45,9 +45,9 @@ from app.constants import AnalysisStatus
 
 # Directories occasionally mis-identified as models in legacy sync runs
 LEGACY_METADATA_NAMES = {
-    'capabilities', 'config', 'failures', 'indices', 'logs', 'markdown',
-    'raw_api', 'stats', 'tmp', 'large_content', 'summaries', 'batches',
-    'generation', 'payloads', 'responses'
+    'metadata', 'raw', 'capabilities', 'config', 'failures', 'indices', 'logs',
+    'markdown', 'raw_api', 'stats', 'tmp', 'large_content', 'summaries',
+    'batches', 'generation', 'payloads', 'responses'
 }
 
 

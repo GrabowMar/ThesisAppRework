@@ -29,6 +29,7 @@ generated/apps/{model}/app{N}/
     └── frontend/src/App.css (application)
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -38,13 +39,21 @@ import shutil
 import textwrap
 import time
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Tuple, Dict, List, Set, Any
 
 import aiohttp
 
-from app.paths import GENERATED_APPS_DIR, SCAFFOLDING_DIR, REQUIREMENTS_DIR
+from app.paths import (
+    GENERATED_APPS_DIR,
+    SCAFFOLDING_DIR,
+    REQUIREMENTS_DIR,
+    GENERATED_RAW_API_PAYLOADS_DIR,
+    GENERATED_RAW_API_RESPONSES_DIR,
+    GENERATED_INDICES_DIR,
+    GENERATED_MARKDOWN_DIR,
+)
 from app.services.port_allocation_service import get_port_allocation_service
 
 logger = logging.getLogger(__name__)
@@ -264,20 +273,44 @@ class CodeGenerator:
             "Content-Type": "application/json"
         }
         
+        # Prepare metadata tracking
+        timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+        safe_model = re.sub(r'[^\w\-.]', '_', config.model_slug)
+        run_id = f"{safe_model}_app{config.app_num}_{config.component}_{timestamp}"
+        
         try:
             async with aiohttp.ClientSession() as session:
+                # Save request payload
+                self._save_payload(run_id, safe_model, config.app_num, payload, headers)
+                
                 async with session.post(
                     self.api_url,
                     json=payload,
                     headers=headers,
                     timeout=aiohttp.ClientTimeout(total=300)
                 ) as response:
+                    response_status = response.status
+                    response_headers = dict(response.headers)
+                    
                     if response.status != 200:
                         error = await response.text()
+                        # Save error response
+                        self._save_response(run_id, safe_model, config.app_num, {
+                            'error': error,
+                            'status': response_status
+                        }, response_headers)
                         return False, "", f"API error {response.status}: {error}"
                     
                     data = await response.json()
                     content = data['choices'][0]['message']['content']
+                    
+                    # Save successful response
+                    self._save_response(run_id, safe_model, config.app_num, data, response_headers)
+                    
+                    # Save metadata (async call with extended OpenRouter stats)
+                    await self._save_metadata(run_id, safe_model, config.app_num, config.component, 
+                                            payload, data, response_status, response_headers)
+                    
                     return True, content, ""
                     
         except Exception as e:
@@ -337,6 +370,135 @@ class CodeGenerator:
         except Exception as e:
             logger.error(f"Failed to load template: {e}")
             return ""
+    
+    def _save_payload(self, run_id: str, model_slug: str, app_num: int, 
+                     payload: Dict, headers: Dict) -> None:
+        """Save request payload to raw directory."""
+        try:
+            payload_dir = GENERATED_RAW_API_PAYLOADS_DIR / model_slug / f"app{app_num}"
+            payload_dir.mkdir(parents=True, exist_ok=True)
+            
+            payload_file = payload_dir / f"{run_id}_payload.json"
+            payload_data = {
+                'timestamp': datetime.now().isoformat(),
+                'run_id': run_id,
+                'headers': headers,
+                'payload': payload
+            }
+            payload_file.write_text(json.dumps(payload_data, indent=2), encoding='utf-8')
+            logger.debug(f"Saved payload: {payload_file}")
+        except Exception as e:
+            logger.warning(f"Failed to save payload: {e}")
+    
+    def _save_response(self, run_id: str, model_slug: str, app_num: int,
+                      response: Dict, headers: Dict) -> None:
+        """Save API response to raw directory."""
+        try:
+            response_dir = GENERATED_RAW_API_RESPONSES_DIR / model_slug / f"app{app_num}"
+            response_dir.mkdir(parents=True, exist_ok=True)
+            
+            response_file = response_dir / f"{run_id}_response.json"
+            response_data = {
+                'timestamp': datetime.now().isoformat(),
+                'run_id': run_id,
+                'headers': dict(headers),
+                'response': response
+            }
+            response_file.write_text(json.dumps(response_data, indent=2), encoding='utf-8')
+            logger.debug(f"Saved response: {response_file}")
+        except Exception as e:
+            logger.warning(f"Failed to save response: {e}")
+    
+    async def _save_metadata(self, run_id: str, model_slug: str, app_num: int, component: str,
+                            payload: Dict, response: Dict, status: int, headers: Dict) -> None:
+        """Save comprehensive generation metadata with OpenRouter stats.
+        
+        Fetches extended metadata from OpenRouter /api/v1/generation endpoint
+        including native tokens, cost, provider info, etc.
+        """
+        try:
+            metadata_dir = GENERATED_INDICES_DIR / "runs" / model_slug / f"app{app_num}"
+            metadata_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Extract basic info from response
+            usage = response.get('usage', {})
+            generation_id = response.get('id')
+            
+            # Build comprehensive metadata
+            metadata = {
+                'run_id': run_id,
+                'timestamp': datetime.now().isoformat(),
+                'model_slug': model_slug,
+                'app_num': app_num,
+                'component': component,
+                'model_used': response.get('model'),
+                'status': status,
+                # Normalized token counts (from main response)
+                'prompt_tokens': usage.get('prompt_tokens'),
+                'completion_tokens': usage.get('completion_tokens'),
+                'total_tokens': usage.get('total_tokens'),
+                # Response metadata
+                'finish_reason': response.get('choices', [{}])[0].get('finish_reason'),
+                'native_finish_reason': response.get('choices', [{}])[0].get('native_finish_reason'),
+                'generation_id': generation_id,
+                # Request parameters
+                'temperature': payload.get('temperature'),
+                'max_tokens': payload.get('max_tokens'),
+            }
+            
+            # Fetch extended OpenRouter metadata from /api/v1/generation endpoint
+            if generation_id:
+                try:
+                    # Wait 1 second for OpenRouter to process generation stats
+                    await asyncio.sleep(1.0)
+                    
+                    async with aiohttp.ClientSession() as session:
+                        generation_url = f"https://openrouter.ai/api/v1/generation?id={generation_id}"
+                        headers_for_stats = {
+                            "Authorization": f"Bearer {self.api_key}",
+                        }
+                        
+                        async with session.get(
+                            generation_url,
+                            headers=headers_for_stats,
+                            timeout=aiohttp.ClientTimeout(total=10)
+                        ) as gen_response:
+                            if gen_response.status == 200:
+                                gen_data = await gen_response.json()
+                                data = gen_data.get('data', {})
+                                
+                                # Add OpenRouter-specific metadata
+                                metadata.update({
+                                    'native_tokens_prompt': data.get('native_tokens_prompt'),
+                                    'native_tokens_completion': data.get('native_tokens_completion'),
+                                    'provider_name': data.get('provider_name'),
+                                    'model_used_actual': data.get('model'),
+                                    'total_cost': data.get('total_cost'),  # USD
+                                    'generation_time_ms': data.get('generation_time'),
+                                    'created_at': data.get('created_at'),
+                                    'cancelled': data.get('cancelled', False),
+                                    'upstream_id': data.get('upstream_id'),
+                                })
+                                logger.debug(f"Enhanced metadata with OpenRouter stats for {run_id}")
+                            else:
+                                error_text = await gen_response.text()
+                                logger.warning(
+                                    f"Failed to fetch OpenRouter generation stats (status {gen_response.status}): {error_text}"
+                                )
+                                metadata['generation_stats_error'] = f"Status {gen_response.status}"
+                
+                except asyncio.TimeoutError:
+                    logger.warning(f"Timeout fetching OpenRouter generation stats for {run_id}")
+                    metadata['generation_stats_error'] = "Timeout"
+                except Exception as e:
+                    logger.warning(f"Failed to fetch OpenRouter generation stats: {e}")
+                    metadata['generation_stats_error'] = str(e)
+            
+            metadata_file = metadata_dir / f"{run_id}_metadata.json"
+            metadata_file.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
+            logger.debug(f"Saved comprehensive metadata: {metadata_file}")
+        except Exception as e:
+            logger.warning(f"Failed to save metadata: {e}")
     
     def _build_prompt(self, config: GenerationConfig) -> str:
         """Build generation prompt based on template + scaffolding + requirements."""
