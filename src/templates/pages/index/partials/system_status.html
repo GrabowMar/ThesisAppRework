@@ -1,4 +1,5 @@
-{% set components = system.components or [] %}
+{% set system_data = system_status if system_status is defined else system %}
+{% set components = system_data.get('components', []) if system_data else [] %}
 {% if components %}
 <table class="table table-striped table-vcenter table-hover table-sm card-table mb-0">
   <thead>

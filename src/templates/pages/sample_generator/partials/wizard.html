@@ -1,13 +1,9 @@
-{# Sample Generation Wizard - Matching create.html Style #}
-<form id="sample-generator-form" method="POST" action="/api/gen/generate-full" onsubmit="event.preventDefault(); startGeneration(); return false;">
-  <input type="hidden" name="template_ids" id="input-template-ids" />
-  <input type="hidden" name="models" id="input-models" />
-  <input type="hidden" name="parallel_workers" id="input-parallel-workers" value="3" />
-
+{# Sample Generator Wizard - analysis-style layout #}
+<div id="sample-generator-wizard">
   <div class="row row-cards g-3">
     <div class="col-xxl-8 col-xl-7 col-lg-7">
       <div class="row row-cards g-3">
-        <!-- Step 1: Scaffolding Selection -->
+        <input type="hidden" id="input-scaffolding-id" value="default">
         <div class="col-12 wizard-panel active" data-panel="1">
           <div class="card card-table-compact">
             <div class="card-header d-flex flex-wrap align-items-center gap-3 py-2">
@@ -15,72 +11,65 @@
                 <span class="badge bg-primary text-uppercase rounded-pill px-3">Step 1</span>
                 <div>
                   <h3 class="card-title mb-0 d-flex align-items-center gap-2">
-                    <i class="fas fa-layer-group text-primary"></i>
+                    <i class="fas fa-cube text-primary"></i>
                     <span>Select Scaffolding</span>
                   </h3>
-                  <div class="text-muted small">Choose the base project structure for your applications</div>
+                  <div class="text-muted small">Choose the base project scaffold for generated apps.</div>
                 </div>
               </div>
             </div>
-            <div class="card-body border-top p-0">
-              <div id="scaffolding-selection-list" class="p-3">
-                <div class="row g-3">
-                  <div class="col-12">
-                    <div class="card card-link cursor-pointer hover-shadow border" onclick="selectScaffolding('default', 'Default Full-Stack')">
-                      <div class="card-body">
-                        <div class="d-flex align-items-center">
-                          <div class="flex-fill">
-                            <h4 class="card-title mb-2">Default Full-Stack Scaffolding</h4>
-                            <div class="text-muted small mb-3">Flask backend + React frontend + Docker Compose orchestration</div>
-                            <div>
-                              <span class="badge bg-blue-lt me-1"><i class="fas fa-server me-1"></i>Backend</span>
-                              <span class="badge bg-green-lt me-1"><i class="fas fa-window-maximize me-1"></i>Frontend</span>
-                              <span class="badge bg-purple-lt"><i class="fab fa-docker me-1"></i>Docker</span>
+            <div class="card-body border-top">
+              <div class="row g-4">
+                <div class="col-12 col-lg-7">
+                  <div class="card border-dashed h-100">
+                    <div class="card-body">
+                      <h3 class="h5">Choose scaffolding</h3>
+                      <p class="text-muted small">Select the project scaffolding that defines Docker setup, frontend/backed folders, and baseline configuration.</p>
+                      <div id="scaffolding-selection-list" class="row g-3">
+                        <div class="col-12">
+                          <div class="card selectable-card" role="button" onclick="selectScaffolding('default')">
+                            <div class="card-body d-flex align-items-center gap-3">
+                              <div class="avatar bg-primary-lt text-primary rounded"><i class="fas fa-cube"></i></div>
+                              <div class="flex-fill">
+                                <h4 class="h6 mb-1">Default React + Flask stack</h4>
+                                <p class="text-muted small mb-0">Includes Docker Compose, Celery worker, Vite frontend, Flask API, and analyzer integration hooks.</p>
+                              </div>
+                              <div>
+                                <span class="badge bg-success-lt" id="scaffolding-selected-indicator">Selected</span>
+                              </div>
                             </div>
-                          </div>
-                          <div class="ms-auto">
-                            <i class="fas fa-layer-group fa-3x text-primary opacity-50"></i>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-
-              <div id="scaffolding-preview" class="border-top bg-light-subtle p-3 d-none">
-                <div class="d-flex align-items-center mb-3">
-                  <i class="fas fa-eye me-2 text-primary"></i>
-                  <h6 class="mb-0">Scaffolding Preview</h6>
-                </div>
-                <div id="scaffolding-preview-content" class="bg-white p-3 rounded border">
-                  <pre class="mb-0"><code>backend/
-  ├── app.py.template
-  ├── Dockerfile.template
-  └── requirements.txt
-frontend/
-  ├── src/
-  │   ├── App.jsx.template
-  │   └── App.css
-  ├── index.html.template
-  ├── package.json.template
-  ├── vite.config.js.template
-  └── Dockerfile.template
-docker-compose.yml.template</code></pre>
+                <div class="col-12 col-lg-5">
+                  <div id="scaffolding-preview" class="card h-100">
+                    <div class="card-header d-flex align-items-center justify-content-between">
+                      <h3 class="h6 mb-0">Scaffolding overview</h3>
+                      <button type="button" class="btn btn-sm btn-outline-primary" onclick="viewScaffoldingDetails('default')">Details</button>
+                    </div>
+                    <div class="card-body">
+                      <ul class="list-unstyled small text-muted mb-0">
+                        <li class="mb-2"><i class="fas fa-box-open me-2 text-primary"></i>Pre-configured Docker + docker-compose</li>
+                        <li class="mb-2"><i class="fas fa-plug me-2 text-primary"></i>Port allocation via PortAllocationService</li>
+                        <li class="mb-2"><i class="fas fa-layer-group me-2 text-primary"></i>React (Vite) frontend scaffold</li>
+                        <li class="mb-2"><i class="fas fa-server me-2 text-primary"></i>Flask backend with Celery integration</li>
+                        <li><i class="fas fa-file-code me-2 text-primary"></i>Analyzer wiring + configuration templates</li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              <div id="step1-error" class="alert alert-danger d-none m-3">
-                <div class="d-flex align-items-center">
-                  <i class="fas fa-exclamation-triangle me-2"></i>
-                  <div>Please select a scaffolding template to continue.</div>
-                </div>
+              <div class="alert alert-info mt-4 help-content active" data-help="1">
+                <i class="fas fa-lightbulb me-2"></i>
+                Scaffolding defines baseline file layout, Docker configuration, and environment defaults. The wizard ships with the flagship React+Flask scaffold.
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Step 2: Template & Model Selection -->
         <div class="col-12 wizard-panel" data-panel="2">
           <div class="card card-table-compact">
             <div class="card-header d-flex flex-wrap align-items-center gap-3 py-2">
@@ -88,79 +77,111 @@ docker-compose.yml.template</code></pre>
                 <span class="badge bg-primary text-uppercase rounded-pill px-3">Step 2</span>
                 <div>
                   <h3 class="card-title mb-0 d-flex align-items-center gap-2">
-                    <i class="fas fa-code text-primary"></i>
+                    <i class="fas fa-layer-group text-primary"></i>
                     <span>Select Templates &amp; Models</span>
                   </h3>
-                  <div class="text-muted small">Choose application templates and AI models for generation</div>
+                  <div class="text-muted small">Pick the requirements and AI models to combine.</div>
                 </div>
               </div>
             </div>
-            <div class="card-body border-top p-0">
-              <div class="row g-0">
-                <!-- Template Selection -->
-                <div class="col-lg-6 border-end">
-                  <div class="p-3 border-bottom">
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                      <h6 class="mb-0"><i class="fas fa-file-code me-2 text-primary"></i>Application Templates</h6>
-                      <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-outline-success btn-sm" onclick="selectAllTemplates()">
-                          <i class="fas fa-check-all me-1"></i>All
-                        </button>
-                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="clearAllTemplates()">
-                          <i class="fas fa-times me-1"></i>Clear
-                        </button>
+            <div class="card-body border-top">
+              <div class="row g-4">
+                <div class="col-12 col-xl-6">
+                  <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                      <h3 class="h6 mb-0">Templates</h3>
+                      <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-primary" onclick="selectAllTemplates()">Select all</button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="clearAllTemplates()">Clear</button>
                       </div>
                     </div>
-                    <input type="text" class="form-control form-control-sm" placeholder="Search templates..." id="template-search" oninput="filterTemplates(this.value)">
-                  </div>
-                  <div class="table-responsive" style="max-height: 500px;">
-                    <div id="template-selection-list" class="list-group list-group-flush">
-                      <div class="p-4 text-center text-muted">
-                        <div class="spinner-border spinner-border-sm text-primary mb-2" role="status"></div>
-                        <p class="mb-0 small">Loading templates...</p>
+                    <div class="card-body">
+                      <div class="input-group input-group-sm mb-3">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="search" class="form-control" placeholder="Search templates" oninput="filterTemplates(this.value)">
+                      </div>
+                      <div id="template-selection-list" class="list-group list-group-flush" style="max-height: 360px; overflow-y: auto;">
+                        <div class="text-center text-muted py-5">
+                          <div class="spinner-border text-primary"></div>
+                          <p class="small mb-0 mt-3">Loading templates...</p>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-
-                <!-- Model Selection -->
-                <div class="col-lg-6">
-                  <div class="p-3 border-bottom">
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                      <h6 class="mb-0"><i class="fas fa-brain me-2 text-primary"></i>AI Models</h6>
-                      <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-outline-success btn-sm" onclick="selectAllModels()">
-                          <i class="fas fa-check-all me-1"></i>All
-                        </button>
-                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="clearAllModels()">
-                          <i class="fas fa-times me-1"></i>Clear
-                        </button>
+                <div class="col-12 col-xl-6">
+                  <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                      <h3 class="h6 mb-0">Models</h3>
+                      <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-primary" onclick="selectAllModels()">Select all</button>
+                        <button type="button" class="btn btn-outline-secondary" onclick="clearAllModels()">Clear</button>
                       </div>
                     </div>
-                    <input type="text" class="form-control form-control-sm" placeholder="Search models..." id="model-search" oninput="filterModels(this.value)">
-                  </div>
-                  <div class="table-responsive" style="max-height: 500px;">
-                    <div id="model-selection-list" class="list-group list-group-flush">
-                      <div class="p-4 text-center text-muted">
-                        <div class="spinner-border spinner-border-sm text-primary mb-2" role="status"></div>
-                        <p class="mb-0 small">Loading models...</p>
+                    <div class="card-body">
+                      <div class="input-group input-group-sm mb-3">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="search" class="form-control" placeholder="Search models" oninput="filterModels(this.value)">
+                      </div>
+                      <div id="model-selection-list" class="list-group list-group-flush" style="max-height: 360px; overflow-y: auto;">
+                        <div class="text-center text-muted py-5">
+                          <div class="spinner-border text-primary"></div>
+                          <p class="small mb-0 mt-3">Loading models...</p>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-
-              <div id="step2-error" class="alert alert-danger d-none m-3">
-                <div class="d-flex align-items-center">
-                  <i class="fas fa-exclamation-triangle me-2"></i>
-                  <div>Please select at least one template and one model to continue.</div>
+              <div class="card mt-4">
+                <div class="card-body">
+                  <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                      <h3 class="h6 mb-1">Generation Matrix</h3>
+                      <p class="text-muted small mb-0">Total combinations ready to generate.</p>
+                    </div>
+                    <div class="text-end">
+                      <div class="fw-bold h4 mb-0"><span id="matrix-count">0</span></div>
+                      <div class="small text-muted">templates × models</div>
+                    </div>
+                  </div>
+                  <div class="row mt-3 g-3">
+                    <div class="col-sm-4">
+                      <div class="card card-sm bg-primary-lt">
+                        <div class="card-body text-center">
+                          <div class="h3 mb-0" id="matrix-templates">0</div>
+                          <div class="small text-muted">Templates</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-sm-4">
+                      <div class="card card-sm bg-warning-lt">
+                        <div class="card-body text-center">
+                          <div class="h3 mb-0" id="matrix-models">0</div>
+                          <div class="small text-muted">Models</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="col-sm-4">
+                      <div class="card card-sm bg-success-lt">
+                        <div class="card-body text-center">
+                          <div class="h3 mb-0" id="matrix-preview-count">0</div>
+                          <div class="small text-muted">Preview</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div id="generation-matrix-preview" class="mt-3"></div>
                 </div>
+              </div>
+              <div class="alert alert-info mt-4 help-content" data-help="2">
+                <i class="fas fa-lightbulb me-2"></i>
+                Pick at least one template and one model. The wizard multiplies selections to produce generation pairs.
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Step 3: Generation Progress & Results -->
         <div class="col-12 wizard-panel" data-panel="3">
           <div class="card card-table-compact">
             <div class="card-header d-flex flex-wrap align-items-center gap-3 py-2">
@@ -168,85 +189,117 @@ docker-compose.yml.template</code></pre>
                 <span class="badge bg-primary text-uppercase rounded-pill px-3">Step 3</span>
                 <div>
                   <h3 class="card-title mb-0 d-flex align-items-center gap-2">
-                    <i class="fas fa-rocket text-primary"></i>
-                    <span>Generation Progress</span>
+                    <i class="fas fa-clipboard-check text-primary"></i>
+                    <span>Review &amp; Generate</span>
                   </h3>
-                  <div class="text-muted small">Monitor generation status and view results</div>
+                  <div class="text-muted small">Confirm selections, launch generation, and track results.</div>
                 </div>
               </div>
             </div>
-            <div class="card-body border-top p-0">
-              <!-- Generation Status Cards -->
-              <div class="p-3 border-bottom">
-                <div class="row g-3">
-                  <div class="col-md-3 col-6">
-                    <div class="card card-sm bg-info-lt">
-                      <div class="card-body text-center">
-                        <div class="h1 mb-1 text-info"><span id="status-in-progress">0</span></div>
-                        <div class="text-muted small">In Progress</div>
+            <div class="card-body border-top">
+              <div class="row g-4">
+                <div class="col-12">
+                  <div class="card bg-light border-0">
+                    <div class="card-body">
+                      <h3 class="h6">Generation summary</h3>
+                      <p class="text-muted small mb-0">You are about to generate <strong id="summary-total-generations">0</strong> combinations using the selected scaffolding, templates, and models.</p>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-lg-6">
+                  <div class="card h-100">
+                    <div class="card-header">
+                      <h3 class="h6 mb-0">Progress</h3>
+                    </div>
+                    <div class="card-body">
+                      <div class="progress mb-3" style="height: 8px;">
+                        <div id="overall-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%;"></div>
+                      </div>
+                      <div class="d-flex justify-content-between small text-muted">
+                        <span><strong id="progress-completed">0</strong> completed</span>
+                        <span>Total: <strong id="progress-total">0</strong></span>
+                      </div>
+                      <div class="row mt-3 g-3 text-center">
+                        <div class="col">
+                          <div class="card card-sm bg-success-lt">
+                            <div class="card-body">
+                              <div class="h4 mb-0" id="status-completed">0</div>
+                              <div class="small text-muted">Succeeded</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col">
+                          <div class="card card-sm bg-danger-lt">
+                            <div class="card-body">
+                              <div class="h4 mb-0" id="status-failed">0</div>
+                              <div class="small text-muted">Failed</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="col">
+                          <div class="card card-sm bg-secondary-lt">
+                            <div class="card-body">
+                              <div class="h4 mb-0" id="status-in-progress">0</div>
+                              <div class="small text-muted">In progress</div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div class="col-md-3 col-6">
-                    <div class="card card-sm bg-success-lt">
-                      <div class="card-body text-center">
-                        <div class="h1 mb-1 text-success"><span id="status-completed">0</span></div>
-                        <div class="text-muted small">Completed</div>
-                      </div>
+                </div>
+                <div class="col-lg-6">
+                  <div class="card h-100">
+                    <div class="card-header">
+                      <h3 class="h6 mb-0">Status overview</h3>
+                    </div>
+                    <div class="card-body">
+                      <dl class="row mb-0 small">
+                        <dt class="col-sm-6 text-muted">Total combinations</dt>
+                        <dd class="col-sm-6" id="status-total">0</dd>
+                        <dt class="col-sm-6 text-muted">Scaffolding</dt>
+                        <dd class="col-sm-6" id="status-scaffolding">Default React + Flask</dd>
+                        <dt class="col-sm-6 text-muted">Templates selected</dt>
+                        <dd class="col-sm-6" id="status-templates">0</dd>
+                        <dt class="col-sm-6 text-muted">Models selected</dt>
+                        <dd class="col-sm-6" id="status-models">0</dd>
+                      </dl>
                     </div>
                   </div>
-                  <div class="col-md-3 col-6">
-                    <div class="card card-sm bg-danger-lt">
-                      <div class="card-body text-center">
-                        <div class="h1 mb-1 text-danger"><span id="status-failed">0</span></div>
-                        <div class="text-muted small">Failed</div>
-                      </div>
+                </div>
+                <div class="col-12">
+                  <div class="card">
+                    <div class="card-header d-flex align-items-center justify-content-between">
+                      <h3 class="h6 mb-0">Generation results</h3>
+                      <span class="badge bg-secondary-lt" id="results-count-badge">0 rows</span>
                     </div>
-                  </div>
-                  <div class="col-md-3 col-6">
-                    <div class="card card-sm bg-secondary-lt">
-                      <div class="card-body text-center">
-                        <div class="h1 mb-1 text-secondary"><span id="status-total">0</span></div>
-                        <div class="text-muted small">Total</div>
-                      </div>
+                    <div class="card-body table-responsive">
+                      <table class="table table-sm align-middle mb-0">
+                        <thead class="text-muted small">
+                          <tr>
+                            <th style="width: 40px;">#</th>
+                            <th>Template</th>
+                            <th>Model</th>
+                            <th>Status</th>
+                            <th>Message</th>
+                          </tr>
+                        </thead>
+                        <tbody id="generation-results-body">
+                          <tr id="generation-empty-state">
+                            <td colspan="5" class="text-center text-muted py-4">
+                              <i class="fas fa-robot fa-2x mb-3 opacity-50"></i>
+                              <p class="mb-0">No generation results yet. Configure selections and press <strong>Start generation</strong>.</p>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </div>
               </div>
-
-              <!-- Overall Progress -->
-              <div class="p-3 border-bottom">
-                <div class="d-flex align-items-center justify-content-between mb-2">
-                  <div class="text-muted small">Overall Progress <span id="progress-percentage">0%</span></div>
-                  <div class="text-muted small"><span id="progress-completed">0</span> / <span id="progress-total">0</span></div>
-                </div>
-                <div class="progress">
-                  <div class="progress-bar bg-primary progress-bar-animated progress-bar-striped" role="progressbar" 
-                       id="overall-progress-bar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-                </div>
-              </div>
-
-              <!-- Results Table -->
-              <div class="table-responsive">
-                <table class="table table-vcenter table-hover table-sm mb-0" id="generation-results-table">
-                  <thead>
-                    <tr>
-                      <th class="w-1">#</th>
-                      <th>Template</th>
-                      <th>Model</th>
-                      <th>Status</th>
-                      <th>Message</th>
-                    </tr>
-                  </thead>
-                  <tbody id="generation-results-body">
-                    <tr id="generation-empty-state">
-                      <td colspan="5" class="text-center text-muted py-4">
-                        <i class="fas fa-info-circle fa-2x mb-2 opacity-50"></i>
-                        <p class="mb-0">No generations started yet</p>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div class="alert alert-info mt-4 help-content" data-help="3">
+                <i class="fas fa-lightbulb me-2"></i>
+                Monitor progress and review results. You can download outputs from the results page once generation finishes.
               </div>
             </div>
           </div>
@@ -254,10 +307,8 @@ docker-compose.yml.template</code></pre>
       </div>
     </div>
 
-    <!-- Right Sidebar -->
     <div class="col-xxl-4 col-xl-5 col-lg-5">
-      <div class="sample-generator-sidebar right-sticky-sidebar sticky-top">
-        <!-- Progress Card -->
+      <div class="analysis-sidebar right-sticky-sidebar sticky-top">
         <div class="card card-sm mb-3">
           <div class="card-header py-2">
             <h6 class="card-title mb-0">
@@ -267,34 +318,32 @@ docker-compose.yml.template</code></pre>
           <div class="card-body py-2">
             <div class="wizard-progress">
               <div class="progress mb-3">
-                <div class="progress-bar bg-primary" role="progressbar" id="wizard-progress-bar" 
-                     aria-label="Wizard progress" aria-valuenow="33" aria-valuemin="0" aria-valuemax="100" style="width: 33%"></div>
+                <div class="progress-bar bg-primary" role="progressbar" id="wizard-progress-bar" aria-label="Sample generator progress" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
               </div>
               <div class="steps steps-counter steps-xs">
-                <div class="step-item active" data-step="1" onclick="goToStep(1)" role="button" tabindex="0">
+                <div class="step-item active" data-step="1" _="on click call goToStep(1)" role="button" tabindex="0">
+                  <div class="step-icon">
+                    <i class="fas fa-cube"></i>
+                  </div>
+                  <div class="step-title">Scaffold</div>
+                </div>
+                <div class="step-item" data-step="2" _="on click call goToStep(2)" role="button" tabindex="0">
                   <div class="step-icon">
                     <i class="fas fa-layer-group"></i>
                   </div>
-                  <div class="step-title">Scaffolding</div>
+                  <div class="step-title">Selections</div>
                 </div>
-                <div class="step-item" data-step="2" onclick="goToStep(2)" role="button" tabindex="0">
+                <div class="step-item" data-step="3" _="on click call goToStep(3)" role="button" tabindex="0">
                   <div class="step-icon">
-                    <i class="fas fa-code"></i>
+                    <i class="fas fa-clipboard-check"></i>
                   </div>
-                  <div class="step-title">Templates</div>
-                </div>
-                <div class="step-item" data-step="3" onclick="goToStep(3)" role="button" tabindex="0">
-                  <div class="step-icon">
-                    <i class="fas fa-rocket"></i>
-                  </div>
-                  <div class="step-title">Generate</div>
+                  <div class="step-title">Review</div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Navigation Card -->
         <div class="card card-sm mb-3" id="wizard-nav-card">
           <div class="card-header py-2">
             <h6 class="card-title mb-0">
@@ -305,20 +354,21 @@ docker-compose.yml.template</code></pre>
             <div class="d-flex flex-column gap-2">
               <div class="d-flex justify-content-between align-items-center small text-muted">
                 <span>Step <span id="current-step" class="fw-bold text-primary">1</span> of <span class="fw-bold">3</span></span>
+                <span id="progress-percentage" class="fw-semibold">0%</span>
               </div>
               <div class="d-flex justify-content-between align-items-center gap-2">
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="prev-btn" onclick="previousStep()" disabled>
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="prev-btn" _="on click call previousStep()" disabled>
                   <i class="fas fa-chevron-left me-1"></i>Previous
                 </button>
                 <div class="d-flex gap-2 flex-grow-1">
-                  <button type="button" class="btn btn-primary btn-sm flex-grow-1" id="next-btn" onclick="nextStep()">
-                    Next <i class="fas fa-chevron-right ms-1"></i>
+                  <button type="button" class="btn btn-primary btn-sm flex-grow-1" id="next-btn" _="on click call nextStep()">
+                    Complete this step to continue
                   </button>
-                  <button type="button" class="btn btn-success btn-sm flex-grow-1 d-none" id="start-btn" onclick="startGeneration()">
-                    <i class="fas fa-rocket me-1"></i>Start Generation
+                  <button type="button" class="btn btn-success btn-sm flex-grow-1 d-none" id="start-btn" _="on click call startGeneration()">
+                    <i class="fas fa-play me-1"></i>Start Generation
                   </button>
                   <button type="button" class="btn btn-success btn-sm flex-grow-1 d-none" id="start-btn-loading" disabled>
-                    <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>Generating...
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Generating...
                   </button>
                 </div>
               </div>
@@ -326,61 +376,53 @@ docker-compose.yml.template</code></pre>
           </div>
         </div>
 
-        <!-- Selection Summary Card -->
         <div class="card card-sm mb-3">
           <div class="card-header py-2">
             <h6 class="card-title mb-0">
-              <i class="fas fa-list-check me-2 text-primary"></i>Selection Summary
+              <i class="fas fa-clipboard-list me-2 text-primary"></i>Summary
             </h6>
           </div>
-          <div class="card-body py-2">
-            <!-- Scaffolding -->
+          <div class="card-body p-3">
             <div class="mb-3">
-              <div class="d-flex align-items-center justify-content-between mb-2">
-                <span class="small text-muted fw-medium">Scaffolding</span>
-                <span class="badge bg-secondary-lt" id="sidebar-scaffolding-badge">None</span>
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small text-muted">Scaffolding</span>
+                <span id="sidebar-scaffolding-badge" class="badge bg-success-lt">Selected</span>
               </div>
-              <div class="small" id="sidebar-scaffolding-name">-</div>
+              <div id="sidebar-scaffolding-name" class="fw-semibold">Default React + Flask stack</div>
             </div>
-
-            <!-- Templates -->
-            <div class="mb-3 border-top pt-3">
-              <div class="d-flex align-items-center justify-content-between mb-2">
-                <span class="small text-muted fw-medium">Templates</span>
+            <div class="border-top pt-3 mt-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small text-muted">Templates</span>
                 <div class="d-flex align-items-center gap-2">
                   <button type="button" class="btn btn-link p-0 small text-danger d-none" id="clear-templates-btn" onclick="clearAllTemplates()">clear</button>
                   <span class="badge bg-secondary-lt" id="sidebar-template-count">0</span>
                 </div>
               </div>
-              <ul class="list-unstyled mb-0 small" id="sidebar-template-list">
+              <ul id="sidebar-template-list" class="list-unstyled small text-muted mb-0">
                 <li class="text-muted">No templates selected</li>
               </ul>
             </div>
-
-            <!-- Models -->
-            <div class="border-top pt-3">
-              <div class="d-flex align-items-center justify-content-between mb-2">
-                <span class="small text-muted fw-medium">Models</span>
+            <div class="border-top pt-3 mt-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small text-muted">Models</span>
                 <div class="d-flex align-items-center gap-2">
                   <button type="button" class="btn btn-link p-0 small text-danger d-none" id="clear-models-btn" onclick="clearAllModels()">clear</button>
                   <span class="badge bg-secondary-lt" id="sidebar-model-count">0</span>
                 </div>
               </div>
-              <ul class="list-unstyled mb-0 small" id="sidebar-model-list">
+              <ul id="sidebar-model-list" class="list-unstyled small text-muted mb-0">
                 <li class="text-muted">No models selected</li>
               </ul>
             </div>
-
-            <!-- Generation Matrix -->
-            <div class="border-top pt-3 mt-3" id="generation-matrix">
-              <div class="alert alert-info alert-sm mb-0">
+            <div class="card bg-azure-lt mt-3">
+              <div class="card-body py-3">
                 <div class="d-flex align-items-center">
-                  <i class="fas fa-calculator me-2"></i>
+                  <div class="avatar bg-azure text-white me-3"><i class="fas fa-layer-group"></i></div>
                   <div>
-                    <div class="fw-bold">Generation Matrix</div>
-                    <div class="small">
-                      <span id="matrix-count">0</span> total generations
-                      (<span id="matrix-templates">0</span> templates × <span id="matrix-models">0</span> models)
+                    <div class="text-muted small">Generation matrix</div>
+                    <div class="h4 mb-0">
+                      <span id="sidebar-matrix-total">0</span>
+                      <span class="text-muted small">pairs</span>
                     </div>
                   </div>
                 </div>
@@ -389,68 +431,27 @@ docker-compose.yml.template</code></pre>
           </div>
         </div>
 
-        <!-- Guide Card -->
         <div class="card card-sm" id="guide-card">
-          <div class="card-header py-2" data-bs-toggle="collapse" data-bs-target="#guide-collapse" 
-               role="button" aria-expanded="false" aria-controls="guide-collapse">
+          <div class="card-header py-2" data-bs-toggle="collapse" data-bs-target="#guide-collapse" role="button" aria-expanded="false" aria-controls="guide-collapse">
             <div class="d-flex align-items-center justify-content-between">
               <h6 class="card-title mb-0">
-                <i class="fas fa-info-circle me-2 text-primary"></i>Generation Guide
+                <i class="fas fa-info-circle me-2 text-primary"></i>Wizard Guide
               </h6>
               <span class="collapse-indicator text-muted small" id="guide-collapse-indicator">Show</span>
             </div>
           </div>
           <div id="guide-collapse" class="collapse">
             <div class="card-body py-2">
-              <div id="step-help" class="step-help">
-                <!-- Step 1 Help -->
-                <div class="help-content active" data-help="1">
-                  <h6 class="mb-2">Choosing Scaffolding</h6>
-                  <ul class="small mb-3">
-                    <li><strong>Full-Stack:</strong> Complete application structure with frontend, backend, and Docker setup</li>
-                    <li><strong>Templates:</strong> Use <code>{{placeholder}}</code> syntax for dynamic content</li>
-                    <li><strong>Structure:</strong> All files maintain consistent naming and organization</li>
-                  </ul>
-                  <div class="alert alert-info alert-sm">
-                    <i class="fas fa-lightbulb me-1"></i>
-                    <strong>Tip:</strong> The default scaffolding includes all necessary files for a production-ready application.
-                  </div>
-                </div>
-
-                <!-- Step 2 Help -->
-                <div class="help-content" data-help="2">
-                  <h6 class="mb-2">Templates &amp; Models</h6>
-                  <ul class="small mb-3">
-                    <li><strong>Templates:</strong> Define what the application should do (e.g., login system, blog)</li>
-                    <li><strong>Models:</strong> AI models that will generate the code</li>
-                    <li><strong>Batch Mode:</strong> Select multiple templates and models for matrix generation</li>
-                    <li><strong>Search:</strong> Use search filters to quickly find specific templates or models</li>
-                  </ul>
-                  <div class="alert alert-warning alert-sm">
-                    <i class="fas fa-exclamation-triangle me-1"></i>
-                    <strong>Note:</strong> Generation time increases with matrix size (templates × models).
-                  </div>
-                </div>
-
-                <!-- Step 3 Help -->
-                <div class="help-content" data-help="3">
-                  <h6 class="mb-2">Generation &amp; Results</h6>
-                  <ul class="small mb-3">
-                    <li><strong>Progress:</strong> Monitor real-time generation status</li>
-                    <li><strong>Status Codes:</strong> Pending → Running → Completed/Failed</li>
-                    <li><strong>Actions:</strong> View logs, download artifacts, or retry failed generations</li>
-                    <li><strong>Results:</strong> Generated applications saved to <code>generated/apps/</code></li>
-                  </ul>
-                  <div class="alert alert-success alert-sm">
-                    <i class="fas fa-check me-1"></i>
-                    <strong>Tip:</strong> Failed generations can be retried individually without restarting the entire batch.
-                  </div>
-                </div>
-              </div>
+              <ol class="small text-muted mb-0">
+                <li class="mb-2">Confirm scaffolding baseline fits your target architecture.</li>
+                <li class="mb-2">Pick templates (requirements) and combine with desired models.</li>
+                <li class="mb-2">Review summary, then trigger generation to start Docker-ready projects.</li>
+                <li>Monitor progress and download outputs from the results table.</li>
+              </ol>
             </div>
           </div>
         </div>
       </div>
     </div>
   </div>
-</form>
+</div>

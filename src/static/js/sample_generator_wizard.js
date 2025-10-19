@@ -9,8 +9,6 @@ let currentStep = 1;
 let selectedScaffolding = null;
 let selectedTemplates = [];
 let selectedModels = [];
-let generationBatchId = null;
-let statusPollInterval = null;
 
 // Cache for templates and models
 let templatesCache = null;
@@ -734,6 +732,31 @@ function updateGenerationMatrix() {
   if (countEl) countEl.textContent = totalGenerations;
   if (templatesEl) templatesEl.textContent = selectedTemplates.length;
   if (modelsEl) modelsEl.textContent = selectedModels.length;
+  const previewCountEl = document.getElementById('matrix-preview-count');
+  if (previewCountEl) previewCountEl.textContent = totalGenerations;
+
+  const summaryTotalEl = document.getElementById('summary-total-generations');
+  if (summaryTotalEl) summaryTotalEl.textContent = totalGenerations;
+
+  const statusTotalEl = document.getElementById('status-total');
+  if (statusTotalEl) {
+    statusTotalEl.textContent = totalGenerations;
+  }
+
+  const statusTemplatesEl = document.getElementById('status-templates');
+  if (statusTemplatesEl) {
+    statusTemplatesEl.textContent = selectedTemplates.length;
+  }
+
+  const statusModelsEl = document.getElementById('status-models');
+  if (statusModelsEl) {
+    statusModelsEl.textContent = selectedModels.length;
+  }
+
+  const sidebarMatrixEl = document.getElementById('sidebar-matrix-total');
+  if (sidebarMatrixEl) {
+    sidebarMatrixEl.textContent = totalGenerations;
+  }
   
   if (previewEl && totalGenerations > 0 && totalGenerations <= 100) {
     // Show matrix table for reasonable sizes
@@ -1004,104 +1027,6 @@ function displayBatchResults(batchResults) {
   }
 }
 
-function startStatusPolling() {
-  if (statusPollInterval) {
-    clearInterval(statusPollInterval);
-  }
-  
-  statusPollInterval = setInterval(async () => {
-    await updateGenerationStatus();
-  }, 2000); // Poll every 2 seconds
-}
-
-function stopStatusPolling() {
-  if (statusPollInterval) {
-    clearInterval(statusPollInterval);
-    statusPollInterval = null;
-  }
-}
-
-async function updateGenerationStatus() {
-  if (!generationBatchId) return;
-  
-  try {
-    const response = await fetch(`/api/sample-gen/batch/${generationBatchId}/status`);
-    if (!response.ok) return;
-    
-    const status = await response.json();
-    
-    // Update progress
-    const progressEl = document.getElementById('overall-progress-bar');
-    const percentEl = document.getElementById('progress-percentage');
-    const completedEl = document.getElementById('progress-completed');
-    const totalEl = document.getElementById('progress-total');
-    
-    if (progressEl && status.progress_percent !== undefined) {
-      progressEl.style.width = `${status.progress_percent}%`;
-    }
-    if (percentEl) percentEl.textContent = `${Math.round(status.progress_percent || 0)}%`;
-    if (completedEl) completedEl.textContent = status.completed_tasks || 0;
-    if (totalEl) totalEl.textContent = status.total_tasks || 0;
-    
-    // Update status cards
-    document.getElementById('status-in-progress').textContent = 
-      (status.total_tasks - status.completed_tasks - status.failed_tasks) || 0;
-    document.getElementById('status-completed').textContent = status.completed_tasks || 0;
-    document.getElementById('status-failed').textContent = status.failed_tasks || 0;
-    
-    // Update results table
-    if (status.task_results) {
-      updateResultsTable(status.task_results);
-    }
-    
-    // Stop polling if complete
-    if (status.is_complete || status.status === 'completed') {
-      stopStatusPolling();
-      showNotification('Generation completed', 'success');
-      document.getElementById('download-all-btn').disabled = false;
-    }
-  } catch (error) {
-    console.error('Error fetching generation status:', error);
-  }
-}
-
-function updateResultsTable(results) {
-  const tbody = document.getElementById('results-table-body');
-  if (!tbody || !results.length) return;
-  
-  tbody.innerHTML = '';
-  results.forEach(result => {
-    const row = document.createElement('tr');
-    
-    const statusBadge = result.success ? 
-      '<span class="badge bg-success">Success</span>' :
-      '<span class="badge bg-danger">Failed</span>';
-    
-    const duration = result.duration ? `${result.duration.toFixed(2)}s` : '-';
-    const timestamp = result.timestamp ? new Date(result.timestamp).toLocaleString() : '-';
-    
-    row.innerHTML = `
-      <td>${result.template || '-'}</td>
-      <td>${result.model || '-'}</td>
-      <td>${statusBadge}</td>
-      <td>${duration}</td>
-      <td>${timestamp}</td>
-      <td>
-        <div class="btn-list">
-          <button type="button" class="btn btn-sm btn-ghost-primary" onclick="viewResult('${result.id}')">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="2" /><path d="M22 12c-2.667 4.667 -6 7 -10 7s-7.333 -2.333 -10 -7c2.667 -4.667 6 -7 10 -7s7.333 2.333 10 7" /></svg>
-          </button>
-          <button type="button" class="btn btn-sm btn-ghost-primary" onclick="downloadResult('${result.id}')">
-            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><polyline points="7 11 12 16 17 11" /><line x1="12" y1="4" x2="12" y2="16" /></svg>
-          </button>
-        </div>
-      </td>
-    `;
-    
-    tbody.appendChild(row);
-  });
-}
-
 // ============================================================================
 // Sidebar Updates
 // ============================================================================
@@ -1229,38 +1154,6 @@ function showNotification(message, type = 'info') {
   }, 5000);
 }
 
-async function downloadAllResults() {
-  if (!generationBatchId) return;
-  
-  try {
-    const response = await fetch(`/api/sample-gen/batch/${generationBatchId}/download`);
-    if (!response.ok) throw new Error('Download failed');
-    
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `generation-${generationBatchId}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
-    
-    showNotification('Download started', 'success');
-  } catch (error) {
-    console.error('Error downloading results:', error);
-    showNotification('Download failed: ' + error.message, 'danger');
-  }
-}
-
-function viewResult(resultId) {
-  window.open(`/api/sample-gen/result/${resultId}`, '_blank');
-}
-
-function downloadResult(resultId) {
-  window.location.href = `/api/sample-gen/result/${resultId}/download`;
-}
-
 // ============================================================================
 // Management Functions (for other tabs)
 // ============================================================================
@@ -1385,9 +1278,6 @@ window.unselectModel = unselectModel;
 window.filterTemplates = filterTemplates;
 window.filterModels = filterModels;
 window.startGeneration = startGeneration;
-window.downloadAllResults = downloadAllResults;
-window.viewResult = viewResult;
-window.downloadResult = downloadResult;
 window.refreshScaffoldings = refreshScaffoldings;
 window.viewScaffoldingDetails = viewScaffoldingDetails;
 window.refreshTemplates = refreshTemplates;

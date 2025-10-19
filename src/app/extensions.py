@@ -33,7 +33,6 @@ class AppComponents:
         self.celery = None
         self.task_manager = None
         self.analyzer_integration = None
-        self.background_service = None
         self.websocket_service = None
     
     def init_app(self, app: Flask):
@@ -51,10 +50,6 @@ class AppComponents:
     def set_analyzer_integration(self, analyzer_integration):
         """Set analyzer integration instance."""
         self.analyzer_integration = analyzer_integration
-    
-    def set_background_service(self, background_service):
-        """Set background service instance."""
-        self.background_service = background_service
     
     def set_websocket_service(self, websocket_service):
         """Set WebSocket service instance."""
@@ -78,11 +73,6 @@ def get_analyzer_integration():
     """Get analyzer integration from app components."""
     components = get_components()
     return components.analyzer_integration if components else None
-
-def get_background_service():
-    """Get background service from app components."""
-    components = get_components()
-    return components.background_service if components else None
 
 def get_websocket_service():
     """Get WebSocket service from app components."""

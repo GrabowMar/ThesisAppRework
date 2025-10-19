@@ -314,12 +314,6 @@ def create_app(config_name: str = 'default') -> Flask:
         components.set_task_manager(task_manager)
         logger.info("Task manager initialized")
         
-        # Initialize background service
-        from app.services.background_service import BackgroundTaskService
-        background_service = BackgroundTaskService()
-        components.set_background_service(background_service)
-        logger.info("Background task service initialized")
-        
         # Initialize analyzer integration
         analyzer_integration = create_analyzer_integration()
         components.set_analyzer_integration(analyzer_integration)

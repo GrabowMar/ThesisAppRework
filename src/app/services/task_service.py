@@ -3,7 +3,7 @@ Modern Task Management Service
 =============================
 
 Comprehensive task management system for analysis operations.
-Handles individual tasks, batch operations, queuing, and progress tracking.
+Handles individual tasks, queuing, and progress tracking.
 """
 
 from app.utils.logging_config import get_logger
@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from sqlalchemy import desc, asc, delete, text
 from ..extensions import db
 from ..models import AnalysisTask, BatchAnalysis, AnalyzerConfiguration, AnalysisResult
-from ..constants import AnalysisStatus, AnalysisType, JobPriority as Priority, JobStatus as BatchStatus
+from ..constants import AnalysisStatus, AnalysisType, JobPriority as Priority
 
 
 logger = get_logger('task_service')
@@ -241,9 +241,9 @@ class AnalysisTaskService:
             setattr(task, 'progress_percentage', 100.0)
         db.session.commit()
         
-        # Auto-cache tool results in database for performance
+        # Auto-cache tool results in database for performance (best effort)
         try:
-            BatchAnalysisService._cache_tool_results_on_completion(task_id)
+            AnalysisTaskService._cache_tool_results_on_completion(task_id)
         except Exception as e:
             logger.warning(f"Failed to cache tool results for task {task_id}: {e}")
         
@@ -361,209 +361,27 @@ class AnalysisTaskService:
             'last_updated': datetime.now(timezone.utc).isoformat()
         }
 
-
-class BatchAnalysisService:
-    """Service for managing batch analysis operations (adapted to current BatchAnalysis schema)."""
-    
-    @staticmethod
-    def create_batch(
-        name: str,  # kept for legacy signature (ignored)
-        description: str,  # kept for legacy signature (ignored)
-        analysis_types: List[str],
-        target_models: List[str],
-        target_apps: List[int],
-        priority: str = Priority.NORMAL.value,  # kept for legacy signature (ignored)
-        config: Optional[Dict[str, Any]] = None
-    ) -> BatchAnalysis:
-        """Create a new batch analysis using available BatchAnalysis columns."""
-        valid_types = [t.value for t in AnalysisType]
-        invalid = [t for t in analysis_types if t not in valid_types]
-        if invalid:
-            raise ValueError(f"Invalid analysis types: {invalid}")
-        batch = BatchAnalysis()
-        batch.batch_id = f"batch_{uuid.uuid4().hex[:10]}"
-        batch.set_analysis_types(analysis_types)
-        batch.set_model_filter(target_models)  # type: ignore[attr-defined]
-        batch.set_app_filter(target_apps)  # type: ignore[attr-defined]
-        if config:
-            batch.set_config(config)  # type: ignore[attr-defined]
-        batch.total_tasks = len(target_models) * len(target_apps) * len(analysis_types)
-        db.session.add(batch)
-        db.session.commit()
-        logger.info(f"Created batch analysis {batch.batch_id} ({batch.total_tasks} tasks)")
-        return batch
-    
-    @staticmethod
-    def generate_batch_tasks(batch_db_id: int) -> List[AnalysisTask]:
-        batch = BatchAnalysis.query.get(batch_db_id)
-        if not batch:
-            raise ValueError(f"Batch not found: {batch_db_id}")
-        # Only allow generation if still pending
-        if batch.status not in (BatchStatus.PENDING, BatchStatus.QUEUED):
-            raise ValueError(f"Batch not in a generatable status: {batch.status}")
-        analysis_types = batch.get_analysis_types()
-        models = batch.get_model_filter()
-        apps = batch.get_app_filter()
-        cfg = batch.get_config()
-        tasks: List[AnalysisTask] = []
-        for m in models:
-            for a in apps:
-                for at in analysis_types:
-                    try:
-                        t = AnalysisTaskService.create_task(
-                            model_slug=m,
-                            app_number=a,
-                            analysis_type=at,
-                            custom_options=cfg.get('task_options') if cfg else None,
-                            batch_id=batch.id
-                        )
-                        tasks.append(t)
-                    except Exception as e:  # pragma: no cover
-                        logger.error(f"Task gen failed for {m}:{a}:{at}: {e}")
-        batch.total_tasks = len(tasks)
-        db.session.commit()
-        return tasks
-    
-    @staticmethod
-    def get_batch(batch_id: str) -> Optional[BatchAnalysis]:
-        """Get batch by ID."""
-        return BatchAnalysis.query.filter_by(batch_id=batch_id).first()
-    
-    @staticmethod
-    def get_batch_by_db_id(batch_db_id: int) -> Optional[BatchAnalysis]:
-        """Get batch by database ID."""
-        return BatchAnalysis.query.get(batch_db_id)
-    
-    @staticmethod
-    def list_batches(
-        status: Optional[str] = None,
-        limit: int = 50,
-        offset: int = 0
-    ) -> List[BatchAnalysis]:
-        """List batches with filtering and pagination."""
-        query = BatchAnalysis.query
-        
-        if status:
-            query = query.filter_by(status=status)
-        
-        return query.order_by(
-            BatchAnalysis.created_at.desc()
-        ).offset(offset).limit(limit).all()
-    
-    @staticmethod
-    def start_batch(batch_id: str) -> Optional[BatchAnalysis]:
-        batch = BatchAnalysisService.get_batch(batch_id)
-        if not batch:
-            return None
-        if batch.status not in (BatchStatus.PENDING, BatchStatus.QUEUED):
-            raise ValueError(f"Cannot start batch from status: {batch.status}")
-        # Generate tasks if none exist yet
-        existing = AnalysisTask.query.filter_by(batch_id=batch.batch_id).count()
-        if existing == 0:
-            BatchAnalysisService.generate_batch_tasks(batch.id)
-        batch.status = BatchStatus.RUNNING
-        batch.started_at = datetime.now(timezone.utc)
-        db.session.commit()
-        return batch
-    
-    @staticmethod
-    def update_batch_progress(batch_id: str) -> Optional[BatchAnalysis]:
-        batch = BatchAnalysisService.get_batch(batch_id)
-        if not batch:
-            return None
-        # Recalculate counts
-        total = batch.total_tasks or 0
-        completed = AnalysisTask.query.filter_by(batch_id=batch.batch_id, status=AnalysisStatus.COMPLETED).count()
-        failed = AnalysisTask.query.filter_by(batch_id=batch.batch_id, status=AnalysisStatus.FAILED).count()
-        batch.completed_tasks = completed
-        batch.failed_tasks = failed
-        if total > 0:
-            batch.progress_percentage = (completed / total) * 100.0
-        # Mark completion
-        if total > 0 and completed + failed >= total and batch.status == BatchStatus.RUNNING:
-            batch.status = BatchStatus.COMPLETED if failed == 0 else BatchStatus.FAILED
-            batch.completed_at = datetime.now(timezone.utc)
-        db.session.commit()
-        return batch
-    
-    @staticmethod
-    def cancel_batch(batch_id: str) -> Optional[BatchAnalysis]:
-        batch = BatchAnalysisService.get_batch(batch_id)
-        if not batch:
-            return None
-        if batch.status in (BatchStatus.COMPLETED, BatchStatus.FAILED, BatchStatus.CANCELLED):
-            raise ValueError("Batch already finished")
-        # Mark tasks as cancelled (best-effort)
-        tasks = AnalysisTask.query.filter_by(batch_id=batch.batch_id).all()
-        for t in tasks:
-            if t.status not in (AnalysisStatus.COMPLETED, AnalysisStatus.FAILED, AnalysisStatus.CANCELLED):
-                t.status = AnalysisStatus.CANCELLED
-        batch.status = BatchStatus.CANCELLED
-        batch.completed_at = datetime.now(timezone.utc)
-        db.session.commit()
-        return batch
-    
-    @staticmethod
-    def delete_batch(batch_id: str) -> bool:
-        """Delete a batch and all its tasks."""
-        batch = BatchAnalysisService.get_batch(batch_id)
-        if not batch:
-            return False
-        
-        if batch.status in (BatchStatus.RUNNING, BatchStatus.QUEUED):
-            raise ValueError("Cannot delete running batch")
-        
-        db.session.delete(batch)
-        db.session.commit()
-        
-        logger.info(f"Deleted batch {batch_id}")
-        return True
-    
-    @staticmethod
-    def get_batch_statistics() -> Dict[str, Any]:
-        """Get batch statistics."""
-        total_batches = BatchAnalysis.query.count()
-        
-        status_counts = {}
-        for status in BatchStatus:
-            count = BatchAnalysis.query.filter_by(status=status.value).count()
-            status_counts[status.value] = count
-        
-        from sqlalchemy import or_
-        active_batches = BatchAnalysis.query.filter(
-            or_(BatchAnalysis.status == BatchStatus.QUEUED, BatchAnalysis.status == BatchStatus.RUNNING)
-        ).count()
-        
-        return {
-            'total_batches': total_batches,
-            'status_counts': status_counts,
-            'active_batches': active_batches,
-            'last_updated': datetime.now(timezone.utc).isoformat()
-        }
-    
     @staticmethod
     def _cache_tool_results_on_completion(task_id: str) -> None:
         """Cache tool results in database when a task completes."""
         try:
             from .simple_tool_results_service import SimpleToolResultsService
             from .results_api_service import ResultsAPIService
-            
-            # Get raw results from API
+
             api_service = ResultsAPIService()
             raw_results = api_service._fetch_raw_results(task_id)
-            
-            if raw_results:
-                # Store in database
-                tool_service = SimpleToolResultsService()
-                success = tool_service.store_tool_results_from_json(task_id, raw_results)
-                
-                if success:
-                    logger.info(f"Successfully cached tool results in database for task {task_id}")
-                else:
-                    logger.warning(f"Failed to cache tool results for task {task_id}")
-            else:
+
+            if not raw_results:
                 logger.info(f"No results found to cache for task {task_id}")
-                
+                return
+
+            tool_service = SimpleToolResultsService()
+            success = tool_service.store_tool_results_from_json(task_id, raw_results)
+
+            if success:
+                logger.info(f"Successfully cached tool results in database for task {task_id}")
+            else:
+                logger.warning(f"Failed to cache tool results for task {task_id}")
         except Exception as e:
             logger.error(f"Error caching tool results for task {task_id}: {e}")
 
@@ -678,7 +496,6 @@ class TaskQueueService:
 
 # Initialize service instances
 task_service = AnalysisTaskService()
-batch_service = BatchAnalysisService()
 queue_service = TaskQueueService()
 
 

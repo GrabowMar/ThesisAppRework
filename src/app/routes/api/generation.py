@@ -23,7 +23,6 @@ import logging
 from flask import Blueprint, request
 
 from app.services.generation import get_generation_service
-from app.services.template_renderer import get_template_renderer
 from app.utils.helpers import create_success_response, create_error_response
 
 logger = logging.getLogger(__name__)
@@ -41,22 +40,9 @@ def list_templates():
     - templates: list of template objects with id, name, description, etc.
     """
     try:
-        renderer = get_template_renderer()
-        requirements = renderer.list_requirements()
-        
-        # Transform to format expected by frontend
-        templates = []
-        for req in requirements:
-            templates.append({
-                'id': req.get('id', req.get('file_name', '').replace('.json', '')),
-                'name': req.get('name', req.get('title', 'Unnamed Template')),
-                'description': req.get('description', ''),
-                'category': req.get('category', 'general'),
-                'complexity': req.get('complexity', 'medium'),
-                'features': req.get('features', []),
-                'tech_stack': req.get('tech_stack', {})
-            })
-        
+        service = get_generation_service()
+        templates = service.get_template_catalog()
+
         return create_success_response(
             templates,
             message=f"Found {len(templates)} app templates"

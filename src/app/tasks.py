@@ -19,17 +19,13 @@ from celery import group
 # Import ServiceLocator
 from app.services.service_locator import ServiceLocator
 
-# Import engine registry & batch service (best-effort)
+# Import engine registry (best-effort)
 try:  # pragma: no cover - import guard
     from app.services.analysis_engines import get_engine
 except Exception:  # pragma: no cover
     get_engine = None  # type: ignore
-
-try:  # pragma: no cover
-    # Import explicitly from task_service to avoid submodule import shadowing
-    from app.services.task_service import batch_service  # type: ignore
-except Exception:  # pragma: no cover
-    batch_service = None  # type: ignore
+# Legacy batch service retired; keep sentinel for compatibility when helper is invoked.
+batch_service = None  # type: ignore
 
 # Import configuration
 from config.celery_config import (
@@ -249,43 +245,12 @@ def update_task_progress(current: int, total: int, status: Optional[str] = None,
     # In a real implementation, this would update Celery task state
     print(f"Task progress: {current}/{total} ({int((current/total)*100) if total > 0 else 0}%) - {status or 'running'}")
 
-def update_batch_progress(batch_job_id: Optional[str], task_completed: bool = False, 
+def update_batch_progress(batch_job_id: Optional[str], task_completed: bool = False,
                          task_failed: bool = False, result: Optional[Dict] = None):
-    """Update batch job progress."""
-    if batch_service and batch_job_id:
-        try:
-            # Guarantee an app context for any downstream DB/session usage
-            from flask import has_app_context
-            if has_app_context():
-                # batch_service.update_task_progress(
-                #     batch_job_id, task_completed, task_failed, result
-                # )
-                pass  # BatchService doesn't have update_task_progress method
-            else:
-                try:
-                    from app.factory import get_flask_app  # type: ignore
-                    app = get_flask_app()
-                except Exception as _gf_err:  # pragma: no cover
-                    app = None  # type: ignore
-                if app is not None:
-                    try:
-                        with app.app_context():
-                            # batch_service.update_task_progress(
-                            #     batch_job_id, task_completed, task_failed, result
-                            # )
-                            pass  # BatchService doesn't have update_task_progress method
-                    except Exception as _ctx_err:  # pragma: no cover
-                        print(f"Progress persistence error: {_ctx_err}")
-                else:  # Last resort: attempt direct call (may still fail but we log it)
-                    try:
-                        # batch_service.update_task_progress(
-                        #     batch_job_id, task_completed, task_failed, result
-                        # )
-                        pass  # BatchService doesn't have update_task_progress method
-                    except Exception as _final_err:  # pragma: no cover
-                        print(f"Progress persistence error: {_final_err}")
-        except Exception as e:  # pragma: no cover
-            print(f"Failed to update batch progress: {e}")
+    """Legacy hook for batch progress updates (no-op)."""
+    # Batch orchestration was removed; retain signature for compatibility.
+    if batch_job_id:
+        pass
 
 # =============================================================================
 # ANALYZER ORCHESTRATION TASKS

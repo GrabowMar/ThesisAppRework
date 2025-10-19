@@ -850,6 +850,56 @@ class GenerationService:
         self.generator = CodeGenerator()
         self.merger = CodeMerger()
         self.max_concurrent = int(os.getenv('GENERATION_MAX_CONCURRENT', os.getenv('SIMPLE_GENERATION_MAX_CONCURRENT', '4')))
+
+    def get_template_catalog(self) -> List[Dict[str, Any]]:
+        """Return available generation templates with metadata."""
+        catalog: List[Dict[str, Any]] = []
+
+        if not REQUIREMENTS_DIR.exists():
+            logger.debug("Requirements directory missing: %s", REQUIREMENTS_DIR)
+            return catalog
+
+        for req_file in sorted(REQUIREMENTS_DIR.glob('*.json')):
+            try:
+                data = json.loads(req_file.read_text(encoding='utf-8'))
+            except json.JSONDecodeError as exc:
+                logger.warning("Skipping invalid requirements file %s: %s", req_file.name, exc)
+                continue
+            except OSError as exc:
+                logger.warning("Failed to read requirements file %s: %s", req_file.name, exc)
+                continue
+
+            template_id = (
+                data.get('app_id')
+                or data.get('id')
+                or data.get('template_id')
+                or req_file.stem
+            )
+            name = data.get('name') or req_file.stem
+            description = data.get('description', '')
+            category = data.get('category') or data.get('domain') or 'general'
+            complexity = data.get('complexity') or data.get('difficulty') or 'medium'
+
+            features = data.get('features') or data.get('key_features') or []
+            if isinstance(features, str):
+                features = [features]
+
+            tech_stack = data.get('tech_stack') or data.get('stack') or {}
+            if not isinstance(tech_stack, dict):
+                tech_stack = {'value': tech_stack}
+
+            catalog.append({
+                'id': template_id,
+                'name': name,
+                'description': description,
+                'category': category,
+                'complexity': complexity,
+                'features': features,
+                'tech_stack': tech_stack,
+                'filename': req_file.name,
+            })
+
+        return catalog
     
     async def generate_full_app(
         self,

@@ -52,11 +52,6 @@ class ServiceLocator:
             DockerManager = None
 
         try:
-            from .task_service import BatchAnalysisService
-        except ImportError:  # pragma: no cover
-            BatchAnalysisService = None  # type: ignore
-
-        try:
             from .analysis_inspection_service import AnalysisInspectionService
         except ImportError:  # pragma: no cover
             AnalysisInspectionService = None  # type: ignore
@@ -79,8 +74,6 @@ class ServiceLocator:
         # No registrations for removed legacy services
         if DockerManager:
             cls.register('docker_manager', DockerManager())
-        if BatchAnalysisService:
-            cls.register('batch_service', BatchAnalysisService())
         if AnalysisInspectionService:
             cls.register('analysis_inspection_service', AnalysisInspectionService())
         if ResultsManagementService:
@@ -132,10 +125,6 @@ class ServiceLocator:
         return cls.get('docker_manager')
     
     @classmethod
-    def get_batch_service(cls):
-        """Get the batch analysis service."""
-        return cls.get('batch_service')
-    
     @classmethod
     def get_generation_service(cls):
         """Get the generation service."""
