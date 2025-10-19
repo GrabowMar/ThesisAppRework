@@ -234,17 +234,33 @@ class SimpleGenerationService:
         
         logger.info(f"Scaffolding {model_slug}/app{app_num} with ports {backend_port}/{frontend_port}")
         
-        # Clean model slug for container naming (Docker doesn't like underscores at start)
-        # Convert: anthropic_claude-4.5-haiku -> anthropic-claude-4-5-haiku
-        safe_model_slug = model_slug.replace('_', '-').replace('.', '-')
-        project_name = f"{safe_model_slug}-app{app_num}"
+        # Clean model slug for safe container/compose naming
+        raw_slug = model_slug.lower()
+        safe_model_slug = re.sub(r'[^a-z0-9]+', '-', raw_slug)
+        safe_model_slug = re.sub(r'-+', '-', safe_model_slug).strip('-')
+        if not safe_model_slug:
+            safe_model_slug = hashlib.sha1(model_slug.encode('utf-8')).hexdigest()[:8]
+
+        suffix = f"-app{app_num}"
+        max_base_length = max(8, 42 - len(suffix))
+        if len(safe_model_slug) > max_base_length:
+            safe_model_slug = safe_model_slug[:max_base_length].rstrip('-')
+            if not safe_model_slug:
+                safe_model_slug = hashlib.sha1(model_slug.encode('utf-8')).hexdigest()[:8]
+
+        project_name = f"{safe_model_slug}{suffix}"
+        compose_project_name = project_name
         
         # Substitution map
         substitutions = {
             'backend_port': str(backend_port),
             'frontend_port': str(frontend_port),
             'model_name': model_slug,
+            'project_name': project_name,
             'PROJECT_NAME': project_name,
+            'compose_project_name': compose_project_name,
+            'COMPOSE_PROJECT_NAME': compose_project_name,
+            'app_num': str(app_num),
             'BACKEND_PORT': str(backend_port),
             'FRONTEND_PORT': str(frontend_port),
             'FLASK_RUN_PORT': str(backend_port),
@@ -297,8 +313,38 @@ class SimpleGenerationService:
         env_example = app_dir / '.env.example'
         env_file = app_dir / '.env'
         if env_example.exists():
-            env_file.write_text(env_example.read_text(encoding='utf-8'), encoding='utf-8')
-            logger.debug(f"Created .env from .env.example")
+            env_content = env_example.read_text(encoding='utf-8')
+            env_lines = env_content.splitlines()
+
+            updated_lines: List[str] = []
+            project_index: Optional[int] = None
+            compose_present = False
+
+            for line in env_lines:
+                if line.startswith('PROJECT_NAME='):
+                    updated_lines.append(f"PROJECT_NAME={project_name}")
+                    project_index = len(updated_lines) - 1
+                    continue
+                if line.startswith('COMPOSE_PROJECT_NAME='):
+                    updated_lines.append(f"COMPOSE_PROJECT_NAME={compose_project_name}")
+                    compose_present = True
+                    continue
+                updated_lines.append(line)
+
+            if project_index is None:
+                updated_lines.insert(0, f"PROJECT_NAME={project_name}")
+                project_index = 0
+
+            if not compose_present:
+                insert_position = project_index + 1
+                updated_lines.insert(insert_position, f"COMPOSE_PROJECT_NAME={compose_project_name}")
+
+            final_env = '\n'.join(updated_lines)
+            if not final_env.endswith('\n'):
+                final_env += '\n'
+
+            env_file.write_text(final_env, encoding='utf-8')
+            logger.debug("Created .env with compose project name for %s/app%s", model_slug, app_num)
         
         return files_copied > 0
     

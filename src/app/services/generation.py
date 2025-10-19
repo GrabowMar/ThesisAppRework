@@ -29,15 +29,17 @@ generated/apps/{model}/app{N}/
     └── frontend/src/App.css (application)
 """
 
+import hashlib
 import json
 import logging
 import os
 import re
 import shutil
+import textwrap
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple, Dict, List
+from typing import Optional, Tuple, Dict, List, Set
 
 import aiohttp
 
@@ -65,6 +67,71 @@ class ScaffoldingManager:
         self.scaffolding_source = SCAFFOLDING_DIR / 'react-flask'
         self.base_backend_port = 5001
         self.base_frontend_port = 8001
+
+    def _build_project_names(self, model_slug: str, app_num: int) -> Tuple[str, str]:
+        """Create sanitized project identifiers for Docker Compose."""
+        raw_slug = model_slug.lower()
+        safe_slug = re.sub(r'[^a-z0-9]+', '-', raw_slug)
+        safe_slug = re.sub(r'-+', '-', safe_slug).strip('-')
+        if not safe_slug:
+            safe_slug = hashlib.sha1(model_slug.encode('utf-8')).hexdigest()[:8]
+
+        suffix = f"-app{app_num}"
+        max_base_length = max(8, 42 - len(suffix))
+        if len(safe_slug) > max_base_length:
+            safe_slug = safe_slug[:max_base_length].rstrip('-')
+            if not safe_slug:
+                safe_slug = hashlib.sha1(model_slug.encode('utf-8')).hexdigest()[:8]
+
+        project_name = f"{safe_slug}{suffix}"
+        return project_name, project_name
+
+    def _write_env_file(self, app_dir: Path, project_name: str, compose_project_name: str) -> None:
+        """Create the .env file alongside the scaffolded .env.example."""
+        env_example = app_dir / '.env.example'
+        env_file = app_dir / '.env'
+
+        if not env_example.exists():
+            return
+
+        try:
+            env_lines = env_example.read_text(encoding='utf-8').splitlines()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to read .env.example for %s: %s", app_dir, exc)
+            return
+
+        updated_lines: List[str] = []
+        project_index: Optional[int] = None
+        compose_present = False
+
+        for line in env_lines:
+            if line.startswith('PROJECT_NAME='):
+                updated_lines.append(f"PROJECT_NAME={project_name}")
+                project_index = len(updated_lines) - 1
+                continue
+            if line.startswith('COMPOSE_PROJECT_NAME='):
+                updated_lines.append(f"COMPOSE_PROJECT_NAME={compose_project_name}")
+                compose_present = True
+                continue
+            updated_lines.append(line)
+
+        if project_index is None:
+            updated_lines.insert(0, f"PROJECT_NAME={project_name}")
+            project_index = 0
+
+        if not compose_present:
+            insert_position = project_index + 1
+            updated_lines.insert(insert_position, f"COMPOSE_PROJECT_NAME={compose_project_name}")
+
+        final_env = '\n'.join(updated_lines)
+        if not final_env.endswith('\n'):
+            final_env += '\n'
+
+        try:
+            env_file.write_text(final_env, encoding='utf-8')
+            logger.debug("Created .env for %s", app_dir)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to write .env for %s: %s", app_dir, exc)
     
     def get_ports(self, app_num: int) -> Tuple[int, int]:
         """Calculate ports for an app."""
@@ -94,12 +161,17 @@ class ScaffoldingManager:
         
         # Create app directory
         app_dir.mkdir(parents=True, exist_ok=True)
+
+        project_name, compose_project_name = self._build_project_names(model_slug, app_num)
         
         # Port substitutions
         subs = {
             'backend_port': str(backend_port),
             'frontend_port': str(frontend_port),
-            'PROJECT_NAME': f"{model_slug.replace('/', '_')}_app{app_num}",
+            'PROJECT_NAME': project_name,
+            'project_name': project_name,
+            'COMPOSE_PROJECT_NAME': compose_project_name,
+            'compose_project_name': compose_project_name,
             'BACKEND_PORT': str(backend_port),
             'FRONTEND_PORT': str(frontend_port),
         }
@@ -121,6 +193,7 @@ class ScaffoldingManager:
             'frontend/index.html',
             'frontend/src/App.css',
             'frontend/src/App.jsx',
+            'frontend/src/main.jsx',
         ]
         
         copied = 0
@@ -149,6 +222,10 @@ class ScaffoldingManager:
                     )
                     # {{key}} pattern
                     content = content.replace(f'{{{{{key}}}}}', value)
+
+                    # Handle patterns that embed {{app_num}} inside larger tokens
+                    if '{{app_num}}' in content:
+                        content = content.replace('app{{app_num}}', f'app{app_num}')
                 
                 # Write
                 dest.write_text(content, encoding='utf-8')
@@ -165,6 +242,7 @@ class ScaffoldingManager:
                 logger.error(f"  ✗ {rel_path}: {e}")
         
         logger.info(f"Scaffolded {copied}/{len(files_to_copy)} files")
+        self._write_env_file(app_dir, project_name, compose_project_name)
         return copied >= 10  # Must have at least core files
 
 
@@ -440,6 +518,9 @@ Return ONLY the Python code wrapped in ```python code blocks."""
 
 class CodeMerger:
     """Merges AI-generated code with scaffolding."""
+
+    def __init__(self):
+        self._backend_scaffold_sections: Optional[Tuple[str, str]] = None
     
     def merge_backend(self, app_dir: Path, generated_content: str) -> bool:
         """Merge generated backend code with scaffolding app.py.
@@ -455,27 +536,31 @@ class CodeMerger:
             logger.error("Scaffolding app.py missing!")
             return False
         
-        # Extract Python code blocks
-        code_blocks = self._extract_code_blocks(generated_content, 'python')
-        
-        if not code_blocks:
-            logger.warning("No Python code generated")
+        selected_code = self._select_code_block(
+            generated_content,
+            preferred_languages={'python', 'py', 'python3'}
+        )
+
+        if not selected_code:
+            logger.warning("No Python code detected in generation response")
             return False
-        
-        # For now, just append the first code block
-        # TODO: Smart merging
-        base_content = app_py.read_text()
-        generated_code = code_blocks[0]
-        
-        # Simple merge: add generated routes before if __name__
-        if "if __name__" in base_content:
-            parts = base_content.split("if __name__")
-            merged = parts[0] + "\n\n# Generated Application Code\n" + generated_code + "\n\nif __name__" + parts[1]
-        else:
-            merged = base_content + "\n\n# Generated Application Code\n" + generated_code
-        
-        app_py.write_text(merged)
-        logger.info("Merged backend code into app.py")
+
+        selected_code = self._strip_existing_scaffold(selected_code)
+
+        scaffold_head, scaffold_tail = self._get_backend_scaffold_sections()
+        sanitized = self._sanitize_backend_code(selected_code)
+
+        merged_parts = [scaffold_head.rstrip(), "# === AI Generated Backend Code ===", sanitized.rstrip()]
+        if scaffold_tail:
+            merged_parts.append(scaffold_tail.lstrip())
+
+        merged_content = '\n\n'.join(part for part in merged_parts if part)
+
+        if not merged_content.endswith('\n'):
+            merged_content += '\n'
+
+        app_py.write_text(merged_content, encoding='utf-8')
+        logger.info("Merged backend app.py with scaffolding")
         return True
     
     def merge_frontend(self, app_dir: Path, generated_content: str) -> bool:
@@ -491,32 +576,256 @@ class CodeMerger:
             logger.error("Scaffolding App.jsx missing!")
             return False
         
-        # Extract JSX code blocks
-        code_blocks = self._extract_code_blocks(generated_content, 'jsx')
-        
-        if not code_blocks:
-            logger.warning("No JSX code generated")
+        selected_code = self._select_code_block(
+            generated_content,
+            preferred_languages={'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}
+        )
+
+        if not selected_code:
+            logger.warning("No frontend code detected in generation response")
             return False
-        
-        # Replace App.jsx with generated code
-        generated_code = code_blocks[0]
-        
-        # Ensure it has proper structure
-        if 'import React' not in generated_code:
-            generated_code = "import React from 'react';\n" + generated_code
-        
-        if 'export default' not in generated_code:
-            generated_code += "\n\nexport default App;"
-        
-        app_jsx.write_text(generated_code)
+
+        # Basic guardrails to keep React structure usable
+        if 'import React' not in selected_code:
+            selected_code = "import React from 'react';\n" + selected_code
+        if 'ReactDOM' in selected_code and 'import ReactDOM' not in selected_code:
+            selected_code = "import ReactDOM from 'react-dom/client';\n" + selected_code
+        if 'ReactDOM.createRoot' in selected_code and 'document.getElementById' not in selected_code:
+            selected_code += (
+                "\n\nconst root = ReactDOM.createRoot(document.getElementById('root'));"
+                "\nroot.render(<App />);"
+            )
+        if 'export default' not in selected_code:
+            selected_code += "\n\nexport default App;"
+
+        if not selected_code.endswith('\n'):
+            selected_code += '\n'
+
+        app_jsx.write_text(selected_code, encoding='utf-8')
         logger.info("Replaced App.jsx with generated code")
+
+        main_jsx = app_dir / 'frontend' / 'src' / 'main.jsx'
+        if not main_jsx.exists():
+            scaffold_main = SCAFFOLDING_DIR / 'react-flask' / 'frontend' / 'src' / 'main.jsx'
+            try:
+                if scaffold_main.exists():
+                    main_jsx.write_text(scaffold_main.read_text(encoding='utf-8'), encoding='utf-8')
+                    logger.info("Restored missing main.jsx from scaffolding")
+                else:
+                    fallback = (
+                        "import React from 'react';\n"
+                        "import ReactDOM from 'react-dom/client';\n"
+                        "import App from './App.jsx';\n"
+                        "import './App.css';\n\n"
+                        "const root = ReactDOM.createRoot(document.getElementById('root'));\n"
+                        "root.render(<App />);\n"
+                    )
+                    main_jsx.write_text(fallback, encoding='utf-8')
+                    logger.info("Created fallback main.jsx entrypoint")
+            except Exception as exc:
+                logger.warning("Failed to backfill main.jsx: %s", exc)
         return True
     
-    def _extract_code_blocks(self, content: str, language: str) -> list[str]:
-        """Extract code blocks of specific language."""
-        pattern = re.compile(rf'```{language}\n(.*?)```', re.DOTALL)
-        matches = pattern.findall(content)
-        return [m.strip() for m in matches if m.strip()]
+    def _select_code_block(self, content: str, preferred_languages: Set[str]) -> Optional[str]:
+        """Pick the first code block that matches preferred languages.
+
+        Falls back to the first available block or the raw content if necessary.
+        """
+        blocks = []
+        pattern = re.compile(r"```(?P<lang>[^\n\r`]+)?\s*[\r\n]+(.*?)```", re.DOTALL)
+
+        for match in pattern.finditer(content or ""):
+            lang = (match.group('lang') or 'text').strip().lower()
+            lang = lang.replace('language-', '')
+            code = (match.group(2) or '').strip()
+            if code:
+                blocks.append((lang, code))
+
+        if not blocks and content and content.strip():
+            blocks.append(('text', content.strip()))
+
+        if not blocks:
+            return None
+
+        # Try preferred languages first
+        for lang, code in blocks:
+            if lang in preferred_languages:
+                return code
+
+        # Accept close variants (e.g. python fenced as ``````)
+        for lang, code in blocks:
+            if any(lang.startswith(pref) for pref in preferred_languages):
+                return code
+
+        # Fallback to first available block
+        return blocks[0][1]
+
+    def _get_backend_scaffold_sections(self) -> Tuple[str, str]:
+        """Load and cache scaffold header/tail sections for backend app.py."""
+        if self._backend_scaffold_sections is not None:
+            return self._backend_scaffold_sections
+
+        header = textwrap.dedent(
+            '''
+            # This file will be replaced by AI-generated code
+            # DO NOT modify this file - it's just a placeholder for scaffolding
+
+            import os
+            import logging
+            from flask import Flask, jsonify
+            from flask_cors import CORS
+
+            logging.basicConfig(
+                level=logging.INFO,
+                format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            )
+            logger = logging.getLogger(__name__)
+
+            app = Flask(__name__)
+            CORS(app)
+
+            app.config.setdefault('SQLALCHEMY_DATABASE_URI', os.environ.get('DATABASE_URL', 'sqlite:///app.db'))
+            app.config.setdefault('SQLALCHEMY_TRACK_MODIFICATIONS', False)
+
+            def _scaffold_index():
+                """Fallback index endpoint if AI code does not define one."""
+                return jsonify({
+                    'message': 'AI-Generated Application API',
+                    'status': 'running',
+                    'version': '1.0.0',
+                    'endpoints': {
+                        '/': 'API information',
+                        '/health': 'Health check endpoint'
+                    }
+                })
+
+            def _scaffold_health():
+                """Fallback health endpoint used by Docker health checks."""
+                return jsonify({'status': 'healthy', 'service': 'backend'}), 200
+
+            def _register_scaffold_routes():
+                """Register fallback routes only if they are missing."""
+                try:
+                    existing = {rule.rule for rule in app.url_map.iter_rules()}
+                except Exception:
+                    existing = set()
+
+                added = []
+                if '/' not in existing:
+                    app.add_url_rule('/', 'scaffold_index', _scaffold_index)
+                    added.append('/')
+                if '/health' not in existing:
+                    app.add_url_rule('/health', 'scaffold_health', _scaffold_health)
+                    added.append('/health')
+
+                if added:
+                    logger.info('Registered scaffold fallback routes: %s', ', '.join(added))
+
+            @app.errorhandler(404)
+            def _scaffold_not_found(error):
+                """Handle 404 errors with JSON response."""
+                return jsonify({'error': 'Not found', 'message': 'The requested endpoint does not exist'}), 404
+
+            @app.errorhandler(500)
+            def _scaffold_internal_error(error):
+                """Handle internal errors uniformly."""
+                logger.error('Internal error: %s', error)
+                return jsonify({'error': 'Internal server error', 'message': 'An unexpected error occurred'}), 500
+            '''
+        ).strip()
+
+        tail = textwrap.dedent(
+            '''
+            if __name__ == '__main__':
+                port = int(os.environ.get('FLASK_RUN_PORT', os.environ.get('PORT', 5000)))
+                debug = os.environ.get('FLASK_ENV', 'production') == 'development'
+
+                logger.info('Starting Flask application on port %s', port)
+                logger.info('Debug mode: %s', debug)
+
+                if 'setup_app' in globals():
+                    try:
+                        setup_app(app)
+                        logger.info('Applied setup_app configuration')
+                    except Exception as exc:
+                        logger.error('Failed to configure Flask app: %s', exc)
+                        raise
+                else:
+                    logger.debug('setup_app not defined; skipping setup integration')
+
+                try:
+                    _register_scaffold_routes()
+                except Exception as exc:
+                    logger.error('Failed to register scaffold fallback routes: %s', exc)
+                    raise
+
+                try:
+                    app.run(host='0.0.0.0', port=port, debug=debug)
+                except Exception as exc:
+                    logger.error('Failed to start Flask application: %s', exc)
+                    raise
+            '''
+        ).strip()
+
+        self._backend_scaffold_sections = (header, tail)
+        return self._backend_scaffold_sections
+
+    def _sanitize_backend_code(self, code: str) -> str:
+        """Strip duplicate bootstrap code from generated backend snippet."""
+        lines = (code or "").splitlines()
+        cleaned: List[str] = []
+        skip_block = False
+        block_indent = 0
+
+        for line in lines:
+            stripped = line.strip()
+
+            if skip_block:
+                if not stripped:
+                    continue
+                indent = len(line) - len(line.lstrip(' '))
+                if indent <= block_indent:
+                    skip_block = False
+                else:
+                    continue
+
+            if stripped.startswith("if __name__ == '__main__':") or stripped.startswith('if __name__ == "__main__":'):
+                skip_block = True
+                block_indent = len(line) - len(line.lstrip(' '))
+                continue
+
+            if stripped.startswith('app = Flask(') or stripped.startswith('application = Flask('):
+                continue
+
+            if stripped.startswith('app = create_app('):
+                continue
+
+            if stripped.startswith('CORS(') and 'app' in stripped:
+                continue
+
+            cleaned.append(line)
+
+        cleaned_code = '\n'.join(cleaned).strip()
+        if cleaned_code:
+            cleaned_code += '\n'
+        return cleaned_code
+
+    def _strip_existing_scaffold(self, code: str) -> str:
+        """Remove scaffold markup if we're re-merging an existing file."""
+        if not code:
+            return code
+
+        marker = '# === AI Generated Backend Code ==='
+        if marker in code:
+            code = code.split(marker)[-1]
+
+        tail_markers = ["if __name__ == '__main__':", 'if __name__ == "__main__":']
+        for tail_marker in tail_markers:
+            idx = code.rfind(tail_marker)
+            if idx != -1:
+                code = code[:idx]
+
+        return code.strip()
 
 
 class GenerationService:
