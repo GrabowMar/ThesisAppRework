@@ -89,53 +89,6 @@ class ScaffoldingManager:
         project_name = f"{safe_slug}{suffix}"
         return project_name, project_name
 
-    def _write_env_file(self, app_dir: Path, project_name: str, compose_project_name: str) -> None:
-        """Create the .env file alongside the scaffolded .env.example."""
-        env_example = app_dir / '.env.example'
-        env_file = app_dir / '.env'
-
-        if not env_example.exists():
-            return
-
-        try:
-            env_lines = env_example.read_text(encoding='utf-8').splitlines()
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Failed to read .env.example for %s: %s", app_dir, exc)
-            return
-
-        updated_lines: List[str] = []
-        project_index: Optional[int] = None
-        compose_present = False
-
-        for line in env_lines:
-            if line.startswith('PROJECT_NAME='):
-                updated_lines.append(f"PROJECT_NAME={project_name}")
-                project_index = len(updated_lines) - 1
-                continue
-            if line.startswith('COMPOSE_PROJECT_NAME='):
-                updated_lines.append(f"COMPOSE_PROJECT_NAME={compose_project_name}")
-                compose_present = True
-                continue
-            updated_lines.append(line)
-
-        if project_index is None:
-            updated_lines.insert(0, f"PROJECT_NAME={project_name}")
-            project_index = 0
-
-        if not compose_present:
-            insert_position = project_index + 1
-            updated_lines.insert(insert_position, f"COMPOSE_PROJECT_NAME={compose_project_name}")
-
-        final_env = '\n'.join(updated_lines)
-        if not final_env.endswith('\n'):
-            final_env += '\n'
-
-        try:
-            env_file.write_text(final_env, encoding='utf-8')
-            logger.debug("Created .env for %s", app_dir)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Failed to write .env for %s: %s", app_dir, exc)
-    
     def get_ports(self, model_slug: str, app_num: int) -> Tuple[int, int]:
         """Fetch or allocate ports for a model/app pair."""
         try:
@@ -256,7 +209,6 @@ class ScaffoldingManager:
                 logger.error(f"  ✗ {rel_path}: {e}")
         
         logger.info(f"Scaffolded {copied}/{len(files_to_copy)} files")
-        self._write_env_file(app_dir, project_name, compose_project_name)
         return copied >= 10  # Must have at least core files
 
 
