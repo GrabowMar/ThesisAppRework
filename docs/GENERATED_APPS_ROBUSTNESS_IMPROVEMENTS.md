@@ -1,5 +1,10 @@
 # Generated Apps Robustness Improvements - Summary
 
+> **Legacy Note:** References to `simple_generation_service.py` capture the
+> pre-consolidation implementation. The functionality now lives in
+> `generation.py` (`GenerationService`), with the shim preserved for
+> compatibility.
+
 ## Date: January 29, 2025
 ## Status: ✅ COMPLETE - 100% Validation Pass Rate Achieved
 

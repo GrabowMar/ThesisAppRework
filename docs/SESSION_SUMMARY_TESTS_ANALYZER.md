@@ -1,5 +1,9 @@
 # Session Summary: Test Suite + Analyzer Testing
 
+> **Update:** References to `SimpleGenerationService` describe the historical
+> implementation prior to consolidating functionality into `GenerationService`.
+> Current tests focus on the shim that proxies to the new service.
+
 **Date**: October 16, 2025  
 **Duration**: ~2 hours  
 **Mode**: "Rogue Coder" (Autonomous fixing)

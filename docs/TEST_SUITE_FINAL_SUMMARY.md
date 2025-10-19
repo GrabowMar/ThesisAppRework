@@ -17,8 +17,9 @@
 ## ✅ Fully Passing Components
 
 ### Services (100% for implemented features)
-- **SimpleGenerationService**: 12/12 tests ✅
-  - Scaffolding, code generation, validation, ports, file ops, app tracking
+- **SimpleGenerationService (shim)**: 2/2 tests ✅
+   - Delegates to `GenerationService`
+   - Emits deprecation warning for legacy callers
 - **AnalysisOrchestrator**: 2/2 tests ✅
   - Initialization, tool discovery (29 tests wisely skipped for non-existent engines)
 - **DockerManager**: 7/9 tests (78%) ✅
@@ -127,7 +128,7 @@ from app.services.generation_statistics import GenerationStatistics
 - Test failures revealed **actual service architecture** (orchestrator pattern, not engines)
 
 ### Service Architecture Insights
-1. **SimpleGenerationService**: Clean, focused API - all tests pass
+1. **GenerationService shim**: Compatibility layer confirmed via tests
 2. **ModelService**: Uses DB directly, not service layer methods  
 3. **AnalysisOrchestrator**: Tool-based delegation, not engine classes
 4. **DockerManager**: Returns rich status objects, not primitive strings
@@ -142,7 +143,7 @@ from app.services.generation_statistics import GenerationStatistics
 
 ### Test Files (1,609 lines)
 - `tests/services/test_docker_manager.py` (197 lines)
-- `tests/services/test_simple_generation_service.py` (283 lines)
+- `tests/services/test_simple_generation_service.py` (~45 lines)
 - `tests/services/test_model_service.py` (295 lines)
 - `tests/services/test_analysis_service.py` (370 lines)
 - `tests/routes/test_api_routes.py` (219 lines)

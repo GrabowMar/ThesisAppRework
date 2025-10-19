@@ -156,7 +156,7 @@ The following debug messages indicate proper operation:
 
 ### Current (USE THESE)
 - ✅ `/api/gen/*` endpoints
-- ✅ `simple_generation_service.py` (~400 lines)
+- ✅ `generation.py` (`GenerationService`)
 - ✅ Client-side batch iteration
 - ✅ Scaffolding-first approach
 

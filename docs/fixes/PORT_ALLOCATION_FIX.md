@@ -10,6 +10,11 @@
 Bind for 0.0.0.0:5003 failed: port is already allocated
 ```
 
+> **Legacy Note:** References to `SimpleGenerationService` reflect the original
+> implementation prior to its consolidation into `generation.py`
+> (`GenerationService`). The behaviour described here is still enforced by the
+> new service; the module joins remain for compatibility via a thin shim.
+
 **Root Cause**: The simple port formula in `SimpleGenerationService.get_ports()` only considered `app_num`, not `model_slug`:
 ```python
 # OLD (BROKEN):

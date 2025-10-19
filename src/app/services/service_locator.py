@@ -42,9 +42,9 @@ class ServiceLocator:
         # Import services here to avoid circular imports. Keep the list short.
         from .model_service import ModelService
         try:
-            from .simple_generation_service import get_simple_generation_service
+            from .generation import get_generation_service
         except ImportError:  # pragma: no cover
-            get_simple_generation_service = None  # type: ignore
+            get_generation_service = None  # type: ignore
 
         try:
             from .docker_manager import DockerManager
@@ -70,11 +70,11 @@ class ServiceLocator:
         # Register available services
         cls.register('model_service', ModelService(app))
         
-        if get_simple_generation_service:
+        if get_generation_service:
             try:
-                cls.register('simple_generation_service', get_simple_generation_service())
+                cls.register('generation_service', get_generation_service())
             except Exception as e:  # pragma: no cover
-                logging.warning(f"Failed to register simple generation service: {e}")
+                logging.warning(f"Failed to register generation service: {e}")
 
         # No registrations for removed legacy services
         if DockerManager:
@@ -137,10 +137,9 @@ class ServiceLocator:
         return cls.get('batch_service')
     
     @classmethod
-    @classmethod
-    def get_sample_generation_service(cls):
-        """Get sample generation service."""
-        return cls.get('sample_generation_service')
+    def get_generation_service(cls):
+        """Get the generation service."""
+        return cls.get('generation_service')
     
     @classmethod
     def get_analysis_inspection_service(cls):

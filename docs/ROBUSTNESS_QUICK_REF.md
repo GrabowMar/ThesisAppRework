@@ -83,7 +83,7 @@ lxml==5.1.0
 
 ### Services
 - Validator: `src/app/services/code_validator.py`
-- Generator: `src/app/services/simple_generation_service.py`
+- Generator: `src/app/services/generation.py` (`GenerationService`)
 
 ### Scripts
 - Validate app: `scripts/validate_app.py`

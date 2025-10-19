@@ -1,5 +1,11 @@
 # Sample Generation Port Allocation & Container Naming - FIXED ✅
 
+> **Legacy Note:** The implementation originally described here lived in
+> `simple_generation_service.py`. That logic now resides in
+> `generation.py` (`GenerationService`), with the legacy module retained only
+> as a compatibility shim. The diagnostic details below remain relevant for
+> understanding how the current service handles ports and container naming.
+
 ## Issue Summary
 When generating multiple applications across different models using the sample generator wizard, two critical issues occurred:
 

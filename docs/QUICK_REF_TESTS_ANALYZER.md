@@ -1,5 +1,8 @@
 # Quick Reference: Tests & Analyzer
 
+> **Note:** The `test_simple_generation_service.py` entry now exercises the
+> compatibility shim that forwards to `GenerationService`.
+
 ## Running Tests
 
 ### Fast Tests (No Integration)

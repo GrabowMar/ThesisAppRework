@@ -18,25 +18,25 @@ The sample generator backend has been completely reimplemented to fix broken sca
 ## What's Fixed
 
 ### New System ✅
-1. **Clean, simple service** - ~400 lines, focused on ONE job
+1. **Unified generation service** - scaffolding + AI orchestration via `GenerationService`
 2. **Proper scaffolding** - copies ALL files from `misc/scaffolding/react-flask/`
 3. **Correct placeholder substitution** - both `{{key|default}}` and `{{key}}` patterns
 4. **One file per type** - no more numbered duplicates
 5. **Complete Docker infrastructure** - every app gets all containers
 6. **Simple code extraction** - pattern matching that works
-7. **Predictable ports** - simple formula: backend=5001+(app*2), frontend=8001+(app*2)
+7. **Predictable ports** - centralized allocator with deterministic fallback
 
 ## New Files Created
 
 ### Core Service
-- `src/app/services/simple_generation_service.py` - Clean generation service (~400 lines)
-  - Port allocation
+- `src/app/services/generation.py` - Unified scaffolding + generation service
+  - Port allocation via `PortAllocationService`
   - Scaffolding with proper substitution
-  - Code generation via AI
-  - Simple code extraction and saving
+  - Code generation via AI with dedicated prompt templates
+  - Merging logic for backend/frontend outputs
 
 ### API Routes
-- `src/app/routes/api/simple_generation.py` - New simplified API endpoints
+- `src/app/routes/api/generation.py` - Simplified API endpoints
   - `POST /api/gen/scaffold` - Create scaffolding
   - `POST /api/gen/generate` - Generate single component (frontend OR backend)
   - `POST /api/gen/generate-full` - Generate both components
@@ -177,7 +177,7 @@ python scripts/cleanup_broken_apps.py --fix
 
 ### New Endpoints (USE THESE)
 - ✅ `/api/gen/*` - Simple, reliable system
-- ✅ `simple_generation_service.py` - 400 lines of clarity
+- ✅ `generation.py` (`GenerationService`) - centralized implementation
 
 ### Frontend Updates Needed
 Update your JavaScript to call new endpoints:

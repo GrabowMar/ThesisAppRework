@@ -23,23 +23,17 @@ Created comprehensive pytest test suites for the ThesisAppRework web application
   
 - **Test Classes:** 6 classes, 15 test methods
 
-#### `test_simple_generation_service.py` - Code Generation Service
+#### `test_simple_generation_service.py` - Legacy Shim Coverage
 - **Test Coverage:**
-  - Scaffolding new applications
-  - Component generation (backend/frontend)
-  - Code validation (backend/frontend)
-  - Port allocation and management
-  - File operations (write/backup)
-  - Application tracking in database
-  - Full generation workflow integration
+  - Ensures `get_simple_generation_service()` delegates to the new `GenerationService`
+  - Verifies the deprecation warning emitted by the shim
+  - Confirms repeated calls reuse the singleton instance
 
-- **Issues Found via Pylance:**
-  - Many methods don't exist on `SimpleGenerationService`:
-    - `_create_directory_structure()`, `_call_ai_model()`, `_run_linters()`
-    - `get_or_allocate_ports()`, `write_code()`, `backup_file()`
-    - `register_app()`, `update_app_status()`, `generate_component()`
+- **Notes:**
+  - The historic, large test plan for the legacy implementation has been retired
+  - Documentation retained here for context, but the active tests focus solely on compatibility
   
-- **Test Classes:** 7 classes, 18 test methods
+- **Test Classes:** 1 class, 2 test functions
 
 #### `test_model_service.py` - Model Management Service
 - **Test Coverage:**

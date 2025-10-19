@@ -99,7 +99,7 @@ def scaffold():
         
         if success:
             app_dir = service.scaffolding.get_app_dir(model_slug, app_num)
-            backend_port, frontend_port = service.scaffolding.get_ports(app_num)
+            backend_port, frontend_port = service.scaffolding.get_ports(model_slug, app_num)
             
             # List scaffolding files created
             files = []
@@ -190,7 +190,7 @@ def test_scaffold():
         
         if success:
             app_dir = service.scaffolding.get_app_dir(model_slug, app_num)
-            backend_port, frontend_port = service.scaffolding.get_ports(app_num)
+            backend_port, frontend_port = service.scaffolding.get_ports(model_slug, app_num)
             
             # Check what files exist
             files = []
@@ -302,8 +302,8 @@ def get_app_details(model_slug: str, app_num: int):
                     'size': file_path.stat().st_size,
                     'is_generated': rel_path.parts[0] in ['backend', 'frontend']
                 })
-        
-        backend_port, frontend_port = service.scaffolding.get_ports(app_num)
+
+        backend_port, frontend_port = service.scaffolding.get_ports(model_slug, app_num)
         
         return create_success_response({
             'model_slug': model_slug,

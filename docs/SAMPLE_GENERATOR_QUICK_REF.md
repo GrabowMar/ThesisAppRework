@@ -9,7 +9,7 @@
 
 ### ✅ USE ONLY (New, Working)
 - `/api/gen/*` endpoints
-- `simple_generation_service.py` (400 lines)
+- `generation.py` (`GenerationService`)
 - `docs/SIMPLE_GENERATION_SYSTEM.md` for documentation
 
 ## Quick Commands
@@ -68,11 +68,12 @@ curl http://localhost:5000/api/gen/apps
 
 ## Port Allocation
 
-Simple formula:
+Ports are provisioned through `PortAllocationService` with a deterministic
+fallback when database-seeded allocations are unavailable:
 - **Backend**: `5001 + (app_num * 2)`
 - **Frontend**: `8001 + (app_num * 2)`
 
-Examples:
+Examples (fallback mode):
 - App 1: backend=5001, frontend=8001
 - App 2: backend=5003, frontend=8003
 - App 3: backend=5005, frontend=8005

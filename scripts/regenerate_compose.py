@@ -11,16 +11,13 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Iterable, Iterator, List, Optional, Tuple, TYPE_CHECKING
+from typing import Iterable, Iterator, List, Optional, Tuple
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_PATH = PROJECT_ROOT / "src"
 
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
-
-if TYPE_CHECKING:
-    from app.services.simple_generation_service import SimpleGenerationService
 
 logger = logging.getLogger(__name__)
 
@@ -56,13 +53,13 @@ def discover_targets(root: Path, models: Iterable[str], apps: Iterable[int]) -> 
             yield model_slug, app_num, app_dir
 
 
-def regenerate(model_slug: str, app_num: int, app_path: Path, service: 'SimpleGenerationService', dry_run: bool = False) -> bool:
+def regenerate(model_slug: str, app_num: int, app_path: Path, generation_service, dry_run: bool = False) -> bool:
     """Re-scaffold a single app directory."""
     compose_path = app_path / "docker-compose.yml"
     logger.info("Processing %s/app%d -> %s", model_slug, app_num, compose_path)
     if dry_run:
         return compose_path.exists()
-    return service.scaffold_app(model_slug, app_num, force=True)
+    return generation_service.scaffolding.scaffold(model_slug, app_num)
 
 
 def run(models: List[str], apps: List[int], dry_run: bool = False) -> Tuple[int, int, List[str]]:
@@ -73,11 +70,11 @@ def run(models: List[str], apps: List[int], dry_run: bool = False) -> Tuple[int,
 
     from app.factory import create_app
     from app.paths import GENERATED_APPS_DIR
-    from app.services.simple_generation_service import SimpleGenerationService
+    from app.services.generation import get_generation_service
 
     app = create_app()
     with app.app_context():
-        service = SimpleGenerationService()
+        generation_service = get_generation_service()
         targets = list(discover_targets(GENERATED_APPS_DIR, models, apps))
         if not targets:
             logger.warning("No generated apps found matching the provided filters")
@@ -85,7 +82,7 @@ def run(models: List[str], apps: List[int], dry_run: bool = False) -> Tuple[int,
 
         for model_slug, app_num, app_path in targets:
             try:
-                if regenerate(model_slug, app_num, app_path, service, dry_run=dry_run):
+                if regenerate(model_slug, app_num, app_path, generation_service, dry_run=dry_run):
                     regenerated += 1
                 else:
                     skipped += 1

@@ -16,13 +16,13 @@ from typing import Any, Dict, List
 
 from flask import Blueprint, current_app, jsonify, render_template
 
-from app.services.simple_generation_service import get_simple_generation_service
+from app.services.generation import get_generation_service
 
 sample_generator_bp = Blueprint('sample_generator', __name__, url_prefix='/sample-generator')
 
 
 def _service():
-    return get_simple_generation_service()
+    return get_generation_service()
 
 
 def _build_status() -> Dict[str, Any]:
@@ -50,11 +50,29 @@ def _build_status() -> Dict[str, Any]:
 
 
 def _load_recent(limit: int = 10) -> List[Dict[str, Any]]:
-    """Load recent results - stubbed for now as SimpleGenerationService has different interface."""
+    """Load recent generation results."""
     try:
-        # SimpleGenerationService doesn't have list_results method
-        # Return empty list for now - UI will need updating
-        return []
+        from app.models import GeneratedCodeResult
+
+        results = (
+            GeneratedCodeResult.query
+            .order_by(GeneratedCodeResult.timestamp.desc())
+            .limit(limit)
+            .all()
+        )
+
+        return [
+            {
+                'timestamp': result.timestamp,
+                'app_name': result.app_name,
+                'app_num': result.app_num,
+                'model': result.model,
+                'success': result.success,
+                'duration': result.duration,
+                'result_id': result.result_id,
+            }
+            for result in results
+        ]
     except Exception as exc:  # noqa: BLE001
         current_app.logger.exception("Failed to load recent sample generations", exc_info=exc)
         return []

@@ -15,12 +15,12 @@ The sample generator backend has been completely reimplemented with a focus on s
 - ❌ Unreliable code extraction with validation layers
 
 ### New System (Clean & Simple)
-- ✅ **Simple Service**: `simple_generation_service.py` (~400 lines)
-  - Does ONE thing well: generate code via AI and save it
-  - Clean separation of concerns
-  - Predictable file organization
+- ✅ **Generation Service**: `generation.py`
+  - Unified scaffolding + AI generation orchestration
+  - Clean separation of scaffolding, prompting, and merging
+  - Shared singleton accessed via `get_generation_service()` (legacy shim still available)
 
-- ✅ **Simple API**: `simple_generation.py` 
+- ✅ **Simple API**: `generation.py` routes
   - Clear, focused endpoints
   - No complex workflows
   - Direct responses
@@ -107,11 +107,14 @@ POST /api/gen/generate-full
 
 ## Port Allocation
 
-Simple, predictable formula:
+Ports are sourced through the centralized `PortAllocationService`, ensuring
+unique backend/frontend pairs across every generated app. When the allocator
+is unavailable (e.g., during local development without seed data) the service
+falls back to the original deterministic formula:
 - Backend port: `5001 + (app_num * 2)`
 - Frontend port: `8001 + (app_num * 2)`
 
-Examples:
+Examples when running in fallback mode:
 - App 1: backend=5001, frontend=8001
 - App 2: backend=5003, frontend=8003
 - App 3: backend=5005, frontend=8005

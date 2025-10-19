@@ -1,5 +1,9 @@
 # Test Suite Progress Report
 
+> **Update:** Entries mentioning `SimpleGenerationService` now refer to the
+> legacy shim that proxies to `GenerationService`. The detailed counts below
+> capture the historical state prior to the consolidation.
+
 ## Summary Statistics
 - **Initial State**: 6 passed / 51 failed (10% pass rate)
 - **Current State**: 70 passed / 32 failed / 14 skipped (68% pass rate)

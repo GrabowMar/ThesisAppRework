@@ -38,12 +38,14 @@ import shutil
 import textwrap
 import time
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
-from typing import Optional, Tuple, Dict, List, Set
+from typing import Optional, Tuple, Dict, List, Set, Any
 
 import aiohttp
 
 from app.paths import GENERATED_APPS_DIR, SCAFFOLDING_DIR, REQUIREMENTS_DIR
+from app.services.port_allocation_service import get_port_allocation_service
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +69,7 @@ class ScaffoldingManager:
         self.scaffolding_source = SCAFFOLDING_DIR / 'react-flask'
         self.base_backend_port = 5001
         self.base_frontend_port = 8001
+        self._port_service = get_port_allocation_service()
 
     def _build_project_names(self, model_slug: str, app_num: int) -> Tuple[str, str]:
         """Create sanitized project identifiers for Docker Compose."""
@@ -133,11 +136,22 @@ class ScaffoldingManager:
         except Exception as exc:  # noqa: BLE001
             logger.warning("Failed to write .env for %s: %s", app_dir, exc)
     
-    def get_ports(self, app_num: int) -> Tuple[int, int]:
-        """Calculate ports for an app."""
-        backend = self.base_backend_port + (app_num * 2)
-        frontend = self.base_frontend_port + (app_num * 2)
-        return backend, frontend
+    def get_ports(self, model_slug: str, app_num: int) -> Tuple[int, int]:
+        """Fetch or allocate ports for a model/app pair."""
+        try:
+            port_pair = self._port_service.get_or_allocate_ports(model_slug, app_num)
+            return port_pair.backend, port_pair.frontend
+        except Exception as exc:  # noqa: BLE001
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                "Falling back to deterministic port allocation for %s/app%s: %s",
+                model_slug,
+                app_num,
+                exc,
+            )
+            backend = self.base_backend_port + (app_num * 2)
+            frontend = self.base_frontend_port + (app_num * 2)
+            return backend, frontend
     
     def get_app_dir(self, model_slug: str, app_num: int) -> Path:
         """Get app directory path."""
@@ -150,7 +164,7 @@ class ScaffoldingManager:
         This creates the IMMUTABLE base structure that AI never touches.
         """
         app_dir = self.get_app_dir(model_slug, app_num)
-        backend_port, frontend_port = self.get_ports(app_num)
+        backend_port, frontend_port = self.get_ports(model_slug, app_num)
         
         logger.info(f"Scaffolding {model_slug}/app{app_num} → {app_dir}")
         logger.info(f"Ports: backend={backend_port}, frontend={frontend_port}")
@@ -835,6 +849,7 @@ class GenerationService:
         self.scaffolding = ScaffoldingManager()
         self.generator = CodeGenerator()
         self.merger = CodeMerger()
+        self.max_concurrent = int(os.getenv('GENERATION_MAX_CONCURRENT', os.getenv('SIMPLE_GENERATION_MAX_CONCURRENT', '4')))
     
     async def generate_full_app(
         self,
@@ -921,12 +936,109 @@ class GenerationService:
         )
         
         result['app_dir'] = str(app_dir)
-        backend_port, frontend_port = self.scaffolding.get_ports(app_num)
+        backend_port, frontend_port = self.scaffolding.get_ports(model_slug, app_num)
         result['backend_port'] = backend_port
         result['frontend_port'] = frontend_port
         
         logger.info(f"=== Generation complete: {result['success']} ===")
         return result
+
+    def get_generation_status(self) -> Dict[str, Any]:
+        """Expose lightweight status metrics for dashboards."""
+        status: Dict[str, Any] = {
+            'in_flight_count': 0,
+            'available_slots': self.max_concurrent,
+            'max_concurrent': self.max_concurrent,
+            'in_flight_keys': [],
+            'active_tasks': 0,
+            'system_healthy': self.scaffolding.scaffolding_source.exists(),
+        }
+
+        try:
+            from sqlalchemy import func
+            from app.models import GeneratedApplication
+            from app.constants import AnalysisStatus
+
+            in_progress = (
+                GeneratedApplication.query
+                .filter(GeneratedApplication.generation_status == AnalysisStatus.RUNNING)
+            )
+
+            running = in_progress.count()
+            status['in_flight_count'] = running
+            status['active_tasks'] = running
+            status['available_slots'] = max(self.max_concurrent - running, 0)
+
+            if running:
+                recent = (
+                    in_progress.order_by(GeneratedApplication.updated_at.desc())
+                    .limit(5)
+                    .all()
+                )
+                status['in_flight_keys'] = [
+                    f"{app.model_slug}/app{app.app_number}"
+                    for app in recent
+                ]
+
+            total_apps = GeneratedApplication.query.count()
+            status['total_results'] = total_apps
+
+            latest_created = (
+                GeneratedApplication.query
+                .with_entities(func.max(GeneratedApplication.created_at))
+                .scalar()
+            )
+            if latest_created:
+                status['last_generated_at'] = latest_created.isoformat()
+
+            status.setdefault('stubbed', False)
+        except Exception:  # pragma: no cover - metrics are best-effort
+            status.setdefault('total_results', 0)
+            status['system_healthy'] = False
+            status.setdefault('stubbed', True)
+
+        return status
+
+    def get_summary_metrics(self) -> Dict[str, Any]:
+        """Return summary metrics used by the generator dashboards."""
+        summary: Dict[str, Any] = {
+            'total_results': 0,
+            'total_templates': 0,
+            'total_models': 0,
+            'recent_results': 0,
+        }
+
+        try:
+            from sqlalchemy import func
+            from app.models import GeneratedApplication, ModelCapability
+            from app.utils.time import utc_now
+
+            summary['total_results'] = GeneratedApplication.query.count()
+            summary['total_models'] = ModelCapability.query.count()
+
+            day_ago = utc_now() - timedelta(days=1)
+            summary['recent_results'] = (
+                GeneratedApplication.query
+                .filter(GeneratedApplication.created_at >= day_ago)
+                .count()
+            )
+
+            latest_model = (
+                ModelCapability.query
+                .order_by(ModelCapability.created_at.desc())
+                .with_entities(ModelCapability.canonical_slug)
+                .first()
+            )
+            if latest_model:
+                summary['latest_model'] = latest_model[0]
+
+            summary['total_templates'] = sum(
+                1 for path in self.scaffolding.scaffolding_source.rglob('*') if path.is_file()
+            )
+        except Exception:  # pragma: no cover - metrics are advisory
+            pass
+
+        return summary
 
 
 # Singleton
