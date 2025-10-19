@@ -21,14 +21,33 @@ models_bp = Blueprint('models_api', __name__)
 def api_models():
     """Get all models (standardized envelope)."""
     models = ModelCapability.query.all()
-    data = [{
-        'id': model.model_id,  # Frontend expects 'id'
-        'model_id': model.model_id,
-        'canonical_slug': model.canonical_slug,
-        'provider': model.provider,
-        'model_name': model.model_name,
-        'capabilities': model.get_capabilities()
-    } for model in models]
+    def _price_bucket(value: float) -> str:
+        if not value:
+            return 'free'
+        if value < 0.001:
+            return 'low'
+        if value < 0.005:
+            return 'medium'
+        return 'high'
+
+    data = []
+    for model in models:
+        input_per_1k = round((model.input_price_per_token or 0.0) * 1000, 6)
+        output_per_1k = round((model.output_price_per_token or 0.0) * 1000, 6)
+        data.append({
+            'id': model.model_id,  # Frontend expects 'id'
+            'model_id': model.model_id,
+            'canonical_slug': model.canonical_slug,
+            'provider': model.provider,
+            'model_name': model.model_name,
+            'capabilities': model.get_capabilities(),
+            'input_price_per_1k': input_per_1k,
+            'output_price_per_1k': output_per_1k,
+            'price_tier': _price_bucket(model.input_price_per_token or 0.0),
+            'context_window': model.context_window or 0,
+            'max_output_tokens': model.max_output_tokens or 0,
+            'is_free': (model.input_price_per_token or 0.0) == 0 and (model.output_price_per_token or 0.0) == 0,
+        })
     return api_success(data, message="Models fetched")
 
 

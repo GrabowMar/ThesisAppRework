@@ -35,7 +35,8 @@ function initializeWizard() {
 async function loadInitialData() {
   try {
     // Load templates
-    console.log('[Wizard] Loading templates from /api/gen/templates...');
+        console.log('[Wizard] Loading templates from /api/gen/templates...');
+
     const templatesResponse = await fetch('/api/gen/templates');
     if (templatesResponse.ok) {
       const templatesData = await templatesResponse.json();
@@ -342,7 +343,6 @@ function showScaffoldingPreview() {
 async function loadTemplatesAndModels() {
   await loadTemplates();
   await loadModels();
-  updateGenerationMatrix();
 }
 
 async function loadTemplates() {
@@ -393,14 +393,21 @@ async function loadTemplates() {
     // Update cache with modified templates
     templatesCache = templates;
     console.log('[Wizard] Templates cache updated:', templatesCache.map(t => ({ id: t.id, app_num: t.app_num, name: t.name })));
+
+    if (selectedTemplates.length) {
+      const validAppNums = new Set(templates.map(t => t.app_num));
+      selectedTemplates = selectedTemplates.filter(num => validAppNums.has(num));
+    }
     
     // Render items
     templates.forEach(template => {
       const item = createTemplateListItem(template);
       listContainer.appendChild(item);
     });
-    console.log('[Wizard] Templates UI updated with V2 requirements');
-    console.log('[Wizard] Template items added to wizard list, ready for clicks');  
+  console.log('[Wizard] Templates UI updated with V2 requirements');
+  console.log('[Wizard] Template items added to wizard list, ready for clicks');  
+  updateSidebar();
+  updateNavigationButtons();
   } catch (error) {
     console.error('[Wizard] Error loading templates:', error);
     listContainer.innerHTML = `<div class="text-center text-danger p-4"><i class="fas fa-exclamation-triangle fa-2x mb-2"></i><p class="fw-bold">Error loading templates</p><p class="small">${error.message}</p><button class="btn btn-sm btn-outline-primary mt-2" onclick="loadTemplates()">Retry</button></div>`;
@@ -465,7 +472,7 @@ function createTemplateListItem(template) {
         ${descriptionHtml}
       </div>
       <div class="form-check">
-        <input class="form-check-input" type="checkbox" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();">
+        <input class="form-check-input" type="checkbox" data-template="${appNum}" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();">
       </div>
     </div>
   `;
@@ -493,7 +500,6 @@ function toggleTemplateSelection(appNum) {
   
   // Only update UI elements, don't reload entire list
   updateTemplateSelectionUI();
-  updateGenerationMatrix();
   updateSidebar();
   updateNavigationButtons();
 }
@@ -536,8 +542,6 @@ function selectAllTemplates() {
     }).filter(num => num > 0); // Remove any invalid entries
     console.log('[Wizard] Selected all templates:', selectedTemplates);
     loadTemplates();
-    updateGenerationMatrix();
-    updateSidebar();
     updateNavigationButtons();
   }
 }
@@ -545,77 +549,181 @@ function selectAllTemplates() {
 function clearAllTemplates() {
   selectedTemplates = [];
   loadTemplates();
-  updateGenerationMatrix();
-  updateSidebar();
   updateNavigationButtons();
 }
 
 async function loadModels() {
   const listContainer = document.getElementById('model-selection-list');
   if (!listContainer) return;
-  
+
   listContainer.innerHTML = '<div class="text-center p-4"><div class="spinner-border text-primary"></div><p class="small text-muted mt-2">Loading models...</p></div>';
-  
+
   try {
-    console.log('[Wizard] Loading models...');
-    // Use the correct models endpoint
-    const response = await fetch('/api/models');
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[Wizard] Model load error:', response.status, errorText);
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    console.log('[Wizard] Models data received:', data);
-    
-    // Handle standardized API envelope
-    let models = [];
-    if (data.success && data.data) {
-      models = Array.isArray(data.data) ? data.data : [];
-    } else if (Array.isArray(data)) {
-      models = data;
-    } else if (data.models && Array.isArray(data.models)) {
-      models = data.models;
-    }
-    
+    console.log('[Wizard] Loading models from catalog (paginated source)...');
+    const models = await fetchAllModelsFromCatalog();
+
     modelsCache = models;
     console.log(`[Wizard] Parsed ${models.length} models`);
-    
+
+    // Remove any selected models that are no longer available
+    selectedModels = selectedModels.filter(slug => modelsCache.some(model => getModelSlug(model) === slug));
+
     listContainer.innerHTML = '';
-    
+
     if (models.length === 0) {
       listContainer.innerHTML = '<div class="text-center text-muted p-4"><i class="fas fa-info-circle fa-2x mb-2 opacity-50"></i><p>No models available</p><p class="small">Check database for model capabilities</p></div>';
       return;
     }
-    
+
     models.forEach(model => {
       const item = createModelListItem(model);
       listContainer.appendChild(item);
     });
     console.log('[Wizard] Models UI updated');
+    updateSidebar();
+    updateNavigationButtons();
   } catch (error) {
     console.error('[Wizard] Error loading models:', error);
-    listContainer.innerHTML = `<div class="text-center text-danger p-4"><i class="fas fa-exclamation-triangle fa-2x mb-2"></i><p class="fw-bold">Error loading models</p><p class="small">${error.message}</p><button class="btn btn-sm btn-outline-primary mt-2" onclick="loadModels()">Retry</button></div>`;
+    const message = escapeHtml(error.message || 'Unknown error');
+    listContainer.innerHTML = `<div class="text-center text-danger p-4"><i class="fas fa-exclamation-triangle fa-2x mb-2"></i><p class="fw-bold">Error loading models</p><p class="small">${message}</p><button class="btn btn-sm btn-outline-primary mt-2" onclick="loadModels()">Retry</button></div>`;
   }
+}
+
+async function fetchAllModelsFromCatalog() {
+  const perPage = 250;
+  const aggregatedModels = [];
+  const baseParams = new URLSearchParams({
+    per_page: String(perPage),
+    source: 'db'
+  });
+
+  const firstPage = await fetchModelsPage(baseParams, 1);
+  aggregatedModels.push(...firstPage.models);
+
+  const totalPages = firstPage.pagination?.total_pages || 1;
+  if (totalPages > 1) {
+    console.log(`[Wizard] Detected ${totalPages} model pages, loading remaining...`);
+    const pagePromises = [];
+    for (let page = 2; page <= totalPages; page++) {
+      pagePromises.push(fetchModelsPage(baseParams, page));
+    }
+    const remainingPages = await Promise.all(pagePromises);
+    remainingPages.forEach(result => {
+      aggregatedModels.push(...result.models);
+    });
+  }
+
+  const normalizedModels = aggregatedModels.map((raw, index) => {
+    const clone = { ...raw };
+    const candidateSlugs = [clone.slug, clone.canonical_slug, clone.model_id, clone.id, clone.model_name, clone.name];
+    let slug = candidateSlugs.find(val => typeof val === 'string' && val.trim().length > 0);
+    if (!slug) {
+      slug = `model-${index + 1}`;
+    }
+    clone.slug = String(slug).trim();
+    return clone;
+  });
+
+  const uniqueMap = new Map();
+  normalizedModels.forEach(model => {
+    const slug = getModelSlug(model);
+    if (!slug) {
+      return;
+    }
+    if (!uniqueMap.has(slug)) {
+      uniqueMap.set(slug, model);
+    }
+  });
+
+  const uniqueModels = Array.from(uniqueMap.values());
+  uniqueModels.sort((a, b) => {
+    const providerA = (a.provider || '').toLowerCase();
+    const providerB = (b.provider || '').toLowerCase();
+    const providerCompare = providerA.localeCompare(providerB);
+    if (providerCompare !== 0) {
+      return providerCompare;
+    }
+    const nameA = (a.model_name || a.name || '').toLowerCase();
+    const nameB = (b.model_name || b.name || '').toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+
+  return uniqueModels;
+}
+
+async function fetchModelsPage(baseParams, pageNumber) {
+  const params = new URLSearchParams(baseParams);
+  params.set('page', String(pageNumber));
+
+  const response = await fetch(`/api/models/paginated?${params.toString()}`);
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('[Wizard] Model page load error:', response.status, errorText);
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  if (data.success === false) {
+    throw new Error(data.message || 'Failed to load models');
+  }
+
+  const { models, pagination } = extractModelsFromResponse(data);
+  if (!Array.isArray(models)) {
+    throw new Error('Invalid model payload received');
+  }
+
+  console.log(`[Wizard] Loaded page ${pageNumber} with ${models.length} models`);
+  return { models, pagination };
+}
+
+function extractModelsFromResponse(data) {
+  let payload = data;
+  if (payload && payload.success && payload.data) {
+    payload = payload.data;
+  }
+
+  if (payload && payload.data && payload.data.models) {
+    payload = payload.data;
+  }
+
+  let models = [];
+  if (Array.isArray(payload)) {
+    models = payload;
+  } else if (payload && Array.isArray(payload.models)) {
+    models = payload.models;
+  } else if (payload && Array.isArray(payload.items)) {
+    models = payload.items;
+  } else if (payload && Array.isArray(payload.results)) {
+    models = payload.results;
+  } else if (payload && payload.data && Array.isArray(payload.data)) {
+    models = payload.data;
+  }
+
+  const pagination = payload && payload.pagination ? payload.pagination
+    : payload && payload.data && payload.data.pagination ? payload.data.pagination
+    : null;
+  return { models, pagination };
 }
 
 function createModelListItem(model) {
   const item = document.createElement('a');
   item.href = '#';
   item.className = 'list-group-item list-group-item-action';
-  
-  // Safe property access with better fallbacks, ensure string slug
-  let slug = model.canonical_slug || model.slug || model.id || model.model_id || 'unknown';
-  slug = String(slug);
+
+  let slug = getModelSlug(model);
+  if (!slug) {
+    slug = `model-${String(model.model_id || model.name || model.provider || 'unknown').replace(/\s+/g, '-').toLowerCase()}`;
+  }
+  model.slug = slug;
   const name = model.model_name || model.name || model.display_name || slug;
   const provider = model.provider || 'Unknown';
-  const capabilities = model.capabilities || [];
-  
-  // Store the slug as a data attribute for easier access
+  const capabilities = Array.isArray(model.capabilities) ? model.capabilities : [];
+
+  const inputCost = normalizeModelCost(model);
+  const outputCost = normalizeModelOutputCost(model);
+
   item.setAttribute('data-model-slug', slug);
-  
-  // Add click handler using addEventListener instead of onclick
+
   item.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -624,42 +732,49 @@ function createModelListItem(model) {
       toggleModelSelection(modelSlug);
     }
   });
-  
-  // Ensure consistent string comparison
+
   const isSelected = selectedModels.includes(slug);
   if (isSelected) {
     item.classList.add('active');
   }
-  
+
   const providerBadge = `<span class="badge bg-azure-lt"><i class="fas fa-building me-1"></i>${escapeHtml(provider)}</span>`;
-  
-  // Show capabilities if available
-  let capabilitiesBadges = '';
-  if (Array.isArray(capabilities) && capabilities.length > 0) {
-    capabilitiesBadges = capabilities.slice(0, 3).map(cap => 
-      `<span class="badge bg-secondary-lt ms-1">${escapeHtml(cap)}</span>`
-    ).join('');
-    if (capabilities.length > 3) {
-      capabilitiesBadges += `<span class="badge bg-secondary-lt ms-1">+${capabilities.length - 3}</span>`;
-    }
+
+  const pricingBadges = [];
+  if (inputCost !== null) {
+    pricingBadges.push(`<span class="badge bg-success-lt" title="Input cost per 1K tokens">Input ${formatCost(inputCost)}</span>`);
   }
-  
+  if (outputCost !== null) {
+    pricingBadges.push(`<span class="badge bg-warning-lt" title="Output cost per 1K tokens">Output ${formatCost(outputCost)}</span>`);
+  }
+  if (pricingBadges.length === 0) {
+    pricingBadges.push('<span class="badge bg-secondary-lt">Pricing N/A</span>');
+  }
+
+  let capabilitiesHtml = '';
+  if (capabilities.length > 0) {
+    const displayCaps = capabilities.slice(0, 3).map(cap => `<span class="badge bg-secondary-lt">${escapeHtml(cap)}</span>`).join('');
+    const extraCaps = capabilities.length > 3 ? `<span class="badge bg-secondary-lt">+${capabilities.length - 3}</span>` : '';
+    capabilitiesHtml = `<div class="d-flex flex-wrap gap-1 mt-1 text-muted small">${displayCaps}${extraCaps}</div>`;
+  }
+
   item.innerHTML = `
     <div class="d-flex align-items-center">
       <div class="flex-fill">
         <strong>${escapeHtml(name)}</strong>
-        <div class="text-muted small">
+        <div class="text-muted small d-flex flex-wrap align-items-center gap-1 mt-1">
           ${providerBadge}
-          ${capabilitiesBadges}
+          ${pricingBadges.join('')}
         </div>
-        <div class="text-muted small"><code class="small">${escapeHtml(slug)}</code></div>
+        ${capabilitiesHtml}
+        <div class="text-muted small mt-1"><code class="small">${escapeHtml(slug)}</code></div>
       </div>
       <div class="form-check">
-        <input class="form-check-input" type="checkbox" ${isSelected ? 'checked' : ''}>
+        <input class="form-check-input" type="checkbox" data-model="${slug}" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();">
       </div>
     </div>
   `;
-  
+
   return item;
 }
 
@@ -683,7 +798,6 @@ function toggleModelSelection(slug) {
   
   // Only update UI elements, don't reload entire list
   updateModelSelectionUI();
-  updateGenerationMatrix();
   updateSidebar();
   updateNavigationButtons();
 }
@@ -691,15 +805,12 @@ function toggleModelSelection(slug) {
 function selectAllModels() {
   if (modelsCache) {
     console.log('[Wizard] Select all models, cache:', modelsCache);
-    // Extract slug with multiple fallbacks and ensure it's a string
-    selectedModels = modelsCache.map(m => {
-      const slug = m.canonical_slug || m.slug || m.id || m.model_id || 'unknown';
-      return String(slug);
-    }).filter(slug => slug !== 'unknown'); // Remove any invalid entries
+    selectedModels = modelsCache
+      .map(getModelSlug)
+      .filter(slug => Boolean(slug));
+    selectedModels = Array.from(new Set(selectedModels));
     console.log('[Wizard] Selected all models:', selectedModels);
     loadModels();
-    updateGenerationMatrix();
-    updateSidebar();
     updateNavigationButtons();
   }
 }
@@ -707,81 +818,74 @@ function selectAllModels() {
 function clearAllModels() {
   selectedModels = [];
   loadModels();
-  updateGenerationMatrix();
-  updateSidebar();
   updateNavigationButtons();
 }
 
-function updateGenerationMatrix() {
-  const countEl = document.getElementById('matrix-count');
-  const templatesEl = document.getElementById('matrix-templates');
-  const modelsEl = document.getElementById('matrix-models');
-  const previewEl = document.getElementById('generation-matrix-preview');
-  
-  const totalGenerations = selectedTemplates.length * selectedModels.length;
-  console.log('[Wizard] updateGenerationMatrix:', {
-    templates: selectedTemplates.length,
-    models: selectedModels.length,
-    total: totalGenerations,
-    countEl: !!countEl,
-    templatesEl: !!templatesEl,
-    modelsEl: !!modelsEl,
-    previewEl: !!previewEl
-  });
-  
-  if (countEl) countEl.textContent = totalGenerations;
-  if (templatesEl) templatesEl.textContent = selectedTemplates.length;
-  if (modelsEl) modelsEl.textContent = selectedModels.length;
-  const previewCountEl = document.getElementById('matrix-preview-count');
-  if (previewCountEl) previewCountEl.textContent = totalGenerations;
+function updateGenerationSummary() {
+  const templateCount = selectedTemplates.length;
+  const modelCount = selectedModels.length;
+  const totalPairs = templateCount * modelCount;
 
-  const summaryTotalEl = document.getElementById('summary-total-generations');
-  if (summaryTotalEl) summaryTotalEl.textContent = totalGenerations;
+  console.log('[Wizard] updateGenerationSummary:', { templateCount, modelCount, totalPairs });
 
-  const statusTotalEl = document.getElementById('status-total');
-  if (statusTotalEl) {
-    statusTotalEl.textContent = totalGenerations;
+  setTextContent('selection-template-count', templateCount);
+  setTextContent('selection-model-count', modelCount);
+  setTextContent('selection-total-pairs', totalPairs);
+  setTextContent('summary-total-generations', totalPairs);
+  setTextContent('status-total', totalPairs);
+  setTextContent('status-templates', templateCount);
+  setTextContent('status-models', modelCount);
+  setTextContent('sidebar-total-pairs', totalPairs);
+
+  const progressTotalEl = document.getElementById('progress-total');
+  if (progressTotalEl) {
+    progressTotalEl.textContent = totalPairs;
   }
 
-  const statusTemplatesEl = document.getElementById('status-templates');
-  if (statusTemplatesEl) {
-    statusTemplatesEl.textContent = selectedTemplates.length;
+  const selectedModelObjects = modelsCache
+    ? selectedModels
+        .map(slug => modelsCache.find(model => getModelSlug(model) === slug))
+        .filter(Boolean)
+    : [];
+
+  const costValues = selectedModelObjects
+    .map(normalizeModelCost)
+    .filter(value => value !== null);
+
+  const avgCost = costValues.length
+    ? costValues.reduce((sum, value) => sum + value, 0) / costValues.length
+    : null;
+  const minCost = costValues.length ? Math.min(...costValues) : null;
+  const maxCost = costValues.length ? Math.max(...costValues) : null;
+
+  const avgCostText = avgCost !== null ? formatCost(avgCost) : '–';
+  setTextContent('selection-average-cost', avgCostText);
+  setTextContent('sidebar-average-cost', avgCostText);
+
+  const costRangeText = formatCostRange(minCost, maxCost);
+  setTextContent('status-cost', costRangeText);
+
+  const hasModelsSelected = modelCount > 0;
+  const costNote = document.getElementById('selection-cost-note');
+  if (costNote) {
+    if (costValues.length) {
+      costNote.textContent = `Estimated input price per 1K tokens across selected models: ${costRangeText}. Actual spend depends on prompt size and output tokens.`;
+    } else if (hasModelsSelected) {
+      costNote.textContent = 'Pricing data is unavailable for the selected models.';
+    } else {
+      costNote.textContent = 'Select at least one model to see estimated pricing.';
+    }
   }
 
-  const statusModelsEl = document.getElementById('status-models');
-  if (statusModelsEl) {
-    statusModelsEl.textContent = selectedModels.length;
-  }
-
-  const sidebarMatrixEl = document.getElementById('sidebar-matrix-total');
-  if (sidebarMatrixEl) {
-    sidebarMatrixEl.textContent = totalGenerations;
-  }
-  
-  if (previewEl && totalGenerations > 0 && totalGenerations <= 100) {
-    // Show matrix table for reasonable sizes
-    let html = '<table class="table table-sm table-bordered"><thead><tr><th>Template</th>';
-    selectedModels.forEach(modelSlug => {
-      const model = modelsCache?.find(m => m.slug === modelSlug);
-      html += `<th class="text-center" style="writing-mode: vertical-rl; transform: rotate(180deg);">${model?.name || modelSlug}</th>`;
-    });
-    html += '</tr></thead><tbody>';
-    
-    selectedTemplates.forEach(appNum => {
-      const template = templatesCache?.find(t => t.app_num === appNum);
-      html += `<tr><td>${template?.display_name || `App ${appNum}`}</td>`;
-      selectedModels.forEach(() => {
-        html += '<td class="text-center"><span class="badge bg-blue-lt">✓</span></td>';
-      });
-      html += '</tr>';
-    });
-    
-    html += '</tbody></table>';
-    previewEl.innerHTML = html;
-  } else if (previewEl && totalGenerations > 100) {
-    previewEl.innerHTML = '<div class="alert alert-warning">Matrix too large to display (>100 generations)</div>';
-  } else if (previewEl) {
-    previewEl.innerHTML = '';
+  const sidebarCostNote = document.getElementById('sidebar-cost-note');
+  if (sidebarCostNote) {
+    if (costValues.length) {
+      sidebarCostNote.textContent = 'Pricing shown per 1K input tokens. Output tokens may add extra cost.';
+    } else if (hasModelsSelected) {
+      sidebarCostNote.textContent = 'Pricing data missing for these models; review pricing in the Models overview.';
+    } else {
+      sidebarCostNote.textContent = 'Select models to estimate cost.';
+    }
   }
 }
 
@@ -989,10 +1093,11 @@ function displayBatchResults(batchResults) {
         ? '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Success</span>'
         : '<span class="badge bg-danger"><i class="fas fa-times me-1"></i>Failed</span>';
       
-      const templateId = genResult.template_id || genResult.app_num || genResult.result_id?.split('_')[0];
-      const modelSlug = genResult.model || 'Unknown';
-      const templateName = templatesCache?.find(t => t.app_num == templateId)?.display_name || `Template ${templateId}`;
-      const modelName = modelsCache?.find(m => m.canonical_slug === modelSlug)?.name || modelSlug;
+  const templateId = genResult.template_id || genResult.app_num || genResult.result_id?.split('_')[0];
+  const modelSlug = genResult.model || 'Unknown';
+  const templateName = templatesCache?.find(t => t.app_num == templateId)?.display_name || `Template ${templateId}`;
+  const matchedModel = modelsCache?.find(m => getModelSlug(m) === modelSlug);
+  const modelName = matchedModel?.model_name || matchedModel?.name || modelSlug;
       
       const errorMsg = genResult.error || '';
       const message = errorMsg || genResult.message || (success ? 'Generated successfully' : 'Check logs for details');
@@ -1091,8 +1196,8 @@ function updateSidebar() {
       modelList.innerHTML = '<li class="text-muted">No models selected</li>';
     } else {
       const items = selectedModels.slice(0, 10).map(slug => {
-        const model = modelsCache?.find(m => m.slug === slug);
-        const displayName = model?.name || slug;
+        const model = modelsCache?.find(m => getModelSlug(m) === slug);
+        const displayName = model?.model_name || model?.name || slug;
         return `<li class='d-flex align-items-center justify-content-between'>
           <span class='text-truncate me-2'>${escapeHtml(displayName)}</span>
           <button type='button' class='btn btn-link p-0 text-danger small' onclick="unselectModel('${slug}')" aria-label='Remove model'>&times;</button>
@@ -1107,29 +1212,8 @@ function updateSidebar() {
     clearModelsBtn.classList.toggle('d-none', selectedModels.length === 0);
   }
   
-  // Update generation matrix
-  const totalGenerations = selectedTemplates.length * selectedModels.length;
-  const matrixCount = document.getElementById('matrix-count');
-  const matrixTemplates = document.getElementById('matrix-templates');
-  const matrixModels = document.getElementById('matrix-models');
-  
-  if (matrixCount) {
-    matrixCount.textContent = totalGenerations;
-  } else {
-    console.warn('[Wizard] matrix-count element not found');
-  }
-  
-  if (matrixTemplates) {
-    matrixTemplates.textContent = selectedTemplates.length;
-  } else {
-    console.warn('[Wizard] matrix-templates element not found');
-  }
-  
-  if (matrixModels) {
-    matrixModels.textContent = selectedModels.length;
-  } else {
-    console.warn('[Wizard] matrix-models element not found');
-  }
+  // Sync summary card values
+  updateGenerationSummary();
 }
 
 // ============================================================================
@@ -1204,6 +1288,115 @@ function saveTemplate() {
 // ============================================================================
 // Utility Functions
 // ============================================================================
+
+function setTextContent(id, value) {
+  const el = document.getElementById(id);
+  if (!el) {
+    return;
+  }
+  if (value === undefined || value === null) {
+    el.textContent = '–';
+  } else {
+    el.textContent = value;
+  }
+}
+
+function getModelSlug(model) {
+  if (!model) {
+    return '';
+  }
+  const candidates = [model.slug, model.canonical_slug, model.model_id, model.id, model.model_name, model.name];
+  const slug = candidates.find(val => typeof val === 'string' && val.trim().length > 0);
+  return slug ? String(slug).trim() : '';
+}
+
+function normalizeModelCost(model) {
+  if (!model) {
+    return null;
+  }
+  if (typeof model.input_price_per_1k === 'number') {
+    return Number(model.input_price_per_1k);
+  }
+  if (typeof model.input_price_per_token === 'number') {
+    return Number(model.input_price_per_token) * 1000;
+  }
+  const pricing = model.pricing || (model.openrouter && model.openrouter.pricing) || null;
+  const extracted = extractPricingValue(pricing, ['input', 'prompt', 'input_cost', 'prompt_cost', 'input_price_per_1k', 'prompt_price_per_1k']);
+  return typeof extracted === 'number' ? extracted : null;
+}
+
+function normalizeModelOutputCost(model) {
+  if (!model) {
+    return null;
+  }
+  if (typeof model.output_price_per_1k === 'number') {
+    return Number(model.output_price_per_1k);
+  }
+  if (typeof model.output_price_per_token === 'number') {
+    return Number(model.output_price_per_token) * 1000;
+  }
+  const pricing = model.pricing || (model.openrouter && model.openrouter.pricing) || null;
+  const extracted = extractPricingValue(pricing, ['output', 'completion', 'output_cost', 'completion_cost', 'output_price_per_1k', 'completion_price_per_1k']);
+  return typeof extracted === 'number' ? extracted : null;
+}
+
+function extractPricingValue(pricing, keys) {
+  if (!pricing || typeof pricing !== 'object') {
+    return null;
+  }
+  for (const key of keys) {
+    const raw = pricing[key];
+    if (raw === undefined || raw === null) {
+      continue;
+    }
+    const numeric = Number(raw);
+    if (!Number.isNaN(numeric)) {
+      return numeric;
+    }
+  }
+  const usdPricing = pricing.usd;
+  if (usdPricing && typeof usdPricing === 'object') {
+    for (const key of keys) {
+      const raw = usdPricing[key];
+      if (raw === undefined || raw === null) {
+        continue;
+      }
+      const numeric = Number(raw);
+      if (!Number.isNaN(numeric)) {
+        return numeric;
+      }
+    }
+  }
+  return null;
+}
+
+function formatCost(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return '–';
+  }
+  if (value === 0) {
+    return 'free';
+  }
+  const absVal = Math.abs(value);
+  let decimals = 2;
+  if (absVal < 10) decimals = 3;
+  if (absVal < 1) decimals = 4;
+  if (absVal < 0.1) decimals = 5;
+  if (absVal < 0.01) decimals = 6;
+  const fixed = value.toFixed(decimals);
+  const trimmed = fixed.replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '');
+  return `$${trimmed}`;
+}
+
+function formatCostRange(min, max) {
+  if (min === null || min === undefined || max === null || max === undefined) {
+    return '–';
+  }
+  if (min === max) {
+    return formatCost(min);
+  }
+  return `${formatCost(min)} – ${formatCost(max)}`;
+}
 
 function escapeHtml(text) {
   if (text === null || text === undefined) {
