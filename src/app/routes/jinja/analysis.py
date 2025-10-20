@@ -589,6 +589,63 @@ def htmx_model_applications_fragment(model_slug):
     apps = svc.get_model_apps(model_slug)
     return render_template('pages/analysis/partials/applications_select.html', applications=apps, model_slug=model_slug)
 
+@analysis_bp.route('/api/tasks')
+def api_tasks_list():
+    """API endpoint to get all tasks with results in JSON format.
+    
+    Supports filtering via query params:
+    - status: Filter by task status (pending, running, completed, failed)
+    - model: Filter by model slug
+    - analysis_type: Filter by analysis type
+    - limit: Maximum number of results (default 100)
+    """
+    try:
+        # Extract filter parameters
+        status = request.args.get('status')
+        model = request.args.get('model')
+        analysis_type = request.args.get('analysis_type')
+        limit = int(request.args.get('limit', 100))
+        
+        # Get tasks
+        tasks = AnalysisTaskService.list_tasks(
+            status=status,
+            model_slug=model,
+            analysis_type=analysis_type,
+            limit=limit
+        )
+        
+        # Build response with comprehensive task info
+        tasks_data = []
+        for task in tasks:
+            task_data = {
+                'task_id': task.task_id,
+                'model': task.target_model,
+                'app_number': task.target_app_number,
+                'analysis_type': task.analysis_type.value if hasattr(task.analysis_type, 'value') else str(task.analysis_type),
+                'status': task.status.value if hasattr(task.status, 'value') else str(task.status),
+                'priority': task.priority.value if hasattr(task.priority, 'value') else str(task.priority),
+                'issues_found': task.issues_found or 0,
+                'severity_breakdown': json.loads(task.severity_breakdown) if task.severity_breakdown else {},
+                'progress': task.progress_percentage or 0,
+                'created_at': task.created_at.isoformat() if task.created_at else None,
+                'completed_at': task.completed_at.isoformat() if task.completed_at else None,
+                'duration': task.actual_duration,
+            }
+            tasks_data.append(task_data)
+        
+        return jsonify({
+            'success': True,
+            'total': len(tasks_data),
+            'tasks': tasks_data
+        })
+    
+    except Exception as e:
+        current_app.logger.error(f"Error fetching tasks list: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @analysis_bp.route('/api/tasks/recent')
 def htmx_recent_tasks_fragment():
     """Return recent tasks fragment (HTMX)."""

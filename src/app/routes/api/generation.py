@@ -130,11 +130,24 @@ def generate():
                 400
             )
         
+        # Validate model exists in database
+        from app.models import ModelCapability
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        if not model:
+            logger.error(f"Model not found in database: {model_slug}")
+            return create_error_response(
+                f"Model '{model_slug}' not found in database. Please ensure the model is loaded.",
+                404
+            )
+        
+        logger.info(f"Found model: {model.model_name} (ID: {model.model_id})")
+        
         # Optional flags
         gen_frontend = data.get('generate_frontend', True)
         gen_backend = data.get('generate_backend', True)
         
         logger.info(f"Generation: {model_slug}/app{app_num}")
+        logger.info(f"  OpenRouter model_id: {model.model_id}")
         logger.info(f"  Frontend: {gen_frontend}, Backend: {gen_backend}")
         
         # Run generation
@@ -150,9 +163,22 @@ def generate():
         if result['success']:
             return create_success_response(result, "Generation successful")
         else:
+            # Provide detailed error information
+            errors = result.get('errors', [])
+            error_details = {
+                'backend_generated': result.get('backend_generated', False),
+                'frontend_generated': result.get('frontend_generated', False),
+                'scaffolded': result.get('scaffolded', False),
+                'errors': errors,
+                'model_slug': model_slug,
+                'model_id': model.model_id,
+                'app_num': app_num
+            }
+            logger.error(f"Generation failed for {model_slug}/app{app_num}: {errors}")
             return create_error_response(
-                f"Generation failed: {', '.join(result['errors'])}",
-                500
+                f"Generation failed: {', '.join(errors)}",
+                500,
+                details=error_details
             )
             
     except Exception as e:

@@ -182,6 +182,7 @@ def _upsert_openrouter_models(models_payload: list) -> int:
             existing.model_id = model_id
             existing.canonical_slug = canonical
             existing.base_model_id = base_id
+            existing.hugging_face_id = model_data.get('hugging_face_id')  # NEW: Store case-sensitive HF ID
             existing.provider = provider
             existing.model_name = model_name
             db.session.add(existing)
@@ -190,6 +191,7 @@ def _upsert_openrouter_models(models_payload: list) -> int:
             existing.model_id = model_id
             existing.canonical_slug = canonical
             existing.base_model_id = base_id
+            existing.hugging_face_id = model_data.get('hugging_face_id')  # NEW: Update case-sensitive HF ID
             existing.provider = provider
             existing.model_name = model_name
 

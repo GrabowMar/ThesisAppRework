@@ -57,6 +57,9 @@
 
 ## Integration Points
 - **AI Analysis**: Uses OpenRouter API (set `OPENROUTER_API_KEY`)
+  - For research purposes: `OPENROUTER_ALLOW_ALL_PROVIDERS=true` (default)
+  - Bypasses Zero Data Retention restrictions to allow all models
+  - Configure via `OPENROUTER_SITE_URL` and `OPENROUTER_SITE_NAME`
 - **Security/Performance**: Bandit, Safety, OWASP ZAP, Locust, ESLint, PyLint, Flake8
 - **Celery**: Task queue for async analysis jobs
 - **WebSocket Gateway**: Real-time progress updates (port 8765)

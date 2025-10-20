@@ -1,0 +1,1174 @@
+{# Table-Based Dashboard for Single App Analysis #}{% extends "layouts/base.html" %}
+
+{% extends 'layouts/base.html' %}
+
+{% set page_title = model_slug + ' App #' + app_number|string %}{% block title %}App Dashboard - {{ model_slug }} #{{ app_number }}{% endblock %}
+
+{% set page_icon = 'fa-solid fa-chart-line' %}
+
+{% set page_subtitle = 'Analysis Dashboard' %}{% block content %}
+
+<div class="page-wrapper">
+
+{% block content %}  <div class="container-fluid">
+
+<div class="container-xl">    
+
+      <!-- Page Header -->
+
+  {# Quick Stats Cards #}    <div class="page-header d-print-none mb-3">
+
+  <div class="row row-cards mb-3">      <div class="row align-items-center">
+
+    <div class="col-sm-6 col-lg-3">        <div class="col">
+
+      <div class="card card-sm">          <div class="page-pretitle">Analysis Dashboard</div>
+
+        <div class="card-body">          <h2 class="page-title">
+
+          <div class="row align-items-center">            <i class="fas fa-chart-line me-2 text-primary"></i>
+
+            <div class="col-auto">            {{ model_slug }} - App #{{ app_number }}
+
+              <span class="bg-primary text-white avatar"><i class="fas fa-bug"></i></span>          </h2>
+
+            </div>        </div>
+
+            <div class="col">        <div class="col-auto ms-auto">
+
+              <div class="font-weight-medium" id="stat-total-findings">-</div>          <div class="btn-list">
+
+              <div class="text-muted">Total Findings</div>            <a href="{{ url_for('analysis.task_detail_page', task_id=task.task_id) }}" class="btn btn-outline-secondary">
+
+            </div>              <i class="fas fa-arrow-left me-1"></i>Back to Task Detail
+
+          </div>            </a>
+
+        </div>            <a href="{{ url_for('dashboard.export_app_csv', model_slug=model_slug, app_number=app_number) }}" 
+
+      </div>               class="btn btn-primary">
+
+    </div>              <i class="fas fa-download me-1"></i>Export CSV
+
+    <div class="col-sm-6 col-lg-3">            </a>
+
+      <div class="card card-sm">          </div>
+
+        <div class="card-body">        </div>
+
+          <div class="row align-items-center">      </div>
+
+            <div class="col-auto">    </div>
+
+              <span class="bg-danger text-white avatar"><i class="fas fa-shield-alt"></i></span>
+
+            </div>    <!-- Tabbed Dashboard Interface matching Task Detail -->
+
+            <div class="col">    <div class="card" id="task-detail-main-card">
+
+              <div class="font-weight-medium" id="stat-security">-</div>      <div class="card-header">
+
+              <div class="text-muted">Security Issues</div>        <ul class="nav nav-tabs card-header-tabs" id="task-tabs" data-bs-toggle="tabs" aria-label="Task Detail Sections" role="tablist">
+
+            </div>          <li class="nav-item" role="presentation">
+
+          </div>            <a href="#overview" class="nav-link active" id="overview-tab" data-bs-toggle="tab" aria-selected="true" role="tab">
+
+        </div>              <i class="fas fa-chart-line me-2" aria-hidden="true"></i>Overview
+
+      </div>            </a>
+
+    </div>          </li>
+
+    <div class="col-sm-6 col-lg-3">          <li class="nav-item" role="presentation">
+
+      <div class="card card-sm">            <a href="#security" class="nav-link" id="security-tab" data-bs-toggle="tab" aria-selected="false" role="tab" tabindex="-1">
+
+        <div class="card-body">              <i class="fas fa-shield-halved me-2" aria-hidden="true"></i>Security
+
+          <div class="row align-items-center">            </a>
+
+            <div class="col-auto">          </li>
+
+              <span class="bg-warning text-white avatar"><i class="fas fa-code"></i></span>          <li class="nav-item" role="presentation">
+
+            </div>            <a href="#performance" class="nav-link" id="performance-tab" data-bs-toggle="tab" aria-selected="false" role="tab" tabindex="-1">
+
+            <div class="col">              <i class="fas fa-tachometer-alt me-2" aria-hidden="true"></i>Performance
+
+              <div class="font-weight-medium" id="stat-quality">-</div>            </a>
+
+              <div class="text-muted">Quality Issues</div>          </li>
+
+            </div>          <li class="nav-item" role="presentation">
+
+          </div>            <a href="#quality" class="nav-link" id="quality-tab" data-bs-toggle="tab" aria-selected="false" role="tab" tabindex="-1">
+
+        </div>              <i class="fas fa-code me-2" aria-hidden="true"></i>Code Quality
+
+      </div>            </a>
+
+    </div>          </li>
+
+    <div class="col-sm-6 col-lg-3">          <li class="nav-item" role="presentation">
+
+      <div class="card card-sm">            <a href="#requirements" class="nav-link" id="requirements-tab" data-bs-toggle="tab" aria-selected="false" role="tab" tabindex="-1">
+
+        <div class="card-body">              <i class="fas fa-robot me-2" aria-hidden="true"></i>AI Requirements
+
+          <div class="row align-items-center">            </a>
+
+            <div class="col-auto">          </li>
+
+              <span class="bg-success text-white avatar"><i class="fas fa-tools"></i></span>          <li class="nav-item" role="presentation">
+
+            </div>            <a href="#tools" class="nav-link" id="tools-tab" data-bs-toggle="tab" aria-selected="false" role="tab" tabindex="-1">
+
+            <div class="col">              <i class="fas fa-tools me-2" aria-hidden="true"></i>Tools
+
+              <div class="font-weight-medium" id="stat-tools">-</div>            </a>
+
+              <div class="text-muted">Tools Executed</div>          </li>
+
+            </div>          <li class="nav-item" role="presentation">
+
+          </div>            <a href="#explorer" class="nav-link" id="explorer-tab" data-bs-toggle="tab" aria-selected="false" role="tab" tabindex="-1">
+
+        </div>              <i class="fas fa-database me-2" aria-hidden="true"></i>Raw Data
+
+      </div>            </a>
+
+    </div>          </li>
+
+  </div>        </ul>
+
+      </div>
+
+  {# Findings Table #}      <div class="card-body">
+
+  <div class="card">        <div class="tab-content">
+
+    <div class="card-header">          
+
+      <h3 class="card-title">All Findings</h3>          <!-- Overview Tab -->
+
+      <div class="card-actions">          <div class="tab-pane active show" id="overview" role="tabpanel" aria-labelledby="overview-tab" data-tab="overview">
+
+        <div class="btn-group btn-group-sm me-2">            <div id="overview-content" data-tab-content="overview">
+
+          <button class="btn btn-outline-primary active" data-filter="all">All</button>            <!-- Summary Cards -->
+
+          <button class="btn btn-outline-danger" data-filter="security">Security</button>            <div class="row g-3 mb-4">
+
+          <button class="btn btn-outline-warning" data-filter="quality">Quality</button>      <div class="col-md-3">
+
+          <button class="btn btn-outline-info" data-filter="performance">Performance</button>        <div class="card">
+
+        </div>          <div class="card-body">
+
+        <div class="btn-group btn-group-sm">            <div class="d-flex align-items-center">
+
+          <button class="btn btn-outline-secondary" data-severity="all">All Severity</button>              <div class="subheader">Total Findings</div>
+
+          <button class="btn btn-outline-danger" data-severity="critical">Critical</button>              <div class="ms-auto lh-1">
+
+          <button class="btn btn-outline-warning" data-severity="high">High</button>                <div class="dropdown">
+
+          <button class="btn btn-outline-info" data-severity="medium">Medium</button>                  <a class="dropdown-toggle text-secondary" href="#" data-bs-toggle="dropdown">
+
+          <button class="btn btn-outline-secondary" data-severity="low">Low</button>                    <i class="fas fa-info-circle"></i>
+
+        </div>                  </a>
+
+      </div>                  <div class="dropdown-menu dropdown-menu-end">
+
+    </div>                    <span class="dropdown-header">All analysis findings</span>
+
+    <div class="table-responsive">                  </div>
+
+      <table class="table table-vcenter table-hover card-table">                </div>
+
+        <thead>              </div>
+
+          <tr>            </div>
+
+            <th style="width: 5%">#</th>            <div class="h1 mb-0" id="total-findings">-</div>
+
+            <th style="width: 10%">Severity</th>            <div class="text-secondary small" id="findings-breakdown">Loading...</div>
+
+            <th style="width: 15%">Category</th>          </div>
+
+            <th style="width: 10%">Tool</th>        </div>
+
+            <th style="width: 40%">Message</th>      </div>
+
+            <th style="width: 15%">Location</th>      
+
+            <th style="width: 5%">Actions</th>      <div class="col-md-3">
+
+          </tr>        <div class="card">
+
+        </thead>          <div class="card-body">
+
+        <tbody id="findings-tbody">            <div class="d-flex align-items-center">
+
+          <tr>              <div class="subheader">Critical + High</div>
+
+            <td colspan="7" class="text-center py-4 text-muted">            </div>
+
+              <div class="spinner-border spinner-border-sm me-2"></div>            <div class="h1 mb-0 text-danger" id="high-severity">-</div>
+
+              Loading findings...            <div class="text-secondary small">Security priority issues</div>
+
+            </td>          </div>
+
+          </tr>        </div>
+
+        </tbody>      </div>
+
+      </table>      
+
+    </div>      <div class="col-md-3">
+
+    <div class="card-footer d-flex align-items-center">        <div class="card">
+
+      <p class="m-0 text-muted">Showing <span id="showing-count">0</span> of <span id="total-count">0</span> findings</p>          <div class="card-body">
+
+      <ul class="pagination m-0 ms-auto" id="pagination">            <div class="d-flex align-items-center">
+
+      </ul>              <div class="subheader">Tools Executed</div>
+
+    </div>            </div>
+
+  </div>            <div class="h1 mb-0 text-success" id="tools-executed">-</div>
+
+            <div class="text-secondary small" id="tools-status">-</div>
+
+</div>          </div>
+
+        </div>
+
+{# Finding Detail Modal #}      </div>
+
+<div class="modal modal-blur fade" id="finding-modal" tabindex="-1">      
+
+  <div class="modal-dialog modal-lg modal-dialog-centered">      <div class="col-md-3">
+
+    <div class="modal-content">        <div class="card">
+
+      <div class="modal-header">          <div class="card-body">
+
+        <h5 class="modal-title">Finding Details</h5>            <div class="d-flex align-items-center">
+
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>              <div class="subheader">Analysis Status</div>
+
+      </div>            </div>
+
+      <div class="modal-body">            <div class="h1 mb-0 text-info" id="analysis-status">
+
+        <table class="table table-vcenter" id="finding-detail-table">              <span class="badge bg-success">Complete</span>
+
+        </table>            </div>
+
+      </div>            <div class="text-secondary small" id="analysis-time">{{ task.created_at.strftime('%Y-%m-%d %H:%M') if task.created_at else 'N/A' }}</div>
+
+    </div>          </div>
+
+  </div>        </div>
+
+</div>      </div>
+
+    </div>
+
+{% endblock %}
+
+    <!-- Key Metrics Overview (shown in Overview tab) -->
+
+{% block scripts %}            <div class="row g-3 mb-4">
+
+<script>              <div class="col-md-6">
+
+(function() {                <div class="card">
+
+  const modelSlug = '{{ model_slug }}';                  <div class="card-header">
+
+  const appNumber = {{ app_number }};                    <h3 class="card-title">Severity Breakdown</h3>
+
+  let allFindings = [];                  </div>
+
+  let filteredFindings = [];                  <div class="card-body">
+
+  let currentPage = 1;                    <div class="d-flex justify-content-between align-items-center mb-2">
+
+  const perPage = 25;                      <span>Critical</span>
+
+  let currentFilter = 'all';                      <strong class="text-danger" id="overview-critical">0</strong>
+
+  let currentSeverity = 'all';                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+
+  // Load data                      <span>High</span>
+
+  fetch(`/analysis/api/dashboard/app/${modelSlug}/${appNumber}/data`)                      <strong class="text-warning" id="overview-high">0</strong>
+
+    .then(res => res.json())                    </div>
+
+    .then(data => {                    <div class="d-flex justify-content-between align-items-center mb-2">
+
+      const results = data.results || {};                      <span>Medium</span>
+
+      const summary = results.summary || {};                      <strong class="text-info" id="overview-medium">0</strong>
+
+      allFindings = results.findings || [];                    </div>
+
+      filteredFindings = allFindings;                    <div class="d-flex justify-content-between align-items-center">
+
+                      <span>Low</span>
+
+      // Update stats                      <strong class="text-secondary" id="overview-low">0</strong>
+
+      document.getElementById('stat-total-findings').textContent = summary.total_findings || 0;                    </div>
+
+      document.getElementById('stat-security').textContent = summary.security_findings || 0;                  </div>
+
+      document.getElementById('stat-quality').textContent = summary.quality_issues || 0;                </div>
+
+      document.getElementById('stat-tools').textContent = summary.tools_executed || 0;              </div>
+
+              
+
+      renderTable();              <div class="col-md-6">
+
+    })                <div class="card">
+
+    .catch(err => {                  <div class="card-header">
+
+      console.error('Load error:', err);                    <h3 class="card-title">Category Distribution</h3>
+
+      document.getElementById('findings-tbody').innerHTML =                   </div>
+
+        '<tr><td colspan="7" class="text-center py-4 text-danger">Failed to load data</td></tr>';                  <div class="card-body">
+
+    });                    <div class="d-flex justify-content-between align-items-center mb-2">
+
+                      <span><i class="fas fa-shield-halved text-danger me-2"></i>Security</span>
+
+  // Filter buttons                      <strong id="overview-security">0</strong>
+
+  document.querySelectorAll('[data-filter]').forEach(btn => {                    </div>
+
+    btn.addEventListener('click', function() {                    <div class="d-flex justify-content-between align-items-center mb-2">
+
+      document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));                      <span><i class="fas fa-code text-primary me-2"></i>Code Quality</span>
+
+      this.classList.add('active');                      <strong id="overview-quality">0</strong>
+
+      currentFilter = this.dataset.filter;                    </div>
+
+      currentPage = 1;                    <div class="d-flex justify-content-between align-items-center">
+
+      applyFilters();                      <span><i class="fas fa-tachometer-alt text-success me-2"></i>Performance</span>
+
+    });                      <strong id="overview-performance">0</strong>
+
+  });                    </div>
+
+                  </div>
+
+  document.querySelectorAll('[data-severity]').forEach(btn => {                </div>
+
+    btn.addEventListener('click', function() {              </div>
+
+      document.querySelectorAll('[data-severity]').forEach(b => b.classList.remove('active'));            </div>
+
+      this.classList.add('active');
+
+      currentSeverity = this.dataset.severity;            <!-- Top Issues Preview -->
+
+      currentPage = 1;            <div class="card">
+
+      applyFilters();              <div class="card-header">
+
+    });                <h3 class="card-title">Top Priority Issues</h3>
+
+  });              </div>
+
+              <div class="table-responsive">
+
+  function applyFilters() {                <table class="table table-vcenter card-table">
+
+    filteredFindings = allFindings.filter(f => {                  <thead>
+
+      const categoryMatch = currentFilter === 'all' ||                     <tr>
+
+        (f.category || '').toLowerCase().includes(currentFilter);                      <th>Severity</th>
+
+      const severityMatch = currentSeverity === 'all' ||                       <th>Category</th>
+
+        (f.severity || '').toLowerCase() === currentSeverity.toLowerCase();                      <th>Issue</th>
+
+      return categoryMatch && severityMatch;                      <th>Tool</th>
+
+    });                      <th>Location</th>
+
+    renderTable();                    </tr>
+
+  }                  </thead>
+
+                  <tbody id="overview-top-issues">
+
+  function renderTable() {                    <tr><td colspan="5" class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></td></tr>
+
+    const start = (currentPage - 1) * perPage;                  </tbody>
+
+    const end = start + perPage;                </table>
+
+    const page = filteredFindings.slice(start, end);              </div>
+
+            </div>
+
+    if (page.length === 0) {            </div>
+
+      document.getElementById('findings-tbody').innerHTML =           </div>
+
+        '<tr><td colspan="7" class="text-center py-4 text-muted">No findings match filters</td></tr>';          
+
+      return;          <!-- Security Tab -->
+
+    }          <div class="tab-pane" id="security" role="tabpanel" aria-labelledby="security-tab" data-tab="security">
+
+            <div id="security-content" data-tab-content="security">
+
+    const tbody = document.getElementById('findings-tbody');            <div class="card">
+
+    tbody.innerHTML = page.map((f, idx) => {              <div class="card-header">
+
+      const sevClass = {critical: 'danger', high: 'warning', medium: 'info', low: 'secondary'}[f.severity?.toLowerCase()] || 'secondary';                <h3 class="card-title">Security Findings</h3>
+
+      const loc = f.file ? `${f.file.path}:${f.file.line_start || '?'}` : 'N/A';                <div class="card-actions">
+
+      const msg = (f.message?.title || f.message?.description || f.message || 'No message').substring(0, 60);                  <select class="form-select form-select-sm" id="security-severity-filter">
+
+                    <option value="all">All Severities</option>
+
+      return `                    <option value="high">High Only</option>
+
+        <tr style="cursor:pointer" onclick="showDetail(${start + idx})">                    <option value="medium">Medium+</option>
+
+          <td>${start + idx + 1}</td>                    <option value="low">Low+</option>
+
+          <td><span class="badge bg-${sevClass}">${f.severity || 'N/A'}</span></td>                  </select>
+
+          <td>${f.category || 'N/A'}</td>                </div>
+
+          <td><code class="small">${f.tool || 'N/A'}</code></td>              </div>
+
+          <td>${msg}${msg.length >= 60 ? '...' : ''}</td>              <div class="table-responsive">
+
+          <td class="text-muted small">${loc}</td>                <table class="table table-hover table-vcenter card-table">
+
+          <td><button class="btn btn-sm btn-icon btn-ghost-secondary" onclick="event.stopPropagation(); showDetail(${start + idx})"><i class="fas fa-eye"></i></button></td>                  <thead>
+
+        </tr>                    <tr>
+
+      `;                      <th>Severity</th>
+
+    }).join('');                      <th>Tool</th>
+
+                      <th>Issue</th>
+
+    document.getElementById('showing-count').textContent = page.length;                      <th>File</th>
+
+    document.getElementById('total-count').textContent = filteredFindings.length;                      <th>Line</th>
+
+                      <th>Details</th>
+
+    renderPagination();                    </tr>
+
+  }                  </thead>
+
+                  <tbody id="security-findings">
+
+  function renderPagination() {                    <tr><td colspan="6" class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></td></tr>
+
+    const total = Math.ceil(filteredFindings.length / perPage);                  </tbody>
+
+    const p = document.getElementById('pagination');                </table>
+
+    let html = `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}"><a class="page-link" href="#" onclick="goPage(${currentPage - 1}); return false;">Prev</a></li>`;              </div>
+
+                  <div class="card-footer">
+
+    for (let i = 1; i <= Math.min(total, 5); i++) {                <div id="security-count">Loading...</div>
+
+      html += `<li class="page-item ${i === currentPage ? 'active' : ''}"><a class="page-link" href="#" onclick="goPage(${i}); return false;">${i}</a></li>`;              </div>
+
+    }            </div>
+
+                </div>
+
+    html += `<li class="page-item ${currentPage === total ? 'disabled' : ''}"><a class="page-link" href="#" onclick="goPage(${currentPage + 1}); return false;">Next</a></li>`;          </div>
+
+    p.innerHTML = html;          
+
+  }          <!-- Performance Tab -->
+
+          <div class="tab-pane" id="performance" role="tabpanel" aria-labelledby="performance-tab" data-tab="performance">
+
+  window.goPage = function(page) {            <div id="performance-content" data-tab-content="performance">
+
+    const total = Math.ceil(filteredFindings.length / perPage);            <div class="card">
+
+    if (page < 1 || page > total) return;              <div class="card-header">
+
+    currentPage = page;                <h3 class="card-title">Performance Findings</h3>
+
+    renderTable();              </div>
+
+  };              <div class="table-responsive">
+
+                <table class="table table-hover table-vcenter card-table">
+
+  window.showDetail = function(idx) {                  <thead>
+
+    const f = filteredFindings[idx];                    <tr>
+
+    if (!f) return;                      <th>Severity</th>
+
+                      <th>Tool</th>
+
+    const sevClass = {critical: 'danger', high: 'warning', medium: 'info', low: 'secondary'}[f.severity?.toLowerCase()] || 'secondary';                      <th>Issue</th>
+
+    document.getElementById('finding-detail-table').innerHTML = `                      <th>File</th>
+
+      <tr><td class="w-25"><strong>Tool</strong></td><td>${f.tool || 'N/A'}</td></tr>                      <th>Line</th>
+
+      <tr><td><strong>Category</strong></td><td>${f.category || 'N/A'}</td></tr>                      <th>Details</th>
+
+      <tr><td><strong>Severity</strong></td><td><span class="badge bg-${sevClass}">${f.severity || 'N/A'}</span></td></tr>                    </tr>
+
+      <tr><td><strong>Message</strong></td><td>${f.message?.title || f.message?.description || f.message || 'N/A'}</td></tr>                  </thead>
+
+      <tr><td><strong>File</strong></td><td><code>${f.file?.path || 'N/A'}</code></td></tr>                  <tbody id="performance-findings">
+
+      <tr><td><strong>Line</strong></td><td>${f.file?.line_start || 'N/A'} - ${f.file?.line_end || 'N/A'}</td></tr>                    <tr><td colspan="6" class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></td></tr>
+
+      <tr><td><strong>Rule</strong></td><td><code>${f.rule_id || f.symbol || 'N/A'}</code></td></tr>                  </tbody>
+
+      ${f.metadata?.cwe_id ? `<tr><td><strong>CWE</strong></td><td>${f.metadata.cwe_id}</td></tr>` : ''}                </table>
+
+    `;              </div>
+
+    new bootstrap.Modal(document.getElementById('finding-modal')).show();              <div class="card-footer">
+
+  };                <div id="performance-count">Loading...</div>
+
+})();              </div>
+
+</script>            </div>
+
+{% endblock %}            </div>
+
+          </div>
+          
+          <!-- Code Quality Tab -->
+          <div class="tab-pane" id="quality" role="tabpanel" aria-labelledby="quality-tab" data-tab="quality">
+            <div id="quality-content" data-tab-content="quality">
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">Code Quality Issues</h3>
+                <div class="card-actions">
+                  <select class="form-select form-select-sm" id="quality-tool-filter">
+                    <option value="all">All Tools</option>
+                    <option value="pylint">Pylint</option>
+                    <option value="flake8">Flake8</option>
+                    <option value="eslint">ESLint</option>
+                    <option value="mypy">MyPy</option>
+                  </select>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-hover table-vcenter card-table">
+                  <thead>
+                    <tr>
+                      <th>Severity</th>
+                      <th>Tool</th>
+                      <th>Issue</th>
+                      <th>File</th>
+                      <th>Line</th>
+                      <th>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody id="quality-findings">
+                    <tr><td colspan="6" class="text-center py-3"><div class="spinner-border spinner-border-sm"></div></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="card-footer">
+                <div id="quality-count">Loading...</div>
+              </div>
+            </div>
+            </div>
+          </div>
+          
+          <!-- AI Requirements Tab -->
+          <div class="tab-pane" id="ai-requirements" role="tabpanel" aria-labelledby="ai-requirements-tab" data-tab="ai-requirements">
+            <div id="ai-requirements-content" data-tab-content="ai-requirements">
+              <div class="card">
+                <div class="card-header">
+                  <h3 class="card-title">AI Requirements Compliance</h3>
+                </div>
+                <div class="card-body">
+                  <div class="row">
+                    <div class="col-md-12">
+                      <div class="alert alert-info">
+                        <h4 class="alert-title">AI Requirements Analysis</h4>
+                        <p class="mb-0">This section shows how well the generated application meets AI-specific requirements including code structure, error handling, security practices, and best practices compliance.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div id="ai-requirements-data">
+                    <div class="text-center py-4">
+                      <div class="spinner-border spinner-border-sm text-primary"></div>
+                      <div class="mt-2">Loading AI requirements data...</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Tools Tab -->
+          <div class="tab-pane" id="tools" role="tabpanel" aria-labelledby="tools-tab" data-tab="tools">
+            <div id="tools-content" data-tab-content="tools">
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">Tools Execution Status</h3>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-vcenter card-table">
+                  <thead>
+                    <tr>
+                      <th>Tool</th>
+                      <th>Category</th>
+                      <th class="text-center">Status</th>
+                      <th class="text-end">Findings</th>
+                      <th>Purpose</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tools-tbody">
+                    <tr>
+                      <td colspan="5" class="text-center py-3">
+                        <div class="spinner-border spinner-border-sm"></div> Loading...
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            </div>
+          </div>
+          
+          <!-- Raw Data Explorer Tab -->
+          <div class="tab-pane" id="raw-data" role="tabpanel" aria-labelledby="raw-data-tab" data-tab="raw-data">
+            <div id="raw-data-content" data-tab-content="raw-data">
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">Raw Data Explorer</h3>
+                <div class="card-subtitle">Browse and search the complete analysis JSON data</div>
+              </div>
+              <div class="card-body">
+                <div id="raw-data-explorer" 
+                     hx-get="{{ url_for('analysis.task_results_json', task_id=task.task_id) }}"
+                     hx-trigger="load"
+                     hx-swap="innerHTML">
+                  <div class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-primary"></div>
+                    <div class="mt-2">Loading raw data...</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            </div>
+          </div>
+          
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Finding Detail Modal -->
+<div class="modal fade" id="finding-detail-modal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Finding Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="finding-detail-content">
+        <!-- Details loaded dynamically -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Page data from Flask
+const MODEL_SLUG = "{{ model_slug }}";
+const APP_NUMBER = {{ app_number }};
+const TASK_ID = "{{ task.task_id }}";
+
+let allFindings = [];
+let toolsData = [];
+
+// Tool metadata for all 18 tools
+const TOOL_METADATA = {
+  bandit: { category: 'Static', purpose: 'Python security scanner' },
+  pylint: { category: 'Static', purpose: 'Python code quality checker' },
+  flake8: { category: 'Static', purpose: 'Python style guide enforcer' },
+  mypy: { category: 'Static', purpose: 'Python type checker' },
+  semgrep: { category: 'Static', purpose: 'Semantic code pattern matcher' },
+  safety: { category: 'Static', purpose: 'Python dependency scanner' },
+  vulture: { category: 'Static', purpose: 'Dead code detector' },
+  eslint: { category: 'Static', purpose: 'JavaScript linter' },
+  jshint: { category: 'Static', purpose: 'JavaScript code quality' },
+  snyk: { category: 'Static', purpose: 'Security & dependency scanner' },
+  stylelint: { category: 'Static', purpose: 'CSS linter' },
+  curl: { category: 'Dynamic', purpose: 'HTTP connectivity tester' },
+  nmap: { category: 'Dynamic', purpose: 'Port & service scanner' },
+  zap: { category: 'Dynamic', purpose: 'Web security scanner' },
+  aiohttp: { category: 'Performance', purpose: 'Async HTTP load tester' },
+  ab: { category: 'Performance', purpose: 'HTTP benchmarking' },
+  locust: { category: 'Performance', purpose: 'Distributed load testing' },
+  artillery: { category: 'Performance', purpose: 'Modern load testing' }
+};
+
+// Load data on page load
+document.addEventListener('DOMContentLoaded', () => {
+  loadAnalysisData();
+});
+
+async function loadAnalysisData() {
+  try {
+    const response = await fetch(`/analysis/api/tasks/${TASK_ID}/results.json`);
+    const data = await response.json();
+    
+    const results = data.results || {};
+    const summary = results.summary || {};
+    allFindings = results.findings || [];
+    
+    updateSummaryCards(summary);
+    populateFilters();
+    renderFindings(allFindings);
+    renderToolsTable(summary);
+    populateOverviewTab(summary);
+    populateCategoryTabs();
+    
+  } catch (error) {
+    console.error('Error loading analysis data:', error);
+    showError();
+  }
+}
+
+function updateSummaryCards(summary) {
+  document.getElementById('total-findings').textContent = summary.total_findings || 0;
+  
+  const severity = summary.severity_breakdown || {};
+  const highCount = (severity.critical || 0) + (severity.high || 0);
+  document.getElementById('high-severity').textContent = highCount;
+  
+  const toolsUsed = summary.tools_used || [];
+  document.getElementById('tools-executed').textContent = `${toolsUsed.length}/18`;
+  document.getElementById('tools-status').textContent = 
+    `${(summary.tools_failed || []).length} failed, ${(summary.tools_skipped || []).length} skipped`;
+  
+  document.getElementById('findings-breakdown').textContent = 
+    `High: ${severity.high || 0} | Med: ${severity.medium || 0} | Low: ${severity.low || 0}`;
+}
+
+function populateFilters() {
+  const tools = [...new Set(allFindings.map(f => f.tool))].sort();
+  const toolFilter = document.getElementById('filter-tool');
+  tools.forEach(tool => {
+    const opt = document.createElement('option');
+    opt.value = tool;
+    opt.textContent = tool.toUpperCase();
+    toolFilter.appendChild(opt);
+  });
+  
+  // Add event listeners
+  ['filter-category', 'filter-severity', 'filter-tool'].forEach(id => {
+    document.getElementById(id).addEventListener('change', filterFindings);
+  });
+}
+
+function renderFindings(findings) {
+  const tbody = document.getElementById('findings-tbody');
+  
+  if (findings.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No findings match the current filters</td></tr>';
+    document.getElementById('visible-count').textContent = '0';
+    document.getElementById('total-count').textContent = allFindings.length;
+    return;
+  }
+  
+  tbody.innerHTML = findings.map((f, idx) => {
+    const severityBadge = getSeverityBadge(f.severity);
+    const categoryBadge = getCategoryBadge(f.category);
+    const fileName = (f.file?.path || '').split('/').pop() || 'Unknown';
+    
+    return `
+      <tr data-index="${idx}" style="cursor: pointer;" onclick="showFindingDetails(${idx})">
+        <td><span class="badge bg-dark-lt">${f.tool || '-'}</span></td>
+        <td>${categoryBadge}</td>
+        <td>${severityBadge}</td>
+        <td class="text-truncate" style="max-width: 300px;">${escapeHtml((f.message?.title || f.message?.description || 'Issue').substring(0, 80))}</td>
+        <td class="text-truncate" style="max-width: 150px;" title="${f.file?.path || ''}">${fileName}</td>
+        <td class="text-center">${f.file?.line_start || f.line_number || '-'}</td>
+        <td class="text-center">
+          <button class="btn btn-sm btn-ghost-secondary" onclick="event.stopPropagation(); showFindingDetails(${idx});">
+            <i class="fas fa-info-circle"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  
+  document.getElementById('visible-count').textContent = findings.length;
+  document.getElementById('total-count').textContent = allFindings.length;
+}
+
+function filterFindings() {
+  const category = document.getElementById('filter-category').value;
+  const severity = document.getElementById('filter-severity').value;
+  const tool = document.getElementById('filter-tool').value;
+  
+  let filtered = allFindings;
+  
+  if (category !== 'all') {
+    filtered = filtered.filter(f => f.category === category);
+  }
+  
+  if (severity !== 'all') {
+    const severityMap = {
+      'high': ['critical', 'high'],
+      'medium': ['critical', 'high', 'medium'],
+      'low': ['critical', 'high', 'medium', 'low']
+    };
+    filtered = filtered.filter(f => severityMap[severity].includes((f.severity || '').toLowerCase()));
+  }
+  
+  if (tool !== 'all') {
+    filtered = filtered.filter(f => f.tool === tool);
+  }
+  
+  renderFindings(filtered);
+}
+
+function renderToolsTable(summary) {
+  const toolsUsed = summary.tools_used || [];
+  const toolsFailed = summary.tools_failed || [];
+  const toolsSkipped = summary.tools_skipped || [];
+  const findingsByTool = summary.findings_by_tool || {};
+  
+  const tbody = document.getElementById('tools-tbody');
+  
+  const rows = Object.keys(TOOL_METADATA).map(tool => {
+    const meta = TOOL_METADATA[tool];
+    const executed = toolsUsed.includes(tool);
+    const failed = toolsFailed.includes(tool);
+    const skipped = toolsSkipped.includes(tool);
+    
+    let statusBadge;
+    if (failed) {
+      statusBadge = '<span class="badge bg-danger">Failed</span>';
+    } else if (skipped) {
+      statusBadge = '<span class="badge bg-secondary">Skipped</span>';
+    } else if (executed) {
+      statusBadge = '<span class="badge bg-success">Success</span>';
+    } else {
+      statusBadge = '<span class="badge bg-light text-dark">Not Run</span>';
+    }
+    
+    const categoryBadge = meta.category === 'Static' ? '<span class="badge bg-primary-lt">Static</span>' :
+                         meta.category === 'Dynamic' ? '<span class="badge bg-info-lt">Dynamic</span>' :
+                         '<span class="badge bg-success-lt">Performance</span>';
+    
+    return `
+      <tr>
+        <td><strong>${tool}</strong></td>
+        <td>${categoryBadge}</td>
+        <td class="text-center">${statusBadge}</td>
+        <td class="text-end"><strong>${findingsByTool[tool] || 0}</strong></td>
+        <td class="text-secondary">${meta.purpose}</td>
+      </tr>
+    `;
+  });
+  
+  tbody.innerHTML = rows.join('');
+}
+
+function showFindingDetails(index) {
+  const finding = allFindings[index];
+  if (!finding) return;
+  
+  const content = `
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <strong>Tool:</strong> ${finding.tool || '-'}<br>
+        <strong>Category:</strong> ${finding.category || '-'}<br>
+        <strong>Severity:</strong> ${getSeverityBadge(finding.severity)}
+      </div>
+      <div class="col-md-6">
+        <strong>File:</strong> <code>${finding.file?.path || '-'}</code><br>
+        <strong>Line:</strong> ${finding.file?.line_start || '-'}<br>
+        <strong>Rule:</strong> ${finding.rule_id || finding.symbol || '-'}
+      </div>
+    </div>
+    <hr>
+    <h6>Description:</h6>
+    <p>${escapeHtml(finding.message?.description || finding.message?.title || 'No description')}</p>
+    
+    ${finding.evidence?.code_snippet ? `
+      <h6>Code Snippet:</h6>
+      <pre class="bg-light p-3 rounded"><code>${escapeHtml(finding.evidence.code_snippet)}</code></pre>
+    ` : ''}
+    
+    ${finding.message?.solution ? `
+      <h6>Recommended Solution:</h6>
+      <div class="alert alert-success">${escapeHtml(finding.message.solution)}</div>
+    ` : ''}
+  `;
+  
+  document.getElementById('finding-detail-content').innerHTML = content;
+  new bootstrap.Modal(document.getElementById('finding-detail-modal')).show();
+}
+
+function getSeverityBadge(severity) {
+  const sev = (severity || '').toLowerCase();
+  if (sev === 'critical' || sev === 'high') return `<span class="badge bg-danger">${severity}</span>`;
+  if (sev === 'medium') return `<span class="badge bg-warning">${severity}</span>`;
+  if (sev === 'low') return `<span class="badge bg-info">${severity}</span>`;
+  return `<span class="badge bg-secondary">${severity || 'Unknown'}</span>`;
+}
+
+function getCategoryBadge(category) {
+  if (category === 'security') return '<span class="badge bg-danger-lt">Security</span>';
+  if (category === 'quality' || category === 'code_quality') return '<span class="badge bg-primary-lt">Quality</span>';
+  if (category === 'performance') return '<span class="badge bg-success-lt">Performance</span>';
+  return `<span class="badge bg-secondary-lt">${category || 'Other'}</span>`;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function showError() {
+  document.getElementById('findings-tbody').innerHTML = 
+    '<tr><td colspan="7" class="text-center text-danger py-4">Error loading analysis data</td></tr>';
+  document.getElementById('tools-tbody').innerHTML = 
+    '<tr><td colspan="5" class="text-center text-danger py-3">Error loading tools data</td></tr>';
+}
+
+// Overview Tab Population
+function populateOverviewTab(summary) {
+  const severity = summary.severity_breakdown || {};
+  document.getElementById('overview-critical').textContent = severity.critical || 0;
+  document.getElementById('overview-high').textContent = severity.high || 0;
+  document.getElementById('overview-medium').textContent = severity.medium || 0;
+  document.getElementById('overview-low').textContent = severity.low || 0;
+  
+  const securityCount = allFindings.filter(f => f.category === 'security').length;
+  const qualityCount = allFindings.filter(f => f.category === 'quality' || f.category === 'code_quality').length;
+  const performanceCount = allFindings.filter(f => f.category === 'performance').length;
+  
+  document.getElementById('overview-security').textContent = securityCount;
+  document.getElementById('overview-quality').textContent = qualityCount;
+  document.getElementById('overview-performance').textContent = performanceCount;
+  
+  // Top 5 priority issues
+  const topIssues = [...allFindings]
+    .filter(f => ['critical', 'high'].includes((f.severity || '').toLowerCase()))
+    .slice(0, 5);
+  
+  const tbody = document.getElementById('overview-top-issues');
+  if (topIssues.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No high-priority issues found</td></tr>';
+  } else {
+    tbody.innerHTML = topIssues.map((f, idx) => `
+      <tr style="cursor: pointer;" onclick="showFindingDetails(${allFindings.indexOf(f)})">
+        <td>${getSeverityBadge(f.severity)}</td>
+        <td>${getCategoryBadge(f.category)}</td>
+        <td class="text-truncate" style="max-width: 300px;">${escapeHtml((f.message?.title || f.message?.description || 'Issue').substring(0, 60))}</td>
+        <td><span class="badge bg-dark-lt">${f.tool}</span></td>
+        <td class="text-truncate" style="max-width: 150px;">${(f.file?.path || '').split('/').pop() || '-'}:${f.file?.line_start || '-'}</td>
+      </tr>
+    `).join('');
+  }
+}
+
+// Category-Specific Tab Population
+function populateCategoryTabs() {
+  populateSecurityTab();
+  populatePerformanceTab();
+  populateQualityTab();
+}
+
+function populateSecurityTab() {
+  const securityFindings = allFindings.filter(f => f.category === 'security');
+  const tbody = document.getElementById('security-findings');
+  const countEl = document.getElementById('security-count');
+  
+  countEl.textContent = `${securityFindings.length} security finding(s)`;
+  
+  if (securityFindings.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No security findings</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = securityFindings.map((f, idx) => `
+    <tr style="cursor: pointer;" onclick="showFindingDetails(${allFindings.indexOf(f)})">
+      <td>${getSeverityBadge(f.severity)}</td>
+      <td><span class="badge bg-dark-lt">${f.tool}</span></td>
+      <td class="text-truncate" style="max-width: 300px;">${escapeHtml((f.message?.title || f.message?.description || 'Issue').substring(0, 80))}</td>
+      <td class="text-truncate" style="max-width: 150px;" title="${f.file?.path || ''}">${(f.file?.path || '').split('/').pop() || '-'}</td>
+      <td class="text-center">${f.file?.line_start || '-'}</td>
+      <td class="text-center">
+        <button class="btn btn-sm btn-ghost-secondary" onclick="event.stopPropagation(); showFindingDetails(${allFindings.indexOf(f)});">
+          <i class="fas fa-info-circle"></i>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+  
+  // Add severity filter listener
+  document.getElementById('security-severity-filter').addEventListener('change', (e) => {
+    const severity = e.target.value;
+    let filtered = securityFindings;
+    
+    if (severity !== 'all') {
+      const severityMap = {
+        'high': ['critical', 'high'],
+        'medium': ['critical', 'high', 'medium'],
+        'low': ['critical', 'high', 'medium', 'low']
+      };
+      filtered = filtered.filter(f => severityMap[severity].includes((f.severity || '').toLowerCase()));
+    }
+    
+    countEl.textContent = `${filtered.length} security finding(s)`;
+    tbody.innerHTML = filtered.map((f) => `
+      <tr style="cursor: pointer;" onclick="showFindingDetails(${allFindings.indexOf(f)})">
+        <td>${getSeverityBadge(f.severity)}</td>
+        <td><span class="badge bg-dark-lt">${f.tool}</span></td>
+        <td class="text-truncate" style="max-width: 300px;">${escapeHtml((f.message?.title || f.message?.description || 'Issue').substring(0, 80))}</td>
+        <td class="text-truncate" style="max-width: 150px;">${(f.file?.path || '').split('/').pop() || '-'}</td>
+        <td class="text-center">${f.file?.line_start || '-'}</td>
+        <td class="text-center">
+          <button class="btn btn-sm btn-ghost-secondary" onclick="event.stopPropagation(); showFindingDetails(${allFindings.indexOf(f)});">
+            <i class="fas fa-info-circle"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  });
+}
+
+function populatePerformanceTab() {
+  const performanceFindings = allFindings.filter(f => f.category === 'performance');
+  const tbody = document.getElementById('performance-findings');
+  const countEl = document.getElementById('performance-count');
+  
+  countEl.textContent = `${performanceFindings.length} performance finding(s)`;
+  
+  if (performanceFindings.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No performance findings</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = performanceFindings.map((f) => `
+    <tr style="cursor: pointer;" onclick="showFindingDetails(${allFindings.indexOf(f)})">
+      <td>${getSeverityBadge(f.severity)}</td>
+      <td><span class="badge bg-dark-lt">${f.tool}</span></td>
+      <td class="text-truncate" style="max-width: 300px;">${escapeHtml((f.message?.title || f.message?.description || 'Issue').substring(0, 80))}</td>
+      <td class="text-truncate" style="max-width: 150px;">${(f.file?.path || '').split('/').pop() || '-'}</td>
+      <td class="text-center">${f.file?.line_start || '-'}</td>
+      <td class="text-center">
+        <button class="btn btn-sm btn-ghost-secondary" onclick="event.stopPropagation(); showFindingDetails(${allFindings.indexOf(f)});">
+          <i class="fas fa-info-circle"></i>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function populateQualityTab() {
+  const qualityFindings = allFindings.filter(f => f.category === 'quality' || f.category === 'code_quality');
+  const tbody = document.getElementById('quality-findings');
+  const countEl = document.getElementById('quality-count');
+  
+  countEl.textContent = `${qualityFindings.length} code quality finding(s)`;
+  
+  if (qualityFindings.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No code quality findings</td></tr>';
+    return;
+  }
+  
+  tbody.innerHTML = qualityFindings.map((f) => `
+    <tr style="cursor: pointer;" onclick="showFindingDetails(${allFindings.indexOf(f)})">
+      <td>${getSeverityBadge(f.severity)}</td>
+      <td><span class="badge bg-dark-lt">${f.tool}</span></td>
+      <td class="text-truncate" style="max-width: 300px;">${escapeHtml((f.message?.title || f.message?.description || 'Issue').substring(0, 80))}</td>
+      <td class="text-truncate" style="max-width: 150px;">${(f.file?.path || '').split('/').pop() || '-'}</td>
+      <td class="text-center">${f.file?.line_start || '-'}</td>
+      <td class="text-center">
+        <button class="btn btn-sm btn-ghost-secondary" onclick="event.stopPropagation(); showFindingDetails(${allFindings.indexOf(f)});">
+          <i class="fas fa-info-circle"></i>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+  
+  // Add tool filter listener
+  document.getElementById('quality-tool-filter').addEventListener('change', (e) => {
+    const tool = e.target.value;
+    let filtered = qualityFindings;
+    
+    if (tool !== 'all') {
+      filtered = filtered.filter(f => f.tool === tool);
+    }
+    
+    countEl.textContent = `${filtered.length} code quality finding(s)`;
+    tbody.innerHTML = filtered.map((f) => `
+      <tr style="cursor: pointer;" onclick="showFindingDetails(${allFindings.indexOf(f)})">
+        <td>${getSeverityBadge(f.severity)}</td>
+        <td><span class="badge bg-dark-lt">${f.tool}</span></td>
+        <td class="text-truncate" style="max-width: 300px;">${escapeHtml((f.message?.title || f.message?.description || 'Issue').substring(0, 80))}</td>
+        <td class="text-truncate" style="max-width: 150px;">${(f.file?.path || '').split('/').pop() || '-'}</td>
+        <td class="text-center">${f.file?.line_start || '-'}</td>
+        <td class="text-center">
+          <button class="btn btn-sm btn-ghost-secondary" onclick="event.stopPropagation(); showFindingDetails(${allFindings.indexOf(f)});">
+            <i class="fas fa-info-circle"></i>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  });
+}
+</script>
+
+<style>
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.sortable:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+</style>
+
+{% endblock %}

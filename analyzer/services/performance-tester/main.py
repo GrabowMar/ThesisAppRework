@@ -347,6 +347,130 @@ class SimpleUser(HttpUser):
         
         return metrics
     
+    async def run_artillery_test(self, url: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Run Artillery load test."""
+        if 'artillery' not in self.available_tools:
+            return {'status': 'not_available', 'tool': 'artillery', 'executed': False, 'error': 'Artillery not available'}
+        
+        try:
+            # Get configuration
+            artillery_config = config.get('artillery', {}) if config else {}
+            duration = artillery_config.get('duration', 30)
+            arrival_rate = artillery_config.get('arrival_rate', 5)
+            
+            self.log.info(f"Running Artillery: {duration}s duration, {arrival_rate} arrivals/sec on {url}")
+            await self.send_progress('artillery_start', f'Artillery starting: {url}', 
+                                   duration=duration, arrival_rate=arrival_rate)
+            
+            # Create Artillery YAML config
+            artillery_config_path = self.test_output_dir / "artillery_config.yml"
+            artillery_config_content = f'''config:
+  target: "{url}"
+  phases:
+    - duration: {duration}
+      arrivalRate: {arrival_rate}
+      name: "Load test"
+  http:
+    timeout: 30
+scenarios:
+  - name: "Simple load test"
+    flow:
+      - get:
+          url: "/"
+'''
+            artillery_config_path.write_text(artillery_config_content)
+            
+            # Build command with JSON output
+            output_json = str(self.test_output_dir / "artillery_report.json")
+            cmd = ['artillery', 'run', '--output', output_json, str(artillery_config_path)]
+            
+            # Run test with extended timeout for performance tests
+            start_ts = time.time()
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, cwd=str(self.test_output_dir))
+            duration_actual = time.time() - start_ts
+            
+            if result.returncode == 0:
+                # Parse JSON results
+                metrics = self._parse_artillery_json(output_json)
+                metrics.update({
+                    'status': 'success',
+                    'tool': 'artillery',
+                    'executed': True,
+                    'total_issues': 0,
+                    'url': url,
+                    'configuration': {'duration': duration, 'arrival_rate': arrival_rate},
+                    'raw': {
+                        'command': cmd,
+                        'stdout': (result.stdout or '')[:8000],
+                        'stderr': (result.stderr or '')[:4000],
+                        'exit_code': result.returncode,
+                        'duration': duration_actual
+                    }
+                })
+                
+                await self.send_progress('artillery_complete', f'Artillery completed: {url}', 
+                                       rps=metrics.get('requests_per_second', 0))
+                return metrics
+            else:
+                error_msg = result.stderr or "Artillery failed"
+                self.log.error(f"Artillery failed: {error_msg}")
+                return {'status': 'error', 'tool': 'artillery', 'executed': True, 'error': error_msg, 'url': url, 'raw': {
+                    'command': cmd,
+                    'stdout': (result.stdout or '')[:4000],
+                    'stderr': (result.stderr or '')[:4000],
+                    'exit_code': result.returncode,
+                    'duration': duration_actual
+                }}
+                
+        except subprocess.TimeoutExpired:
+            return {'status': 'timeout', 'tool': 'artillery', 'executed': True, 'error': 'Test timed out', 'url': url}
+        except Exception as e:
+            return {'status': 'error', 'tool': 'artillery', 'executed': True, 'error': str(e), 'url': url}
+    
+    def _parse_artillery_json(self, json_path: str) -> Dict[str, Any]:
+        """Parse Artillery JSON results for key metrics."""
+        metrics = {}
+        
+        try:
+            if os.path.exists(json_path):
+                with open(json_path, 'r') as f:
+                    data = json.load(f)
+                    
+                    # Extract aggregate stats
+                    aggregate = data.get('aggregate', {})
+                    
+                    # Request metrics
+                    counters = aggregate.get('counters', {})
+                    metrics['requests'] = counters.get('http.requests', 0)
+                    metrics['responses'] = counters.get('http.responses', 0)
+                    metrics['codes'] = {
+                        '2xx': counters.get('http.codes.200', 0) + counters.get('http.codes.201', 0),
+                        '3xx': counters.get('http.codes.301', 0) + counters.get('http.codes.302', 0),
+                        '4xx': counters.get('http.codes.400', 0) + counters.get('http.codes.404', 0),
+                        '5xx': counters.get('http.codes.500', 0) + counters.get('http.codes.502', 0)
+                    }
+                    
+                    # Latency metrics
+                    latency = aggregate.get('latency', {})
+                    metrics['avg_response_time'] = latency.get('mean', 0) / 1000  # Convert to ms
+                    metrics['min_response_time'] = latency.get('min', 0) / 1000
+                    metrics['max_response_time'] = latency.get('max', 0) / 1000
+                    metrics['p50_response_time'] = latency.get('median', 0) / 1000
+                    metrics['p95_response_time'] = latency.get('p95', 0) / 1000
+                    metrics['p99_response_time'] = latency.get('p99', 0) / 1000
+                    
+                    # Rate metrics
+                    rates = aggregate.get('rates', {})
+                    metrics['requests_per_second'] = rates.get('http.request_rate', 0)
+                    
+                    # Error metrics
+                    metrics['errors'] = counters.get('errors.total', 0)
+                    
+        except Exception as e:
+            self.log.warning(f"Could not parse Artillery JSON: {e}")
+        
+        return metrics
+    
     async def run_aiohttp_load_test(self, url: str, config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Run simple concurrent load test using aiohttp."""
         try:
@@ -444,13 +568,14 @@ class SimpleUser(HttpUser):
             tool_runs: Dict[str, Dict[str, Any]] = {}
             
             # Determine which tools to run
-            available_tools = {'locust', 'ab', 'aiohttp'} & set(self.available_tools)
+            available_tools = {'locust', 'ab', 'aiohttp', 'artillery'} & set(self.available_tools)
             if selected_tools:
                 # Map tool names
                 tool_mapping = {
                     'locust-performance': 'locust',
                     'ab-load-test': 'ab', 
-                    'aiohttp-load': 'aiohttp'
+                    'aiohttp-load': 'aiohttp',
+                    'artillery-load': 'artillery'
                 }
                 requested_tools = {tool_mapping.get(tool, tool) for tool in selected_tools}
                 tools_to_run = available_tools & requested_tools
@@ -524,6 +649,15 @@ class SimpleUser(HttpUser):
                     if locust_result.get('status') == 'success':
                         results['tools_used'].append('locust')
                     tool_runs['locust'] = locust_result
+                
+                if 'artillery' in tools_to_run and connectivity['status'] == 'success':
+                    self.log.info(f"Running Artillery test on {working_url}")
+                    artillery_result = await self.run_artillery_test(working_url, config)
+                    url_results['artillery'] = artillery_result
+                    tool_summary['artillery'] = {k: artillery_result.get(k) for k in ('status','tool','executed','total_issues') if k in artillery_result}
+                    if artillery_result.get('status') == 'success':
+                        results['tools_used'].append('artillery')
+                    tool_runs['artillery'] = artillery_result
                 
                 results['results'][url] = url_results
             

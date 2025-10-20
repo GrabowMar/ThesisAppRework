@@ -55,6 +55,7 @@ from app.paths import (
     GENERATED_MARKDOWN_DIR,
 )
 from app.services.port_allocation_service import get_port_allocation_service
+from app.services.openrouter_chat_service import get_openrouter_chat_service
 
 logger = logging.getLogger(__name__)
 
@@ -225,8 +226,7 @@ class CodeGenerator:
     """Generates application code using AI."""
     
     def __init__(self):
-        self.api_key = os.getenv('OPENROUTER_API_KEY', '')
-        self.api_url = "https://openrouter.ai/api/v1/chat/completions"
+        self.chat_service = get_openrouter_chat_service()
         self.requirements_dir = REQUIREMENTS_DIR
         self.template_dir = SCAFFOLDING_DIR / 'templates'
         self.scaffolding_info_path = SCAFFOLDING_DIR / 'SCAFFOLDING_INFO.md'
@@ -239,79 +239,50 @@ class CodeGenerator:
         # Build prompt
         prompt = self._build_prompt(config)
         
-        # Get the actual OpenRouter model ID from the database
-        # canonical_slug is like: anthropic_claude-4.5-haiku-20251001
-        # model_id is like: anthropic/claude-haiku-4.5 (what OpenRouter expects)
         from app.models import ModelCapability
         model = ModelCapability.query.filter_by(canonical_slug=config.model_slug).first()
         if not model:
             logger.error(f"Model not found in database: {config.model_slug}")
             return False, "", f"Model not found in database: {config.model_slug}"
         
-        openrouter_model = model.model_id
-        logger.info(f"Using OpenRouter model: {openrouter_model} (from slug: {config.model_slug})")
+        # Use hugging_face_id if available (for case-sensitive providers), otherwise fall back to model_id
+        openrouter_model = model.hugging_face_id or model.model_id
+        logger.info(f"Using OpenRouter model: {openrouter_model} (HF ID: {model.hugging_face_id}, model_id: {model.model_id}, slug: {config.model_slug})")
         
-        # API request
-        payload = {
-            "model": openrouter_model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": self._get_system_prompt(config.component)
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": config.temperature,
-            "max_tokens": config.max_tokens
-        }
-        
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-        
+        messages = [
+            {"role": "system", "content": self._get_system_prompt(config.component)},
+            {"role": "user", "content": prompt}
+        ]
+
         # Prepare metadata tracking
         timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
         safe_model = re.sub(r'[^\w\-.]', '_', config.model_slug)
         run_id = f"{safe_model}_app{config.app_num}_{config.component}_{timestamp}"
         
         try:
-            async with aiohttp.ClientSession() as session:
-                # Save request payload
-                self._save_payload(run_id, safe_model, config.app_num, payload, headers)
-                
-                async with session.post(
-                    self.api_url,
-                    json=payload,
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=300)
-                ) as response:
-                    response_status = response.status
-                    response_headers = dict(response.headers)
-                    
-                    if response.status != 200:
-                        error = await response.text()
-                        # Save error response
-                        self._save_response(run_id, safe_model, config.app_num, {
-                            'error': error,
-                            'status': response_status
-                        }, response_headers)
-                        return False, "", f"API error {response.status}: {error}"
-                    
-                    data = await response.json()
-                    content = data['choices'][0]['message']['content']
-                    
-                    # Save successful response
-                    self._save_response(run_id, safe_model, config.app_num, data, response_headers)
-                    
-                    # Save metadata (async call with extended OpenRouter stats)
-                    await self._save_metadata(run_id, safe_model, config.app_num, config.component, 
-                                            payload, data, response_status, response_headers)
-                    
-                    return True, content, ""
+            success, response_data, status_code = await self.chat_service.generate_chat_completion(
+                model=openrouter_model,
+                messages=messages,
+                temperature=config.temperature,
+                max_tokens=config.max_tokens
+            )
+
+            # Save request/response artifacts regardless of outcome
+            self._save_payload(run_id, safe_model, config.app_num, self.chat_service._build_payload(openrouter_model, messages, config.temperature, config.max_tokens), self.chat_service._get_headers())
+            self._save_response(run_id, safe_model, config.app_num, response_data, {})
+
+            if not success:
+                error_message = response_data.get("error", {}).get("message", "Unknown API error")
+                return False, "", f"API error {status_code}: {error_message}"
+
+            content = response_data['choices'][0]['message']['content']
+            
+            # Save metadata on success
+            await self._save_metadata(run_id, safe_model, config.app_num, config.component, 
+                                    self.chat_service._build_payload(openrouter_model, messages, config.temperature, config.max_tokens), 
+                                    response_data, status_code, {})
+            
+            return True, content, ""
                     
         except Exception as e:
             logger.error(f"Generation failed: {e}")
@@ -455,7 +426,7 @@ class CodeGenerator:
                     async with aiohttp.ClientSession() as session:
                         generation_url = f"https://openrouter.ai/api/v1/generation?id={generation_id}"
                         headers_for_stats = {
-                            "Authorization": f"Bearer {self.api_key}",
+                            "Authorization": f"Bearer {self.chat_service.api_key}",
                         }
                         
                         async with session.get(

@@ -10,6 +10,7 @@ from .jinja.stats import stats_bp
 from .jinja.reports import reports_bp
 from .jinja.docs import docs_bp
 from .jinja.sample_generator import sample_generator_bp
+from .jinja.dashboard import dashboard_bp as jinja_dashboard_bp
 
 # Refactored API blueprints - organized by domain
 from .api import (
@@ -20,6 +21,9 @@ from .api import (
 
 # Enhanced results API
 from .api.results import results_api_bp
+
+# Research comparison API (removed)
+# from .api.research import research_bp
 
 from .websockets import websocket_api_bp, register_websocket_routes, register_error_handlers
 from .shared_utils import register_template_globals_and_filters
@@ -33,6 +37,7 @@ __all__ = [
     'reports_bp',
     'docs_bp',
     'sample_generator_bp',
+    'jinja_dashboard_bp',
 
     # Main API orchestrator blueprint
     'api_bp',
@@ -79,6 +84,7 @@ def register_blueprints(app):
     app.register_blueprint(reports_bp)
     app.register_blueprint(docs_bp)
     app.register_blueprint(sample_generator_bp)
+    app.register_blueprint(jinja_dashboard_bp)  # New dashboard views
 
     # Register refactored API blueprints under /api prefix
     app.register_blueprint(api_bp, url_prefix='/api')  # Main API orchestrator (includes all nested blueprints)

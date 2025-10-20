@@ -600,7 +600,7 @@ class AnalyzerManager:
         """Run security analysis on an application."""
         # Only apply defaults when tools is explicitly None. Respect provided selections.
         if tools is None:
-            tools = ['bandit', 'safety']
+            tools = ['bandit', 'safety', 'semgrep']
         
         logger.info(f"🔒 Running security analysis on {model_slug} app {app_number}")
         
@@ -769,8 +769,9 @@ class AnalyzerManager:
         """Run static code analysis."""
         # Only apply defaults when tools is explicitly None. Respect provided selections.
         if tools is None:
-            # Broaden to common static tools across Python/JS/CSS
-            tools = ['pylint', 'flake8', 'mypy', 'eslint', 'stylelint']
+            # Include ALL available static analysis tools
+            tools = ['bandit', 'pylint', 'flake8', 'mypy', 'semgrep', 'safety', 'vulture',
+                    'eslint', 'jshint', 'snyk', 'stylelint']
         
         logger.info(f"[SEARCH] Running static analysis on {model_slug} app {app_number}")
         

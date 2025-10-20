@@ -59,6 +59,9 @@
     </div>
     <div class="card-body py-2 px-2">
       <div class="d-grid gap-1">
+        <a href="{{ url_for('dashboard.app_dashboard', model_slug=task.target_model, app_number=task.target_app_number) }}" class="btn btn-primary btn-sm">
+          <i class="fas fa-chart-line me-1"></i> Dashboard View
+        </a>
         <a href="/analysis/api/tasks/{{ task.task_id }}/results.json" target="_blank" class="btn btn-outline-info btn-sm">
           <i class="fas fa-file-code me-1"></i> Raw JSON
         </a>
