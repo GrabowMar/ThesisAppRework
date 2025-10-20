@@ -138,19 +138,19 @@
 					</td>
 					<td class="text-center">
 						{% set status_lower = app.status|lower|replace('_', ' ')|replace('?', '')|trim %}
-						{% if status_lower == 'running' %}
-							<span class="badge bg-success">Running</span>
-						{% elif status_lower == 'stopped' %}
-							<span class="badge bg-secondary">Stopped</span>
-						{% elif status_lower == 'error' or status_lower == 'failed' %}
-							<span class="badge bg-danger">Error</span>
-						{% elif status_lower == 'building' %}
-							<span class="badge bg-warning">Building</span>
-						{% elif 'no compose' in status_lower or status_lower == 'not created' %}
-							<span class="badge bg-muted">Not Created</span>
-						{% else %}
-							<span class="badge bg-secondary">{{ status_lower|title }}</span>
-						{% endif %}
+            {% if status_lower == 'running' %}
+              <span class="badge bg-success" data-role="status-badge">Running</span>
+            {% elif status_lower == 'stopped' %}
+              <span class="badge bg-secondary" data-role="status-badge">Stopped</span>
+            {% elif status_lower == 'error' or status_lower == 'failed' %}
+              <span class="badge bg-danger" data-role="status-badge">Error</span>
+            {% elif status_lower == 'building' %}
+              <span class="badge bg-warning" data-role="status-badge">Building</span>
+            {% elif 'no compose' in status_lower or status_lower == 'not created' %}
+              <span class="badge bg-muted" data-role="status-badge">Not Created</span>
+            {% else %}
+              <span class="badge bg-secondary" data-role="status-badge">{{ status_lower|title }}</span>
+            {% endif %}
 					</td>
 					<td class="text-muted small">
 						{% if app.ports %}
@@ -327,7 +327,7 @@ function pollApplicationStatuses() {
   
   // Only check uncertain statuses or stale ones
   const batch = rows.slice(0, 15).filter(row => {
-    const statusBadge = row.querySelector('td:nth-child(5) .badge');
+    const statusBadge = row.querySelector('[data-role="status-badge"]');
     if (!statusBadge) return false;
     const statusText = statusBadge.textContent.trim().toLowerCase();
     
@@ -355,7 +355,7 @@ function pollApplicationStatuses() {
       .then(data => {
         if (!data?.success) return;
         
-        const statusBadge = row.querySelector('td:nth-child(5) .badge');
+        const statusBadge = row.querySelector('[data-role="status-badge"]');
         if (!statusBadge) return;
         
         const statusData = data.data || {};

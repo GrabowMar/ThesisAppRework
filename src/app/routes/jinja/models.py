@@ -148,25 +148,53 @@ def build_applications_context():
         docker_mgr = ServiceLocator.get_docker_manager()
     except Exception:
         docker_mgr = None  # type: ignore
-    running_projects: set[str] = set()
-    any_projects: set[str] = set()
-    if docker_mgr and getattr(docker_mgr, 'client', None):
+
+    STOPPED_STATES = {'exited', 'dead', 'created', 'removing', 'stopped'}
+
+    def _resolve_status(model_slug: str, app_number: int, db_status_raw: str | None) -> tuple[str, dict[str, Any]]:
+        """Determine application status using Docker when possible."""
+        status_details: dict[str, Any] = {}
+        db_status = (db_status_raw or '').strip().lower()
+        status_guess = db_status if db_status else 'unknown'
+
+        if not docker_mgr or not getattr(docker_mgr, 'client', None):
+            return status_guess, status_details
+
         try:
-            all_conts = docker_mgr.list_all_containers()  # type: ignore[attr-defined]
-            for c in all_conts or []:
-                labels = c.get('labels') or {}
-                proj = labels.get('com.docker.compose.project')
-                if not proj:
-                    continue
-                any_projects.add(proj)
-                # Fix: Check container state more precisely
-                container_state = c.get('state', '').lower()
-                # Container is actually running if state is 'running' 
-                # (status field contains detailed info like "Up 2 hours" which isn't reliable for exact matching)
-                if container_state == 'running':
-                    running_projects.add(proj)
+            summary = docker_mgr.container_status_summary(model_slug, app_number)  # type: ignore[attr-defined]
+            status_details = summary or {}
+        except Exception:
+            return status_guess, status_details
+
+        states = [str(s or '').lower() for s in status_details.get('states', [])]
+        containers_found = int(status_details.get('containers_found') or 0)
+
+        if any(state == 'running' for state in states):
+            return 'running', status_details
+        if any(state in STOPPED_STATES for state in states):
+            return 'stopped', status_details
+        if containers_found:
+            # Containers exist but status unknown -> treat as stopped to avoid "Unknown" badge
+            return 'stopped', status_details
+
+        # No containers found. If compose file exists, assume not created yet.
+        compose_exists = False
+        try:
+            compose_path = docker_mgr._get_compose_path(model_slug, app_number)  # type: ignore[attr-defined]
+            compose_exists = compose_path.exists()
+            status_details['compose_path'] = str(compose_path)
+            status_details['compose_file_exists'] = compose_exists
         except Exception:
             pass
+
+        if compose_exists:
+            return 'not_created', status_details
+
+        if status_guess == 'running':
+            # Docker shows nothing running, override stale DB state
+            return 'stopped', status_details
+
+        return status_guess or 'unknown', status_details
 
     def _project_name(model_slug: str, app_num: int) -> str:
         safe_model = (model_slug or '').replace('_', '-').replace('.', '-')
@@ -190,24 +218,15 @@ def build_applications_context():
         except Exception:
             model_provider = r.provider or 'local'
             display_name = r.model_slug
-        # Determine live status - prioritize database status but check Docker for accuracy
-        proj = _project_name(r.model_slug, r.app_number)
-        db_status = r.container_status or r.generation_status or 'unknown'
-        
-        # Only override database status if we have clear Docker evidence
-        if proj in running_projects:
-            # Docker shows it's running - use that
-            status = 'running'
-        elif proj in any_projects:
-            # Docker shows containers exist but not running - they're stopped
-            status = 'stopped'
-        else:
-            # No Docker containers found - use database status
-            # But if database says running and no Docker containers, it's likely stopped
-            if db_status == 'running':
-                status = 'stopped'  # Container was running but Docker doesn't show it
-            else:
-                status = db_status
+        # Determine live status with Docker check fallback
+        raw_db_status = r.container_status
+        if not raw_db_status and getattr(r, 'generation_status', None):
+            try:
+                raw_db_status = r.generation_status.value  # type: ignore[attr-defined]
+            except Exception:
+                raw_db_status = str(r.generation_status)
+
+        status, status_details = _resolve_status(r.model_slug, r.app_number, raw_db_status)
         if status == 'running':
             running_count += 1
         applications_all.append({
@@ -220,7 +239,8 @@ def build_applications_context():
             'app_type': r.app_type or 'web_app',
             'ports': derived_ports,
             'container_size': None,
-            'analysis_status': 'none'
+            'analysis_status': 'none',
+            'status_details': status_details
         })
 
     # Apply in-memory filters that depend on enriched fields
