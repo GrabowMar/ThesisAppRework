@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from flask import Blueprint, current_app, request, redirect, url_for, flash, jsonify, make_response, abort
+from werkzeug.exceptions import HTTPException
 
 from app.models import AnalysisTask
 from app.utils.template_paths import render_template_compat as render_template
@@ -712,10 +713,13 @@ def task_detail_page(task_id: str):
         task = AnalysisTask.query.filter_by(task_id=task_id).first()
         if not task:
             abort(404, description=f"Task {task_id} not found")
-        
+
         # Use the new modern template with sidebar
         return render_template('pages/analysis/task_detail_main.html', task=task, task_id=task_id)
-        
+
+    except HTTPException:
+        # Re-raise HTTP errors (e.g., 404) so Flask handles them correctly
+        raise
     except Exception as e:
         current_app.logger.error(f"Task detail page error for {task_id}: {e}")
         abort(500, description="Internal server error")

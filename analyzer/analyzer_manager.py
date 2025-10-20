@@ -209,26 +209,54 @@ class AnalyzerManager:
     # Port Configuration Helpers
     # -----------------------------------------------------------------
     def _load_port_config(self) -> List[Dict[str, Any]]:
-        """Load port_config.json once and cache it.
+        """Load port configurations from database.
 
-        Returns empty list if file missing or invalid. The file can be large
-        (thousands of entries) so we avoid repeatedly reading it for every
-        analysis request.
+        Returns empty list if database query fails. The results are cached
+        to avoid repeatedly querying the database for every analysis request.
         """
         if self._port_config_cache is not None:
             return self._port_config_cache
+        
         try:
-            root = Path(__file__).parent.parent  # project root (analyzer/..)
-            cfg_path = (root / 'misc' / 'port_config.json').resolve()
-            with open(cfg_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            if isinstance(data, list):
-                self._port_config_cache = data  # type: ignore[assignment]
-            else:  # unexpected shape
-                self._port_config_cache = []
+            # Try to load from database first
+            root = Path(__file__).parent.parent  # project root
+            sys.path.insert(0, str(root / 'src'))
+            
+            from app import create_app
+            from app.models import PortConfiguration
+            
+            app = create_app()
+            with app.app_context():
+                port_configs = PortConfiguration.query.all()
+                data = []
+                for pc in port_configs:
+                    data.append({
+                        'model': pc.model,  # using 'model' to match field name
+                        'app_number': pc.app_num,  # using app_number for consistency
+                        'backend_port': pc.backend_port,
+                        'frontend_port': pc.frontend_port
+                    })
+                self._port_config_cache = data
+                logger.info(f"Loaded {len(data)} port configurations from database")
+                return self._port_config_cache
+                
         except Exception as e:
-            logger.warning(f"Could not load port_config.json: {e}")
-            self._port_config_cache = []
+            logger.warning(f"Could not load port configurations from database: {e}")
+            
+            # Fallback to JSON file if database fails
+            try:
+                cfg_path = (root / 'misc' / 'port_config.json').resolve()
+                with open(cfg_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                if isinstance(data, list):
+                    self._port_config_cache = data  # type: ignore[assignment]
+                    logger.info(f"Loaded {len(data)} port configurations from JSON file (fallback)")
+                else:
+                    self._port_config_cache = []
+            except Exception as json_err:
+                logger.warning(f"Could not load port_config.json either: {json_err}")
+                self._port_config_cache = []
+        
         return self._port_config_cache
 
     def _resolve_app_ports(self, model_slug: str, app_number: int) -> Optional[Tuple[int, int]]:

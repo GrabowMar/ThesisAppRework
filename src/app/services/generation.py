@@ -44,6 +44,7 @@ from pathlib import Path
 from typing import Optional, Tuple, Dict, List, Set, Any
 
 import aiohttp
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.paths import (
     GENERATED_APPS_DIR,
@@ -56,6 +57,9 @@ from app.paths import (
 )
 from app.services.port_allocation_service import get_port_allocation_service
 from app.services.openrouter_chat_service import get_openrouter_chat_service
+from app.extensions import db
+from app.models import GeneratedApplication, ModelCapability, AnalysisStatus
+from app.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -1074,9 +1078,159 @@ class GenerationService:
         backend_port, frontend_port = self.scaffolding.get_ports(model_slug, app_num)
         result['backend_port'] = backend_port
         result['frontend_port'] = frontend_port
-        
+
+        try:
+            persist_summary = self._persist_generation_result(
+                model_slug=model_slug,
+                app_num=app_num,
+                app_dir=app_dir,
+                template_id=template_id,
+                backend_port=backend_port,
+                frontend_port=frontend_port,
+                generate_backend=generate_backend,
+                generate_frontend=generate_frontend,
+                result_snapshot=result
+            )
+            result.update(persist_summary)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception(
+                "Failed to persist generation metadata for %s/app%s: %s",
+                model_slug,
+                app_num,
+                exc,
+            )
+            result['database_updated'] = False
+            result['database_error'] = str(exc)
+
         logger.info(f"=== Generation complete: {result['success']} ===")
         return result
+
+    def _persist_generation_result(
+        self,
+        *,
+        model_slug: str,
+        app_num: int,
+        app_dir: Path,
+        template_id: int,
+        backend_port: int,
+        frontend_port: int,
+        generate_backend: bool,
+        generate_frontend: bool,
+        result_snapshot: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Create or update GeneratedApplication rows after generation."""
+
+        app_features = self._inspect_generated_app(app_dir)
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        provider = 'unknown'
+        if model and model.provider:
+            provider = model.provider
+
+        app_record = GeneratedApplication.query.filter_by(
+            model_slug=model_slug,
+            app_number=app_num
+        ).first()
+
+        created = False
+        if not app_record:
+            app_record = GeneratedApplication()
+            app_record.model_slug = model_slug
+            app_record.app_number = app_num
+            app_record.app_type = 'web_application'
+            app_record.provider = provider
+            app_record.container_status = 'unknown'
+            created = True
+            db.session.add(app_record)
+        else:
+            if provider != 'unknown' and app_record.provider != provider:
+                app_record.provider = provider
+            if not app_record.app_type:
+                app_record.app_type = 'web_application'
+            if not app_record.provider:
+                app_record.provider = 'unknown'
+
+        app_record.has_backend = app_features['has_backend']
+        app_record.has_frontend = app_features['has_frontend']
+        app_record.has_docker_compose = app_features['has_docker_compose']
+        app_record.backend_framework = app_features['backend_framework']
+        app_record.frontend_framework = app_features['frontend_framework']
+        app_record.generation_status = (
+            AnalysisStatus.COMPLETED if result_snapshot.get('success') else AnalysisStatus.FAILED
+        )
+        if not app_record.container_status:
+            app_record.container_status = 'unknown'
+
+        metadata = app_record.get_metadata() or {}
+        metadata_updates = {
+            'template_id': template_id,
+            'generate_backend': generate_backend,
+            'generate_frontend': generate_frontend,
+            'backend_generated': result_snapshot.get('backend_generated'),
+            'frontend_generated': result_snapshot.get('frontend_generated'),
+            'scaffolded': result_snapshot.get('scaffolded'),
+            'errors': result_snapshot.get('errors', []),
+            'backend_port': backend_port,
+            'frontend_port': frontend_port,
+            'app_dir': str(app_dir),
+            'success': result_snapshot.get('success'),
+            'last_generated_at': utc_now().isoformat(),
+        }
+        metadata.update({key: value for key, value in metadata_updates.items() if value is not None})
+        app_record.set_metadata(metadata)
+
+        now = utc_now()
+        if created and not app_record.created_at:
+            app_record.created_at = now
+        app_record.updated_at = now
+
+        try:
+            db.session.commit()
+        except SQLAlchemyError as exc:  # pragma: no cover - best effort persistence
+            db.session.rollback()
+            raise RuntimeError(f"Database update failed: {exc}")
+
+        return {
+            'database_updated': True,
+            'database_record_created': created,
+            'database_application_id': app_record.id,
+        }
+
+    def _inspect_generated_app(self, app_dir: Path) -> Dict[str, Any]:
+        """Inspect generated app directory and infer feature flags."""
+
+        features = {
+            'has_backend': False,
+            'has_frontend': False,
+            'has_docker_compose': False,
+            'backend_framework': None,
+            'frontend_framework': None,
+        }
+
+        if not app_dir.exists():
+            return features
+
+        backend_dir = app_dir / 'backend'
+        frontend_dir = app_dir / 'frontend'
+
+        backend_app = backend_dir / 'app.py'
+        backend_requirements = backend_dir / 'requirements.txt'
+        backend_generated = backend_dir / 'app_generated.py'
+        if backend_app.exists() or backend_requirements.exists() or backend_generated.exists():
+            features['has_backend'] = True
+            features['backend_framework'] = 'Flask'
+
+        frontend_app = frontend_dir / 'src' / 'App.jsx'
+        frontend_package = frontend_dir / 'package.json'
+        if frontend_app.exists() or frontend_package.exists():
+            features['has_frontend'] = True
+            features['frontend_framework'] = 'React'
+
+        compose_file = app_dir / 'docker-compose.yml'
+        compose_alt = app_dir / 'docker-compose.yaml'
+        if compose_file.exists() or compose_alt.exists():
+            features['has_docker_compose'] = True
+
+        return features
 
     def get_generation_status(self) -> Dict[str, Any]:
         """Expose lightweight status metrics for dashboards."""
