@@ -336,7 +336,8 @@ def analysis_create():
                 created_tasks = []
                 for mslug, anum in selection_pairs:
                     if multiple_services:
-                        engine_name = 'security'  # coordinating primary (unified orchestrator will fan out)
+                        # For custom selections spanning multiple services, use 'unified'
+                        engine_name = 'unified'
                     else:
                         only_service = next(iter(tools_by_service.keys()))
                         engine_name = service_to_engine.get(only_service, 'security')
