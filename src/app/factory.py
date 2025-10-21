@@ -163,6 +163,15 @@ def create_app(config_name: str = 'default') -> Flask:
         # Ensure templates are always reloaded to avoid stale caches in tests/dev
         TEMPLATES_AUTO_RELOAD=True,
         
+        # Session configuration
+        SESSION_COOKIE_SECURE=os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true',
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE='Lax',
+        PERMANENT_SESSION_LIFETIME=int(os.environ.get('SESSION_LIFETIME', '86400')),  # 24 hours
+        
+        # Authentication configuration
+        REGISTRATION_ENABLED=os.environ.get('REGISTRATION_ENABLED', 'false').lower() == 'true',
+        
         # Celery configuration
         CELERY_BROKER_URL=CeleryConfig.broker_url,
         CELERY_RESULT_BACKEND=CeleryConfig.result_backend,

@@ -7,12 +7,21 @@ Routes for displaying markdown documentation files.
 
 import os
 import markdown
-from flask import Blueprint, flash, current_app, abort
+from flask import Blueprint, flash, current_app, abort, redirect, url_for, request
+from flask_login import current_user
 
 from app.utils.template_paths import render_template_compat as render_template
 
 # Create blueprint
 docs_bp = Blueprint('docs', __name__, url_prefix='/docs')
+
+# Require authentication
+@docs_bp.before_request
+def require_authentication():
+    """Require authentication for all docs endpoints."""
+    if not current_user.is_authenticated:
+        flash('Please log in to access documentation.', 'info')
+        return redirect(url_for('auth.login', next=request.url))
 
 @docs_bp.route('/')
 def docs_index():

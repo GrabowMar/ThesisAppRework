@@ -46,6 +46,10 @@ services:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - OPENROUTER_ALLOW_ALL_PROVIDERS=${OPENROUTER_ALLOW_ALL_PROVIDERS:-true}
       - PYTHONUNBUFFERED=1
+      # Authentication & Security
+      - REGISTRATION_ENABLED=${REGISTRATION_ENABLED:-false}
+      - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-false}
+      - SESSION_LIFETIME=${SESSION_LIFETIME:-86400}
     volumes:
       - ./generated/apps:/app/generated/apps
       - ./results:/app/results

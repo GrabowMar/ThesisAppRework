@@ -6,7 +6,8 @@ import json
 import logging
 from typing import Any, Dict, Iterable
 
-from flask import Blueprint, abort, render_template, send_file, url_for
+from flask import Blueprint, abort, render_template, send_file, url_for, flash, redirect, request
+from flask_login import current_user
 
 from app.models import (
     GeneratedApplication,

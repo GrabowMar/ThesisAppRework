@@ -10,6 +10,7 @@ from .stats import stats_bp
 from .reports import reports_bp
 from .docs import docs_bp
 from .sample_generator import sample_generator_bp
+from .auth import auth_bp
 
 __all__ = [
     'main_bp',
@@ -18,5 +19,6 @@ __all__ = [
     'stats_bp',
     'reports_bp',
     'docs_bp',
-    'sample_generator_bp'
+    'sample_generator_bp',
+    'auth_bp'
 ]

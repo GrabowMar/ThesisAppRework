@@ -20,7 +20,8 @@ Endpoints:
 import asyncio
 import logging
 
-from flask import Blueprint, request
+from flask import Blueprint, request, jsonify
+from flask_login import current_user
 
 from app.services.generation import get_generation_service
 from app.utils.helpers import create_success_response, create_error_response
@@ -28,6 +29,17 @@ from app.utils.helpers import create_success_response, create_error_response
 logger = logging.getLogger(__name__)
 
 gen_bp = Blueprint('generation', __name__, url_prefix='/api/gen')
+
+# Require authentication for all generation API routes
+@gen_bp.before_request
+def require_authentication():
+    """Require authentication for all generation API endpoints."""
+    if not current_user.is_authenticated:
+        return jsonify({
+            'error': 'Authentication required',
+            'message': 'Please log in to access this endpoint',
+            'login_url': '/auth/login'
+        }), 401
 
 
 @gen_bp.route('/templates', methods=['GET'])

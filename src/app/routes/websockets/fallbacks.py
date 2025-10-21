@@ -3,7 +3,8 @@ WebSocket Fallback Routes
 Handles WebSocket fallback routes and error handlers.
 """
 
-from flask import request, jsonify, render_template
+from flask import request, jsonify, render_template, redirect, url_for
+from flask_login import current_user
 from app.utils.errors import build_error_payload
 from werkzeug.routing.exceptions import WebsocketMismatch
 from app.utils.logging_config import get_logger
@@ -17,6 +18,15 @@ def register_websocket_routes(app):
     @app.route('/ws/analysis')
     def websocket_analysis():
         """Basic WebSocket endpoint for analysis dashboard."""
+        # Require authentication
+        if not current_user.is_authenticated:
+            return jsonify(build_error_payload(
+                'Authentication required',
+                status=401,
+                error='authentication_required',
+                hint='Please log in at /auth/login'
+            )), 401
+        
         try:
             return jsonify(build_error_payload(
                 'Native WebSocket upgrade not supported by this server route',
@@ -36,6 +46,15 @@ def register_websocket_routes(app):
     @app.route('/socket.io/')
     def socket_io_fallback():
         """Fallback for Socket.IO requests when not available."""
+        # Require authentication
+        if not current_user.is_authenticated:
+            return jsonify(build_error_payload(
+                'Authentication required',
+                status=401,
+                error='authentication_required',
+                hint='Please log in at /auth/login'
+            )), 401
+        
         return jsonify(build_error_payload(
             'Socket.IO not available',
             status=404,

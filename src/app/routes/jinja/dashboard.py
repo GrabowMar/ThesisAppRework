@@ -1,5 +1,6 @@
 """Dashboard routes for enhanced analysis visualization."""
-from flask import Blueprint, render_template, jsonify, send_file, abort
+from flask import Blueprint, render_template, jsonify, send_file, abort, flash, redirect, url_for, request
+from flask_login import current_user
 from datetime import datetime
 import io
 import csv
@@ -7,6 +8,14 @@ import csv
 from app.services.service_locator import ServiceLocator
 
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/analysis/dashboard')
+
+# Require authentication
+@dashboard_bp.before_request
+def require_authentication():
+    """Require authentication for all dashboard endpoints."""
+    if not current_user.is_authenticated:
+        flash('Please log in to access the dashboard.', 'info')
+        return redirect(url_for('auth.login', next=request.url))
 
 
 @dashboard_bp.route('/app/<model_slug>/<int:app_number>')

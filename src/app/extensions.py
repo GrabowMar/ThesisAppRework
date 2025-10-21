@@ -8,6 +8,7 @@ Extensions are created here and then initialized in the app factory.
 from flask import Flask, current_app
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_login import LoginManager
 import requests
 import logging
 from typing import Optional
@@ -15,6 +16,7 @@ from typing import Optional
 # Initialize extensions
 db = SQLAlchemy()
 migrate = Migrate()
+login_manager = LoginManager()
 
 # SocketIO placeholder - will be initialized if available
 socketio = None
@@ -130,6 +132,54 @@ def init_extensions(app):
     """Initialize Flask extensions with the app instance."""
     db.init_app(app)
     migrate.init_app(app, db)
+    
+    # Initialize Flask-Login
+    login_manager.init_app(app)
+    login_manager.login_view = 'auth.login'
+    login_manager.login_message = 'Please log in to access this page.'
+    login_manager.login_message_category = 'info'
+    
+    @login_manager.user_loader
+    def load_user(user_id):
+        """Load user by ID for Flask-Login."""
+        from app.models import User
+        return User.query.get(int(user_id))
+    
+    @login_manager.request_loader
+    def load_user_from_request(request):
+        """Load user from API token in Authorization header."""
+        from app.models import User
+        
+        # Check for Authorization header with Bearer token
+        auth_header = request.headers.get('Authorization')
+        if auth_header and auth_header.startswith('Bearer '):
+            token = auth_header.replace('Bearer ', '', 1)
+            user = User.verify_api_token(token)
+            if user:
+                return user
+        
+        # Check for token in query parameter (less secure, but convenient)
+        token = request.args.get('token')
+        if token:
+            user = User.verify_api_token(token)
+            if user:
+                return user
+        
+        return None
+    
+    @login_manager.unauthorized_handler
+    def unauthorized():
+        """Handle unauthorized access attempts."""
+        from flask import flash, redirect, url_for, request, jsonify
+        
+        # If this is an API request (JSON or has Authorization header), return JSON
+        if request.is_json or request.headers.get('Authorization'):
+            return jsonify({'error': 'Unauthorized', 'message': 'Authentication required'}), 401
+        
+        # Otherwise, redirect to login page
+        flash('Please log in to access this page.', 'info')
+        # Preserve the original URL the user tried to access
+        return redirect(url_for('auth.login', next=request.url))
     
     # Initialize SocketIO if available
     if SOCKETIO_AVAILABLE and socketio:

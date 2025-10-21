@@ -5,7 +5,8 @@ Reports routes for the Flask application
 Reports-related web routes that render Jinja templates.
 """
 
-from flask import Blueprint, send_file
+from flask import Blueprint, send_file, flash, redirect, url_for, request
+from flask_login import current_user
 
 from app.utils.template_paths import render_template_compat as render_template
 from app.paths import REPORTS_DIR
@@ -15,6 +16,14 @@ from ..shared_utils import _gather_file_reports, _get_recent_analyses
 
 # Create blueprint
 reports_bp = Blueprint('reports', __name__, url_prefix='/reports')
+
+# Require authentication
+@reports_bp.before_request
+def require_authentication():
+    """Require authentication for all report endpoints."""
+    if not current_user.is_authenticated:
+        flash('Please log in to access reports.', 'info')
+        return redirect(url_for('auth.login', next=request.url))
 
 @reports_bp.route('/')
 def reports_index():

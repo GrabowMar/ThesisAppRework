@@ -30,6 +30,14 @@ from app.routes.jinja.detail_context import (
 # Blueprint for models routes
 models_bp = Blueprint('models', __name__, url_prefix='/models')
 
+# Require authentication
+@models_bp.before_request
+def require_authentication():
+    """Require authentication for all model endpoints."""
+    if not current_user.is_authenticated:
+        flash('Please log in to access model features.', 'info')
+        return redirect(url_for('auth.login', next=request.url))
+
 
 class SimplePagination:
     """Lightweight pagination helper compatible with templates."""

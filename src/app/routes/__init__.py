@@ -11,6 +11,7 @@ from .jinja.reports import reports_bp
 from .jinja.docs import docs_bp
 from .jinja.sample_generator import sample_generator_bp
 from .jinja.dashboard import dashboard_bp as jinja_dashboard_bp
+from .jinja.auth import auth_bp
 
 # Refactored API blueprints - organized by domain
 from .api import (
@@ -18,6 +19,9 @@ from .api import (
     applications_bp, analysis_bp as api_analysis_bp, gen_bp,
     tasks_rt_bp, tool_registry_bp, container_tools_bp
 )
+
+# API Token management
+from .api.tokens import tokens_bp
 
 # Enhanced results API
 from .api.results import results_api_bp
@@ -38,6 +42,7 @@ __all__ = [
     'docs_bp',
     'sample_generator_bp',
     'jinja_dashboard_bp',
+    'auth_bp',
 
     # Main API orchestrator blueprint
     'api_bp',
@@ -53,6 +58,9 @@ __all__ = [
     'tasks_rt_bp',
     'tool_registry_bp',
     'container_tools_bp',
+
+    # API token management
+    'tokens_bp',
 
     # Enhanced results API
     'results_api_bp',
@@ -76,6 +84,9 @@ def register_blueprints(app):
     Args:
         app: Flask application instance
     """
+    # Register auth blueprint first (no login required)
+    app.register_blueprint(auth_bp)
+    
     # Register Jinja template blueprints
     app.register_blueprint(main_bp)
     app.register_blueprint(models_bp)
@@ -101,6 +112,7 @@ def register_blueprints(app):
     # These already have their prefixes defined in the blueprint files
     app.register_blueprint(gen_bp)  # /api/gen (scaffolding-first generation)
     app.register_blueprint(tasks_rt_bp)   # /api/tasks
+    app.register_blueprint(tokens_bp)  # /api/tokens (token management)
     app.register_blueprint(results_api_bp)  # /analysis/api
 
     # Register WebSocket API blueprint under both legacy (/api/websocket) and new (/ws-api) paths

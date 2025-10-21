@@ -209,6 +209,12 @@ config_local.py
 .env.local
 .env.production
 
+# Security credentials files
+PRODUCTION_CREDENTIALS.md
+*_CREDENTIALS.md
+credentials.txt
+secrets.txt
+
 # Research data and generated content (optional - uncomment if you don't want to track these)
 # misc/generated_conversations/
 # misc/models/

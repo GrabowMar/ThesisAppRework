@@ -1,0 +1,44 @@
+{% extends "layouts/auth.html" %}
+
+{% block title %}Sign in{% endblock %}
+
+{% block content %}
+<form method="POST" action="{{ url_for('auth.login') }}" autocomplete="off">
+    <div class="mb-3">
+        <label class="form-label">Username</label>
+        <input type="text" 
+               class="form-control" 
+               name="username" 
+               placeholder="Enter username" 
+               autocomplete="off"
+               required
+               autofocus>
+    </div>
+    <div class="mb-2">
+        <label class="form-label">Password</label>
+        <input type="password" 
+               class="form-control" 
+               name="password" 
+               placeholder="Your password" 
+               autocomplete="off"
+               required>
+    </div>
+    <div class="mb-2">
+        <label class="form-check">
+            <input type="checkbox" class="form-check-input" name="remember">
+            <span class="form-check-label">Remember me on this device</span>
+        </label>
+    </div>
+    <div class="form-footer">
+        <button type="submit" class="btn btn-primary w-100">Sign in</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_content %}
+{% if config.get('REGISTRATION_ENABLED', False) %}
+<div class="text-center text-secondary mt-3">
+    Don't have account yet? <a href="{{ url_for('auth.register') }}" tabindex="-1">Sign up</a>
+</div>
+{% endif %}
+{% endblock %}

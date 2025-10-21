@@ -7,6 +7,7 @@ structured data for the frontend tabs.
 """
 
 from flask import Blueprint, jsonify, request
+from flask_login import current_user
 import logging
 from ...services.results_management_service import ResultsManagementService
 from ...services.service_locator import ServiceLocator
@@ -15,6 +16,17 @@ logger = logging.getLogger(__name__)
 
 # Create blueprint for enhanced results API
 results_api_bp = Blueprint('results_api', __name__, url_prefix='/analysis/api')
+
+# Require authentication for all results API routes
+@results_api_bp.before_request
+def require_authentication():
+    """Require authentication for all results API endpoints."""
+    if not current_user.is_authenticated:
+        return jsonify({
+            'error': 'Authentication required',
+            'message': 'Please log in to access this endpoint',
+            'login_url': '/auth/login'
+        }), 401
 
 
 def get_results_service() -> ResultsManagementService:

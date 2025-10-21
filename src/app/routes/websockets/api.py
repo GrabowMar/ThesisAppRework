@@ -4,7 +4,8 @@ Handles WebSocket service status and test functionality.
 """
 
 from pathlib import Path
-from flask import Blueprint, request, current_app
+from flask import Blueprint, request, current_app, jsonify
+from flask_login import current_user
 from app.extensions import get_websocket_service
 from app.routes.response_utils import json_success, json_error
 from app.utils.logging_config import get_logger
@@ -13,6 +14,17 @@ logger = get_logger(__name__)
 
 # WebSocket API Blueprint
 websocket_api_bp = Blueprint('websocket_api', __name__, url_prefix='/api/websocket')
+
+# Require authentication for all WebSocket API routes
+@websocket_api_bp.before_request
+def require_authentication():
+    """Require authentication for all WebSocket API endpoints."""
+    if not current_user.is_authenticated:
+        return jsonify({
+            'error': 'Authentication required',
+            'message': 'Please log in to access this endpoint',
+            'login_url': '/auth/login'
+        }), 401
 
 
 def _find_models_root() -> Path | None:

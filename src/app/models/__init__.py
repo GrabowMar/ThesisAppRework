@@ -42,6 +42,7 @@ from .results_cache import (
     QualityIssueCache
 )
 from .simple_tool_results import ToolResult, ToolSummary
+from .user import User
 
 from ..utils.time import utc_now
 
@@ -70,6 +71,7 @@ __all__ = [
     'AnalysisResultsCache', 'SecurityFindingCache', 'PerformanceMetricCache', 
     'QualityIssueCache',
     'ToolResult', 'ToolSummary',
+    'User',
 
     # Utility function
     'utc_now'

@@ -19,9 +19,12 @@ The actual route implementations are distributed across focused modules:
 
 All routes have been migrated out of this file for better organization.
 No route implementations should exist here - only blueprint registrations.
+
+SECURITY: All API routes require authentication except /health endpoint.
 """
 
-from flask import Blueprint
+from flask import Blueprint, request, jsonify
+from flask_login import current_user
 
 # Import all the specialized blueprints
 from .core import core_bp
@@ -35,6 +38,25 @@ from .container_tools import container_tools_bp
 
 # Create the main API blueprint that will orchestrate all others
 api_bp = Blueprint('api', __name__)
+
+# Protect all API routes with authentication
+@api_bp.before_request
+def require_authentication():
+    """
+    Require authentication for all API endpoints except health checks.
+    This prevents unauthorized access via direct API calls.
+    """
+    # Allow health check without authentication
+    if request.endpoint and 'health' in request.endpoint:
+        return None
+    
+    # Check if user is authenticated
+    if not current_user.is_authenticated:
+        return jsonify({
+            'error': 'Authentication required',
+            'message': 'Please log in to access this endpoint',
+            'login_url': '/auth/login'
+        }), 401
 
 # Register all specialized blueprints as nested blueprints
 # This allows them to share the same URL prefix while maintaining modularity

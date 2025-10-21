@@ -5,7 +5,8 @@ Main routes for the Flask application
 Dashboard and core web routes that render Jinja templates.
 """
 
-from flask import Blueprint, flash, current_app, redirect, url_for
+from flask import Blueprint, flash, current_app, redirect, url_for, request
+from flask_login import login_required, current_user
 from app.models import ModelCapability, GeneratedApplication
 from app.utils.template_paths import render_template_compat as render_template
 from app.routes.shared_utils import _norm_caps
@@ -13,7 +14,16 @@ from app.routes.shared_utils import _norm_caps
 # Create blueprint
 main_bp = Blueprint('main', __name__)
 
+# Require authentication for ALL routes
+@main_bp.before_request
+def require_authentication():
+    """Require authentication for all main blueprint endpoints."""
+    if not current_user.is_authenticated:
+        flash('Please log in to access this page.', 'info')
+        return redirect(url_for('auth.login', next=request.url))
+
 @main_bp.route('/')
+@login_required
 def dashboard():
     """Main dashboard page."""
     try:
@@ -77,6 +87,16 @@ def system_status():
     """Deprecated: redirect to dashboard where system stats now live."""
     from flask import redirect, url_for
     return redirect(url_for('main.dashboard'))
+
+@main_bp.route('/api-access')
+@login_required
+def api_access():
+    """API Access and token management page."""
+    return render_template(
+        'pages/api_access.html',
+        page_title='API Access',
+        active_page='api-access'
+    )
 
 @main_bp.route('/test-platform')
 def testing():

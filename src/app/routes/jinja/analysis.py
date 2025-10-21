@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from flask import Blueprint, current_app, request, redirect, url_for, flash, jsonify, make_response, abort
+from flask_login import login_required, current_user
 from werkzeug.exceptions import HTTPException
 
 from app.models import AnalysisTask
@@ -21,6 +22,14 @@ from app.services import analysis_result_store
 
 # Create blueprint
 analysis_bp = Blueprint('analysis', __name__, url_prefix='/analysis')
+
+# Require authentication for all analysis routes
+@analysis_bp.before_request
+def require_authentication():
+    """Require authentication for all analysis endpoints."""
+    if not current_user.is_authenticated:
+        flash('Please log in to access analysis features.', 'info')
+        return redirect(url_for('auth.login', next=request.url))
 
 
 def _render_task_tab(template_name: str, task_id: str):
