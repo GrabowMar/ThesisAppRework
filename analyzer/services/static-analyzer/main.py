@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Set
 
 from analyzer.shared.service_base import BaseWSService
+from parsers import parse_tool_output
 
 
 class StaticAnalyzer(BaseWSService):
@@ -30,8 +31,20 @@ class StaticAnalyzer(BaseWSService):
             'coverage', 'site-packages'
         ]
 
-    async def _run_tool(self, cmd: List[str], tool_name: str, timeout: int = 120, success_exit_codes: List[int] = [0]) -> Dict[str, Any]:
-        """Run a tool and capture its output, handling JSON parsing and errors."""
+    async def _run_tool(self, cmd: List[str], tool_name: str, config: Optional[Dict] = None, timeout: int = 120, success_exit_codes: List[int] = [0]) -> Dict[str, Any]:
+        """
+        Run a tool and capture its output, parsing with tool-specific parsers.
+        
+        Args:
+            cmd: Command to execute
+            tool_name: Name of the tool for parser selection
+            config: Configuration dict to include in parsed output
+            timeout: Command timeout in seconds
+            success_exit_codes: List of exit codes considered successful
+            
+        Returns:
+            Standardized result dictionary with parsed issues
+        """
         self.log.info(f"Running {tool_name}: {' '.join(cmd)}")
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -42,17 +55,17 @@ class StaticAnalyzer(BaseWSService):
                 return {'tool': tool_name, 'executed': True, 'status': 'error', 'error': error_message}
 
             if not result.stdout:
-                return {'tool': tool_name, 'executed': True, 'status': 'no_issues', 'total_issues': 0}
+                return {'tool': tool_name, 'executed': True, 'status': 'no_issues', 'issues': [], 'total_issues': 0}
 
             try:
-                parsed = json.loads(result.stdout)
-                # If tool returns a list (like pylint), wrap it in a dict
-                if isinstance(parsed, list):
-                    return {'tool': tool_name, 'executed': True, 'status': 'success', 'results': parsed, 'total_issues': len(parsed)}
-                return parsed
-            except json.JSONDecodeError:
+                raw_output = json.loads(result.stdout)
+                # Use tool-specific parser to standardize output
+                parsed_result = parse_tool_output(tool_name, raw_output, config)
+                return parsed_result
+            except json.JSONDecodeError as e:
+                self.log.warning(f"{tool_name} produced invalid JSON: {e}")
                 # Fallback for tools that don't produce JSON
-                return {'tool': tool_name, 'executed': True, 'status': 'completed', 'output': result.stdout}
+                return {'tool': tool_name, 'executed': True, 'status': 'completed', 'output': result.stdout[:1000]}
 
         except FileNotFoundError:
             self.log.error(f"{tool_name} not found. Is it installed and in PATH?")
@@ -165,19 +178,8 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             else:
                 cmd.extend(['--skip', 'B101'])
 
-            bandit_result = await self._run_tool(cmd, 'bandit', success_exit_codes=[0, 1])  # 1 = issues found
-            if bandit_result.get('status') == 'error':
-                results['bandit'] = bandit_result
-            else:
-                results['bandit'] = {
-                    'tool': 'bandit',
-                    'executed': True,
-                    'status': 'success' if bandit_result.get('results') else 'no_issues',
-                    'issues': bandit_result.get('results', []),
-                    'total_issues': len(bandit_result.get('results', [])),
-                    'metrics': bandit_result.get('metrics', {}),
-                    'config_used': bandit_config
-                }
+            # Parser handles all output formatting
+            results['bandit'] = await self._run_tool(cmd, 'bandit', config=bandit_config, success_exit_codes=[0, 1])
         
         # Pylint code quality
         if (
@@ -201,28 +203,13 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 cmd = ['pylint', '--rcfile', pylintrc_file, '--output-format=json'] + [str(f) for f in files_to_check]
                 
                 # Pylint uses bitflags: 1=fatal, 2=error, 4=warning, 8=refactor, 16=convention, 32=usage error
-                pylint_result = await self._run_tool(cmd, 'pylint', success_exit_codes=[0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32])
-
+                # Parser handles all output formatting
+                results['pylint'] = await self._run_tool(cmd, 'pylint', config=pylint_config, 
+                                                        success_exit_codes=[0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32])
                 os.unlink(pylintrc_file)
 
-                # Check if pylint returned an error dict or success dict with results
-                if isinstance(pylint_result, dict) and pylint_result.get('status') == 'error':
-                    results['pylint'] = pylint_result
-                else:
-                    # _run_tool now wraps list responses, so get 'results' or use empty list
-                    pylint_data = pylint_result.get('results', []) if isinstance(pylint_result, dict) else []
-                    results['pylint'] = {
-                        'tool': 'pylint',
-                        'executed': True,
-                        'status': 'success' if pylint_data else 'no_issues',
-                        'issues': pylint_data,
-                        'total_issues': len(pylint_data),
-                        'files_analyzed': len(files_to_check),
-                        'config_used': pylint_config
-                    }
             except Exception as e:
                 self.log.error(f"Pylint analysis failed: {e}")
-                results['pylint'] = {'tool': 'pylint', 'executed': True, 'status': 'error', 'error': str(e)}
                 results['pylint'] = {'tool': 'pylint', 'executed': True, 'status': 'error', 'error': str(e)}
 
         # Semgrep multi-language security analysis
@@ -232,28 +219,8 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             and semgrep_config.get('enabled', True)
         ):
             cmd = ['semgrep', 'scan', '--json', '--config=auto', str(source_path)]
-            
-            semgrep_result = await self._run_tool(cmd, 'semgrep')
-
-            if semgrep_result.get('status') == 'error':
-                results['semgrep'] = semgrep_result
-            else:
-                total_issues = len(semgrep_result.get('results', []))
-                severity_counts = {'ERROR': 0, 'WARNING': 0, 'INFO': 0}
-                for finding in semgrep_result.get('results', []):
-                    severity = finding.get('extra', {}).get('severity', 'INFO')
-                    severity_counts[severity] = severity_counts.get(severity, 0) + 1
-                
-                results['semgrep'] = {
-                    'tool': 'semgrep',
-                    'executed': True,
-                    'status': 'success' if total_issues > 0 else 'no_issues',
-                    'results': semgrep_result.get('results', []),
-                    'total_issues': total_issues,
-                    'severity_breakdown': severity_counts,
-                    'errors': semgrep_result.get('errors', []),
-                    'config_used': semgrep_config
-                }
+            # Parser handles all output formatting
+            results['semgrep'] = await self._run_tool(cmd, 'semgrep', config=semgrep_config)
 
         # Mypy type checking
         if (
@@ -307,20 +274,8 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             if requirements_file.exists():
                 cmd.extend(['--file', str(requirements_file)])
 
-            safety_result = await self._run_tool(cmd, 'safety', success_exit_codes=[0, 1])
-
-            if safety_result.get('status') == 'error':
-                results['safety'] = safety_result
-            else:
-                vulnerabilities = safety_result.get('vulnerabilities', [])
-                results['safety'] = {
-                    'tool': 'safety',
-                    'executed': True,
-                    'status': 'success' if vulnerabilities else 'no_issues',
-                    'vulnerabilities': vulnerabilities,
-                    'total_issues': len(vulnerabilities),
-                    'config_used': safety_config
-                }
+            # Parser handles all output formatting
+            results['safety'] = await self._run_tool(cmd, 'safety', config=safety_config, success_exit_codes=[0, 1])
 
         # Vulture dead code detection
         if (
@@ -372,33 +327,8 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             files_to_check = python_files[:max_files]
             cmd.extend([str(f) for f in files_to_check])
             
-            # Flake8 exits with 1 when it finds issues
-            flake8_result = await self._run_tool(cmd, 'flake8', success_exit_codes=[0, 1])
-            
-            if flake8_result.get('status') == 'error':
-                results['flake8'] = flake8_result
-            else:
-                # Flake8 JSON format returns a dict with filename keys
-                flake8_issues = []
-                if isinstance(flake8_result, dict) and 'results' in flake8_result:
-                    for file_issues in flake8_result['results'].values():
-                        if isinstance(file_issues, list):
-                            flake8_issues.extend(file_issues)
-                elif 'output' in flake8_result:
-                    # Fallback: parse text output
-                    for line in flake8_result['output'].splitlines():
-                        if ':' in line:
-                            flake8_issues.append({'raw': line})
-                
-                results['flake8'] = {
-                    'tool': 'flake8',
-                    'executed': True,
-                    'status': 'success' if flake8_issues else 'no_issues',
-                    'results': flake8_issues,
-                    'total_issues': len(flake8_issues),
-                    'files_analyzed': len(files_to_check),
-                    'config_used': flake8_config
-                }
+            # Parser handles all output formatting
+            results['flake8'] = await self._run_tool(cmd, 'flake8', config=flake8_config, success_exit_codes=[0, 1])
         
         # Summarize per-tool status for Python analyzers
         try:
@@ -465,29 +395,8 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 else:
                     cmd.append(str(source_path))
 
-                eslint_result = await self._run_tool(cmd, 'eslint', success_exit_codes=[0, 1, 2])  # 1=lint errors, 2=fatal errors
-
-                if eslint_result.get('status') == 'error':
-                    results['eslint'] = eslint_result
-                else:
-                    eslint_data = eslint_result if isinstance(eslint_result, list) else []
-                    total_issues = sum(len(file_result.get('messages', [])) if isinstance(file_result, dict) else 0 for file_result in eslint_data)
-                    severity_counts = {'error': 0, 'warning': 0}
-                    for file_result in eslint_data:
-                        if isinstance(file_result, dict):
-                            for message in file_result.get('messages', []):
-                                severity = 'error' if message.get('severity') == 2 else 'warning'
-                                severity_counts[severity] += 1
-                    
-                    results['eslint'] = {
-                        'tool': 'eslint',
-                        'executed': True,
-                        'status': 'success' if total_issues > 0 else 'no_issues',
-                        'results': eslint_data,
-                        'total_issues': total_issues,
-                        'severity_breakdown': severity_counts,
-                        'config_used': {'mode': 'no-config-lookup', 'note': 'Using ESLint defaults'}
-                    }
+                # Parser handles all output formatting
+                results['eslint'] = await self._run_tool(cmd, 'eslint', config=eslint_config, success_exit_codes=[0, 1, 2])
             except Exception as e:
                 self.log.error(f"ESLint analysis failed: {e}")
                 results['eslint'] = {'tool': 'eslint', 'executed': True, 'status': 'error', 'error': str(e)}

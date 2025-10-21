@@ -1,0 +1,72 @@
+{# Modal for displaying Docker operation logs with real-time status updates #}
+<div class="modal fade" id="container-logs-modal" tabindex="-1" aria-labelledby="containerLogsLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content bg-dark text-white">
+      <div class="modal-header border-0">
+        <div>
+          <h5 class="modal-title" id="containerLogsLabel">
+            <i class="fas fa-terminal me-2"></i>
+            Container Operation Logs
+          </h5>
+          <div class="small text-secondary" id="log-operation-name"></div>
+        </div>
+        <button type="button" class="btn-close btn-close-white" id="log-modal-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body pt-0">
+        <div id="log-status-banner" class="alert alert-info m-3 mb-0 d-flex align-items-center">
+          <div class="spinner-border spinner-border-sm me-3" id="log-spinner" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <div>
+            <div class="fw-bold" id="log-status-text">Initializing...</div>
+            <div class="small text-white-50" id="log-status-detail"></div>
+          </div>
+          <div class="ms-auto text-uppercase small text-white-50">
+            Elapsed: <span id="log-elapsed-time">0s</span>
+          </div>
+        </div>
+
+        <div class="px-3 py-2 d-flex flex-wrap align-items-center gap-2 border-bottom border-secondary">
+          <div class="badge bg-secondary" id="log-line-count">0 lines</div>
+          <div class="text-white-50 small">Auto-scroll</div>
+          <button class="btn btn-sm btn-outline-light" id="log-scroll-toggle" type="button">
+            <i class="fas fa-arrow-down"></i>
+          </button>
+          <div class="ms-auto d-flex flex-wrap gap-2">
+            <button class="btn btn-sm btn-outline-light" id="log-copy" type="button" title="Copy logs">
+              <i class="fas fa-copy me-1"></i>Copy
+            </button>
+            <button class="btn btn-sm btn-outline-light" id="log-download" type="button" title="Download logs">
+              <i class="fas fa-download me-1"></i>Download
+            </button>
+            <button class="btn btn-sm btn-outline-light" id="log-clear" type="button" title="Clear logs">
+              <i class="fas fa-eraser me-1"></i>Clear
+            </button>
+          </div>
+        </div>
+
+        <div class="px-3 py-2" id="log-progress-bar-container" style="display:none;">
+          <div class="progress" style="height: 6px;">
+            <div class="progress-bar bg-success" id="log-progress-bar" role="progressbar" style="width:0%;"></div>
+          </div>
+        </div>
+
+        <div class="px-3 pb-3">
+          <div class="border border-secondary rounded bg-black" style="min-height: 320px; max-height: 500px; overflow-y: auto; font-family: var(--tblr-font-monospace);">
+            <div class="p-3" id="log-output"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer border-0 d-flex justify-content-between">
+        <button type="button" class="btn btn-outline-warning" id="log-cancel-btn" style="display:none;">
+          <i class="fas fa-ban me-1"></i>Cancel Operation
+        </button>
+        <button type="button" class="btn btn-primary" id="log-close-btn" data-bs-dismiss="modal">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

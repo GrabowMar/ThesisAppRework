@@ -98,6 +98,10 @@
         <div class="col-8">#{{ task.target_app_number }}</div>
       </div>
       <div class="row g-1 mb-1">
+        <div class="col-4 text-muted">Task Name:</div>
+        <div class="col-8">{{ task.name or 'N/A' }}</div>
+      </div>
+      <div class="row g-1 mb-1">
         <div class="col-4 text-muted">Priority:</div>
         <div class="col-8"><span class="badge bg-info text-dark">{{ task.priority }}</span></div>
       </div>

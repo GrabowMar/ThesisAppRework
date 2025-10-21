@@ -5,7 +5,7 @@ Main routes for the Flask application
 Dashboard and core web routes that render Jinja templates.
 """
 
-from flask import Blueprint, flash, current_app, redirect, url_for, request
+from flask import Blueprint, flash, current_app, redirect, url_for, request, jsonify
 from flask_login import login_required, current_user
 from app.models import ModelCapability, GeneratedApplication
 from app.utils.template_paths import render_template_compat as render_template
@@ -242,6 +242,37 @@ def applications_detail_section_alias(model_slug, app_number, section):
     except Exception as e:  # pragma: no cover
         current_app.logger.error(f"Error loading application section alias: {e}")
         return f'<div class="alert alert-danger">Failed to load section: {section}</div>', 500
+
+@main_bp.route('/applications/<model_slug>/<int:app_number>/prompts/modal')
+def applications_prompts_modal_alias(model_slug, app_number):
+    """Alias for prompts modal endpoint using /applications path."""
+    try:
+        from app.routes.jinja.models import application_section_prompts  # type: ignore
+        return application_section_prompts(model_slug, app_number)
+    except Exception as e:  # pragma: no cover
+        current_app.logger.error(f"Error loading prompts modal alias: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@main_bp.route('/applications/<model_slug>/<int:app_number>/file')
+def applications_file_alias(model_slug, app_number):
+    """Alias for file preview endpoint using /applications path."""
+    try:
+        from app.routes.jinja.models import application_file_preview  # type: ignore
+        return application_file_preview(model_slug, app_number)
+    except Exception as e:  # pragma: no cover
+        current_app.logger.error(f"Error loading application file alias: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@main_bp.route('/applications/<model_slug>/<int:app_number>/generation-metadata')
+def applications_generation_metadata_alias(model_slug, app_number):
+    """Alias for generation metadata endpoint using /applications path."""
+    try:
+        from app.routes.jinja.models import application_generation_metadata  # type: ignore
+        return application_generation_metadata(model_slug, app_number)
+    except Exception as e:  # pragma: no cover
+        current_app.logger.error(f"Error loading generation metadata alias: {e}")
+        from flask import jsonify
+        return jsonify({'error': str(e)}), 500
 
 # ---------------------------------------------------------------------------
 # Advanced features (consolidated from advanced.py)

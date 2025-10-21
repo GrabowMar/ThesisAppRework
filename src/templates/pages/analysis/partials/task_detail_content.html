@@ -137,30 +137,41 @@
   fetch(`/analysis/api/tasks/${taskId}/results.json`)
     .then(res => res.json())
     .then(data => {
-      const results = data.results || {};
-      const summary = results.summary || {};
-      const findings = results.findings || [];
+      console.log('Analysis data loaded:', data);
+      
+      // Extract summary - could be at root or in results
+      const summary = data.summary || data.results?.summary || {};
+      
+      // Extract findings - they're in the unified format at root level
+      const findings = data.findings || [];
       
       allFindings = findings;
       filteredFindings = findings;
       
+      // Count findings by category
+      const securityCount = findings.filter(f => (f.category || '').toLowerCase().includes('security')).length;
+      const qualityCount = findings.filter(f => (f.category || '').toLowerCase().includes('quality')).length;
+      const performanceCount = findings.filter(f => (f.category || '').toLowerCase().includes('performance')).length;
+      
       // Update summary table
-      document.getElementById('total-findings').textContent = summary.total_findings || 0;
-      document.getElementById('security-count').textContent = summary.security_findings || 0;
-      document.getElementById('quality-count').textContent = summary.quality_issues || 0;
-      document.getElementById('performance-count').textContent = summary.performance_issues || 0;
-      document.getElementById('tools-executed').textContent = summary.tools_executed || 0;
+      document.getElementById('total-findings').textContent = summary.total_findings || findings.length || 0;
+      document.getElementById('security-count').textContent = securityCount;
+      document.getElementById('quality-count').textContent = qualityCount;
+      document.getElementById('performance-count').textContent = performanceCount;
+      document.getElementById('tools-executed').textContent = (summary.tools_used || []).length || 0;
       
       // Update breakdown details
-      const sev = summary.by_severity || {};
+      const sev = summary.severity_breakdown || {};
       document.getElementById('findings-breakdown').textContent = 
         `Critical: ${sev.critical || 0}, High: ${sev.high || 0}, Medium: ${sev.medium || 0}, Low: ${sev.low || 0}`;
       
       document.getElementById('security-severity').textContent = 
         `Critical: ${sev.critical || 0}, High: ${sev.high || 0}`;
       
+      const toolsFailed = (summary.tools_failed || []).length;
+      const toolsUsed = (summary.tools_used || []).length;
       document.getElementById('tools-status').textContent = 
-        `${summary.tools_successful || 0} successful, ${summary.tools_failed || 0} failed`;
+        `${toolsUsed - toolsFailed} successful, ${toolsFailed} failed`;
       
       // Render findings table
       renderFindings();

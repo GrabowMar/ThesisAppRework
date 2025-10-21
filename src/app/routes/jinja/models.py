@@ -435,7 +435,7 @@ def models_overview():
 def application_detail(model_slug, app_number):
     """Detailed view for a specific application using the unified detail context."""
     try:
-        context = build_application_detail_context(model_slug, app_number)
+        context = build_application_detail_context(model_slug, app_number, allow_synthetic=True)
         return render_template('pages/applications/detail.html', **context)
     except HTTPException:
         raise
@@ -567,6 +567,54 @@ def application_section_artifacts(model_slug, app_number):
 @models_bp.route('/application/<model_slug>/<int:app_number>/section/logs')
 def application_section_logs(model_slug, app_number):
     return _render_application_section(model_slug, app_number, 'logs')
+
+@models_bp.route('/application/<model_slug>/<int:app_number>/generation-metadata')
+def application_generation_metadata(model_slug, app_number):
+    """View generation metadata JSON files for backend and frontend."""
+    from pathlib import Path
+    from flask import jsonify
+    
+    metadata_dir = Path('generated') / 'metadata' / 'indices' / 'runs' / model_slug / f'app{app_number}'
+    
+    if not metadata_dir.exists():
+        return jsonify({
+            'error': 'Metadata directory not found',
+            'path': str(metadata_dir),
+            'backend': None,
+            'frontend': None
+        }), 404
+    
+    result = {
+        'model_slug': model_slug,
+        'app_number': app_number,
+        'metadata_dir': str(metadata_dir),
+        'backend': None,
+        'frontend': None
+    }
+    
+    # Find backend metadata
+    backend_files = list(metadata_dir.glob(f'{model_slug}_app{app_number}_backend_*_metadata.json'))
+    if backend_files:
+        try:
+            import json
+            with open(backend_files[0], 'r', encoding='utf-8') as f:
+                result['backend'] = json.load(f)
+                result['backend_file'] = backend_files[0].name
+        except Exception as e:
+            result['backend_error'] = str(e)
+    
+    # Find frontend metadata
+    frontend_files = list(metadata_dir.glob(f'{model_slug}_app{app_number}_frontend_*_metadata.json'))
+    if frontend_files:
+        try:
+            import json
+            with open(frontend_files[0], 'r', encoding='utf-8') as f:
+                result['frontend'] = json.load(f)
+                result['frontend_file'] = frontend_files[0].name
+        except Exception as e:
+            result['frontend_error'] = str(e)
+    
+    return jsonify(result)
 
 def _render_application_section(model_slug: str, app_number: int, section: str):
     """Shared loader for application detail sections (partials)."""

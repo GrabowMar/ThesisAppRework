@@ -313,9 +313,8 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
           refreshApplications();
         }
       }, 1000);
-    } catch (e) {
-      // Not JSON or no message
-      showNotification('Operation completed', 'success');
+    } catch (_err) {
+      // Non-JSON response; skip toast to avoid redundant alerts.
     }
   }
 });

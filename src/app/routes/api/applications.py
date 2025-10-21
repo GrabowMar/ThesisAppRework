@@ -3,7 +3,7 @@ Applications API module for managing generated applications.
 Handles application lifecycle, container operations, and monitoring.
 """
 
-from flask import Blueprint, request
+from flask import Blueprint, request, current_app
 from typing import TYPE_CHECKING, cast
 from app.routes.api.common import api_error, api_success
 
@@ -257,35 +257,77 @@ def get_app_status(model_slug, app_number):
         cached_status: str, last_check: datetime, status_age_minutes: float
       }
     """
+    from app.services.service_locator import ServiceLocator
+    from app.models import GeneratedApplication
+    from app.extensions import db
+    from datetime import datetime, timezone
+
+    docker_mgr = ServiceLocator.get_docker_manager()
+    if not docker_mgr:
+        return api_error("Docker manager unavailable", status=503)
+    from typing import cast
+    from app.services.docker_manager import DockerManager  # type: ignore
+    docker_mgr = cast(DockerManager, docker_mgr)
+    
+    errors = []
+    app = None
+    
     try:
-        from app.services.service_locator import ServiceLocator
-        from app.models import GeneratedApplication
-        from app.extensions import db
-        from datetime import datetime, timezone
-        
-        docker_mgr = ServiceLocator.get_docker_manager()
-        if not docker_mgr:
-            return api_error("Docker manager unavailable", status=503)
-        from typing import cast
-        from app.services.docker_manager import DockerManager  # type: ignore
-        docker_mgr = cast(DockerManager, docker_mgr)
-        
         # Get application from database
         app = GeneratedApplication.query.filter_by(
             model_slug=model_slug, 
             app_number=app_number
         ).first()
         
-        # Check Docker status
-        pre = docker_mgr.compose_preflight(model_slug, app_number)
-        summary = docker_mgr.container_status_summary(model_slug, app_number)
-        states = (summary.get('states') or [])
-        running = any(s.lower() == 'running' for s in states)
-        
-        # Determine current Docker status
+        # Check Docker status with defensive fallbacks to avoid noisy 500s
+        try:
+            pre = docker_mgr.compose_preflight(model_slug, app_number)
+        except Exception as err:  # pragma: no cover - environment specific
+            current_app.logger.warning(
+                "compose_preflight failed for %s/app%s: %s", model_slug, app_number, err
+            )
+            pre = {
+                'model': model_slug,
+                'app_num': app_number,
+                'compose_file': None,
+                'compose_file_exists': False,
+                'docker_connected': False,
+                'project_name': docker_mgr._get_project_name(model_slug, app_number)
+            }
+            errors.append({'stage': 'compose_preflight', 'error': str(err)})
+
+        try:
+            summary = docker_mgr.container_status_summary(model_slug, app_number)
+        except Exception as err:  # pragma: no cover - environment specific
+            current_app.logger.warning(
+                "container_status_summary failed for %s/app%s: %s", model_slug, app_number, err
+            )
+            summary = {
+                'model': model_slug,
+                'app_num': app_number,
+                'containers_found': 0,
+                'states': [],
+                'containers': []
+            }
+            errors.append({'stage': 'status_summary', 'error': str(err)})
+
+        raw_states = summary.get('states') or []
+        states = raw_states
+        normalized_states: list[str] = []
+        for state in raw_states:
+            if isinstance(state, str):
+                normalized_states.append(state.strip().lower())
+            elif state is None:
+                continue
+            else:
+                normalized_states.append(str(state).strip().lower())
+
+        running = any(s == 'running' for s in normalized_states)
+
+        # Determine current Docker status using normalized states and preflight hints
         if running:
             docker_status = 'running'
-        elif states:
+        elif normalized_states:
             docker_status = 'stopped'
         elif pre.get('compose_file_exists'):
             docker_status = 'not_created'
@@ -295,14 +337,21 @@ def get_app_status(model_slug, app_number):
         # If we have the app in database, update its status
         if app:
             # Update database status if it differs from Docker
-            if app.container_status != docker_status:
-                app.update_container_status(docker_status)
-                db.session.commit()
-            elif not app.last_status_check:
-                # Update timestamp even if status is the same
-                app.last_status_check = datetime.now(timezone.utc)
-                db.session.commit()
-                
+            try:
+                if app.container_status != docker_status:
+                    app.update_container_status(docker_status)
+                    db.session.commit()
+                elif not app.last_status_check:
+                    # Update timestamp even if status is the same
+                    app.last_status_check = datetime.now(timezone.utc)
+                    db.session.commit()
+            except Exception as db_err:  # pragma: no cover - database specific
+                db.session.rollback()
+                current_app.logger.warning(
+                    "Failed to persist container status for %s/app%s: %s", model_slug, app_number, db_err
+                )
+                errors.append({'stage': 'database', 'error': str(db_err)})
+
             status_age_minutes = None
             if app.last_status_check:
                 # Ensure both datetimes are timezone-aware
@@ -328,11 +377,33 @@ def get_app_status(model_slug, app_number):
             'cached_status': app.container_status if app else None,
             'last_check': app.last_status_check.isoformat() if app and app.last_status_check else None,
             'status_age_minutes': status_age_minutes,
-            'status_is_fresh': app.is_status_fresh() if app else False
+            'status_is_fresh': app.is_status_fresh() if app else False,
+            'errors': errors
         }
         return api_success(payload, message='Status retrieved')
+
     except Exception as e:
-        return api_error(f'Error retrieving status: {e}', status=500)
+        current_app.logger.exception(
+            "Unhandled error retrieving status for %s/app%s: %s", model_slug, app_number, e
+        )
+        # Fallback payload to prevent frontend from breaking on 500
+        payload = {
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'project_name': None,
+            'compose_file_exists': False,
+            'docker_connected': False,
+            'containers': [],
+            'states': [],
+            'running': False,
+            'docker_status': 'error',
+            'cached_status': app.container_status if app else 'unknown',
+            'last_check': app.last_status_check.isoformat() if app and app.last_status_check else None,
+            'status_age_minutes': None,
+            'status_is_fresh': False,
+            'errors': errors + [{'stage': 'unhandled', 'error': str(e)}]
+        }
+        return api_success(payload, message='Status retrieved with errors', status=200)
 
 @applications_bp.route('/app/<model_slug>/<int:app_number>/logs/tails', methods=['GET'])
 def get_app_log_tails(model_slug, app_number):
