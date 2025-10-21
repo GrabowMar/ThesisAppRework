@@ -48,6 +48,8 @@ def internal_error(error):
     logger.error(f'Internal error: {error}')
     return jsonify({'error': 'Internal server error', 'message': 'An unexpected error occurred'}), 500
 
+# === AI GENERATED CODE START ===
+
 if __name__ == '__main__':
     # Get port from environment variable with fallback
     port = int(os.environ.get('FLASK_RUN_PORT', os.environ.get('PORT', 5000)))

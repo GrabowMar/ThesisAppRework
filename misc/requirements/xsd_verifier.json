@@ -2,13 +2,58 @@
   "app_id": "xsd_verifier",
   "name": "XSD Validator",
   "description": "A tool to validate XML documents against XSD schemas",
+  "api_endpoints": [
+    {
+      "method": "POST",
+      "path": "/api/validate",
+      "description": "Validate an XML document against an XSD schema using multipart form upload",
+      "request": {
+        "content_type": "multipart/form-data",
+        "fields": {
+          "xml_file": "XML file upload (required)",
+          "xsd_file": "XSD file upload (required)"
+        }
+      },
+      "response": {
+        "is_valid": true,
+        "errors": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/history",
+      "description": "Retrieve validation history sorted by newest first",
+      "request": null,
+      "response": [
+        {
+          "id": 1,
+          "xml_filename": "sample.xml",
+          "xsd_filename": "schema.xsd",
+          "is_valid": true,
+          "error_message": null,
+          "created_at": "2024-01-01T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/history/{history_id}/revalidate",
+      "description": "Re-run validation for a stored history record",
+      "request": null,
+      "response": {
+        "history_id": 1,
+        "is_valid": true,
+        "error_message": null
+      },
+      "notes": "Store original XML & XSD content so the server can re-run validation without new uploads"
+    }
+  ],
   "backend_requirements": [
-    "Accept XML file upload via POST endpoint",
-    "Accept XSD schema file upload via POST endpoint",
-    "Validate XML against provided XSD schema using lxml library",
-    "Return validation results with detailed error messages if validation fails",
-    "Store validation history with timestamps in SQLite database",
-    "Provide endpoint to retrieve past validation results"
+    "Implement POST /api/validate accepting multipart form-data with xml_file and xsd_file and return validation result JSON",
+    "Use lxml to validate XML against provided XSD with detailed error output when invalid",
+    "Store XML/XSD filenames, validation result, errors, and timestamps in SQLite database",
+    "Implement GET /api/history returning all validation attempts ordered newest first",
+    "Implement POST /api/history/{history_id}/revalidate to re-run validation using stored payloads"
   ],
   "frontend_requirements": [
     "Form to upload XML file (with file input and preview)",
@@ -18,6 +63,7 @@
     "Show validation history in a table with timestamps",
     "Ability to re-run validation on previous submissions",
     "Loading indicator during validation process",
-    "Error handling for file upload failures"
+    "Error handling for file upload failures",
+    "Call POST /api/validate for new checks, GET /api/history to list results, and POST /api/history/{id}/revalidate when re-running"
   ]
 }

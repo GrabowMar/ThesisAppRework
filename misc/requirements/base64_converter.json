@@ -2,13 +2,54 @@
   "app_id": "base64_converter",
   "name": "Base64 Encoder/Decoder",
   "description": "A simple tool to encode text to Base64 and decode Base64 back to text",
+  "api_endpoints": [
+    {
+      "method": "POST",
+      "path": "/api/encode",
+      "description": "Encode plain text to Base64 and persist the operation to history",
+      "request": {
+        "text": "string (UTF-8 text to encode)"
+      },
+      "response": {
+        "encoded_text": "string",
+        "created_at": "ISO 8601 timestamp"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/decode",
+      "description": "Decode a Base64 string back to plain text and persist the operation",
+      "request": {
+        "encoded_text": "string (Base64 input)"
+      },
+      "response": {
+        "decoded_text": "string",
+        "created_at": "ISO 8601 timestamp"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/history",
+      "description": "Retrieve conversion history ordered from newest to oldest",
+      "request": null,
+      "response": [
+        {
+          "id": 1,
+          "operation": "encode",
+          "input_text": "Hello",
+          "output_text": "SGVsbG8=",
+          "created_at": "2024-01-01T00:00:00Z"
+        }
+      ]
+    }
+  ],
   "backend_requirements": [
-    "Endpoint to encode plain text to Base64 format",
-    "Endpoint to decode Base64 string back to plain text",
+    "Implement POST /api/encode to accept JSON with `text` and return JSON with `encoded_text` and timestamp",
+    "Implement POST /api/decode to accept JSON with `encoded_text` and return JSON with `decoded_text` and timestamp",
     "Handle encoding/decoding errors gracefully with proper error messages",
     "Support for UTF-8 text encoding",
     "Store conversion history with timestamps in SQLite database",
-    "Provide endpoint to retrieve conversion history"
+    "Provide GET /api/history endpoint returning conversion history in reverse chronological order"
   ],
   "frontend_requirements": [
     "Text area for input (plain text or Base64)",
@@ -18,6 +59,7 @@
     "Copy to clipboard button for the result",
     "Display conversion history with timestamps",
     "Clear input/output button",
-    "Error messages for invalid Base64 input during decode"
+    "Error messages for invalid Base64 input during decode",
+    "Call POST /api/encode and POST /api/decode for conversions and GET /api/history to refresh the list"
   ]
 }

@@ -2,14 +2,92 @@
   "app_id": "todo_app",
   "name": "Simple Todo List",
   "description": "A basic todo list application to manage tasks",
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/todos",
+      "description": "Retrieve all todo items",
+      "request": null,
+      "response": [
+        {
+          "id": 1,
+          "title": "Buy groceries",
+          "description": "Milk, eggs, bread",
+          "completed": false,
+          "created_at": "2024-01-01T00:00:00Z",
+          "updated_at": "2024-01-01T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/api/todos",
+      "description": "Create a new todo item",
+      "request": {
+        "title": "string (required)",
+        "description": "string (optional)"
+      },
+      "response": {
+        "id": 1,
+        "title": "Buy groceries",
+        "description": "Milk, eggs, bread",
+        "completed": false,
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-01T00:00:00Z"
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/api/todos/{todo_id}",
+      "description": "Update an existing todo item",
+      "request": {
+        "title": "string (optional)",
+        "description": "string (optional)",
+        "completed": "boolean (optional)"
+      },
+      "response": {
+        "id": 1,
+        "title": "Buy groceries",
+        "description": "Milk, eggs, bread",
+        "completed": true,
+        "created_at": "2024-01-01T00:00:00Z",
+        "updated_at": "2024-01-02T10:00:00Z"
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/todos/{todo_id}",
+      "description": "Delete a todo item",
+      "request": null,
+      "response": {
+        "message": "Todo deleted successfully"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/todos/filter",
+      "description": "Filter todos by completion status using `status` query param (all|active|completed)",
+      "request": null,
+      "response": [
+        {
+          "id": 2,
+          "title": "Read book",
+          "description": "Finish chapter 3",
+          "completed": false,
+          "created_at": "2024-01-03T08:00:00Z",
+          "updated_at": "2024-01-03T08:00:00Z"
+        }
+      ]
+    }
+  ],
   "backend_requirements": [
-    "Create new todo item with title and optional description",
-    "Retrieve all todo items",
-    "Update todo item (title, description, completed status)",
-    "Delete todo item by ID",
-    "Mark todo as completed or uncompleted",
-    "Store todos in SQLite database with timestamps",
-    "Filter todos by completion status (all, active, completed)"
+    "Implement POST /api/todos to create a todo with title and optional description",
+    "Implement GET /api/todos to list all todos ordered by newest first",
+    "Implement PUT /api/todos/{todo_id} to update title, description, or completed status",
+    "Implement DELETE /api/todos/{todo_id} to remove a todo",
+    "Mark todos as completed/uncompleted via the update endpoint",
+    "Store todos in SQLite database with created_at and updated_at timestamps",
+    "Provide GET /api/todos/filter?status=(all|active|completed) to filter results"
   ],
   "frontend_requirements": [
     "Form to add new todo with title and description fields",
@@ -21,6 +99,7 @@
     "Count of active todos",
     "Clear completed todos button",
     "Loading states during API operations",
-    "Confirmation dialog before deleting todos"
+    "Confirmation dialog before deleting todos",
+    "Use POST /api/todos, GET /api/todos, GET /api/todos/filter, PUT /api/todos/{id}, and DELETE /api/todos/{id} for data access"
   ]
 }

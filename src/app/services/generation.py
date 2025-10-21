@@ -29,6 +29,7 @@ generated/apps/{model}/app{N}/
     └── frontend/src/App.css (application)
 """
 
+import ast
 import asyncio
 import hashlib
 import json
@@ -38,6 +39,7 @@ import re
 import shutil
 import textwrap
 import time
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -345,6 +347,41 @@ class CodeGenerator:
         except Exception as e:
             logger.error(f"Failed to load template: {e}")
             return ""
+
+    def _format_api_endpoints(self, requirements: Optional[Dict[str, Any]]) -> str:
+        """Format API endpoint definitions for inclusion in prompts."""
+        if not requirements:
+            return "No explicit API endpoints provided."
+
+        endpoints = requirements.get('api_endpoints') or []
+        if not endpoints:
+            return "No explicit API endpoints provided."
+
+        formatted: List[str] = []
+        for endpoint in endpoints:
+            method = endpoint.get('method', 'GET')
+            path = endpoint.get('path', '/api/example')
+            description = (endpoint.get('description') or '').strip()
+            header = f"- {method} {path}: {description}".rstrip()
+            block_parts = [header]
+
+            request_spec = endpoint.get('request', None)
+            if request_spec is not None:
+                request_json = json.dumps(request_spec, ensure_ascii=True, indent=2)
+                block_parts.append(textwrap.indent(f"Request:\n{request_json}", "  "))
+
+            response_spec = endpoint.get('response', None)
+            if response_spec is not None:
+                response_json = json.dumps(response_spec, ensure_ascii=True, indent=2)
+                block_parts.append(textwrap.indent(f"Response:\n{response_json}", "  "))
+
+            notes = (endpoint.get('notes') or '').strip()
+            if notes:
+                block_parts.append(textwrap.indent(f"Notes: {notes}", "  "))
+
+            formatted.append('\n'.join(block_parts))
+
+        return '\n'.join(formatted)
     
     def _save_payload(self, run_id: str, model_slug: str, app_num: int, 
                      payload: Dict, headers: Dict) -> None:
@@ -496,6 +533,8 @@ class CodeGenerator:
                 req_list = '\n'.join([f"- {req}" for req in reqs.get('backend_requirements', [])])
             else:
                 req_list = '\n'.join([f"- {req}" for req in reqs.get('frontend_requirements', [])])
+
+            endpoint_text = self._format_api_endpoints(reqs)
             
             # Fill in template
             prompt = template.format(
@@ -503,7 +542,8 @@ class CodeGenerator:
                 app_name=app_name,
                 app_description=app_description,
                 backend_requirements=req_list if config.component == 'backend' else '',
-                frontend_requirements=req_list if config.component == 'frontend' else ''
+                frontend_requirements=req_list if config.component == 'frontend' else '',
+                api_endpoints=endpoint_text
             )
             
             logger.info(f"Built prompt using template: {len(prompt)} chars")
@@ -511,19 +551,25 @@ class CodeGenerator:
         
         # Fallback to old format if template/requirements not found
         logger.warning("Template or requirements not found, using fallback")
-        
+
+        endpoint_text = self._format_api_endpoints(reqs)
+
         if config.component == 'backend':
             if reqs and 'backend_requirements' in reqs:
                 req_list = '\n'.join([f"- {req}" for req in reqs['backend_requirements']])
                 app_desc = reqs.get('description', 'web application')
                 app_name = reqs.get('name', 'Application')
-                
-                return f"""Generate Python Flask backend code for: {app_name}
+
+                return (
+                    f"""Generate Python Flask backend code for: {app_name}
 
 Description: {app_desc}
 
 BACKEND REQUIREMENTS:
 {req_list}
+
+API ENDPOINTS:
+{endpoint_text}
 
 IMPORTANT CONSTRAINTS:
 - Generate ONLY the application code (routes, models, business logic)
@@ -535,29 +581,36 @@ IMPORTANT CONSTRAINTS:
 - Keep code clean, well-commented, and production-ready
 
 Generate the complete Flask backend code:"""
+                )
             else:
-                return """Generate Python code for a Flask backend API.
+                return (
+                    """Generate Python code for a Flask backend API.
 
-IMPORTANT: 
+IMPORTANT:
 - Generate ONLY the application-specific code
 - DO NOT generate Dockerfile, requirements.txt, or other infrastructure
 - Focus on routes, models, business logic
 - Keep it simple and working
 
 Generate the Flask API code:"""
-        
+                )
+
         else:  # frontend
             if reqs and 'frontend_requirements' in reqs:
                 req_list = '\n'.join([f"- {req}" for req in reqs['frontend_requirements']])
                 app_desc = reqs.get('description', 'web application')
                 app_name = reqs.get('name', 'Application')
-                
-                return f"""Generate React frontend code for: {app_name}
+
+                return (
+                    f"""Generate React frontend code for: {app_name}
 
 Description: {app_desc}
 
 FRONTEND REQUIREMENTS:
 {req_list}
+
+API ENDPOINTS:
+{endpoint_text}
 
 IMPORTANT CONSTRAINTS:
 - Generate ONLY the App.jsx component code
@@ -569,8 +622,10 @@ IMPORTANT CONSTRAINTS:
 - Keep code clean, well-commented, and production-ready
 
 Generate the complete React App.jsx component:"""
+                )
             else:
-                return """Generate React/JSX code for the frontend application.
+                return (
+                    """Generate React/JSX code for the frontend application.
 
 IMPORTANT:
 - Generate ONLY the App.jsx component code
@@ -579,7 +634,8 @@ IMPORTANT:
 - Keep it simple and working
 
 Generate the React component code:"""
-    
+                )
+
     def _get_system_prompt(self, component: str) -> str:
         """Get system prompt."""
         if component == 'frontend':
@@ -624,15 +680,97 @@ class CodeMerger:
 
     def __init__(self):
         self._backend_scaffold_sections: Optional[Tuple[str, str]] = None
+        try:
+            self._stdlib_modules = {name.lower() for name in sys.stdlib_module_names}  # type: ignore[attr-defined]
+        except AttributeError:
+            # Python < 3.10 fallback – conservative default
+            self._stdlib_modules = set()
+
+        # Modules that usually point to local project files rather than packages
+        self._local_prefixes = {
+            'app', 'config', 'settings', 'models', 'services', 'schemas',
+            'routes', 'controllers', 'repository', 'repositories', 'tasks',
+            'utils', 'helpers', 'database', 'db', 'storage'
+        }
+
+        # Map common module names to pinned requirement strings (aligns with scaffolding expectations)
+        self._package_version_map = {
+            'flask': 'Flask==3.0.0',
+            'flask_sqlalchemy': 'Flask-SQLAlchemy==3.1.1',
+            'sqlalchemy': 'SQLAlchemy==2.0.25',
+            'flask_cors': 'Flask-CORS==4.0.0',
+            'requests': 'requests==2.31.0',
+            'lxml': 'lxml==5.1.0',
+            'bs4': 'beautifulsoup4==4.12.3',
+            'beautifulsoup4': 'beautifulsoup4==4.12.3',
+            'pandas': 'pandas==2.2.0',
+            'numpy': 'numpy==1.26.4',
+            'dotenv': 'python-dotenv==1.0.1',
+            'python_dotenv': 'python-dotenv==1.0.1',
+            'pyjwt': 'PyJWT==2.8.0',
+            'jwt': 'PyJWT==2.8.0',
+            'passlib': 'passlib==1.7.4',
+            'bcrypt': 'bcrypt==4.1.2',
+            'cryptography': 'cryptography==42.0.0',
+            'celery': 'celery==5.3.4',
+            'redis': 'redis==5.0.1',
+            'boto3': 'boto3==1.34.44',
+            'botocore': 'botocore==1.34.44',
+            'pydantic': 'pydantic==2.6.3',
+            'marshmallow': 'marshmallow==3.20.2',
+            'werkzeug': 'Werkzeug==3.0.1',
+            'itsdangerous': 'itsdangerous==2.1.2',
+            'psycopg2': 'psycopg2-binary==2.9.9',
+            'psycopg2_binary': 'psycopg2-binary==2.9.9',
+            'pymongo': 'pymongo==4.6.1',
+            'motor': 'motor==3.3.1',
+            'httpx': 'httpx==0.26.0',
+            'aiohttp': 'aiohttp==3.9.1',
+            'stripe': 'stripe==7.10.0',
+            'twilio': 'twilio==9.0.5',
+            'openpyxl': 'openpyxl==3.1.2',
+            'xlrd': 'xlrd==2.0.1',
+            'pillow': 'Pillow==10.2.0',
+            'pil': 'Pillow==10.2.0',
+            'sqlmodel': 'sqlmodel==0.0.14',
+            'fastapi': 'fastapi==0.110.0',
+            'uvicorn': 'uvicorn==0.27.1',
+            'typer': 'typer==0.9.0',
+        }
     
-    def merge_backend(self, app_dir: Path, generated_content: str) -> bool:
-        """Merge generated backend code with scaffolding app.py.
+    def _get_backend_scaffold_sections(self, app_dir: Path) -> Tuple[str, str]:
+        """Load and cache scaffold header/tail sections from the app.py file."""
+        if self._backend_scaffold_sections:
+            return self._backend_scaffold_sections
+
+        scaffold_py_path = app_dir / 'backend' / 'app.py'
+        if not scaffold_py_path.exists():
+            logger.error(f"Scaffolding file not found: {scaffold_py_path}")
+            # Fallback to hardcoded version if file is missing
+            return self._get_hardcoded_backend_scaffold_sections()
+
+        content = scaffold_py_path.read_text(encoding='utf-8')
         
-        Strategy:
-        1. Keep scaffolding app.py structure
-        2. Extract routes/models from generated code
-        3. Add them to scaffolding
-        """
+        # Use a marker to split the file, or fall back to if __name__
+        marker = "# === AI GENERATED CODE START ==="
+        if marker in content:
+            parts = content.split(marker, 1)
+            self._backend_scaffold_sections = (parts[0].rstrip(), parts[1].lstrip())
+            return self._backend_scaffold_sections
+
+        # Fallback for old scaffolds without the marker
+        tail_marker = "if __name__ == '__main__':"
+        if tail_marker in content:
+            parts = content.split(tail_marker, 1)
+            self._backend_scaffold_sections = (parts[0].rstrip(), tail_marker + parts[1])
+            return self._backend_scaffold_sections
+        
+        logger.warning("Could not determine scaffold sections, using full file as header.")
+        self._backend_scaffold_sections = (content, "")
+        return self._backend_scaffold_sections
+
+    def merge_backend(self, app_dir: Path, generated_content: str) -> bool:
+        """Merge generated backend code with scaffolding app.py."""
         app_py = app_dir / 'backend' / 'app.py'
         
         if not app_py.exists():
@@ -650,20 +788,23 @@ class CodeMerger:
 
         selected_code = self._strip_existing_scaffold(selected_code)
 
-        scaffold_head, scaffold_tail = self._get_backend_scaffold_sections()
+        scaffold_head, scaffold_tail = self._get_backend_scaffold_sections(app_dir)
         sanitized = self._sanitize_backend_code(selected_code)
+        inferred_dependencies = self._infer_backend_dependencies(sanitized)
 
-        merged_parts = [scaffold_head.rstrip(), "# === AI Generated Backend Code ===", sanitized.rstrip()]
-        if scaffold_tail:
-            merged_parts.append(scaffold_tail.lstrip())
-
-        merged_content = '\n\n'.join(part for part in merged_parts if part)
+        # The marker from the original file is now in scaffold_head, so we just join the parts.
+        merged_content = '\n\n'.join(
+            part for part in [scaffold_head, sanitized.rstrip(), scaffold_tail] if part
+        )
 
         if not merged_content.endswith('\n'):
             merged_content += '\n'
 
         app_py.write_text(merged_content, encoding='utf-8')
         logger.info("Merged backend app.py with scaffolding")
+
+        if inferred_dependencies:
+            self._update_backend_requirements(app_dir, inferred_dependencies)
         return True
     
     def merge_frontend(self, app_dir: Path, generated_content: str) -> bool:
@@ -763,7 +904,7 @@ class CodeMerger:
         # Fallback to first available block
         return blocks[0][1]
 
-    def _get_backend_scaffold_sections(self) -> Tuple[str, str]:
+    def _get_hardcoded_backend_scaffold_sections(self) -> Tuple[str, str]:
         """Load and cache scaffold header/tail sections for backend app.py."""
         if self._backend_scaffold_sections is not None:
             return self._backend_scaffold_sections
@@ -929,6 +1070,101 @@ class CodeMerger:
                 code = code[:idx]
 
         return code.strip()
+
+    def _infer_backend_dependencies(self, code: str) -> Set[str]:
+        """Infer third-party packages from generated backend code."""
+        modules: Set[str] = set()
+
+        try:
+            tree = ast.parse(code or '')
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        modules.add((alias.name or '').split('.')[0])
+                elif isinstance(node, ast.ImportFrom):
+                    if node.module:
+                        modules.add(node.module.split('.')[0])
+        except SyntaxError:
+            logger.debug("AST parsing failed for dependency inference; falling back to regex")
+            import_pattern = re.compile(r"^\s*(?:from\s+([\w\.]+)\s+import|import\s+([\w\.]+))", re.MULTILINE)
+            for match in import_pattern.finditer(code or ''):
+                module = match.group(1) or match.group(2) or ''
+                if module:
+                    modules.add(module.split('.')[0])
+
+        filtered_modules: Set[str] = set()
+        for module in modules:
+            if not module:
+                continue
+            lowered = module.lower()
+            if lowered in self._stdlib_modules:
+                continue
+            if lowered in self._local_prefixes:
+                continue
+            filtered_modules.add(lowered)
+
+        packages: Set[str] = set()
+        for module in filtered_modules:
+            requirement = self._package_version_map.get(module)
+            if requirement:
+                packages.add(requirement)
+            else:
+                # Fallback: attempt to create a sensible package name
+                fallback = module.replace('_', '-')
+                packages.add(fallback)
+
+        return packages
+
+    def _update_backend_requirements(self, app_dir: Path, packages: Set[str]) -> None:
+        """Append inferred packages to backend requirements.txt if missing."""
+        if not packages:
+            return
+
+        requirements_path = app_dir / 'backend' / 'requirements.txt'
+        if not requirements_path.exists():
+            logger.warning("Backend requirements.txt missing at %s", requirements_path)
+            return
+
+        try:
+            original_content = requirements_path.read_text(encoding='utf-8')
+            existing_lines = original_content.splitlines()
+        except OSError as exc:
+            logger.warning("Failed to read backend requirements: %s", exc)
+            return
+
+        existing_keys: Set[str] = set()
+        for line in existing_lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith('#'):
+                continue
+            key = re.split(r'[<>=]', stripped, 1)[0].strip().lower()
+            if key:
+                existing_keys.add(key)
+
+        new_entries: List[str] = []
+        for pkg in sorted(packages):
+            key = re.split(r'[<>=]', pkg, 1)[0].strip().lower()
+            if not key or key in existing_keys:
+                continue
+            new_entries.append(pkg)
+            existing_keys.add(key)
+
+        if not new_entries:
+            return
+
+        try:
+            if original_content and not original_content.endswith('\n'):
+                requirements_path.write_text(original_content + '\n', encoding='utf-8')
+            with requirements_path.open('a', encoding='utf-8') as handle:
+                for entry in new_entries:
+                    handle.write(f"{entry}\n")
+            logger.info(
+                "Added %d dependencies to backend requirements: %s",
+                len(new_entries),
+                ', '.join(new_entries),
+            )
+        except OSError as exc:
+            logger.warning("Failed to update backend requirements: %s", exc)
 
 
 class GenerationService:
