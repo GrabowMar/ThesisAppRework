@@ -155,28 +155,171 @@ class ResultsAPIService:
             return None
     
     def _fetch_raw_results(self, task_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Fetch raw results from the API endpoint.
-        
-        Args:
-            task_id: The task ID to fetch
-            
-        Returns:
-            Raw JSON data from the API
-        """
+        """Fetch raw results for a task, preferring in-process access."""
+        # Prefer in-process inspection service to avoid self-HTTP deadlocks
+        raw_payload = self._fetch_via_internal_service(task_id)
+        if raw_payload:
+            return raw_payload
+
+        # Fallback to HTTP request (works when running behind Gunicorn/WSGI or tests)
         try:
             url = f"{self.base_url}/analysis/api/tasks/{task_id}/results.json"
             response = self.session.get(url, timeout=30)
             response.raise_for_status()
-            
+
             return response.json()
-            
+
         except requests.exceptions.RequestException as e:
             logger.error(f"API request failed for task {task_id}: {e}")
             return None
         except json.JSONDecodeError as e:
             logger.error(f"Failed to decode JSON for task {task_id}: {e}")
             return None
+
+    # ------------------------------------------------------------------
+    # Internal fetch helpers
+    # ------------------------------------------------------------------
+    def _fetch_via_internal_service(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """Attempt to load results through the service locator (no HTTP)."""
+        try:
+            from .service_locator import ServiceLocator  # Local import to avoid cycles
+        except Exception:
+            return None
+
+        inspection_service = ServiceLocator.get('analysis_inspection_service')
+        if not inspection_service:
+            return None
+
+        try:
+            payload = inspection_service.get_task_results_payload(task_id)  # type: ignore[attr-defined]
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Failed to load task %s via inspection service: %s", task_id, exc)
+            return None
+
+        if not isinstance(payload, dict) or not payload:
+            return None
+
+        return self._normalise_internal_payload(task_id, payload)
+
+    def _normalise_internal_payload(self, task_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert inspection payload into the raw schema expected by transformers."""
+        # Create shallow copies to avoid mutating the original payload (may be reused)
+        results_payload: Dict[str, Any] = dict(payload)
+        metadata_src: Dict[str, Any] = dict(results_payload.get('metadata') or {})
+        metadata = self._normalise_metadata(task_id, metadata_src)
+        results_payload['metadata'] = metadata
+
+        self._ensure_task_block(results_payload, metadata)
+        self._ensure_summary_block(results_payload)
+        self._ensure_tools_block(results_payload)
+        results_payload.setdefault('raw_outputs', results_payload.get('raw_outputs') or {})
+        results_payload.setdefault('services', results_payload.get('services') or {})
+        results_payload.setdefault('findings', results_payload.get('findings') or [])
+        results_payload.setdefault('findings_preview', results_payload.get('findings_preview') or [])
+
+        # Top-level raw schema mirrors the external API structure
+        return {
+            'metadata': dict(metadata),
+            'results': results_payload
+        }
+
+    def _normalise_metadata(self, task_id: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
+        """Ensure metadata contains a timestamp and consistent identifiers."""
+        normalised = dict(metadata)
+
+        # Promote identifiers for downstream consumers
+        normalised.setdefault('task_id', metadata.get('task_id') or metadata.get('id') or task_id)
+
+        # Determine timestamp (prefer provided values, fallback to now)
+        timestamp = (
+            metadata.get('timestamp') or
+            metadata.get('generated_at') or
+            metadata.get('analysis_time') or
+            metadata.get('created_at')
+        )
+
+        if isinstance(timestamp, datetime):
+            normalised['timestamp'] = timestamp.isoformat()
+        elif isinstance(timestamp, str) and timestamp:
+            normalised['timestamp'] = timestamp
+        else:
+            normalised['timestamp'] = datetime.now(timezone.utc).isoformat()
+
+        # Note source for debugging clarity
+        normalised.setdefault('source', 'analysis_inspection_service')
+        return normalised
+
+    def _ensure_task_block(self, results_payload: Dict[str, Any], metadata: Dict[str, Any]) -> None:
+        """Guarantee a task block is present with essential identifiers."""
+        task_block = dict(results_payload.get('task') or {})
+
+        fallback_values = {
+            'task_id': results_payload.get('task_id') or metadata.get('task_id'),
+            'analysis_type': results_payload.get('analysis_type') or metadata.get('analysis_type'),
+            'model_slug': results_payload.get('model_slug') or metadata.get('model_slug'),
+            'app_number': results_payload.get('app_number') or metadata.get('app_number'),
+            'status': results_payload.get('derived_status') or results_payload.get('status') or metadata.get('status'),
+        }
+
+        for key, value in fallback_values.items():
+            if key not in task_block or task_block[key] in (None, ''):
+                task_block[key] = value
+
+        results_payload['task'] = task_block
+
+    def _ensure_summary_block(self, results_payload: Dict[str, Any]) -> None:
+        """Ensure summary information is available for downstream use."""
+        findings = results_payload.get('findings') or []
+        summary = dict(results_payload.get('summary') or {})
+
+        summary.setdefault('total_findings', results_payload.get('findings_total') or len(findings))
+        summary.setdefault('severity_breakdown', results_payload.get('severity_breakdown') or results_payload.get('findings_by_severity') or {})
+        summary.setdefault('findings_by_tool', results_payload.get('findings_by_tool') or {})
+        summary.setdefault('tools_used', results_payload.get('tools_used') or [])
+        summary.setdefault('tools_failed', results_payload.get('tools_failed') or results_payload.get('tools_skipped') or [])
+        summary.setdefault('status', results_payload.get('derived_status') or results_payload.get('status') or summary.get('status'))
+
+        results_payload['summary'] = summary
+
+    def _ensure_tools_block(self, results_payload: Dict[str, Any]) -> None:
+        """Build a tool map if one is missing (requires tool_metrics fallback)."""
+        if isinstance(results_payload.get('tools'), dict) and results_payload['tools']:
+            return
+
+        metrics = results_payload.get('tool_metrics') or {}
+        if not isinstance(metrics, dict):
+            results_payload['tools'] = {}
+            return
+
+        tools_used = set(results_payload.get('tools_used') or [])
+        tools_failed = set(results_payload.get('tools_failed') or [])
+
+        tool_map: Dict[str, Any] = {}
+        for tool_name, info in metrics.items():
+            if not isinstance(info, dict):
+                continue
+
+            status = info.get('status')
+            if not status:
+                if tool_name in tools_failed:
+                    status = 'error'
+                elif tool_name in tools_used:
+                    status = 'success'
+                else:
+                    status = 'not_available'
+
+            tool_map[tool_name] = {
+                'status': status,
+                'executed': tool_name in tools_used,
+                'total_issues': info.get('total_issues', 0),
+                'duration_seconds': info.get('duration_seconds'),
+                'exit_code': info.get('exit_code'),
+                'error': info.get('error'),
+                'files_analyzed': info.get('files_analyzed'),
+                'metrics': info.get('metrics'),
+            }
+
+        results_payload['tools'] = tool_map
     
     def _transform_results(self, task_id: str, raw_data: Dict[str, Any]) -> AnalysisResults:
         """
