@@ -5,6 +5,43 @@
 {% block content %}
 <div class="page-body mt-0">
     <div class="container-fluid">
+        <!-- Search -->
+        <div class="row g-3 mb-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-6">
+                                <h3 class="card-title mb-0">
+                                    <i class="fas fa-book me-2"></i>
+                                    Documentation
+                                </h3>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                    <input type="text"
+                                           class="form-control"
+                                           name="q"
+                                           id="docs-search-input"
+                                           placeholder="Search docs (title, category, filename)"
+                                           hx-get="{{ url_for('docs.docs_search') }}"
+                                           hx-trigger="keyup changed delay:300ms"
+                                           hx-target="#docs-search-results"
+                                           hx-indicator="#docs-search-spinner">
+                                    <span id="docs-search-spinner" class="input-group-text htmx-indicator">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search Results (HTMX) -->
+        <div id="docs-search-results" class="mb-4"></div>
         <!-- Quick Stats -->
             <div class="row g-3 mb-4">
                 <div class="col-6 col-md-3">
@@ -63,35 +100,38 @@
                         </h3>
                     </div>
                     <div class="card-body">
-                        <div class="row g-3">
-                            {% for doc in docs_files %}
-                                {% if doc.path == 'docs' %}
-                                    <div class="col-md-6">
-                                        <a href="{{ url_for('docs.docs_file', filepath=doc.filename) }}" class="card card-link card-link-pop">
-                                            <div class="card-body">
-                                                <div class="d-flex align-items-center">
-                                                    <div class="me-3">
-                                                        <div class="avatar bg-primary-lt">
-                                                            <i class="fas fa-file-alt"></i>
+                        {% if sections %}
+                            {% for section in sections %}
+                                {% if section.name in ['Quick Start','General','Architecture','Overview'] %}
+                                    <div class="mb-3">
+                                        <h4 class="h5">{{ section.name }}</h4>
+                                        <div class="row g-3">
+                                            {% for item in section.items %}
+                                                <div class="col-md-6">
+                                                    <a href="{{ url_for('docs.docs_file', filepath=item.relpath) }}" class="card card-link card-link-pop">
+                                                        <div class="card-body">
+                                                            <div class="d-flex align-items-center">
+                                                                <div class="me-3">
+                                                                    <div class="avatar bg-primary-lt">
+                                                                        <i class="fas fa-file-alt"></i>
+                                                                    </div>
+                                                                </div>
+                                                                <div>
+                                                                    <div class="font-weight-medium">{{ item.title }}</div>
+                                                                    <div class="text-secondary small mt-1">{{ section.name }} documentation</div>
+                                                                </div>
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                    <div>
-                                                        <div class="font-weight-medium">{{ doc.name }}</div>
-                                                        <div class="text-secondary small mt-1">
-                                                            {% if doc.filename == 'OVERVIEW.md' %}Essential platform introduction{% endif %}
-                                                            {% if doc.filename == 'ARCHITECTURE.md' %}System design and components{% endif %}
-                                                            {% if doc.filename == 'DEVELOPMENT_GUIDE.md' %}Setup and development workflow{% endif %}
-                                                            {% if doc.filename == 'API_REFERENCE.md' %}Complete API documentation{% endif %}
-                                                            {% if doc.filename not in ['OVERVIEW.md', 'ARCHITECTURE.md', 'DEVELOPMENT_GUIDE.md', 'API_REFERENCE.md'] %}Technical documentation{% endif %}
-                                                        </div>
-                                                    </div>
+                                                    </a>
                                                 </div>
-                                            </div>
-                                        </a>
+                                            {% endfor %}
+                                        </div>
                                     </div>
                                 {% endif %}
                             {% endfor %}
-                        </div>
+                        {% else %}
+                            <div class="text-secondary">No docs found.</div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -225,37 +265,41 @@
         </div>
 
         <!-- Frontend Documentation -->
-        {% if docs_files|selectattr('path', 'equalto', 'docs/frontend')|list|length > 0 %}
+        {% if sections %}
         <div class="row g-4 mb-4">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header bg-success text-white">
                         <h3 class="card-title text-white mb-0">
-                            <i class="fas fa-code me-2"></i>
-                            Frontend Documentation
+                            <i class="fas fa-layer-group me-2"></i>
+                            Knowledge Base
                         </h3>
                     </div>
                     <div class="card-body">
                         <div class="row g-3">
-                            {% for doc in docs_files %}
-                                {% if doc.path == 'docs/frontend' %}
-                                    <div class="col-md-6 col-lg-4">
-                                        <a href="{{ url_for('docs.docs_file', filepath='frontend/' + doc.filename) }}" class="card card-link">
-                                            <div class="card-body">
-                                                <div class="d-flex align-items-center">
-                                                    <div class="me-3">
-                                                        <div class="avatar bg-success-lt">
-                                                            <i class="fas fa-file-code"></i>
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <div class="font-weight-medium">{{ doc.name }}</div>
-                                                        <div class="text-secondary small mt-1">Frontend development guide</div>
-                                                    </div>
+                            {% for section in sections %}
+                                {% if section.name not in ['Quick Start','General','Architecture','Overview'] %}
+                                <div class="col-md-6 col-lg-4">
+                                    <div class="card h-100">
+                                        <div class="card-header">
+                                            <h4 class="card-title h5 mb-0">
+                                                <i class="fas fa-folder-open me-2"></i>{{ section.name }}
+                                            </h4>
+                                        </div>
+                                        <div class="list-group list-group-flush">
+                                            {% for item in section.items[:6] %}
+                                                <a class="list-group-item list-group-item-action" href="{{ url_for('docs.docs_file', filepath=item.relpath) }}">
+                                                    <i class="fas fa-file-alt me-2 text-secondary"></i>{{ item.title }}
+                                                </a>
+                                            {% endfor %}
+                                            {% if section.items|length > 6 %}
+                                                <div class="list-group-item text-secondary small">
+                                                    + {{ section.items|length - 6 }} more
                                                 </div>
-                                            </div>
-                                        </a>
+                                            {% endif %}
+                                        </div>
                                     </div>
+                                </div>
                                 {% endif %}
                             {% endfor %}
                         </div>

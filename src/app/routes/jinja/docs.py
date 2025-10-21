@@ -11,6 +11,7 @@ from flask import Blueprint, flash, current_app, abort, redirect, url_for, reque
 from flask_login import current_user
 
 from app.utils.template_paths import render_template_compat as render_template
+from app.services.docs_service import DocsService
 
 # Create blueprint
 docs_bp = Blueprint('docs', __name__, url_prefix='/docs')
@@ -26,31 +27,19 @@ def require_authentication():
 @docs_bp.route('/')
 def docs_index():
     """Documentation index page."""
-    docs_path = os.path.join(current_app.root_path, '..', '..', 'docs')
-    docs_files = []
-
-    # Get main docs files
-    if os.path.exists(docs_path):
-        for file in os.listdir(docs_path):
-            if file.endswith('.md') and file != 'index.md':
-                docs_files.append({
-                    'name': file.replace('.md', '').replace('_', ' ').title(),
-                    'filename': file,
-                    'path': 'docs'
-                })
-
-    # Get frontend docs files
-    frontend_path = os.path.join(docs_path, 'frontend')
-    if os.path.exists(frontend_path):
-        for file in os.listdir(frontend_path):
-            if file.endswith('.md'):
-                docs_files.append({
-                    'name': file.replace('.md', '').replace('_', ' ').title(),
-                    'filename': file,
-                    'path': 'docs/frontend'
-                })
-
-    return render_template('pages/docs/docs_index.html', docs_files=docs_files)
+    sections = DocsService.build_sections()
+    # Back-compat flat list for existing blocks in template
+    docs_files = [
+        {
+            'name': item.title,
+            'filename': item.filename,
+            'path': f'docs/{item.category.lower().replace(" ", "-")}' if "/" not in item.relpath else f'docs/{os.path.dirname(item.relpath)}',
+            'relpath': item.relpath,
+            'category': item.category,
+        }
+        for section in sections for item in section.items
+    ]
+    return render_template('pages/docs/docs_index.html', sections=sections, docs_files=docs_files)
 
 @docs_bp.route('/<path:filepath>')
 def docs_file(filepath):
@@ -106,3 +95,16 @@ def docs_file(filepath):
             error_message=str(e),
             error_title='Documentation Error'
         ), 500
+
+
+@docs_bp.route('/search')
+def docs_search():
+    """HTMX endpoint to search docs (returns minimal list HTML)."""
+    query = request.args.get('q', type=str, default='')
+    results = DocsService.search(query)
+    # Render a small partial list to be injected by HTMX
+    return render_template(
+        'pages/docs/partials/search_results.html',
+        query=query,
+        results=results,
+    )

@@ -36,30 +36,24 @@ def update_admin_password(username: str, new_password: str):
 
 
 if __name__ == '__main__':
-    import getpass
+    import os
+
+    # Check for environment-based update
+    admin_user = os.environ.get('ADMIN_USERNAME')
+    admin_pass = os.environ.get('ADMIN_PASSWORD')
+
+    if admin_user and admin_pass:
+        print("Found admin credentials in environment variables. Updating password...")
+        success = update_admin_password(admin_user, admin_pass)
+        sys.exit(0 if success else 1)
     
     if len(sys.argv) > 2:
         # Command line mode: python update_admin_password.py <username> <password>
         username = sys.argv[1]
         password = sys.argv[2]
-    else:
-        # Interactive mode
-        print("=" * 60)
-        print("Update Admin Password")
-        print("=" * 60)
-        print()
-        
-        username = input("Username: ").strip() or "admin"
-        password = getpass.getpass("New Password: ")
-        password_confirm = getpass.getpass("Confirm Password: ")
-        
-        if password != password_confirm:
-            print("❌ Passwords do not match!")
-            sys.exit(1)
-        
-        if len(password) < 8:
-            print("❌ Password must be at least 8 characters!")
-            sys.exit(1)
-    
-    success = update_admin_password(username, password)
-    sys.exit(0 if success else 1)
+        success = update_admin_password(username, password)
+        sys.exit(0 if success else 1)
+
+    print("Please provide credentials via environment variables (ADMIN_USERNAME, ADMIN_PASSWORD) or command-line arguments.")
+    sys.exit(1)
+

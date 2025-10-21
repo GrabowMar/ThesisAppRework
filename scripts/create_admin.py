@@ -20,7 +20,7 @@ from app.extensions import db
 from app.models import User
 
 
-def create_admin_user(username: str, email: str, password: str, full_name: str = None):
+def create_admin_user(username: str, email: str, password: str, full_name: str | None = None):
     """
     Create an admin user.
     
@@ -103,11 +103,22 @@ def interactive_create():
 
 if __name__ == '__main__':
     # Check for environment-based quick creation
+    admin_user = os.environ.get('ADMIN_USERNAME')
+    admin_email = os.environ.get('ADMIN_EMAIL')
+    admin_pass = os.environ.get('ADMIN_PASSWORD')
+
+    if admin_user and admin_email and admin_pass:
+        print("Found admin credentials in environment variables. Creating user...")
+        success = create_admin_user(admin_user, admin_email, admin_pass)
+        sys.exit(0 if success else 1)
+    
+    # Check for command-line arguments
     if len(sys.argv) > 1:
         # Usage: python create_admin.py <username> <email> <password> [full_name]
         if len(sys.argv) < 4:
             print("Usage: python create_admin.py <username> <email> <password> [full_name]")
             print("   Or: python create_admin.py (for interactive mode)")
+            print("   Or: set ADMIN_USERNAME, ADMIN_EMAIL, and ADMIN_PASSWORD environment variables.")
             sys.exit(1)
         
         username = sys.argv[1]

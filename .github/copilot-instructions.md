@@ -88,7 +88,8 @@
 - **Request Logging**: Automatic request/response logging with timing and request_id
 
 ## References
-- See `docs/ARCHITECTURE.md`, `docs/DEVELOPMENT_GUIDE.md`, and `analyzer/README.md` for deep dives
+- See `docs/knowledge_base/INDEX.md` for complete documentation index
+- Topic-specific docs in `docs/knowledge_base/<topic>/README.md`
 - Example batch file:
   ```json
   [
