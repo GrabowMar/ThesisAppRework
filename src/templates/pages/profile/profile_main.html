@@ -1,0 +1,154 @@
+{% extends "layouts/dashboard.html" %}
+
+{% block title %}Profile - {{ super() }}{% endblock %}
+
+{% block page_header %}
+<div class="d-flex justify-content-between align-items-center">
+    <div>
+        <h1 class="h3 mb-0">Profile</h1>
+        <p class="text-muted mb-0">Manage your account settings and preferences</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <div class="avatar avatar-xl bg-primary text-white d-inline-flex align-items-center justify-content-center rounded-circle" style="width: 100px; height: 100px; font-size: 2.5rem;">
+                        {{ current_user.username[0]|upper }}
+                    </div>
+                </div>
+                <h5 class="mb-1">{{ current_user.full_name or current_user.username }}</h5>
+                <p class="text-muted mb-1">{{ current_user.email }}</p>
+                {% if current_user.is_admin %}
+                <span class="badge bg-danger">Administrator</span>
+                {% else %}
+                <span class="badge bg-secondary">User</span>
+                {% endif %}
+                <hr class="my-3">
+                <div class="text-start">
+                    <small class="text-muted d-block">Member since</small>
+                    <strong>{{ current_user.created_at.strftime('%B %d, %Y') if current_user.created_at else 'N/A' }}</strong>
+                </div>
+                {% if current_user.last_login %}
+                <div class="text-start mt-2">
+                    <small class="text-muted d-block">Last login</small>
+                    <strong>{{ current_user.last_login.strftime('%B %d, %Y %I:%M %p') }}</strong>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <!-- Account Information -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Account Information</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('profile.update_profile') }}">
+                    <div class="row mb-3">
+                        <label for="username" class="col-sm-3 col-form-label">Username</label>
+                        <div class="col-sm-9">
+                            <input type="text" class="form-control" id="username" value="{{ current_user.username }}" disabled>
+                            <small class="form-text text-muted">Username cannot be changed</small>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <label for="email" class="col-sm-3 col-form-label">Email</label>
+                        <div class="col-sm-9">
+                            <input type="email" class="form-control" id="email" name="email" value="{{ current_user.email }}" required>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <label for="full_name" class="col-sm-3 col-form-label">Full Name</label>
+                        <div class="col-sm-9">
+                            <input type="text" class="form-control" id="full_name" name="full_name" value="{{ current_user.full_name or '' }}">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-9 offset-sm-3">
+                            <button type="submit" class="btn btn-primary">Update Profile</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Change Password -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Change Password</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('profile.change_password') }}">
+                    <div class="row mb-3">
+                        <label for="current_password" class="col-sm-3 col-form-label">Current Password</label>
+                        <div class="col-sm-9">
+                            <input type="password" class="form-control" id="current_password" name="current_password" required>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <label for="new_password" class="col-sm-3 col-form-label">New Password</label>
+                        <div class="col-sm-9">
+                            <input type="password" class="form-control" id="new_password" name="new_password" required minlength="8">
+                            <small class="form-text text-muted">At least 8 characters</small>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <label for="confirm_password" class="col-sm-3 col-form-label">Confirm Password</label>
+                        <div class="col-sm-9">
+                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required minlength="8">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-sm-9 offset-sm-3">
+                            <button type="submit" class="btn btn-warning">Change Password</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Account Status -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Account Status</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-sm-3">
+                        <strong>Status</strong>
+                    </div>
+                    <div class="col-sm-9">
+                        {% if current_user.is_active %}
+                        <span class="badge bg-success">Active</span>
+                        {% else %}
+                        <span class="badge bg-danger">Inactive</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-sm-3">
+                        <strong>Role</strong>
+                    </div>
+                    <div class="col-sm-9">
+                        {% if current_user.is_admin %}
+                        <span class="badge bg-danger">Administrator</span>
+                        <small class="text-muted d-block mt-1">Full access to all features</small>
+                        {% else %}
+                        <span class="badge bg-secondary">User</span>
+                        <small class="text-muted d-block mt-1">Standard user access</small>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

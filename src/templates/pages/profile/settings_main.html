@@ -1,0 +1,115 @@
+{% extends "layouts/dashboard.html" %}
+
+{% block title %}Settings - {{ super() }}{% endblock %}
+
+{% block page_header %}
+<div class="d-flex justify-content-between align-items-center">
+    <div>
+        <h1 class="h3 mb-0">Settings</h1>
+        <p class="text-muted mb-0">Configure your preferences and application settings</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <!-- Preferences -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Preferences</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('profile.update_settings') }}">
+                    <div class="mb-3">
+                        <label for="theme" class="form-label">Theme</label>
+                        <select class="form-select" id="theme" name="theme">
+                            <option value="light" selected>Light</option>
+                            <option value="dark">Dark</option>
+                            <option value="auto">Auto (System)</option>
+                        </select>
+                        <small class="form-text text-muted">Theme preference (not yet implemented)</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="items_per_page" class="form-label">Items per page</label>
+                        <select class="form-select" id="items_per_page" name="items_per_page">
+                            <option value="10">10</option>
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                        <small class="form-text text-muted">Default pagination size (not yet implemented)</small>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="email_notifications" name="email_notifications">
+                        <label class="form-check-label" for="email_notifications">
+                            Email notifications
+                        </label>
+                        <small class="form-text text-muted d-block">Receive email updates about analysis results (not yet implemented)</small>
+                    </div>
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="show_advanced" name="show_advanced">
+                        <label class="form-check-label" for="show_advanced">
+                            Show advanced options
+                        </label>
+                        <small class="form-text text-muted d-block">Display advanced configuration options (not yet implemented)</small>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" disabled>Save Preferences</button>
+                    <small class="text-muted ms-2">Settings coming soon</small>
+                </form>
+            </div>
+        </div>
+
+        <!-- Session Information -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Session Information</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-2">
+                    <div class="col-sm-4">
+                        <strong>Session timeout</strong>
+                    </div>
+                    <div class="col-sm-8">
+                        24 hours
+                    </div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-sm-4">
+                        <strong>Last login</strong>
+                    </div>
+                    <div class="col-sm-8">
+                        {{ current_user.last_login.strftime('%B %d, %Y %I:%M %p') if current_user.last_login else 'N/A' }}
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-sm-4">
+                        <strong>Login method</strong>
+                    </div>
+                    <div class="col-sm-8">
+                        Username & Password
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Danger Zone -->
+        {% if not current_user.is_admin %}
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0">Danger Zone</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Once you delete your account, there is no going back. Please be certain.</p>
+                <button type="button" class="btn btn-outline-danger" disabled>Delete Account</button>
+                <small class="text-muted ms-2">Feature not yet available</small>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -54,10 +54,10 @@
             <span class="avatar avatar-sm bg-primary text-white">A</span>
           </a>
           <div class="dropdown-menu dropdown-menu-end shadow-sm">
-            <a class="dropdown-item" href="#">
+            <a class="dropdown-item" href="{{ url_for('profile.index') }}">
               <i class="fa-solid fa-user me-2"></i>Profile
             </a>
-            <a class="dropdown-item" href="#">
+            <a class="dropdown-item" href="{{ url_for('profile.settings') }}">
               <i class="fa-solid fa-gear me-2"></i>Settings
             </a>
             <a class="dropdown-item" href="{{ url_for('main.api_access') }}">
