@@ -66,9 +66,9 @@ class Config:
         'fanout_patterns': True
     }
     
-    # Windows-specific Celery configuration
-    CELERY_WORKER_POOL = 'solo'  # Use solo pool on Windows to avoid permission errors
-    CELERY_WORKER_CONCURRENCY = 1  # Single worker process
+    # Celery worker configuration (solo pool for Windows, threads for Linux)
+    CELERY_WORKER_POOL = os.environ.get('CELERY_WORKER_POOL', 'solo' if os.name == 'nt' else 'prefork')
+    CELERY_WORKER_CONCURRENCY = int(os.environ.get('CELERY_WORKER_CONCURRENCY', '1'))
     CELERY_TASK_SERIALIZER = 'json'
     CELERY_RESULT_SERIALIZER = 'json'
     CELERY_ACCEPT_CONTENT = ['json']

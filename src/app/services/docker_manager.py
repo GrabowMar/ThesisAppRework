@@ -72,26 +72,51 @@ class DockerManager:
         """Create Docker client with retries and diagnostics.
 
         Strategy order:
-        1. Named pipes (Windows) – common Docker Desktop endpoints
-        2. docker.from_env() fallback (respects DOCKER_HOST / env vars)
+        1. docker.from_env() - respects DOCKER_HOST and works in containers
+        2. Unix socket (Linux/Mac) - common daemon endpoint
+        3. Named pipes (Windows) - Docker Desktop endpoints
 
         Retries each endpoint a few times with short backoff to handle race
-        conditions when Docker Desktop is still initializing.
+        conditions when Docker is still initializing.
         """
-        base_urls = [
-            'npipe:////./pipe/docker_engine',
-            'npipe:////./pipe/dockerDesktopLinuxEngine',
-        ]
+        import platform
+        import os
+        
+        # Determine platform-specific connection URLs
+        system = platform.system().lower()
+        base_urls = []
+        
+        if system == 'windows':
+            base_urls = [
+                'npipe:////./pipe/docker_engine',
+                'npipe:////./pipe/dockerDesktopLinuxEngine',
+            ]
+        else:  # Linux/Mac or container environment
+            base_urls = [
+                'unix:///var/run/docker.sock',
+            ]
+        
         attempts_per_url = 3
         backoff_seconds = 1.0
         last_error: Optional[Exception] = None
 
+        # First try docker.from_env() - works in most container environments
+        try:
+            client = docker.from_env()
+            client.ping()
+            self.logger.info("Connected to Docker via environment configuration")
+            return client
+        except Exception as e:
+            self.logger.debug(f"Failed to connect via from_env(): {e}")
+            last_error = e
+
+        # Try platform-specific URLs
         for url in base_urls:
             for attempt in range(1, attempts_per_url + 1):
                 try:
                     client = docker.DockerClient(base_url=url)
                     client.ping()
-                    self.logger.info(f"Connected to Docker via Windows named pipe: {url} (attempt {attempt})")
+                    self.logger.info(f"Connected to Docker via {url} (attempt {attempt})")
                     return client
                 except Exception as e:
                     last_error = e
@@ -138,7 +163,7 @@ class DockerManager:
                 'Confirm Docker Desktop is running',
                 'Run: docker version (should succeed without error)',
                 'If DOCKER_HOST is set, ensure it points to a reachable daemon',
-                'On Windows, try restarting Docker Desktop to re-create the named pipe',
+                'Try restarting Docker service/daemon',
             ])
             return info
 

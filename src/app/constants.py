@@ -150,7 +150,11 @@ class Paths:
     
     @classmethod
     def ensure_directories(cls):
-        """Ensure all required directories exist."""
+        """Ensure all required directories exist.
+        
+        Note: Only creates directories if running with write permissions.
+        In Docker containers, volumes should be pre-mounted.
+        """
         for attr_name in dir(cls):
             if not attr_name.endswith('_DIR'):
                 continue
@@ -161,7 +165,12 @@ class Paths:
                 continue
             path = getattr(cls, attr_name)
             if isinstance(path, Path):
-                path.mkdir(parents=True, exist_ok=True)
+                try:
+                    path.mkdir(parents=True, exist_ok=True)
+                except (PermissionError, OSError) as e:
+                    # In containers, directories may be read-only or pre-mounted
+                    import logging
+                    logging.getLogger(__name__).debug(f"Could not create directory {path}: {e}")
 
 
 # ===========================
@@ -185,5 +194,8 @@ class Paths:
 # (Pruned legacy constants: HTTPStatus)
 
 
-# Initialize directories on import
-Paths.ensure_directories()
+# Initialize directories on import (safe in containers)
+try:
+    Paths.ensure_directories()
+except Exception:
+    pass  # Silently fail in read-only environments

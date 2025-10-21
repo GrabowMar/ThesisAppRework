@@ -252,19 +252,47 @@ function refreshAllData() {
 }
 
 function syncModels() {
+  const btn = event.target.closest('button');
+  const originalHTML = btn.innerHTML;
+  
+  // Show loading state
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Syncing...';
+  
   showDashboardNotification('Syncing models from OpenRouter...', 'info');
+  
   // Use existing API endpoint
   fetch('/api/models/load-openrouter', { method: 'POST' })
-    .then(response => response.json())
+    .then(response => {
+      if (!response.ok) {
+        return response.json().then(data => {
+          throw new Error(data.error || `HTTP ${response.status}`);
+        });
+      }
+      return response.json();
+    })
     .then(data => {
       if (data.success || data.upserted !== undefined) {
-        showDashboardNotification(`Models synced: ${data.upserted || 0} updated`, 'success');
+        const upserted = data.upserted || 0;
+        const fetched = data.fetched || 0;
+        showDashboardNotification(`✓ Models synced successfully: ${upserted} updated from ${fetched} fetched`, 'success');
+        
+        // Refresh relevant dashboard sections
+        if (window.refreshAllSections) {
+          setTimeout(() => refreshAllSections(), 1000);
+        }
       } else {
         showDashboardNotification(`Sync failed: ${data.error || 'Unknown error'}`, 'danger');
       }
     })
     .catch(error => {
+      console.error('Model sync error:', error);
       showDashboardNotification(`Sync failed: ${error.message}`, 'danger');
+    })
+    .finally(() => {
+      // Restore button state
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
     });
 }
 
@@ -379,12 +407,47 @@ function showKeyboardShortcuts() {
 
 // Notification helper
 function showDashboardNotification(message, type = 'info') {
-  // Simple notification - you can enhance this with toast notifications
   console.log(`[${type.toUpperCase()}] ${message}`);
   
-  // If you have a notification system, use it here
-  // For example, if using Tabler's toast notifications:
-  // window.Tabler.toast({ message, type });
+  // Create a toast notification
+  const toastContainer = document.getElementById('toast-container') || createToastContainer();
+  
+  const toast = document.createElement('div');
+  toast.className = `toast align-items-center text-white bg-${type === 'danger' ? 'danger' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info'} border-0`;
+  toast.setAttribute('role', 'alert');
+  toast.setAttribute('aria-live', 'assertive');
+  toast.setAttribute('aria-atomic', 'true');
+  
+  toast.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body">
+        ${message}
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  `;
+  
+  toastContainer.appendChild(toast);
+  
+  const bsToast = new bootstrap.Toast(toast, {
+    autohide: true,
+    delay: type === 'danger' ? 5000 : 3000
+  });
+  bsToast.show();
+  
+  // Remove from DOM after hidden
+  toast.addEventListener('hidden.bs.toast', () => {
+    toast.remove();
+  });
+}
+
+function createToastContainer() {
+  const container = document.createElement('div');
+  container.id = 'toast-container';
+  container.className = 'toast-container position-fixed top-0 end-0 p-3';
+  container.style.zIndex = '9999';
+  document.body.appendChild(container);
+  return container;
 }
 </script>
 {% endblock %}

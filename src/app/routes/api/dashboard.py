@@ -455,33 +455,100 @@ def tool_registry_summary():
 
 @dashboard_bp.route('/analyzer-services')
 def dashboard_analyzer_services():
-    """Analyzer services status (kept as-is)."""
+    """Analyzer services status - check Docker container health or use simple connectivity check."""
     try:
-        import requests
+        import os
+        
+        # Check if running in Docker
+        in_docker = os.path.exists('/.dockerenv') or os.getenv('DOCKER_CONTAINER')
         
         services = {
-            'static-analyzer': {'url': 'http://localhost:2001/health', 'status': 'unknown'},
-            'dynamic-analyzer': {'url': 'http://localhost:2002/health', 'status': 'unknown'},
-            'performance-tester': {'url': 'http://localhost:2003/health', 'status': 'unknown'},
-            'ai-analyzer': {'url': 'http://localhost:2004/health', 'status': 'unknown'},
+            'static-analyzer': {'status': 'unknown', 'message': 'Not checked'},
+            'dynamic-analyzer': {'status': 'unknown', 'message': 'Not checked'},
+            'performance-tester': {'status': 'unknown', 'message': 'Not checked'},
+            'ai-analyzer': {'status': 'unknown', 'message': 'Not checked'},
         }
         
-        for name, info in services.items():
+        # Try Docker API first (if available)
+        docker_available = False
+        if in_docker:
             try:
-                resp = requests.get(info['url'], timeout=2)
-                info['status'] = 'healthy' if resp.status_code == 200 else 'unhealthy'
-                info['response_code'] = str(resp.status_code)
-            except requests.RequestException as e:
-                info['status'] = 'unreachable'
-                info['error'] = str(e)
+                import docker
+                client = docker.from_env()
+                # Test if we can actually use the Docker API
+                client.ping()
+                docker_available = True
+                
+                for service_name in services.keys():
+                    container_name = f'thesisapprework-{service_name}-1'
+                    try:
+                        container = client.containers.get(container_name)
+                        health = container.attrs.get('State', {}).get('Health', {})
+                        health_status = health.get('Status', 'none')
+                        
+                        if health_status == 'healthy':
+                            services[service_name]['status'] = 'healthy'
+                            services[service_name]['message'] = 'Container healthy'
+                        elif health_status == 'unhealthy':
+                            services[service_name]['status'] = 'unhealthy'
+                            services[service_name]['message'] = 'Container unhealthy'
+                        elif health_status == 'starting':
+                            services[service_name]['status'] = 'starting'
+                            services[service_name]['message'] = 'Container starting'
+                        else:
+                            services[service_name]['status'] = 'unknown'
+                            services[service_name]['message'] = f'Health status: {health_status}'
+                            
+                        services[service_name]['container_status'] = container.status
+                    except docker.errors.NotFound:
+                        services[service_name]['status'] = 'not_found'
+                        services[service_name]['message'] = 'Container not found'
+                    except Exception as e:
+                        services[service_name]['status'] = 'error'
+                        services[service_name]['message'] = str(e)
+            except Exception as e:
+                current_app.logger.warning(f"Docker API unavailable, falling back to TCP checks: {e}")
+                docker_available = False
+        
+        # If Docker API not available, use TCP port connectivity checks
+        if not docker_available:
+            import socket
+            
+            # Use Docker service names if in Docker, localhost otherwise
+            host = 'host.docker.internal' if in_docker else 'localhost'
+            port_map = {
+                'static-analyzer': (host if not in_docker else 'static-analyzer', 2001),
+                'dynamic-analyzer': (host if not in_docker else 'dynamic-analyzer', 2002),
+                'performance-tester': (host if not in_docker else 'performance-tester', 2003),
+                'ai-analyzer': (host if not in_docker else 'ai-analyzer', 2004),
+            }
+            
+            for name, (hostname, port) in port_map.items():
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(2)
+                    result = sock.connect_ex((hostname, port))
+                    sock.close()
+                    
+                    if result == 0:
+                        services[name]['status'] = 'healthy'
+                        services[name]['message'] = f'Service responding on port {port}'
+                    else:
+                        services[name]['status'] = 'unreachable'
+                        services[name]['message'] = f'Port {port} not responding'
+                except Exception as e:
+                    services[name]['status'] = 'error'
+                    services[name]['message'] = str(e)
         
         all_healthy = all(s['status'] == 'healthy' for s in services.values())
+        healthy_count = sum(1 for s in services.values() if s['status'] == 'healthy')
         
         return api_success({
             'services': services,
             'overall_status': 'healthy' if all_healthy else 'degraded',
-            'healthy_count': sum(1 for s in services.values() if s['status'] == 'healthy'),
-            'total_count': len(services)
+            'healthy_count': healthy_count,
+            'total_count': len(services),
+            'mode': 'docker-api' if docker_available else ('docker-tcp' if in_docker else 'standalone')
         })
         
     except Exception as e:

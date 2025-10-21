@@ -989,7 +989,7 @@ class AnalysisExecutor:
             # Set up environment with UTF-8 encoding and JSON mode
             env = os.environ.copy()
             env['PYTHONIOENCODING'] = 'utf-8'
-            env['PYTHONLEGACYWINDOWSSTDIO'] = '0'  # Force UTF-8 on Windows
+            env['PYTHONUNBUFFERED'] = '1'  # Disable output buffering
             env['ANALYZER_JSON'] = '1'  # Enable JSON output mode
             
             # Run with proper UTF-8 encoding
