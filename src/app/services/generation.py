@@ -183,6 +183,10 @@ class ScaffoldingManager:
         for rel_path in files_to_copy:
             src = self.scaffolding_source / rel_path
             dest = app_dir / rel_path
+
+            # Rename .env.example to .env
+            if rel_path == '.env.example':
+                dest = app_dir / '.env'
             
             if not src.exists():
                 logger.warning(f"Scaffolding file missing: {rel_path}")
