@@ -30,6 +30,8 @@ from app.services.result_file_service import (
     collect_findings_from_payload,
     summarise_services_from_payload,
 )
+from app.models.analysis_models import AnalysisTask
+from app.constants import AnalysisStatus
 # (Removed ValidationError, NotFoundError imports after refactor of custom mode logic)
 
 # Create blueprint
@@ -57,7 +59,7 @@ def internal_error(error):
 
 @analysis_bp.route('/list')
 def analysis_list():
-    """Render analysis results list page using stored JSON artifacts."""
+    """Render analysis results list page with both active tasks and completed results."""
     service = ResultFileService()
     model_filter = (request.args.get('model') or '').strip() or None
     app_filter_raw = (request.args.get('app') or '').strip() or None
@@ -65,17 +67,77 @@ def analysis_list():
     if app_filter_raw and app_filter_raw.isdigit():
         app_filter = int(app_filter_raw)
 
+    # Get active/in-progress tasks from database
+    try:
+        active_tasks_query = AnalysisTask.query.filter(
+            AnalysisTask.status.in_([AnalysisStatus.PENDING, AnalysisStatus.RUNNING])
+        )
+        
+        if model_filter:
+            active_tasks_query = active_tasks_query.filter(AnalysisTask.target_model.ilike(f'%{model_filter}%'))
+        if app_filter is not None:
+            active_tasks_query = active_tasks_query.filter(AnalysisTask.target_app_number == app_filter)
+        
+        active_tasks = active_tasks_query.order_by(AnalysisTask.created_at.desc()).all()
+    except Exception as exc:  # pragma: no cover
+        current_app.logger.exception("Failed to query active tasks: %s", exc)
+        active_tasks = []
+
+    # Get completed result files from filesystem
     try:
         results: List[ResultFileDescriptor] = service.list_results(
             model_slug=model_filter,
             app_number=app_filter,
         )
-    except Exception as exc:  # pragma: no cover - defensive logging
+    except Exception as exc:  # pragma: no cover
         current_app.logger.exception("Failed to list analysis results: %s", exc)
         flash('Unable to load analysis results from disk.', 'danger')
         results = []
 
-    return render_template('pages/analysis/analysis_main.html', results=results, model_filter=model_filter, app_filter=app_filter_raw)
+    # Match results with their corresponding tasks to get task_name
+    result_task_map = {}
+    if results:
+        try:
+            # Get all completed tasks that might match these results
+            completed_tasks = AnalysisTask.query.filter(
+                AnalysisTask.status == AnalysisStatus.COMPLETED
+            ).all()
+            
+            # Build a lookup map: (model, app, timestamp) -> task
+            for task in completed_tasks:
+                if task.target_model and task.target_app_number and task.completed_at:
+                    # Create a key from the result identifier pattern
+                    # Format: {model}_{app}_{type}_{timestamp}
+                    key = f"{task.target_model}_app{task.target_app_number}"
+                    if key not in result_task_map:
+                        result_task_map[key] = []
+                    result_task_map[key].append(task)
+            
+            # Now match each result with its task by identifier prefix
+            for result in results:
+                key_prefix = f"{result.model_slug}_app{result.app_number}"
+                if key_prefix in result_task_map:
+                    # Find closest matching task by timestamp
+                    matching_tasks = result_task_map[key_prefix]
+                    if matching_tasks:
+                        # Sort by timestamp proximity and pick closest
+                        closest_task = min(
+                            matching_tasks,
+                            key=lambda t: abs((t.completed_at - result.timestamp).total_seconds()) if t.completed_at else float('inf')
+                        )
+                        # Attach task_name to result descriptor as dynamic attribute
+                        result.task_name = closest_task.task_name or closest_task.task_id
+                        result.task_id = closest_task.task_id
+        except Exception as exc:  # pragma: no cover
+            current_app.logger.exception("Failed to match results with tasks: %s", exc)
+
+    return render_template(
+        'pages/analysis/analysis_main.html',
+        active_tasks=active_tasks,
+        results=results,
+        model_filter=model_filter,
+        app_filter=app_filter_raw
+    )
 
 @analysis_bp.route('/')
 def analysis_index():

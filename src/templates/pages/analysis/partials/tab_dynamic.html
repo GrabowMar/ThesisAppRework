@@ -1,0 +1,138 @@
+{# Dynamic Analysis Tab #}
+{% set dynamic_service = payload.results.services.dynamic if payload.results.services and payload.results.services.dynamic else none %}
+
+{% if dynamic_service %}
+  {# Service Header #}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h4 class="mb-1">
+        <i class="fa-solid fa-play-circle me-2"></i>Dynamic Security Analysis
+      </h4>
+      <p class="text-muted small mb-0">{{ dynamic_service.service|default('dynamic-analyzer') }}</p>
+    </div>
+    <span class="badge badge-outline {% if dynamic_service.status in ['completed', 'ok', 'success'] %}text-success{% elif dynamic_service.status in ['failed', 'error'] %}text-danger{% else %}text-secondary{% endif %}">
+      <i class="fa-solid fa-circle-dot me-1"></i>
+      {{ dynamic_service.status|default('unknown')|replace('_', ' ')|title }}
+    </span>
+  </div>
+
+  {# Tools Results #}
+  {% set tools_results = dynamic_service.analysis.results if dynamic_service.analysis and dynamic_service.analysis.results else {} %}
+  {% if tools_results %}
+    <div class="row row-cards">
+      {% for tool_name, tool_data in tools_results.items() %}
+        <div class="col-12 col-md-6 col-xl-4">
+          <div class="card card-sm">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <h5 class="mb-0">{{ tool_name|upper }}</h5>
+                {% if tool_data.executed %}
+                  <span class="badge badge-outline {% if tool_data.status in ['success', 'ok', 'completed'] %}text-success{% elif tool_data.status in ['failed', 'error'] %}text-danger{% else %}text-secondary{% endif %}">
+                    {{ tool_data.status|default('unknown') }}
+                  </span>
+                {% else %}
+                  <span class="badge badge-outline text-muted">Not Executed</span>
+                {% endif %}
+              </div>
+
+              {% if tool_data.results %}
+                {# Display tool-specific metrics #}
+                <div class="mb-2">
+                  {% if tool_data.results.alerts %}
+                    <span class="text-muted small me-2">
+                      <i class="fa-solid fa-triangle-exclamation me-1"></i>{{ tool_data.results.alerts|length }} alert{{ tool_data.results.alerts|length == 1 and '' or 's' }}
+                    </span>
+                  {% endif %}
+                  {% if tool_data.results.risk_summary %}
+                    {% for risk, count in tool_data.results.risk_summary.items() %}
+                      {% if count > 0 %}
+                        <span class="badge {% if risk == 'high' %}bg-danger-lt text-danger{% elif risk == 'medium' %}bg-warning-lt text-warning{% elif risk == 'low' %}bg-info-lt text-info{% else %}bg-secondary-lt{% endif %}">
+                          {{ risk|capitalize }}:{{ count }}
+                        </span>
+                      {% endif %}
+                    {% endfor %}
+                  {% endif %}
+                </div>
+
+                {# Alerts/Issues Table #}
+                {% if tool_data.results.alerts %}
+                  <div class="accordion" id="accordion-{{ tool_name }}">
+                    <div class="accordion-item">
+                      <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ tool_name }}">
+                          View Alerts
+                        </button>
+                      </h2>
+                      <div id="collapse-{{ tool_name }}" class="accordion-collapse collapse" data-bs-parent="#accordion-{{ tool_name }}">
+                        <div class="accordion-body p-0">
+                          <div class="table-responsive">
+                            <table class="table table-sm table-vcenter mb-0">
+                              <thead>
+                                <tr>
+                                  <th class="w-1">Risk</th>
+                                  <th>Alert</th>
+                                  <th>Description</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {% for alert in tool_data.results.alerts[:10] %}
+                                  <tr>
+                                    <td>
+                                      {% set risk = alert.risk|default('unknown')|lower %}
+                                      <span class="badge {% if risk == 'high' %}bg-danger-lt text-danger{% elif risk == 'medium' %}bg-warning-lt text-warning{% elif risk == 'low' %}bg-info-lt text-info{% else %}bg-secondary-lt{% endif %}">
+                                        {{ risk[0]|upper }}
+                                      </span>
+                                    </td>
+                                    <td class="text-wrap small fw-medium">
+                                      {{ alert.alert|default(alert.name)|default('Unknown') }}
+                                    </td>
+                                    <td class="text-wrap small text-muted">
+                                      {{ alert.description|default('—')|truncate(100) }}
+                                    </td>
+                                  </tr>
+                                {% endfor %}
+                                {% if tool_data.results.alerts|length > 10 %}
+                                  <tr>
+                                    <td colspan="3" class="text-center text-muted small">
+                                      ...and {{ tool_data.results.alerts|length - 10 }} more
+                                    </td>
+                                  </tr>
+                                {% endif %}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                {% else %}
+                  <div class="text-muted small">
+                    <i class="fa-solid fa-check-circle text-success me-1"></i>No alerts found
+                  </div>
+                {% endif %}
+              {% else %}
+                <div class="text-muted small">No results available</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty">
+      <div class="empty-icon">
+        <i class="fa-solid fa-question-circle" style="font-size: 2rem;"></i>
+      </div>
+      <p class="empty-title">No tool results</p>
+      <p class="empty-subtitle text-muted">No dynamic analysis tool results were found in this service.</p>
+    </div>
+  {% endif %}
+{% else %}
+  <div class="empty">
+    <div class="empty-icon">
+      <i class="fa-solid fa-minus-circle text-muted" style="font-size: 2rem;"></i>
+    </div>
+    <p class="empty-title">Dynamic analysis not available</p>
+    <p class="empty-subtitle text-muted">This analysis did not include dynamic security testing.</p>
+  </div>
+{% endif %}

@@ -1,0 +1,192 @@
+{# Metadata Tab #}
+<div class="row row-cards">
+  {# Analysis Metadata #}
+  <div class="col-12 col-md-6">
+    <div class="card card-sm">
+      <div class="card-header">
+        <h5 class="card-title mb-0">
+          <i class="fa-solid fa-info-circle me-2"></i>Analysis Information
+        </h5>
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0 g-2">
+          <dt class="col-5 text-muted">Model</dt>
+          <dd class="col-7">
+            <span class="badge bg-azure-lt text-azure">{{ descriptor.model_slug }}</span>
+          </dd>
+          
+          <dt class="col-5 text-muted">Application</dt>
+          <dd class="col-7">
+            <span class="badge bg-secondary-lt">#{{ descriptor.app_number }}</span>
+          </dd>
+          
+          <dt class="col-5 text-muted">Analysis Type</dt>
+          <dd class="col-7">
+            <span class="badge bg-secondary-lt">{{ descriptor.analysis_type|default('unknown') }}</span>
+          </dd>
+          
+          <dt class="col-5 text-muted">Status</dt>
+          <dd class="col-7">
+            <span class="badge badge-outline {% if descriptor.status in ['completed', 'ok', 'success'] %}text-success{% elif descriptor.status in ['failed', 'error'] %}text-danger{% else %}text-secondary{% endif %}">
+              {{ descriptor.status|default('unknown')|replace('_', ' ')|title }}
+            </span>
+          </dd>
+          
+          <dt class="col-5 text-muted">Timestamp</dt>
+          <dd class="col-7">{{ descriptor.timestamp|default('—') }}</dd>
+          
+          <dt class="col-5 text-muted">Identifier</dt>
+          <dd class="col-7">
+            <code class="text-break small">{{ descriptor.identifier }}</code>
+          </dd>
+          
+          <dt class="col-5 text-muted">File Path</dt>
+          <dd class="col-7">
+            <span class="font-monospace text-break small">{{ descriptor.path }}</span>
+          </dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  {# Tools & Execution #}
+  <div class="col-12 col-md-6">
+    <div class="card card-sm">
+      <div class="card-header">
+        <h5 class="card-title mb-0">
+          <i class="fa-solid fa-wrench me-2"></i>Tools & Execution
+        </h5>
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0 g-2">
+          <dt class="col-5 text-muted">Total Findings</dt>
+          <dd class="col-7">
+            <span class="fw-bold">{{ descriptor.total_findings|default(0) }}</span>
+          </dd>
+          
+          {% if descriptor.severity_breakdown %}
+            <dt class="col-5 text-muted">Severity Breakdown</dt>
+            <dd class="col-7">
+              {% for severity, count in descriptor.severity_breakdown.items() %}
+                <span class="badge {% if severity|lower == 'critical' %}bg-danger-lt text-danger{% elif severity|lower == 'high' %}bg-danger-lt text-danger{% elif severity|lower == 'medium' %}bg-warning-lt text-warning{% elif severity|lower == 'low' %}bg-info-lt text-info{% else %}bg-secondary-lt{% endif %}">
+                  {{ severity|capitalize }}: {{ count }}
+                </span>
+              {% endfor %}
+            </dd>
+          {% endif %}
+          
+          {% if descriptor.tools_used %}
+            <dt class="col-5 text-muted">Tools Used</dt>
+            <dd class="col-7">
+              <div class="d-flex flex-wrap gap-1">
+                {% for tool in descriptor.tools_used %}
+                  <span class="badge bg-secondary-lt text-secondary">{{ tool }}</span>
+                {% endfor %}
+              </div>
+            </dd>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  {# Task Information (if available) #}
+  {% if task_info %}
+    <div class="col-12 col-md-6">
+      <div class="card card-sm">
+        <div class="card-header">
+          <h5 class="card-title mb-0">
+            <i class="fa-solid fa-tasks me-2"></i>Task Information
+          </h5>
+        </div>
+        <div class="card-body">
+          <dl class="row mb-0 g-2">
+            {% if task_info.task_id %}
+              <dt class="col-5 text-muted">Task ID</dt>
+              <dd class="col-7">
+                <code>{{ task_info.task_id }}</code>
+              </dd>
+            {% endif %}
+            
+            {% if task_info.priority %}
+              <dt class="col-5 text-muted">Priority</dt>
+              <dd class="col-7">
+                <span class="badge bg-secondary-lt">{{ task_info.priority }}</span>
+              </dd>
+            {% endif %}
+            
+            {% if task_info.started_at %}
+              <dt class="col-5 text-muted">Started At</dt>
+              <dd class="col-7 small">{{ task_info.started_at }}</dd>
+            {% endif %}
+            
+            {% if task_info.completed_at %}
+              <dt class="col-5 text-muted">Completed At</dt>
+              <dd class="col-7 small">{{ task_info.completed_at }}</dd>
+            {% endif %}
+            
+            {% if task_info.duration %}
+              <dt class="col-5 text-muted">Duration</dt>
+              <dd class="col-7">{{ task_info.duration }}</dd>
+            {% endif %}
+          </dl>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  {# Additional Metadata #}
+  {% if metadata %}
+    <div class="col-12 col-md-6">
+      <div class="card card-sm">
+        <div class="card-header">
+          <h5 class="card-title mb-0">
+            <i class="fa-solid fa-database me-2"></i>Additional Metadata
+          </h5>
+        </div>
+        <div class="card-body">
+          <dl class="row mb-0 g-2">
+            {% for key, value in metadata.items() %}
+              <dt class="col-5 text-muted">{{ key|replace('_', ' ')|title }}</dt>
+              <dd class="col-7 text-break">
+                {% if value is mapping %}
+                  <details>
+                    <summary class="text-muted small" style="cursor: pointer;">View Object</summary>
+                    <pre class="bg-dark text-white rounded p-2 mt-1 small"><code>{{ value | tojson(indent=2) }}</code></pre>
+                  </details>
+                {% elif value is sequence and value is not string %}
+                  <div class="d-flex flex-wrap gap-1">
+                    {% for item in value %}
+                      <span class="badge bg-secondary-lt">{{ item }}</span>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  {{ value }}
+                {% endif %}
+              </dd>
+            {% endfor %}
+          </dl>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  {# Raw JSON Payload #}
+  <div class="col-12">
+    <div class="card card-sm">
+      <div class="card-header">
+        <h5 class="card-title mb-0">
+          <i class="fa-solid fa-code me-2"></i>Raw JSON Payload
+        </h5>
+      </div>
+      <div class="card-body">
+        <details>
+          <summary class="text-muted" style="cursor: pointer;">
+            <i class="fa-solid fa-chevron-right me-1"></i>Click to expand full JSON
+          </summary>
+          <pre class="bg-dark text-white rounded p-3 mt-3 small text-break" style="max-height: 600px; overflow-y: auto;"><code>{{ payload | tojson(indent=2) }}</code></pre>
+        </details>
+      </div>
+    </div>
+  </div>
+</div>

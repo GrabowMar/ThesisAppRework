@@ -1,0 +1,171 @@
+{# AI Requirements Analysis Tab #}
+{% set ai_service = payload.results.services['ai-requirements'] if payload.results.services and payload.results.services['ai-requirements'] else none %}
+
+{% if ai_service %}
+  {# Service Header #}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h4 class="mb-1">
+        <i class="fa-solid fa-robot me-2"></i>AI Requirements Analysis
+      </h4>
+      <p class="text-muted small mb-0">{{ ai_service.service|default('ai-analyzer') }}</p>
+    </div>
+    <span class="badge badge-outline {% if ai_service.status in ['completed', 'ok', 'success'] %}text-success{% elif ai_service.status in ['failed', 'error'] %}text-danger{% else %}text-secondary{% endif %}">
+      <i class="fa-solid fa-circle-dot me-1"></i>
+      {{ ai_service.status|default('unknown')|replace('_', ' ')|title }}
+    </span>
+  </div>
+
+  {# AI Analysis Results #}
+  {% set analysis_results = ai_service.analysis if ai_service.analysis else {} %}
+  {% if analysis_results %}
+    {# Overall Assessment #}
+    {% if analysis_results.overall_assessment %}
+      <div class="card card-sm mb-3">
+        <div class="card-header">
+          <h5 class="card-title mb-0">
+            <i class="fa-solid fa-clipboard-check me-2"></i>Overall Assessment
+          </h5>
+        </div>
+        <div class="card-body">
+          <p class="mb-0">{{ analysis_results.overall_assessment }}</p>
+        </div>
+      </div>
+    {% endif %}
+
+    {# Requirements Categories #}
+    {% set categories = analysis_results.categories if analysis_results.categories else {} %}
+    {% if categories %}
+      <div class="row row-cards">
+        {% for category_name, category_data in categories.items() %}
+          <div class="col-12 col-md-6">
+            <div class="card card-sm">
+              <div class="card-header">
+                <h5 class="card-title mb-0">{{ category_name|replace('_', ' ')|title }}</h5>
+              </div>
+              <div class="card-body">
+                {% if category_data.score is defined %}
+                  <div class="mb-2">
+                    <div class="text-muted small text-uppercase mb-1">Compliance Score</div>
+                    <div class="progress" style="height: 10px;">
+                      <div class="progress-bar {% if category_data.score >= 80 %}bg-success{% elif category_data.score >= 60 %}bg-warning{% else %}bg-danger{% endif %}" 
+                           style="width: {{ category_data.score }}%">
+                        {{ category_data.score }}%
+                      </div>
+                    </div>
+                  </div>
+                {% endif %}
+
+                {% if category_data.findings %}
+                  <div class="accordion" id="accordion-{{ category_name }}">
+                    <div class="accordion-item">
+                      <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ category_name }}">
+                          <i class="fa-solid fa-list-check me-2"></i>{{ category_data.findings|length }} Finding{{ category_data.findings|length == 1 and '' or 's' }}
+                        </button>
+                      </h2>
+                      <div id="collapse-{{ category_name }}" class="accordion-collapse collapse" data-bs-parent="#accordion-{{ category_name }}">
+                        <div class="accordion-body">
+                          <ul class="list-unstyled mb-0">
+                            {% for finding in category_data.findings %}
+                              <li class="mb-2">
+                                <div class="d-flex">
+                                  {% if finding.status == 'pass' %}
+                                    <i class="fa-solid fa-check-circle text-success me-2 mt-1"></i>
+                                  {% elif finding.status == 'fail' %}
+                                    <i class="fa-solid fa-times-circle text-danger me-2 mt-1"></i>
+                                  {% else %}
+                                    <i class="fa-solid fa-exclamation-circle text-warning me-2 mt-1"></i>
+                                  {% endif %}
+                                  <div>
+                                    <div class="fw-medium">{{ finding.requirement|default('Requirement') }}</div>
+                                    {% if finding.description %}
+                                      <div class="text-muted small">{{ finding.description }}</div>
+                                    {% endif %}
+                                  </div>
+                                </div>
+                              </li>
+                            {% endfor %}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                {% endif %}
+
+                {% if category_data.recommendations %}
+                  <div class="mt-2">
+                    <div class="text-muted small mb-1">
+                      <i class="fa-solid fa-lightbulb me-1"></i>Recommendations
+                    </div>
+                    <ul class="list-unstyled mb-0 small">
+                      {% for rec in category_data.recommendations[:3] %}
+                        <li class="text-wrap">• {{ rec }}</li>
+                      {% endfor %}
+                      {% if category_data.recommendations|length > 3 %}
+                        <li class="text-muted">...and {{ category_data.recommendations|length - 3 }} more</li>
+                      {% endif %}
+                    </ul>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {# Recommendations Summary #}
+    {% if analysis_results.recommendations %}
+      <div class="card card-sm mt-3">
+        <div class="card-header">
+          <h5 class="card-title mb-0">
+            <i class="fa-solid fa-lightbulb me-2"></i>Key Recommendations
+          </h5>
+        </div>
+        <div class="card-body">
+          <ul class="mb-0">
+            {% for rec in analysis_results.recommendations %}
+              <li class="mb-1">{{ rec }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    {% endif %}
+
+    {# Raw Analysis Data #}
+    {% if analysis_results.raw_response %}
+      <div class="card card-sm mt-3">
+        <div class="card-header">
+          <h5 class="card-title mb-0">
+            <i class="fa-solid fa-file-lines me-2"></i>Raw Analysis
+          </h5>
+        </div>
+        <div class="card-body">
+          <details>
+            <summary class="text-muted small" style="cursor: pointer;">
+              <i class="fa-solid fa-chevron-right me-1"></i>View Raw Response
+            </summary>
+            <pre class="bg-dark text-white rounded p-3 mt-2 small" style="max-height: 400px; overflow-y: auto;"><code>{{ analysis_results.raw_response }}</code></pre>
+          </details>
+        </div>
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="empty">
+      <div class="empty-icon">
+        <i class="fa-solid fa-question-circle" style="font-size: 2rem;"></i>
+      </div>
+      <p class="empty-title">No analysis results</p>
+      <p class="empty-subtitle text-muted">No AI requirements analysis results were found.</p>
+    </div>
+  {% endif %}
+{% else %}
+  <div class="empty">
+    <div class="empty-icon">
+      <i class="fa-solid fa-minus-circle text-muted" style="font-size: 2rem;"></i>
+    </div>
+    <p class="empty-title">AI requirements analysis not available</p>
+    <p class="empty-subtitle text-muted">This analysis did not include AI requirements checking.</p>
+  </div>
+{% endif %}

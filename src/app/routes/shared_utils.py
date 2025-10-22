@@ -476,3 +476,14 @@ def register_template_globals_and_filters(app):
             return dt.strftime('%B %d, %Y')
         except (ValueError, TypeError, OSError):
             return 'Invalid Date'
+
+    @app.template_filter('basename')
+    def basename_filter(value):
+        """Extract the basename from a file path."""
+        from pathlib import Path
+        try:
+            if not value:
+                return ''
+            return Path(value).name
+        except (ValueError, TypeError):
+            return str(value)

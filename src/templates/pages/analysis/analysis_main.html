@@ -1,115 +1,270 @@
 {% extends 'layouts/base.html' %}
 
 {% block title %}Analysis Results - {{ super() }}{% endblock %}
+{% set active_page = 'analysis' %}
 {% set page_title = 'Analysis Results' %}
 {% set page_icon = 'fa-solid fa-microscope' %}
+{% set page_subtitle = 'Browse and manage analysis results' %}
 
 {% block content %}
-  <div class="card mb-4">
+  {# Action bar #}
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+      <h1 class="h2 d-flex align-items-center gap-2 mb-1">
+        <i class="{{ page_icon }}"></i>
+        {{ page_title }}
+      </h1>
+      <p class="text-muted mb-0">{{ page_subtitle }}</p>
+    </div>
+    <div class="btn-list">
+      <a href="{{ url_for('analysis.analysis_list') }}" class="btn btn-outline-secondary">
+        <i class="fa-solid fa-rotate-right me-1"></i>
+        Refresh
+      </a>
+      <a href="{{ url_for('analysis.analysis_create') }}" class="btn btn-primary">
+        <i class="fa-solid fa-plus me-1"></i>
+        New Analysis
+      </a>
+    </div>
+  </div>
+
+  {# Filters card #}
+  <div class="card card-sm mb-3">
     <div class="card-body">
       <form method="get" class="row g-3 align-items-end">
-        <div class="col-sm-4 col-md-3">
-          <label class="form-label" for="model">Model</label>
+        <div class="col-sm-6 col-md-4 col-lg-3">
+          <label class="form-label small fw-semibold" for="model">Model Filter</label>
           <input type="text" class="form-control" id="model" name="model" value="{{ model_filter or '' }}" placeholder="e.g. anthropic_claude-3-5-haiku">
         </div>
-        <div class="col-sm-4 col-md-2">
-          <label class="form-label" for="app">App #</label>
-          <input type="text" class="form-control" id="app" name="app" value="{{ app_filter or '' }}" placeholder="7">
+        <div class="col-sm-6 col-md-3 col-lg-2">
+          <label class="form-label small fw-semibold" for="app">Application #</label>
+          <input type="text" class="form-control" id="app" name="app" value="{{ app_filter or '' }}" placeholder="e.g. 7">
         </div>
-        <div class="col-sm-4 col-md-2">
-          <label class="form-label">&nbsp;</label>
-          <button type="submit" class="btn btn-primary w-100">
-            <i class="fa-solid fa-filter me-1"></i>Apply Filters
+        <div class="col-auto">
+          <button type="submit" class="btn btn-primary">
+            <i class="fa-solid fa-filter me-1"></i>Apply
           </button>
         </div>
-        <div class="col-sm-4 col-md-2">
-          <label class="form-label">&nbsp;</label>
-          <a class="btn btn-outline-secondary w-100" href="{{ url_for('analysis.analysis_list') }}">
-            <i class="fa-solid fa-rotate-right me-1"></i>Reset
+        <div class="col-auto">
+          <a class="btn btn-ghost-secondary" href="{{ url_for('analysis.analysis_list') }}">
+            <i class="fa-solid fa-times me-1"></i>Clear
           </a>
         </div>
       </form>
     </div>
   </div>
 
-  {% if results %}
+  {% if active_tasks or results %}
     {% set severity_styles = {
-      'critical': 'bg-danger',
-      'high': 'bg-danger',
-      'medium': 'bg-warning text-dark',
-      'low': 'bg-info text-dark',
-      'info': 'bg-secondary'
+      'critical': 'bg-danger-lt text-danger',
+      'high': 'bg-danger-lt text-danger',
+      'medium': 'bg-warning-lt text-warning',
+      'low': 'bg-info-lt text-info',
+      'info': 'bg-secondary-lt text-secondary'
     } %}
     {% set severity_order = ['critical', 'high', 'medium', 'low', 'info'] %}
-    <div class="card">
-      <div class="card-body p-0">
+    
+    {# Active Tasks Section #}
+    {% if active_tasks %}
+      <div class="card card-table-compact mb-3">
+        <div class="card-header d-flex flex-wrap align-items-center gap-2">
+          <h3 class="card-title mb-0">
+            <i class="fa-solid fa-spinner fa-pulse me-2"></i>
+            Active Tasks
+          </h3>
+          <div class="ms-auto text-muted small">
+            {{ active_tasks|length }} running
+          </div>
+        </div>
         <div class="table-responsive">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
+          <table class="table table-vcenter card-table table-striped">
+            <thead>
               <tr>
-                <th scope="col">Result</th>
-                <th scope="col">Model</th>
-                <th scope="col">App</th>
-                <th scope="col">Analysis</th>
-                <th scope="col">Status</th>
-                <th scope="col">Findings</th>
-                <th scope="col">Tools</th>
-                <th scope="col" class="text-end">Captured</th>
+                <th class="w-1">Task ID</th>
+                <th>Model</th>
+                <th class="w-1">App</th>
+                <th>Type</th>
+                <th class="w-1">Status</th>
+                <th class="w-1">Progress</th>
+                <th>Priority</th>
+                <th class="text-end">Started</th>
+                <th class="w-1"></th>
               </tr>
             </thead>
             <tbody>
-              {% for result in results %}
+              {% for task in active_tasks %}
                 <tr>
-                  <td class="fw-semibold">
-                    <a href="{{ url_for('analysis.analysis_result_detail', result_id=result.identifier) }}" class="text-decoration-none">
-                      {{ result.identifier }}
+                  <td class="font-monospace small">
+                    <a href="{{ url_for('analysis.analysis_list') }}" class="text-reset text-decoration-none">
+                      {{ task.task_id[:16] }}{% if task.task_id|length > 16 %}…{% endif %}
                     </a>
                   </td>
-                  <td><span class="badge bg-secondary-subtle text-dark">{{ result.model_slug }}</span></td>
-                  <td>app {{ result.app_number }}</td>
-                  <td class="text-capitalize">{{ result.analysis_type.replace('_', ' ') }}</td>
                   <td>
-                    <span class="badge {% if result.status in ['completed', 'success'] %}bg-success{% elif result.status in ['failed', 'error'] %}bg-danger{% else %}bg-secondary{% endif %}">
-                      {{ result.status.replace('_', ' ') }}
-                    </span>
+                    <span class="badge bg-azure-lt text-azure">{{ task.target_model }}</span>
+                  </td>
+                  <td class="text-muted">
+                    <span class="badge bg-secondary-lt">{{ task.target_app_number }}</span>
+                  </td>
+                  <td class="text-capitalize text-muted">
+                    {{ task.analysis_type.value.replace('_', ' ') if task.analysis_type else 'N/A' }}
                   </td>
                   <td>
-                    <div class="d-flex flex-wrap gap-1">
-                      <span class="badge bg-dark">{{ result.total_findings or 0 }} total</span>
-                      {% for level in severity_order %}
-                        {% set count = result.severity_breakdown.get(level) %}
-                        {% if count %}
-                          <span class="badge {{ severity_styles.get(level, 'bg-secondary') }}">{{ level.title() }} {{ count }}</span>
-                        {% endif %}
-                      {% endfor %}
+                    {% set st = task.status.value|lower if task.status else 'unknown' %}
+                    {% if st == 'running' %}
+                      <span class="badge bg-warning-lt text-warning">
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i>Running
+                      </span>
+                    {% elif st == 'pending' %}
+                      <span class="badge bg-secondary-lt text-secondary">
+                        <i class="fa-solid fa-clock me-1"></i>Pending
+                      </span>
+                    {% else %}
+                      <span class="badge bg-secondary-lt text-secondary">{{ st.title() }}</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="d-flex align-items-center gap-2">
+                      <div class="progress progress-sm flex-fill" style="min-width: 60px;">
+                        <div class="progress-bar" style="width: {{ task.progress_percentage or 0 }}%"></div>
+                      </div>
+                      <span class="text-muted small">{{ '%.0f'|format(task.progress_percentage or 0) }}%</span>
                     </div>
                   </td>
                   <td>
-                    {% if result.tools_used %}
-                      <div class="d-flex flex-wrap gap-1">
-                        {% for tool in result.tools_used[:6] %}
-                          <span class="badge bg-light text-dark border">{{ tool }}</span>
-                        {% endfor %}
-                        {% if result.tools_used|length > 6 %}
-                          <span class="badge bg-light text-dark border">+{{ result.tools_used|length - 6 }}</span>
-                        {% endif %}
-                      </div>
-                    {% else %}
-                      <span class="text-muted">—</span>
-                    {% endif %}
+                    <span class="badge bg-info-lt text-info">{{ task.priority.value if task.priority else 'normal' }}</span>
                   </td>
-                  <td class="text-end text-nowrap">{{ result.display_timestamp() }}</td>
+                  <td class="text-end text-muted small text-nowrap">
+                    {{ task.started_at.strftime('%H:%M:%S') if task.started_at else '—' }}
+                  </td>
+                  <td>
+                    <div class="btn-list">
+                      <button class="btn btn-sm btn-ghost-secondary" title="Refresh" onclick="window.location.reload()">
+                        <i class="fa-solid fa-refresh"></i>
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
       </div>
+    {% endif %}
+    
+    {# Completed Results Section #}
+    {% if results %}
+    <div class="card card-table-compact">
+      <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <h3 class="card-title mb-0">
+          <i class="fa-solid fa-check-circle me-2"></i>
+          Completed Results
+        </h3>
+        <div class="ms-auto text-muted small">
+          {{ results|length }} result{{ results|length != 1 and 's' or '' }}
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table table-striped">
+          <thead>
+            <tr>
+              <th class="w-1">Result ID</th>
+              <th>Model</th>
+              <th class="w-1">App</th>
+              <th>Type</th>
+              <th class="w-1">Status</th>
+              <th>Findings</th>
+              <th>Tools</th>
+              <th class="text-end">Captured</th>
+              <th class="w-1"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for result in results %}
+              <tr>
+                <td class="font-monospace small">
+                  <a href="{{ url_for('analysis.analysis_result_detail', result_id=result.identifier) }}" class="text-reset text-decoration-none">
+                    {% if result.task_name %}
+                      {{ result.task_name }}
+                    {% else %}
+                      {{ result.identifier[:16] }}{% if result.identifier|length > 16 %}…{% endif %}
+                    {% endif %}
+                  </a>
+                </td>
+                <td>
+                  <span class="badge bg-azure-lt text-azure">{{ result.model_slug }}</span>
+                </td>
+                <td class="text-muted">
+                  <span class="badge bg-secondary-lt">{{ result.app_number }}</span>
+                </td>
+                <td class="text-capitalize text-muted">
+                  {{ result.analysis_type.replace('_', ' ') }}
+                </td>
+                <td>
+                  <span class="badge badge-outline {% if result.status in ['completed', 'success'] %}text-success{% elif result.status in ['failed', 'error'] %}text-danger{% else %}text-secondary{% endif %}">
+                    {{ result.status.replace('_', ' ').title() }}
+                  </span>
+                </td>
+                <td>
+                  <div class="d-flex flex-wrap gap-1">
+                    <span class="badge bg-dark">{{ result.total_findings or 0 }}</span>
+                    {% for level in severity_order %}
+                      {% set count = result.severity_breakdown.get(level) %}
+                      {% if count %}
+                        <span class="badge {{ severity_styles.get(level, 'bg-secondary-lt') }}">{{ level[:1].upper() }}{{ count }}</span>
+                      {% endif %}
+                    {% endfor %}
+                  </div>
+                </td>
+                <td>
+                  {% if result.tools_used %}
+                    <div class="d-flex flex-wrap gap-1">
+                      {% for tool in result.tools_used[:3] %}
+                        <span class="badge bg-secondary-lt text-secondary">{{ tool }}</span>
+                      {% endfor %}
+                      {% if result.tools_used|length > 3 %}
+                        <span class="badge bg-secondary-lt text-secondary">+{{ result.tools_used|length - 3 }}</span>
+                      {% endif %}
+                    </div>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+                <td class="text-end text-muted small text-nowrap">
+                  {{ result.display_timestamp() }}
+                </td>
+                <td>
+                  <div class="btn-list">
+                    <a href="{{ url_for('analysis.analysis_result_detail', result_id=result.identifier) }}" class="btn btn-sm btn-ghost-primary" title="View details">
+                      <i class="fa-solid fa-eye"></i>
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
+    {% endif %}
   {% else %}
-    <div class="text-center text-muted py-5 border rounded bg-body-tertiary">
-      <i class="fa-solid fa-inbox mb-3" style="font-size: 2rem;"></i>
-      <p class="mb-0">No stored analysis results were found. Run an analysis to see it here.</p>
+    <div class="empty">
+      <div class="empty-icon">
+        <i class="fa-solid fa-microscope" style="font-size: 3rem;"></i>
+      </div>
+      <p class="empty-title">No analysis tasks or results found</p>
+      <p class="empty-subtitle text-muted">
+        {% if model_filter or app_filter %}
+          No active tasks or completed results match your filters. Try adjusting your filters or create a new analysis.
+        {% else %}
+          No active analysis tasks or stored results. Create a new analysis to get started.
+        {% endif %}
+      </p>
+      <div class="empty-action">
+        <a href="{{ url_for('analysis.analysis_create') }}" class="btn btn-primary">
+          <i class="fa-solid fa-plus me-1"></i>
+          Create New Analysis
+        </a>
+      </div>
     </div>
   {% endif %}
 {% endblock %}
