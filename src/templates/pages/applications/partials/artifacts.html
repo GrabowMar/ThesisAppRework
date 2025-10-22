@@ -17,11 +17,12 @@
                 <strong>PROJECT_INDEX.md</strong>
                 <p class="mb-0 text-muted small">Project structure and file overview</p>
               </div>
-              <button class="btn btn-sm btn-outline-primary" 
+              <button class="btn btn-sm btn-ghost-primary" 
                       hx-get="/application/{{ application.model_slug }}/{{ application.app_number }}/file?path=PROJECT_INDEX.md"
                       hx-target="#file-preview-modal .modal-body"
                       data-bs-toggle="modal"
-                      data-bs-target="#file-preview-modal">
+                      data-bs-target="#file-preview-modal"
+                      title="View PROJECT_INDEX.md">
                 <i class="fas fa-eye"></i> View
               </button>
             </div>
@@ -34,11 +35,12 @@
                 <strong>README.md</strong>
                 <p class="mb-0 text-muted small">Application documentation</p>
               </div>
-              <button class="btn btn-sm btn-outline-primary" 
+              <button class="btn btn-sm btn-ghost-primary" 
                       hx-get="/application/{{ application.model_slug }}/{{ application.app_number }}/file?path=README.md"
                       hx-target="#file-preview-modal .modal-body"
                       data-bs-toggle="modal"
-                      data-bs-target="#file-preview-modal">
+                      data-bs-target="#file-preview-modal"
+                      title="View README.md">
                 <i class="fas fa-eye"></i> View
               </button>
             </div>
@@ -51,11 +53,12 @@
                 <strong>docker-compose.yml</strong>
                 <p class="mb-0 text-muted small">Container orchestration configuration</p>
               </div>
-              <button class="btn btn-sm btn-outline-primary" 
+              <button class="btn btn-sm btn-ghost-primary" 
                       hx-get="/application/{{ application.model_slug }}/{{ application.app_number }}/file?path=docker-compose.yml"
                       hx-target="#file-preview-modal .modal-body"
                       data-bs-toggle="modal"
-                      data-bs-target="#file-preview-modal">
+                      data-bs-target="#file-preview-modal"
+                      title="View docker-compose.yml">
                 <i class="fas fa-eye"></i> View
               </button>
             </div>

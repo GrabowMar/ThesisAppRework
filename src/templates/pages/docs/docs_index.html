@@ -18,8 +18,10 @@
                                 </h3>
                             </div>
                             <div class="col-md-6">
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <div class="input-group input-group-flat">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-search"></i>
+                                    </span>
                                     <input type="text"
                                            class="form-control"
                                            name="q"
@@ -30,7 +32,9 @@
                                            hx-target="#docs-search-results"
                                            hx-indicator="#docs-search-spinner">
                                     <span id="docs-search-spinner" class="input-group-text htmx-indicator">
-                                        <i class="fas fa-spinner fa-spin"></i>
+                                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                            <span class="visually-hidden">Searching...</span>
+                                        </div>
                                     </span>
                                 </div>
                             </div>
@@ -147,15 +151,15 @@
                     </div>
                     <div class="card-body">
                         <div class="d-grid gap-2">
-                            <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline-primary">
+                            <a href="{{ url_for('main.dashboard') }}" class="btn btn-primary">
                                 <i class="fas fa-tachometer-alt me-2"></i>
                                 Go to Dashboard
                             </a>
-                            <a href="{{ url_for('main.models_overview') }}" class="btn btn-outline-success">
+                            <a href="{{ url_for('main.models_overview') }}" class="btn btn-ghost-success">
                                 <i class="fas fa-robot me-2"></i>
                                 Browse Models
                             </a>
-                            <a href="{{ url_for('analysis.analysis_index') }}" class="btn btn-outline-info">
+                            <a href="{{ url_for('analysis.analysis_index') }}" class="btn btn-ghost-info">
                                 <i class="fas fa-chart-line me-2"></i>
                                 Start Analysis
                             </a>
@@ -227,34 +231,34 @@
                         <div class="mb-3">
                             <div class="text-secondary small mb-1">Backend</div>
                             <div class="d-flex flex-wrap gap-1 mb-2">
-                                <span class="badge bg-blue-lt text-blue">Flask</span>
-                                <span class="badge bg-green-lt text-green">SQLAlchemy</span>
-                                <span class="badge bg-orange-lt text-orange">Celery</span>
-                                <span class="badge bg-red-lt text-red">Redis</span>
+                                <span class="badge bg-primary-lt text-primary">Flask</span>
+                                <span class="badge bg-success-lt text-success">SQLAlchemy</span>
+                                <span class="badge bg-warning-lt text-warning">Celery</span>
+                                <span class="badge bg-danger-lt text-danger">Redis</span>
                             </div>
                         </div>
                         
                         <div class="mb-3">
                             <div class="text-secondary small mb-1">Frontend</div>
                             <div class="d-flex flex-wrap gap-1 mb-2">
-                                <span class="badge bg-purple-lt text-purple">HTMX</span>
-                                <span class="badge bg-indigo-lt text-indigo">Bootstrap 5</span>
-                                <span class="badge bg-cyan-lt text-cyan">Tabler.io</span>
+                                <span class="badge bg-info-lt text-info">HTMX</span>
+                                <span class="badge bg-primary-lt text-primary">Bootstrap 5</span>
+                                <span class="badge bg-secondary-lt text-secondary">Tabler.io</span>
                             </div>
                         </div>
                         
                         <div class="mb-3">
                             <div class="text-secondary small mb-1">Infrastructure</div>
                             <div class="d-flex flex-wrap gap-1">
-                                <span class="badge bg-dark-lt text-dark">Docker</span>
-                                <span class="badge bg-blue-lt text-blue">PostgreSQL</span>
-                                <span class="badge bg-yellow-lt text-yellow">WebSockets</span>
+                                <span class="badge bg-primary-lt text-primary">Docker</span>
+                                <span class="badge bg-info-lt text-info">PostgreSQL</span>
+                                <span class="badge bg-warning-lt text-warning">WebSockets</span>
                             </div>
                         </div>
                         
                         <hr>
                         <div class="text-center">
-                            <a href="{{ url_for('docs.docs_file', filepath='ARCHITECTURE.md') }}" class="btn btn-sm btn-outline-primary">
+                            <a href="{{ url_for('docs.docs_file', filepath='ARCHITECTURE.md') }}" class="btn btn-sm btn-ghost-primary">
                                 <i class="fas fa-sitemap me-1"></i>
                                 View Architecture
                             </a>

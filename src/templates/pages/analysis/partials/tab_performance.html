@@ -10,7 +10,7 @@
       </h4>
       <p class="text-muted small mb-0">{{ performance_service.service|default('performance-tester') }}</p>
     </div>
-    <span class="badge badge-outline {% if performance_service.status in ['completed', 'ok', 'success'] %}text-success{% elif performance_service.status in ['failed', 'error'] %}text-danger{% else %}text-secondary{% endif %}">
+    <span class="badge {% if performance_service.status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif performance_service.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt text-secondary{% endif %}">
       <i class="fa-solid fa-circle-dot me-1"></i>
       {{ performance_service.status|default('unknown')|replace('_', ' ')|title }}
     </span>
@@ -27,11 +27,11 @@
               <div class="d-flex justify-content-between align-items-start mb-2">
                 <h5 class="mb-0">{{ test_name|replace('_', ' ')|title }}</h5>
                 {% if test_data.executed %}
-                  <span class="badge badge-outline {% if test_data.status in ['success', 'ok', 'completed'] %}text-success{% elif test_data.status in ['failed', 'error'] %}text-danger{% else %}text-secondary{% endif %}">
+                  <span class="badge {% if test_data.status in ['success', 'ok', 'completed'] %}bg-success-lt text-success{% elif test_data.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt text-secondary{% endif %}">
                     {{ test_data.status|default('unknown') }}
                   </span>
                 {% else %}
-                  <span class="badge badge-outline text-muted">Not Executed</span>
+                  <span class="badge bg-secondary-lt text-secondary">Not Executed</span>
                 {% endif %}
               </div>
 

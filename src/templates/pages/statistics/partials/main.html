@@ -1,33 +1,39 @@
 <div class="container-fluid py-4 statistics-dashboard">
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
-    <div>
-      <h1 class="h3 mb-0">Statistics Dashboard</h1>
-      <p class="text-muted mb-0">Live view of generated applications, analyzer runs, and on-disk artifacts.</p>
-    </div>
-    <div class="btn-group" role="group">
-      {% if generation_download_url %}
-        <a class="btn btn-primary" href="{{ generation_download_url }}" title="Download full JSON summary">
-          <i class="fa-solid fa-download me-1"></i>
-          Download Summary
-        </a>
-      {% endif %}
-      <button class="btn btn-outline-primary" onclick="refreshStatistics()" title="Refresh all statistics">
-        <i class="fa-solid fa-sync me-1"></i>
-        Refresh
-      </button>
-      <button class="btn btn-outline-secondary" onclick="exportVisibleData()" title="Export visible table data">
-        <i class="fa-solid fa-file-csv me-1"></i>
-        Export CSV
-      </button>
-      <button class="btn btn-outline-danger" onclick="showWipeConfirmation()" title="Wipe all statistics from database">
-        <i class="fa-solid fa-trash-can me-1"></i>
-        Wipe Statistics
-      </button>
+  <div class="page-header d-print-none">
+    <div class="container-xl">
+      <div class="row g-2 align-items-center">
+        <div class="col">
+          <h2 class="page-title">Statistics Dashboard</h2>
+          <div class="text-muted mt-1">Live view of generated applications, analyzer runs, and on-disk artifacts.</div>
+        </div>
+        <div class="col-auto ms-auto d-print-none">
+          <div class="btn-list">
+            {% if generation_download_url %}
+              <a class="btn btn-primary" href="{{ generation_download_url }}" title="Download full JSON summary">
+                <i class="fa-solid fa-download me-2"></i>
+                Download Summary
+              </a>
+            {% endif %}
+            <button class="btn btn-ghost-primary" onclick="refreshStatistics()" title="Refresh all statistics">
+              <i class="fa-solid fa-sync me-2"></i>
+              Refresh
+            </button>
+            <button class="btn btn-ghost-secondary" onclick="exportVisibleData()" title="Export visible table data">
+              <i class="fa-solid fa-file-csv me-2"></i>
+              Export CSV
+            </button>
+            <button class="btn btn-ghost-danger" onclick="showWipeConfirmation()" title="Wipe all statistics from database">
+              <i class="fa-solid fa-trash-can me-2"></i>
+              Wipe Statistics
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
-  <!-- Wipe Confirmation Modal -->
-  <div class="modal fade" id="wipeConfirmModal" tabindex="-1" aria-labelledby="wipeConfirmModalLabel" aria-hidden="true">
+  {# Wipe Confirmation Modal - Tabler Standard #}
+  <div class="modal modal-blur fade" id="wipeConfirmModal" tabindex="-1" aria-labelledby="wipeConfirmModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header bg-danger text-white">
@@ -68,44 +74,83 @@
     </div>
   </div>
 
-  <div class="row g-3 mb-4">
-    <div class="col-12 col-md-3">
-      <div class="card h-100 shadow-sm">
-        <div class="card-body">
-          <h2 class="card-title h6 text-uppercase text-muted">Generation Runs</h2>
-          <p class="display-5 fw-semibold mb-1">{{ generation_summary.total_runs or 0 }}</p>
-          <p class="mb-0 text-muted">Total runs indexed from filesystem artifacts.</p>
+  {# Summary Metric Cards - Row 1 #}
+  <div class="page-body">
+    <div class="container-xl">
+      <div class="row row-cards mb-3">
+        <div class="col-sm-6 col-lg-3">
+          <div class="card card-sm">
+            <div class="card-body">
+              <div class="row align-items-center">
+                <div class="col-auto">
+                  <span class="bg-primary text-white avatar">
+                    <i class="fas fa-play"></i>
+                  </span>
+                </div>
+                <div class="col">
+                  <div class="font-weight-medium">Generation Runs</div>
+                  <div class="text-muted">Total indexed runs</div>
+                </div>
+              </div>
+              <div class="h1 mb-0 mt-2">{{ generation_summary.total_runs or 0 }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="card card-sm">
+            <div class="card-body">
+              <div class="row align-items-center">
+                <div class="col-auto">
+                  <span class="bg-success text-white avatar">
+                    <i class="fas fa-check-circle"></i>
+                  </span>
+                </div>
+                <div class="col">
+                  <div class="font-weight-medium">Successful Runs</div>
+                  <div class="text-muted">{{ generation_summary.success_rate or 0 }}% success rate</div>
+                </div>
+              </div>
+              <div class="h1 mb-0 mt-2">{{ generation_summary.successful_runs or 0 }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="card card-sm">
+            <div class="card-body">
+              <div class="row align-items-center">
+                <div class="col-auto">
+                  <span class="bg-info text-white avatar">
+                    <i class="fas fa-code"></i>
+                  </span>
+                </div>
+                <div class="col">
+                  <div class="font-weight-medium">Lines of Code</div>
+                  <div class="text-muted">{{ "%.1f"|format(generation_summary.avg_lines_per_generation or 0) }} avg per gen</div>
+                </div>
+              </div>
+              <div class="h1 mb-0 mt-2">{{ generation_summary.total_lines_generated or 0 }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="card card-sm">
+            <div class="card-body">
+              <div class="row align-items-center">
+                <div class="col-auto">
+                  <span class="bg-danger text-white avatar">
+                    <i class="fas fa-shield-alt"></i>
+                  </span>
+                </div>
+                <div class="col">
+                  <div class="font-weight-medium">Security Issues</div>
+                  <div class="text-muted">High-severity findings</div>
+                </div>
+              </div>
+              <div class="h1 mb-0 mt-2">{{ generation_summary.total_security_issues or 0 }}</div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="col-12 col-md-3">
-      <div class="card h-100 shadow-sm">
-        <div class="card-body">
-          <h2 class="card-title h6 text-uppercase text-muted">Successful Runs</h2>
-          <p class="display-5 fw-semibold mb-1">{{ generation_summary.successful_runs or 0 }}</p>
-          <p class="mb-0 text-muted">{{ generation_summary.success_rate or 0 }}% success rate.</p>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-3">
-      <div class="card h-100 shadow-sm">
-        <div class="card-body">
-          <h2 class="card-title h6 text-uppercase text-muted">Lines of Code</h2>
-          <p class="display-5 fw-semibold mb-1">{{ generation_summary.total_lines_generated or 0 }}</p>
-          <p class="mb-0 text-muted">{{ "%.1f"|format(generation_summary.avg_lines_per_generation or 0) }} avg per generation.</p>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-3">
-      <div class="card h-100 shadow-sm">
-        <div class="card-body">
-          <h2 class="card-title h6 text-uppercase text-muted">Security Issues</h2>
-          <p class="display-5 fw-semibold mb-1">{{ generation_summary.total_security_issues or 0 }}</p>
-          <p class="mb-0 text-muted">High-severity findings across all apps.</p>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <div class="row g-3 mb-4">
     <div class="col-12 col-md-4">
@@ -174,7 +219,7 @@
           <p class="mb-0 text-muted">
             {% if generation_summary.by_provider %}
               {% for provider in generation_summary.by_provider.keys() %}
-                <span class="badge bg-light text-dark me-1">{{ provider }}</span>
+                <span class="badge bg-secondary-lt text-secondary me-1">{{ provider }}</span>
               {% endfor %}
             {% else %}
               No providers tracked yet.
@@ -192,7 +237,7 @@
       <div class="card shadow-sm">
         <div class="card-header d-flex justify-content-between align-items-center">
           <h2 class="card-title h6 mb-0">Analysis Task Statistics</h2>
-          <span class="badge bg-secondary">{{ generation_summary.task_stats.total_tasks or 0 }} tasks</span>
+          <span class="badge bg-secondary-lt text-secondary">{{ generation_summary.task_stats.total_tasks or 0 }} tasks</span>
         </div>
         <div class="card-body">
           <div class="row g-3">
@@ -219,7 +264,7 @@
                 <h3 class="h6 text-muted">By Status</h3>
                 <p class="small mb-0">
                   {% for status, count in generation_summary.task_stats.by_status.items() %}
-                    <span class="badge bg-light text-dark me-1">{{ status }}: {{ count }}</span>
+                    <span class="badge bg-secondary-lt text-secondary me-1">{{ status }}: {{ count }}</span>
                   {% endfor %}
                 </p>
               </div>
@@ -230,7 +275,7 @@
             <h3 class="h6 text-muted mb-2">By Analysis Type</h3>
             <div>
               {% for type, count in generation_summary.task_stats.by_type.items() %}
-                <span class="badge bg-info me-1 mb-1">{{ type }}: {{ count }}</span>
+                <span class="badge bg-info-lt text-info me-1 mb-1">{{ type }}: {{ count }}</span>
               {% endfor %}
             </div>
           </div>
@@ -246,7 +291,7 @@
       <div class="card shadow-sm h-100">
         <div class="card-header d-flex justify-content-between align-items-center">
           <h2 class="card-title h6 mb-0">Runs by Model</h2>
-          <span class="badge bg-secondary">{{ generation_summary.by_model|length or 0 }} models</span>
+          <span class="badge bg-secondary-lt text-secondary">{{ generation_summary.by_model|length or 0 }} models</span>
         </div>
         <div class="card-body">
           {% if generation_summary.by_model %}
@@ -254,7 +299,7 @@
               {% for model, count in generation_summary.by_model|dictsort %}
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                   <span class="text-truncate" title="{{ model }}">{{ model }}</span>
-                  <span class="badge bg-primary rounded-pill">{{ count }}</span>
+                  <span class="badge bg-primary-lt text-primary rounded-pill">{{ count }}</span>
                 </li>
               {% endfor %}
             </ul>
@@ -268,7 +313,7 @@
       <div class="card shadow-sm h-100">
         <div class="card-header d-flex justify-content-between align-items-center">
           <h2 class="card-title h6 mb-0">Runs by Component</h2>
-          <span class="badge bg-secondary">{{ generation_summary.by_component|length or 0 }} components</span>
+          <span class="badge bg-secondary-lt text-secondary">{{ generation_summary.by_component|length or 0 }} components</span>
         </div>
         <div class="card-body">
           {% if generation_summary.by_component %}
@@ -276,7 +321,7 @@
               {% for component, count in generation_summary.by_component|dictsort %}
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                   <span class="text-truncate" title="{{ component }}">{{ component }}</span>
-                  <span class="badge bg-info rounded-pill">{{ count }}</span>
+                  <span class="badge bg-info-lt text-info rounded-pill">{{ count }}</span>
                 </li>
               {% endfor %}
             </ul>
@@ -326,7 +371,7 @@
             <dd class="col-5 text-end">
               {% if application_stats.by_status %}
                 {% for status in application_stats.by_status %}
-                  <span class="badge bg-light text-dark me-1 mb-1">{{ status.status or 'unknown' }}: {{ status.count }}</span>
+                  <span class="badge bg-secondary-lt text-secondary me-1 mb-1">{{ status.status or 'unknown' }}: {{ status.count }}</span>
                 {% endfor %}
               {% else %}
                 <span class="text-muted">None</span>
@@ -336,7 +381,7 @@
             <dd class="col-5 text-end">
               {% if application_stats.by_type %}
                 {% for row in application_stats.by_type %}
-                  <span class="badge bg-light text-dark me-1 mb-1">{{ row.type or 'unknown' }}: {{ row.count }}</span>
+                  <span class="badge bg-secondary-lt text-secondary me-1 mb-1">{{ row.type or 'unknown' }}: {{ row.count }}</span>
                 {% endfor %}
               {% else %}
                 <span class="text-muted">None</span>
@@ -356,7 +401,7 @@
           <div class="small mb-3">
             {% if model_stats.by_provider %}
               {% for row in model_stats.by_provider %}
-                <span class="badge bg-secondary me-1 mb-1">{{ row.provider or 'unknown' }}: {{ row.count }}</span>
+                <span class="badge bg-secondary-lt text-secondary me-1 mb-1">{{ row.provider or 'unknown' }}: {{ row.count }}</span>
               {% endfor %}
             {% else %}
               <span class="text-muted">No model data recorded.</span>
@@ -365,11 +410,11 @@
           <div class="border-top pt-2 small">
             <strong>Analysis</strong>
             <div class="mt-2">
-              <span class="badge bg-success me-1 mb-1">Security: {{ analysis_stats.security.total or 0 }}</span>
+              <span class="badge bg-success-lt text-success me-1 mb-1">Security: {{ analysis_stats.security.total or 0 }}</span>
               <span class="badge bg-light text-success me-1 mb-1">Completed {{ analysis_stats.security.success_rate or 0 }}%</span>
             </div>
             <div>
-              <span class="badge bg-info me-1 mb-1">Performance: {{ analysis_stats.performance.total or 0 }}</span>
+              <span class="badge bg-info-lt text-info me-1 mb-1">Performance: {{ analysis_stats.performance.total or 0 }}</span>
               <span class="badge bg-light text-info me-1 mb-1">Completed {{ analysis_stats.performance.success_rate or 0 }}%</span>
             </div>
           </div>
@@ -423,44 +468,72 @@
     </div>
   </div>
 
-  <section class="mb-5">
-    <div class="card shadow-sm">
-      <div class="card-header">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <div>
-            <h2 class="card-title h6 mb-0"><i class="fa-solid fa-table me-2"></i>Generation Runs</h2>
-            <small class="text-muted">Detailed view of individual generation metadata with code metrics and analysis results.</small>
+  <section class="mb-3">
+    <div class="card card-table-compact">
+      <div class="card-header d-flex flex-wrap align-items-center gap-3">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+            <i class="fa-solid fa-table"></i>
+            <span>Generation Runs</span>
+          </h3>
+          <div class="d-flex flex-wrap align-items-center gap-2 status-indicators">
+            <span class="badge bg-primary-lt d-inline-flex align-items-center gap-2">
+              <i class="fa-solid fa-database"></i><span>{{ generation_rows|length }}</span>
+            </span>
           </div>
-          <span class="badge bg-secondary">{{ generation_rows|length }} records</span>
         </div>
-        <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
-          <div class="input-group input-group-sm" style="max-width: 250px;">
-            <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
-            <input type="text" class="form-control" id="filterGenerationRuns" placeholder="Search runs...">
-          </div>
-          <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-outline-secondary" onclick="selectAllGenerationRuns(true)">
-              <i class="fa-solid fa-check-square me-1"></i>Select All
+        <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+          <div class="btn-list">
+            <button class="btn btn-sm btn-primary" onclick="exportSelectedGenerationRuns()" disabled id="btnExportGenerationRuns" title="Export selected runs">
+              <i class="fa-solid fa-file-csv me-1"></i>Export
             </button>
-            <button class="btn btn-outline-secondary" onclick="selectAllGenerationRuns(false)">
-              <i class="fa-solid fa-square me-1"></i>Clear
-            </button>
-          </div>
-          <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-outline-primary" onclick="exportSelectedGenerationRuns()" disabled id="btnExportGenerationRuns">
-              <i class="fa-solid fa-file-csv me-1"></i>Export Selected
-            </button>
-            <button class="btn btn-outline-info" onclick="compareSelectedGenerationRuns()" disabled id="btnCompareGenerationRuns">
+            <button class="btn btn-sm btn-info" onclick="compareSelectedGenerationRuns()" disabled id="btnCompareGenerationRuns" title="Compare selected runs">
               <i class="fa-solid fa-code-compare me-1"></i>Compare
             </button>
           </div>
-          <small class="text-muted ms-auto" id="generationRunsSelectedCount">0 selected</small>
+          <span class="text-primary small fw-bold" id="generationRunsSelectedCount"></span>
         </div>
       </div>
-      <div class="card-body table-responsive p-0">
+      
+      <div class="card-body border-top py-3">
+        <div class="row g-2">
+          <div class="col-12">
+            <div class="input-group input-group-flat">
+              <span class="input-group-text">
+                <i class="fa-solid fa-search" aria-hidden="true"></i>
+              </span>
+              <input type="text" class="form-control" id="filterGenerationRuns" placeholder="Search by run ID, model, provider, or component..." aria-label="Search generation runs">
+              <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('filterGenerationRuns').value=''; /* trigger search */" title="Clear search" aria-label="Clear search">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <small class="form-hint">Detailed view of individual generation metadata with code metrics and analysis results.</small>
+          </div>
+        </div>
+        
+        <div class="row g-2 align-items-center mt-2">
+          <div class="col-auto">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Selection actions">
+              <button class="btn btn-outline-secondary" onclick="selectAllGenerationRuns(true)" title="Select all runs">
+                <i class="fa-solid fa-check-square me-1"></i>All
+              </button>
+              <button class="btn btn-outline-secondary" onclick="selectAllGenerationRuns(false)" title="Clear selection">
+                <i class="fa-solid fa-square me-1"></i>None
+              </button>
+            </div>
+          </div>
+          <div class="col-auto ms-auto">
+            <button class="btn btn-sm btn-ghost-secondary" onclick="clearAllFilters()" type="button">
+              <i class="fa-solid fa-times-circle me-1"></i>Clear Filters
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <div class="table-responsive">
         {% if generation_rows %}
-          <table class="table table-sm table-striped align-middle mb-0 table-hover" data-statistics-table id="generationRunsTable">
-            <thead class="table-light sticky-top">
+          <table class="table table-striped table-vcenter table-hover table-sm card-table mb-0" data-statistics-table id="generationRunsTable">
+            <thead>
               <tr>
                 <th scope="col" class="text-center" style="width: 40px;">
                   <input type="checkbox" class="form-check-input" id="selectAllGenRuns" onchange="selectAllGenerationRuns(this.checked)">
@@ -512,17 +585,17 @@
                   <td>{{ row.app_num or '&mdash;' }}</td>
                   <td>
                     {% if row.success %}
-                      <span class="badge bg-success">Yes</span>
+                      <span class="badge bg-success-lt text-success">Yes</span>
                     {% elif row.success is not none %}
-                      <span class="badge bg-danger">No</span>
+                      <span class="badge bg-danger-lt text-danger">No</span>
                     {% else %}
-                      <span class="badge bg-secondary">Unknown</span>
+                      <span class="badge bg-secondary-lt text-secondary">Unknown</span>
                     {% endif %}
                   </td>
                   <td>{{ "%.2f"|format(row.duration) if row.duration else '—' }}</td>
                   <td>
                     {% if row.generation_time_ms %}
-                      <span class="badge bg-info">{{ row.generation_time_ms }}</span>
+                      <span class="badge bg-info-lt text-info">{{ row.generation_time_ms }}</span>
                     {% else %}
                       —
                     {% endif %}
@@ -565,7 +638,7 @@
                   </td>
                   <td>
                     {% if row.security_issues %}
-                      <span class="badge bg-danger">{{ row.security_issues }} issues</span>
+                      <span class="badge bg-danger-lt text-danger">{{ row.security_issues }} issues</span>
                     {% else %}
                       <span class="text-muted">—</span>
                     {% endif %}
@@ -598,40 +671,83 @@
             </tbody>
           </table>
         {% else %}
-          <p class="text-muted mb-0">No generation runs have been indexed yet.</p>
+          <div class="empty">
+            <div class="empty-icon">
+              <i class="fas fa-inbox fa-3x text-muted"></i>
+            </div>
+            <p class="empty-title">No generation runs found</p>
+            <p class="empty-subtitle text-muted">
+              No generation runs have been indexed yet. Run some generations to see data here.
+            </p>
+          </div>
         {% endif %}
       </div>
+      
+      {% if generation_rows %}
+      <div class="card-footer d-flex align-items-center gap-2 justify-content-between">
+        <div class="text-muted">Showing {{ generation_rows|length }} generation run(s)</div>
+        <nav aria-label="Generation runs pagination">
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item disabled">
+              <a class="page-link" href="#" tabindex="-1" aria-label="Previous">Previous</a>
+            </li>
+            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+            <li class="page-item disabled">
+              <a class="page-link" href="#" aria-label="Next">Next</a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
     </div>
   </section>
 
   <section class="mb-5">
-    <div class="card shadow-sm">
-      <div class="card-header">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <div>
-            <h2 class="card-title h6 mb-0"><i class="fa-solid fa-cube me-2"></i>Generated Applications</h2>
-            <small class="text-muted">Latest {{ generated_apps|length }} records from the database.</small>
-          </div>
+    <div class="card card-table-compact">
+      <div class="card-header d-flex flex-wrap align-items-center gap-3">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+            <i class="fa-solid fa-cube"></i>
+            <span>Generated Applications</span>
+          </h3>
+          <span class="badge bg-success-lt text-success d-inline-flex align-items-center gap-2">
+            <i class="fa-solid fa-check-circle"></i>
+            <span>{{ generated_apps|length }}</span>
+          </span>
         </div>
-        <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
-          <div class="input-group input-group-sm" style="max-width: 250px;">
-            <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
-            <input type="text" class="form-control" id="filterApps" placeholder="Search apps...">
-          </div>
-          <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-outline-primary" onclick="exportAppsTable()">
+        <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+          <div class="btn-list">
+            <button class="btn btn-sm btn-primary" onclick="exportAppsTable()" title="Export applications table">
               <i class="fa-solid fa-file-csv me-1"></i>Export
             </button>
-            <button class="btn btn-outline-info" onclick="viewAppsSummary()">
+            <button class="btn btn-sm btn-info" onclick="viewAppsSummary()" title="View applications summary">
               <i class="fa-solid fa-chart-bar me-1"></i>Summary
             </button>
           </div>
         </div>
       </div>
-      <div class="card-body table-responsive p-0">
+      
+      <div class="card-body border-top py-3">
+        <div class="row g-2">
+          <div class="col-12">
+            <div class="input-group input-group-flat">
+              <span class="input-group-text">
+                <i class="fa-solid fa-search" aria-hidden="true"></i>
+              </span>
+              <input type="text" class="form-control" id="filterApps" placeholder="Search by model, app number, type, or status..." aria-label="Search applications">
+              <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('filterApps').value='';" title="Clear search" aria-label="Clear search">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <small class="form-hint">Latest {{ generated_apps|length }} application records from the database.</small>
+          </div>
+        </div>
+      </div>
+      
+      <div class="table-responsive">
         {% if generated_apps %}
-          <table class="table table-sm table-striped align-middle mb-0 table-hover" data-statistics-table id="appsTable">
-            <thead class="table-light sticky-top">
+          <table class="table table-striped table-vcenter table-hover table-sm card-table mb-0" data-statistics-table id="appsTable">
+            <thead>
               <tr>
                 <th>ID</th>
                 <th>Model</th>
@@ -665,43 +781,95 @@
             </tbody>
           </table>
         {% else %}
-          <p class="text-muted mb-0">No applications found.</p>
+          <div class="empty">
+            <div class="empty-icon">
+              <i class="fas fa-inbox fa-3x text-muted"></i>
+            </div>
+            <p class="empty-title">No applications found</p>
+            <p class="empty-subtitle text-muted">
+              No applications have been generated yet. Use the sample generator to create applications.
+            </p>
+            <div class="empty-action">
+              <a href="{{ url_for('sample_generator.sample_generator_main') if 'sample_generator.sample_generator_main' in current_app.view_functions else '/sample-generator' }}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Generate Application
+              </a>
+            </div>
+          </div>
         {% endif %}
       </div>
+      
+      {% if generated_apps %}
+      <div class="card-footer d-flex align-items-center gap-2 justify-content-between">
+        <div class="text-muted">Showing {{ generated_apps|length }} application(s)</div>
+        <nav aria-label="Applications pagination">
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item disabled">
+              <a class="page-link" href="#" tabindex="-1" aria-label="Previous">Previous</a>
+            </li>
+            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+            <li class="page-item disabled">
+              <a class="page-link" href="#" aria-label="Next">Next</a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
     </div>
   </section>
 
   <section class="mb-5">
-    <div class="card shadow-sm">
-      <div class="card-header">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <h2 class="card-title h6 mb-0"><i class="fa-solid fa-shield-alt me-2"></i>Security Analyses</h2>
-          <span class="badge bg-secondary">{{ security_analyses|length }} records</span>
+    <div class="card card-table-compact">
+      <div class="card-header d-flex flex-wrap align-items-center gap-3">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+            <i class="fa-solid fa-shield-alt"></i>
+            <span>Security Analyses</span>
+          </h3>
+          <span class="badge bg-danger-lt text-danger d-inline-flex align-items-center gap-2">
+            <i class="fa-solid fa-bug"></i>
+            <span>{{ security_analyses|length }}</span>
+          </span>
         </div>
-        <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
-          <div class="input-group input-group-sm" style="max-width: 250px;">
-            <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
-            <input type="text" class="form-control" id="filterSecurity" placeholder="Search analyses...">
-          </div>
-          <select class="form-select form-select-sm" id="filterSecurityStatus" style="max-width: 150px;" onchange="filterSecurityTable()">
-            <option value="">All Statuses</option>
-            <option value="completed">Completed</option>
-            <option value="running">Running</option>
-            <option value="failed">Failed</option>
-          </select>
-          <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-outline-primary" onclick="exportSecurityTable()">
+        <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+          <div class="btn-list">
+            <button class="btn btn-sm btn-primary" onclick="exportSecurityTable()" title="Export security analyses">
               <i class="fa-solid fa-file-csv me-1"></i>Export
             </button>
-            <button class="btn btn-outline-danger" onclick="viewSecuritySummary()">
+            <button class="btn btn-sm btn-danger" onclick="viewSecuritySummary()" title="View security summary">
               <i class="fa-solid fa-chart-pie me-1"></i>Summary
             </button>
           </div>
         </div>
       </div>
-      <div class="card-body table-responsive p-0">
+      
+      <div class="card-body border-top py-3">
+        <div class="row g-2">
+          <div class="col-md-6">
+            <div class="input-group input-group-flat">
+              <span class="input-group-text">
+                <i class="fa-solid fa-search" aria-hidden="true"></i>
+              </span>
+              <input type="text" class="form-control" id="filterSecurity" placeholder="Search analyses..." aria-label="Search security analyses">
+              <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('filterSecurity').value='';" title="Clear search" aria-label="Clear search">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <small class="form-hint">Search by app ID, status, tools, or metadata.</small>
+          </div>
+          <div class="col-md-3">
+            <select class="form-select" id="filterSecurityStatus" onchange="filterSecurityTable()" aria-label="Filter by status">
+              <option value="">All Statuses</option>
+              <option value="completed">Completed</option>
+              <option value="running">Running</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      
+      <div class="table-responsive">
         {% if security_analyses %}
-          <table class="table table-sm table-striped align-middle mb-0" data-statistics-table>
+          <table class="table table-striped table-vcenter table-hover table-sm card-table mb-0" data-statistics-table id="securityTable">
             <thead>
               <tr>
                 <th>ID</th>
@@ -721,10 +889,10 @@
                   <td>{{ entry.application_id }}</td>
                   <td>{{ entry.status or '&mdash;' }}</td>
                   <td>
-                    <span class="badge bg-danger me-1">C {{ entry.critical or 0 }}</span>
-                    <span class="badge bg-warning text-dark me-1">H {{ entry.high or 0 }}</span>
-                    <span class="badge bg-secondary me-1">M {{ entry.medium or 0 }}</span>
-                    <span class="badge bg-light text-dark">L {{ entry.low or 0 }}</span>
+                    <span class="badge bg-danger-lt text-danger me-1">C {{ entry.critical or 0 }}</span>
+                    <span class="badge bg-warning-lt text-warning me-1">H {{ entry.high or 0 }}</span>
+                    <span class="badge bg-info-lt text-info me-1">M {{ entry.medium or 0 }}</span>
+                    <span class="badge bg-secondary-lt text-secondary">L {{ entry.low or 0 }}</span>
                   </td>
                   <td class="small text-truncate" style="max-width: 200px;" title="{{ entry.enabled_tools|join(', ') }}">
                     {{ entry.enabled_tools|join(', ') or '—' }}
@@ -739,38 +907,83 @@
             </tbody>
           </table>
         {% else %}
-          <p class="text-muted mb-0">No security analyses have been recorded.</p>
+          <div class="empty">
+            <div class="empty-icon">
+              <i class="fas fa-shield-alt fa-3x text-muted"></i>
+            </div>
+            <p class="empty-title">No security analyses found</p>
+            <p class="empty-subtitle text-muted">
+              No security analyses have been recorded yet. Run security scans to see data here.
+            </p>
+          </div>
         {% endif %}
       </div>
+      
+      {% if security_analyses %}
+      <div class="card-footer d-flex align-items-center gap-2 justify-content-between">
+        <div class="text-muted">Showing {{ security_analyses|length }} security analysis/analyses</div>
+        <nav aria-label="Security analyses pagination">
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item disabled">
+              <a class="page-link" href="#" tabindex="-1" aria-label="Previous">Previous</a>
+            </li>
+            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+            <li class="page-item disabled">
+              <a class="page-link" href="#" aria-label="Next">Next</a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
     </div>
   </section>
 
   <section class="mb-5">
-    <div class="card shadow-sm">
-      <div class="card-header">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <h2 class="card-title h6 mb-0"><i class="fa-solid fa-tachometer-alt me-2"></i>Performance Tests</h2>
-          <span class="badge bg-secondary">{{ performance_tests|length }} records</span>
+    <div class="card card-table-compact">
+      <div class="card-header d-flex flex-wrap align-items-center gap-3">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+            <i class="fa-solid fa-tachometer-alt"></i>
+            <span>Performance Tests</span>
+          </h3>
+          <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-2">
+            <i class="fa-solid fa-gauge"></i>
+            <span>{{ performance_tests|length }}</span>
+          </span>
         </div>
-        <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
-          <div class="input-group input-group-sm" style="max-width: 250px;">
-            <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
-            <input type="text" class="form-control" id="filterPerformance" placeholder="Search tests...">
-          </div>
-          <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-outline-primary" onclick="exportPerformanceTable()">
+        <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+          <div class="btn-list">
+            <button class="btn btn-sm btn-primary" onclick="exportPerformanceTable()" title="Export performance tests">
               <i class="fa-solid fa-file-csv me-1"></i>Export
             </button>
-            <button class="btn btn-outline-info" onclick="viewPerformanceCharts()">
+            <button class="btn btn-sm btn-info" onclick="viewPerformanceCharts()" title="View performance charts">
               <i class="fa-solid fa-chart-line me-1"></i>Charts
             </button>
           </div>
         </div>
       </div>
-      <div class="card-body table-responsive p-0">
+      
+      <div class="card-body border-top py-3">
+        <div class="row g-2">
+          <div class="col-12">
+            <div class="input-group input-group-flat">
+              <span class="input-group-text">
+                <i class="fa-solid fa-search" aria-hidden="true"></i>
+              </span>
+              <input type="text" class="form-control" id="filterPerformance" placeholder="Search by app, status, metrics..." aria-label="Search performance tests">
+              <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('filterPerformance').value='';" title="Clear search" aria-label="Clear search">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <small class="form-hint">Search performance test records by app ID, status, or metrics.</small>
+          </div>
+        </div>
+      </div>
+      
+      <div class="table-responsive">
         {% if performance_tests %}
-          <table class="table table-sm table-striped align-middle mb-0 table-hover" data-statistics-table id="performanceTable">
-            <thead class="table-light sticky-top">
+          <table class="table table-striped table-vcenter table-hover table-sm card-table mb-0" data-statistics-table id="performanceTable">
+            <thead>
               <tr>
                 <th>ID</th>
                 <th>App</th>
@@ -804,35 +1017,80 @@
             </tbody>
           </table>
         {% else %}
-          <p class="text-muted mb-0">No performance tests have been recorded.</p>
+          <div class="empty">
+            <div class="empty-icon">
+              <i class="fas fa-tachometer-alt fa-3x text-muted"></i>
+            </div>
+            <p class="empty-title">No performance tests found</p>
+            <p class="empty-subtitle text-muted">
+              No performance tests have been recorded yet. Run performance tests to see data here.
+            </p>
+          </div>
         {% endif %}
       </div>
+      
+      {% if performance_tests %}
+      <div class="card-footer d-flex align-items-center gap-2 justify-content-between">
+        <div class="text-muted">Showing {{ performance_tests|length }} performance test(s)</div>
+        <nav aria-label="Performance tests pagination">
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item disabled">
+              <a class="page-link" href="#" tabindex="-1" aria-label="Previous">Previous</a>
+            </li>
+            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+            <li class="page-item disabled">
+              <a class="page-link" href="#" aria-label="Next">Next</a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
     </div>
   </section>
 
   <section class="mb-5">
-    <div class="card shadow-sm">
-      <div class="card-header">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <h2 class="card-title h6 mb-0"><i class="fa-solid fa-shield-virus me-2"></i>OWASP ZAP Analyses</h2>
-          <span class="badge bg-secondary">{{ zap_analyses|length }} records</span>
+    <div class="card card-table-compact">
+      <div class="card-header d-flex flex-wrap align-items-center gap-3">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+            <i class="fa-solid fa-shield-virus"></i>
+            <span>OWASP ZAP Analyses</span>
+          </h3>
+          <span class="badge bg-warning-lt text-warning d-inline-flex align-items-center gap-2">
+            <i class="fa-solid fa-exclamation-triangle"></i>
+            <span>{{ zap_analyses|length }}</span>
+          </span>
         </div>
-        <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
-          <div class="input-group input-group-sm" style="max-width: 250px;">
-            <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
-            <input type="text" class="form-control" id="filterZap" placeholder="Search ZAP scans...">
-          </div>
-          <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-outline-primary" onclick="exportZapTable()">
+        <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+          <div class="btn-list">
+            <button class="btn btn-sm btn-primary" onclick="exportZapTable()" title="Export ZAP analyses">
               <i class="fa-solid fa-file-csv me-1"></i>Export
             </button>
           </div>
         </div>
       </div>
-      <div class="card-body table-responsive p-0">
+      
+      <div class="card-body border-top py-3">
+        <div class="row g-2">
+          <div class="col-12">
+            <div class="input-group input-group-flat">
+              <span class="input-group-text">
+                <i class="fa-solid fa-search" aria-hidden="true"></i>
+              </span>
+              <input type="text" class="form-control" id="filterZap" placeholder="Search ZAP scans..." aria-label="Search ZAP scans">
+              <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('filterZap').value='';" title="Clear search" aria-label="Clear search">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <small class="form-hint">Search ZAP scan records by app, scan type, target, or alerts.</small>
+          </div>
+        </div>
+      </div>
+      
+      <div class="table-responsive">
         {% if zap_analyses %}
-          <table class="table table-sm table-striped align-middle mb-0 table-hover" data-statistics-table id="zapTable">
-            <thead class="table-light sticky-top">
+          <table class="table table-striped table-vcenter table-hover table-sm card-table mb-0" data-statistics-table id="zapTable">
+            <thead>
               <tr>
                 <th>ID</th>
                 <th>App</th>
@@ -864,37 +1122,82 @@
             </tbody>
           </table>
         {% else %}
-          <p class="text-muted mb-0">No ZAP analyses found.</p>
+          <div class="empty">
+            <div class="empty-icon">
+              <i class="fas fa-shield-virus fa-3x text-muted"></i>
+            </div>
+            <p class="empty-title">No ZAP analyses found</p>
+            <p class="empty-subtitle text-muted">
+              No OWASP ZAP analyses have been recorded yet. Run ZAP scans to see data here.
+            </p>
+          </div>
         {% endif %}
       </div>
+      
+      {% if zap_analyses %}
+      <div class="card-footer d-flex align-items-center gap-2 justify-content-between">
+        <div class="text-muted">Showing {{ zap_analyses|length }} ZAP analysis/analyses</div>
+        <nav aria-label="ZAP analyses pagination">
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item disabled">
+              <a class="page-link" href="#" tabindex="-1" aria-label="Previous">Previous</a>
+            </li>
+            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+            <li class="page-item disabled">
+              <a class="page-link" href="#" aria-label="Next">Next</a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
     </div>
   </section>
 
   <section class="mb-5">
-    <div class="card shadow-sm">
-      <div class="card-header">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <h2 class="card-title h6 mb-0"><i class="fa-solid fa-robot me-2"></i>AI Analyzer (OpenRouter)</h2>
-          <span class="badge bg-secondary">{{ openrouter_analyses|length }} records</span>
+    <div class="card card-table-compact">
+      <div class="card-header d-flex flex-wrap align-items-center gap-3">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+            <i class="fa-solid fa-robot"></i>
+            <span>AI Analyzer (OpenRouter)</span>
+          </h3>
+          <span class="badge bg-purple-lt text-purple d-inline-flex align-items-center gap-2">
+            <i class="fa-solid fa-brain"></i>
+            <span>{{ openrouter_analyses|length }}</span>
+          </span>
         </div>
-        <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
-          <div class="input-group input-group-sm" style="max-width: 250px;">
-            <span class="input-group-text"><i class="fa-solid fa-search"></i></span>
-            <input type="text" class="form-control" id="filterAi" placeholder="Search AI analyses...">
-          </div>
-          <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-outline-primary" onclick="exportAiTable()">
+        <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+          <div class="btn-list">
+            <button class="btn btn-sm btn-primary" onclick="exportAiTable()" title="Export AI analyses">
               <i class="fa-solid fa-file-csv me-1"></i>Export
             </button>
-            <button class="btn btn-outline-success" onclick="viewCostAnalysis()">
+            <button class="btn btn-sm btn-success" onclick="viewCostAnalysis()" title="View cost analysis">
               <i class="fa-solid fa-dollar-sign me-1"></i>Cost Analysis
             </button>
           </div>
         </div>
       </div>
-      <div class="card-body table-responsive p-0">
+      
+      <div class="card-body border-top py-3">
+        <div class="row g-2">
+          <div class="col-12">
+            <div class="input-group input-group-flat">
+              <span class="input-group-text">
+                <i class="fa-solid fa-search" aria-hidden="true"></i>
+              </span>
+              <input type="text" class="form-control" id="filterAi" placeholder="Search AI analyses..." aria-label="Search AI analyses">
+              <button class="btn btn-outline-secondary" type="button" onclick="document.getElementById('filterAi').value='';" title="Clear search" aria-label="Clear search">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+            <small class="form-hint">Search AI analyzer records by app, model, score, or cost.</small>
+          </div>
+        </div>
+      </div>
+      
+      <div class="table-responsive">
         {% if openrouter_analyses %}
-          <table class="table table-sm table-striped align-middle mb-0" data-statistics-table>
+          <table class="table table-striped table-vcenter table-hover table-sm card-table mb-0" data-statistics-table id="aiTable">
             <thead>
               <tr>
                 <th>ID</th>
@@ -927,9 +1230,34 @@
             </tbody>
           </table>
         {% else %}
-          <p class="text-muted mb-0">No AI analyzer runs recorded.</p>
+          <div class="empty">
+            <div class="empty-icon">
+              <i class="fas fa-robot fa-3x text-muted"></i>
+            </div>
+            <p class="empty-title">No AI analyses found</p>
+            <p class="empty-subtitle text-muted">
+              No AI analyzer runs have been recorded yet. Run AI analysis to see data here.
+            </p>
+          </div>
         {% endif %}
       </div>
+      
+      {% if openrouter_analyses %}
+      <div class="card-footer d-flex align-items-center gap-2 justify-content-between">
+        <div class="text-muted">Showing {{ openrouter_analyses|length }} AI analysis/analyses</div>
+        <nav aria-label="AI analyses pagination">
+          <ul class="pagination pagination-sm mb-0">
+            <li class="page-item disabled">
+              <a class="page-link" href="#" tabindex="-1" aria-label="Previous">Previous</a>
+            </li>
+            <li class="page-item active"><a class="page-link" href="#">1</a></li>
+            <li class="page-item disabled">
+              <a class="page-link" href="#" aria-label="Next">Next</a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+      {% endif %}
     </div>
   </section>
 </div>

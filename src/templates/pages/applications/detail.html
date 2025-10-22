@@ -16,6 +16,7 @@
         {% set container_metric = metrics|selectattr('label', 'equalto', 'Container')|first %}
         {% if container_metric %}
           <span class="badge bg-{{ container_metric.status_color or 'secondary' }}-lt text-{{ container_metric.status_color or 'secondary' }}">
+            <span class="status-indicator {% if container_metric.status_color == 'success' %}status-indicator-animated{% endif %} bg-{{ container_metric.status_color or 'secondary' }} me-1"></span>
             {{ container_metric.value }}
           </span>
         {% endif %}
@@ -59,20 +60,22 @@
               <a href="{{ action.href }}" 
                  class="btn btn-sm {{ action.classes }}" 
                  {% if action.target %}target="{{ action.target }}"{% endif %}
-                 title="{{ action.label }}">
-                <i class="{{ action.icon }}"></i>
+                 title="{{ action.label }}"
+                 aria-label="{{ action.label }}">
+                <i class="{{ action.icon }}" aria-hidden="true"></i>
                 <span class="d-none d-xl-inline ms-1">{{ action.label }}</span>
               </a>
             {% else %}
               <button class="btn btn-sm {{ action.classes }}" 
                       {% if action.onclick %}onclick="{{ action.onclick }}"{% endif %}
-                      title="{{ action.label }}">
-                <i class="{{ action.icon }}"></i>
+                      title="{{ action.label }}"
+                      aria-label="{{ action.label }}">
+                <i class="{{ action.icon }}" aria-hidden="true"></i>
                 <span class="d-none d-xl-inline ms-1">{{ action.label }}</span>
               </button>
             {% endif %}
             {% if loop.index == 3 or loop.index == 5 %}
-              <div class="vr"></div>
+              <div class="vr d-none d-xl-inline"></div>
             {% endif %}
           {% endif %}
         {% endfor %}

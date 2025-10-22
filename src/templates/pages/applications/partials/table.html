@@ -98,7 +98,7 @@
         </label>
       </div>
       <div class="col-auto ms-auto">
-        <button class="btn btn-sm btn-ghost-secondary" onclick="clearAllApplicationFilters()" type="button" aria-label="Clear all filters">
+        <button class="btn btn-sm btn-outline-secondary" onclick="clearAllApplicationFilters()" type="button" aria-label="Clear all filters">
           <i class="fas fa-times-circle me-1" aria-hidden="true"></i>Clear Filters
         </button>
       </div>
@@ -128,7 +128,7 @@
 						<div class="text-truncate">{{ app.model_display_name }}</div>
 					</td>
 					<td>
-						<span class="badge bg-azure-lt">{{ app.model_provider }}</span>
+						<span class="badge bg-primary-lt text-primary">{{ app.model_provider }}</span>
 					</td>
 					<td class="text-center">
 						<strong>{{ app.app_number }}</strong>
@@ -139,17 +139,17 @@
 					<td class="text-center">
 						{% set status_lower = app.status|lower|replace('_', ' ')|replace('?', '')|trim %}
             {% if status_lower == 'running' %}
-              <span class="badge bg-success" data-role="status-badge">Running</span>
+              <span class="badge bg-success-lt text-success" data-role="status-badge"><i class="fas fa-play me-1" aria-hidden="true"></i>Running</span>
             {% elif status_lower == 'stopped' %}
-              <span class="badge bg-secondary" data-role="status-badge">Stopped</span>
+              <span class="badge bg-secondary-lt text-secondary" data-role="status-badge"><i class="fas fa-stop me-1" aria-hidden="true"></i>Stopped</span>
             {% elif status_lower == 'error' or status_lower == 'failed' %}
-              <span class="badge bg-danger" data-role="status-badge">Error</span>
+              <span class="badge bg-danger-lt text-danger" data-role="status-badge"><i class="fas fa-exclamation-circle me-1" aria-hidden="true"></i>Error</span>
             {% elif status_lower == 'building' %}
-              <span class="badge bg-warning" data-role="status-badge">Building</span>
+              <span class="badge bg-warning-lt text-warning" data-role="status-badge"><i class="fas fa-hammer me-1" aria-hidden="true"></i>Building</span>
             {% elif 'no compose' in status_lower or status_lower == 'not created' %}
-              <span class="badge bg-muted" data-role="status-badge">Not Created</span>
+              <span class="badge bg-secondary-lt text-secondary" data-role="status-badge"><i class="fas fa-plus me-1" aria-hidden="true"></i>Not Created</span>
             {% else %}
-              <span class="badge bg-secondary" data-role="status-badge">{{ status_lower|title }}</span>
+              <span class="badge bg-secondary-lt text-secondary" data-role="status-badge">{{ status_lower|title }}</span>
             {% endif %}
 					</td>
 					<td class="text-muted small">
@@ -164,11 +164,11 @@
 					</td>
 					<td class="text-center">
 						{% if app.analysis_status == 'completed' %}
-							<span class="badge bg-success">Done</span>
+							<span class="badge bg-success-lt text-success">Done</span>
 						{% elif app.analysis_status == 'running' %}
-							<span class="badge bg-warning">Running</span>
+							<span class="badge bg-warning-lt text-warning">Running</span>
 						{% elif app.analysis_status == 'failed' %}
-							<span class="badge bg-danger">Failed</span>
+							<span class="badge bg-danger-lt text-danger">Failed</span>
 						{% else %}
 							<span class="text-muted small">—</span>
 						{% endif %}

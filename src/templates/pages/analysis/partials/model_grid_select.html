@@ -45,7 +45,7 @@
                 <td class="small">{{ m.context_window or '—' }}</td>
                 {% if selectable %}
                   <td class="text-end">
-                    <button type="button" class="btn btn-sm btn-outline-primary" _="on click halt the event then call window.selectModel('{{ m.canonical_slug }}', '{{ m.model_name }}')">Select</button>
+                    <button type="button" class="btn btn-sm btn-ghost-primary" _="on click halt the event then call window.selectModel('{{ m.canonical_slug }}', '{{ m.model_name }}')">Select</button>
                   </td>
                 {% endif %}
               </tr>
@@ -53,7 +53,7 @@
             {% if has_next %}
               <tr class="table-loader-row" id="load-more-row">
                 <td class="p-2" colspan="{{ 7 if selectable else 6 }}">
-                  <button class="btn btn-outline-primary w-100"
+                  <button class="btn btn-ghost-primary w-100"
                           hx-get="/api/models/grid?selectable={{ 'true' if selectable else 'false' }}&page={{ page + 1 }}&page_size={{ page_size }}{{ '&provider=' + request.args.get('provider', '') if request.args.get('provider') }}{{ '&capability=' + request.args.get('capability', '') if request.args.get('capability') }}{{ '&price=' + request.args.get('price', '') if request.args.get('price') }}"
                           hx-target="#load-more-row"
                           hx-swap="outerHTML">

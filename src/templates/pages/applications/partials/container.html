@@ -16,7 +16,10 @@
             <span class="text-secondary text-uppercase fw-semibold small">Lifecycle state</span>
             <div class="display-7 fw-semibold mt-1">{{ status_label }}</div>
           </div>
-          <span id="container-status-badge" class="badge bg-{{ status_color }}-lt text-{{ status_color }}">{{ status_label }}</span>
+          <span id="container-status-badge" class="badge bg-{{ status_color }}-lt text-{{ status_color }}">
+            <span class="status-indicator {% if status == 'running' %}status-indicator-animated{% endif %} bg-{{ status_color }} me-1"></span>
+            {{ status_label }}
+          </span>
         </div>
         <ul class="list-group list-group-flush list-group-borderless mt-3 small">
           <li class="list-group-item px-0 d-flex justify-content-between">
@@ -31,7 +34,7 @@
       </div>
       <div class="card-footer border-top-0 pt-0">
         <div class="d-grid">
-          <button type="button" id="btn-diagnostics-refresh" class="btn btn-outline-secondary btn-sm">
+          <button type="button" id="btn-diagnostics-refresh" class="btn btn-sm btn-ghost-secondary">
             <i class="fas fa-sync me-1"></i>Refresh status
           </button>
         </div>
@@ -81,29 +84,29 @@
         <span class="text-secondary text-uppercase fw-semibold small">Controls</span>
         <div class="d-grid gap-2 mt-3">
           {% if status == 'running' %}
-            <button type="button" id="btn-container-stop" class="btn btn-danger btn-sm">
+            <button type="button" id="btn-container-stop" class="btn btn-sm btn-danger">
               <i class="fas fa-stop me-1"></i>Stop container
             </button>
           {% else %}
-            <button type="button" id="btn-container-start" class="btn btn-success btn-sm">
+            <button type="button" id="btn-container-start" class="btn btn-sm btn-success">
               <i class="fas fa-play me-1"></i>Start container
             </button>
           {% endif %}
-          <button type="button" id="btn-container-restart" class="btn btn-warning btn-sm">
+          <button type="button" id="btn-container-restart" class="btn btn-sm btn-warning">
             <i class="fas fa-rotate me-1"></i>Restart
           </button>
           {% if app_data.has_docker_compose %}
-            <button type="button" id="btn-container-build" class="btn btn-primary btn-sm">
+            <button type="button" id="btn-container-build" class="btn btn-sm btn-primary">
               <i class="fas fa-hammer me-1"></i>Build images
             </button>
-            <button type="button" id="btn-container-rebuild" class="btn btn-outline-primary btn-sm">
+            <button type="button" id="btn-container-rebuild" class="btn btn-sm btn-ghost-primary">
               <i class="fas fa-hammer me-1"></i>Rebuild (no cache)
             </button>
           {% endif %}
-          <button type="button" id="btn-logs-refresh" class="btn btn-outline-secondary btn-sm">
+          <button type="button" id="btn-logs-refresh" class="btn btn-sm btn-ghost-secondary">
             <i class="fas fa-file-lines me-1"></i>Refresh logs
           </button>
-          <button type="button" id="btn-logs-download" class="btn btn-outline-info btn-sm">
+          <button type="button" id="btn-logs-download" class="btn btn-sm btn-ghost-info">
             <i class="fas fa-download me-1"></i>Download logs
           </button>
         </div>
@@ -128,7 +131,7 @@
               <pre class="bg-dark text-white rounded p-2 small mb-2" style="max-height: 7rem; overflow:auto;">
 {{ container_logs|trim|truncate(240, True, '…') }}
               </pre>
-              <button class="btn btn-outline-secondary btn-sm" onclick="copyAdjacentPre(this)">
+              <button class="btn btn-sm btn-ghost-secondary" onclick="copyAdjacentPre(this)">
                 <i class="fas fa-copy me-1"></i>Copy snippet
               </button>
             {% else %}

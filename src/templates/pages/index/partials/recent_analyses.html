@@ -49,23 +49,23 @@
       </td>
       <td>
         {% if analysis.status == 'completed' %}
-          <span class="badge bg-success-lt">
+          <span class="badge bg-success-lt text-success">
             <i class="fas fa-check me-1"></i>Completed
           </span>
         {% elif analysis.status == 'running' %}
-          <span class="badge bg-info-lt">
+          <span class="badge bg-info-lt text-info">
             <i class="fas fa-spinner fa-spin me-1"></i>Running
           </span>
         {% elif analysis.status == 'pending' %}
-          <span class="badge bg-warning-lt">
+          <span class="badge bg-warning-lt text-warning">
             <i class="fas fa-clock me-1"></i>Pending
           </span>
         {% elif analysis.status == 'failed' %}
-          <span class="badge bg-danger-lt">
+          <span class="badge bg-danger-lt text-danger">
             <i class="fas fa-times me-1"></i>Failed
           </span>
         {% else %}
-          <span class="badge bg-muted-lt">{{ analysis.status|title }}</span>
+          <span class="badge bg-secondary-lt text-secondary">{{ analysis.status|title }}</span>
         {% endif %}
       </td>
       <td class="text-nowrap text-muted">
@@ -77,17 +77,17 @@
           —
         {% endif %}
       </td>
-      <td>
-        <div class="btn-group" role="group">
-          <a href="/analysis/{{ analysis.id }}" class="btn btn-outline-primary btn-sm" title="View details">
+      <td class="text-end">
+        <div class="btn-list justify-content-end">
+          <a href="/analysis/{{ analysis.id }}" class="btn btn-sm btn-ghost-primary" title="View details">
             <i class="fas fa-eye"></i>
           </a>
           {% if analysis.status == 'completed' %}
-          <button class="btn btn-outline-success btn-sm" onclick="downloadAnalysisResults({{ analysis.id }})" title="Download results">
+          <button class="btn btn-sm btn-ghost-success" onclick="downloadAnalysisResults({{ analysis.id }})" title="Download results">
             <i class="fas fa-download"></i>
           </button>
           {% elif analysis.status in ['failed', 'error'] %}
-          <button class="btn btn-outline-warning btn-sm" onclick="retryAnalysis({{ analysis.id }})" title="Retry analysis">
+          <button class="btn btn-sm btn-ghost-warning" onclick="retryAnalysis({{ analysis.id }})" title="Retry analysis">
             <i class="fas fa-redo"></i>
           </button>
           {% endif %}

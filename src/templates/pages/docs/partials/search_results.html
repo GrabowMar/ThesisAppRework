@@ -20,10 +20,16 @@
 </div>
 {% elif query %}
 <div class="alert alert-warning" role="alert">
-  <i class="fas fa-circle-info me-2"></i>
-  No matches for "{{ query }}".
-  <span class="text-secondary">Try different keywords.</span>
+  <div class="d-flex">
+    <div>
+      <i class="fas fa-triangle-exclamation me-2" aria-hidden="true"></i>
+    </div>
+    <div>
+      <div>No matches for "{{ query }}".</div>
+      <div class="text-muted">Try different keywords.</div>
+    </div>
   </div>
+</div>
 {% else %}
 <!-- no query: render nothing -->
 {% endif %}

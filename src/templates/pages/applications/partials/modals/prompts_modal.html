@@ -1,6 +1,6 @@
 {# Application prompts modal content #}
-<div class="modal fade" id="applicationPromptsModal" tabindex="-1" aria-labelledby="applicationPromptsLabel" aria-hidden="true">
-  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+<div class="modal modal-blur fade" id="applicationPromptsModal" tabindex="-1" aria-labelledby="applicationPromptsLabel" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="applicationPromptsLabel">
@@ -30,7 +30,7 @@
                   {% endif %}
                   <pre class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto;" id="backend-prompt-content">{{ prompts.backend }}</pre>
                   <div class="mt-2">
-                    <button class="btn btn-outline-primary btn-sm" data-copy-target="backend-prompt-content">
+                    <button class="btn btn-sm btn-ghost-primary" data-copy-target="backend-prompt-content">
                       <i class="fas fa-copy me-1"></i>Copy
                     </button>
                   </div>
@@ -55,7 +55,7 @@
                   {% endif %}
                   <pre class="bg-light p-3 rounded" style="max-height: 400px; overflow-y: auto;" id="frontend-prompt-content">{{ prompts.frontend }}</pre>
                   <div class="mt-2">
-                    <button class="btn btn-outline-primary btn-sm" data-copy-target="frontend-prompt-content">
+                    <button class="btn btn-sm btn-ghost-primary" data-copy-target="frontend-prompt-content">
                       <i class="fas fa-copy me-1"></i>Copy
                     </button>
                   </div>
@@ -75,7 +75,7 @@
         {% endif %}
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>

@@ -17,7 +17,7 @@
       <p class="text-muted mb-0">{{ page_subtitle }}</p>
     </div>
     <div class="btn-list">
-      <a href="{{ url_for('analysis.analysis_list') }}" class="btn btn-outline-secondary">
+      <a href="{{ url_for('analysis.analysis_list') }}" class="btn btn-ghost-secondary">
         <i class="fa-solid fa-rotate-right me-1"></i>
         Refresh
       </a>
@@ -103,7 +103,7 @@
                     <span class="badge bg-azure-lt text-azure">{{ task.target_model }}</span>
                   </td>
                   <td class="text-muted">
-                    <span class="badge bg-secondary-lt">{{ task.target_app_number }}</span>
+                    <span class="badge bg-secondary-lt text-secondary">{{ task.target_app_number }}</span>
                   </td>
                   <td class="text-capitalize text-muted">
                     {{ task.analysis_type.value.replace('_', ' ') if task.analysis_type else 'N/A' }}
@@ -194,7 +194,7 @@
                   <span class="badge bg-azure-lt text-azure">{{ result.model_slug }}</span>
                 </td>
                 <td class="text-muted">
-                  <span class="badge bg-secondary-lt">{{ result.app_number }}</span>
+                  <span class="badge bg-secondary-lt text-secondary">{{ result.app_number }}</span>
                 </td>
                 <td class="text-capitalize text-muted">
                   {{ result.analysis_type.replace('_', ' ') }}

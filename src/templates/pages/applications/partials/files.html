@@ -123,7 +123,7 @@
             <tbody>
               {% for ext, stats in file_stats.by_extension.items() %}
               <tr>
-                <td><span class="badge bg-secondary">{{ ext or '∅' }}</span></td>
+                <td><span class="badge bg-secondary-lt text-secondary">{{ ext or '∅' }}</span></td>
                 <td class="text-end">{{ stats.count }}</td>
                 <td class="text-end">{{ stats.size }}</td>
                 <td class="text-end">{{ "%.1f"|format(stats.percentage) }}%</td>

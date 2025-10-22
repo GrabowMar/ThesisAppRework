@@ -20,7 +20,7 @@
       </td>
       <td>{{ '%.1fs'|format(r.duration) if r.duration else '-' }}</td>
       <td class="text-end">
-        <button type="button" class="btn btn-sm btn-outline-primary"
+        <button type="button" class="btn btn-sm btn-ghost-primary"
                 onclick="window.sampleGeneratorAppInstance?.viewResult('{{ r.result_id }}')">
           View
         </button>

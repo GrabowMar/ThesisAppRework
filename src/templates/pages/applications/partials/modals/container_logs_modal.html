@@ -1,5 +1,5 @@
 {# Modal for displaying Docker operation logs with real-time status updates #}
-<div class="modal fade" id="container-logs-modal" tabindex="-1" aria-labelledby="containerLogsLabel" aria-hidden="true">
+<div class="modal modal-blur fade" id="container-logs-modal" tabindex="-1" aria-labelledby="containerLogsLabel" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content bg-dark text-white">
       <div class="modal-header border-0">
@@ -28,19 +28,19 @@
         </div>
 
         <div class="px-3 py-2 d-flex flex-wrap align-items-center gap-2 border-bottom border-secondary">
-          <div class="badge bg-secondary" id="log-line-count">0 lines</div>
+          <div class="badge bg-secondary-lt text-secondary" id="log-line-count">0 lines</div>
           <div class="text-white-50 small">Auto-scroll</div>
-          <button class="btn btn-sm btn-outline-light" id="log-scroll-toggle" type="button">
+          <button class="btn btn-sm btn-ghost-light" id="log-scroll-toggle" type="button">
             <i class="fas fa-arrow-down"></i>
           </button>
           <div class="ms-auto d-flex flex-wrap gap-2">
-            <button class="btn btn-sm btn-outline-light" id="log-copy" type="button" title="Copy logs">
+            <button class="btn btn-sm btn-ghost-light" id="log-copy" type="button" title="Copy logs">
               <i class="fas fa-copy me-1"></i>Copy
             </button>
-            <button class="btn btn-sm btn-outline-light" id="log-download" type="button" title="Download logs">
+            <button class="btn btn-sm btn-ghost-light" id="log-download" type="button" title="Download logs">
               <i class="fas fa-download me-1"></i>Download
             </button>
-            <button class="btn btn-sm btn-outline-light" id="log-clear" type="button" title="Clear logs">
+            <button class="btn btn-sm btn-ghost-light" id="log-clear" type="button" title="Clear logs">
               <i class="fas fa-eraser me-1"></i>Clear
             </button>
           </div>
@@ -60,11 +60,11 @@
       </div>
 
       <div class="modal-footer border-0 d-flex justify-content-between">
-        <button type="button" class="btn btn-outline-warning" id="log-cancel-btn" style="display:none;">
+        <button type="button" class="btn btn-ghost-warning" id="log-cancel-btn" style="display:none;">
           <i class="fas fa-ban me-1"></i>Cancel Operation
         </button>
         <button type="button" class="btn btn-primary" id="log-close-btn" data-bs-dismiss="modal">
-          Close
+          <i class="fas fa-check me-1"></i>Close
         </button>
       </div>
     </div>

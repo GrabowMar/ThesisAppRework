@@ -132,13 +132,13 @@
               <div class="d-flex align-items-center justify-content-between">
                 <label class="form-label fw-bold mb-0">Analysis Tools <span class="text-danger">*</span></label>
                 <div class="d-flex gap-2">
-                  <button type="button" class="btn btn-outline-success btn-sm" id="select-all-tools-btn">
+                  <button type="button" class="btn btn-ghost-success btn-sm" id="select-all-tools-btn">
                     <i class="fas fa-check-all me-1"></i>Select All
                   </button>
-                  <button type="button" class="btn btn-outline-danger btn-sm" id="clear-all-tools-btn">
+                  <button type="button" class="btn btn-ghost-danger btn-sm" id="clear-all-tools-btn">
                     <i class="fas fa-times me-1"></i>Clear All
                   </button>
-                  <button type="button" class="btn btn-outline-secondary btn-sm" id="refresh-availability-btn" title="Refresh">
+                  <button type="button" class="btn btn-ghost-secondary btn-sm" id="refresh-availability-btn" title="Refresh">
                     <i class="fas fa-sync-alt"></i>
                   </button>
                 </div>
@@ -270,7 +270,7 @@
             <div id="analysis-config-options" class="p-3">
               <div class="row g-3 mb-0">
                 <div class="col-md-6">
-                  <label class="form-label" for="priority-level">Priority Level</label>
+                  <label class="form-label fw-medium" for="priority-level">Priority Level</label>
                   <select class="form-select" name="priority" id="priority-level">
                     <option value="normal">Normal</option>
                     <option value="high">High (faster execution)</option>
@@ -278,7 +278,7 @@
                   </select>
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label" for="notification-preference">Email Notification</label>
+                  <label class="form-label fw-medium" for="notification-preference">Email Notification</label>
                   <select class="form-select" name="notification" id="notification-preference">
                     <option value="completion">On completion</option>
                     <option value="failure">On failure only</option>
@@ -304,16 +304,16 @@
                   <div class="card-body py-2">
                     <div class="row g-3">
                       <div class="col-md-6">
-                        <label class="form-label" for="analysis-timeout">Timeout (minutes)</label>
+                        <label class="form-label fw-medium" for="analysis-timeout">Timeout (minutes)</label>
                         <input type="number" class="form-control" id="analysis-timeout" name="timeout" value="30" min="5" max="120">
                       </div>
                       <div class="col-md-6">
-                        <label class="form-label" for="analysis-workers">Concurrent Workers</label>
+                        <label class="form-label fw-medium" for="analysis-workers">Concurrent Workers</label>
                         <input type="number" class="form-control" id="analysis-workers" name="workers" value="2" min="1" max="8">
                       </div>
                     </div>
                     <div class="mt-3">
-                      <label class="form-label" for="analysis-custom-params">Custom Parameters (JSON)</label>
+                      <label class="form-label fw-medium" for="analysis-custom-params">Custom Parameters (JSON)</label>
                       <textarea class="form-control" id="analysis-custom-params" name="custom_params" rows="3" placeholder="{}"></textarea>
                     </div>
                   </div>
@@ -479,7 +479,7 @@
                 <span>Step <span id="current-step" class="fw-bold text-primary">1</span> of <span class="fw-bold">4</span></span>
               </div>
               <div class="d-flex justify-content-between align-items-center gap-2">
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="prev-btn" _="on click call previousStep()" disabled>
+                <button type="button" class="btn btn-ghost-secondary btn-sm" id="prev-btn" _="on click call previousStep()" disabled>
                   <i class="fas fa-chevron-left me-1"></i>Previous
                 </button>
                 <div class="d-flex gap-2 flex-grow-1">
@@ -505,7 +505,8 @@
                 <i class="fas fa-list-check me-2 text-primary"></i>Selections
               </h6>
               <div class="dropdown">
-                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <button class="btn btn-sm btn-ghost-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"
+                        title="Change selection modes">
                   Modes
                 </button>
                 <div class="dropdown-menu dropdown-menu-end p-3">
@@ -632,9 +633,9 @@
     </div>
   </div>
 </form>
-<!-- Tool Selection Confirmation Modal -->
-<div class="modal fade" id="confirmation-modal" tabindex="-1" aria-labelledby="confirmationModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg">
+{# Tool Selection Confirmation Modal - Tabler Standard #}
+<div class="modal modal-blur fade" id="confirmation-modal" tabindex="-1" aria-labelledby="confirmationModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="confirmationModalLabel">
@@ -1632,11 +1633,11 @@ function showToolConfig(toolName) {
         return;
     }
     
-    // Create and show configuration modal
+    // Create and show configuration modal (Tabler standard)
     const configModal = document.createElement('div');
-    configModal.className = 'modal fade';
+    configModal.className = 'modal modal-blur fade';
     configModal.innerHTML = `
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title">
@@ -1699,7 +1700,7 @@ function loadToolConfigForm(toolName, configSchema) {
                 <label class="form-label fw-bold">Quick Presets</label>
                 <div class="btn-group d-flex" role="group">
                     ${Object.keys(examples).map(name => `
-                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyConfigPreset('${toolName}', '${name}')">
+                        <button type="button" class="btn btn-ghost-primary btn-sm" onclick="applyConfigPreset('${toolName}', '${name}')">
                             ${name}
                         </button>
                     `).join('')}

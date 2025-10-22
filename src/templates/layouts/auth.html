@@ -43,8 +43,20 @@
           {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
               {% for category, message in messages %}
-                <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible" role="alert">
+                {% set alert_category = 'danger' if category == 'error' else category %}
+                <div class="alert alert-{{ alert_category }} alert-dismissible" role="alert">
                   <div class="d-flex">
+                    <div>
+                      {% if alert_category == 'success' %}
+                        <i class="fas fa-circle-check me-2" aria-hidden="true"></i>
+                      {% elif alert_category == 'danger' %}
+                        <i class="fas fa-circle-exclamation me-2" aria-hidden="true"></i>
+                      {% elif alert_category == 'warning' %}
+                        <i class="fas fa-triangle-exclamation me-2" aria-hidden="true"></i>
+                      {% else %}
+                        <i class="fas fa-circle-info me-2" aria-hidden="true"></i>
+                      {% endif %}
+                    </div>
                     <div>{{ message }}</div>
                   </div>
                   <a class="btn-close" data-bs-dismiss="alert" aria-label="close"></a>

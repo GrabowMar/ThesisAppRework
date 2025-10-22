@@ -29,13 +29,13 @@
           Result ID: {{ descriptor.identifier[:24] }}{% if descriptor.identifier|length > 24 %}…{% endif %} · {{ descriptor.display_timestamp() }}
         </div>
         <div class="mt-2">
-          <span class="badge badge-outline {% if descriptor.status in ['completed', 'success'] %}text-success{% elif descriptor.status in ['failed', 'error'] %}text-danger{% else %}text-secondary{% endif %}">
+          <span class="badge {% if descriptor.status in ['completed', 'success'] %}bg-success-lt text-success{% elif descriptor.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt text-secondary{% endif %}">
             <i class="fa-solid fa-circle-dot me-1"></i>
             {{ descriptor.status.replace('_', ' ').title() }}
           </span>
-          <span class="badge bg-dark">{{ descriptor.analysis_type.replace('_', ' ').title() }}</span>
+          <span class="badge bg-primary-lt text-primary">{{ descriptor.analysis_type.replace('_', ' ').title() }}</span>
           {% if descriptor.tools_used %}
-            <span class="badge bg-secondary-lt text-secondary">{{ descriptor.tools_used|length }} tools</span>
+            <span class="badge bg-info-lt text-info">{{ descriptor.tools_used|length }} tools</span>
           {% endif %}
         </div>
       </div>
