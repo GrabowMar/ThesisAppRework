@@ -1,18 +1,115 @@
-{# Simplified Analysis Tasks Page - minimal and stable (reuses inspection table) #}
 {% extends 'layouts/base.html' %}
 
-{% block title %}Analysis Tasks - {{ super() }}{% endblock %}
-{% set page_title = 'Analysis Tasks' %}
-{% set page_icon = 'fa-solid fa-tasks' %}
+{% block title %}Analysis Results - {{ super() }}{% endblock %}
+{% set page_title = 'Analysis Results' %}
+{% set page_icon = 'fa-solid fa-microscope' %}
 
 {% block content %}
-  {% if show_legacy_notice %}
-  <div class="alert alert-info py-2 small mb-3">
-    <strong>Unified View:</strong> The dedicated inspection page was merged into this tasks hub. Update any old bookmarks.
+  <div class="card mb-4">
+    <div class="card-body">
+      <form method="get" class="row g-3 align-items-end">
+        <div class="col-sm-4 col-md-3">
+          <label class="form-label" for="model">Model</label>
+          <input type="text" class="form-control" id="model" name="model" value="{{ model_filter or '' }}" placeholder="e.g. anthropic_claude-3-5-haiku">
+        </div>
+        <div class="col-sm-4 col-md-2">
+          <label class="form-label" for="app">App #</label>
+          <input type="text" class="form-control" id="app" name="app" value="{{ app_filter or '' }}" placeholder="7">
+        </div>
+        <div class="col-sm-4 col-md-2">
+          <label class="form-label">&nbsp;</label>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="fa-solid fa-filter me-1"></i>Apply Filters
+          </button>
+        </div>
+        <div class="col-sm-4 col-md-2">
+          <label class="form-label">&nbsp;</label>
+          <a class="btn btn-outline-secondary w-100" href="{{ url_for('analysis.analysis_list') }}">
+            <i class="fa-solid fa-rotate-right me-1"></i>Reset
+          </a>
+        </div>
+      </form>
+    </div>
   </div>
+
+  {% if results %}
+    {% set severity_styles = {
+      'critical': 'bg-danger',
+      'high': 'bg-danger',
+      'medium': 'bg-warning text-dark',
+      'low': 'bg-info text-dark',
+      'info': 'bg-secondary'
+    } %}
+    {% set severity_order = ['critical', 'high', 'medium', 'low', 'info'] %}
+    <div class="card">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th scope="col">Result</th>
+                <th scope="col">Model</th>
+                <th scope="col">App</th>
+                <th scope="col">Analysis</th>
+                <th scope="col">Status</th>
+                <th scope="col">Findings</th>
+                <th scope="col">Tools</th>
+                <th scope="col" class="text-end">Captured</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for result in results %}
+                <tr>
+                  <td class="fw-semibold">
+                    <a href="{{ url_for('analysis.analysis_result_detail', result_id=result.identifier) }}" class="text-decoration-none">
+                      {{ result.identifier }}
+                    </a>
+                  </td>
+                  <td><span class="badge bg-secondary-subtle text-dark">{{ result.model_slug }}</span></td>
+                  <td>app {{ result.app_number }}</td>
+                  <td class="text-capitalize">{{ result.analysis_type.replace('_', ' ') }}</td>
+                  <td>
+                    <span class="badge {% if result.status in ['completed', 'success'] %}bg-success{% elif result.status in ['failed', 'error'] %}bg-danger{% else %}bg-secondary{% endif %}">
+                      {{ result.status.replace('_', ' ') }}
+                    </span>
+                  </td>
+                  <td>
+                    <div class="d-flex flex-wrap gap-1">
+                      <span class="badge bg-dark">{{ result.total_findings or 0 }} total</span>
+                      {% for level in severity_order %}
+                        {% set count = result.severity_breakdown.get(level) %}
+                        {% if count %}
+                          <span class="badge {{ severity_styles.get(level, 'bg-secondary') }}">{{ level.title() }} {{ count }}</span>
+                        {% endif %}
+                      {% endfor %}
+                    </div>
+                  </td>
+                  <td>
+                    {% if result.tools_used %}
+                      <div class="d-flex flex-wrap gap-1">
+                        {% for tool in result.tools_used[:6] %}
+                          <span class="badge bg-light text-dark border">{{ tool }}</span>
+                        {% endfor %}
+                        {% if result.tools_used|length > 6 %}
+                          <span class="badge bg-light text-dark border">+{{ result.tools_used|length - 6 }}</span>
+                        {% endif %}
+                      </div>
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end text-nowrap">{{ result.display_timestamp() }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <div class="text-center text-muted py-5 border rounded bg-body-tertiary">
+      <i class="fa-solid fa-inbox mb-3" style="font-size: 2rem;"></i>
+      <p class="mb-0">No stored analysis results were found. Run an analysis to see it here.</p>
+    </div>
   {% endif %}
-  <div id="main-tasks-table-wrapper" class="htmx-indicator-parent" hx-indicator="#global-spinner"
-       hx-get="/analysis/api/tasks/inspect/list" hx-trigger="load" hx-swap="innerHTML">
-    <div class="p-4 text-center text-muted">Loading tasks…</div>
-  </div>
 {% endblock %}

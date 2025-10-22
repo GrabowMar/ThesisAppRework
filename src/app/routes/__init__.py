@@ -10,7 +10,6 @@ from .jinja.stats import stats_bp
 from .jinja.reports import reports_bp
 from .jinja.docs import docs_bp
 from .jinja.sample_generator import sample_generator_bp
-from .jinja.dashboard import dashboard_bp as jinja_dashboard_bp
 from .jinja.auth import auth_bp
 from .jinja.profile import profile_bp
 
@@ -42,7 +41,6 @@ __all__ = [
     'reports_bp',
     'docs_bp',
     'sample_generator_bp',
-    'jinja_dashboard_bp',
     'auth_bp',
     'profile_bp',
 
@@ -97,7 +95,6 @@ def register_blueprints(app):
     app.register_blueprint(reports_bp)
     app.register_blueprint(docs_bp)
     app.register_blueprint(sample_generator_bp)
-    app.register_blueprint(jinja_dashboard_bp)  # New dashboard views
     app.register_blueprint(profile_bp)  # User profile and settings
 
     # Register refactored API blueprints under /api prefix

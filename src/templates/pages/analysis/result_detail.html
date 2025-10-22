@@ -1,0 +1,280 @@
+{% extends 'layouts/base.html' %}
+
+{% set page_icon = 'fa-solid fa-microscope' %}
+{% set page_title = descriptor.model_slug ~ ' · app ' ~ descriptor.app_number %}
+{% set page_subtitle = descriptor.analysis_type.replace('_', ' ').title() ~ ' Analysis Result' %}
+
+{% block content %}
+  {% set severity_styles = {
+    'critical': 'bg-danger',
+    'high': 'bg-danger',
+    'medium': 'bg-warning text-dark',
+    'low': 'bg-info text-dark',
+    'info': 'bg-secondary'
+  } %}
+  {% set severity_order = ['critical', 'high', 'medium', 'low', 'info'] %}
+
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
+    <div>
+      <div class="d-inline-flex align-items-center gap-2 mb-2">
+        <span class="badge {% if descriptor.status in ['completed', 'success'] %}bg-success{% elif descriptor.status in ['failed', 'error'] %}bg-danger{% else %}bg-secondary{% endif %}">
+          {{ descriptor.status.replace('_', ' ') }}
+        </span>
+        <span class="badge bg-dark">{{ descriptor.analysis_type.replace('_', ' ') }}</span>
+      </div>
+      <h2 class="h4 mb-1">Result: {{ descriptor.identifier }}</h2>
+      <div class="text-muted small">Captured {{ descriptor.display_timestamp() }}</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-secondary" href="{{ url_for('analysis.analysis_list') }}">
+        <i class="fa-solid fa-arrow-left me-1"></i>Back to results
+      </a>
+      <a class="btn btn-outline-info" href="{{ url_for('analysis.analysis_result_json', result_id=descriptor.identifier) }}" target="_blank" rel="noopener">
+        <i class="fa-solid fa-file-code me-1"></i>View JSON
+      </a>
+      <a class="btn btn-primary" href="{{ url_for('analysis.analysis_result_download', result_id=descriptor.identifier) }}">
+        <i class="fa-solid fa-download me-1"></i>Download JSON
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-12 col-xl-8">
+      <div class="row g-3 mb-4">
+        <div class="col-sm-6 col-xl-4">
+          <div class="card shadow-sm h-100">
+            <div class="card-body py-3">
+              <div class="text-muted small mb-1">Total Findings</div>
+              <div class="display-6 fw-semibold">{{ summary.get('total_findings', descriptor.total_findings or 0) }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-xl-4">
+          <div class="card shadow-sm h-100">
+            <div class="card-body py-3">
+              <div class="text-muted small mb-1">Tools Executed</div>
+              <div class="display-6 fw-semibold">{{ summary.get('tools_executed', descriptor.tools_executed or 0) }}</div>
+              {% if descriptor.tools_failed %}
+                <div class="small text-danger mt-1">{{ descriptor.tools_failed }} failed</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-12 col-xl-4">
+          <div class="card shadow-sm h-100">
+            <div class="card-body py-3">
+              <div class="text-muted small mb-2">Severity Breakdown</div>
+              <div class="d-flex flex-wrap gap-1">
+                {% for level in severity_order %}
+                  {% set count = descriptor.severity_breakdown.get(level) or summary.get('severity_breakdown', {}).get(level) %}
+                  {% if count %}
+                    <span class="badge {{ severity_styles.get(level, 'bg-secondary') }}">{{ level.title() }} {{ count }}</span>
+                  {% endif %}
+                {% endfor %}
+                {% if not summary.get('severity_breakdown') and not descriptor.severity_breakdown %}
+                  <span class="text-muted small">No severity data</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h3 class="h6 mb-0">Service Overview</h3>
+          <span class="badge bg-secondary-subtle text-dark">{{ services|length }} services</span>
+        </div>
+        <div class="card-body">
+          {% if services %}
+            <div class="accordion" id="services-accordion">
+              {% for service in services %}
+                {% set service_id = 'service-' ~ loop.index %}
+                <div class="accordion-item mb-2 shadow-sm">
+                  <h4 class="accordion-header" id="{{ service_id }}-heading">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#{{ service_id }}" aria-expanded="false" aria-controls="{{ service_id }}">
+                      <span class="me-2 fw-semibold">{{ service.name }}</span>
+                      <span class="badge bg-light text-dark border me-2">{{ (service.tools or [])|length }} tools</span>
+                      {% if service.status %}
+                        <span class="badge {% if service.status in ['completed', 'ok', 'success'] %}bg-success{% elif service.status in ['failed', 'error'] %}bg-danger{% else %}bg-secondary{% endif %}">
+                          {{ service.status.replace('_', ' ') }}
+                        </span>
+                      {% endif %}
+                    </button>
+                  </h4>
+                  <div id="{{ service_id }}" class="accordion-collapse collapse" aria-labelledby="{{ service_id }}-heading" data-bs-parent="#services-accordion">
+                    <div class="accordion-body">
+                      {% if service.summary %}
+                        <div class="row row-cols-1 row-cols-sm-2 g-2 mb-3">
+                          {% for key, value in service.summary.items() %}
+                            <div>
+                              <div class="text-muted small text-uppercase">{{ key.replace('_', ' ') }}</div>
+                              <div>{{ value }}</div>
+                            </div>
+                          {% endfor %}
+                        </div>
+                      {% endif %}
+                      {% if service.tools %}
+                        <div class="table-responsive">
+                          <table class="table table-sm align-middle">
+                            <thead>
+                              <tr>
+                                <th scope="col">Tool</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Issues</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {% for tool in service.tools %}
+                                <tr>
+                                  <td>{{ tool.name }}</td>
+                                  <td>
+                                    {% if tool.status %}
+                                      <span class="badge {% if tool.status in ['completed', 'ok', 'success', 'executed'] %}bg-success{% elif tool.status in ['failed', 'error'] %}bg-danger{% else %}bg-secondary{% endif %}">
+                                        {{ tool.status.replace('_', ' ') }}
+                                      </span>
+                                    {% else %}
+                                      <span class="text-muted">—</span>
+                                    {% endif %}
+                                  </td>
+                                  <td>{{ tool.total_issues if tool.total_issues is not none else '—' }}</td>
+                                </tr>
+                              {% endfor %}
+                            </tbody>
+                          </table>
+                        </div>
+                      {% else %}
+                        <p class="text-muted mb-0">No tool details recorded for this service.</p>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">No service breakdown available in this result.</p>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card shadow-sm">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h3 class="h6 mb-0">Findings</h3>
+          <div class="small text-muted">
+            {% if findings_limit %}
+              Showing first {{ findings|length }} of {{ findings_limit }} requested issues
+            {% else %}
+              Showing {{ findings|length }} issue{{ findings|length == 1 and '' or 's' }}
+            {% endif %}
+          </div>
+        </div>
+        <div class="card-body">
+          {% if findings %}
+            <div class="table-responsive">
+              <table class="table table-hover table-sm align-middle">
+                <thead class="table-light">
+                  <tr>
+                    <th scope="col">Severity</th>
+                    <th scope="col">Message</th>
+                    <th scope="col">Tool</th>
+                    <th scope="col">File</th>
+                    <th scope="col" class="text-end">Line</th>
+                    <th scope="col">Rule</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for finding in findings %}
+                    <tr>
+                      <td><span class="badge {{ severity_styles.get(finding.severity|lower, 'bg-secondary') }}">{{ finding.severity|capitalize }}</span></td>
+                      <td class="w-50">{{ finding.message }}</td>
+                      <td>
+                        {% if finding.tool %}
+                          <span class="badge bg-light text-dark border">{{ finding.tool }}</span>
+                        {% else %}
+                          <span class="text-muted">—</span>
+                        {% endif %}
+                      </td>
+                      <td class="text-truncate" style="max-width: 220px;" title="{{ finding.path or '—' }}">{{ finding.path or '—' }}</td>
+                      <td class="text-end">{{ finding.line or '—' }}</td>
+                      <td>{{ finding.rule or '—' }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">No findings recorded in this result.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-4">
+      <div class="card shadow-sm mb-4">
+        <div class="card-header">
+          <h3 class="h6 mb-0">Metadata</h3>
+        </div>
+        <div class="card-body small">
+          <dl class="row mb-0 g-2">
+            <dt class="col-5 text-muted">Model</dt>
+            <dd class="col-7">{{ descriptor.model_slug }}</dd>
+            <dt class="col-5 text-muted">Application</dt>
+            <dd class="col-7">#{{ descriptor.app_number }}</dd>
+            <dt class="col-5 text-muted">Identifier</dt>
+            <dd class="col-7 text-break">{{ descriptor.identifier }}</dd>
+            <dt class="col-5 text-muted">File</dt>
+            <dd class="col-7 text-break">{{ descriptor.path.name }}</dd>
+            {% if metadata %}
+              {% for key, value in metadata.items() %}
+                <dt class="col-5 text-muted">{{ key.replace('_', ' ') }}</dt>
+                <dd class="col-7 text-break">{{ value }}</dd>
+              {% endfor %}
+            {% endif %}
+            {% if task_info %}
+              <dt class="col-5 text-muted">Task Status</dt>
+              <dd class="col-7">{{ task_info.get('status', '—') }}</dd>
+              {% if task_info.get('priority') %}
+                <dt class="col-5 text-muted">Priority</dt>
+                <dd class="col-7">{{ task_info.get('priority') }}</dd>
+              {% endif %}
+              {% if task_info.get('started_at') %}
+                <dt class="col-5 text-muted">Started</dt>
+                <dd class="col-7 text-break">{{ task_info.get('started_at') }}</dd>
+              {% endif %}
+              {% if task_info.get('completed_at') %}
+                <dt class="col-5 text-muted">Completed</dt>
+                <dd class="col-7 text-break">{{ task_info.get('completed_at') }}</dd>
+              {% endif %}
+            {% endif %}
+          </dl>
+        </div>
+      </div>
+
+      {% if descriptor.tools_used %}
+        <div class="card shadow-sm mb-4">
+          <div class="card-header">
+            <h3 class="h6 mb-0">Tools Used</h3>
+          </div>
+          <div class="card-body">
+            <div class="d-flex flex-wrap gap-2">
+              {% for tool in descriptor.tools_used %}
+                <span class="badge bg-light text-dark border">{{ tool }}</span>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="card shadow-sm">
+        <div class="card-header">
+          <h3 class="h6 mb-0">Raw Payload</h3>
+        </div>
+        <div class="card-body">
+          <details>
+            <summary class="small text-muted">Preview JSON</summary>
+            <pre class="bg-body-tertiary rounded p-3 mt-3 small text-break">{{ payload | tojson(indent=2) }}</pre>
+          </details>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
