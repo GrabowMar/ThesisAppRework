@@ -1,0 +1,75 @@
+# Goal: Generate {{ name }} - Frontend
+
+## Application Description
+{{ description }}
+
+## Frontend Requirements
+{% for req in frontend_requirements %}
+- {{ req }}
+{% endfor %}
+
+## Scaffolding Code
+
+### package.json
+```json
+{{ scaffolding_package_json }}
+```
+
+### index.html
+```html
+{{ scaffolding_index_html }}
+```
+
+### src/App.jsx
+```jsx
+{{ scaffolding_app_jsx }}
+```
+
+### src/App.css
+```css
+{{ scaffolding_app_css }}
+```
+
+### vite.config.js
+```javascript
+{{ scaffolding_vite_config }}
+```
+
+### src/main.jsx
+```jsx
+{{ scaffolding_main_jsx }}
+```
+
+## Backend API Information
+
+The backend is running at `http://localhost:5000` with the following endpoints:
+- `GET /health` - Health check endpoint
+
+Additional endpoints will be provided by the backend implementation.
+
+## Instructions
+
+1. **Use the scaffolding code as your starting point**
+2. **Implement all frontend requirements listed above**
+3. **Follow these patterns:**
+   - Use React functional components with hooks
+   - Use fetch API for backend communication
+   - Add proper error handling and loading states
+   - Implement responsive design
+   - Use modern CSS (flexbox/grid)
+   - Include user-friendly error messages
+
+4. **Important:**
+   - Connect to backend at `http://localhost:5000`
+   - Maintain the Vite development server configuration
+   - Add any new dependencies to package.json
+   - Use environment variables for API URLs
+
+5. **Output Format:**
+   - Provide complete, working React code
+   - Include all necessary imports
+   - Add comments for complex logic
+   - Ensure code is production-ready
+   - Use modern JavaScript (ES6+)
+
+Return the complete frontend code that satisfies all requirements and integrates with the backend.

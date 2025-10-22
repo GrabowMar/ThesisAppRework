@@ -1,0 +1,47 @@
+# Goal: Generate {{ name }} - Backend
+
+## Application Description
+{{ description }}
+
+## Backend Requirements
+{% for req in backend_requirements %}
+- {{ req }}
+{% endfor %}
+
+## Scaffolding Code
+
+### app.py (Flask Backend)
+```python
+{{ scaffolding_app_py }}
+```
+
+### requirements.txt
+```
+{{ scaffolding_requirements_txt }}
+```
+
+## Instructions
+
+1. **Use the scaffolding code as your starting point**
+2. **Implement all backend requirements listed above**
+3. **Follow these patterns:**
+   - Use Flask blueprints for organization
+   - Add proper error handling
+   - Include input validation
+   - Use SQLAlchemy for database operations (if needed)
+   - Return JSON responses with proper status codes
+   - Add CORS support for frontend communication
+
+4. **Important:**
+   - Keep the health check endpoint intact
+   - Maintain the port configuration (5000)
+   - Add any new dependencies to requirements.txt
+   - Use environment variables for configuration
+
+5. **Output Format:**
+   - Provide complete, working Python code
+   - Include all necessary imports
+   - Add comments for complex logic
+   - Ensure code is production-ready
+
+Return the complete backend code that satisfies all requirements.
