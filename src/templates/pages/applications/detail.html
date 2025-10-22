@@ -4,64 +4,81 @@
 {% set page_title = view.title if view else 'Application Detail' %}
 
 {% block content %}
-<div class="page-header">
-  <div class="row align-items-center">
-    <div class="col-auto">
-      <span class="avatar avatar-lg rounded"><i class="{{ view.icon if view else 'fas fa-cube' }}"></i></span>
-    </div>
-    <div class="col">
-      <div class="page-pretitle text-secondary">{{ view.pretitle if view else 'Application Detail' }}</div>
-      <h2 class="page-title">{{ view.title if view else 'Application' }}</h2>
-      {% if view and view.subtitle %}
-      <div class="text-secondary mt-1">{{ view.subtitle }}</div>
-      {% endif %}
-      {% if view and view.badges %}
-      <div class="mt-2">
-        {% for badge in view.badges %}
-          <span class="{{ badge.variant }}">
-            {% if badge.icon %}<i class="{{ badge.icon }} me-1"></i>{% endif %}
-            {{ badge.label }}
-          </span>
-        {% endfor %}
+{# Compact Research-Oriented Header - Table-like Flexbox Layout #}
+<div class="page-header mb-0">
+  <div class="d-flex align-items-center gap-3 p-3 border rounded bg-light">
+    {# App Icon & Status Badge #}
+    <div class="d-flex align-items-center gap-2">
+      <div class="avatar avatar-md rounded" style="background-color: var(--tblr-primary-lt);">
+        <i class="{{ view.icon if view else 'fas fa-cube' }}" style="color: var(--tblr-primary);"></i>
       </div>
+      {% if metrics and metrics|length > 0 %}
+        {% set container_metric = metrics|selectattr('label', 'equalto', 'Container')|first %}
+        {% if container_metric %}
+          <span class="badge bg-{{ container_metric.status_color or 'secondary' }}-lt text-{{ container_metric.status_color or 'secondary' }}">
+            {{ container_metric.value }}
+          </span>
+        {% endif %}
       {% endif %}
     </div>
-    <div class="col-auto ms-auto">
-      <div class="btn-list">
-        {% if view and view.actions %}
-        {% for action in view.actions %}
-          {% if action.visible %}
-            {% if action.type == 'link' %}
-              <a href="{{ action.href }}" class="btn {{ action.classes }}"{% if action.target %} target="{{ action.target }}"{% endif %}>
-                {% if action.icon %}<i class="{{ action.icon }} me-1"></i>{% endif %}
-                {{ action.label }}
-              </a>
-            {% else %}
-              <button class="btn {{ action.classes }}"{% if action.onclick %} onclick="{{ action.onclick }}"{% endif %}>
-                {% if action.icon %}<i class="{{ action.icon }} me-1"></i>{% endif %}
-                {{ action.label }}
-              </button>
-            {% endif %}
-          {% endif %}
-        {% endfor %}
+    
+    {# Application Identity & Metadata (Flex-fill for responsive growth) #}
+    <div class="flex-fill">
+      <div class="d-flex align-items-baseline gap-2">
+        <h3 class="mb-0">{{ view.title if view else 'Application' }}</h3>
+        {% if view and view.badges %}
+          {% for badge in view.badges[:2] %}
+            <span class="{{ badge.variant }} badge-sm">
+              {% if badge.icon %}<i class="{{ badge.icon }} me-1"></i>{% endif %}
+              {{ badge.label }}
+            </span>
+          {% endfor %}
+        {% endif %}
+      </div>
+      <div class="text-secondary small mt-1 d-flex flex-wrap gap-2">
+        {% if view and view.subtitle %}
+          <span class="me-2">{{ view.subtitle }}</span>
+        {% endif %}
+        {% if metrics and metrics|length > 1 %}
+          {% for metric in metrics[1:4] %}
+            <span class="me-2">
+              <i class="{{ metric.icon or 'fas fa-info-circle' }} me-1"></i>
+              <strong>{{ metric.label }}:</strong> {{ metric.value }}
+            </span>
+          {% endfor %}
         {% endif %}
       </div>
     </div>
-  </div>
-</div>
-
-<div class="row g-3 mb-3">
-  {% for metric in metrics or [] %}
-  <div class="col-sm-6 col-lg-3">
-    <div class="card card-sm">
-      <div class="card-body">
-        <div class="text-secondary text-uppercase fw-semibold small">{{ metric.label }}</div>
-        <div class="h2 mb-0 {{ metric.tone }}">{{ metric.value }}</div>
-        {% if metric.hint %}<div class="text-secondary small mt-1">{{ metric.hint }}</div>{% endif %}
-      </div>
+    
+    {# Compact Action Buttons #}
+    <div class="btn-list">
+      {% if view and view.actions %}
+        {% for action in view.actions %}
+          {% if action.visible %}
+            {% if action.type == 'link' %}
+              <a href="{{ action.href }}" 
+                 class="btn btn-sm {{ action.classes }}" 
+                 {% if action.target %}target="{{ action.target }}"{% endif %}
+                 title="{{ action.label }}">
+                <i class="{{ action.icon }}"></i>
+                <span class="d-none d-xl-inline ms-1">{{ action.label }}</span>
+              </a>
+            {% else %}
+              <button class="btn btn-sm {{ action.classes }}" 
+                      {% if action.onclick %}onclick="{{ action.onclick }}"{% endif %}
+                      title="{{ action.label }}">
+                <i class="{{ action.icon }}"></i>
+                <span class="d-none d-xl-inline ms-1">{{ action.label }}</span>
+              </button>
+            {% endif %}
+            {% if loop.index == 3 or loop.index == 5 %}
+              <div class="vr"></div>
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+      {% endif %}
     </div>
   </div>
-  {% endfor %}
 </div>
 
 <div class="card mb-3">
