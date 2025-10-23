@@ -59,13 +59,27 @@ def internal_error(error):
 
 @analysis_bp.route('/list')
 def analysis_list():
-    """Render analysis results list page with both active tasks and completed results."""
+    """Render minimal analysis page shell - actual content loaded via HTMX."""
+    return render_template('pages/analysis/analysis_main.html')
+
+
+@analysis_bp.route('/api/tasks/list')
+def analysis_tasks_table():
+    """HTMX endpoint: Return table content with unified tasks + results, with pagination."""
     service = ResultFileService()
+    
+    # Parse filters
     model_filter = (request.args.get('model') or '').strip() or None
     app_filter_raw = (request.args.get('app') or '').strip() or None
+    status_filter = (request.args.get('status') or '').strip() or None
+    
     app_filter = None
     if app_filter_raw and app_filter_raw.isdigit():
         app_filter = int(app_filter_raw)
+    
+    # Parse pagination
+    page = max(1, int(request.args.get('page', 1)))
+    per_page = min(100, max(10, int(request.args.get('per_page', 25))))
 
     # Get active/in-progress tasks from database
     try:
@@ -85,59 +99,127 @@ def analysis_list():
 
     # Get completed result files from filesystem
     try:
-        results: List[ResultFileDescriptor] = service.list_results(
+        all_results: List[ResultFileDescriptor] = service.list_results(
             model_slug=model_filter,
             app_number=app_filter,
         )
     except Exception as exc:  # pragma: no cover
         current_app.logger.exception("Failed to list analysis results: %s", exc)
-        flash('Unable to load analysis results from disk.', 'danger')
-        results = []
+        all_results = []
 
     # Match results with their corresponding tasks to get task_name
     result_task_map = {}
-    if results:
+    if all_results:
         try:
-            # Get all completed tasks that might match these results
             completed_tasks = AnalysisTask.query.filter(
                 AnalysisTask.status == AnalysisStatus.COMPLETED
             ).all()
             
-            # Build a lookup map: (model, app, timestamp) -> task
             for task in completed_tasks:
                 if task.target_model and task.target_app_number and task.completed_at:
-                    # Create a key from the result identifier pattern
-                    # Format: {model}_{app}_{type}_{timestamp}
                     key = f"{task.target_model}_app{task.target_app_number}"
                     if key not in result_task_map:
                         result_task_map[key] = []
                     result_task_map[key].append(task)
             
-            # Now match each result with its task by identifier prefix
-            for result in results:
+            for result in all_results:
                 key_prefix = f"{result.model_slug}_app{result.app_number}"
                 if key_prefix in result_task_map:
-                    # Find closest matching task by timestamp
                     matching_tasks = result_task_map[key_prefix]
                     if matching_tasks:
-                        # Sort by timestamp proximity and pick closest
                         closest_task = min(
                             matching_tasks,
                             key=lambda t: abs((t.completed_at - result.timestamp).total_seconds()) if t.completed_at else float('inf')
                         )
-                        # Attach task_name to result descriptor as dynamic attribute
                         result.task_name = closest_task.task_name or closest_task.task_id
                         result.task_id = closest_task.task_id
         except Exception as exc:  # pragma: no cover
             current_app.logger.exception("Failed to match results with tasks: %s", exc)
 
-    return render_template(
-        'pages/analysis/analysis_main.html',
-        active_tasks=active_tasks,
-        results=results,
+    # Build unified list: active tasks + completed results
+    unified_items = []
+    
+    # Add active tasks (always show at top, no pagination)
+    for task in active_tasks:
+        unified_items.append({
+            'type': 'task',
+            'id': task.task_id,
+            'model': task.target_model,
+            'app': task.target_app_number,
+            'analysis_type': task.analysis_type.value if task.analysis_type else 'N/A',
+            'status': task.status.value.lower() if task.status else 'unknown',
+            'priority': task.priority.value if task.priority else 'normal',
+            'progress': task.progress_percentage or 0,
+            'created_at': task.created_at,
+            'started_at': task.started_at,
+            'task_name': task.task_name or task.task_id[:16],
+            'obj': task
+        })
+    
+    # Add completed results (paginated)
+    for result in all_results:
+        # Apply status filter if specified
+        if status_filter and result.status != status_filter:
+            continue
+            
+        unified_items.append({
+            'type': 'result',
+            'id': result.identifier,
+            'model': result.model_slug,
+            'app': result.app_number,
+            'analysis_type': result.analysis_type.replace('_', ' '),
+            'status': result.status.replace('_', ' '),
+            'total_findings': result.total_findings or 0,
+            'severity_breakdown': result.severity_breakdown or {},
+            'tools_used': result.tools_used or [],
+            'timestamp': result.timestamp,
+            'task_name': getattr(result, 'task_name', result.identifier[:16]),
+            'obj': result
+        })
+    
+    # Pagination (only for completed results portion)
+    active_count = len([i for i in unified_items if i['type'] == 'task'])
+    completed_items = [i for i in unified_items if i['type'] == 'result']
+    total_completed = len(completed_items)
+    
+    # Calculate pagination for completed results
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated_completed = completed_items[start:end]
+    
+    # Final list: all active tasks + paginated completed results
+    final_items = [i for i in unified_items if i['type'] == 'task'] + paginated_completed
+    
+    # Pagination info
+    total_pages = (total_completed + per_page - 1) // per_page if total_completed > 0 else 1
+    has_prev = page > 1
+    has_next = page < total_pages
+    
+    pagination = {
+        'page': page,
+        'per_page': per_page,
+        'total': total_completed + active_count,
+        'total_completed': total_completed,
+        'active_count': active_count,
+        'has_prev': has_prev,
+        'has_next': has_next,
+        'prev_num': page - 1 if has_prev else None,
+        'next_num': page + 1 if has_next else None,
+        'pages': total_pages
+    }
+    
+    html = render_template(
+        'pages/analysis/partials/tasks_table.html',
+        items=final_items,
+        pagination=pagination,
         model_filter=model_filter,
-        app_filter=app_filter_raw
+        app_filter=app_filter_raw,
+        status_filter=status_filter
     )
+    
+    resp = make_response(html)
+    resp.headers['X-Partial'] = 'analysis-tasks-table'
+    return resp
 
 @analysis_bp.route('/')
 def analysis_index():
