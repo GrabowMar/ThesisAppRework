@@ -18,7 +18,7 @@ from .jinja.profile import profile_bp
 from .api import (
     api_bp, core_bp, models_bp as api_models_bp, system_bp, dashboard_bp,
     applications_bp, analysis_bp as api_analysis_bp, gen_bp,
-    tasks_rt_bp, tool_registry_bp, container_tools_bp
+    tasks_rt_bp, tool_registry_bp, container_tools_bp, export_bp
 )
 
 # API Token management
@@ -60,6 +60,7 @@ __all__ = [
     'tasks_rt_bp',
     'tool_registry_bp',
     'container_tools_bp',
+    'export_bp',
 
     # API token management
     'tokens_bp',
@@ -117,6 +118,7 @@ def register_blueprints(app):
     app.register_blueprint(tasks_rt_bp)   # /api/tasks
     app.register_blueprint(tokens_bp)  # /api/tokens (token management)
     app.register_blueprint(results_api_bp)  # /analysis/api
+    app.register_blueprint(export_bp)  # /api/export (unified export service)
 
     # Register WebSocket API blueprint under both legacy (/api/websocket) and new (/ws-api) paths
     # The tests expect /api/websocket/* endpoints.

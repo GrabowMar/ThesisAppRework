@@ -66,11 +66,197 @@
     });
   }
 
+  /**
+   * Initialize TableUtils for applications table
+   */
+  function initializeApplicationsTableUtils() {
+    if (typeof TableUtils === 'undefined') {
+      console.warn('TableUtils not available, skipping table enhancements');
+      return;
+    }
+
+    // Initialize TableSorter with server-side callback
+    const tableSorter = new TableUtils.TableSorter('applications-table', {
+      onSort: function(column, direction) {
+        const params = new URLSearchParams(window.location.search);
+        params.set('sort', column);
+        params.set('dir', direction);
+        
+        htmx.ajax('GET', `/applications/table?${params.toString()}`, {
+          target: '#applications-table-section',
+          swap: 'outerHTML'
+        });
+      }
+    });
+
+    // Initialize AdvancedFilterPanel
+    const filterPanel = new TableUtils.AdvancedFilterPanel('applications-advanced-filters', {
+      countBadgeId: 'applications-active-filters-count',
+      filterInputIds: [
+        'filter-status-running', 'filter-status-stopped', 'filter-status-error',
+        'filter-status-pending', 'filter-status-not-created',
+        'filter-type-react-flask', 'filter-type-other',
+        'filter-date-from', 'filter-date-to'
+      ]
+    });
+
+    // Initialize BulkSelectionManager
+    const bulkManager = new TableUtils.BulkSelectionManager('applications-table', {
+      masterCheckboxId: 'select-all-apps',
+      selectionIndicatorId: 'applications-selection-indicator',
+      itemCheckboxSelector: '.app-checkbox'
+    });
+  }
+
+  /**
+   * Export applications table data
+   */
+  function exportApplications(format) {
+    if (typeof TableUtils !== 'undefined' && TableUtils.exportTable) {
+      const params = new URLSearchParams();
+      
+      // Include current filter values
+      const search = document.getElementById('application-search')?.value;
+      const modelFilter = document.getElementById('model-filter')?.value;
+      const statusFilter = document.getElementById('status-filter')?.value;
+      const typeFilter = document.getElementById('type-filter')?.value;
+      
+      if (search) params.set('search', search);
+      if (modelFilter) params.set('model', modelFilter);
+      if (statusFilter) params.set('status', statusFilter);
+      if (typeFilter) params.set('type', typeFilter);
+      
+      TableUtils.exportTable('/api/export/applications', format, params);
+    } else {
+      console.warn('TableUtils.exportTable not available, falling back to direct download');
+      window.location.href = `/api/export/applications?format=${format}`;
+    }
+  }
+
+  /**
+   * Toggle advanced filters panel visibility
+   */
+  function toggleApplicationsAdvancedFilters() {
+    const panel = document.getElementById('applications-advanced-filters');
+    if (panel) {
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
+  }
+
+  /**
+   * Update advanced filters badge count
+   */
+  function updateApplicationsAdvancedFilters() {
+    let activeCount = 0;
+    
+    // Count checked status filters
+    ['running', 'stopped', 'error', 'pending', 'not-created'].forEach(status => {
+      if (document.getElementById(`filter-status-${status}`)?.checked) activeCount++;
+    });
+    
+    // Count checked type filters
+    ['react-flask', 'other'].forEach(type => {
+      if (document.getElementById(`filter-type-${type}`)?.checked) activeCount++;
+    });
+    
+    // Count date range filters
+    if (document.getElementById('filter-date-from')?.value) activeCount++;
+    if (document.getElementById('filter-date-to')?.value) activeCount++;
+    
+    // Update badge
+    const badge = document.getElementById('applications-active-filters-count');
+    if (badge) {
+      badge.textContent = activeCount;
+      badge.style.display = activeCount > 0 ? 'inline-block' : 'none';
+    }
+  }
+
+  /**
+   * Apply advanced filters to table
+   */
+  function applyApplicationsAdvancedFilters() {
+    const params = new URLSearchParams();
+    
+    // Get basic filter values
+    const search = document.getElementById('application-search')?.value;
+    const modelFilter = document.getElementById('model-filter')?.value;
+    const typeFilter = document.getElementById('type-filter')?.value;
+    
+    if (search) params.set('search', search);
+    if (modelFilter) params.set('model', modelFilter);
+    if (typeFilter) params.set('type', typeFilter);
+    
+    // Get advanced status filters (multiple checkboxes)
+    const statusFilters = [];
+    ['running', 'stopped', 'error', 'pending', 'not-created'].forEach(status => {
+      if (document.getElementById(`filter-status-${status}`)?.checked) {
+        statusFilters.push(status);
+      }
+    });
+    if (statusFilters.length > 0) {
+      params.set('status', statusFilters.join(','));
+    }
+    
+    // Get date range filters
+    const dateFrom = document.getElementById('filter-date-from')?.value;
+    const dateTo = document.getElementById('filter-date-to')?.value;
+    if (dateFrom) params.set('created_from', dateFrom);
+    if (dateTo) params.set('created_to', dateTo);
+    
+    // Apply filters via HTMX
+    htmx.ajax('GET', `/applications/table?${params.toString()}`, {
+      target: '#applications-table-section',
+      swap: 'outerHTML'
+    });
+    
+    // Update badge count
+    updateApplicationsAdvancedFilters();
+  }
+
+  /**
+   * Clear all advanced filters
+   */
+  function clearApplicationsAdvancedFilters() {
+    // Clear status checkboxes
+    ['running', 'stopped', 'error', 'pending', 'not-created'].forEach(status => {
+      const checkbox = document.getElementById(`filter-status-${status}`);
+      if (checkbox) checkbox.checked = false;
+    });
+    
+    // Clear type checkboxes
+    ['react-flask', 'other'].forEach(type => {
+      const checkbox = document.getElementById(`filter-type-${type}`);
+      if (checkbox) checkbox.checked = false;
+    });
+    
+    // Clear date range
+    const dateFrom = document.getElementById('filter-date-from');
+    const dateTo = document.getElementById('filter-date-to');
+    if (dateFrom) dateFrom.value = '';
+    if (dateTo) dateTo.value = '';
+    
+    // Update badge and apply filters
+    updateApplicationsAdvancedFilters();
+    applyApplicationFilters();
+  }
+
+  // Initialize table utilities when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApplicationsTableUtils);
+  } else {
+    initializeApplicationsTableUtils();
+  }
+
   // Export functions to global scope for template event handlers
   window.debounceApplicationSearch = debounceApplicationSearch;
   window.clearApplicationSearch = clearApplicationSearch;
   window.applyApplicationFilters = applyApplicationFilters;
   window.refreshApplications = refreshApplications;
+  window.exportApplications = exportApplications;
+  window.toggleApplicationsAdvancedFilters = toggleApplicationsAdvancedFilters;
+  window.updateApplicationsAdvancedFilters = updateApplicationsAdvancedFilters;
+  window.applyApplicationsAdvancedFilters = applyApplicationsAdvancedFilters;
+  window.clearApplicationsAdvancedFilters = clearApplicationsAdvancedFilters;
 })();
 </script>
 {% endblock %}

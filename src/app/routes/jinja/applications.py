@@ -48,7 +48,10 @@ def build_applications_context():
     type_filter = (request.args.get('type') or '').strip()
     ports_filter = (request.args.get('ports') or '').strip()
     analysis_filter = (request.args.get('analysis') or '').strip()
-    sort_field = request.args.get('sort', 'model')  # model|provider|model_desc|provider_desc
+    # Enhanced sorting: support column name + direction
+    sort_column = request.args.get('sort', 'model_slug')
+    sort_direction = request.args.get('dir', 'asc').lower()
+    sort_field = request.args.get('sort', 'model')  # Legacy compatibility: model|provider|model_desc|provider_desc
     page = max(1, int(request.args.get('page', 1) or 1))
     per_page = min(100, max(5, int(request.args.get('per_page', 25) or 25)))
 
@@ -79,8 +82,25 @@ def build_applications_context():
                              GeneratedApplication.app_type.ilike(like)))
         except Exception:
             q = q.filter(GeneratedApplication.model_slug.contains(search_filter))
-    # Soft sort at DB level for determinism
-    if sort_field.startswith('provider'):
+    # Enhanced sorting at DB level
+    # Map frontend column names to database fields
+    column_map = {
+        'model_slug': GeneratedApplication.model_slug,
+        'provider': GeneratedApplication.provider,
+        'app_number': GeneratedApplication.app_number,
+        'app_type': GeneratedApplication.app_type,
+        'container_status': GeneratedApplication.container_status
+    }
+    
+    # Apply sorting if valid column specified
+    if sort_column in column_map:
+        sort_attr = column_map[sort_column]
+        if sort_direction == 'desc':
+            q = q.order_by(sort_attr.desc())
+        else:
+            q = q.order_by(sort_attr.asc())
+    # Legacy sort_field support
+    elif sort_field.startswith('provider'):
         q = q.order_by(GeneratedApplication.provider.asc(), GeneratedApplication.model_slug.asc(), GeneratedApplication.app_number.asc())
     else:
         q = q.order_by(GeneratedApplication.model_slug.asc(), GeneratedApplication.app_number.asc())

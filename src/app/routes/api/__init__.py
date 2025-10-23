@@ -35,6 +35,7 @@ from .generation import gen_bp
 from .tasks_realtime import tasks_rt_bp
 from .tool_registry import tool_registry_bp
 from .container_tools import container_tools_bp
+from .export import export_bp
 
 __all__ = [
     'api_bp',
@@ -47,5 +48,6 @@ __all__ = [
     'gen_bp',
     'tasks_rt_bp',
     'tool_registry_bp',
-    'container_tools_bp'
+    'container_tools_bp',
+    'export_bp'
 ]

@@ -83,8 +83,46 @@ if (window.__MODELS_JS_LOADED__) {
         .catch(() => console.warn('Model sync failed, using cached data'));
     }
 
+    // Initialize table utilities after first render
+    if (firstActivation && typeof TableUtils !== 'undefined') {
+      initializeTableUtilities();
+    }
+
     modelsPageBootstrapped = true;
     return true;
+  }
+
+  function initializeTableUtilities() {
+    // Initialize table sorter for client-side sorting
+    if (document.getElementById('models-table')) {
+      new TableUtils.TableSorter('models-table', {
+        persistKey: 'models-table-sort'
+        // No onSort callback = client-side sorting
+      });
+    }
+
+    // Initialize advanced filter panel
+    if (document.getElementById('advanced-filters-panel')) {
+      new TableUtils.AdvancedFilterPanel('advanced-filters-panel', {
+        toggleButtonId: null, // We have custom toggle
+        badgeId: 'active-filters-count',
+        persistKey: 'models-filters',
+        onFilterChange: () => applyFilters()
+      });
+    }
+
+    // Initialize bulk selection manager
+    if (document.getElementById('models-table')) {
+      new TableUtils.BulkSelectionManager('models-table', 'select-all-models', {
+        rowCheckboxClass: 'model-checkbox',
+        selectionIndicatorId: 'models-selection-indicator',
+        onSelectionChange: (ids) => {
+          selectedModels = ids;
+          updateBatchSelectionCount();
+          document.getElementById('compare-models-btn').disabled = ids.length === 0;
+        }
+      });
+    }
   }
 
   function whenDocumentReady(fn) {
@@ -1595,9 +1633,56 @@ function batchDelete() {
   window.batchExportCSV = batchExportCSV;
   window.batchExportComparison = batchExportComparison;
   window.batchMarkInstalled = batchMarkInstalled;
-  window.batchMarkInstalled = batchMarkInstalled;
   window.batchUpdateStatus = batchUpdateStatus;
   window.batchDelete = batchDelete;
+  window.exportModels = exportModels;
+  window.rescanUsedModels = rescanUsedModels;
+  window.useSelectedForScaffolding = useSelectedForScaffolding;
+
+  // Export function for new unified export API
+  function exportModels(format) {
+    if (typeof TableUtils === 'undefined') {
+      console.warn('TableUtils not loaded, falling back to legacy export');
+      if (format === 'json') {
+        batchExportJSON();
+      } else {
+        batchExportCSV();
+      }
+      return;
+    }
+
+    const filters = buildFilterParams();
+    TableUtils.exportTable('/api/export/models', format, filters);
+  }
+
+  // Stub functions if they don't exist
+  function rescanUsedModels() {
+    fetch('/api/models/rescan', { method: 'POST' })
+      .then(r => r.json())
+      .then(res => {
+        if (res.success) {
+          if (typeof showToast === 'function') {
+            showToast('Models rescanned successfully', 'success');
+          } else {
+            alert('Models rescanned successfully');
+          }
+          loadModelsPaginated();
+        }
+      })
+      .catch(err => console.error('Rescan failed:', err));
+  }
+
+  function useSelectedForScaffolding() {
+    if (!selectedModels.length) {
+      alert('No models selected');
+      return;
+    }
+    // Redirect to scaffolding page with selected models
+    const params = new URLSearchParams();
+    selectedModels.forEach(slug => params.append('models', slug));
+    window.location.href = `/sample-generator?${params.toString()}`;
+  }
+
 } // End of guard block
 
 // Export functions to global window scope (outside guard so they're ALWAYS available)

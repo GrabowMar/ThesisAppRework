@@ -42,6 +42,15 @@
 			<span class="text-muted small" id="models-source-indicator"></span>
 			<div class="btn-list">
 				<button class="btn btn-sm btn-primary" onclick="compareSelectedModels()" title="Compare selected models" type="button" id="compare-models-btn" disabled><i class="fas fa-balance-scale me-1" aria-hidden="true"></i>Compare</button>
+				<div class="btn-group btn-group-sm">
+					<button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+						<i class="fas fa-download me-1"></i>Export
+					</button>
+					<ul class="dropdown-menu">
+						<li><a class="dropdown-item" href="#" onclick="exportModels('json'); return false;"><i class="fas fa-file-code me-2"></i>JSON</a></li>
+						<li><a class="dropdown-item" href="#" onclick="exportModels('csv'); return false;"><i class="fas fa-file-csv me-2"></i>CSV</a></li>
+					</ul>
+				</div>
 				<button class="btn btn-sm btn-warning" onclick="syncFromOpenRouter()" title="Sync from OpenRouter" type="button"><i class="fas fa-cloud me-1" aria-hidden="true"></i>Sync</button>
 				<button class="btn btn-sm btn-info" onclick="rescanUsedModels()" title="Rescan used models from generated/apps folder" type="button"><i class="fas fa-sync-alt me-1" aria-hidden="true"></i>Rescan</button>
 				<button class="btn btn-sm btn-success" onclick="useSelectedForScaffolding()" title="Use selected models for scaffolding" type="button"><i class="fas fa-layer-group me-1" aria-hidden="true"></i>Scaffolding</button>
@@ -342,15 +351,15 @@
 							<input type="checkbox" id="select-all-models" class="form-check-input" onchange="toggleSelectAll()" />
 						</label>
 					</th>
-					<th class="text-nowrap">Model</th>
-					<th class="text-nowrap">Provider</th>
-					<th class="text-nowrap">Modality</th>
-					<th class="text-nowrap">Tokenizer</th>
-					<th class="text-nowrap">Type</th>
-					<th class="text-nowrap">Price / 1M</th>
-					<th class="text-nowrap">Context</th>
-					<th class="text-nowrap">Max Output</th>
-					<th class="text-nowrap">Cost Eff.</th>
+					<th class="text-nowrap sortable" data-column="name">Model</th>
+					<th class="text-nowrap sortable" data-column="provider">Provider</th>
+					<th class="text-nowrap sortable" data-column="modality">Modality</th>
+					<th class="text-nowrap sortable" data-column="tokenizer">Tokenizer</th>
+					<th class="text-nowrap sortable" data-column="type">Type</th>
+					<th class="text-nowrap sortable" data-column="price">Price / 1M</th>
+					<th class="text-nowrap sortable" data-column="context">Context</th>
+					<th class="text-nowrap sortable" data-column="max_output">Max Output</th>
+					<th class="text-nowrap sortable" data-column="cost_efficiency">Cost Eff.</th>
 					<th class="text-nowrap">Features</th>
 					<th class="w-1 text-nowrap">Actions</th>
 				</tr>

@@ -35,6 +35,15 @@
       <span class="text-muted small" id="applications-source-indicator"></span>
       <div class="btn-list">
         <button class="btn btn-sm btn-primary" onclick="refreshApplications()" title="Refresh applications" type="button"><i class="fas fa-sync me-1" aria-hidden="true"></i>Refresh</button>
+        <div class="btn-group btn-group-sm">
+          <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-download me-1"></i>Export
+          </button>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="#" onclick="exportApplications('json'); return false;"><i class="fas fa-file-code me-2"></i>JSON</a></li>
+            <li><a class="dropdown-item" href="#" onclick="exportApplications('csv'); return false;"><i class="fas fa-file-csv me-2"></i>CSV</a></li>
+          </ul>
+        </div>
         <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#batchApplicationsModal" title="Batch operations" onclick="updateBatchSelectionCount()" type="button"><i class="fas fa-layer-group me-1" aria-hidden="true"></i>Batch Ops</button>
       </div>
       <span class="text-primary small fw-bold" id="applications-selection-indicator"></span>
@@ -47,6 +56,80 @@
           <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
           <input type="text" id="application-search" class="form-control" placeholder="Search by model, app number, or type..." value="{{ search_term }}" onkeyup="debounceApplicationSearch()" aria-label="Search applications" />
           <button class="btn btn-outline-secondary" onclick="clearApplicationSearch()" type="button" title="Clear search" aria-label="Clear search"><i class="fas fa-xmark" aria-hidden="true"></i></button>
+          <button class="btn btn-outline-primary" onclick="toggleApplicationsAdvancedFilters()" type="button" title="Advanced filters" aria-label="Toggle advanced filters">
+            <i class="fas fa-filter me-1" aria-hidden="true"></i>
+            <span class="d-none d-md-inline">Advanced</span>
+            <span class="badge bg-primary ms-1" id="applications-active-filters-count" style="display: none;">0</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    {# Advanced Filters Panel #}
+    <div id="applications-advanced-filters" class="advanced-filters-panel" style="display: none;">
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Status Filters</label>
+              <div class="d-flex flex-wrap gap-2">
+                <label class="form-check">
+                  <input type="checkbox" class="form-check-input" id="filter-status-running" value="running" onchange="updateApplicationsAdvancedFilters()">
+                  <span class="form-check-label">Running</span>
+                </label>
+                <label class="form-check">
+                  <input type="checkbox" class="form-check-input" id="filter-status-stopped" value="stopped" onchange="updateApplicationsAdvancedFilters()">
+                  <span class="form-check-label">Stopped</span>
+                </label>
+                <label class="form-check">
+                  <input type="checkbox" class="form-check-input" id="filter-status-error" value="error" onchange="updateApplicationsAdvancedFilters()">
+                  <span class="form-check-label">Error</span>
+                </label>
+                <label class="form-check">
+                  <input type="checkbox" class="form-check-input" id="filter-status-pending" value="pending" onchange="updateApplicationsAdvancedFilters()">
+                  <span class="form-check-label">Pending</span>
+                </label>
+                <label class="form-check">
+                  <input type="checkbox" class="form-check-input" id="filter-status-not-created" value="not_created" onchange="updateApplicationsAdvancedFilters()">
+                  <span class="form-check-label">Not Created</span>
+                </label>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Type Filters</label>
+              <div class="d-flex flex-wrap gap-2">
+                <label class="form-check">
+                  <input type="checkbox" class="form-check-input" id="filter-type-react-flask" value="react-flask" onchange="updateApplicationsAdvancedFilters()">
+                  <span class="form-check-label">React + Flask</span>
+                </label>
+                <label class="form-check">
+                  <input type="checkbox" class="form-check-input" id="filter-type-other" value="other" onchange="updateApplicationsAdvancedFilters()">
+                  <span class="form-check-label">Other</span>
+                </label>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Date Range</label>
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <input type="date" class="form-control" id="filter-date-from" onchange="updateApplicationsAdvancedFilters()" placeholder="From">
+                </div>
+                <div class="col-md-6">
+                  <input type="date" class="form-control" id="filter-date-to" onchange="updateApplicationsAdvancedFilters()" placeholder="To">
+                </div>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="d-flex gap-2">
+                <button class="btn btn-primary" onclick="applyApplicationsAdvancedFilters()">
+                  <i class="fas fa-check me-1"></i>Apply Filters
+                </button>
+                <button class="btn btn-outline-secondary" onclick="clearApplicationsAdvancedFilters()">
+                  <i class="fas fa-xmark me-1"></i>Clear All
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -109,13 +192,13 @@
 			<thead>
 				<tr>
 					<th scope="col" class="w-1"><input type="checkbox" id="select-all-apps" class="form-check-input m-0" onchange="toggleSelectAllApplications()" aria-label="Select all applications"></th>
-					<th scope="col">Model</th>
-					<th scope="col">Provider</th>
-					<th scope="col" class="text-center">App</th>
-					<th scope="col">Type</th>
-					<th scope="col" class="text-center">Status</th>
+					<th scope="col" class="sortable" data-column="model_slug">Model</th>
+					<th scope="col" class="sortable" data-column="provider">Provider</th>
+					<th scope="col" class="text-center sortable" data-column="app_number">App</th>
+					<th scope="col" class="sortable" data-column="app_type">Type</th>
+					<th scope="col" class="text-center sortable" data-column="container_status">Status</th>
 					<th scope="col">Ports</th>
-					<th scope="col" class="text-end">Size</th>
+					<th scope="col" class="text-end sortable" data-column="container_size">Size</th>
 					<th scope="col" class="text-center">Analysis</th>
 					<th scope="col" class="w-1"><span class="visually-hidden">Actions</span></th>
 				</tr>

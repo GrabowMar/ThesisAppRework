@@ -1,0 +1,520 @@
+/* ========================================
+   Enhanced Table Styles
+   ======================================== */
+
+/* Base table enhancements */
+.table-enhanced {
+  --table-border-color: var(--color-border);
+  --table-hover-bg: rgba(var(--tblr-primary-rgb), 0.04);
+  --table-selected-bg: rgba(var(--tblr-primary-rgb), 0.08);
+  --table-header-bg: var(--color-bg-alt);
+}
+
+/* Sortable column headers */
+.sortable-header {
+  position: relative;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.sortable-header:hover {
+  background-color: var(--table-hover-bg) !important;
+  color: var(--tblr-primary);
+}
+
+.sortable-header.sorted {
+  background-color: var(--table-selected-bg) !important;
+  color: var(--tblr-primary);
+  font-weight: 600;
+}
+
+.sortable-header .sort-icon {
+  opacity: 0.5;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.sortable-header:hover .sort-icon,
+.sortable-header.sorted .sort-icon {
+  opacity: 1;
+}
+
+.sortable-header.sorted .sort-icon {
+  animation: sortPulse 0.3s ease;
+}
+
+@keyframes sortPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+/* Table header styling */
+.card-table-compact .table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: var(--table-header-bg);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  padding: 0.75rem;
+  border-bottom: 2px solid var(--table-border-color);
+  white-space: nowrap;
+}
+
+/* Table body styling */
+.card-table-compact .table tbody td {
+  padding: 0.625rem 0.75rem;
+  font-size: 0.8125rem;
+  vertical-align: middle;
+  transition: background-color 0.15s ease;
+}
+
+.card-table-compact .table tbody tr {
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card-table-compact .table tbody tr:hover {
+  background-color: var(--table-hover-bg);
+  box-shadow: inset 0 0 0 1px rgba(var(--tblr-primary-rgb), 0.15);
+}
+
+.card-table-compact .table tbody tr.selected {
+  background-color: var(--table-selected-bg);
+}
+
+/* Loading state */
+.table.loading tbody {
+  position: relative;
+}
+
+.table.loading tbody::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(var(--tblr-primary-rgb), 0.1) 50%, 
+    transparent 100%
+  );
+  animation: shimmer 1.5s infinite;
+  pointer-events: none;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Badge standardization */
+.card-table-compact .badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  line-height: 1.2;
+}
+
+.card-table-compact .badge i {
+  font-size: 0.75rem;
+  margin-right: 0.25rem;
+}
+
+/* Status badge colors */
+.badge.status-running {
+  background-color: rgba(var(--tblr-success-rgb), 0.1);
+  color: var(--tblr-success);
+  border: 1px solid rgba(var(--tblr-success-rgb), 0.3);
+}
+
+.badge.status-stopped {
+  background-color: rgba(var(--tblr-secondary-rgb), 0.1);
+  color: var(--tblr-secondary);
+  border: 1px solid rgba(var(--tblr-secondary-rgb), 0.3);
+}
+
+.badge.status-error {
+  background-color: rgba(var(--tblr-danger-rgb), 0.1);
+  color: var(--tblr-danger);
+  border: 1px solid rgba(var(--tblr-danger-rgb), 0.3);
+}
+
+.badge.status-pending {
+  background-color: rgba(var(--tblr-warning-rgb), 0.1);
+  color: var(--tblr-warning);
+  border: 1px solid rgba(var(--tblr-warning-rgb), 0.3);
+}
+
+.badge.status-completed {
+  background-color: rgba(var(--tblr-info-rgb), 0.1);
+  color: var(--tblr-info);
+  border: 1px solid rgba(var(--tblr-info-rgb), 0.3);
+}
+
+/* Button standardization */
+.btn-ghost-primary {
+  color: var(--tblr-primary);
+  background-color: transparent;
+  border: 1px solid transparent;
+}
+
+.btn-ghost-primary:hover {
+  background-color: rgba(var(--tblr-primary-rgb), 0.1);
+  border-color: rgba(var(--tblr-primary-rgb), 0.2);
+}
+
+.btn-ghost-secondary {
+  color: var(--color-text-muted);
+  background-color: transparent;
+  border: 1px solid transparent;
+}
+
+.btn-ghost-secondary:hover {
+  background-color: var(--color-bg-alt);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.btn-ghost-danger {
+  color: var(--tblr-danger);
+  background-color: transparent;
+  border: 1px solid transparent;
+}
+
+.btn-ghost-danger:hover {
+  background-color: rgba(var(--tblr-danger-rgb), 0.1);
+  border-color: rgba(var(--tblr-danger-rgb), 0.2);
+}
+
+.btn-ghost-success {
+  color: var(--tblr-success);
+  background-color: transparent;
+  border: 1px solid transparent;
+}
+
+.btn-ghost-success:hover {
+  background-color: rgba(var(--tblr-success-rgb), 0.1);
+  border-color: rgba(var(--tblr-success-rgb), 0.2);
+}
+
+.btn-ghost-warning {
+  color: var(--tblr-warning);
+  background-color: transparent;
+  border: 1px solid transparent;
+}
+
+.btn-ghost-warning:hover {
+  background-color: rgba(var(--tblr-warning-rgb), 0.1);
+  border-color: rgba(var(--tblr-warning-rgb), 0.2);
+}
+
+.btn-ghost-info {
+  color: var(--tblr-info);
+  background-color: transparent;
+  border: 1px solid transparent;
+}
+
+.btn-ghost-info:hover {
+  background-color: rgba(var(--tblr-info-rgb), 0.1);
+  border-color: rgba(var(--tblr-info-rgb), 0.2);
+}
+
+/* Icon buttons in tables */
+.table .btn-icon {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+}
+
+/* Advanced filter panel */
+.advanced-filters-panel {
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  background-color: var(--color-bg);
+  padding: 1rem;
+  margin-top: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.advanced-filters-panel .filter-section {
+  margin-bottom: 1.5rem;
+}
+
+.advanced-filters-panel .filter-section:last-child {
+  margin-bottom: 0;
+}
+
+.advanced-filters-panel .filter-section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--tblr-primary);
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.advanced-filters-panel .filter-section-title i {
+  font-size: 1rem;
+}
+
+/* Filter badge animation */
+.filter-badge-enter {
+  animation: filterBadgeEnter 0.3s ease;
+}
+
+@keyframes filterBadgeEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  60% {
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Checkbox styling in filter panels */
+.form-selectgroup-boxes .form-selectgroup-item {
+  margin-bottom: 0.5rem;
+}
+
+.form-selectgroup-boxes .form-selectgroup-label {
+  border: 1px solid var(--color-border);
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.form-selectgroup-boxes .form-selectgroup-label:hover {
+  border-color: var(--tblr-primary);
+  background-color: rgba(var(--tblr-primary-rgb), 0.03);
+}
+
+.form-selectgroup-boxes .form-selectgroup-input:checked ~ .form-selectgroup-label {
+  border-color: var(--tblr-primary);
+  background-color: rgba(var(--tblr-primary-rgb), 0.08);
+  font-weight: 600;
+}
+
+/* Status indicators group */
+.status-indicators {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.status-indicators .badge {
+  font-size: 0.75rem;
+  padding: 0.375rem 0.625rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  transition: transform 0.15s ease;
+}
+
+.status-indicators .badge:hover {
+  transform: translateY(-1px);
+}
+
+.status-indicators .badge i {
+  font-size: 0.875rem;
+}
+
+/* Export buttons group */
+.export-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.export-buttons .btn {
+  font-size: 0.8125rem;
+}
+
+/* Pagination styling */
+.pagination {
+  margin-bottom: 0;
+}
+
+.pagination .page-link {
+  font-size: 0.8125rem;
+  padding: 0.375rem 0.625rem;
+  border-radius: 0.375rem;
+  margin: 0 0.125rem;
+  transition: all 0.15s ease;
+}
+
+.pagination .page-link:hover {
+  background-color: rgba(var(--tblr-primary-rgb), 0.1);
+  border-color: var(--tblr-primary);
+}
+
+.pagination .page-item.active .page-link {
+  background-color: var(--tblr-primary);
+  border-color: var(--tblr-primary);
+}
+
+/* Responsive table improvements */
+@media (max-width: 768px) {
+  .card-table-compact .table thead th {
+    font-size: 0.6875rem;
+    padding: 0.5rem;
+  }
+
+  .card-table-compact .table tbody td {
+    font-size: 0.75rem;
+    padding: 0.5rem;
+  }
+
+  .status-indicators {
+    font-size: 0.6875rem;
+  }
+
+  .card-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .btn-list {
+    flex-wrap: wrap;
+  }
+}
+
+/* Empty state styling */
+.table-empty-state {
+  text-align: center;
+  padding: 3rem 1.5rem;
+  color: var(--color-text-muted);
+}
+
+.table-empty-state i {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.3;
+}
+
+.table-empty-state h4 {
+  font-size: 1.125rem;
+  margin-bottom: 0.5rem;
+  color: var(--color-text);
+}
+
+.table-empty-state p {
+  font-size: 0.875rem;
+  margin-bottom: 0;
+}
+
+/* Row actions dropdown */
+.row-actions-dropdown .dropdown-menu {
+  min-width: 10rem;
+  font-size: 0.8125rem;
+}
+
+.row-actions-dropdown .dropdown-item {
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.row-actions-dropdown .dropdown-item i {
+  width: 1rem;
+  text-align: center;
+}
+
+/* Column resizing (future enhancement) */
+.resizable-column {
+  position: relative;
+}
+
+.resizable-column .resize-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.resizable-column:hover .resize-handle {
+  opacity: 0.5;
+  background-color: var(--tblr-primary);
+}
+
+/* Dark theme adjustments */
+:root[data-bs-theme='dark'] .advanced-filters-panel {
+  background-color: var(--color-bg-alt);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-bs-theme='dark'] .card-table-compact .table thead th {
+  background-color: var(--color-bg);
+  border-bottom-color: var(--color-border);
+}
+
+:root[data-bs-theme='dark'] .card-table-compact .table tbody tr:hover {
+  background-color: rgba(var(--tblr-primary-rgb), 0.08);
+}
+
+:root[data-bs-theme='dark'] .form-selectgroup-boxes .form-selectgroup-label {
+  border-color: var(--color-border);
+  background-color: transparent;
+}
+
+:root[data-bs-theme='dark'] .form-selectgroup-boxes .form-selectgroup-label:hover {
+  background-color: rgba(var(--tblr-primary-rgb), 0.05);
+}
+
+/* Accessibility improvements */
+.sortable-header:focus-visible {
+  outline: 2px solid var(--tblr-primary);
+  outline-offset: -2px;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--tblr-primary);
+  outline-offset: 2px;
+}
+
+/* Print styles */
+@media print {
+  .card-actions,
+  .btn-list,
+  .export-buttons,
+  .advanced-filters-panel,
+  .pagination {
+    display: none !important;
+  }
+
+  .card-table-compact .table thead th {
+    background-color: #f0f0f0 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .table tbody tr:nth-child(even) {
+    background-color: #f9f9f9 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
