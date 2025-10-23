@@ -173,14 +173,14 @@ def applications_index():
     except Exception:
         current_app.logger.warning("Auto filesystem sync failed", exc_info=True)
     
-    # Delegate to models blueprint
-    from app.routes.jinja.models import _render_applications_page
+    # Delegate to applications blueprint
+    from app.routes.jinja.applications import _render_applications_page
     return _render_applications_page()
 
 @main_bp.route('/applications/generate', methods=['POST'])
 def applications_generate():
-    """Delegate application generation to models blueprint."""
-    from app.routes.jinja.models import generate_application
+    """Delegate application generation to applications blueprint."""
+    from app.routes.jinja.applications import generate_application
     return generate_application()
 
 @main_bp.route('/applications/table')
@@ -188,7 +188,7 @@ def applications_table():
     """HTMX partial: Applications table content."""
     try:
         # Build the same context as the full applications page
-        from app.routes.jinja.models import build_applications_context  # type: ignore
+        from app.routes.jinja.applications import build_applications_context  # type: ignore
         context = build_applications_context()
         # Return only the table block so HX swap can replace the section
         html = render_template('pages/applications/partials/table_block.html', **context)
@@ -205,7 +205,7 @@ def applications_table():
 def applications_stats():
     """HTMX partial: Applications stats numbers snippet."""
     try:
-        from app.routes.jinja.models import build_applications_context  # type: ignore
+        from app.routes.jinja.applications import build_applications_context  # type: ignore
         ctx = build_applications_context()
         stats = ctx.get('applications_stats') or ctx.get('stats') or {}
         html = render_template(
@@ -225,9 +225,9 @@ def applications_stats():
 
 @main_bp.route('/applications/<model_slug>/<int:app_number>')
 def applications_detail_alias(model_slug, app_number):
-    """Alias route matching new applications URL scheme that delegates to legacy models blueprint detail renderer."""
+    """Alias route matching new applications URL scheme that delegates to applications blueprint detail renderer."""
     try:
-        from app.routes.jinja.models import application_detail  # type: ignore
+        from app.routes.jinja.applications import application_detail  # type: ignore
         return application_detail(model_slug, app_number)
     except Exception as e:  # pragma: no cover
         current_app.logger.error(f"Error loading application detail alias: {e}")
@@ -237,7 +237,7 @@ def applications_detail_alias(model_slug, app_number):
 def applications_detail_section_alias(model_slug, app_number, section):
     """Alias for HTMX section endpoints using /applications path instead of /models/application."""
     try:
-        from app.routes.jinja.models import _render_application_section  # type: ignore
+        from app.routes.jinja.applications import _render_application_section  # type: ignore
         return _render_application_section(model_slug, app_number, section)
     except Exception as e:  # pragma: no cover
         current_app.logger.error(f"Error loading application section alias: {e}")
@@ -247,7 +247,7 @@ def applications_detail_section_alias(model_slug, app_number, section):
 def applications_prompts_modal_alias(model_slug, app_number):
     """Alias for prompts modal endpoint using /applications path."""
     try:
-        from app.routes.jinja.models import application_section_prompts  # type: ignore
+        from app.routes.jinja.applications import application_section_prompts  # type: ignore
         return application_section_prompts(model_slug, app_number)
     except Exception as e:  # pragma: no cover
         current_app.logger.error(f"Error loading prompts modal alias: {e}")
@@ -257,7 +257,7 @@ def applications_prompts_modal_alias(model_slug, app_number):
 def applications_file_alias(model_slug, app_number):
     """Alias for file preview endpoint using /applications path."""
     try:
-        from app.routes.jinja.models import application_file_preview  # type: ignore
+        from app.routes.jinja.applications import application_file_preview  # type: ignore
         return application_file_preview(model_slug, app_number)
     except Exception as e:  # pragma: no cover
         current_app.logger.error(f"Error loading application file alias: {e}")
@@ -267,7 +267,7 @@ def applications_file_alias(model_slug, app_number):
 def applications_generation_metadata_alias(model_slug, app_number):
     """Alias for generation metadata endpoint using /applications path."""
     try:
-        from app.routes.jinja.models import application_generation_metadata  # type: ignore
+        from app.routes.jinja.applications import application_generation_metadata  # type: ignore
         return application_generation_metadata(model_slug, app_number)
     except Exception as e:  # pragma: no cover
         current_app.logger.error(f"Error loading generation metadata alias: {e}")

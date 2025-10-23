@@ -5,6 +5,7 @@ Handles all application routes organized by type.
 
 from .jinja.main import main_bp
 from .jinja.models import models_bp
+from .jinja.applications import applications_bp as jinja_applications_bp
 from .jinja.analysis import analysis_bp
 from .jinja.stats import stats_bp
 from .jinja.reports import reports_bp
@@ -36,6 +37,7 @@ __all__ = [
     # Jinja blueprints
     'main_bp',
     'models_bp',
+    'jinja_applications_bp',
     'analysis_bp',
     'stats_bp',
     'reports_bp',
@@ -90,6 +92,7 @@ def register_blueprints(app):
     # Register Jinja template blueprints
     app.register_blueprint(main_bp)
     app.register_blueprint(models_bp)
+    app.register_blueprint(jinja_applications_bp)
     app.register_blueprint(analysis_bp)
     app.register_blueprint(stats_bp)
     app.register_blueprint(reports_bp)
