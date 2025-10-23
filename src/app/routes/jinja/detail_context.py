@@ -374,10 +374,59 @@ def _collect_artifacts(app_path: Path) -> Dict[str, Optional[Path]]:
     }
 
 
-def _collect_app_prompts(app_number: int) -> Tuple[Dict[str, str], Dict[str, str], str]:
-    tmpl_dir = _project_root() / 'misc' / 'app_templates'
+def _collect_app_prompts(app_number: int, model_slug: str = None) -> Tuple[Dict[str, str], Dict[str, str], str]:
+    """
+    Collect prompts from generated/raw/payloads/{model_slug}/app{number}/*.json files
+    Falls back to misc/app_templates for legacy support
+    """
     prompts = {'backend': '', 'frontend': ''}
     template_files = {'backend_file': '', 'frontend_file': ''}
+    
+    # Try new location first: generated/raw/payloads/{model_slug}/app{number}/
+    if model_slug:
+        raw_dir = _project_root() / 'generated' / 'raw' / 'payloads' / model_slug / f'app{app_number}'
+        current_app.logger.info(f"Looking for prompts in: {raw_dir}, exists: {raw_dir.exists()}")
+        if raw_dir.exists():
+            try:
+                import json
+                backend_files = sorted(raw_dir.glob(f'*_app{app_number}_backend_*_payload.json'))
+                frontend_files = sorted(raw_dir.glob(f'*_app{app_number}_frontend_*_payload.json'))
+                current_app.logger.info(f"Found backend files: {len(backend_files)}, frontend files: {len(frontend_files)}")
+                
+                if backend_files:
+                    template_files['backend_file'] = backend_files[0].name
+                    with open(backend_files[0], 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        # Extract prompt from messages in payload
+                        messages = data.get('payload', {}).get('messages', [])
+                        if messages:
+                            # Combine system and user messages
+                            prompts['backend'] = '\n\n'.join(
+                                f"**{msg.get('role', 'unknown').upper()}:**\n{msg.get('content', '')}"
+                                for msg in messages if msg.get('content')
+                            )
+                            current_app.logger.info(f"Loaded backend prompt, length: {len(prompts['backend'])}")
+                
+                if frontend_files:
+                    template_files['frontend_file'] = frontend_files[0].name
+                    with open(frontend_files[0], 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        messages = data.get('payload', {}).get('messages', [])
+                        if messages:
+                            prompts['frontend'] = '\n\n'.join(
+                                f"**{msg.get('role', 'unknown').upper()}:**\n{msg.get('content', '')}"
+                                for msg in messages if msg.get('content')
+                            )
+                            current_app.logger.info(f"Loaded frontend prompt, length: {len(prompts['frontend'])}")
+                
+                if prompts['backend'] or prompts['frontend']:
+                    current_app.logger.info(f"Returning prompts from raw payloads")
+                    return prompts, template_files, str(raw_dir)
+            except Exception as err:
+                current_app.logger.warning("Failed to load prompts from raw payloads for %s/app%s: %s", model_slug, app_number, err)
+    
+    # Fallback to legacy location: misc/app_templates
+    tmpl_dir = _project_root() / 'misc' / 'app_templates'
     if tmpl_dir.exists():
         try:
             backend_md = sorted(tmpl_dir.glob(f'app_{app_number}_backend_*.md'))
@@ -389,7 +438,8 @@ def _collect_app_prompts(app_number: int) -> Tuple[Dict[str, str], Dict[str, str
                 template_files['frontend_file'] = frontend_md[0].name
                 prompts['frontend'] = frontend_md[0].read_text(encoding='utf-8', errors='ignore')
         except Exception as err:
-            current_app.logger.warning("Failed to load prompts for app %s: %s", app_number, err)
+            current_app.logger.warning("Failed to load prompts from templates for app %s: %s", app_number, err)
+    
     return prompts, template_files, str(tmpl_dir)
 
 
@@ -430,6 +480,20 @@ def _collect_ports(model_slug: str, app_number: int, app: Optional[GeneratedAppl
     port_entries: List[Dict[str, Any]] = []
     seen: set[int] = set()
     running = bool(app and (getattr(app, 'container_status', '') or '').lower() == 'running')
+    
+    # Also check actual Docker container status if available
+    if not running and app:
+        try:
+            from app.services.service_locator import ServiceLocator
+            docker_manager = ServiceLocator.get('docker_manager')
+            if docker_manager:
+                container_name = f"{model_slug}-app{app_number}"
+                status = docker_manager.get_container_status(container_name)
+                running = status and status.get('State', {}).get('Running', False)
+                current_app.logger.info(f"Docker direct check for {container_name}: running={running}")
+        except Exception as err:
+            current_app.logger.debug(f"Failed to check Docker status directly: {err}")
+    
     if ports_dict:
         for role, value in ports_dict.items():
             if not isinstance(value, int) or value in seen:
@@ -440,7 +504,8 @@ def _collect_ports(model_slug: str, app_number: int, app: Optional[GeneratedAppl
                 'container_port': value,
                 'host_port': value,
                 'protocol': 'tcp',
-                'is_accessible': running,
+                'accessible': running,  # Used by template
+                'is_accessible': running,  # Legacy compatibility
                 'description': f"{role.replace('_', ' ').title()} service",
                 'is_exposed': True,
             })
@@ -701,7 +766,7 @@ def build_application_detail_context(model_slug: str, app_number: int, allow_syn
     ports_raw, ports = _collect_ports(resolved_slug, app_number, app)
     app_data['ports'] = ports
     app_data['ports_count'] = len(ports)
-    prompts, template_files, templates_dir = _collect_app_prompts(app_number)
+    prompts, template_files, templates_dir = _collect_app_prompts(app_number, resolved_slug)
     analyses, stats, analysis_entries = _collect_app_analyses(app)
     slug_candidates = {resolved_slug}
     canonical = getattr(model, 'canonical_slug', None)

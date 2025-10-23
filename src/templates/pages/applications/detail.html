@@ -29,9 +29,8 @@
                class="research-section" 
                data-research-section="{{ section.id }}"
                hx-get="{{ section.hx }}"
-               hx-trigger="revealed once"
+               hx-trigger="{% if loop.first %}load{% else %}intersect once threshold:0.1{% endif %}"
                hx-swap="innerHTML"
-               hx-indicator=".research-section[data-research-section='{{ section.id }}']"
                aria-labelledby="section-{{ section.id }}-title">
         
         <div class="research-section-header">
