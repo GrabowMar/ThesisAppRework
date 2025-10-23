@@ -73,8 +73,8 @@
       <div class="detail-stat__content">
         <div class="detail-stat-label">Cost efficiency</div>
         <div class="detail-stat-value">
-          {% if model.cost_efficiency %}
-            {{ '%.2f'|format(model.cost_efficiency) }}
+          {% if model.get('cost_efficiency') %}
+            {{ '%.2f'|format(model.get('cost_efficiency')) }}
           {% else %}
             <span class="text-muted">Not scored</span>
           {% endif %}
@@ -84,7 +84,7 @@
     </div>
   </article>
 
-  {% if model.is_free %}
+  {% if model.get('is_free') %}
     <article class="card detail-card detail-card--wide">
       <div class="card-body">
         <div class="alert alert-success mb-0" role="alert">
@@ -121,6 +121,22 @@
     </div>
   </article>
 
+  {% if stats and (stats.get('avg_prompt_price') or stats.get('avg_completion_price')) %}
+  <article class="card detail-card detail-card--wide">
+    <div class="card-body">
+      <h3 class="detail-card__title mb-2"><i class="ti ti-chart-bar me-1"></i>Price Comparison vs Database Average</h3>
+      <div class="row">
+        <div class="col-md-6">
+          <canvas id="promptPriceChart" style="max-height: 200px;"></canvas>
+        </div>
+        <div class="col-md-6">
+          <canvas id="completionPriceChart" style="max-height: 200px;"></canvas>
+        </div>
+      </div>
+    </div>
+  </article>
+  {% endif %}
+
   <article class="card detail-card detail-card--wide">
     <div class="card-body">
       <h3 class="detail-card__title mb-2"><i class="ti ti-info-circle me-1"></i>Pricing notes</h3>
@@ -131,3 +147,95 @@
     </div>
   </article>
 </div>
+
+{% if stats and (stats.get('avg_prompt_price') or stats.get('avg_completion_price')) %}
+<script>
+(function() {
+  // Wait for Chart.js to be available
+  if (typeof Chart === 'undefined') {
+    console.warn('Chart.js not loaded yet, retrying...');
+    setTimeout(arguments.callee, 100);
+    return;
+  }
+
+  const modelPromptPrice = {{ prompt_price|default(0) }};
+  const avgPromptPrice = {{ stats.get('avg_prompt_price', 0)|default(0) }};
+  const modelCompletionPrice = {{ completion_price|default(0) }};
+  const avgCompletionPrice = {{ stats.get('avg_completion_price', 0)|default(0) }};
+
+  const chartConfig = {
+    type: 'bar',
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return '$' + context.parsed.y.toFixed(6) + ' per 1K tokens';
+            }
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: function(value) {
+              return '$' + value.toFixed(6);
+            }
+          }
+        }
+      }
+    }
+  };
+
+  // Prompt Price Chart
+  if (modelPromptPrice || avgPromptPrice) {
+    new Chart(document.getElementById('promptPriceChart'), {
+      ...chartConfig,
+      data: {
+        labels: ['This Model', 'DB Average'],
+        datasets: [{
+          label: 'Prompt Price',
+          data: [modelPromptPrice, avgPromptPrice],
+          backgroundColor: [
+            modelPromptPrice < avgPromptPrice ? 'rgba(32, 201, 151, 0.7)' : 'rgba(251, 99, 71, 0.7)',
+            'rgba(102, 126, 234, 0.5)'
+          ],
+          borderColor: [
+            modelPromptPrice < avgPromptPrice ? 'rgb(32, 201, 151)' : 'rgb(251, 99, 71)',
+            'rgb(102, 126, 234)'
+          ],
+          borderWidth: 1
+        }]
+      }
+    });
+  }
+
+  // Completion Price Chart
+  if (modelCompletionPrice || avgCompletionPrice) {
+    new Chart(document.getElementById('completionPriceChart'), {
+      ...chartConfig,
+      data: {
+        labels: ['This Model', 'DB Average'],
+        datasets: [{
+          label: 'Completion Price',
+          data: [modelCompletionPrice, avgCompletionPrice],
+          backgroundColor: [
+            modelCompletionPrice < avgCompletionPrice ? 'rgba(32, 201, 151, 0.7)' : 'rgba(251, 99, 71, 0.7)',
+            'rgba(102, 126, 234, 0.5)'
+          ],
+          borderColor: [
+            modelCompletionPrice < avgCompletionPrice ? 'rgb(32, 201, 151)' : 'rgb(251, 99, 71)',
+            'rgb(102, 126, 234)'
+          ],
+          borderWidth: 1
+        }]
+      }
+    });
+  }
+})();
+</script>
+{% endif %}

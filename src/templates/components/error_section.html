@@ -1,0 +1,24 @@
+{# Error Section Component - Used for HTMX section load failures #}
+<div class="research-section-error">
+  <div class="research-empty-state">
+    <div class="research-empty-icon text-{{ 'warning' if error_icon and 'warning' in error_icon else 'danger' }}">
+      <i class="{{ error_icon if error_icon else 'fas fa-exclamation-triangle' }}" aria-hidden="true"></i>
+    </div>
+    <div class="research-empty-title">{{ error_title if error_title else 'Section Load Failed' }}</div>
+    <div class="research-empty-message">{{ error_message if error_message else 'Unable to load this section. Please try again.' }}</div>
+    {% if error_detail %}
+    <details class="mt-2">
+      <summary class="small text-muted">Technical Details</summary>
+      <pre class="small mt-2 p-2 bg-light rounded"><code>{{ error_detail }}</code></pre>
+    </details>
+    {% endif %}
+    {% if retry_url %}
+    <div class="research-empty-action mt-3">
+      <button class="btn btn-primary" 
+              onclick="htmx.ajax('GET', '{{ retry_url }}', { target: this.closest('[data-research-section]'), swap: 'innerHTML' })">
+        <i class="fas fa-refresh me-1"></i>Retry
+      </button>
+    </div>
+    {% endif %}
+  </div>
+</div>

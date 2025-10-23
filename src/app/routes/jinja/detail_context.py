@@ -938,6 +938,16 @@ def _build_model_actions(model_slug: str) -> List[Dict[str, Any]]:
             'visible': True,
         },
         {
+            'key': 'refresh',
+            'type': 'button',
+            'label': 'Refresh Data',
+            'icon': 'fas fa-sync',
+            'classes': 'btn-ghost-secondary btn-sm',
+            'onclick': 'refreshModelData()',
+            'visible': True,
+            'title': 'Reload model data from OpenRouter API',
+        },
+        {
             'key': 'export',
             'type': 'link',
             'label': 'Export JSON',
@@ -1046,6 +1056,7 @@ def _build_model_sections(model_slug: str) -> Tuple[List[Dict[str, Any]], Dict[s
         ('provider', 'Provider & Performance', 'fas fa-server', 'pages/models/partials/provider_performance.html'),
         ('pricing', 'Pricing', 'fas fa-dollar-sign', 'pages/models/partials/pricing-info.html'),
         ('applications', 'Applications', 'fas fa-cube', 'pages/models/partials/model_applications.html'),
+        ('usage', 'Usage Analytics', 'fas fa-chart-line', 'pages/models/partials/usage_analytics.html'),
         ('metadata', 'Metadata', 'fas fa-database', 'pages/models/partials/model_metadata.html'),
     ]
     sections: List[Dict[str, Any]] = []
@@ -1080,9 +1091,11 @@ def build_model_detail_context(
     if enrich_model:
         enriched_data = enrich_model(model) or {}
     cached_info = ExternalModelInfoCache.query.filter_by(model_slug=model.canonical_slug).first()
+    cache_timestamp = None
     if cached_info:
         try:
             enriched_data = deep_merge_dicts(enriched_data, cached_info.get_data())
+            cache_timestamp = cached_info.updated_at
         except Exception:
             pass
     applications = GeneratedApplication.query.filter_by(model_slug=model.canonical_slug).order_by(GeneratedApplication.created_at.desc()).all()
@@ -1090,22 +1103,57 @@ def build_model_detail_context(
     recent_apps = applications[:5]
     security_count = db.session.query(SecurityAnalysis).join(GeneratedApplication).filter(GeneratedApplication.model_slug == model.canonical_slug).count()
     performance_count = db.session.query(PerformanceTest).join(GeneratedApplication).filter(GeneratedApplication.model_slug == model.canonical_slug).count()
+    
+    # Calculate usage analytics
+    running_apps = sum(1 for app in applications if getattr(app, 'container_status', None) == 'running')
+    avg_analysis_quality = None
+    if security_count > 0 or performance_count > 0:
+        # Calculate analysis quality based on severity (lower is better)
+        security_analyses = db.session.query(SecurityAnalysis).join(GeneratedApplication).filter(
+            GeneratedApplication.model_slug == model.canonical_slug,
+            SecurityAnalysis.status == 'COMPLETED'
+        ).all()
+        performance_tests = db.session.query(PerformanceTest).join(GeneratedApplication).filter(
+            GeneratedApplication.model_slug == model.canonical_slug,
+            PerformanceTest.status == 'COMPLETED'
+        ).all()
+        
+        # Calculate quality score: fewer critical/high issues = better quality
+        quality_scores = []
+        for s in security_analyses:
+            if s.total_issues is not None and s.total_issues > 0:
+                # Penalize critical and high severity issues more
+                penalty = (s.critical_severity_count or 0) * 10 + (s.high_severity_count or 0) * 5 + (s.medium_severity_count or 0) * 2
+                quality_scores.append(max(0, 100 - penalty))
+        
+        for p in performance_tests:
+            if p.error_rate is not None:
+                # Convert error rate to quality score (0% error = 100, 100% error = 0)
+                quality_scores.append(max(0, 100 - (p.error_rate * 100)))
+        
+        if quality_scores:
+            avg_analysis_quality = sum(quality_scores) / len(quality_scores)
+    
     model_dict = _model_to_dict(model)
     model_dict['apps_count'] = app_count
     model_dict['capabilities'] = enriched_data.get('capabilities', {})
     model_dict['metadata'] = enriched_data
+    model_dict['cache_timestamp'] = cache_timestamp
     
     # Calculate average model stats for comparison
     avg_stats = _calculate_average_model_stats()
     
     stats = {
         'applications': app_count,
+        'running_apps': running_apps,
         'security_tests': security_count,
         'performance_tests': performance_count,
+        'avg_analysis_quality': avg_analysis_quality,
         'avg_prompt_price': avg_stats.get('avg_prompt_price', 0),
         'avg_completion_price': avg_stats.get('avg_completion_price', 0),
         'avg_context_length': avg_stats.get('avg_context_length', 0),
         'avg_cost_efficiency': avg_stats.get('avg_cost_efficiency', 0),
+        'cache_timestamp': cache_timestamp,
     }
     badges = _build_model_badges(model_dict)
     actions = _build_model_actions(model_slug)

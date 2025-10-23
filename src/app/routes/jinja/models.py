@@ -402,6 +402,68 @@ def model_details(model_slug):
         )
 
 
+@models_bp.route('/<model_slug>/refresh', methods=['POST'])
+def refresh_model_data(model_slug):
+    """Force refresh OpenRouter data for a specific model."""
+    try:
+        from app.services.service_locator import ServiceLocator
+        
+        # Verify model exists
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first_or_404()
+        
+        # Get OpenRouter service
+        openrouter_service = ServiceLocator.get('openrouter_service')
+        if not openrouter_service:
+            return {'error': 'OpenRouter service not available'}, 503
+        
+        # Clear cache for this model
+        from app.models import OpenRouterModelCache, ExternalModelInfoCache
+        OpenRouterModelCache.query.filter_by(model_id=model.model_id).delete()
+        ExternalModelInfoCache.query.filter_by(model_slug=model_slug).delete()
+        db.session.commit()
+        
+        # Fetch fresh data
+        fresh_data = openrouter_service.fetch_model_by_id(model.model_id)
+        if not fresh_data:
+            # Try alternate ID format
+            if '_' in model_slug:
+                provider, model_part = model_slug.split('_', 1)
+                alt_id = f"{provider}/{model_part}"
+                fresh_data = openrouter_service.fetch_model_by_id(alt_id)
+        
+        if fresh_data:
+            # Store in external cache
+            from datetime import timedelta
+            extracted = openrouter_service._extract_openrouter_details(fresh_data)
+            
+            # Create or update cache entry
+            cache_entry = ExternalModelInfoCache.query.filter_by(model_slug=model_slug).first()
+            if cache_entry:
+                cache_entry.set_data(extracted)
+                cache_entry.mark_refreshed(ttl_hours=24)
+                cache_entry.source_notes = 'openrouter_api'
+            else:
+                cache_entry = ExternalModelInfoCache()
+                cache_entry.model_slug = model_slug
+                cache_entry.set_data(extracted)
+                cache_entry.cache_expires_at = cache_entry.last_refreshed + timedelta(hours=24)
+                cache_entry.source_notes = 'openrouter_api'
+                db.session.add(cache_entry)
+            
+            db.session.commit()
+            
+            current_app.logger.info(f"Refreshed OpenRouter data for model {model_slug}")
+            return {'success': True, 'message': 'Model data refreshed successfully', 'updated_at': cache_entry.updated_at.isoformat()}
+        else:
+            current_app.logger.warning(f"Could not fetch fresh data for model {model_slug}")
+            return {'success': False, 'message': 'Could not fetch fresh data from OpenRouter'}, 404
+            
+    except Exception as exc:
+        current_app.logger.error(f"Error refreshing model data for {model_slug}: {exc}")
+        db.session.rollback()
+        return {'error': str(exc)}, 500
+
+
 @models_bp.route('/detail/<model_slug>/section/<section>')
 def model_section(model_slug, section):
     """Render specific sections of model details page (HTMX)."""
@@ -409,10 +471,32 @@ def model_section(model_slug, section):
         context = build_model_detail_context(model_slug, enrich_model=_enrich_model)
         section_cfg = context.get('sections_map', {}).get(section)
         if not section_cfg:
-            return f'<div class="alert alert-warning">Unknown section: {section}</div>', 404
+            current_app.logger.warning(f"Unknown section '{section}' requested for model '{model_slug}'")
+            return render_template(
+                'components/error_section.html',
+                error_title='Unknown Section',
+                error_message=f"The section '{section}' does not exist for this model.",
+                error_icon='fas fa-question-circle'
+            ), 404
+        
+        current_app.logger.debug(f"Rendering section '{section}' for model '{model_slug}' using template '{section_cfg['template']}'")
         return render_template(section_cfg['template'], **context)
-    except HTTPException:
-        raise
+    except HTTPException as http_ex:
+        current_app.logger.error(f"HTTP exception rendering section {section} for {model_slug}: {http_ex}")
+        return render_template(
+            'components/error_section.html',
+            error_title='Section Load Failed',
+            error_message=f"Could not load {section} section: {str(http_ex)}",
+            error_icon='fas fa-exclamation-triangle',
+            retry_url=f"/models/detail/{model_slug}/section/{section}"
+        ), http_ex.code if hasattr(http_ex, 'code') else 500
     except Exception as exc:
-        current_app.logger.error("Error rendering model section %s for %s: %s", section, model_slug, exc)
-        return f'<div class="alert alert-danger">Failed to load {section}: {exc}</div>', 500
+        current_app.logger.error("Error rendering model section %s for %s: %s", section, model_slug, exc, exc_info=True)
+        return render_template(
+            'components/error_section.html',
+            error_title='Section Error',
+            error_message=f"An unexpected error occurred loading {section}.",
+            error_detail=str(exc) if current_app.debug else None,
+            error_icon='fas fa-bug',
+            retry_url=f"/models/detail/{model_slug}/section/{section}"
+        ), 500

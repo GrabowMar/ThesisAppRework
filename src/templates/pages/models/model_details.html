@@ -22,9 +22,8 @@
                class="research-section" 
                data-research-section="{{ section.id }}"
                hx-get="{{ section.hx }}"
-               hx-trigger="revealed once"
+               hx-trigger="{% if loop.first %}load{% else %}intersect once threshold:0.1{% endif %}"
                hx-swap="innerHTML"
-               hx-indicator=".research-section[data-research-section='{{ section.id }}']"
                aria-labelledby="section-{{ section.id }}-title">
         
         <div class="research-section-header">
@@ -49,6 +48,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 {{ research_scroll_spy_script() }}
 <script>
 function generateApplication() {
@@ -70,6 +70,30 @@ function generateApplication() {
 
 function openModelComparison() {
   window.open('/models/comparison?models={{ model_slug }}', '_blank');
+}
+
+function refreshModelData() {
+  showToast('Refreshing model data from OpenRouter...', 'info');
+  fetch('/models/{{ model_slug }}/refresh', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showToast('Model data refreshed successfully', 'success');
+      // Reload the page to show fresh data
+      setTimeout(() => window.location.reload(), 1000);
+    } else {
+      showToast(data.message || 'Failed to refresh model data', 'error');
+    }
+  })
+  .catch(error => {
+    console.error('Refresh error:', error);
+    showToast('Failed to refresh model data', 'error');
+  });
 }
 
 // Handle section loading states
