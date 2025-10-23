@@ -23,10 +23,22 @@
     </div>
   </div>
   <div class="card-body">
+    <!-- DEBUG: logs length = {{ logs|length if logs else 'None' }}, log_stats = {{ log_stats }}, app_data.container_status = {{ app_data.container_status if app_data else 'No app_data' }} -->
     {% if logs %}
       <!-- Log Controls -->
       <div class="row g-2 mb-3">
-        <div class="col-md-3">
+        <div class="col-md-2">
+          <label class="form-label small">Container</label>
+          <div class="btn-group w-100" role="group">
+            <button type="button" class="btn btn-sm btn-primary active" id="btn-backend" onclick="switchContainer('backend')">
+              <i class="fas fa-server me-1"></i>Backend
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btn-frontend" onclick="switchContainer('frontend')">
+              <i class="fas fa-desktop me-1"></i>Frontend
+            </button>
+          </div>
+        </div>
+        <div class="col-md-2">
           <label class="form-label small">Log Level</label>
           <select class="form-select form-select-sm" id="log-level-filter" onchange="filterLogs()">
             <option value="">All Levels</option>
@@ -36,7 +48,7 @@
             <option value="DEBUG">Debug</option>
           </select>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
           <label class="form-label small">Source</label>
           <select class="form-select form-select-sm" id="log-source-filter" onchange="filterLogs()">
             <option value="">All Sources</option>
@@ -45,7 +57,7 @@
             <option value="system">System</option>
           </select>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-2">
           <label class="form-label small">Lines</label>
           <select class="form-select form-select-sm" id="log-lines" onchange="changeLinesCount()">
             <option value="50">50 lines</option>
@@ -55,7 +67,7 @@
             <option value="1000">1000 lines</option>
           </select>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-4">
           <label class="form-label small">Search</label>
           <input type="text" class="form-control form-control-sm" id="log-search" placeholder="Search logs..." onkeyup="filterLogs()">
         </div>
@@ -64,7 +76,9 @@
       <!-- Log Display -->
       <div class="card card-sm">
         <div class="card-header py-2 d-flex justify-content-between align-items-center">
-          <h5 class="card-title mb-0">Live Logs</h5>
+          <h5 class="card-title mb-0">
+            <span id="current-container-label">Backend Logs</span>
+          </h5>
           <div class="btn-group btn-group-sm" role="group">
             <button class="btn btn-ghost-secondary" onclick="scrollToTop()" title="Scroll to top">
               <i class="fas fa-arrow-up"></i>
@@ -78,8 +92,8 @@
           </div>
         </div>
         <div class="card-body p-0">
-          <div id="log-container" class="log-container">
-            <pre id="log-content" class="log-content mb-0">{{ logs }}</pre>
+          <div id="log-container" style="height: 70vh; overflow-y: auto; background: #f8f9fa;">
+            <pre id="log-content" class="log-content mb-0 p-3" style="font-size: 0.875rem; line-height: 1.5; font-family: 'Consolas', 'Monaco', 'Courier New', monospace;">{{ logs }}</pre>
           </div>
         </div>
       </div>
@@ -160,11 +174,37 @@
 <script>
 let autoRefreshInterval;
 let isAutoRefreshing = true;
+let currentContainer = 'backend';
 
 // Initialize auto-refresh
 document.addEventListener('DOMContentLoaded', function() {
   startAutoRefresh();
 });
+
+function switchContainer(containerType) {
+  currentContainer = containerType;
+  
+  // Update button states
+  const backendBtn = document.getElementById('btn-backend');
+  const frontendBtn = document.getElementById('btn-frontend');
+  
+  if (containerType === 'backend') {
+    backendBtn.classList.add('btn-primary', 'active');
+    backendBtn.classList.remove('btn-outline-primary');
+    frontendBtn.classList.remove('btn-primary', 'active');
+    frontendBtn.classList.add('btn-outline-primary');
+    document.getElementById('current-container-label').textContent = 'Backend Logs';
+  } else {
+    frontendBtn.classList.add('btn-primary', 'active');
+    frontendBtn.classList.remove('btn-outline-primary');
+    backendBtn.classList.remove('btn-primary', 'active');
+    backendBtn.classList.add('btn-outline-primary');
+    document.getElementById('current-container-label').textContent = 'Frontend Logs';
+  }
+  
+  // Refresh logs for the new container
+  refreshLogs();
+}
 
 function startAutoRefresh() {
   if (autoRefreshInterval) clearInterval(autoRefreshInterval);
@@ -198,7 +238,7 @@ function toggleAutoRefresh() {
 function refreshLogs() {
   const lines = document.getElementById('log-lines').value;
   
-  fetch(`/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/stream?lines=${lines}`)
+  fetch(`/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/stream?container=${currentContainer}&lines=${lines}`)
     .then(response => response.text())
     .then(data => {
       document.getElementById('log-content').textContent = data;
@@ -225,6 +265,7 @@ function filterLogs() {
   const search = document.getElementById('log-search').value;
   
   const params = new URLSearchParams();
+  params.append('container', currentContainer);
   if (level) params.append('level', level);
   if (source) params.append('source', source);
   if (search) params.append('search', search);
@@ -268,7 +309,7 @@ function copyLogs() {
 
 function clearLogs() {
   if (confirm('Are you sure you want to clear all logs? This action cannot be undone.')) {
-    fetch(`/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/clear`, {
+    fetch(`/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/clear?container=${currentContainer}`, {
       method: 'POST'
     })
     .then(response => response.json())
@@ -300,6 +341,9 @@ function showLogNotification(message, type = 'info') {
   // Simple notification system
   const notification = document.createElement('div');
   notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+  notification.style.top = '20px';
+  notification.style.right = '20px';
+  notification.style.zIndex = '9999';
   notification.innerHTML = `
     ${message}
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>

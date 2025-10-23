@@ -18,7 +18,7 @@
                 <p class="mb-0 text-muted small">Project structure and file overview</p>
               </div>
               <button class="btn btn-sm btn-ghost-primary" 
-                      hx-get="/application/{{ application.model_slug }}/{{ application.app_number }}/file?path=PROJECT_INDEX.md"
+                      hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/file?path=PROJECT_INDEX.md"
                       hx-target="#file-preview-modal .modal-body"
                       data-bs-toggle="modal"
                       data-bs-target="#file-preview-modal"
@@ -36,7 +36,7 @@
                 <p class="mb-0 text-muted small">Application documentation</p>
               </div>
               <button class="btn btn-sm btn-ghost-primary" 
-                      hx-get="/application/{{ application.model_slug }}/{{ application.app_number }}/file?path=README.md"
+                      hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/file?path=README.md"
                       hx-target="#file-preview-modal .modal-body"
                       data-bs-toggle="modal"
                       data-bs-target="#file-preview-modal"
@@ -54,7 +54,7 @@
                 <p class="mb-0 text-muted small">Container orchestration configuration</p>
               </div>
               <button class="btn btn-sm btn-ghost-primary" 
-                      hx-get="/application/{{ application.model_slug }}/{{ application.app_number }}/file?path=docker-compose.yml"
+                      hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/file?path=docker-compose.yml"
                       hx-target="#file-preview-modal .modal-body"
                       data-bs-toggle="modal"
                       data-bs-target="#file-preview-modal"

@@ -703,6 +703,62 @@ def _build_application_metrics(app_data: Dict[str, Any]) -> List[Dict[str, Any]]
     return metrics
 
 
+def _collect_app_logs(model_slug: str, app_number: int, tail: int = 100) -> Tuple[str, Dict[str, int]]:
+    """Collect container logs for the application.
+    
+    Returns:
+        Tuple of (log_content, log_stats)
+    """
+    from app.services.service_locator import ServiceLocator
+    
+    try:
+        docker_mgr = ServiceLocator.get('docker_manager')
+        if not docker_mgr:
+            current_app.logger.warning(f"Docker manager not available for logs collection")
+            return '', {'error_count': 0, 'warning_count': 0, 'info_count': 0, 'total_lines': 0}
+        
+        # Try to get backend logs first, then frontend as fallback
+        logs = ''
+        try:
+            backend_logs = docker_mgr.get_container_logs(model_slug, app_number, 'backend', tail=tail)
+            current_app.logger.debug(f"Backend logs result: {backend_logs[:100] if backend_logs else 'None'}")
+            # Filter out error messages - we only want actual logs
+            if backend_logs and not any(err in backend_logs for err in ['not found', 'unavailable', 'Error getting']):
+                logs += f"=== Backend Logs ===\n{backend_logs}\n\n"
+            else:
+                current_app.logger.debug(f"Backend logs contained error or empty: {backend_logs[:200] if backend_logs else 'Empty'}")
+        except Exception as e:
+            current_app.logger.debug(f"Could not fetch backend logs: {e}")
+        
+        try:
+            frontend_logs = docker_mgr.get_container_logs(model_slug, app_number, 'frontend', tail=tail)
+            current_app.logger.debug(f"Frontend logs result: {frontend_logs[:100] if frontend_logs else 'None'}")
+            # Filter out error messages - we only want actual logs
+            if frontend_logs and not any(err in frontend_logs for err in ['not found', 'unavailable', 'Error getting']):
+                logs += f"=== Frontend Logs ===\n{frontend_logs}\n"
+            else:
+                current_app.logger.debug(f"Frontend logs contained error or empty: {frontend_logs[:200] if frontend_logs else 'Empty'}")
+        except Exception as e:
+            current_app.logger.debug(f"Could not fetch frontend logs: {e}")
+        
+        current_app.logger.info(f"Total logs collected for {model_slug}/app{app_number}: {len(logs)} chars")
+        
+        # Calculate statistics
+        lines = [line for line in logs.split('\n') if line.strip()]
+        stats = {
+            'error_count': sum(1 for line in lines if 'ERROR' in line.upper() or 'error' in line),
+            'warning_count': sum(1 for line in lines if 'WARN' in line.upper() or 'warning' in line),
+            'info_count': sum(1 for line in lines if 'INFO' in line.upper()),
+            'total_lines': len(lines),
+        }
+        
+        return logs, stats
+        
+    except Exception as e:
+        current_app.logger.error(f"Error collecting logs for {model_slug}/app{app_number}: {e}")
+        return '', {'error_count': 0, 'warning_count': 0, 'info_count': 0, 'total_lines': 0}
+
+
 def _build_application_sections(model_slug: str, app_number: int) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, Any]]]:
     base = [
         ('overview', 'Overview', 'fas fa-info-circle', 'pages/applications/partials/overview.html'),
@@ -768,6 +824,7 @@ def build_application_detail_context(model_slug: str, app_number: int, allow_syn
     app_data['ports_count'] = len(ports)
     prompts, template_files, templates_dir = _collect_app_prompts(app_number, resolved_slug)
     analyses, stats, analysis_entries = _collect_app_analyses(app)
+    logs, log_stats = _collect_app_logs(resolved_slug, app_number)
     slug_candidates = {resolved_slug}
     canonical = getattr(model, 'canonical_slug', None)
     if canonical:
@@ -839,6 +896,8 @@ def build_application_detail_context(model_slug: str, app_number: int, allow_syn
         'app_base_dir': str(app_path),
         'sections_map': sections_map,
         'active_page': 'applications',
+        'logs': logs,
+        'log_stats': log_stats,
     }
 
 
@@ -939,10 +998,52 @@ def _build_model_metrics(model_dict: Dict[str, Any], enriched_data: Dict[str, An
     return metrics
 
 
+
+def _calculate_average_model_stats() -> Dict[str, Any]:
+    """Calculate average statistics across all models for comparison."""
+    try:
+        from sqlalchemy import func
+        
+        # Query for averages
+        avg_data = db.session.query(
+            func.avg(ModelCapability.input_price_per_token).label('avg_prompt_price'),
+            func.avg(ModelCapability.output_price_per_token).label('avg_completion_price'),
+            func.avg(ModelCapability.context_window).label('avg_context_length'),
+            func.avg(ModelCapability.cost_efficiency).label('avg_cost_efficiency'),
+        ).filter(
+            ModelCapability.input_price_per_token.isnot(None),
+            ModelCapability.input_price_per_token > 0
+        ).first()
+        
+        if not avg_data:
+            return {
+                'avg_prompt_price': 0,
+                'avg_completion_price': 0,
+                'avg_context_length': 0,
+                'avg_cost_efficiency': 0,
+            }
+        
+        return {
+            'avg_prompt_price': float(avg_data[0] or 0) * 1000,  # Convert to per 1K tokens
+            'avg_completion_price': float(avg_data[1] or 0) * 1000,
+            'avg_context_length': int(avg_data[2] or 0),
+            'avg_cost_efficiency': float(avg_data[3] or 0),
+        }
+    except Exception as e:
+        current_app.logger.error(f"Error calculating average model stats: {e}")
+        return {
+            'avg_prompt_price': 0,
+            'avg_completion_price': 0,
+            'avg_context_length': 0,
+            'avg_cost_efficiency': 0,
+        }
+
+
 def _build_model_sections(model_slug: str) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, Any]]]:
     base = [
         ('overview', 'Overview', 'fas fa-info-circle', 'pages/models/partials/model_overview.html'),
         ('capabilities', 'Capabilities', 'fas fa-cogs', 'pages/models/partials/model_capabilities.html'),
+        ('provider', 'Provider & Performance', 'fas fa-server', 'pages/models/partials/provider_performance.html'),
         ('pricing', 'Pricing', 'fas fa-dollar-sign', 'pages/models/partials/pricing-info.html'),
         ('applications', 'Applications', 'fas fa-cube', 'pages/models/partials/model_applications.html'),
         ('metadata', 'Metadata', 'fas fa-database', 'pages/models/partials/model_metadata.html'),
@@ -993,10 +1094,18 @@ def build_model_detail_context(
     model_dict['apps_count'] = app_count
     model_dict['capabilities'] = enriched_data.get('capabilities', {})
     model_dict['metadata'] = enriched_data
+    
+    # Calculate average model stats for comparison
+    avg_stats = _calculate_average_model_stats()
+    
     stats = {
         'applications': app_count,
         'security_tests': security_count,
         'performance_tests': performance_count,
+        'avg_prompt_price': avg_stats.get('avg_prompt_price', 0),
+        'avg_completion_price': avg_stats.get('avg_completion_price', 0),
+        'avg_context_length': avg_stats.get('avg_context_length', 0),
+        'avg_cost_efficiency': avg_stats.get('avg_cost_efficiency', 0),
     }
     badges = _build_model_badges(model_dict)
     actions = _build_model_actions(model_slug)
