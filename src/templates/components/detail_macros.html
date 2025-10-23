@@ -1,0 +1,380 @@
+{# ========================================
+   Research Detail Page Macros
+   Reusable components for unified detail pages
+   ======================================== #}
+
+{# ========================================
+   COMPACT HEADER BAR
+   Usage: {{ research_detail_header(view, metrics[:3], actions) }}
+   ======================================== #}
+{% macro research_detail_header(view, inline_metrics=[], status_badge=None) %}
+<div class="research-header">
+  {# Icon with optional status indicator #}
+  <div class="research-header-icon">
+    <i class="{{ view.icon or 'fas fa-cube' }}" aria-hidden="true"></i>
+  </div>
+  
+  {# Status badge (for running containers, active processes, etc.) #}
+  {% if status_badge %}
+  <span class="badge bg-{{ status_badge.color or 'secondary' }}-lt text-{{ status_badge.color or 'secondary' }}">
+    {% if status_badge.animated %}
+    <span class="status-indicator status-indicator-animated bg-{{ status_badge.color }} me-1"></span>
+    {% endif %}
+    {{ status_badge.label }}
+  </span>
+  {% endif %}
+  
+  {# Identity: pretitle, title, subtitle with inline metrics #}
+  <div class="research-header-identity">
+    {% if view.pretitle %}
+    <div class="research-header-pretitle">
+      {{ view.pretitle }}
+    </div>
+    {% endif %}
+    
+    <h1 class="research-header-title">
+      {{ view.title }}
+      {% if view.badges %}
+        {% for badge in view.badges[:2] %}
+          <span class="{{ badge.variant or 'badge bg-secondary-lt' }} badge-sm">
+            {% if badge.icon %}<i class="{{ badge.icon }} me-1"></i>{% endif %}
+            {{ badge.label }}
+          </span>
+        {% endfor %}
+      {% endif %}
+    </h1>
+    
+    {% if view.subtitle or inline_metrics %}
+    <div class="research-header-subtitle">
+      {% if view.subtitle %}
+        <span>{{ view.subtitle }}</span>
+      {% endif %}
+      {% for metric in inline_metrics %}
+        <span>
+          {% if metric.icon %}<i class="{{ metric.icon }}" aria-hidden="true"></i>{% endif %}
+          <strong>{{ metric.label }}:</strong> {{ metric.value }}
+        </span>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  
+  {# Action buttons #}
+  {% if view.actions %}
+  <div class="research-header-actions">
+    {% for action in view.actions %}
+      {% if action.visible %}
+        {% if action.type == 'link' %}
+          <a href="{{ action.href }}" 
+             class="btn {{ action.classes or 'btn-outline-primary' }}" 
+             {% if action.target %}target="{{ action.target }}"{% endif %}
+             title="{{ action.label }}"
+             aria-label="{{ action.label }}">
+            {% if action.icon %}<i class="{{ action.icon }}" aria-hidden="true"></i>{% endif %}
+            <span class="d-none d-lg-inline ms-1">{{ action.label }}</span>
+          </a>
+        {% else %}
+          <button class="btn {{ action.classes or 'btn-outline-primary' }}" 
+                  {% if action.onclick %}onclick="{{ action.onclick }}"{% endif %}
+                  {% if action.disabled %}disabled{% endif %}
+                  title="{{ action.label }}"
+                  aria-label="{{ action.label }}">
+            {% if action.icon %}<i class="{{ action.icon }}" aria-hidden="true"></i>{% endif %}
+            <span class="d-none d-lg-inline ms-1">{{ action.label }}</span>
+          </button>
+        {% endif %}
+        
+        {# Visual separator after specific groups #}
+        {% if loop.index in action.separator_after|default([]) %}
+          <div class="vr d-none d-xl-inline"></div>
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{# ========================================
+   DENSE METRIC GRID
+   Usage: {{ research_metric_grid(metrics) }}
+   ======================================== #}
+{% macro research_metric_grid(metrics) %}
+{% if metrics and metrics|length > 0 %}
+<div class="research-metrics">
+  {% for metric in metrics %}
+  <div class="research-metric-card">
+    <div class="research-metric-label">
+      {% if metric.icon %}<i class="{{ metric.icon }}" aria-hidden="true"></i>{% endif %}
+      {{ metric.label }}
+    </div>
+    <div class="research-metric-value {{ 'tone-' + metric.tone if metric.tone else '' }} {{ 'text-' + metric.size if metric.size else '' }}">
+      {{ metric.value }}
+    </div>
+    {% if metric.hint %}
+    <div class="research-metric-hint">{{ metric.hint }}</div>
+    {% endif %}
+    {% if metric.badge_icon %}
+    <div class="research-metric-icon" style="background: var(--tblr-{{ metric.badge_color or 'primary' }}-lt); color: var(--tblr-{{ metric.badge_color or 'primary' }});">
+      <i class="{{ metric.badge_icon }}" aria-hidden="true"></i>
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{# ========================================
+   STICKY SECTION NAVIGATION
+   Usage: {{ research_section_nav(sections) }}
+   ======================================== #}
+{% macro research_section_nav(sections) %}
+<div class="research-section-nav-wrapper">
+  <nav class="research-section-nav" data-research-nav aria-label="Section navigation">
+    {% for section in sections %}
+    <a href="#section-{{ section.id }}" 
+       class="research-section-link{% if loop.first %} is-active{% endif %}" 
+       data-research-link="{{ section.id }}"
+       data-bs-toggle="tooltip"
+       data-bs-placement="bottom"
+       title="{{ section.description or section.label }}">
+      <i class="{{ section.icon }}" aria-hidden="true"></i>
+      <span>{{ section.label }}</span>
+    </a>
+    {% endfor %}
+  </nav>
+</div>
+{% endmacro %}
+
+{# ========================================
+   SECTION CONTAINER
+   Usage: Wrap section content in this macro
+   ======================================== #}
+{% macro research_section(section, content='') %}
+<section id="section-{{ section.id }}" 
+         class="research-section" 
+         data-research-section="{{ section.id }}"
+         {% if section.hx %}
+         hx-get="{{ section.hx }}"
+         hx-trigger="revealed once"
+         hx-swap="innerHTML"
+         hx-indicator=".research-section[data-research-section='{{ section.id }}']"
+         {% endif %}
+         aria-labelledby="section-{{ section.id }}-title">
+  
+  <div class="research-section-header">
+    <h2 class="research-section-title" id="section-{{ section.id }}-title">
+      <i class="{{ section.icon }}" aria-hidden="true"></i>
+      <span>{{ section.label }}</span>
+    </h2>
+    {% if section.actions %}
+    <div class="research-section-actions">
+      {% for action in section.actions %}
+        <button class="btn {{ action.classes or 'btn-ghost-secondary' }}" 
+                {% if action.onclick %}onclick="{{ action.onclick }}"{% endif %}
+                title="{{ action.label }}"
+                aria-label="{{ action.label }}">
+          <i class="{{ action.icon }}" aria-hidden="true"></i>
+        </button>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  
+  {% if section.hx %}
+    {# Lazy-loaded content - show skeleton #}
+    {{ research_skeleton() }}
+  {% else %}
+    {# Static content #}
+    {{ content | safe }}
+  {% endif %}
+</section>
+{% endmacro %}
+
+{# ========================================
+   SKELETON LOADER
+   Usage: {{ research_skeleton(type='lines', count=3) }}
+   ======================================== #}
+{% macro research_skeleton(type='lines', count=3) %}
+<div class="research-skeleton" aria-live="polite" aria-busy="true">
+  {% if type == 'lines' %}
+    {% for i in range(count) %}
+      <div class="research-skeleton-line {% if loop.first %}h-lg{% endif %} {% if loop.index == 2 %}w-75{% elif loop.index == 3 %}w-50{% endif %}"></div>
+    {% endfor %}
+  {% elif type == 'grid' %}
+    <div class="research-skeleton-grid">
+      {% for i in range(count) %}
+        <div class="research-skeleton-card"></div>
+      {% endfor %}
+    </div>
+  {% elif type == 'cards' %}
+    {% for i in range(count) %}
+      <div class="card mb-3">
+        <div class="card-body research-skeleton">
+          <div class="research-skeleton-line h-lg w-75"></div>
+          <div class="research-skeleton-line w-50"></div>
+        </div>
+      </div>
+    {% endfor %}
+  {% endif %}
+</div>
+{% endmacro %}
+
+{# ========================================
+   EMPTY STATE
+   Usage: {{ research_empty_state(icon, title, message, action) }}
+   ======================================== #}
+{% macro research_empty_state(icon, title, message='', action=None) %}
+<div class="research-empty-state">
+  <div class="research-empty-icon">
+    <i class="{{ icon }}" aria-hidden="true"></i>
+  </div>
+  <div class="research-empty-title">{{ title }}</div>
+  {% if message %}
+  <div class="research-empty-message">{{ message }}</div>
+  {% endif %}
+  {% if action %}
+  <div class="research-empty-action">
+    {% if action.type == 'link' %}
+      <a href="{{ action.href }}" class="btn {{ action.classes or 'btn-primary' }}">
+        {% if action.icon %}<i class="{{ action.icon }} me-1"></i>{% endif %}
+        {{ action.label }}
+      </a>
+    {% else %}
+      <button class="btn {{ action.classes or 'btn-primary' }}" 
+              {% if action.onclick %}onclick="{{ action.onclick }}"{% endif %}>
+        {% if action.icon %}<i class="{{ action.icon }} me-1"></i>{% endif %}
+        {{ action.label }}
+      </button>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{# ========================================
+   DATA GRID
+   Usage: {{ research_data_grid(items, cols=2, template='card') }}
+   ======================================== #}
+{% macro research_data_grid(items, cols=2, template='card') %}
+{% if items and items|length > 0 %}
+<div class="research-data-grid cols-{{ cols }}">
+  {% for item in items %}
+    {% if template == 'card' %}
+      <div class="card">
+        <div class="card-body">
+          {% if item.title %}
+            <h3 class="card-title">{{ item.title }}</h3>
+          {% endif %}
+          {% if item.content %}
+            {{ item.content | safe }}
+          {% endif %}
+        </div>
+      </div>
+    {% elif template == 'stat' %}
+      <div class="research-metric-card">
+        <div class="research-metric-label">{{ item.label }}</div>
+        <div class="research-metric-value">{{ item.value }}</div>
+        {% if item.hint %}
+          <div class="research-metric-hint">{{ item.hint }}</div>
+        {% endif %}
+      </div>
+    {% endif %}
+  {% endfor %}
+</div>
+{% else %}
+  {{ research_empty_state('fas fa-inbox', 'No Data', 'No items to display.') }}
+{% endif %}
+{% endmacro %}
+
+{# ========================================
+   BADGE GROUP
+   Usage: {{ research_badge_group(badges) }}
+   ======================================== #}
+{% macro research_badge_group(badges) %}
+{% if badges and badges|length > 0 %}
+<div class="research-badge-group">
+  {% for badge in badges %}
+    <span class="{{ badge.variant or 'badge bg-secondary-lt' }}">
+      {% if badge.icon %}<i class="{{ badge.icon }} me-1"></i>{% endif %}
+      {{ badge.label }}
+    </span>
+  {% endfor %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{# ========================================
+   SCROLL SPY JAVASCRIPT
+   Intersection Observer for nav highlighting
+   ======================================== #}
+{% macro research_scroll_spy_script() %}
+<script>
+(function() {
+  'use strict';
+  
+  // Initialize scroll spy for research detail pages
+  function initResearchScrollSpy() {
+    const nav = document.querySelector('[data-research-nav]');
+    if (!nav) return;
+    
+    const links = nav.querySelectorAll('[data-research-link]');
+    const sections = document.querySelectorAll('[data-research-section]');
+    
+    if (!sections.length) return;
+    
+    // Intersection Observer for section visibility
+    const observerOptions = {
+      root: null,
+      rootMargin: '-20% 0px -70% 0px',
+      threshold: 0
+    };
+    
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const sectionId = entry.target.getAttribute('data-research-section');
+          
+          // Update active link
+          links.forEach(link => {
+            const linkId = link.getAttribute('data-research-link');
+            link.classList.toggle('is-active', linkId === sectionId);
+          });
+          
+          // Scroll nav to active link
+          const activeLink = nav.querySelector(`[data-research-link="${sectionId}"]`);
+          if (activeLink) {
+            activeLink.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+          }
+        }
+      });
+    }, observerOptions);
+    
+    sections.forEach(section => observer.observe(section));
+    
+    // Smooth scroll on link click
+    links.forEach(link => {
+      link.addEventListener('click', (e) => {
+        e.preventDefault();
+        const sectionId = link.getAttribute('data-research-link');
+        const section = document.querySelector(`[data-research-section="${sectionId}"]`);
+        if (section) {
+          section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+  }
+  
+  // Initialize on DOM ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initResearchScrollSpy);
+  } else {
+    initResearchScrollSpy();
+  }
+  
+  // Re-initialize after HTMX swaps
+  document.body.addEventListener('htmx:afterSwap', initResearchScrollSpy);
+})();
+</script>
+{% endmacro %}

@@ -1,118 +1,54 @@
-{# Application Detail - Clean Tabler Implementation #}
+{# Application Detail - Research Dashboard Design #}
 {% extends 'layouts/base.html' %}
+{% from 'components/detail_macros.html' import research_detail_header, research_metric_grid, research_section_nav, research_section, research_scroll_spy_script %}
 {% set active_page = 'applications' %}
 {% set page_title = view.title if view else 'Application Detail' %}
 
 {% block content %}
-{# Compact Research-Oriented Header - Table-like Flexbox Layout #}
-<div class="page-header mb-0">
-  <div class="d-flex align-items-center gap-3 p-3 border rounded bg-light">
-    {# App Icon & Status Badge #}
-    <div class="d-flex align-items-center gap-2">
-      <div class="avatar avatar-md rounded" style="background-color: var(--tblr-primary-lt);">
-        <i class="{{ view.icon if view else 'fas fa-cube' }}" style="color: var(--tblr-primary);"></i>
-      </div>
-      {% if metrics and metrics|length > 0 %}
-        {% set container_metric = metrics|selectattr('label', 'equalto', 'Container')|first %}
-        {% if container_metric %}
-          <span class="badge bg-{{ container_metric.status_color or 'secondary' }}-lt text-{{ container_metric.status_color or 'secondary' }}">
-            <span class="status-indicator {% if container_metric.status_color == 'success' %}status-indicator-animated{% endif %} bg-{{ container_metric.status_color or 'secondary' }} me-1"></span>
-            {{ container_metric.value }}
-          </span>
-        {% endif %}
-      {% endif %}
-    </div>
-    
-    {# Application Identity & Metadata (Flex-fill for responsive growth) #}
-    <div class="flex-fill">
-      <div class="d-flex align-items-baseline gap-2">
-        <h3 class="mb-0">{{ view.title if view else 'Application' }}</h3>
-        {% if view and view.badges %}
-          {% for badge in view.badges[:2] %}
-            <span class="{{ badge.variant }} badge-sm">
-              {% if badge.icon %}<i class="{{ badge.icon }} me-1"></i>{% endif %}
-              {{ badge.label }}
-            </span>
-          {% endfor %}
-        {% endif %}
-      </div>
-      <div class="text-secondary small mt-1 d-flex flex-wrap gap-2">
-        {% if view and view.subtitle %}
-          <span class="me-2">{{ view.subtitle }}</span>
-        {% endif %}
-        {% if metrics and metrics|length > 1 %}
-          {% for metric in metrics[1:4] %}
-            <span class="me-2">
-              <i class="{{ metric.icon or 'fas fa-info-circle' }} me-1"></i>
-              <strong>{{ metric.label }}:</strong> {{ metric.value }}
-            </span>
-          {% endfor %}
-        {% endif %}
-      </div>
-    </div>
-    
-    {# Compact Action Buttons #}
-    <div class="btn-list">
-      {% if view and view.actions %}
-        {% for action in view.actions %}
-          {% if action.visible %}
-            {% if action.type == 'link' %}
-              <a href="{{ action.href }}" 
-                 class="btn btn-sm {{ action.classes }}" 
-                 {% if action.target %}target="{{ action.target }}"{% endif %}
-                 title="{{ action.label }}"
-                 aria-label="{{ action.label }}">
-                <i class="{{ action.icon }}" aria-hidden="true"></i>
-                <span class="d-none d-xl-inline ms-1">{{ action.label }}</span>
-              </a>
-            {% else %}
-              <button class="btn btn-sm {{ action.classes }}" 
-                      {% if action.onclick %}onclick="{{ action.onclick }}"{% endif %}
-                      title="{{ action.label }}"
-                      aria-label="{{ action.label }}">
-                <i class="{{ action.icon }}" aria-hidden="true"></i>
-                <span class="d-none d-xl-inline ms-1">{{ action.label }}</span>
-              </button>
-            {% endif %}
-            {% if loop.index == 3 or loop.index == 5 %}
-              <div class="vr d-none d-xl-inline"></div>
-            {% endif %}
-          {% endif %}
-        {% endfor %}
-      {% endif %}
-    </div>
-  </div>
-</div>
-
-<div class="card mb-3">
-  <div class="card-header">
-    <ul class="nav nav-tabs card-header-tabs" role="tablist">
-      {% for section in sections %}
-      <li class="nav-item" role="presentation">
-        <a href="#tab-{{ section.id }}" class="nav-link{% if loop.first %} active{% endif %}" data-bs-toggle="tab" role="tab" aria-controls="tab-{{ section.id }}">
-          <i class="{{ section.icon }} me-1"></i>{{ section.label }}
-        </a>
-      </li>
-      {% endfor %}
-    </ul>
-  </div>
-  <div class="card-body">
-    <div class="tab-content">
-      {% for section in sections %}
-      <div class="tab-pane{% if loop.first %} active show{% endif %}" id="tab-{{ section.id }}" role="tabpanel"
-           hx-get="{{ section.hx }}"
-           hx-trigger="load once"
-           hx-swap="innerHTML"
-           hx-indicator="#tab-{{ section.id }}-spinner">
-        <div class="text-center py-5" id="tab-{{ section.id }}-spinner">
-          <div class="spinner-border text-primary mb-3" role="status">
-            <span class="visually-hidden">Loading...</span>
-          </div>
-          <div class="text-secondary">Loading {{ section.label|lower }}...</div>
+<div class="research-detail-shell">
+  {# Compact header bar with inline metrics and all actions #}
+  {% set container_metric = metrics|selectattr('label', 'equalto', 'Container')|first if metrics else None %}
+  {% set status_badge = {
+    'label': container_metric.value,
+    'color': container_metric.status_color or 'secondary',
+    'animated': container_metric.status_color == 'success'
+  } if container_metric else None %}
+  
+  {{ research_detail_header(view, metrics[1:4] if metrics and metrics|length > 1 else [], status_badge) }}
+  
+  {# Dense metric grid (4-6 per row) #}
+  {{ research_metric_grid(metrics) }}
+  
+  {# Sticky horizontal section navigation #}
+  {{ research_section_nav(sections) }}
+  
+  {# Vertical section layout with lazy loading #}
+  <div class="research-content">
+    {% for section in sections %}
+      <section id="section-{{ section.id }}" 
+               class="research-section" 
+               data-research-section="{{ section.id }}"
+               hx-get="{{ section.hx }}"
+               hx-trigger="revealed once"
+               hx-swap="innerHTML"
+               hx-indicator=".research-section[data-research-section='{{ section.id }}']"
+               aria-labelledby="section-{{ section.id }}-title">
+        
+        <div class="research-section-header">
+          <h2 class="research-section-title" id="section-{{ section.id }}-title">
+            <i class="{{ section.icon }}" aria-hidden="true"></i>
+            <span>{{ section.label }}</span>
+          </h2>
         </div>
-      </div>
-      {% endfor %}
-    </div>
+        
+        {# Skeleton loader placeholder #}
+        <div class="research-skeleton" aria-live="polite" aria-busy="true">
+          <div class="research-skeleton-line h-lg"></div>
+          <div class="research-skeleton-line w-75"></div>
+          <div class="research-skeleton-line w-50"></div>
+        </div>
+      </section>
+    {% endfor %}
   </div>
 </div>
 
@@ -125,6 +61,7 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/container_manager.js') }}"></script>
 <script src="{{ url_for('static', filename='js/container_logs.js') }}"></script>
+{{ research_scroll_spy_script() }}
 <script>
 // Toast notification helper
 function showToast(message, type = 'info') {

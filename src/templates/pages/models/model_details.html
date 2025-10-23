@@ -1,165 +1,120 @@
-{# pages/models/model_details.html - Unified model detail layout #}
-
+{# Model Detail - Research Dashboard Design #}
 {% extends 'layouts/base.html' %}
+{% from 'components/detail_macros.html' import research_detail_header, research_metric_grid, research_section_nav, research_scroll_spy_script %}
 {% set active_page = 'models' %}
-{% if view %}
-  {% set page_title = view.title %}
-  {% set page_icon = view.icon %}
-  {% set page_subtitle = view.subtitle %}
-{% else %}
-  {% set page_title = 'Model Detail' %}
-  {% set page_icon = 'fas fa-robot' %}
-  {% set page_subtitle = '' %}
-{% endif %}
+{% set page_title = view.title if view else 'Model Detail' %}
 
 {% block content %}
-<div class="detail-shell">
-  <div class="detail-header">
-    <div class="detail-header-top">
-      <div class="detail-header-title">
-        <span class="detail-pretitle">
-          <i class="{{ view.icon if view else 'fas fa-robot' }} me-2 text-primary"></i>{{ view.pretitle if view else 'Model Detail' }}
-        </span>
-        <h1 class="detail-title">{{ view.title if view else 'Model' }}</h1>
-        {% if view and view.subtitle %}
-        <div class="detail-subtitle">{{ view.subtitle }}</div>
-        {% endif %}
-        {% if view and view.badges %}
-        <div class="detail-tags">
-          {% for badge in view.badges %}
-            <span class="{{ badge.variant }}">
-              {% if badge.icon %}<i class="{{ badge.icon }} me-1"></i>{% endif %}
-              {{ badge.label }}
-            </span>
-          {% endfor %}
+<div class="research-detail-shell">
+  {# Compact header bar with inline metrics and actions #}
+  {{ research_detail_header(view, metrics[:3] if metrics and metrics|length > 3 else []) }}
+  
+  {# Dense metric grid (4-6 per row) #}
+  {{ research_metric_grid(metrics) }}
+  
+  {# Sticky horizontal section navigation #}
+  {{ research_section_nav(sections) }}
+  
+  {# Vertical section layout with lazy loading #}
+  <div class="research-content">
+    {% for section in sections %}
+      <section id="section-{{ section.id }}" 
+               class="research-section" 
+               data-research-section="{{ section.id }}"
+               hx-get="{{ section.hx }}"
+               hx-trigger="revealed once"
+               hx-swap="innerHTML"
+               hx-indicator=".research-section[data-research-section='{{ section.id }}']"
+               aria-labelledby="section-{{ section.id }}-title">
+        
+        <div class="research-section-header">
+          <h2 class="research-section-title" id="section-{{ section.id }}-title">
+            <i class="{{ section.icon }}" aria-hidden="true"></i>
+            <span>{{ section.label }}</span>
+          </h2>
         </div>
-        {% endif %}
-      </div>
-      <div class="detail-actions">
-        {% if view and view.actions %}
-        {% for action in view.actions %}
-          {% if action.visible %}
-            {% if action.type == 'link' %}
-              <a href="{{ action.href }}" class="btn {{ action.classes }}">
-                {% if action.icon %}<i class="{{ action.icon }} me-1"></i>{% endif %}
-                {{ action.label }}
-              </a>
-            {% else %}
-              <button class="btn {{ action.classes }}"{% if action.onclick %} onclick="{{ action.onclick }}"{% endif %}>
-                {% if action.icon %}<i class="{{ action.icon }} me-1"></i>{% endif %}
-                {{ action.label }}
-              </button>
-            {% endif %}
-          {% endif %}
-        {% endfor %}
-        {% endif %}
-      </div>
-    </div>
-
-    <div class="detail-metrics detail-grid detail-grid--dense">
-      {% for metric in metrics or [] %}
-      <div class="card card-tight detail-card">
-        <div class="card-body detail-stat">
-          <span class="detail-stat-label">{{ metric.label }}</span>
-          <span class="detail-stat-value {{ metric.tone }}">{{ metric.value }}</span>
-          {% if metric.hint %}<span class="detail-stat-hint">{{ metric.hint }}</span>{% endif %}
+        
+        {# Skeleton loader placeholder #}
+        <div class="research-skeleton" aria-live="polite" aria-busy="true">
+          <div class="research-skeleton-line h-lg"></div>
+          <div class="research-skeleton-line w-75"></div>
+          <div class="research-skeleton-line w-50"></div>
         </div>
-      </div>
-      {% endfor %}
-    </div>
-
-    <div class="detail-nav-wrapper">
-      <nav class="detail-nav" data-detail-nav>
-        {% for section in sections or [] %}
-          <a href="#{{ section.dom_id }}" class="detail-link{% if loop.first %} is-active{% endif %}" data-detail-link>
-            <i class="{{ section.icon }}"></i>{{ section.label }}
-          </a>
-        {% endfor %}
-      </nav>
-    </div>
-  </div>
-
-  <div class="detail-content">
-    {% for section in sections or [] %}
-    <section id="{{ section.dom_id }}" class="detail-section" data-detail-section
-             hx-get="{{ section.hx }}"
-             hx-trigger="revealed once"
-             hx-swap="innerHTML"
-             hx-indicator="#global-spinner">
-      <header class="detail-section-title">
-        <i class="{{ section.icon }}"></i>
-        <span>{{ section.label }}</span>
-      </header>
-      <div class="detail-placeholder placeholder-glow">
-        <span class="placeholder col-9"></span>
-        <span class="placeholder col-7"></span>
-        <span class="placeholder col-5"></span>
-      </div>
-    </section>
+      </section>
     {% endfor %}
-
-    <div id="modal-container"></div>
   </div>
+  
+  <div id="modal-container"></div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-  {% include 'components/detail_layout_assets.html' %}
-  <script>
-  function generateApplication() {
-    const appNumber = Math.floor(Math.random() * 1000) + 1;
-    htmx.ajax('POST', '/models/applications/generate', {
-      target: '#section-applications',
-      swap: 'innerHTML',
-      values: {
-        model_slug: '{{ model_slug }}',
-        app_number: appNumber,
-        app_type: 'web_app'
-      }
-    });
-  }
-
-  function openModelComparison() {
-    window.open('/models/comparison?models={{ model_slug }}', '_blank');
-  }
-
-  document.addEventListener('htmx:beforeRequest', evt => {
-    const section = evt.detail.elt;
-    if (section && section.matches('[data-detail-section]')) {
-      section.classList.add('is-loading');
+{{ research_scroll_spy_script() }}
+<script>
+function generateApplication() {
+  const appNumber = Math.floor(Math.random() * 1000) + 1;
+  htmx.ajax('POST', '/models/applications/generate', {
+    target: '#section-applications',
+    swap: 'innerHTML',
+    values: {
+      model_slug: '{{ model_slug }}',
+      app_number: appNumber,
+      app_type: 'web_app'
     }
+  }).then(() => {
+    showToast('Application generation started', 'success');
+  }).catch(() => {
+    showToast('Failed to start generation', 'error');
   });
+}
 
-  document.addEventListener('htmx:afterSwap', evt => {
-    const section = evt.detail.elt;
-    if (section && section.matches('[data-detail-section]')) {
-      section.classList.remove('is-loading');
-      if (window.initDetailLayout) {
-        window.initDetailLayout();
-      }
-    }
-  });
+function openModelComparison() {
+  window.open('/models/comparison?models={{ model_slug }}', '_blank');
+}
 
-  document.addEventListener('htmx:responseError', evt => {
-    const section = evt.detail.elt;
-    if (!section || !section.matches('[data-detail-section]')) {
-      return;
-    }
-    section.innerHTML = `
-      <header class="detail-section-title">
-        <i class="fas fa-exclamation-triangle text-warning"></i>
-        <span>Failed to load section</span>
-      </header>
-      <div class="detail-grid">
-        <div class="card card-tight detail-card">
-          <div class="card-body text-center text-muted">
-            <p class="mb-2">Content could not be loaded.</p>
-            <button class="btn btn-link btn-sm" onclick="htmx.ajax('GET', '${section.getAttribute('hx-get')}', { target: '#${section.id}', swap: 'innerHTML' })">Retry</button>
-          </div>
-        </div>
-      </div>
-    `;
+// Handle section loading states
+document.addEventListener('htmx:beforeRequest', evt => {
+  const section = evt.detail.elt;
+  if (section && section.matches('[data-research-section]')) {
+    section.classList.add('is-loading');
+  }
+});
+
+document.addEventListener('htmx:afterSwap', evt => {
+  const section = evt.detail.elt;
+  if (section && section.matches('[data-research-section]')) {
     section.classList.remove('is-loading');
-  });
-  </script>
+  }
+});
+
+document.addEventListener('htmx:responseError', evt => {
+  const section = evt.detail.elt;
+  if (!section || !section.matches('[data-research-section]')) {
+    return;
+  }
+  const sectionId = section.getAttribute('data-research-section');
+  const sectionTitle = section.querySelector('.research-section-title span')?.textContent || 'Section';
+  section.innerHTML = `
+    <div class="research-section-header">
+      <h2 class="research-section-title">
+        <i class="fas fa-exclamation-triangle text-warning" aria-hidden="true"></i>
+        <span>Failed to load ${sectionTitle}</span>
+      </h2>
+    </div>
+    <div class="research-empty-state">
+      <div class="research-empty-icon">
+        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+      </div>
+      <div class="research-empty-title">Content could not be loaded</div>
+      <div class="research-empty-message">There was an error loading this section. Please try again.</div>
+      <div class="research-empty-action">
+        <button class="btn btn-primary" onclick="htmx.ajax('GET', '${section.getAttribute('hx-get')}', { target: '[data-research-section=\\'${sectionId}\\']', swap: 'innerHTML' })">
+          <i class="fas fa-refresh me-1"></i>Retry
+        </button>
+      </div>
+    </div>
+  `;
+  section.classList.remove('is-loading');
+});
+</script>
 {% endblock %}

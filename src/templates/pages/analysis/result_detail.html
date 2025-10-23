@@ -1,167 +1,146 @@
+{# Analysis Result Detail - Research Dashboard Design #}
 {% extends 'layouts/base.html' %}
-
+{% from 'components/detail_macros.html' import research_detail_header, research_metric_grid, research_section_nav, research_scroll_spy_script %}
 {% set active_page = 'analysis' %}
-{% set page_icon = 'fa-solid fa-microscope' %}
 {% set page_title = descriptor.model_slug ~ ' · App #' ~ descriptor.app_number %}
 
 {% block content %}
-  {% set severity_styles = {
-    'critical': 'bg-danger-lt text-danger',
-    'high': 'bg-danger-lt text-danger',
-    'medium': 'bg-warning-lt text-warning',
-    'low': 'bg-info-lt text-info',
-    'info': 'bg-secondary-lt text-secondary'
+{% set severity_order = ['critical', 'high', 'medium', 'low', 'info'] %}
+
+<div class="research-detail-shell">
+  {# Build view structure for unified header #}
+  {% set status_color = 'success' if descriptor.status in ['completed', 'success'] else ('danger' if descriptor.status in ['failed', 'error'] else 'secondary') %}
+  {% set view = {
+    'pretitle': descriptor.analysis_type.replace('_', ' ').title() + ' Analysis',
+    'icon': 'fa-solid fa-microscope',
+    'title': page_title,
+    'subtitle': 'Result ID: ' + descriptor.identifier[:24] + ('…' if descriptor.identifier|length > 24 else '') + ' · ' + descriptor.display_timestamp(),
+    'badges': [
+      {'label': descriptor.status.replace('_', ' ').title(), 'variant': 'badge bg-' + status_color + '-lt text-' + status_color, 'icon': 'fa-solid fa-circle-dot'},
+      {'label': descriptor.analysis_type.replace('_', ' ').title(), 'variant': 'badge bg-primary-lt text-primary'},
+      {'label': (descriptor.tools_used|length|string) + ' tools', 'variant': 'badge bg-info-lt text-info'} if descriptor.tools_used else None
+    ]|select|list,
+    'actions': [
+      {'key': 'back', 'type': 'link', 'label': 'Back', 'icon': 'fa-solid fa-arrow-left', 'href': url_for('analysis.analysis_list'), 'classes': 'btn-ghost-secondary', 'visible': True},
+      {'key': 'json', 'type': 'link', 'label': 'View JSON', 'icon': 'fa-solid fa-file-code', 'href': url_for('analysis.analysis_result_json', result_id=descriptor.identifier), 'target': '_blank', 'classes': 'btn-ghost-info', 'visible': True},
+      {'key': 'download', 'type': 'link', 'label': 'Download', 'icon': 'fa-solid fa-download', 'href': url_for('analysis.analysis_result_download', result_id=descriptor.identifier), 'classes': 'btn-primary', 'visible': True}
+    ]
   } %}
-  {% set severity_order = ['critical', 'high', 'medium', 'low', 'info'] %}
-
-  {# Page Header #}
-  <div class="page-header">
-    <div class="row align-items-center">
-      <div class="col-auto">
-        <span class="avatar avatar-lg rounded">
-          <i class="{{ page_icon }}"></i>
-        </span>
+  
+  {# Build metrics for unified grid #}
+  {% set metrics = [
+    {
+      'label': 'Total Findings',
+      'value': summary.get('total_findings', descriptor.total_findings or 0),
+      'hint': (descriptor.severity_breakdown.items()|map('join', ': ')|join(', ')) if descriptor.severity_breakdown else None,
+      'icon': 'fa-solid fa-list-check',
+      'tone': 'danger' if (descriptor.total_findings or 0) > 10 else ('warning' if (descriptor.total_findings or 0) > 0 else 'success')
+    },
+    {
+      'label': 'Tools Executed',
+      'value': summary.get('tools_executed', descriptor.tools_executed or 0),
+      'hint': (descriptor.tools_failed|string + ' failed') if descriptor.tools_failed else None,
+      'icon': 'fa-solid fa-wrench',
+      'tone': 'danger' if descriptor.tools_failed else 'success'
+    },
+    {
+      'label': 'Services',
+      'value': services|length,
+      'hint': (summary.get('services_executed', services|length)|string) + ' executed',
+      'icon': 'fa-solid fa-server'
+    },
+    {
+      'label': 'Analysis Type',
+      'value': descriptor.analysis_type.replace('_', ' ').title(),
+      'hint': metadata.get('module', 'N/A'),
+      'icon': 'fa-solid fa-tag'
+    },
+    {
+      'label': 'Duration',
+      'value': metadata.get('duration', '—'),
+      'icon': 'fa-solid fa-clock'
+    },
+    {
+      'label': 'Status',
+      'value': descriptor.status.replace('_', ' ').title(),
+      'tone': 'success' if descriptor.status in ['completed', 'success'] else ('danger' if descriptor.status in ['failed', 'error'] else 'muted'),
+      'icon': 'fa-solid fa-circle-check'
+    }
+  ] %}
+  
+  {# Build sections for unified navigation #}
+  {% set sections = [
+    {'id': 'static', 'label': 'Static Analysis', 'icon': 'fa-solid fa-code'},
+    {'id': 'dynamic', 'label': 'Dynamic Analysis', 'icon': 'fa-solid fa-play-circle'},
+    {'id': 'performance', 'label': 'Performance', 'icon': 'fa-solid fa-gauge-high'},
+    {'id': 'ai', 'label': 'AI Requirements', 'icon': 'fa-solid fa-robot'},
+    {'id': 'metadata', 'label': 'Metadata', 'icon': 'fa-solid fa-info-circle'}
+  ] %}
+  
+  {# Compact header bar #}
+  {{ research_detail_header(view, []) }}
+  
+  {# Dense metric grid #}
+  {{ research_metric_grid(metrics) }}
+  
+  {# Sticky section navigation #}
+  {{ research_section_nav(sections) }}
+  
+  {# Vertical section layout with static content (no lazy loading for analysis) #}
+  <div class="research-content">
+    <section id="section-static" class="research-section" data-research-section="static">
+      <div class="research-section-header">
+        <h2 class="research-section-title">
+          <i class="fa-solid fa-code" aria-hidden="true"></i>
+          <span>Static Analysis</span>
+        </h2>
       </div>
-      <div class="col">
-        <div class="page-pretitle text-secondary">{{ descriptor.analysis_type.replace('_', ' ').title() }} Analysis Result</div>
-        <h2 class="page-title">{{ page_title }}</h2>
-        <div class="text-secondary mt-1">
-          Result ID: {{ descriptor.identifier[:24] }}{% if descriptor.identifier|length > 24 %}…{% endif %} · {{ descriptor.display_timestamp() }}
-        </div>
-        <div class="mt-2">
-          <span class="badge {% if descriptor.status in ['completed', 'success'] %}bg-success-lt text-success{% elif descriptor.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt text-secondary{% endif %}">
-            <i class="fa-solid fa-circle-dot me-1"></i>
-            {{ descriptor.status.replace('_', ' ').title() }}
-          </span>
-          <span class="badge bg-primary-lt text-primary">{{ descriptor.analysis_type.replace('_', ' ').title() }}</span>
-          {% if descriptor.tools_used %}
-            <span class="badge bg-info-lt text-info">{{ descriptor.tools_used|length }} tools</span>
-          {% endif %}
-        </div>
+      {% include 'pages/analysis/partials/tab_static.html' %}
+    </section>
+    
+    <section id="section-dynamic" class="research-section" data-research-section="dynamic">
+      <div class="research-section-header">
+        <h2 class="research-section-title">
+          <i class="fa-solid fa-play-circle" aria-hidden="true"></i>
+          <span>Dynamic Analysis</span>
+        </h2>
       </div>
-      <div class="col-auto ms-auto">
-        <div class="btn-list">
-          <a class="btn btn-ghost-secondary" href="{{ url_for('analysis.analysis_list') }}">
-            <i class="fa-solid fa-arrow-left me-1"></i>Back
-          </a>
-          <a class="btn btn-ghost-info" href="{{ url_for('analysis.analysis_result_json', result_id=descriptor.identifier) }}" target="_blank" rel="noopener">
-            <i class="fa-solid fa-file-code me-1"></i>View JSON
-          </a>
-          <a class="btn btn-primary" href="{{ url_for('analysis.analysis_result_download', result_id=descriptor.identifier) }}">
-            <i class="fa-solid fa-download me-1"></i>Download
-          </a>
-        </div>
+      {% include 'pages/analysis/partials/tab_dynamic.html' %}
+    </section>
+    
+    <section id="section-performance" class="research-section" data-research-section="performance">
+      <div class="research-section-header">
+        <h2 class="research-section-title">
+          <i class="fa-solid fa-gauge-high" aria-hidden="true"></i>
+          <span>Performance</span>
+        </h2>
       </div>
-    </div>
+      {% include 'pages/analysis/partials/tab_performance.html' %}
+    </section>
+    
+    <section id="section-ai" class="research-section" data-research-section="ai">
+      <div class="research-section-header">
+        <h2 class="research-section-title">
+          <i class="fa-solid fa-robot" aria-hidden="true"></i>
+          <span>AI Requirements</span>
+        </h2>
+      </div>
+      {% include 'pages/analysis/partials/tab_ai.html' %}
+    </section>
+    
+    <section id="section-metadata" class="research-section" data-research-section="metadata">
+      <div class="research-section-header">
+        <h2 class="research-section-title">
+          <i class="fa-solid fa-info-circle" aria-hidden="true"></i>
+          <span>Metadata</span>
+        </h2>
+      </div>
+      {% include 'pages/analysis/partials/tab_metadata.html' %}
+    </section>
   </div>
+</div>
+{% endblock %}
 
-  {# Summary Metrics Row #}
-  <div class="row g-3 mb-3">
-    <div class="col-sm-6 col-lg-3">
-      <div class="card card-sm">
-        <div class="card-body">
-          <div class="text-secondary text-uppercase fw-semibold small">Total Findings</div>
-          <div class="h2 mb-0">{{ summary.get('total_findings', descriptor.total_findings or 0) }}</div>
-          {% if descriptor.severity_breakdown %}
-            <div class="text-secondary small mt-1">
-              {% for level in severity_order %}
-                {% set count = descriptor.severity_breakdown.get(level) %}
-                {% if count %}{{ level.title() }}: {{ count }}{% if not loop.last %}, {% endif %}{% endif %}
-              {% endfor %}
-            </div>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-    <div class="col-sm-6 col-lg-3">
-      <div class="card card-sm">
-        <div class="card-body">
-          <div class="text-secondary text-uppercase fw-semibold small">Tools Executed</div>
-          <div class="h2 mb-0">{{ summary.get('tools_executed', descriptor.tools_executed or 0) }}</div>
-          {% if descriptor.tools_failed %}
-            <div class="text-danger small mt-1">{{ descriptor.tools_failed }} failed</div>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-    <div class="col-sm-6 col-lg-3">
-      <div class="card card-sm">
-        <div class="card-body">
-          <div class="text-secondary text-uppercase fw-semibold small">Services</div>
-          <div class="h2 mb-0">{{ services|length }}</div>
-          <div class="text-secondary small mt-1">{{ summary.get('services_executed', services|length) }} executed</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-sm-6 col-lg-3">
-      <div class="card card-sm">
-        <div class="card-body">
-          <div class="text-secondary text-uppercase fw-semibold small">Analysis Type</div>
-          <div class="h2 mb-0 text-capitalize">{{ descriptor.analysis_type.replace('_', ' ') }}</div>
-          <div class="text-secondary small mt-1">{{ metadata.get('module', 'N/A') }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  {# Tabbed Analysis Results #}
-  <div class="card mb-3">
-    <div class="card-header">
-      <ul class="nav nav-tabs card-header-tabs" role="tablist">
-        <li class="nav-item" role="presentation">
-          <a href="#tab-static" class="nav-link active" data-bs-toggle="tab" role="tab">
-            <i class="fa-solid fa-code me-1"></i>Static Analysis
-          </a>
-        </li>
-        <li class="nav-item" role="presentation">
-          <a href="#tab-dynamic" class="nav-link" data-bs-toggle="tab" role="tab">
-            <i class="fa-solid fa-play-circle me-1"></i>Dynamic Analysis
-          </a>
-        </li>
-        <li class="nav-item" role="presentation">
-          <a href="#tab-performance" class="nav-link" data-bs-toggle="tab" role="tab">
-            <i class="fa-solid fa-gauge-high me-1"></i>Performance
-          </a>
-        </li>
-        <li class="nav-item" role="presentation">
-          <a href="#tab-ai" class="nav-link" data-bs-toggle="tab" role="tab">
-            <i class="fa-solid fa-robot me-1"></i>AI Requirements
-          </a>
-        </li>
-        <li class="nav-item" role="presentation">
-          <a href="#tab-metadata" class="nav-link" data-bs-toggle="tab" role="tab">
-            <i class="fa-solid fa-info-circle me-1"></i>Metadata
-          </a>
-        </li>
-      </ul>
-    </div>
-    <div class="card-body">
-      <div class="tab-content">
-        {# Static Analysis Tab #}
-        <div class="tab-pane active show" id="tab-static" role="tabpanel">
-          {% include 'pages/analysis/partials/tab_static.html' %}
-        </div>
-
-        {# Dynamic Analysis Tab #}
-        <div class="tab-pane" id="tab-dynamic" role="tabpanel">
-          {% include 'pages/analysis/partials/tab_dynamic.html' %}
-        </div>
-
-        {# Performance Tab #}
-        <div class="tab-pane" id="tab-performance" role="tabpanel">
-          {% include 'pages/analysis/partials/tab_performance.html' %}
-        </div>
-
-        {# AI Requirements Tab #}
-        <div class="tab-pane" id="tab-ai" role="tabpanel">
-          {% include 'pages/analysis/partials/tab_ai.html' %}
-        </div>
-
-        {# Metadata Tab #}
-        <div class="tab-pane" id="tab-metadata" role="tabpanel">
-          {% include 'pages/analysis/partials/tab_metadata.html' %}
-        </div>
-      </div>
-    </div>
-  </div>
+{% block scripts %}
+{{ research_scroll_spy_script() }}
 {% endblock %}
