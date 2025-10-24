@@ -169,15 +169,14 @@ def build_universal_payload(
 
 def write_universal_file(base_dir, model_slug: str, app_number: int, task_id: str, payload: Dict[str, Any]) -> str:
     safe_slug = model_slug.replace('/', '_').replace('\\', '_')
-    out_dir = base_dir / safe_slug / f"app{app_number}" / 'analysis'
+    out_dir = base_dir / safe_slug / f"app{app_number}" / 'analysis' / f"task-{task_id}"
     out_dir.mkdir(parents=True, exist_ok=True)
     # Reuse existing file if present
-    existing = list(out_dir.glob(f"{safe_slug}_app{app_number}_task-{task_id}_*.json"))
+    existing = list(out_dir.glob(f"{safe_slug}_app{app_number}_task-{task_id}_universal.json"))
     if existing:
         path = existing[0]
     else:
-        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-        path = out_dir / f"{safe_slug}_app{app_number}_task-{task_id}_{ts}.json"
+        path = out_dir / f"{safe_slug}_app{app_number}_task-{task_id}_universal.json"
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(payload, f, indent=2, sort_keys=True)
     return str(path)

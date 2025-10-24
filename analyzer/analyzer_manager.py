@@ -159,6 +159,11 @@ class AnalyzerManager:
         # Legacy directory names we want to keep pruned under each app folder
         self._legacy_result_dirs = ["static-analyzer","dynamic-analyzer","performance-tester","ai-analyzer","security-analyzer"]
 
+        def _build_task_output_dir(self, model_slug: str, app_number: int, task_id: str) -> Path:
+            """Return the folder where consolidated results for a task should live."""
+            safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
+            return self.results_dir / safe_slug / f"app{app_number}" / 'analysis' / f"task-{task_id}"
+
     # ---------------------------------------------------------------
     # Legacy Results Pruning
     # ---------------------------------------------------------------
@@ -1543,14 +1548,12 @@ class AnalyzerManager:
         """Save consolidated results for a task, aggregate findings, and write universal format."""
         safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # Create a unique ID for this consolidated run
-        run_id = f"{task_id}_{timestamp}"
 
-        # Define the main output file for the consolidated results
-        out_dir = self.results_dir / safe_slug / f"app{app_number}" / 'analysis'
-        out_dir.mkdir(parents=True, exist_ok=True)
-        filepath = out_dir / f"{safe_slug}_app{app_number}_{run_id}.json"
+        # Group consolidated artifacts under analysis/task-<task_id>/
+        task_dir = self._build_task_output_dir(model_slug, app_number, task_id)
+        task_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"{safe_slug}_app{app_number}_task-{task_id}_{timestamp}.json"
+        filepath = task_dir / filename
 
         try:
             # 1. Aggregate findings from all tools
@@ -1575,7 +1578,7 @@ class AnalyzerManager:
                 'metadata': {
                     'model_slug': model_slug,
                     'app_number': app_number,
-                    'analysis_type': 'unified',
+                    'analysis_type': task_id,
                     'timestamp': datetime.now().isoformat() + '+00:00',
                     'analyzer_version': '1.0.0',
                     'module': 'analysis',
@@ -1584,7 +1587,7 @@ class AnalyzerManager:
                 'results': {
                     'task': {
                         'task_id': task_id,
-                        'analysis_type': 'unified',
+                        'analysis_type': task_id,
                         'model_slug': model_slug,
                         'app_number': app_number,
                         'started_at': datetime.now().isoformat(),
@@ -1611,10 +1614,13 @@ class AnalyzerManager:
                 }
             }
 
-            # 3. Save the detailed consolidated JSON file
+            # 3. Save the detailed consolidated JSON file alongside per-service snapshots
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(task_metadata, f, indent=2, default=str)
             logger.info(f"[SAVE] Consolidated task results saved to: {filepath}")
+
+            self._write_service_snapshots(task_dir, safe_slug, model_slug, app_number, task_id, consolidated_results)
+            self._write_task_manifest(task_dir, filename, model_slug, app_number, task_id, consolidated_results)
 
             # 4. If universal format helpers are available, write that too
             if build_universal_payload and write_universal_file:
@@ -1630,6 +1636,14 @@ class AnalyzerManager:
                         detected_languages=[] # Placeholder
                     )
                     universal_filepath = Path(write_universal_file(self.results_dir, model_slug, app_number, task_id, payload))
+                    if universal_filepath.exists() and universal_filepath.parent != task_dir:
+                        try:
+                            # Move legacy universal output under the grouped folder for consistency
+                            target = task_dir / universal_filepath.name
+                            universal_filepath.replace(target)
+                            universal_filepath = target
+                        except Exception as move_exc:
+                            logger.debug("Failed to relocate universal file %s: %s", universal_filepath, move_exc)
                     logger.info(f"[SAVE] Universal results saved to: {universal_filepath}")
                 except Exception as e:
                     logger.warning(f"Could not write universal results file: {e}")
@@ -1642,6 +1656,76 @@ class AnalyzerManager:
         except Exception as e:
             logger.error(f"[ERROR] Failed to save consolidated task results: {e}")
             raise
+
+    def _write_service_snapshots(
+        self,
+        task_dir: Path,
+        safe_slug: str,
+        model_slug: str,
+        app_number: int,
+        task_id: str,
+        consolidated_results: Dict[str, Any],
+    ) -> None:
+        """Persist individual service payloads beside the consolidated result."""
+        if not consolidated_results:
+            return
+
+        services_dir = task_dir / 'services'
+        services_dir.mkdir(parents=True, exist_ok=True)
+
+        for service_name, payload in consolidated_results.items():
+            if not isinstance(payload, dict):
+                continue
+            snapshot = {
+                'metadata': {
+                    'model_slug': model_slug,
+                    'app_number': app_number,
+                    'task_id': task_id,
+                    'service_name': service_name,
+                    'created_at': datetime.now().isoformat() + '+00:00',
+                },
+                'results': payload,
+            }
+            filename = f"{safe_slug}_app{app_number}_{service_name}.json"
+            target = services_dir / filename
+            try:
+                with open(target, 'w', encoding='utf-8') as handle:
+                    json.dump(snapshot, handle, indent=2, default=str)
+            except Exception as snapshot_exc:
+                logger.debug("Failed to persist %s snapshot for task %s: %s", service_name, task_id, snapshot_exc)
+
+    def _write_task_manifest(
+        self,
+        task_dir: Path,
+        primary_filename: str,
+        model_slug: str,
+        app_number: int,
+        task_id: str,
+        consolidated_results: Dict[str, Any],
+    ) -> None:
+        """Emit a lightweight manifest describing artefacts for the grouped task."""
+        service_files = {}
+        services_dir = task_dir / 'services'
+        if services_dir.exists():
+            for service_path in services_dir.glob('*.json'):
+                key = service_path.stem.split('_')[-1]
+                service_files[key] = service_path.name
+
+        manifest = {
+            'task_id': task_id,
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'primary_result': primary_filename,
+            'services': sorted(service_files.keys() or consolidated_results.keys()),
+            'service_files': service_files,
+            'created_at': datetime.now().isoformat() + '+00:00',
+        }
+
+        try:
+            with open(task_dir / 'manifest.json', 'w', encoding='utf-8') as handle:
+                json.dump(manifest, handle, indent=2, default=str)
+        except Exception as manifest_exc:
+            logger.debug("Failed to write manifest for task %s: %s", task_id, manifest_exc)
 
     def find_latest_results(self, model_slug: str, app_number: int) -> Dict[str, Path]:
         """Find the latest result file for each analysis type for a given model/app."""
