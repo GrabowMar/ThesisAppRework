@@ -511,8 +511,24 @@ class TaskExecutionService:
             total_services = len(tools_by_service)
             progress_per_service = 60.0 / total_services if total_services > 0 else 60.0
             
+            # Get subtasks if this is a main task
+            subtasks_by_service = {}
+            if hasattr(task, 'subtasks') and task.subtasks:
+                for subtask in task.subtasks:
+                    if subtask.service_name:
+                        subtasks_by_service[subtask.service_name] = subtask
+                logger.info(f"Found {len(subtasks_by_service)} subtasks for main task")
+            
             for i, (service_name, tool_ids) in enumerate(tools_by_service.items()):
                 logger.info(f"Executing service {service_name} with {len(tool_ids)} tools: {tool_ids}")
+                
+                # Update subtask status to RUNNING if it exists
+                subtask = subtasks_by_service.get(service_name)
+                if subtask:
+                    subtask.status = AnalysisStatus.RUNNING
+                    subtask.started_at = datetime.utcnow()
+                    db.session.commit()
+                    logger.info(f"Marked subtask {subtask.task_id} as RUNNING")
                 
                 # Get engine for this service
                 engine_name = service_to_engine.get(service_name, 'security')
@@ -537,6 +553,14 @@ class TaskExecutionService:
                     # Extract and combine results
                     if service_result.status in ('completed', 'success'):
                         payload = service_result.payload or {}
+                        
+                        # Mark subtask as completed
+                        if subtask:
+                            subtask.status = AnalysisStatus.COMPLETED
+                            subtask.completed_at = datetime.utcnow()
+                            subtask.progress_percentage = 100.0
+                            db.session.commit()
+                            logger.info(f"Marked subtask {subtask.task_id} as COMPLETED")
                         
                         # Combine tool results
                         service_tools_requested = payload.get('tools_requested', service_tool_names)
@@ -570,6 +594,15 @@ class TaskExecutionService:
                         logger.info(f"Service {service_name} contributed {len(service_tool_results)} tool results")
                     else:
                         logger.warning(f"Service {service_name} failed: {service_result.error or 'Unknown error'}")
+                        
+                        # Mark subtask as failed
+                        if subtask:
+                            subtask.status = AnalysisStatus.FAILED
+                            subtask.completed_at = datetime.utcnow()
+                            subtask.error_message = service_result.error or 'Service execution failed'
+                            db.session.commit()
+                            logger.info(f"Marked subtask {subtask.task_id} as FAILED")
+                        
                         combined_tools_failed += len(tool_ids)
                         
                         # Create error results for failed tools
@@ -583,6 +616,15 @@ class TaskExecutionService:
                 
                 except Exception as e:
                     logger.exception(f"Failed to execute service {service_name}: {e}")
+                    
+                    # Mark subtask as failed
+                    if subtask:
+                        subtask.status = AnalysisStatus.FAILED
+                        subtask.completed_at = datetime.utcnow()
+                        subtask.error_message = str(e)
+                        db.session.commit()
+                        logger.info(f"Marked subtask {subtask.task_id} as FAILED due to exception")
+                    
                     combined_tools_failed += len(tool_ids)
                     
                     # Create error results for failed tools  

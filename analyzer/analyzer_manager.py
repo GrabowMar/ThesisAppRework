@@ -1643,6 +1643,80 @@ class AnalyzerManager:
             logger.error(f"[ERROR] Failed to save consolidated task results: {e}")
             raise
 
+    def find_latest_results(self, model_slug: str, app_number: int) -> Dict[str, Path]:
+        """Find the latest result file for each analysis type for a given model/app."""
+        latest_results: Dict[str, Path] = {}
+        safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
+        
+        # Search for files matching the pattern
+        base_dir = self.results_dir / safe_slug / f"app{app_number}" / 'analysis'
+        if not base_dir.exists():
+            return {}
+
+        # Pattern: {slug}_app{num}_{type}_{timestamp}.json
+        pattern = f"{safe_slug}_app{app_number}_*.json"
+        
+        files_by_type: Dict[str, List[Path]] = {}
+
+        for f in base_dir.glob(pattern):
+            try:
+                # slug can contain underscores, so we can't just split by '_'
+                # Instead, we know the structure is <slug>_app<num>_<type>_<timestamp>
+                # We can reconstruct the prefix and extract the type
+                prefix = f"{safe_slug}_app{app_number}_"
+                if f.stem.startswith(prefix):
+                    # The part after the prefix is type_timestamp
+                    type_and_timestamp = f.stem[len(prefix):]
+                    # The timestamp is the last part
+                    type_parts = type_and_timestamp.split('_')
+                    analysis_type = type_parts[0]
+                    
+                    if analysis_type not in files_by_type:
+                        files_by_type[analysis_type] = []
+                    files_by_type[analysis_type].append(f)
+            except Exception:
+                continue
+
+        # Find the latest file for each type
+        for analysis_type, files in files_by_type.items():
+            if files:
+                files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+                latest_results[analysis_type] = files[0]
+        
+        return latest_results
+
+    async def create_unified_result(self, model_slug: str, app_number: int, task_id: str = "unified") -> Optional[Path]:
+        """
+        Create a unified result file from the latest individual analysis results.
+        """
+        logger.info(f"Creating unified result for {model_slug} app {app_number}...")
+        
+        latest_results = self.find_latest_results(model_slug, app_number)
+        
+        if not latest_results:
+            logger.warning(f"No individual results found for {model_slug} app {app_number}. Cannot create unified result.")
+            return None
+
+        consolidated_results: Dict[str, Any] = {}
+        for analysis_type, filepath in latest_results.items():
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                # The actual results are usually under a 'results' key
+                consolidated_results[analysis_type] = data.get('results', data)
+            except Exception as e:
+                logger.error(f"Failed to load result file {filepath}: {e}")
+                consolidated_results[analysis_type] = {'status': 'error', 'error': f'Failed to load: {e}'}
+
+        try:
+            # Use the existing save_task_results to generate the unified file
+            unified_filepath = await self.save_task_results(model_slug, app_number, task_id, consolidated_results)
+            logger.info(f"Successfully created unified result file: {unified_filepath}")
+            return unified_filepath
+        except Exception as e:
+            logger.error(f"Failed to create unified result file: {e}")
+            return None
+
     def _ordered_services(self, consolidated_results: Dict[str, Any]) -> Dict[str, Any]:
         """Return services dict in a stable, logical order for readability.
 
@@ -1709,6 +1783,7 @@ class AnalyzerManager:
                             'duration_seconds': tdata.get('duration') or tdata.get('duration_seconds') if isinstance(tdata, dict) else None,
                             'total_issues': tdata.get('total_issues', 0),
                             'executed': tdata.get('executed', False),
+
                             'error': tdata.get('error')
                         }
 
@@ -1880,160 +1955,10 @@ class AnalyzerManager:
             return []
 
         return matches
-    
-    # =================================================================
-    # TESTING AND VALIDATION
-    # =================================================================
-    
-    async def test_all_services(self) -> Dict[str, Any]:
-        """Run comprehensive tests on all services."""
-        logger.info("🧪 Running comprehensive analyzer service tests")
-        
-        test_results = {
-            'test_start_time': datetime.now().isoformat(),
-            'services_tested': len(self.services),
-            'health_checks': {},
-            'ping_tests': {},
-            'functional_tests': {},
-            'summary': {}
-        }
-        
-        # Health check tests
-        logger.info("Running health check tests...")
-        health_results = await self.check_all_services_health()
-        test_results['health_checks'] = health_results
-        
-        # Ping tests
-        logger.info("Running ping tests...")
-        ping_tasks = [
-            self._test_service_ping(service_name)
-            for service_name in self.services.keys()
-        ]
-        ping_results = await asyncio.gather(*ping_tasks, return_exceptions=True)
-        
-        for i, (service_name, result) in enumerate(zip(self.services.keys(), ping_results)):
-            if isinstance(result, Exception):
-                test_results['ping_tests'][service_name] = {
-                    'status': 'error',
-                    'error': str(result)
-                }
-            else:
-                test_results['ping_tests'][service_name] = result
-        
-        # Functional tests (on working services only)
-        logger.info("Running functional tests...")
-        
-        # Test a sample application if services are healthy
-        healthy_services = [
-            name for name, result in health_results.items()
-            if result.get('status') == 'healthy'
-        ]
-        
-        # Choose a real model slug that exists on disk to avoid path-not-found
-        sample_model = self._pick_available_model_slug(
-            preferred=[
-                'anthropic_claude-3.7-sonnet',
-                'openai_gpt_4',
-                'openai_gpt-4.1',
-            ]
-        ) or 'anthropic_claude-3.7-sonnet'
-
-        if 'static-analyzer' in healthy_services:
-            try:
-                security_result = await self.run_security_analysis(sample_model, 1)
-                test_results['functional_tests']['static-analyzer'] = security_result
-            except Exception as e:
-                test_results['functional_tests']['static-analyzer'] = {
-                    'status': 'error', 'error': str(e)
-                }
-        
-        if 'ai-analyzer' in healthy_services:
-            try:
-                ai_result = await self.run_ai_analysis(sample_model, 1)
-                test_results['functional_tests']['ai-analyzer'] = ai_result
-            except Exception as e:
-                test_results['functional_tests']['ai-analyzer'] = {
-                    'status': 'error', 'error': str(e)
-                }
-        
-        # Calculate summary
-        healthy_count = sum(1 for result in health_results.values() 
-                          if result.get('status') == 'healthy')
-        ping_success_count = sum(1 for result in test_results['ping_tests'].values() 
-                               if result.get('status') == 'success')
-        functional_success_count = sum(1 for result in test_results['functional_tests'].values() 
-                                     if result.get('status') == 'success')
-        
-        test_results['summary'] = {
-            'healthy_services': healthy_count,
-            'total_services': len(self.services),
-            'successful_pings': ping_success_count,
-            'functional_tests_passed': functional_success_count,
-            'overall_health': 'good' if healthy_count >= 4 else 'partial' if healthy_count >= 2 else 'poor',
-            'test_completion_time': datetime.now().isoformat()
-        }
-        
-        return test_results
-
-    def _pick_available_model_slug(self, preferred: Optional[List[str]] = None) -> Optional[str]:
-        """Pick a model slug that exists under generated and has an app1 folder.
-
-        Preference order:
-        - Any slug in the preferred list that exists and contains app1
-        - Otherwise, the first directory with an app1 child
-        Returns None if none are found.
-        """
-        try:
-            root = self._models_root
-            if not root or not root.exists():
-                return None
-
-            def has_app1(p: Path) -> bool:
-                return (p / 'app1').exists()
-
-            # Try preferred list first
-            if preferred:
-                for slug in preferred:
-                    candidate = root / slug
-                    if candidate.exists() and candidate.is_dir() and has_app1(candidate):
-                        return slug
-
-            # Fallback: scan all directories
-            for entry in sorted(root.iterdir()):
-                try:
-                    if entry.is_dir() and has_app1(entry):
-                        return entry.name
-                except Exception:
-                    continue
-        except Exception:
-            return None
-        return None
-    
-    async def _test_service_ping(self, service_name: str) -> Dict[str, Any]:
-        """Test ping/pong for a service."""
-        ping_message = {
-            "type": "ping",
-            "timestamp": datetime.now().isoformat(),
-            "id": str(uuid.uuid4())
-        }
-        
-        start_time = time.time()
-        result = await self.send_websocket_message(service_name, ping_message, timeout=10)
-        end_time = time.time()
-        
-        if result.get('type') == 'pong' or 'pong' in str(result):
-            return {
-                'status': 'success',
-                'service': service_name,
-                'response_time': end_time - start_time,
-                'response': result
-            }
-        else:
-            return {
-                'status': 'error',
-                'service': service_name,
-                'error': result.get('error', 'No pong response')
-            }
+async def handle_unify(args):
+    """Handler for the 'unify' command."""
+    manager = AnalyzerManager()
+    await manager.create_unified_result(args.model, args.app)
 
 
 # =================================================================

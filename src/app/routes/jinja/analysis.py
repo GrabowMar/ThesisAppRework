@@ -32,6 +32,8 @@ from app.services.result_file_service import (
 )
 from app.models.analysis_models import AnalysisTask
 from app.constants import AnalysisStatus
+from app.extensions import db
+from sqlalchemy import or_
 # (Removed ValidationError, NotFoundError imports after refactor of custom mode logic)
 
 # Create blueprint
@@ -81,66 +83,111 @@ def analysis_tasks_table():
     page = max(1, int(request.args.get('page', 1)))
     per_page = min(100, max(10, int(request.args.get('per_page', 25))))
 
-    # Get active/in-progress tasks from database
+    # Get ALL tasks from database (including completed ones to preserve hierarchy)
     try:
-        active_tasks_query = AnalysisTask.query.filter(
-            AnalysisTask.status.in_([AnalysisStatus.PENDING, AnalysisStatus.RUNNING])
+        # Only show main tasks or tasks without parents (filter out subtasks)
+        all_tasks_query = AnalysisTask.query.filter(
+            or_(
+                AnalysisTask.is_main_task == True,
+                AnalysisTask.parent_task_id == None
+            )
         )
         
         if model_filter:
-            active_tasks_query = active_tasks_query.filter(AnalysisTask.target_model.ilike(f'%{model_filter}%'))
+            all_tasks_query = all_tasks_query.filter(AnalysisTask.target_model.ilike(f'%{model_filter}%'))
         if app_filter is not None:
-            active_tasks_query = active_tasks_query.filter(AnalysisTask.target_app_number == app_filter)
+            all_tasks_query = all_tasks_query.filter(AnalysisTask.target_app_number == app_filter)
+        if status_filter:
+            # Map status filter to enum
+            status_map = {
+                'pending': AnalysisStatus.PENDING,
+                'running': AnalysisStatus.RUNNING,
+                'completed': AnalysisStatus.COMPLETED,
+                'failed': AnalysisStatus.FAILED
+            }
+            if status_filter in status_map:
+                all_tasks_query = all_tasks_query.filter(AnalysisTask.status == status_map[status_filter])
         
-        active_tasks = active_tasks_query.order_by(AnalysisTask.created_at.desc()).all()
+        all_tasks = all_tasks_query.order_by(AnalysisTask.created_at.desc()).all()
     except Exception as exc:  # pragma: no cover
-        current_app.logger.exception("Failed to query active tasks: %s", exc)
-        active_tasks = []
+        current_app.logger.exception("Failed to query tasks: %s", exc)
+        all_tasks = []
 
-    # Get completed result files from filesystem
-    try:
-        all_results: List[ResultFileDescriptor] = service.list_results(
-            model_slug=model_filter,
-            app_number=app_filter,
-        )
-    except Exception as exc:  # pragma: no cover
-        current_app.logger.exception("Failed to list analysis results: %s", exc)
-        all_results = []
-
-    # Match results with their corresponding tasks to get task_name
-    result_task_map = {}
-    if all_results:
-        try:
-            completed_tasks = AnalysisTask.query.filter(
-                AnalysisTask.status == AnalysisStatus.COMPLETED
-            ).all()
-            
-            for task in completed_tasks:
-                if task.target_model and task.target_app_number and task.completed_at:
-                    key = f"{task.target_model}_app{task.target_app_number}"
-                    if key not in result_task_map:
-                        result_task_map[key] = []
-                    result_task_map[key].append(task)
-            
-            for result in all_results:
-                key_prefix = f"{result.model_slug}_app{result.app_number}"
-                if key_prefix in result_task_map:
-                    matching_tasks = result_task_map[key_prefix]
-                    if matching_tasks:
-                        closest_task = min(
-                            matching_tasks,
-                            key=lambda t: abs((t.completed_at - result.timestamp).total_seconds()) if t.completed_at else float('inf')
-                        )
-                        result.task_name = closest_task.task_name or closest_task.task_id
-                        result.task_id = closest_task.task_id
-        except Exception as exc:  # pragma: no cover
-            current_app.logger.exception("Failed to match results with tasks: %s", exc)
-
-    # Build unified list: active tasks + completed results
-    unified_items = []
+    # Pagination for all tasks
+    total_tasks = len(all_tasks)
     
-    # Add active tasks (always show at top, no pagination)
-    for task in active_tasks:
+    # Calculate pagination
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated_tasks = all_tasks[start:end]
+
+    # Preload available result descriptors for tasks shown on this page
+    result_lookup: dict[tuple[str, int], List[ResultFileDescriptor]] = {}
+    if paginated_tasks:
+        task_pairs = {(task.target_model, task.target_app_number) for task in paginated_tasks}
+        for model_slug, app_number in task_pairs:
+            try:
+                descriptors = service.list_results(model_slug=model_slug, app_number=app_number)
+            except Exception as exc:  # pragma: no cover - defensive logging
+                current_app.logger.warning(
+                    "Failed to load results for %s app%s: %s", model_slug, app_number, exc
+                )
+                descriptors = []
+            if descriptors:
+                result_lookup[(model_slug, app_number)] = descriptors
+
+    def _select_descriptor(
+        task: AnalysisTask, descriptors: List[ResultFileDescriptor]
+    ) -> Optional[ResultFileDescriptor]:
+        if not descriptors:
+            return None
+
+        preferred_type: Optional[str] = None
+        if task.analysis_type:
+            try:
+                preferred_type = task.analysis_type.value  # Enum -> str
+            except AttributeError:
+                preferred_type = str(task.analysis_type)
+
+        candidates = [d for d in descriptors if d.analysis_type == preferred_type] if preferred_type else []
+        if not candidates:
+            candidates = list(descriptors)
+
+        target_ts = task.completed_at
+        if target_ts:
+            def _delta_seconds(descriptor: ResultFileDescriptor) -> float:
+                try:
+                    return abs((descriptor.timestamp - target_ts).total_seconds())
+                except Exception:
+                    return float('inf')
+
+            candidates.sort(key=_delta_seconds)
+
+        return candidates[0] if candidates else None
+
+    # Build unified list from paginated tasks
+    unified_items = []
+
+    # Add tasks with hierarchy preserved
+    for task in paginated_tasks:
+        # Get subtasks if this is a main task
+        subtasks_data = []
+        if task.is_main_task and task.subtasks:
+            try:
+                for subtask in task.subtasks:
+                    subtasks_data.append({
+                        'task_id': subtask.task_id,
+                        'service_name': subtask.service_name or 'unknown',
+                        'status': subtask.status.value.lower() if subtask.status else 'unknown',
+                        'progress': subtask.progress_percentage or 0,
+                        'task_name': subtask.task_name or subtask.task_id[:16]
+                    })
+            except Exception as exc:
+                current_app.logger.warning(f"Failed to load subtasks for {task.task_id}: {exc}")
+        
+        descriptors = result_lookup.get((task.target_model, task.target_app_number), [])
+        selected_descriptor = _select_descriptor(task, descriptors) if descriptors else None
+
         unified_items.append({
             'type': 'task',
             'id': task.task_id,
@@ -152,54 +199,32 @@ def analysis_tasks_table():
             'progress': task.progress_percentage or 0,
             'created_at': task.created_at,
             'started_at': task.started_at,
+            'completed_at': task.completed_at,
             'task_name': task.task_name or task.task_id[:16],
-            'obj': task
+            'is_main_task': task.is_main_task,
+            'subtasks': subtasks_data,
+            'obj': task,
+            'result_descriptor': selected_descriptor,
+            'result_identifier': selected_descriptor.identifier if selected_descriptor else None,
+            'result_status': selected_descriptor.status if selected_descriptor else None,
+            'result_timestamp': selected_descriptor.timestamp if selected_descriptor else None,
+            'has_result': selected_descriptor is not None,
         })
-    
-    # Add completed results (paginated)
-    for result in all_results:
-        # Apply status filter if specified
-        if status_filter and result.status != status_filter:
-            continue
-            
-        unified_items.append({
-            'type': 'result',
-            'id': result.identifier,
-            'model': result.model_slug,
-            'app': result.app_number,
-            'analysis_type': result.analysis_type.replace('_', ' '),
-            'status': result.status.replace('_', ' '),
-            'total_findings': result.total_findings or 0,
-            'severity_breakdown': result.severity_breakdown or {},
-            'tools_used': result.tools_used or [],
-            'timestamp': result.timestamp,
-            'task_name': getattr(result, 'task_name', result.identifier[:16]),
-            'obj': result
-        })
-    
-    # Pagination (only for completed results portion)
-    active_count = len([i for i in unified_items if i['type'] == 'task'])
-    completed_items = [i for i in unified_items if i['type'] == 'result']
-    total_completed = len(completed_items)
-    
-    # Calculate pagination for completed results
-    start = (page - 1) * per_page
-    end = start + per_page
-    paginated_completed = completed_items[start:end]
-    
-    # Final list: all active tasks + paginated completed results
-    final_items = [i for i in unified_items if i['type'] == 'task'] + paginated_completed
     
     # Pagination info
-    total_pages = (total_completed + per_page - 1) // per_page if total_completed > 0 else 1
+    total_pages = (total_tasks + per_page - 1) // per_page if total_tasks > 0 else 1
     has_prev = page > 1
     has_next = page < total_pages
+    
+    # Count by status for display
+    active_count = len([t for t in all_tasks if t.status in [AnalysisStatus.PENDING, AnalysisStatus.RUNNING]])
+    completed_count = len([t for t in all_tasks if t.status == AnalysisStatus.COMPLETED])
     
     pagination = {
         'page': page,
         'per_page': per_page,
-        'total': total_completed + active_count,
-        'total_completed': total_completed,
+        'total': total_tasks,
+        'total_completed': completed_count,
         'active_count': active_count,
         'has_prev': has_prev,
         'has_next': has_next,
@@ -210,7 +235,7 @@ def analysis_tasks_table():
     
     html = render_template(
         'pages/analysis/partials/tasks_table.html',
-        items=final_items,
+        items=unified_items,
         pagination=pagination,
         model_filter=model_filter,
         app_filter=app_filter_raw,
@@ -448,36 +473,38 @@ def analysis_create():
                 created_tasks = []
                 for mslug, anum in selection_pairs:
                     if multiple_services:
-                        # For custom selections spanning multiple services, use 'unified'
-                        engine_name = 'unified'
+                        # For custom selections spanning multiple services, create main task with subtasks
+                        task = AnalysisTaskService.create_main_task_with_subtasks(
+                            model_slug=mslug,
+                            app_number=anum,
+                            analysis_type='unified',
+                            tools_by_service=tools_by_service,
+                            priority=priority,
+                            custom_options={
+                                'selected_tools': ordered_ids,
+                                'selected_tool_names': selected_tool_names,
+                                'tools_by_service': tools_by_service,
+                                'unified_analysis': True,
+                                'source': 'wizard_custom'
+                            },
+                            task_name=f"custom:{mslug}:{anum}"
+                        )
                     else:
                         only_service = next(iter(tools_by_service.keys()))
                         engine_name = service_to_engine.get(only_service, 'security')
-                    task = AnalysisTaskService.create_task(
-                        model_slug=mslug,
-                        app_number=anum,
-                        analysis_type=engine_name,
-                        priority=priority,
-                        custom_options={
-                            'selected_tools': ordered_ids,
-                            'selected_tool_names': selected_tool_names,
-                            'tools_by_service': tools_by_service,
-                            'unified_analysis': multiple_services,
-                            'source': 'wizard_custom'
-                        }
-                    )
-                    try:
-                        meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
-                        meta.update({
-                            'selected_tools': ordered_ids,
-                            'selected_tool_names': selected_tool_names,
-                            'tools_by_service': tools_by_service,
-                            'unified_analysis': multiple_services,
-                        })
-                        task.set_metadata(meta)
-                        _db.session.commit()
-                    except Exception:
-                        pass
+                        task = AnalysisTaskService.create_task(
+                            model_slug=mslug,
+                            app_number=anum,
+                            analysis_type=engine_name,
+                            priority=priority,
+                            custom_options={
+                                'selected_tools': ordered_ids,
+                                'selected_tool_names': selected_tool_names,
+                                'tools_by_service': tools_by_service,
+                                'unified_analysis': False,
+                                'source': 'wizard_custom'
+                            }
+                        )
                     created_tasks.append(task)
 
                 flash(f"Created {len(created_tasks)} task(s) with {len(ordered_ids)} selected tool(s)", 'success')
@@ -515,10 +542,12 @@ def analysis_create():
                             tool_id = idx + 1
                             tools_by_service.setdefault(service, []).append(tool_id)
                         
-                        task = AnalysisTaskService.create_task(
+                        # Create main task with subtasks
+                        task = AnalysisTaskService.create_main_task_with_subtasks(
                             model_slug=mslug,
                             app_number=anum,
                             analysis_type=analysis_type,
+                            tools_by_service=tools_by_service,
                             priority=priority,
                             custom_options={
                                 'selected_tools': all_tool_ids,
@@ -526,23 +555,9 @@ def analysis_create():
                                 'source': 'wizard_profile_security',
                                 'unified_analysis': True,
                                 'tools_by_service': tools_by_service,
-                            }
+                            },
+                            task_name=f"{analysis_profile}:{mslug}:{anum}"
                         )
-                        
-                        # Set metadata for unified analysis
-                        try:
-                            meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
-                            meta.update({
-                                'selected_tools': all_tool_ids,
-                                'selected_tool_names': all_tool_names,
-                                'tools_by_service': tools_by_service,
-                                'unified_analysis': True
-                            })
-                            task.set_metadata(meta)
-                            from app.extensions import db as _db
-                            _db.session.commit()
-                        except Exception:
-                            pass
                     else:
                         # Other profiles use regular single-engine analysis
                         task = AnalysisTaskService.create_task(

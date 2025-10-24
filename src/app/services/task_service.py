@@ -108,6 +108,120 @@ class AnalysisTaskService:
         return task
 
     @staticmethod
+    def create_main_task_with_subtasks(
+        model_slug: str,
+        app_number: int,
+        analysis_type: str,
+        tools_by_service: Dict[str, List[int]],
+        config_id: Optional[str] = None,
+        priority: str = Priority.NORMAL.value,
+        custom_options: Optional[Dict[str, Any]] = None,
+        batch_id: Optional[int] = None,
+        task_name: Optional[str] = None,
+        description: Optional[str] = None
+    ) -> AnalysisTask:
+        """Create a main task with subtasks for each service in unified analysis.
+        
+        Args:
+            model_slug: Model identifier
+            app_number: Application number
+            analysis_type: Type of analysis (e.g., 'unified')
+            tools_by_service: Dict mapping service names to tool IDs
+            config_id: Optional analyzer configuration ID
+            priority: Task priority
+            custom_options: Additional options
+            batch_id: Optional batch ID
+            task_name: Optional custom task name
+            description: Optional task description
+            
+        Returns:
+            Main AnalysisTask with subtasks created
+        """
+        # Create main task
+        main_task = AnalysisTaskService.create_task(
+            model_slug=model_slug,
+            app_number=app_number,
+            analysis_type=analysis_type,
+            config_id=config_id,
+            priority=priority,
+            custom_options=custom_options,
+            batch_id=batch_id,
+            task_name=task_name,
+            description=description
+        )
+        
+        # Mark as main task
+        main_task.is_main_task = True
+        main_task.total_steps = len(tools_by_service)
+        main_task.completed_steps = 0
+        
+        # Create subtasks for each service
+        for service_name, tool_ids in tools_by_service.items():
+            subtask_uuid = f"task_{uuid.uuid4().hex[:12]}"
+            
+            # Resolve analyzer configuration (same as main task)
+            analyzer_config = None
+            if config_id:
+                try:
+                    analyzer_config = AnalyzerConfiguration.query.get(int(config_id))
+                except Exception:
+                    analyzer_config = None
+            if analyzer_config is None:
+                analyzer_config = AnalyzerConfiguration.query.first()
+            if analyzer_config is None:
+                default_type = list(AnalysisType)[0]
+                analyzer_config = AnalyzerConfiguration()
+                analyzer_config.name = f"AutoDefault-{default_type.value}"
+                analyzer_config.analyzer_type = default_type
+                analyzer_config.config_data = "{}"
+                db.session.add(analyzer_config)
+                db.session.flush()
+            
+            at_enum = next((at for at in AnalysisType if at.value == analysis_type), None) or list(AnalysisType)[0]
+            pr_enum = next((pr for pr in Priority if pr.value == priority), None) or Priority.NORMAL
+            
+            subtask = AnalysisTask()
+            subtask.task_id = subtask_uuid
+            subtask.parent_task_id = main_task.task_id
+            subtask.is_main_task = False
+            subtask.service_name = service_name
+            subtask.analyzer_config_id = analyzer_config.id
+            subtask.analysis_type = at_enum
+            subtask.status = AnalysisStatus.PENDING
+            subtask.priority = pr_enum
+            subtask.target_model = model_slug
+            subtask.target_app_number = app_number
+            subtask.task_name = f"{service_name}:{model_slug}:{app_number}"
+            subtask.description = f"Subtask for {service_name} service"
+            
+            if batch_id is not None:
+                batch_obj = BatchAnalysis.query.get(batch_id)
+                if batch_obj:
+                    subtask.batch_id = batch_obj.batch_id
+            
+            # Store service-specific metadata
+            subtask_options = {
+                'service_name': service_name,
+                'tool_ids': tool_ids,
+                'parent_task_id': main_task.task_id
+            }
+            if custom_options:
+                subtask_options.update(custom_options)
+            
+            try:
+                subtask.set_metadata({'custom_options': subtask_options})
+            except Exception:
+                pass
+            
+            db.session.add(subtask)
+            logger.info(f"Created subtask {subtask.task_id} for service {service_name} under main task {main_task.task_id}")
+        
+        db.session.commit()
+        logger.info(f"Created main task {main_task.task_id} with {len(tools_by_service)} subtasks")
+        
+        return main_task
+
+    @staticmethod
     def _estimate_task_duration(analysis_type: str, config: Dict[str, Any]) -> int:
         mapping = {
             'security_backend': 300,
