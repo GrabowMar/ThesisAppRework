@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 import json
 
 from .service_base import NotFoundError, ValidationError
+from .result_summary_utils import count_findings_by_severity, count_findings_by_tool
 from ..models import AnalysisTask
 
 
@@ -337,19 +338,11 @@ class AnalysisInspectionService:
 
     def _group_findings_by_tool(self, findings: List[Dict[str, Any]]) -> Dict[str, int]:
         """Group findings count by tool."""
-        groups = {}
-        for finding in findings:
-            tool = finding.get('tool', 'unknown')
-            groups[tool] = groups.get(tool, 0) + 1
-        return groups
+        return count_findings_by_tool(findings)
 
     def _group_findings_by_severity(self, findings: List[Dict[str, Any]]) -> Dict[str, int]:
         """Group findings count by severity."""
-        groups = {}
-        for finding in findings:
-            severity = finding.get('severity', 'unknown')
-            groups[severity] = groups.get(severity, 0) + 1
-        return groups
+        return count_findings_by_severity(findings)
 
     def get_task_results_json(self, task_id: str) -> str:
         """Return pretty JSON string for UI rendering."""

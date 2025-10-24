@@ -39,6 +39,7 @@ from app.extensions import db, get_components
 from app.models import AnalysisTask
 from app.constants import AnalysisStatus
 from app.services import analysis_result_store
+from app.services.result_summary_utils import summarise_findings
 
 logger = get_logger("task_executor")
 
@@ -1049,42 +1050,12 @@ class TaskExecutionService:
         service_summaries: List[Dict[str, Any]],
         tool_results: Dict[str, Dict[str, Any]]
     ) -> tuple[int, Dict[str, int], Dict[str, int]]:
-        severity_counts: Dict[str, int] = {}
-        findings_by_tool: Dict[str, int] = {}
-        total_findings = 0
-
-        if findings:
-            for finding in findings:
-                if not isinstance(finding, dict):
-                    continue
-                severity = str(finding.get('severity', 'unknown')).lower()
-                severity_counts[severity] = severity_counts.get(severity, 0) + 1
-                tool_name = finding.get('tool') or finding.get('tool_name')
-                if tool_name:
-                    findings_by_tool[tool_name] = findings_by_tool.get(tool_name, 0) + 1
-            total_findings = sum(severity_counts.values())
-        else:
-            for summary in service_summaries:
-                if not isinstance(summary, dict):
-                    continue
-                total_findings += int(summary.get('total_findings') or summary.get('total_issues') or 0)
-                by_severity = summary.get('by_severity')
-                if isinstance(by_severity, dict):
-                    for sev, count in by_severity.items():
-                        if count in (None, ''):
-                            continue
-                        key = str(sev).lower()
-                        severity_counts[key] = severity_counts.get(key, 0) + int(count)
-                by_tool = summary.get('by_tool')
-                if isinstance(by_tool, dict):
-                    for tool_name, count in by_tool.items():
-                        if count in (None, ''):
-                            continue
-                        findings_by_tool[tool_name] = findings_by_tool.get(tool_name, 0) + int(count)
-
-        if total_findings == 0:
-            total_findings = sum(int(meta.get('total_issues') or 0) for meta in tool_results.values() if isinstance(meta, dict))
-
+        total_findings, severity_counts, findings_by_tool = summarise_findings(
+            findings,
+            service_summaries,
+            tool_results,
+            normalise_severity=True,
+        )
         return total_findings, severity_counts, findings_by_tool
 
     def _extract_raw_outputs_from_payload(self, service_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
