@@ -1,7 +1,7 @@
 """Helpers for grouping analyzer result files by main task.
 
 This module provides a small utility for discovering consolidated task
-results that now live in per-task folders (``analysis/task-<id>``).  It also
+results that now live in per-task folders (``analysis/task_<id>``).  It also
 exposes helpers for rebuilding a unified payload from the per-service
 snapshots when the primary consolidated file is missing.
 """
@@ -30,14 +30,19 @@ def _parse_app_number(app_folder: str) -> Optional[int]:
         return None
 
 
+TASK_DIR_PREFIXES = ("task-", "task_")
+TASK_MARKERS = ("_task-", "_task_")
+
+
 def _extract_task_id(stem: str) -> Optional[str]:
-    if "_task-" not in stem:
-        return None
-    prefix, suffix = stem.split("_task-", 1)
-    parts = suffix.split("_", 1)
-    if not parts:
-        return None
-    return parts[0] or None
+    for marker in TASK_MARKERS:
+        if marker in stem:
+            _, suffix = stem.split(marker, 1)
+            parts = suffix.split("_", 1)
+            if not parts:
+                return None
+            return parts[0] or None
+    return None
 
 
 @dataclass(frozen=True)
@@ -68,41 +73,68 @@ class AnalysisResultAggregator:
         """Yield consolidated result files stored inside per-task folders."""
         safe_filter = _normalize_model_slug(model_slug) if model_slug else None
 
-        pattern = "*/*/analysis/task-*/*.json"
-        for candidate in self.base_dir.glob(pattern):
-            if candidate.parent.name == 'services':
+        seen: set[Path] = set()
+        for model_dir in self.base_dir.iterdir():
+            if not model_dir.is_dir():
                 continue
-            stem = candidate.stem
-            if '_task-' not in stem:
-                continue
-            if stem.endswith('_universal'):
-                continue
-
-            try:
-                model_folder = candidate.parents[3].name
-                app_folder = candidate.parents[2].name
-            except IndexError:
-                continue
-
+            model_folder = model_dir.name
             if safe_filter and model_folder != safe_filter:
                 continue
 
-            parsed_app = _parse_app_number(app_folder)
-            if parsed_app is None:
-                continue
-            if app_number is not None and parsed_app != app_number:
-                continue
+            for app_dir in model_dir.iterdir():
+                if not app_dir.is_dir():
+                    continue
+                parsed_app = _parse_app_number(app_dir.name)
+                if parsed_app is None:
+                    continue
+                if app_number is not None and parsed_app != app_number:
+                    continue
 
-            task_id = _extract_task_id(stem)
-            if not task_id:
-                continue
+                search_roots = [app_dir]
+                analysis_dir = app_dir / 'analysis'
+                if analysis_dir.is_dir():
+                    search_roots.append(analysis_dir)
 
-            yield TaskResultFile(
-                path=candidate,
-                model_folder=model_folder,
-                app_number=parsed_app,
-                task_id=task_id,
-            )
+                processed_task_dirs: set[Path] = set()
+
+                for root in search_roots:
+                    if not root.is_dir():
+                        continue
+                    for task_dir in root.iterdir():
+                        if not task_dir.is_dir():
+                            continue
+                        if not any(task_dir.name.startswith(prefix) for prefix in TASK_DIR_PREFIXES):
+                            continue
+
+                        resolved_dir = task_dir.resolve()
+                        if resolved_dir in processed_task_dirs:
+                            continue
+                        processed_task_dirs.add(resolved_dir)
+
+                        for candidate in task_dir.glob('*.json'):
+                            if candidate.parent.name == 'services':
+                                continue
+                            stem = candidate.stem
+                            if not any(marker in stem for marker in TASK_MARKERS):
+                                continue
+                            if stem.endswith('_universal'):
+                                continue
+
+                            resolved = candidate.resolve()
+                            if resolved in seen:
+                                continue
+                            seen.add(resolved)
+
+                            task_id = _extract_task_id(stem)
+                            if not task_id:
+                                continue
+
+                            yield TaskResultFile(
+                                path=candidate,
+                                model_folder=model_folder,
+                                app_number=parsed_app,
+                                task_id=task_id,
+                            )
 
     # ------------------------------------------------------------------
     # Payload reconstruction

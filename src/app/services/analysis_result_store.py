@@ -358,7 +358,7 @@ class AnalysisResultStore:
 
     def _result_path(self, model_slug: str, app_number: int) -> Path:
         safe_slug = self._safe_model_dir(model_slug)
-        return self.base_dir / safe_slug / f'app{app_number}' / 'analysis' / 'results.json'
+        return self.base_dir / safe_slug / f'app{app_number}' / 'results.json'
 
     def save_results(self, model_slug: str, app_number: int, results: Dict[str, Any]) -> bool:
         """Persist results to a JSON file mirroring the legacy structure."""

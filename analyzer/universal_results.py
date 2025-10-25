@@ -51,6 +51,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
+from pathlib import Path
 import os
 import json
 
@@ -73,6 +74,11 @@ def _truncate(value: str, limit: int) -> str:
     if len(value) <= limit:
         return value
     return value[:limit] + f"\n...<truncated {len(value)-limit} chars>"
+
+
+def _sanitize_task_id(task_id: str) -> str:
+    cleaned = ''.join(c if c.isalnum() or c in ('-', '_') else '_' for c in str(task_id))
+    return cleaned or 'task'
 
 
 def build_universal_payload(
@@ -169,14 +175,55 @@ def build_universal_payload(
 
 def write_universal_file(base_dir, model_slug: str, app_number: int, task_id: str, payload: Dict[str, Any]) -> str:
     safe_slug = model_slug.replace('/', '_').replace('\\', '_')
-    out_dir = base_dir / safe_slug / f"app{app_number}" / 'analysis' / f"task-{task_id}"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    # Reuse existing file if present
-    existing = list(out_dir.glob(f"{safe_slug}_app{app_number}_task-{task_id}_universal.json"))
-    if existing:
-        path = existing[0]
-    else:
-        path = out_dir / f"{safe_slug}_app{app_number}_task-{task_id}_universal.json"
+    sanitized_task = _sanitize_task_id(task_id)
+    app_dir = Path(base_dir) / safe_slug / f"app{app_number}"
+    target_dir = app_dir / f"task_{sanitized_task}"
+
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    legacy_dirs = [
+        app_dir / 'analysis' / f"task_{sanitized_task}",
+        app_dir / 'analysis' / f"task-{sanitized_task}",
+    ]
+    for legacy_dir in legacy_dirs:
+        if not legacy_dir.exists() or not legacy_dir.is_dir():
+            continue
+        for item in legacy_dir.iterdir():
+            destination = target_dir / item.name
+            if destination.exists():
+                continue
+            try:
+                item.replace(destination)
+            except Exception:
+                try:
+                    item.rename(destination)
+                except Exception:
+                    pass
+        try:
+            legacy_dir.rmdir()
+        except OSError:
+            pass
+
+    legacy_analysis_file = app_dir / 'analysis' / f"{safe_slug}_app{app_number}_task_{sanitized_task}_universal.json"
+    if legacy_analysis_file.exists() and not (target_dir / legacy_analysis_file.name).exists():
+        try:
+            legacy_analysis_file.replace(target_dir / legacy_analysis_file.name)
+        except Exception:
+            pass
+    desired_name = f"{safe_slug}_app{app_number}_task_{sanitized_task}_universal.json"
+    legacy_name = f"{safe_slug}_app{app_number}_task-{sanitized_task}_universal.json"
+
+    existing = list(target_dir.glob(desired_name))
+    if not existing:
+        legacy_existing = list(target_dir.glob(legacy_name))
+        if legacy_existing:
+            try:
+                legacy_existing[0].rename(target_dir / desired_name)
+                existing = [target_dir / desired_name]
+            except OSError:
+                pass
+
+    path = existing[0] if existing else target_dir / desired_name
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(payload, f, indent=2, sort_keys=True)
     return str(path)

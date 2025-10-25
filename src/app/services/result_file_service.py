@@ -13,6 +13,13 @@ from app.paths import PROJECT_ROOT
 from app.services.analysis_result_loader import AnalysisResultAggregator
 
 
+TASK_DIR_PREFIXES = ("task-", "task_")
+
+
+def _is_task_dir(name: str) -> bool:
+    return any(name.startswith(prefix) for prefix in TASK_DIR_PREFIXES)
+
+
 @dataclass
 class ResultFileDescriptor:
     """Metadata describing a stored analysis result JSON file."""
@@ -123,19 +130,41 @@ class ResultFileService:
 
     def _find_related_service_files(self, model_slug: str, app_number: int) -> Dict[str, Path]:
         safe_slug = self._to_safe_slug(model_slug)
-        base = self.base_dir / safe_slug / f'app{app_number}' / 'analysis'
-        if not base.exists():
+        app_base = self.base_dir / safe_slug / f'app{app_number}'
+        if not app_base.exists():
             return {}
+        legacy_base = app_base / 'analysis'
         latest: Dict[str, Path] = {}
         timestamps: Dict[str, float] = {}
-        for candidate in base.glob('*.json'):
+        search_roots = [app_base]
+        if legacy_base.exists():
+            search_roots.append(legacy_base)
+
+        def _register(candidate: Path) -> None:
             service_name = self._determine_service_from_filename(candidate, app_number)
             if not service_name:
-                continue
-            mtime = candidate.stat().st_mtime
+                return
+            try:
+                mtime = candidate.stat().st_mtime
+            except OSError:
+                return
             if service_name not in latest or mtime > timestamps.get(service_name, 0):
                 latest[service_name] = candidate
                 timestamps[service_name] = mtime
+
+        for root in search_roots:
+            if not root.exists():
+                continue
+            for candidate in root.glob('*.json'):
+                if candidate.parent.name == 'services':
+                    continue
+                _register(candidate)
+            for task_dir in self._iter_task_dirs(root):
+                services_dir = task_dir / 'services'
+                if not services_dir.exists():
+                    continue
+                for candidate in services_dir.glob(f'{safe_slug}_app{app_number}_*.json'):
+                    _register(candidate)
         return latest
 
     def _determine_service_from_filename(self, path: Path, app_number: int) -> Optional[str]:
@@ -145,10 +174,15 @@ class ResultFileService:
         if idx == -1:
             return None
         remainder = stem[idx + len(marker):]
-        if remainder.startswith('task-'):
+        if remainder.startswith('task-') or remainder.startswith('task_'):
             return None
         service = remainder.split('_')[0]
         return service or None
+
+    def _iter_task_dirs(self, base: Path) -> Iterable[Path]:
+        for task_dir in base.iterdir():
+            if task_dir.is_dir() and _is_task_dir(task_dir.name):
+                yield task_dir
 
     @staticmethod
     def _extract_service_payload(service_name: str, payload: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -297,7 +331,7 @@ class ResultFileService:
         safe_filter = self._to_safe_slug(model_slug) if model_slug else None
         pattern = '*/*/analysis/*.json'
         for path in self.base_dir.glob(pattern):
-            if path.parent.name.startswith('task-'):
+            if _is_task_dir(path.parent.name):
                 continue
             try:
                 safe_slug = path.parents[2].name
@@ -326,7 +360,7 @@ class ResultFileService:
         if not path or not path.exists():
             raise FileNotFoundError(identifier)
         payload = self._load_json(path)
-        if path.parent.name.startswith('task-'):
+        if _is_task_dir(path.parent.name):
             if not payload.get('results'):
                 rebuilt = self._aggregator.build_payload_from_services(path.parent)
                 if rebuilt:

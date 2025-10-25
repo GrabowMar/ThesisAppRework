@@ -45,7 +45,7 @@ except Exception:  # pragma: no cover - optional path
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import websockets
 from websockets.exceptions import ConnectionClosed
@@ -159,10 +159,49 @@ class AnalyzerManager:
         # Legacy directory names we want to keep pruned under each app folder
         self._legacy_result_dirs = ["static-analyzer","dynamic-analyzer","performance-tester","ai-analyzer","security-analyzer"]
 
-        def _build_task_output_dir(self, model_slug: str, app_number: int, task_id: str) -> Path:
-            """Return the folder where consolidated results for a task should live."""
-            safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
-            return self.results_dir / safe_slug / f"app{app_number}" / 'analysis' / f"task-{task_id}"
+    @staticmethod
+    def _sanitize_task_id(task_id: str) -> str:
+        cleaned = ''.join(c if c.isalnum() or c in ('-', '_') else '_' for c in str(task_id))
+        return cleaned or 'task'
+
+    @staticmethod
+    def _is_task_dir_name(name: str) -> bool:
+        return name.startswith('task-') or name.startswith('task_')
+
+    def _build_task_output_dir(self, model_slug: str, app_number: int, task_id: str) -> Path:
+        """Return the folder where consolidated results for a task should live."""
+        safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
+        sanitized_task = self._sanitize_task_id(task_id)
+        app_dir = self.results_dir / safe_slug / f"app{app_number}"
+        app_dir.mkdir(parents=True, exist_ok=True)
+        target_dir = app_dir / f"task_{sanitized_task}"
+        legacy_candidates = [
+            app_dir / 'analysis' / f"task_{sanitized_task}",
+            app_dir / 'analysis' / f"task-{sanitized_task}",
+        ]
+
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        for legacy_dir in legacy_candidates:
+            if not legacy_dir.exists() or not legacy_dir.is_dir():
+                continue
+            for item in legacy_dir.iterdir():
+                destination = target_dir / item.name
+                if destination.exists():
+                    continue
+                try:
+                    item.replace(destination)
+                except Exception:
+                    try:
+                        item.rename(destination)
+                    except Exception:
+                        logger.debug("Failed to migrate legacy artefact %s", item)
+            try:
+                legacy_dir.rmdir()
+            except OSError:
+                pass
+
+        return target_dir
 
     # ---------------------------------------------------------------
     # Legacy Results Pruning
@@ -170,15 +209,62 @@ class AnalyzerManager:
     def prune_legacy_results(self, model_slug: str, app_number: int) -> None:
         """Remove legacy per-service result directories & stray files.
 
-        Earlier versions emitted per-service folders (e.g. results/<model>/appN/static-analyzer/...).
-        The current design consolidates into results/<model>/appN/analysis/ only. This helper
-        aggressively deletes those obsolete folders and well-known stray json artifacts.
+        Earlier versions emitted per-service folders and nested everything under an
+        `analysis/` directory. The current design consolidates into
+        results/<model>/appN/task_<task>. This helper deletes obsolete folders,
+        migrates any remaining task directories, and cleans well-known stray artefacts.
         """
         try:
             base = (self.results_dir / model_slug.replace('/', '_').replace('\\', '_') / f"app{app_number}")
             if not base.exists():
                 return
             removed = []
+            analysis_dir = base / 'analysis'
+            if analysis_dir.exists():
+                for legacy_file in analysis_dir.glob('*.json'):
+                    try:
+                        legacy_file.unlink(missing_ok=True)  # type: ignore[arg-type]
+                    except Exception:
+                        pass
+                for legacy_task_dir in analysis_dir.iterdir():
+                    if not legacy_task_dir.is_dir() or not self._is_task_dir_name(legacy_task_dir.name):
+                        continue
+                    remainder = legacy_task_dir.name[5:]
+                    if remainder.startswith(('-', '_')):
+                        remainder = remainder[1:]
+                    sanitized = self._sanitize_task_id(remainder)
+                    destination = base / f"task_{sanitized}"
+                    if destination.exists():
+                        continue
+                    try:
+                        legacy_task_dir.rename(destination)
+                        continue
+                    except OSError:
+                        destination.mkdir(parents=True, exist_ok=True)
+                        for item in legacy_task_dir.iterdir():
+                            dest_item = destination / item.name
+                            if dest_item.exists():
+                                continue
+                            try:
+                                item.replace(dest_item)
+                            except Exception:
+                                try:
+                                    item.rename(dest_item)
+                                except Exception:
+                                    logger.debug("Failed to relocate legacy artefact %s", item)
+                        try:
+                            legacy_task_dir.rmdir()
+                        except OSError:
+                            pass
+                try:
+                    next(analysis_dir.iterdir())
+                except StopIteration:
+                    try:
+                        analysis_dir.rmdir()
+                    except OSError:
+                        pass
+                except Exception:
+                    pass
             for legacy in self._legacy_result_dirs:
                 d = base / legacy
                 if d.exists() and d.is_dir():
@@ -828,7 +914,7 @@ class AnalyzerManager:
         static_timeout = int(os.environ.get('STATIC_ANALYSIS_TIMEOUT', '480'))
         return await self.send_websocket_message('static-analyzer', message, timeout=static_timeout)
     
-    async def run_comprehensive_analysis(self, model_slug: str, app_number: int) -> Dict[str, Dict[str, Any]]:
+    async def run_comprehensive_analysis(self, model_slug: str, app_number: int, task_name: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
         """Run comprehensive analysis (security, static, performance, dynamic) without AI."""
         logger.info(f"[ANALYZE] Running comprehensive analysis on {model_slug} app {app_number}")
 
@@ -858,8 +944,12 @@ class AnalyzerManager:
                 logger.error(f"[ERROR] {analysis_type.title()} analysis error: {e}")
                 results[analysis_type] = {'status': 'error', 'error': str(e)}
 
+        # Use provided task name or generate timestamp-based name
+        if not task_name:
+            task_name = f"analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
         # Save consolidated results using the new method
-        await self.save_task_results(model_slug, app_number, 'comprehensive', results)
+        await self.save_task_results(model_slug, app_number, task_name, results)
 
         return results
     
@@ -934,9 +1024,9 @@ class AnalyzerManager:
         """Save analysis results to project-root results/<model>/appN/<container-dir>/<timestamped>.json"""
         # HARD ENFORCEMENT: Per-service result files are deprecated. Always suppress.
         safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
-        dummy = self.results_dir / safe_slug / f"app{app_number}" / 'analysis' / f"{safe_slug}_app{app_number}_{analysis_type}_suppressed.json"
-        dummy.parent.mkdir(parents=True, exist_ok=True)
-        return dummy
+        suppression_dir = self.results_dir / safe_slug / f"app{app_number}" / 'suppressed'
+        suppression_dir.mkdir(parents=True, exist_ok=True)
+        return suppression_dir / f"{safe_slug}_app{app_number}_{analysis_type}_suppressed.json"
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         container_dir = self._map_analysis_type_to_container_dir(analysis_type)
@@ -1549,10 +1639,11 @@ class AnalyzerManager:
         safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        # Group consolidated artifacts under analysis/task-<task_id>/
-        task_dir = self._build_task_output_dir(model_slug, app_number, task_id)
+        # Group consolidated artifacts under task_<task_id>/ (legacy analysis/* migrated)
+        sanitized_task = self._sanitize_task_id(task_id)
+        task_dir = self._build_task_output_dir(model_slug, app_number, sanitized_task)
         task_dir.mkdir(parents=True, exist_ok=True)
-        filename = f"{safe_slug}_app{app_number}_task-{task_id}_{timestamp}.json"
+        filename = f"{safe_slug}_app{app_number}_task_{sanitized_task}_{timestamp}.json"
         filepath = task_dir / filename
 
         try:
@@ -1621,6 +1712,13 @@ class AnalyzerManager:
 
             self._write_service_snapshots(task_dir, safe_slug, model_slug, app_number, task_id, consolidated_results)
             self._write_task_manifest(task_dir, filename, model_slug, app_number, task_id, consolidated_results)
+            self._remove_existing_task_payloads(
+                task_dir,
+                safe_slug,
+                app_number,
+                {task_id, sanitized_task},
+                preserve=filepath,
+            )
 
             # 4. If universal format helpers are available, write that too
             if build_universal_payload and write_universal_file:
@@ -1656,6 +1754,37 @@ class AnalyzerManager:
         except Exception as e:
             logger.error(f"[ERROR] Failed to save consolidated task results: {e}")
             raise
+
+    def _remove_existing_task_payloads(
+        self,
+        task_dir: Path,
+        safe_slug: str,
+        app_number: int,
+        task_ids: Iterable[str],
+        preserve: Optional[Path] = None,
+    ) -> None:
+        """Remove previously written consolidated payloads for this task."""
+        identifiers: set[str] = set()
+        for tid in task_ids:
+            if tid:
+                identifiers.add(str(tid))
+                identifiers.add(self._sanitize_task_id(tid))
+
+        for ident in identifiers:
+            patterns = [
+                f"{safe_slug}_app{app_number}_task-{ident}_*.json",
+                f"{safe_slug}_app{app_number}_task_{ident}_*.json",
+            ]
+            for pattern in patterns:
+                for candidate in task_dir.glob(pattern):
+                    if candidate.name.endswith('_universal.json'):
+                        continue
+                    if preserve and candidate.resolve() == preserve.resolve():
+                        continue
+                    try:
+                        candidate.unlink()
+                    except Exception:
+                        logger.debug("Failed to remove legacy task payload %s", candidate)
 
     def _write_service_snapshots(
         self,
@@ -1731,43 +1860,64 @@ class AnalyzerManager:
         """Find the latest result file for each analysis type for a given model/app."""
         latest_results: Dict[str, Path] = {}
         safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
-        
-        # Search for files matching the pattern
-        base_dir = self.results_dir / safe_slug / f"app{app_number}" / 'analysis'
-        if not base_dir.exists():
+
+        app_dir = self.results_dir / safe_slug / f"app{app_number}"
+        if not app_dir.exists():
             return {}
 
-        # Pattern: {slug}_app{num}_{type}_{timestamp}.json
         pattern = f"{safe_slug}_app{app_number}_*.json"
-        
-        files_by_type: Dict[str, List[Path]] = {}
+        search_roots = [app_dir]
+        legacy_dir = app_dir / 'analysis'
+        if legacy_dir.exists():
+            search_roots.append(legacy_dir)
 
-        for f in base_dir.glob(pattern):
-            try:
-                # slug can contain underscores, so we can't just split by '_'
-                # Instead, we know the structure is <slug>_app<num>_<type>_<timestamp>
-                # We can reconstruct the prefix and extract the type
-                prefix = f"{safe_slug}_app{app_number}_"
-                if f.stem.startswith(prefix):
-                    # The part after the prefix is type_timestamp
-                    type_and_timestamp = f.stem[len(prefix):]
-                    # The timestamp is the last part
-                    type_parts = type_and_timestamp.split('_')
-                    analysis_type = type_parts[0]
-                    
-                    if analysis_type not in files_by_type:
-                        files_by_type[analysis_type] = []
-                    files_by_type[analysis_type].append(f)
-            except Exception:
+        seen: set[Path] = set()
+
+        for root in search_roots:
+            if not root.exists():
                 continue
+            for candidate in root.rglob(pattern):
+                try:
+                    if any(part.lower() == 'services' for part in candidate.parts):
+                        continue
+                    if candidate.name.endswith('_universal.json'):
+                        continue
+                    resolved = candidate.resolve()
+                    if resolved in seen:
+                        continue
+                    seen.add(resolved)
+                    analysis_key = self._resolve_analysis_key(candidate, app_number)
+                    if not analysis_key:
+                        continue
+                    current = latest_results.get(analysis_key)
+                    candidate_mtime = candidate.stat().st_mtime
+                    if current is None or candidate_mtime > current.stat().st_mtime:
+                        latest_results[analysis_key] = candidate
+                except FileNotFoundError:
+                    continue
+                except Exception as exc:
+                    logger.debug("Skipping candidate %s due to error: %s", candidate, exc)
+                    continue
 
-        # Find the latest file for each type
-        for analysis_type, files in files_by_type.items():
-            if files:
-                files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-                latest_results[analysis_type] = files[0]
-        
         return latest_results
+
+    def _resolve_analysis_key(self, path: Path, app_number: int) -> Optional[str]:
+        stem = path.stem
+        marker = f"_app{app_number}_"
+        idx = stem.find(marker)
+        if idx == -1:
+            return None
+        remainder = stem[idx + len(marker):]
+        for prefix in ('task-', 'task_'):
+            if remainder.startswith(prefix):
+                task_part = remainder.split('_', 1)[0]
+                suffix = task_part[len(prefix):]
+                return suffix or None
+        # Legacy style: <analysis_type>_<timestamp>
+        analysis_type = remainder.split('_', 1)[0]
+        if analysis_type in {'suppressed', 'task'}:
+            return None
+        return analysis_type or None
 
     async def create_unified_result(self, model_slug: str, app_number: int, task_id: str = "unified") -> Optional[Path]:
         """
@@ -2168,40 +2318,14 @@ async def main():
                 results = await manager.run_comprehensive_analysis(model_slug, app_number)
             elif analysis_type == 'security':
                 results = await manager.run_security_analysis(model_slug, app_number, tools=tools_arg)
-                # Save as consolidated task result
-                consolidated = {'security': results}
-                try:
-                    await manager.save_task_results(model_slug, app_number, 'security', consolidated)
-                except Exception as e:
-                    logger.warning(f"Could not save security analysis results: {e}")
             elif analysis_type == 'performance':
                 results = await manager.run_performance_test(model_slug, app_number, tools=tools_arg)
-                consolidated = {'performance': results}
-                try:
-                    await manager.save_task_results(model_slug, app_number, 'performance', consolidated)
-                except Exception as e:
-                    logger.warning(f"Could not save performance test results: {e}")
             elif analysis_type in ['dynamic', 'zap']:
                 results = await manager.run_dynamic_analysis(model_slug, app_number, tools=tools_arg)
-                consolidated = {'dynamic': results}
-                try:
-                    await manager.save_task_results(model_slug, app_number, 'dynamic', consolidated)
-                except Exception as e:
-                    logger.warning(f"Could not save dynamic analysis results: {e}")
             elif analysis_type == 'ai':
                 results = await manager.run_ai_analysis(model_slug, app_number, tools=tools_arg)
-                consolidated = {'ai': results}
-                try:
-                    await manager.save_task_results(model_slug, app_number, 'ai', consolidated)
-                except Exception as e:
-                    logger.warning(f"Could not save AI analysis results: {e}")
             elif analysis_type == 'static':
                 results = await manager.run_static_analysis(model_slug, app_number, tools=tools_arg)
-                consolidated = {'static': results}
-                try:
-                    await manager.save_task_results(model_slug, app_number, 'static', consolidated)
-                except Exception as e:
-                    logger.warning(f"Could not save static analysis results: {e}")
             else:
                 if JSON_MODE:
                     print(json.dumps({"status": "error", "error": f"unknown_type:{analysis_type}"}))

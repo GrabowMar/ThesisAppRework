@@ -903,9 +903,10 @@ class TaskExecutionService:
             return payloads
 
         safe_slug = model_slug.replace('/', '_').replace('\\', '_')
-        analysis_dir = Path(base_path_obj) / safe_slug / f"app{app_number}" / 'analysis'
-        if not analysis_dir.exists():
+        app_dir = Path(base_path_obj) / safe_slug / f"app{app_number}"
+        if not app_dir.exists():
             return payloads
+        legacy_dir = app_dir / 'analysis'
 
         pattern_map: Dict[str, List[str]] = {
             'static-analyzer': ['static', 'security'],
@@ -915,17 +916,48 @@ class TaskExecutionService:
         }
 
         for service_name, tokens in pattern_map.items():
-            candidates: List[Path] = []
+            # Prefer snapshots written inside task folders
+            snapshot_candidates: List[Path] = []
+            for task_dir in app_dir.iterdir():
+                if not task_dir.is_dir():
+                    continue
+                if not (task_dir.name.startswith('task-') or task_dir.name.startswith('task_')):
+                    continue
+                services_dir = task_dir / 'services'
+                if not services_dir.exists():
+                    continue
+                candidate = services_dir / f"{safe_slug}_app{app_number}_{service_name}.json"
+                if candidate.exists():
+                    snapshot_candidates.append(candidate)
+            snapshot_candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+            loaded = False
+            for candidate in snapshot_candidates:
+                try:
+                    with candidate.open('r', encoding='utf-8') as handle:
+                        data = json.load(handle)
+                    if isinstance(data, dict):
+                        payloads[service_name] = data
+                        loaded = True
+                        break
+                except Exception:
+                    continue
+            if loaded:
+                continue
+
+            if not legacy_dir.exists():
+                continue
+
+            legacy_candidates: List[Path] = []
             for token in tokens:
                 matches = [
-                    p for p in analysis_dir.glob(f"*_{token}_*.json")
+                    p for p in legacy_dir.glob(f"*_{token}_*.json")
                     if '_task-' not in p.name
                 ]
                 matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-                candidates.extend(matches)
-            if not candidates:
-                continue
-            for candidate in candidates:
+                legacy_candidates.extend(matches)
+
+            for candidate in legacy_candidates:
                 try:
                     with candidate.open('r', encoding='utf-8') as handle:
                         data = json.load(handle)
