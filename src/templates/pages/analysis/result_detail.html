@@ -46,8 +46,9 @@
     {
       'label': 'Services',
       'value': services|length,
-      'hint': (summary.get('services_executed', services|length)|string) + ' executed',
-      'icon': 'fa-solid fa-server'
+      'hint': (summary.get('services_degraded', 0)|string + ' degraded') if summary.get('services_degraded', 0) > 0 else ((summary.get('services_executed', services|length)|string) + ' executed'),
+      'icon': 'fa-solid fa-server',
+      'tone': 'warning' if summary.get('services_degraded', 0) > 0 else None
     },
     {
       'label': 'Analysis Type',
@@ -82,6 +83,37 @@
   
   {# Dense metric grid #}
   {{ research_metric_grid(metrics) }}
+  
+  {# Degraded services warning (if any) #}
+  {% if metadata.get('degraded_services') and metadata.degraded_services|length > 0 %}
+  <div class="alert alert-warning d-flex align-items-start gap-3 mb-4" role="alert">
+    <div class="flex-shrink-0">
+      <i class="fa-solid fa-triangle-exclamation fa-2x" aria-hidden="true"></i>
+    </div>
+    <div class="flex-grow-1">
+      <h4 class="alert-heading mb-2">
+        <strong>Partial Results Available</strong>
+      </h4>
+      <p class="mb-2">
+        {{ metadata.degraded_services|length }} service{{ 's' if metadata.degraded_services|length > 1 else '' }} 
+        {{ 'were' if metadata.degraded_services|length > 1 else 'was' }} unavailable during analysis. 
+        Results are shown from successfully completed services only.
+      </p>
+      <ul class="mb-0 small">
+        {% for svc in metadata.degraded_services %}
+        <li>
+          <strong>{{ svc.service }}</strong>: 
+          <span class="text-muted">{{ svc.status }}</span>
+          {% if svc.error %}
+          <span class="text-danger">— {{ svc.error[:100] }}{{ '...' if svc.error|length > 100 else '' }}</span>
+          {% endif %}
+          <span class="text-muted">({{ svc.tools_affected|length }} tool{{ 's' if svc.tools_affected|length > 1 else '' }} affected)</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  {% endif %}
   
   {# Sticky section navigation #}
   {{ research_section_nav(sections) }}

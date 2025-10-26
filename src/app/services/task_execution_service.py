@@ -60,6 +60,80 @@ class TaskExecutionService:
         self._thread: Optional[threading.Thread] = None
         self._running = False
         self._app = app  # Keep explicit reference so we can push context inside thread
+        
+        # Load analyzer service configuration
+        try:
+            from flask import current_app
+            if current_app:
+                self._service_timeout = current_app.config.get('ANALYZER_SERVICE_TIMEOUT', 600)
+                self._retry_enabled = current_app.config.get('ANALYZER_RETRY_FAILED_SERVICES', False)
+            else:
+                self._service_timeout = 600
+                self._retry_enabled = False
+        except (RuntimeError, ImportError):
+            self._service_timeout = 600
+            self._retry_enabled = False
+
+    def _execute_service_with_timeout(self, engine, model_slug: str, app_number: int, tools: list, service_name: str) -> Dict[str, Any]:
+        """Execute a service with timeout protection.
+        
+        Returns:
+            Dict with status, payload, and error (if any)
+        """
+        try:
+            import threading
+            result_container = {'result': None, 'error': None, 'completed': False}
+            
+            def run_service():
+                try:
+                    service_result = engine.run(
+                        model_slug=model_slug,
+                        app_number=app_number,
+                        tools=tools,
+                        persist=False
+                    )
+                    result_container['result'] = service_result
+                    result_container['completed'] = True
+                except Exception as e:
+                    result_container['error'] = str(e)
+                    result_container['completed'] = True
+            
+            thread = threading.Thread(target=run_service, daemon=True)
+            thread.start()
+            thread.join(timeout=self._service_timeout)
+            
+            if not result_container['completed']:
+                logger.warning(
+                    f"Service {service_name} timed out after {self._service_timeout}s - continuing with other services"
+                )
+                return {
+                    'status': 'timeout',
+                    'error': f'Service execution timed out after {self._service_timeout} seconds',
+                    'payload': {}
+                }
+            
+            if result_container['error']:
+                logger.error(f"Service {service_name} failed: {result_container['error']}")
+                return {
+                    'status': 'error',
+                    'error': result_container['error'],
+                    'payload': {}
+                }
+            
+            service_result = result_container['result']
+            return {
+                'status': service_result.status if service_result else 'error',
+                'payload': service_result.payload if service_result else {},
+                'error': service_result.error if service_result else None
+            }
+            
+        except Exception as e:
+            logger.exception(f"Unexpected error executing service {service_name}: {e}")
+            return {
+                'status': 'error',
+                'error': str(e),
+                'payload': {}
+            }
 
     def start(self):  # pragma: no cover - thread start trivial
         if self._running:
