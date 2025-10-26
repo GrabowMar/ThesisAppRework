@@ -164,6 +164,23 @@ run_tests() {
     docker compose exec web pytest -v
 }
 
+# Test Celery pipeline
+test_celery() {
+    info "Testing Celery and analyzer pipeline..."
+    docker compose exec web python -c "
+from app.tasks import celery
+import sys
+i = celery.control.inspect()
+w = i.active()
+if w:
+    print('✓ Celery worker is active')
+    print(f'  Active workers: {list(w.keys())}')
+else:
+    print('✗ No Celery workers responding')
+    sys.exit(1)
+"
+}
+
 # Clean up
 cleanup() {
     warn "This will remove all containers, volumes, and generated data!"
@@ -232,6 +249,10 @@ case "${1:-help}" in
         run_tests
         ;;
     
+    test-celery)
+        test_celery
+        ;;
+    
     clean)
         cleanup
         ;;
@@ -252,6 +273,7 @@ case "${1:-help}" in
         echo "  logs       - View logs (optionally specify service name)"
         echo "  init-db    - Initialize database"
         echo "  test       - Run tests in container"
+        echo "  test-celery - Test Celery worker and pipeline"
         echo "  clean      - Remove all containers and data (dangerous!)"
         echo "  help       - Show this help message"
         echo ""

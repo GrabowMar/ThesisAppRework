@@ -1022,11 +1022,7 @@ class AnalyzerManager:
     async def save_analysis_results(self, model_slug: str, app_number: int,
                                   analysis_type: str, results: Dict[str, Any]) -> Path:
         """Save analysis results to project-root results/<model>/appN/<container-dir>/<timestamped>.json"""
-        # HARD ENFORCEMENT: Per-service result files are deprecated. Always suppress.
-        safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
-        suppression_dir = self.results_dir / safe_slug / f"app{app_number}" / 'suppressed'
-        suppression_dir.mkdir(parents=True, exist_ok=True)
-        return suppression_dir / f"{safe_slug}_app{app_number}_{analysis_type}_suppressed.json"
+        # RESULT PERSISTENCE ENABLED: Write per-service results for debugging and traceability
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         container_dir = self._map_analysis_type_to_container_dir(analysis_type)

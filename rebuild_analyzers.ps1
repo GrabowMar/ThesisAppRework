@@ -100,6 +100,13 @@ Write-Host "  docker-compose ps             # Check status" -ForegroundColor Gra
 Write-Host "  docker-compose restart        # Restart all" -ForegroundColor Gray
 Write-Host "  docker-compose down           # Stop all" -ForegroundColor Gray
 
+Write-Host "`n⚙️  Celery Configuration:" -ForegroundColor Cyan
+Write-Host "  Pool:        threads (Windows compatible)" -ForegroundColor White
+Write-Host "  Concurrency: 8 workers (parallel subtasks)" -ForegroundColor White
+Write-Host "  Queues:      celery, subtasks, aggregation, monitoring" -ForegroundColor White
+Write-Host "  Start:       .\start_celery_worker.ps1" -ForegroundColor Gray
+Write-Host "  Test:        .\test_celery_pipeline.ps1" -ForegroundColor Gray
+
 if ($Service) {
     Write-Host "`n🎯 To test the specific service you built:" -ForegroundColor Cyan
     Write-Host "  docker-compose exec $Service python main.py --test" -ForegroundColor White

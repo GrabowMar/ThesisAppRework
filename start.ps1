@@ -238,20 +238,23 @@ function Start-CeleryWorker {
         return $true
     }
     
-    # Start Celery worker
+    # Start Celery worker with thread pool for parallel execution
     $arguments = @(
         "-m", "celery",
-        "-A", "worker.celery",
+        "-A", "app.tasks",
         "worker",
+        "--pool=threads",
+        "--concurrency=8",
         "--loglevel=info",
         "--logfile=$CELERY_LOG"
     )
     
-    Write-Status "Starting Celery worker in background..." "Cyan"
+    Write-Status "Starting Celery worker in background with 8 thread workers..." "Cyan"
     $process = Start-Process -FilePath $pythonCmd -ArgumentList $arguments -WorkingDirectory $SRC_DIR -WindowStyle Hidden -PassThru
     $process.Id | Out-File -FilePath $CELERY_PID -Encoding ASCII
     Write-Success "Celery worker started (PID: $($process.Id))"
     Write-Host "   📝 Logs: $CELERY_LOG" -ForegroundColor Gray
+    Write-Host "   🔧 Pool: threads, Concurrency: 8" -ForegroundColor Gray
     
     return $true
 }
@@ -291,18 +294,37 @@ function Restart-AnalyzerContainers {
     }
 }
 
+function Test-RedisConnection {
+    Write-Status "Checking Redis connection..." "Cyan"
+    
+    try {
+        $redis = docker ps --filter "name=redis" --filter "status=running" --format "{{.Names}}" 2>$null
+        if ($redis) {
+            Write-Success "Redis is running: $redis"
+            return $true
+        } else {
+            Write-Warning "Redis container not found or not running"
+            return $false
+        }
+    } catch {
+        Write-Warning "Failed to check Redis: $_"
+        return $false
+    }
+}
+
 function Start-AnalyzerServices {
     if ($NoAnalyzer) {
         Write-Status "Skipping analyzer services (--NoAnalyzer flag)" "Yellow"
         return $true
     }
     
-    Write-Status "Starting analyzer services..." "Cyan"
+    Write-Status "Starting analyzer services (includes Redis for Celery)..." "Cyan"
     
     # Check Docker
     if (-not (Test-DockerRunning)) {
         Write-Error "Docker is not running. Please start Docker Desktop"
         Write-Host "   Analyzer services require Docker containers" -ForegroundColor Gray
+        Write-Host "   Redis is required for Celery task queue" -ForegroundColor Gray
         return $false
     }
     
@@ -428,9 +450,21 @@ function Show-Status {
     if ($celeryProcess) {
         Write-Host "⚙️  Celery Worker: " -NoNewline -ForegroundColor White
         Write-Host "Running (PID: $($celeryProcess.Id))" -ForegroundColor Green
+        Write-Host "   🔧 Pool: threads, Concurrency: 8" -ForegroundColor Gray
     } else {
         Write-Host "⚙️  Celery Worker: " -NoNewline -ForegroundColor White
         Write-Host "Stopped" -ForegroundColor Red
+    }
+    
+    # Redis status (required for Celery)
+    Write-Host "📦 Redis (Task Queue): " -NoNewline -ForegroundColor White
+    $redis = docker ps --filter "name=redis" --filter "status=running" --format "{{.Names}}" 2>$null
+    if ($redis) {
+        Write-Host "Running" -ForegroundColor Green
+        Write-Host "   🔗 $redis" -ForegroundColor Gray
+    } else {
+        Write-Host "Stopped" -ForegroundColor Red
+        Write-Host "   ⚠️  Celery requires Redis to function" -ForegroundColor Yellow
     }
     
     # Analyzer services status
@@ -605,15 +639,21 @@ switch ($Mode) {
     "start" {
         $success = $true
         
-        # Start Celery worker first
-        if (-not (Start-CeleryWorker)) {
-            $success = $false
-        }
-        
-        # Start analyzer services
+        # Start analyzer services FIRST (includes Redis for Celery)
         if (-not (Start-AnalyzerServices)) {
             $success = $false
             Write-Warning "Continuing without analyzer services..."
+        } else {
+            # Verify Redis is available for Celery
+            if (-not (Test-RedisConnection)) {
+                Write-Warning "Redis not available - Celery may not work properly"
+            }
+        }
+        
+        # Start Celery worker (requires Redis)
+        if (-not (Start-CeleryWorker)) {
+            Write-Warning "Celery worker failed to start - analysis tasks may not execute"
+            # Don't fail completely, allow Flask to start
         }
         
         # Start Flask app (may be foreground or background)

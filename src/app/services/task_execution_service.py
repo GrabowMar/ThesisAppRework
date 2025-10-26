@@ -165,6 +165,8 @@ class TaskExecutionService:
 
                     next_tasks = queue_service.get_next_tasks(limit=self.batch_size)
                     if not next_tasks:
+                        # No pending tasks - check for running tasks with subtasks (parallel execution polling)
+                        self._poll_running_tasks_with_subtasks()
                         time.sleep(self.poll_interval)
                         continue
 
@@ -196,6 +198,13 @@ class TaskExecutionService:
                         # Execute real analysis instead of simulation
                         try:
                             result = self._execute_real_analysis(task_db)
+                            
+                            # Handle parallel execution (status='running' means Celery took over)
+                            if result.get('status') == 'running':
+                                logger.info(f"Task {task_db.task_id} delegated to Celery workers, will poll for completion")
+                                # Don't mark as completed yet - let polling handle it
+                                continue
+                            
                             # Engine returns 'completed' on success or 'failed'/'error' otherwise
                             success = result.get('status') in ('success', 'completed')
                             
@@ -482,11 +491,12 @@ class TaskExecutionService:
             except Exception:
                 pass
 
-            # Execute the analysis with resolved tools
+            # Execute the analysis with resolved tools (with persistence enabled)
             result = engine.run(
                 model_slug=task.target_model,
                 app_number=task.target_app_number,
-                tools=resolved_tools
+                tools=resolved_tools,
+                persist=True  # Enable result file writes
             )
 
             try:
@@ -594,6 +604,81 @@ class TaskExecutionService:
                         subtasks_by_service[subtask.service_name] = subtask
                 logger.info(f"Found {len(subtasks_by_service)} subtasks for main task")
             
+            # Map service names to Celery subtask functions
+            service_to_celery_task = {
+                'static-analyzer': 'app.tasks.run_static_analyzer_subtask',
+                'dynamic-analyzer': 'app.tasks.run_dynamic_analyzer_subtask',
+                'performance-tester': 'app.tasks.run_performance_tester_subtask',
+                'ai-analyzer': 'app.tasks.run_ai_analyzer_subtask',
+            }
+            
+            # Prepare parallel task invocations
+            from celery import group, chord
+            from app.tasks import (
+                run_static_analyzer_subtask,
+                run_dynamic_analyzer_subtask,
+                run_performance_tester_subtask,
+                run_ai_analyzer_subtask,
+                aggregate_subtask_results
+            )
+            
+            parallel_tasks = []
+            for service_name, tool_ids in tools_by_service.items():
+                # Get subtask DB record
+                subtask = subtasks_by_service.get(service_name)
+                if not subtask:
+                    logger.warning(f"No subtask found for service {service_name}, skipping")
+                    continue
+                
+                # Resolve tool IDs to names
+                service_tool_names = self._resolve_tool_ids_to_names(tool_ids)
+                logger.info(f"Queuing parallel subtask for {service_name} with tools: {service_tool_names}")
+                
+                # Create Celery task signature
+                if service_name == 'static-analyzer':
+                    task_sig = run_static_analyzer_subtask.s(subtask.id, task.target_model, task.target_app_number, service_tool_names)
+                elif service_name == 'dynamic-analyzer':
+                    task_sig = run_dynamic_analyzer_subtask.s(subtask.id, task.target_model, task.target_app_number, service_tool_names)
+                elif service_name == 'performance-tester':
+                    task_sig = run_performance_tester_subtask.s(subtask.id, task.target_model, task.target_app_number, service_tool_names)
+                elif service_name == 'ai-analyzer':
+                    task_sig = run_ai_analyzer_subtask.s(subtask.id, task.target_model, task.target_app_number, service_tool_names)
+                else:
+                    logger.warning(f"Unknown service {service_name}, skipping")
+                    continue
+                
+                parallel_tasks.append(task_sig)
+            
+            # Execute all subtasks in parallel using Celery chord
+            # Chord: group of parallel tasks → callback when all complete
+            if parallel_tasks:
+                logger.info(f"Launching {len(parallel_tasks)} subtasks in parallel for task {task.task_id}")
+                
+                try:
+                    # Create chord: parallel group + aggregation callback
+                    job = chord(parallel_tasks)(aggregate_subtask_results.s(task.task_id))
+                    
+                    # Don't block - let Celery workers handle it asynchronously
+                    # The main task execution loop will poll subtask statuses
+                    logger.info(f"Celery chord created for task {task.task_id}, returning to allow async execution")
+                    
+                    # Mark main task as RUNNING and return immediately
+                    # The _run_loop will poll subtask statuses and emit progress
+                    return {
+                        'status': 'running',
+                        'engine': 'unified',
+                        'model_slug': task.target_model,
+                        'app_number': task.target_app_number,
+                        'payload': {'message': 'Subtasks executing in parallel via Celery'},
+                        'celery_job_id': job.id if hasattr(job, 'id') else None
+                    }
+                    
+                except Exception as celery_error:
+                    logger.warning(f"Celery execution failed, falling back to sequential: {celery_error}")
+                    # Fall through to sequential execution below
+            
+            # FALLBACK: Sequential execution when Celery unavailable or parallel launch failed
+            logger.info(f"Executing subtasks sequentially for task {task.task_id}")
             for i, (service_name, tool_ids) in enumerate(tools_by_service.items()):
                 logger.info(f"Executing service {service_name} with {len(tool_ids)} tools: {tool_ids}")
                 
@@ -614,12 +699,12 @@ class TaskExecutionService:
                 logger.info(f"Service {service_name} resolved tools: {service_tool_names}")
                 
                 try:
-                    # Run analysis for this service (suppress immediate persistence; we'll merge later)
+                    # Run analysis for this service (NOW WITH PERSISTENCE ENABLED)
                     service_result = engine.run(
                         model_slug=task.target_model,
                         app_number=task.target_app_number,
                         tools=service_tool_names,
-                        persist=False
+                        persist=True  # CHANGED: Enable result file writes
                     )
                     
                     logger.info(f"Service {service_name} completed with status: {service_result.status}")
@@ -1338,6 +1423,121 @@ class TaskExecutionService:
             except Exception as e:  # pragma: no cover
                 logger.error("process_once error: %s", e)
         return transitioned
+
+    def _poll_running_tasks_with_subtasks(self):
+        """Poll running main tasks to check if their subtasks have completed."""
+        try:
+            # Find all main tasks that are RUNNING and have subtasks
+            running_main_tasks = AnalysisTask.query.filter(
+                AnalysisTask.status == AnalysisStatus.RUNNING,
+                AnalysisTask.is_main_task == True
+            ).all()
+            
+            for main_task in running_main_tasks:
+                # Check if all subtasks are completed
+                subtasks = AnalysisTask.query.filter_by(parent_task_id=main_task.task_id).all()
+                
+                if not subtasks:
+                    continue  # No subtasks, let normal flow handle it
+                
+                all_completed = all(st.status == AnalysisStatus.COMPLETED for st in subtasks)
+                any_failed = any(st.status == AnalysisStatus.FAILED for st in subtasks)
+                
+                if all_completed or any_failed:
+                    # All subtasks done - aggregate results
+                    logger.info(f"All subtasks completed for main task {main_task.task_id}, aggregating results")
+                    
+                    try:
+                        # Collect subtask results from DB
+                        all_results = {}
+                        combined_findings = []
+                        
+                        for subtask in subtasks:
+                            if subtask.status == AnalysisStatus.COMPLETED:
+                                result_summary = subtask.get_result_summary() if hasattr(subtask, 'get_result_summary') else {}
+                                if isinstance(result_summary, dict):
+                                    service_name = subtask.service_name or f'service_{subtask.id}'
+                                    all_results[service_name] = result_summary
+                                    
+                                    findings = result_summary.get('findings', [])
+                                    if isinstance(findings, list):
+                                        combined_findings.extend(findings)
+                        
+                        # Build unified payload
+                        unified_payload = {
+                            'task': {'task_id': main_task.task_id},
+                            'summary': {
+                                'total_findings': len(combined_findings),
+                                'services_executed': len(all_results),
+                                'status': 'completed' if not any_failed else 'partial'
+                            },
+                            'services': all_results,
+                            'findings': combined_findings,
+                            'metadata': {
+                                'unified_analysis': True,
+                                'generated_at': datetime.utcnow().isoformat()
+                            }
+                        }
+                        
+                        # Update main task
+                        main_task.status = AnalysisStatus.COMPLETED if not any_failed else AnalysisStatus.FAILED
+                        main_task.completed_at = datetime.utcnow()
+                        main_task.progress_percentage = 100.0
+                        if main_task.started_at:
+                            main_task.actual_duration = (main_task.completed_at - main_task.started_at).total_seconds()
+                        main_task.set_result_summary(unified_payload)
+                        
+                        db.session.commit()
+                        
+                        # Emit completion event
+                        try:
+                            from app.realtime.task_events import emit_task_event
+                            emit_task_event(
+                                "task.completed",
+                                {
+                                    "task_id": main_task.task_id,
+                                    "id": main_task.id,
+                                    "status": main_task.status.value if main_task.status else None,
+                                    "progress_percentage": main_task.progress_percentage,
+                                    "completed_at": main_task.completed_at.isoformat() if main_task.completed_at else None,
+                                    "actual_duration": main_task.actual_duration,
+                                },
+                            )
+                        except Exception:
+                            pass
+                        
+                        logger.info(f"Main task {main_task.task_id} marked as completed")
+                    
+                    except Exception as e:
+                        logger.error(f"Failed to aggregate results for main task {main_task.task_id}: {e}")
+                        main_task.status = AnalysisStatus.FAILED
+                        main_task.error_message = f"Result aggregation failed: {e}"
+                        db.session.commit()
+                else:
+                    # Emit progress event for subtasks
+                    completed_count = sum(1 for st in subtasks if st.status == AnalysisStatus.COMPLETED)
+                    progress = (completed_count / len(subtasks)) * 100.0
+                    
+                    if abs(main_task.progress_percentage - progress) > 1.0:  # Only update if changed significantly
+                        main_task.progress_percentage = progress
+                        db.session.commit()
+                        
+                        try:
+                            from app.realtime.task_events import emit_task_event
+                            emit_task_event(
+                                "task.updated",
+                                {
+                                    "task_id": main_task.task_id,
+                                    "id": main_task.id,
+                                    "status": main_task.status.value if main_task.status else None,
+                                    "progress_percentage": progress,
+                                },
+                            )
+                        except Exception:
+                            pass
+        
+        except Exception as e:
+            logger.error(f"Error polling running tasks with subtasks: {e}")
 
 
 # Global singleton style helper (mirrors other services)

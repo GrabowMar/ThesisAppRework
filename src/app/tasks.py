@@ -16,6 +16,11 @@ from celery.signals import task_prerun, task_postrun, worker_ready
 from threading import Lock
 from celery import group
 
+# Import logging
+from app.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 # Import ServiceLocator
 from app.services.service_locator import ServiceLocator
 
@@ -57,12 +62,12 @@ DISABLED_ANALYSIS_MODELS = {
 # Emit a concise banner at import time so workers clearly show gating state
 try:  # pragma: no cover - logging side effect
     if DISABLED_ANALYSIS_MODELS:
-        print(
-            "[tasks] Disabled analysis models:",
+        logger.info(
+            "Disabled analysis models: %s",
             ", ".join(sorted(DISABLED_ANALYSIS_MODELS))
         )
     else:
-        print("[tasks] No disabled analysis models configured")
+        logger.info("No disabled analysis models configured")
 except Exception:
     pass
 
@@ -1026,6 +1031,286 @@ def ai_analysis_task(self, model_slug: str, app_number: int,
         'app_number': app_number,
         'timestamp': datetime.now(timezone.utc).isoformat()
     }
+
+# =============================================================================
+# PARALLEL SUBTASK EXECUTION
+# =============================================================================
+
+@celery.task(bind=True, name='app.tasks.run_static_analyzer_subtask', time_limit=900, soft_time_limit=840)
+def run_static_analyzer_subtask(self, subtask_id: int, model_slug: str, app_number: int, tool_names: List[str]) -> Dict:
+    """Execute static-analyzer subtask with 15-minute timeout."""
+    from app.extensions import db, get_session
+    from app.models import AnalysisTask
+    from app.constants import AnalysisStatus
+    
+    try:
+        # Mark subtask as RUNNING
+        with get_session() as session:
+            subtask = session.get(AnalysisTask, subtask_id)
+            if subtask:
+                subtask.status = AnalysisStatus.RUNNING
+                subtask.started_at = datetime.now(timezone.utc)
+                session.commit()
+        
+        # Run analysis with persistence enabled
+        result = _run_engine('security', model_slug, app_number, tools=tool_names, persist=True)
+        
+        # Mark subtask as COMPLETED
+        with get_session() as session:
+            subtask = session.get(AnalysisTask, subtask_id)
+            if subtask:
+                subtask.status = AnalysisStatus.COMPLETED
+                subtask.completed_at = datetime.now(timezone.utc)
+                subtask.progress_percentage = 100.0
+                if subtask.started_at:
+                    subtask.actual_duration = (subtask.completed_at - subtask.started_at).total_seconds()
+                # Store result summary
+                subtask.set_result_summary(result)
+                session.commit()
+        
+        return {'status': 'completed', 'subtask_id': subtask_id, 'service': 'static-analyzer', 'result': result}
+    
+    except Exception as e:
+        # Mark subtask as FAILED
+        try:
+            with get_session() as session:
+                subtask = session.get(AnalysisTask, subtask_id)
+                if subtask:
+                    subtask.status = AnalysisStatus.FAILED
+                    subtask.completed_at = datetime.now(timezone.utc)
+                    subtask.error_message = str(e)
+                    session.commit()
+        except Exception:
+            pass
+        raise
+
+@celery.task(bind=True, name='app.tasks.run_dynamic_analyzer_subtask', time_limit=900, soft_time_limit=840)
+def run_dynamic_analyzer_subtask(self, subtask_id: int, model_slug: str, app_number: int, tool_names: List[str]) -> Dict:
+    """Execute dynamic-analyzer subtask with 15-minute timeout."""
+    from app.extensions import db, get_session
+    from app.models import AnalysisTask
+    from app.constants import AnalysisStatus
+    
+    try:
+        # Mark subtask as RUNNING
+        with get_session() as session:
+            subtask = session.get(AnalysisTask, subtask_id)
+            if subtask:
+                subtask.status = AnalysisStatus.RUNNING
+                subtask.started_at = datetime.now(timezone.utc)
+                session.commit()
+        
+        # Run analysis with persistence enabled
+        result = _run_engine('dynamic', model_slug, app_number, tools=tool_names, persist=True)
+        
+        # Mark subtask as COMPLETED
+        with get_session() as session:
+            subtask = session.get(AnalysisTask, subtask_id)
+            if subtask:
+                subtask.status = AnalysisStatus.COMPLETED
+                subtask.completed_at = datetime.now(timezone.utc)
+                subtask.progress_percentage = 100.0
+                if subtask.started_at:
+                    subtask.actual_duration = (subtask.completed_at - subtask.started_at).total_seconds()
+                # Store result summary
+                subtask.set_result_summary(result)
+                session.commit()
+        
+        return {'status': 'completed', 'subtask_id': subtask_id, 'service': 'dynamic-analyzer', 'result': result}
+    
+    except Exception as e:
+        # Mark subtask as FAILED
+        try:
+            with get_session() as session:
+                subtask = session.get(AnalysisTask, subtask_id)
+                if subtask:
+                    subtask.status = AnalysisStatus.FAILED
+                    subtask.completed_at = datetime.now(timezone.utc)
+                    subtask.error_message = str(e)
+                    session.commit()
+        except Exception:
+            pass
+        raise
+
+@celery.task(bind=True, name='app.tasks.run_performance_tester_subtask', time_limit=900, soft_time_limit=840)
+def run_performance_tester_subtask(self, subtask_id: int, model_slug: str, app_number: int, tool_names: List[str]) -> Dict:
+    """Execute performance-tester subtask with 15-minute timeout."""
+    from app.extensions import db, get_session
+    from app.models import AnalysisTask
+    from app.constants import AnalysisStatus
+    
+    try:
+        # Mark subtask as RUNNING
+        with get_session() as session:
+            subtask = session.get(AnalysisTask, subtask_id)
+            if subtask:
+                subtask.status = AnalysisStatus.RUNNING
+                subtask.started_at = datetime.now(timezone.utc)
+                session.commit()
+        
+        # Run analysis with persistence enabled
+        result = _run_engine('performance', model_slug, app_number, tools=tool_names, persist=True)
+        
+        # Mark subtask as COMPLETED
+        with get_session() as session:
+            subtask = session.get(AnalysisTask, subtask_id)
+            if subtask:
+                subtask.status = AnalysisStatus.COMPLETED
+                subtask.completed_at = datetime.now(timezone.utc)
+                subtask.progress_percentage = 100.0
+                if subtask.started_at:
+                    subtask.actual_duration = (subtask.completed_at - subtask.started_at).total_seconds()
+                # Store result summary
+                subtask.set_result_summary(result)
+                session.commit()
+        
+        return {'status': 'completed', 'subtask_id': subtask_id, 'service': 'performance-tester', 'result': result}
+    
+    except Exception as e:
+        # Mark subtask as FAILED
+        try:
+            with get_session() as session:
+                subtask = session.get(AnalysisTask, subtask_id)
+                if subtask:
+                    subtask.status = AnalysisStatus.FAILED
+                    subtask.completed_at = datetime.now(timezone.utc)
+                    subtask.error_message = str(e)
+                    session.commit()
+        except Exception:
+            pass
+        raise
+
+@celery.task(bind=True, name='app.tasks.run_ai_analyzer_subtask', time_limit=900, soft_time_limit=840)
+def run_ai_analyzer_subtask(self, subtask_id: int, model_slug: str, app_number: int, tool_names: List[str]) -> Dict:
+    """Execute ai-analyzer subtask with 15-minute timeout."""
+    from app.extensions import db, get_session
+    from app.models import AnalysisTask
+    from app.constants import AnalysisStatus
+    
+    try:
+        # Mark subtask as RUNNING
+        with get_session() as session:
+            subtask = session.get(AnalysisTask, subtask_id)
+            if subtask:
+                subtask.status = AnalysisStatus.RUNNING
+                subtask.started_at = datetime.now(timezone.utc)
+                session.commit()
+        
+        # Run analysis with persistence enabled
+        result = _run_engine('ai', model_slug, app_number, tools=tool_names, persist=True)
+        
+        # Mark subtask as COMPLETED
+        with get_session() as session:
+            subtask = session.get(AnalysisTask, subtask_id)
+            if subtask:
+                subtask.status = AnalysisStatus.COMPLETED
+                subtask.completed_at = datetime.now(timezone.utc)
+                subtask.progress_percentage = 100.0
+                if subtask.started_at:
+                    subtask.actual_duration = (subtask.completed_at - subtask.started_at).total_seconds()
+                # Store result summary
+                subtask.set_result_summary(result)
+                session.commit()
+        
+        return {'status': 'completed', 'subtask_id': subtask_id, 'service': 'ai-analyzer', 'result': result}
+    
+    except Exception as e:
+        # Mark subtask as FAILED
+        try:
+            with get_session() as session:
+                subtask = session.get(AnalysisTask, subtask_id)
+                if subtask:
+                    subtask.status = AnalysisStatus.FAILED
+                    subtask.completed_at = datetime.now(timezone.utc)
+                    subtask.error_message = str(e)
+                    session.commit()
+        except Exception:
+            pass
+        raise
+
+@celery.task(bind=True, name='app.tasks.aggregate_subtask_results')
+def aggregate_subtask_results(self, subtask_results: List[Dict], main_task_id: str) -> Dict:
+    """Aggregate results from parallel subtasks into unified payload."""
+    from app.extensions import db, get_session
+    from app.models import AnalysisTask
+    from app.constants import AnalysisStatus
+    from app.services import analysis_result_store
+    
+    try:
+        # Collect all results
+        all_results = {}
+        combined_tools = {}
+        all_findings = []
+        
+        for subtask_result in subtask_results:
+            if subtask_result.get('status') == 'completed':
+                service = subtask_result.get('service')
+                result = subtask_result.get('result', {})
+                
+                all_results[service] = result
+                
+                # Extract tool results
+                if isinstance(result, dict):
+                    tool_results = result.get('tool_results', {})
+                    combined_tools.update(tool_results)
+                    
+                    # Extract findings
+                    findings = result.get('findings', [])
+                    if isinstance(findings, list):
+                        all_findings.extend(findings)
+        
+        # Build unified payload
+        unified_payload = {
+            'task': {'task_id': main_task_id},
+            'summary': {
+                'total_findings': len(all_findings),
+                'services_executed': len(all_results),
+                'tools_executed': len(combined_tools),
+                'status': 'completed'
+            },
+            'services': all_results,
+            'tools': combined_tools,
+            'findings': all_findings,
+            'metadata': {
+                'unified_analysis': True,
+                'generated_at': datetime.now(timezone.utc).isoformat()
+            }
+        }
+        
+        # Persist unified results to database
+        with get_session() as session:
+            main_task = session.query(AnalysisTask).filter_by(task_id=main_task_id).first()
+            if main_task:
+                main_task.status = AnalysisStatus.COMPLETED
+                main_task.completed_at = datetime.now(timezone.utc)
+                main_task.progress_percentage = 100.0
+                if main_task.started_at:
+                    main_task.actual_duration = (main_task.completed_at - main_task.started_at).total_seconds()
+                main_task.set_result_summary(unified_payload)
+                session.commit()
+        
+        # Persist to analysis result store
+        try:
+            analysis_result_store.persist_analysis_payload_by_task_id(main_task_id, unified_payload)
+        except Exception as e:
+            logger.warning(f"Failed to persist unified results: {e}")
+        
+        return unified_payload
+    
+    except Exception as e:
+        logger.error(f"Failed to aggregate subtask results: {e}")
+        # Mark main task as failed
+        try:
+            with get_session() as session:
+                main_task = session.query(AnalysisTask).filter_by(task_id=main_task_id).first()
+                if main_task:
+                    main_task.status = AnalysisStatus.FAILED
+                    main_task.completed_at = datetime.now(timezone.utc)
+                    main_task.error_message = str(e)
+                    session.commit()
+        except Exception:
+            pass
+        raise
 
 @celery.task(bind=True, name='app.tasks.batch_analysis_task')
 def batch_analysis_task(self, models: List[str], apps: List[int],

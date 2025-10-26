@@ -1025,31 +1025,49 @@ class AnalysisExecutor:
                     'stderr': result.stderr
                 }
             
-            # Parse JSON output
+            # Parse JSON output (with defensive recovery for noisy stdout)
             try:
-                output = json.loads(result.stdout)
+                parsed_stdout = json.loads(result.stdout)
                 logger.info("Analyzer subprocess completed successfully (type=%s tools=%s)", analysis_type, kwargs.get('tools'))
-                
-                # Transform analyzer output into task execution service format
-                transformed_output = self._transform_analyzer_output_to_task_format(output, kwargs.get('tools', []))
-                if analysis_type == 'ai':
-                    try:
-                        logger.debug(
-                            "AI transformed output keys=%s tool_results=%s", 
-                            list(transformed_output.keys()), 
-                            list(transformed_output.get('tool_results', {}).keys())
-                        )
-                    except Exception:
-                        pass
-                return transformed_output
             except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse analyzer output as JSON: {e}")
-                return {
-                    'status': 'error',
-                    'error': f"Failed to parse JSON output: {e}",
-                    'stdout': result.stdout,
-                    'stderr': result.stderr
-                }
+                trimmed = (result.stdout or '').lstrip()
+                fallback_output = None
+                if trimmed:
+                    brace_idx = trimmed.find('{')
+                    bracket_idx = trimmed.find('[')
+                    candidates = [idx for idx in (brace_idx, bracket_idx) if idx != -1]
+                    if candidates:
+                        start = min(candidates)
+                        try:
+                            fallback_output = json.loads(trimmed[start:])
+                            logger.warning(
+                                "Recovered analyzer JSON by trimming %s leading chars (type=%s)",
+                                start, analysis_type
+                            )
+                        except json.JSONDecodeError:
+                            fallback_output = None
+                if fallback_output is None:
+                    logger.error(f"Failed to parse analyzer output as JSON: {e}")
+                    return {
+                        'status': 'error',
+                        'error': f"Failed to parse JSON output: {e}",
+                        'stdout': result.stdout,
+                        'stderr': result.stderr
+                    }
+                parsed_stdout = fallback_output
+
+            # Transform analyzer output into task execution service format
+            transformed_output = self._transform_analyzer_output_to_task_format(parsed_stdout, kwargs.get('tools', []))
+            if analysis_type == 'ai':
+                try:
+                    logger.debug(
+                        "AI transformed output keys=%s tool_results=%s", 
+                        list(transformed_output.keys()), 
+                        list(transformed_output.get('tool_results', {}).keys())
+                    )
+                except Exception:
+                    pass
+            return transformed_output
                 
         except subprocess.TimeoutExpired:
             logger.error("Analyzer subprocess timed out")
