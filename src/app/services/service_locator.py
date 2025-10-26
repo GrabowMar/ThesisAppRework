@@ -47,6 +47,11 @@ class ServiceLocator:
             get_generation_service = None  # type: ignore
 
         try:
+            from .health_service import HealthService
+        except ImportError:
+            HealthService = None
+
+        try:
             from .docker_manager import DockerManager
         except ImportError:
             DockerManager = None
@@ -78,6 +83,8 @@ class ServiceLocator:
             cls.register('analysis_inspection_service', AnalysisInspectionService())
         if ResultsManagementService:
             cls.register('results_management_service', ResultsManagementService())
+        if HealthService:
+            cls.register('health_service', HealthService())
 
         # Best-effort: ensure PortConfiguration is populated from misc/port_config.json
         # Only done outside tests to avoid slowing the suite.
@@ -134,6 +141,11 @@ class ServiceLocator:
     def get_analysis_inspection_service(cls):
         """Get the analysis inspection service."""
         return cls.get('analysis_inspection_service')
+
+    @classmethod
+    def get_health_service(cls):
+        """Get the health service."""
+        return cls.get('health_service')
     
     @classmethod
     def clear(cls):

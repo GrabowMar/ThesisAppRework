@@ -35,7 +35,10 @@ param(
     [string]$Logs = "all",
     
     [Parameter(HelpMessage = "Skip automatic container restart (containers will be restarted by default)")]
-    [switch]$NoRestart
+    [switch]$NoRestart,
+
+    [Parameter(HelpMessage = "Force rebuild of analyzer containers")]
+    [switch]$Rebuild
 )
 
 # Script configuration
@@ -189,6 +192,7 @@ function Start-FlaskApp {
     $env:HOST = $FlaskHost
     $env:PORT = $Port
     $env:DEBUG = if ($DebugMode) { "true" } else { "false" }
+    $env:REDIS_URL = "redis://localhost:6379/0"
     
     # Ensure UTF-8 output for Python to avoid UnicodeEncodeError on Windows consoles
     # PYTHONUTF8 forces UTF-8 mode; PYTHONIOENCODING overrides stdio encoding explicitly.
@@ -332,6 +336,22 @@ function Start-AnalyzerServices {
     Push-Location $ANALYZER_DIR
     
     try {
+        # Rebuild if requested
+        if ($Rebuild) {
+            Write-Header "Rebuilding Analyzer Containers"
+            Write-Status "Stopping and removing existing containers and images..." "Yellow"
+            docker-compose down --rmi all --volumes 2>&1 | Out-File -FilePath $ANALYZER_LOG -Append
+            
+            Write-Status "Building new containers from scratch..." "Cyan"
+            docker-compose build --no-cache 2>&1 | Out-File -FilePath $ANALYZER_LOG -Append
+            
+            if ($LASTEXITCODE -ne 0) {
+                Write-Error "Failed to build analyzer containers. Check logs for details."
+                return $false
+            }
+            Write-Success "Container rebuild complete."
+        }
+
         # Check if analyzer services are already running
         $existingServices = docker-compose ps --services --filter status=running 2>$null
         $shouldRestart = $false
@@ -580,12 +600,14 @@ function Show-Help {
     Write-Host "  -Background  Start in background" -ForegroundColor White
     Write-Host "  -NoAnalyzer  Skip analyzer services" -ForegroundColor White
     Write-Host "  -NoRestart   Skip automatic container restart (containers restart by default)" -ForegroundColor White
+    Write-Host "  -Rebuild     Force rebuild of analyzer containers" -ForegroundColor White
     Write-Host "  -VerboseOutput Verbose output" -ForegroundColor White
     Write-Host "  -Logs        Which logs to show with Mode=logs: all, flask, celery, analyzer" -ForegroundColor White
     Write-Host ""
     
     Write-Host "EXAMPLES:" -ForegroundColor Cyan
     Write-Host "  .\start.ps1 start                    # Start full stack (containers auto-restart)" -ForegroundColor Gray
+    Write-Host "  .\start.ps1 start -Rebuild           # Rebuild all containers and start" -ForegroundColor Gray
     Write-Host "  .\start.ps1 start -NoRestart         # Start without restarting containers" -ForegroundColor Gray
     Write-Host "  .\start.ps1 flask-only -Debug       # Start Flask in debug mode" -ForegroundColor Gray
     Write-Host "  .\start.ps1 start -Background       # Start all in background" -ForegroundColor Gray

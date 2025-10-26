@@ -451,85 +451,33 @@ def create_app(config_name: str = 'default') -> Flask:
     @app.route('/health')
     def health_check():
         """Application health check endpoint."""
-        try:
-            # Check database connection
-            db.session.execute(text('SELECT 1'))
-            db_status = 'healthy'
-        except Exception:
-            db_status = 'unhealthy'
+        from app.services.service_locator import ServiceLocator
+        health_service = ServiceLocator.get_health_service()
         
-        # Check Celery connection (soft requirement in tests)
-        try:
-            if app.config.get('TESTING', False):
-                # During tests, skip Celery broker calls to avoid warnings/noise
-                celery_status = 'unavailable'
-            else:
-                components = get_components()
-                celery_instance = components.celery if components else None
-                if celery_instance:
-                    import warnings
-                    try:
-                        # Filter duplicate nodename warnings that can occur if multiple nodes share the same name
-                        from celery.app.control import DuplicateNodenameWarning  # type: ignore
-                    except Exception:
-                        DuplicateNodenameWarning = None  # type: ignore
+        if not health_service:
+            return {
+                "status": "unhealthy",
+                "message": "HealthService not available"
+            }, 500
 
-                    try:
-                        with warnings.catch_warnings():
-                            if DuplicateNodenameWarning:
-                                warnings.simplefilter("ignore", DuplicateNodenameWarning)  # type: ignore
-                            else:
-                                warnings.simplefilter("ignore")
-                            # A lightweight reachability check: any ping reply implies broker/worker reachable
-                            ping_result = celery_instance.control.inspect().ping()
-                        celery_status = 'healthy' if ping_result else 'unavailable'
-                    except Exception:
-                        celery_status = 'unavailable'
-                else:
-                    celery_status = 'unavailable'
-        except Exception:
-            celery_status = 'unavailable'
+        health_status = health_service.check_all()
         
-        # Check analyzer services
-        try:
-            components = get_components()
-            analyzer_integration = components.analyzer_integration if components else None
-            if analyzer_integration and hasattr(analyzer_integration, 'health_check'):
-                analyzer_health = analyzer_integration.health_check()
-                analyzer_status = analyzer_health.get('status', 'available') or 'available'
-            else:
-                analyzer_status = 'unavailable'
-        except Exception:
-            analyzer_status = 'unavailable'
+        # Determine overall status
+        is_healthy = all(
+            component["status"] == "healthy"
+            for component in health_status.values()
+        )
         
-        # Overall status policy:
-        # - Database must be healthy.
-        # - Optional components (celery, analyzer) may be 'unavailable' without forcing degraded.
-        core_healthy = (db_status == 'healthy')
-        # Optional components only degrade if explicitly 'unhealthy'
-        optional_problem = any(s == 'unhealthy' for s in [celery_status, analyzer_status])
-        if core_healthy and not optional_problem:
-            overall_status = 'healthy'
-        else:
-            overall_status = 'degraded'
+        overall_status = "healthy" if is_healthy else "degraded"
         
-        # Get timestamp from task manager
-        try:
-            components = get_components()
-            task_manager = components.task_manager if components else None
-            timestamp = task_manager.get_current_time().isoformat() if task_manager and hasattr(task_manager, 'get_current_time') else None
-        except Exception:
-            from datetime import datetime, timezone
-            timestamp = datetime.now(timezone.utc).isoformat()
-        
+        # If database is down, the whole system is unhealthy
+        if health_status.get("database", {}).get("status") != "healthy":
+            overall_status = "unhealthy"
+
         return {
             'status': overall_status,
-            'components': {
-                'database': db_status,
-                'celery': celery_status,
-                'analyzer': analyzer_status
-            },
-            'timestamp': timestamp
+            'components': health_status,
+            'timestamp': datetime.now(timezone.utc).isoformat()
         }
     
     logger.info(f"Flask application created successfully with config: {config_name}")

@@ -10,7 +10,7 @@ from app.utils.logging_config import get_logger
 import uuid
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
-from sqlalchemy import desc, asc, delete, text
+from sqlalchemy import desc, asc, delete
 from ..extensions import db
 from ..models import AnalysisTask, BatchAnalysis, AnalyzerConfiguration, AnalysisResult
 from ..constants import AnalysisStatus, AnalysisType, JobPriority as Priority
@@ -418,12 +418,6 @@ class AnalysisTaskService:
 
         # Remove dependent records first to avoid foreign key violations
         db.session.execute(delete(AnalysisResult).where(AnalysisResult.task_id == task_id))
-
-        # Legacy tables (analysis_jobs, etc.) are best-effort cleanup; ignore errors from stale schemas
-        try:
-            db.session.execute(text("DELETE FROM analysis_jobs WHERE task_id = :task_id"), {"task_id": task_id})
-        except Exception as exc:
-            logger.debug("Skipping analysis_jobs cleanup for %s due to %s", task_id, exc)
 
         result = db.session.execute(delete(AnalysisTask).where(AnalysisTask.task_id == task_id))
         removed = result.rowcount > 0

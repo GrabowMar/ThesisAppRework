@@ -11,8 +11,9 @@ Models include:
 - SecurityAnalysis: Security analysis results
 - PerformanceTest: Performance testing results
 - BatchAnalysis: Batch processing records
-- AnalysisConfig: Analyzer configuration settings
-- ConfigPreset: Predefined configuration presets
+- AnalyzerConfiguration: Analyzer runtime configuration profiles
+- AnalysisTask: Individual analysis tasks with lifecycle tracking
+- AnalysisResult: Stored findings from analyzer runs
 """
 
 from __future__ import annotations
@@ -24,10 +25,6 @@ from ..constants import AnalysisStatus, JobStatus, ContainerState, AnalysisType,
 from ..extensions import db
 
 # Import all models from their new locations to make them available under the app.models namespace
-from .tool_registry import AnalysisTool, ToolConfiguration, AnalysisProfile, CustomAnalysisRequest
-from .template import ConfigTemplate
-from .execution import ConfigExecution, AnalysisJob
-from .config_models import AnalysisConfig, ConfigPreset
 from .analysis_models import AnalyzerConfiguration, AnalysisTask, AnalysisResult
 
 # Import other models that were already in __init__.py or are fundamental
@@ -37,10 +34,7 @@ from .container import ContainerizedTest
 from .cache import OpenRouterModelCache, ExternalModelInfoCache
 from .batch import BatchAnalysis
 from .process import ProcessTracking
-from .results_cache import (
-    AnalysisResultsCache, SecurityFindingCache, PerformanceMetricCache, 
-    QualityIssueCache
-)
+from .results_cache import AnalysisResultsCache
 from .simple_tool_results import ToolResult, ToolSummary
 from .user import User
 
@@ -54,22 +48,16 @@ __all__ = [
     # DB instance
     'db',
 
-    # Models from new files
-    'AnalysisConfig', 'ConfigPreset',
+    # Models from current schema
     'AnalyzerConfiguration', 'AnalysisTask', 'AnalysisResult',
 
-    # Models from existing structure
-    'AnalysisTool', 'ToolConfiguration', 'AnalysisProfile', 'CustomAnalysisRequest',
-    'ConfigTemplate',
-    'ConfigExecution', 'AnalysisJob',
     'ModelCapability', 'PortConfiguration', 'GeneratedApplication', 'GeneratedCodeResult',
     'SecurityAnalysis', 'PerformanceTest', 'ZAPAnalysis', 'OpenRouterAnalysis',
     'ContainerizedTest',
     'OpenRouterModelCache', 'ExternalModelInfoCache',
     'BatchAnalysis',
     'ProcessTracking',
-    'AnalysisResultsCache', 'SecurityFindingCache', 'PerformanceMetricCache', 
-    'QualityIssueCache',
+    'AnalysisResultsCache',
     'ToolResult', 'ToolSummary',
     'User',
 
