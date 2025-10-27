@@ -262,6 +262,17 @@ class TaskExecutionService:
                                 merged_metadata = existing_metadata.copy()
                                 merged_metadata.update(result['payload'])
                                 task_db.set_metadata(merged_metadata)
+                                
+                                # Write result files to disk (standardized persistence)
+                                from app.services.result_file_writer import write_task_result_files
+                                try:
+                                    written_path = write_task_result_files(task_db, result['payload'])
+                                    if written_path:
+                                        logger.info(f"Wrote result files to disk for task {task_db.task_id}: {written_path}")
+                                    else:
+                                        logger.warning(f"Result file write returned None for task {task_db.task_id} - check logs for details")
+                                except Exception as write_err:
+                                    logger.warning(f"Failed to write result files to disk for task {task_db.task_id}: {write_err}")
                             except Exception as e:
                                 logger.warning("Failed to store analysis results for task %s: %s", task_db.task_id, e)
                         

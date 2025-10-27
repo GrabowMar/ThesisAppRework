@@ -1289,7 +1289,7 @@ def aggregate_subtask_results(self, subtask_results: List[Dict], main_task_id: s
                 main_task.set_result_summary(unified_payload)
                 session.commit()
         
-        # Persist to analysis result store
+        # Persist to analysis result store (includes disk file writes)
         try:
             analysis_result_store.persist_analysis_payload_by_task_id(main_task_id, unified_payload)
         except Exception as e:

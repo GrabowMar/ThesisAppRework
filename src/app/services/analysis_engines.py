@@ -84,6 +84,8 @@ class BaseAnalyzerEngine:
             
             # Determine analysis type based on engine
             tags = getattr(self, '_analysis_tags', set())
+            # Enable persistence by default unless explicitly disabled
+            kwargs.setdefault('persist', True)
             if tags:
                 result = self.orchestrator.run_tagged_analysis(
                     model_slug=model_slug,
@@ -291,6 +293,7 @@ class AIAnalyzerEngine(BaseAnalyzerEngine):
             if persist:
                 if task_id:
                     try:
+                        # persist_analysis_payload_by_task_id now also writes disk files
                         stored = analysis_result_store.persist_analysis_payload_by_task_id(task_id, payload)
                         if not stored:
                             logger.debug(

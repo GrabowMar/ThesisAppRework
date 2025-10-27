@@ -650,13 +650,25 @@ class AnalyzerManager:
                         first_frame = frame
 
                     ftype = str(frame.get('type','')).lower()
+                    has_analysis = isinstance(frame.get('analysis'), dict)
+                    logger.debug(
+                        f"WebSocket frame from {service_name}: type={ftype} "
+                        f"has_analysis={has_analysis} status={frame.get('status')} "
+                        f"keys={list(frame.keys())[:5]}"
+                    )
+                    
                     # Heuristic: treat *_analysis_result or *_analysis (with status) as terminal
                     if ('analysis_result' in ftype) or (ftype.endswith('_analysis') and 'analysis' in frame):
                         terminal_frame = frame
                         # Break only if it already contains nested 'analysis' key to avoid prematurely
                         # returning a progress-like message that happens to match pattern.
-                        if isinstance(frame.get('analysis'), dict):
+                        if has_analysis:
+                            logger.debug(f"Found terminal frame with analysis data from {service_name}")
                             break
+                
+                # Log what we're returning
+                result_type = 'terminal' if terminal_frame else ('first' if first_frame else 'no_response')
+                logger.debug(f"Returning {result_type} frame from {service_name}")
                 return terminal_frame or first_frame or {'status': 'error', 'error': 'no_response'}
                 
         except asyncio.TimeoutError:

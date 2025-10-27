@@ -423,6 +423,150 @@ def scan_app_files(model_slug, app_number):
     # TODO: Move implementation from api.py
     return api_error("Scan app files endpoint not yet migrated", 501)
 
+@applications_bp.route('/app/<model_slug>/<int:app_number>/analyze', methods=['POST'])
+def analyze_application(model_slug, app_number):
+    """
+    Trigger analysis for a specific application.
+    
+    Endpoint: POST /api/app/{model_slug}/{app_number}/analyze
+    
+    Request body:
+    {
+        "analysis_type": "security",  # security, performance, dynamic, ai, unified
+        "tools": ["bandit", "safety"],  # Optional: specific tools
+        "priority": "normal"  # Optional: normal, high, low
+    }
+    
+    Returns:
+    {
+        "success": true,
+        "task_id": "abc123",
+        "message": "Analysis started",
+        "data": {...}
+    }
+    """
+    try:
+        # Verify application exists
+        from app.models import GeneratedApplication
+        app = GeneratedApplication.query.filter_by(
+            model_slug=model_slug,
+            app_number=app_number
+        ).first()
+        
+        if not app:
+            return api_error(f"Application not found: {model_slug}/app{app_number}", 404)
+        
+        # Get request data
+        data = request.get_json() or {}
+        analysis_type = data.get('analysis_type', 'security')
+        tools = data.get('tools', [])
+        priority = data.get('priority', 'normal')
+        
+        # Import task service
+        from app.services.task_service import AnalysisTaskService
+        from app.engines.container_tool_registry import get_container_tool_registry
+        
+        # Get tool registry
+        registry = get_container_tool_registry()
+        all_tools = registry.get_all_tools()
+        
+        # Build tool configuration if tools specified
+        if tools:
+            tool_ids = []
+            tools_by_service = {}
+            tool_names = []
+            
+            # Build lookup
+            name_to_idx = {tool_name.lower(): idx + 1 for idx, tool_name in enumerate(all_tools.keys())}
+            
+            for tool_name in tools:
+                tool_name_lower = tool_name.lower()
+                if tool_name_lower in name_to_idx:
+                    tool_id = name_to_idx[tool_name_lower]
+                    tool_ids.append(tool_id)
+                    
+                    # Find tool object
+                    tool_obj = None
+                    for t_name, t_obj in all_tools.items():
+                        if t_name.lower() == tool_name_lower:
+                            tool_obj = t_obj
+                            break
+                    
+                    if tool_obj and tool_obj.available:
+                        service = tool_obj.container.value
+                        tools_by_service.setdefault(service, []).append(tool_id)
+                        tool_names.append(tool_obj.name)
+            
+            if not tools_by_service:
+                return api_error("No valid tools found", 400)
+            
+            # Multi-service or single-service
+            multiple_services = len(tools_by_service) > 1
+            
+            if multiple_services:
+                task = AnalysisTaskService.create_main_task_with_subtasks(
+                    model_slug=model_slug,
+                    app_number=app_number,
+                    analysis_type='unified',
+                    tools_by_service=tools_by_service,
+                    priority=priority,
+                    custom_options={
+                        'selected_tools': tool_ids,
+                        'selected_tool_names': tool_names,
+                        'tools_by_service': tools_by_service,
+                        'unified_analysis': True,
+                        'source': 'api'
+                    },
+                    task_name=f"api:{model_slug}:{app_number}"
+                )
+            else:
+                service_to_engine = {
+                    'static-analyzer': 'security',
+                    'dynamic-analyzer': 'dynamic',
+                    'performance-tester': 'performance',
+                    'ai-analyzer': 'ai',
+                }
+                only_service = next(iter(tools_by_service.keys()))
+                engine_name = service_to_engine.get(only_service, analysis_type)
+                
+                task = AnalysisTaskService.create_task(
+                    model_slug=model_slug,
+                    app_number=app_number,
+                    analysis_type=engine_name,
+                    priority=priority,
+                    custom_options={
+                        'selected_tools': tool_ids,
+                        'selected_tool_names': tool_names,
+                        'tools_by_service': tools_by_service,
+                        'unified_analysis': False,
+                        'source': 'api'
+                    }
+                )
+        else:
+            # No tools specified - create simple task
+            task = AnalysisTaskService.create_task(
+                model_slug=model_slug,
+                app_number=app_number,
+                analysis_type=analysis_type,
+                priority=priority,
+                custom_options={'source': 'api'}
+            )
+        
+        return api_success({
+            'task_id': task.task_id,
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'analysis_type': task.analysis_type,
+            'status': task.status.value if hasattr(task.status, 'value') else str(task.status),
+            'created_at': task.created_at.isoformat() if task.created_at else None,
+            'tools_count': len(tools) if tools else 'default'
+        }, message='Analysis started successfully')
+        
+    except Exception as e:
+        from flask import current_app
+        current_app.logger.exception(f"Error starting analysis: {e}")
+        return api_error(f"Failed to start analysis: {e}", 500)
+
 @applications_bp.route('/apps/bulk/list', methods=['GET'])
 def list_bulk_apps():
     """List applications for bulk operations."""

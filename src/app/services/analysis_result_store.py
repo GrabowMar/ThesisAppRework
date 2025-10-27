@@ -234,6 +234,17 @@ def persist_analysis_payload_by_task_id(task_id: str, payload: Dict[str, Any]) -
         return False
 
     store_analysis_payload(task, payload)
+    
+    # Also write result files to disk for UI compatibility
+    try:
+        from .result_file_writer import write_task_result_files
+        write_task_result_files(task, payload)
+    except Exception as exc:
+        # Log but don't fail - database persistence is primary
+        from app.utils.logging_config import get_logger
+        logger = get_logger(__name__)
+        logger.warning(f"Failed to write disk files for task {task_id}: {exc}")
+    
     return True
 
 
