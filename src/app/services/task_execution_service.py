@@ -29,7 +29,7 @@ from __future__ import annotations
 import threading
 import time
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
@@ -175,9 +175,8 @@ class TaskExecutionService:
                         if not task_db or task_db.status != AnalysisStatus.PENDING:
                             continue
                         task_db.status = AnalysisStatus.RUNNING
-                        # Use naive UTC timestamps for compatibility with existing
-                        # columns that may store naive datetimes (avoids aware/naive errors)
-                        task_db.started_at = datetime.utcnow()
+                        # Use timezone-aware UTC timestamps to prevent naive/aware mixing errors
+                        task_db.started_at = datetime.now(timezone.utc)
                         db.session.commit()
                         try:  # Emit start
                             from app.realtime.task_events import emit_task_event
@@ -232,7 +231,7 @@ class TaskExecutionService:
                                 error_payload = {
                                     'status': 'error',
                                     'error': result['error'],
-                                    'timestamp': datetime.utcnow().isoformat()
+                                    'timestamp': datetime.now(timezone.utc).isoformat()
                                 }
                                 task_db.set_result_summary(error_payload)
                                 task_db.error_message = result['error']
@@ -245,7 +244,7 @@ class TaskExecutionService:
                             error_payload = {
                                 'status': 'error',
                                 'error': str(e),
-                                'timestamp': datetime.utcnow().isoformat()
+                                'timestamp': datetime.now(timezone.utc).isoformat()
                             }
                             task_db.set_result_summary(error_payload)
                             task_db.error_message = str(e)
@@ -253,7 +252,7 @@ class TaskExecutionService:
                         # Set final status based on analysis result
                         task_db.status = AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED
                         task_db.progress_percentage = 100.0
-                        task_db.completed_at = datetime.utcnow()
+                        task_db.completed_at = datetime.now(timezone.utc)
                         
                         # Store analysis results if available (merge with existing metadata)
                         if result and result.get('payload'):
@@ -268,7 +267,10 @@ class TaskExecutionService:
                         
                         try:
                             if task_db.started_at and task_db.completed_at:
-                                task_db.actual_duration = (task_db.completed_at - task_db.started_at).total_seconds()
+                                # Ensure both timestamps are timezone-aware before subtraction
+                                start = task_db.started_at if task_db.started_at.tzinfo else task_db.started_at.replace(tzinfo=timezone.utc)
+                                end = task_db.completed_at if task_db.completed_at.tzinfo else task_db.completed_at.replace(tzinfo=timezone.utc)
+                                task_db.actual_duration = (end - start).total_seconds()
                         except Exception:  # pragma: no cover - defensive
                             task_db.actual_duration = None
                         db.session.commit()
@@ -686,7 +688,7 @@ class TaskExecutionService:
                 subtask = subtasks_by_service.get(service_name)
                 if subtask:
                     subtask.status = AnalysisStatus.RUNNING
-                    subtask.started_at = datetime.utcnow()
+                    subtask.started_at = datetime.now(timezone.utc)
                     db.session.commit()
                     logger.info(f"Marked subtask {subtask.task_id} as RUNNING")
                 
@@ -717,7 +719,7 @@ class TaskExecutionService:
                         # Mark subtask as completed
                         if subtask:
                             subtask.status = AnalysisStatus.COMPLETED
-                            subtask.completed_at = datetime.utcnow()
+                            subtask.completed_at = datetime.now(timezone.utc)
                             subtask.progress_percentage = 100.0
                             db.session.commit()
                             logger.info(f"Marked subtask {subtask.task_id} as COMPLETED")
@@ -758,7 +760,7 @@ class TaskExecutionService:
                         # Mark subtask as failed
                         if subtask:
                             subtask.status = AnalysisStatus.FAILED
-                            subtask.completed_at = datetime.utcnow()
+                            subtask.completed_at = datetime.now(timezone.utc)
                             subtask.error_message = service_result.error or 'Service execution failed'
                             db.session.commit()
                             logger.info(f"Marked subtask {subtask.task_id} as FAILED")
@@ -780,7 +782,7 @@ class TaskExecutionService:
                     # Mark subtask as failed
                     if subtask:
                         subtask.status = AnalysisStatus.FAILED
-                        subtask.completed_at = datetime.utcnow()
+                        subtask.completed_at = datetime.now(timezone.utc)
                         subtask.error_message = str(e)
                         db.session.commit()
                         logger.info(f"Marked subtask {subtask.task_id} as FAILED due to exception")
@@ -872,7 +874,7 @@ class TaskExecutionService:
                     'unified_analysis': True,
                     'orchestrator_version': '2.0.0',
                     'schema_version': '3.0',
-                    'generated_at': datetime.utcnow().isoformat() if 'datetime' in globals() else None,
+                    'generated_at': datetime.now(timezone.utc).isoformat() if 'datetime' in globals() else None,
                     'input': {
                         'requested_tools': combined_tools_requested,
                         'requested_services': requested_services,
@@ -980,7 +982,7 @@ class TaskExecutionService:
                 'unified_analysis': False,
                 'orchestrator_version': '2.0.0',
                 'schema_version': '3.0',
-                'generated_at': datetime.utcnow().isoformat() if 'datetime' in globals() else None,
+                'generated_at': datetime.now(timezone.utc).isoformat() if 'datetime' in globals() else None,
                 'input': {
                     'requested_tools': requested,
                     'requested_services': [svc_name],
@@ -1351,7 +1353,7 @@ class TaskExecutionService:
                     if not task_db or task_db.status != AnalysisStatus.PENDING:
                         continue
                     task_db.status = AnalysisStatus.RUNNING
-                    task_db.started_at = datetime.utcnow()
+                    task_db.started_at = datetime.now(timezone.utc)
                     db.session.commit()
 
                     # Execute real analysis instead of simulation
@@ -1366,7 +1368,7 @@ class TaskExecutionService:
                     # Set final status based on analysis result  
                     task_db.status = AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED
                     task_db.progress_percentage = 100.0
-                    task_db.completed_at = datetime.utcnow()
+                    task_db.completed_at = datetime.now(timezone.utc)
                     
                     # Store analysis results if available (merge with existing metadata)
                     if result and result.get('payload'):
@@ -1394,7 +1396,10 @@ class TaskExecutionService:
                     
                     try:
                         if task_db.started_at and task_db.completed_at:
-                            task_db.actual_duration = (task_db.completed_at - task_db.started_at).total_seconds()
+                            # Ensure both timestamps are timezone-aware before subtraction
+                            start = task_db.started_at if task_db.started_at.tzinfo else task_db.started_at.replace(tzinfo=timezone.utc)
+                            end = task_db.completed_at if task_db.completed_at.tzinfo else task_db.completed_at.replace(tzinfo=timezone.utc)
+                            task_db.actual_duration = (end - start).total_seconds()
                     except Exception:
                         task_db.actual_duration = None
                     db.session.commit()
@@ -1475,16 +1480,19 @@ class TaskExecutionService:
                             'findings': combined_findings,
                             'metadata': {
                                 'unified_analysis': True,
-                                'generated_at': datetime.utcnow().isoformat()
+                                'generated_at': datetime.now(timezone.utc).isoformat()
                             }
                         }
                         
                         # Update main task
                         main_task.status = AnalysisStatus.COMPLETED if not any_failed else AnalysisStatus.FAILED
-                        main_task.completed_at = datetime.utcnow()
+                        main_task.completed_at = datetime.now(timezone.utc)
                         main_task.progress_percentage = 100.0
                         if main_task.started_at:
-                            main_task.actual_duration = (main_task.completed_at - main_task.started_at).total_seconds()
+                            # Ensure both timestamps are timezone-aware before subtraction
+                            start = main_task.started_at if main_task.started_at.tzinfo else main_task.started_at.replace(tzinfo=timezone.utc)
+                            end = main_task.completed_at if main_task.completed_at.tzinfo else main_task.completed_at.replace(tzinfo=timezone.utc)
+                            main_task.actual_duration = (end - start).total_seconds()
                         main_task.set_result_summary(unified_payload)
                         
                         db.session.commit()

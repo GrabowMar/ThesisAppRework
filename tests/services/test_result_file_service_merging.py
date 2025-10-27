@@ -65,4 +65,3 @@ def test_load_result_merges_related_services(result_base_dir: Path) -> None:
     assert descriptor.total_findings == 3 + 5 + 7 + 11
     assert descriptor.tools_executed == 4
     assert descriptor.severity_breakdown.get("high") == 3 + 5 + 7 + 11
-*** End File

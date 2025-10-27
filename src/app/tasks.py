@@ -1062,8 +1062,8 @@ def run_static_analyzer_subtask(self, subtask_id: int, model_slug: str, app_numb
                 subtask.status = AnalysisStatus.COMPLETED
                 subtask.completed_at = datetime.now(timezone.utc)
                 subtask.progress_percentage = 100.0
-                if subtask.started_at:
-                    subtask.actual_duration = (subtask.completed_at - subtask.started_at).total_seconds()
+                if subtask.started_at and subtask.completed_at:
+                    subtask.actual_duration = _seconds_between(subtask.completed_at, subtask.started_at)
                 # Store result summary
                 subtask.set_result_summary(result)
                 session.commit()
@@ -1110,8 +1110,8 @@ def run_dynamic_analyzer_subtask(self, subtask_id: int, model_slug: str, app_num
                 subtask.status = AnalysisStatus.COMPLETED
                 subtask.completed_at = datetime.now(timezone.utc)
                 subtask.progress_percentage = 100.0
-                if subtask.started_at:
-                    subtask.actual_duration = (subtask.completed_at - subtask.started_at).total_seconds()
+                if subtask.started_at and subtask.completed_at:
+                    subtask.actual_duration = _seconds_between(subtask.completed_at, subtask.started_at)
                 # Store result summary
                 subtask.set_result_summary(result)
                 session.commit()
@@ -1158,8 +1158,8 @@ def run_performance_tester_subtask(self, subtask_id: int, model_slug: str, app_n
                 subtask.status = AnalysisStatus.COMPLETED
                 subtask.completed_at = datetime.now(timezone.utc)
                 subtask.progress_percentage = 100.0
-                if subtask.started_at:
-                    subtask.actual_duration = (subtask.completed_at - subtask.started_at).total_seconds()
+                if subtask.started_at and subtask.completed_at:
+                    subtask.actual_duration = _seconds_between(subtask.completed_at, subtask.started_at)
                 # Store result summary
                 subtask.set_result_summary(result)
                 session.commit()
@@ -1206,8 +1206,8 @@ def run_ai_analyzer_subtask(self, subtask_id: int, model_slug: str, app_number: 
                 subtask.status = AnalysisStatus.COMPLETED
                 subtask.completed_at = datetime.now(timezone.utc)
                 subtask.progress_percentage = 100.0
-                if subtask.started_at:
-                    subtask.actual_duration = (subtask.completed_at - subtask.started_at).total_seconds()
+                if subtask.started_at and subtask.completed_at:
+                    subtask.actual_duration = _seconds_between(subtask.completed_at, subtask.started_at)
                 # Store result summary
                 subtask.set_result_summary(result)
                 session.commit()
@@ -1284,8 +1284,8 @@ def aggregate_subtask_results(self, subtask_results: List[Dict], main_task_id: s
                 main_task.status = AnalysisStatus.COMPLETED
                 main_task.completed_at = datetime.now(timezone.utc)
                 main_task.progress_percentage = 100.0
-                if main_task.started_at:
-                    main_task.actual_duration = (main_task.completed_at - main_task.started_at).total_seconds()
+                if main_task.started_at and main_task.completed_at:
+                    main_task.actual_duration = _seconds_between(main_task.completed_at, main_task.started_at)
                 main_task.set_result_summary(unified_payload)
                 session.commit()
         
