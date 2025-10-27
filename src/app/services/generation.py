@@ -559,8 +559,29 @@ class CodeGenerator:
         endpoint_text = self._format_api_endpoints(reqs)
 
         if config.component == 'backend':
-            if reqs and 'backend_requirements' in reqs:
-                req_list = '\n'.join([f"- {req}" for req in reqs['backend_requirements']])
+            # Prefer new structured requirements format
+            if reqs and ('functional_requirements' in reqs or 'backend_requirements' in reqs):
+                # Use functional requirements if available, otherwise fall back to backend_requirements
+                if 'functional_requirements' in reqs:
+                    functional_reqs = '\n'.join([f"- {req}" for req in reqs['functional_requirements']])
+                    requirements_section = f"""FUNCTIONAL REQUIREMENTS:
+{functional_reqs}"""
+                else:
+                    backend_reqs = '\n'.join([f"- {req}" for req in reqs['backend_requirements']])
+                    requirements_section = f"""BACKEND REQUIREMENTS:
+{backend_reqs}"""
+                
+                # Add control endpoints if available
+                control_endpoints_section = ""
+                if 'control_endpoints' in reqs:
+                    endpoint_lines = []
+                    for ep in reqs['control_endpoints']:
+                        endpoint_lines.append(f"- {ep['method']} {ep['path']} (returns {ep['expected_status']}): {ep.get('description', 'Control endpoint')}")
+                    control_endpoints_section = f"""
+
+REQUIRED CONTROL ENDPOINTS:
+{chr(10).join(endpoint_lines)}"""
+                
                 app_desc = reqs.get('description', 'web application')
                 app_name = reqs.get('name', 'Application')
 
@@ -569,8 +590,7 @@ class CodeGenerator:
 
 Description: {app_desc}
 
-BACKEND REQUIREMENTS:
-{req_list}
+{requirements_section}{control_endpoints_section}
 
 API ENDPOINTS:
 {endpoint_text}
@@ -582,6 +602,7 @@ IMPORTANT CONSTRAINTS:
 - Use SQLAlchemy for database models where needed
 - Include CORS configuration for frontend integration
 - Add proper logging and validation
+- Implement ALL control endpoints as specified
 - Keep code clean, well-commented, and production-ready
 
 Generate the complete Flask backend code:"""
@@ -600,8 +621,28 @@ Generate the Flask API code:"""
                 )
 
         else:  # frontend
-            if reqs and 'frontend_requirements' in reqs:
-                req_list = '\n'.join([f"- {req}" for req in reqs['frontend_requirements']])
+            # Prefer new structured requirements format
+            if reqs and ('functional_requirements' in reqs or 'stylistic_requirements' in reqs or 'frontend_requirements' in reqs):
+                requirements_lines = []
+                
+                # Add functional requirements if available
+                if 'functional_requirements' in reqs:
+                    requirements_lines.append("FUNCTIONAL REQUIREMENTS:")
+                    requirements_lines.extend([f"- {req}" for req in reqs['functional_requirements']])
+                
+                # Add stylistic requirements if available
+                if 'stylistic_requirements' in reqs:
+                    if requirements_lines:
+                        requirements_lines.append("")
+                    requirements_lines.append("STYLISTIC REQUIREMENTS:")
+                    requirements_lines.extend([f"- {req}" for req in reqs['stylistic_requirements']])
+                
+                # Fall back to frontend_requirements if new format not available
+                if not requirements_lines and 'frontend_requirements' in reqs:
+                    requirements_lines.append("FRONTEND REQUIREMENTS:")
+                    requirements_lines.extend([f"- {req}" for req in reqs['frontend_requirements']])
+                
+                req_list = '\n'.join(requirements_lines)
                 app_desc = reqs.get('description', 'web application')
                 app_name = reqs.get('name', 'Application')
 
@@ -610,7 +651,6 @@ Generate the Flask API code:"""
 
 Description: {app_desc}
 
-FRONTEND REQUIREMENTS:
 {req_list}
 
 API ENDPOINTS:

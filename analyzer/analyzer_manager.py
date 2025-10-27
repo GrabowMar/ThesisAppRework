@@ -353,11 +353,35 @@ class AnalyzerManager:
     def _resolve_app_ports(self, model_slug: str, app_number: int) -> Optional[Tuple[int, int]]:
         """Resolve backend & frontend ports for a model/app.
 
-        Searches cached port config list for matching (model_name, app_number).
-        Falls back to None if not found so caller can choose defaults.
+        PRIORITY ORDER (highest to lowest):
+        1. .env file in generated app directory (source of truth for running apps)
+        2. Database/JSON configuration (fallback for apps without .env)
+
+        Returns None if no configuration found so caller can choose defaults.
         """
         try:
-            # Try multiple model name variations to handle slug differences
+            # PRIORITY 1: Try reading from generated app's .env file FIRST (source of truth)
+            try:
+                root = Path(__file__).parent.parent  # project root
+                app_env_path = root / 'generated' / 'apps' / model_slug / f'app{app_number}' / '.env'
+                if app_env_path.exists():
+                    backend_port = None
+                    frontend_port = None
+                    with open(app_env_path, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            line = line.strip()
+                            if line.startswith('BACKEND_PORT='):
+                                backend_port = int(line.split('=', 1)[1].strip())
+                            elif line.startswith('FRONTEND_PORT='):
+                                frontend_port = int(line.split('=', 1)[1].strip())
+                    
+                    if backend_port and frontend_port:
+                        logger.info(f"Resolved ports from .env file for {model_slug} app {app_number}: backend={backend_port}, frontend={frontend_port}")
+                        return backend_port, frontend_port
+            except Exception as env_err:
+                logger.debug(f"Could not read .env file for {model_slug} app {app_number}: {env_err}")
+            
+            # PRIORITY 2: Fall back to database/JSON configuration
             model_variations = [
                 model_slug,  # exact match
                 model_slug.replace('_', '/'),  # filesystem underscore to JSON slash
@@ -373,8 +397,9 @@ class AnalyzerManager:
                         b = entry.get('backend_port')
                         f = entry.get('frontend_port')
                         if isinstance(b, int) and isinstance(f, int):
-                            logger.debug(f"Resolved ports for {model_slug} app {app_number}: backend={b}, frontend={f} (matched as {model_variant})")
+                            logger.debug(f"Resolved ports for {model_slug} app {app_number}: backend={b}, frontend={f} (matched as {model_variant} from database)")
                             return b, f
+            
             logger.warning(f"No port configuration found for {model_slug} app {app_number}")
         except Exception as e:
             logger.error(f"Error resolving ports for {model_slug} app {app_number}: {e}")

@@ -79,7 +79,7 @@ class StaticAnalyzer(BaseWSService):
 
     def _detect_available_tools(self) -> List[str]:
         tools: List[str] = []
-        for tool in ['bandit', 'pylint', 'mypy', 'eslint', 'stylelint', 'semgrep', 'snyk', 'safety', 'jshint', 'vulture', 'flake8']:
+        for tool in ['bandit', 'pylint', 'mypy', 'eslint', 'stylelint', 'semgrep', 'snyk', 'safety', 'vulture', 'flake8']:
             try:
                 result = subprocess.run([tool, '--version'], capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
@@ -229,7 +229,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             and mypy_config.get('enabled', True)
             and python_files
         ):
-            cmd = ['mypy', '--show-error-codes', '--no-error-summary', '--ignore-missing-imports']
+            cmd = ['mypy', '--output', 'json', '--show-error-codes', '--no-error-summary', '--ignore-missing-imports']
             max_files = mypy_config.get('max_files', 10)
             files_to_check = python_files[:max_files]
             cmd.extend([str(f) for f in files_to_check])
@@ -269,13 +269,20 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             and (selected_tools is None or 'safety' in selected_tools)
             and safety_config.get('enabled', True)
         ):
-            cmd = ['safety', 'scan', '--output', 'json']
             requirements_file = source_path / 'requirements.txt'
-            if requirements_file.exists():
-                cmd.extend(['--file', str(requirements_file)])
-
-            # Parser handles all output formatting
-            results['safety'] = await self._run_tool(cmd, 'safety', config=safety_config, success_exit_codes=[0, 1])
+            if not requirements_file.exists():
+                self.log.info("Skipping Safety - no requirements.txt found")
+                results['safety'] = {
+                    'tool': 'safety',
+                    'executed': False,
+                    'status': 'skipped',
+                    'message': 'No requirements.txt file found',
+                    'total_issues': 0
+                }
+            else:
+                cmd = ['safety', 'scan', '--output', 'json', '--file', str(requirements_file)]
+                # Parser handles all output formatting
+                results['safety'] = await self._run_tool(cmd, 'safety', config=safety_config, success_exit_codes=[0, 1])
 
         # Vulture dead code detection
         if (
@@ -288,7 +295,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             if vulture_config.get('min_confidence'):
                 cmd.extend(['--min-confidence', str(vulture_config['min_confidence'])])
 
-            vulture_result = await self._run_tool(cmd, 'vulture')
+            vulture_result = await self._run_tool(cmd, 'vulture', success_exit_codes=[0, 1])
 
             if vulture_result.get('status') == 'error':
                 results['vulture'] = vulture_result
@@ -330,10 +337,33 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             # Parser handles all output formatting
             results['flake8'] = await self._run_tool(cmd, 'flake8', config=flake8_config, success_exit_codes=[0, 1])
         
+        # Ruff - Fast Python linter (10-100x faster than pylint/flake8)
+        ruff_config = config.get('ruff', {}) if config else {}
+        if (
+            'ruff' in self.available_tools
+            and (selected_tools is None or 'ruff' in selected_tools)
+            and ruff_config.get('enabled', True)
+            and python_files
+        ):
+            cmd = ['ruff', 'check', '--output-format=json']
+            # Add config options
+            if ruff_config.get('select'):
+                cmd.extend(['--select', ','.join(ruff_config['select'])])
+            if ruff_config.get('ignore'):
+                cmd.extend(['--ignore', ','.join(ruff_config['ignore'])])
+            if ruff_config.get('fix', False):
+                cmd.append('--fix')
+            
+            cmd.append(str(source_path))
+            
+            # Ruff exit codes: 0=no issues, 1=issues found, 2=error
+            # Parser handles all output formatting
+            results['ruff'] = await self._run_tool(cmd, 'ruff', config=ruff_config, success_exit_codes=[0, 1])
+        
         # Summarize per-tool status for Python analyzers
         try:
             summary = {}
-            for name in ['bandit', 'pylint', 'semgrep', 'mypy', 'safety', 'vulture', 'flake8']:
+            for name in ['bandit', 'pylint', 'semgrep', 'mypy', 'safety', 'vulture', 'flake8', 'ruff']:
                 t = results.get(name)
                 if isinstance(t, dict):
                     try:
@@ -401,33 +431,6 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 self.log.error(f"ESLint analysis failed: {e}")
                 results['eslint'] = {'tool': 'eslint', 'executed': True, 'status': 'error', 'error': str(e)}
 
-        # JSHint JavaScript quality analysis
-        if (
-            'jshint' in self.available_tools
-            and (selected_tools is None or 'jshint' in selected_tools)
-            and jshint_config.get('enabled', True)
-            and js_files
-        ):
-            cmd = ['jshint', '--reporter', 'json']
-            max_files = jshint_config.get('max_files', 30)
-            files_to_check = js_files[:max_files]
-            cmd.extend([str(f) for f in files_to_check])
-
-            jshint_result = await self._run_tool(cmd, 'jshint', success_exit_codes=[0, 1, 2])
-
-            if jshint_result.get('status') == 'error':
-                results['jshint'] = jshint_result
-            else:
-                jshint_data = jshint_result.get('result', []) if isinstance(jshint_result, dict) else []
-                results['jshint'] = {
-                    'tool': 'jshint',
-                    'executed': True,
-                    'status': 'success' if jshint_data else 'no_issues',
-                    'results': jshint_data,
-                    'total_issues': len(jshint_data),
-                    'config_used': jshint_config
-                }
-        
         # Snyk Code vulnerability analysis
         if (
             'snyk' in self.available_tools

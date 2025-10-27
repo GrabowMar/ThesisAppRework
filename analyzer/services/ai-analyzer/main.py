@@ -151,7 +151,12 @@ class AIAnalyzer(BaseWSService):
     
     def _detect_available_tools(self) -> List[str]:
         """Detect available AI analysis tools."""
-        tools = ["requirements-scanner", "requirements-analyzer"]  # Core requirements analysis tools
+        tools = [
+            "requirements-scanner",      # Legacy: Full requirements analysis
+            "requirements-analyzer",     # Legacy: Alternative requirements analysis
+            "requirements-checker",      # NEW: Functional requirements + curl endpoint tests
+            "code-quality-analyzer"      # NEW: Stylistic requirements + code patterns
+        ]
         
         # Check GPT4All availability
         try:
@@ -443,6 +448,411 @@ Focus on whether the functionality described in the requirement is actually impl
         
         return result
     
+    async def check_requirements_with_curl(self, model_slug: str, app_number: int, backend_port: int, frontend_port: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        NEW TOOL: Check functional requirements with curl endpoint testing + Gemini Flash analysis.
+        
+        Analyzes:
+        1. Control endpoints (/health, /api/status) via curl
+        2. Functional requirements via Gemini Flash code analysis
+        
+        Scans only backend/ and frontend/ directories for efficiency.
+        """
+        try:
+            # Find application path
+            app_path = self._resolve_app_path(model_slug, app_number)
+            if not app_path or not app_path.exists():
+                return {
+                    'status': 'error',
+                    'error': f'Application path not found: {model_slug} app {app_number}',
+                    'tool_name': 'requirements-checker'
+                }
+            
+            self.log.info(f"Requirements checker for {model_slug} app {app_number}")
+            await self.send_progress('starting', f"Starting requirements checker for {model_slug} app {app_number}", analysis_id=analysis_id)
+            
+            # Load requirements template
+            template_id = config.get('template_id', 1) if config else 1
+            requirements_file = self._find_requirements_template(template_id)
+            if not requirements_file:
+                return {
+                    'status': 'error',
+                    'error': f'Requirements template {template_id} not found',
+                    'tool_name': 'requirements-checker'
+                }
+            
+            with open(requirements_file, 'r', encoding='utf-8') as f:
+                template_data = json.load(f)
+            
+            functional_requirements = template_data.get('functional_requirements', [])
+            control_endpoints = template_data.get('control_endpoints', [])
+            
+            if not functional_requirements and not control_endpoints:
+                return {
+                    'status': 'warning',
+                    'message': 'No functional requirements or control endpoints found in template',
+                    'tool_name': 'requirements-checker'
+                }
+            
+            await self.send_progress('testing_endpoints', f"Testing {len(control_endpoints)} control endpoints", analysis_id=analysis_id)
+            
+            # Test control endpoints
+            endpoint_results = []
+            for endpoint in control_endpoints:
+                path = endpoint.get('path', '/')
+                method = endpoint.get('method', 'GET')
+                expected_status = endpoint.get('expected_status', 200)
+                description = endpoint.get('description', 'Control endpoint')
+                
+                # Determine base URL (try backend first, then frontend)
+                base_url = f"http://localhost:{backend_port}"
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.request(method, f"{base_url}{path}", timeout=aiohttp.ClientTimeout(total=5)) as response:
+                            passed = (response.status == expected_status or response.status == 200)  # Flexible: any 200 OK passes
+                            endpoint_results.append({
+                                'endpoint': path,
+                                'method': method,
+                                'expected_status': expected_status,
+                                'actual_status': response.status,
+                                'passed': passed,
+                                'description': description,
+                                'base_url': base_url
+                            })
+                except Exception as e:
+                    endpoint_results.append({
+                        'endpoint': path,
+                        'method': method,
+                        'expected_status': expected_status,
+                        'actual_status': None,
+                        'passed': False,
+                        'error': str(e),
+                        'description': description,
+                        'base_url': base_url
+                    })
+            
+            await self.send_progress('analyzing_functional_requirements', f"Analyzing {len(functional_requirements)} functional requirements", analysis_id=analysis_id)
+            
+            # Read backend and frontend code only (efficient scope)
+            code_content = await self._read_app_code_focused(app_path, focus_dirs=['backend', 'frontend'])
+            
+            # Analyze functional requirements with AI
+            functional_results = []
+            gemini_model = config.get('gemini_model', 'anthropic/claude-3-5-haiku') if config else 'anthropic/claude-3-5-haiku'
+            
+            for i, req in enumerate(functional_requirements, 1):
+                await self.send_progress('checking_requirement', f"Checking functional requirement {i}/{len(functional_requirements)}", analysis_id=analysis_id)
+                
+                result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model)
+                functional_results.append({
+                    'requirement': req,
+                    'met': result.met,
+                    'confidence': result.confidence,
+                    'explanation': result.explanation,
+                    'evidence': result.backend_analysis or result.frontend_analysis or {}
+                })
+            
+            # Calculate compliance
+            total_functional = len(functional_results)
+            met_functional = sum(1 for r in functional_results if r['met'])
+            total_endpoints = len(endpoint_results)
+            passed_endpoints = sum(1 for e in endpoint_results if e['passed'])
+            
+            overall_compliance = (
+                (met_functional + passed_endpoints) / (total_functional + total_endpoints) * 100
+                if (total_functional + total_endpoints) > 0 else 0
+            )
+            
+            await self.send_progress('completed', f"Requirements check completed: {met_functional}/{total_functional} functional, {passed_endpoints}/{total_endpoints} endpoints", analysis_id=analysis_id)
+            
+            return {
+                'status': 'success',
+                'tool_name': 'requirements-checker',
+                'metadata': {
+                    'model_slug': model_slug,
+                    'app_number': app_number,
+                    'ai_model_used': gemini_model,
+                    'template_id': template_id,
+                    'analysis_time': datetime.now().isoformat()
+                },
+                'results': {
+                    'functional_requirements': functional_results,
+                    'control_endpoint_tests': endpoint_results,
+                    'summary': {
+                        'total_functional_requirements': total_functional,
+                        'functional_requirements_met': met_functional,
+                        'total_control_endpoints': total_endpoints,
+                        'control_endpoints_passed': passed_endpoints,
+                        'compliance_percentage': overall_compliance
+                    }
+                }
+            }
+            
+        except Exception as e:
+            self.log.error(f"Requirements checker failed: {e}")
+            import traceback
+            traceback.print_exc()
+            await self.send_progress('failed', f"Requirements checker failed: {e}", analysis_id=analysis_id)
+            return {
+                'status': 'error',
+                'error': str(e),
+                'tool_name': 'requirements-checker'
+            }
+    
+    async def analyze_code_quality(self, model_slug: str, app_number: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        NEW TOOL: Analyze code quality against stylistic requirements using Gemini Flash.
+        
+        Analyzes:
+        - Stylistic requirements (React hooks, error handling, loading states, accessibility)
+        - Code patterns and quality indicators
+        
+        Scans only backend/ and frontend/ directories for efficiency.
+        """
+        try:
+            # Find application path
+            app_path = self._resolve_app_path(model_slug, app_number)
+            if not app_path or not app_path.exists():
+                return {
+                    'status': 'error',
+                    'error': f'Application path not found: {model_slug} app {app_number}',
+                    'tool_name': 'code-quality-analyzer'
+                }
+            
+            self.log.info(f"Code quality analysis for {model_slug} app {app_number}")
+            await self.send_progress('starting', f"Starting code quality analysis for {model_slug} app {app_number}", analysis_id=analysis_id)
+            
+            # Load requirements template
+            template_id = config.get('template_id', 1) if config else 1
+            requirements_file = self._find_requirements_template(template_id)
+            if not requirements_file:
+                return {
+                    'status': 'error',
+                    'error': f'Requirements template {template_id} not found',
+                    'tool_name': 'code-quality-analyzer'
+                }
+            
+            with open(requirements_file, 'r', encoding='utf-8') as f:
+                template_data = json.load(f)
+            
+            stylistic_requirements = template_data.get('stylistic_requirements', [])
+            
+            if not stylistic_requirements:
+                return {
+                    'status': 'warning',
+                    'message': 'No stylistic requirements found in template',
+                    'tool_name': 'code-quality-analyzer'
+                }
+            
+            await self.send_progress('reading_code', f"Reading backend and frontend code", analysis_id=analysis_id)
+            
+            # Read backend and frontend code only (efficient scope)
+            full_scan = config.get('full_scan', False) if config else False
+            if full_scan:
+                code_content = await self._read_app_code(app_path)  # Full scan
+            else:
+                code_content = await self._read_app_code_focused(app_path, focus_dirs=['backend', 'frontend'])  # Focused scan
+            
+            await self.send_progress('analyzing_stylistic_requirements', f"Analyzing {len(stylistic_requirements)} stylistic requirements", analysis_id=analysis_id)
+            
+            # Analyze stylistic requirements with AI
+            stylistic_results = []
+            gemini_model = config.get('gemini_model', 'anthropic/claude-3-5-haiku') if config else 'anthropic/claude-3-5-haiku'
+            
+            for i, req in enumerate(stylistic_requirements, 1):
+                await self.send_progress('checking_requirement', f"Checking stylistic requirement {i}/{len(stylistic_requirements)}", analysis_id=analysis_id)
+                
+                result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, focus='quality')
+                stylistic_results.append({
+                    'requirement': req,
+                    'met': result.met,
+                    'confidence': result.confidence,
+                    'explanation': result.explanation,
+                    'patterns_detected': result.frontend_analysis or result.backend_analysis or {}
+                })
+            
+            # Calculate compliance
+            total_stylistic = len(stylistic_results)
+            met_stylistic = sum(1 for r in stylistic_results if r['met'])
+            compliance = (met_stylistic / total_stylistic * 100) if total_stylistic > 0 else 0
+            
+            await self.send_progress('completed', f"Code quality analysis completed: {met_stylistic}/{total_stylistic} stylistic requirements met", analysis_id=analysis_id)
+            
+            return {
+                'status': 'success',
+                'tool_name': 'code-quality-analyzer',
+                'metadata': {
+                    'model_slug': model_slug,
+                    'app_number': app_number,
+                    'ai_model_used': gemini_model,
+                    'template_id': template_id,
+                    'full_scan': full_scan,
+                    'analysis_time': datetime.now().isoformat()
+                },
+                'results': {
+                    'stylistic_requirements': stylistic_results,
+                    'summary': {
+                        'total_stylistic_requirements': total_stylistic,
+                        'stylistic_requirements_met': met_stylistic,
+                        'compliance_percentage': compliance
+                    }
+                }
+            }
+            
+        except Exception as e:
+            self.log.error(f"Code quality analyzer failed: {e}")
+            import traceback
+            traceback.print_exc()
+            await self.send_progress('failed', f"Code quality analyzer failed: {e}", analysis_id=analysis_id)
+            return {
+                'status': 'error',
+                'error': str(e),
+                'tool_name': 'code-quality-analyzer'
+            }
+    
+    def _find_requirements_template(self, template_id: int) -> Optional[Path]:
+        """Find requirements template file by ID."""
+        # Try multiple locations
+        possible_paths = [
+            Path(f"/app/misc/requirements/template_{template_id}.json"),
+            Path(__file__).parent.parent.parent.parent / "misc" / "requirements" / f"template_{template_id}.json"
+        ]
+        
+        # Also try name-based templates
+        template_names = {
+            1: 'todo_app.json',
+            2: 'base64_converter.json',
+            3: 'xsd_verifier.json'
+        }
+        
+        if template_id in template_names:
+            possible_paths.extend([
+                Path(f"/app/misc/requirements/{template_names[template_id]}"),
+                Path(__file__).parent.parent.parent.parent / "misc" / "requirements" / template_names[template_id]
+            ])
+        
+        for path in possible_paths:
+            if path.exists():
+                return path
+        
+        return None
+    
+    async def _read_app_code_focused(self, app_path: Path, focus_dirs: List[str]) -> str:
+        """Read code files from specific directories only (efficient scanning)."""
+        code_content = ""
+        
+        # Common file extensions to analyze
+        extensions = ['.py', '.js', '.jsx', '.ts', '.tsx', '.html', '.css', '.vue']
+        
+        try:
+            for focus_dir in focus_dirs:
+                target_dir = app_path / focus_dir
+                if not target_dir.exists():
+                    continue
+                
+                for ext in extensions:
+                    for file_path in target_dir.rglob(f'*{ext}'):
+                        # Skip common directories
+                        if any(part in str(file_path) for part in ['node_modules', '__pycache__', '.git', 'venv']):
+                            continue
+                        
+                        try:
+                            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                content = f.read()
+                                code_content += f"\n\n=== {file_path.relative_to(app_path)} ===\n{content}"
+                        except Exception as e:
+                            self.log.debug(f"Could not read file {file_path}: {e}")
+                            continue
+        except Exception as e:
+            self.log.error(f"Error reading focused application code: {e}")
+        
+        return code_content
+    
+    async def _analyze_requirement_with_gemini(self, code_content: str, requirement: str, model: str, focus: str = 'functional') -> RequirementResult:
+        """Analyze requirement using Gemini Flash via OpenRouter."""
+        try:
+            if not self.openrouter_api_key:
+                return RequirementResult(
+                    met=False,
+                    confidence="LOW",
+                    explanation="OpenRouter API key not available",
+                    error="OPENROUTER_API_KEY not set"
+                )
+            
+            # Build focused prompt
+            if focus == 'quality':
+                prompt = self._build_quality_analysis_prompt(code_content, requirement)
+            else:
+                prompt = self._build_analysis_prompt(code_content, requirement)
+            
+            # Truncate code if too long
+            max_code_length = 12000
+            if len(prompt) > max_code_length:
+                prompt = prompt[:max_code_length] + "\n[...truncated...]"
+            
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    "Authorization": f"Bearer {self.openrouter_api_key}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {"role": "user", "content": prompt}
+                    ],
+                    "max_tokens": 800,
+                    "temperature": 0.2
+                }
+                async with session.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=30)
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        ai_response = data['choices'][0]['message']['content']
+                        return self._parse_ai_response(ai_response)
+                    else:
+                        error_text = await response.text()
+                        self.log.warning(f"Gemini API error: {response.status} - {error_text}")
+                        return RequirementResult(
+                            met=False,
+                            confidence="LOW",
+                            explanation=f"API error: {response.status}",
+                            error=error_text
+                        )
+        except Exception as e:
+            self.log.error(f"Gemini analysis failed: {e}")
+            return RequirementResult(
+                met=False,
+                confidence="LOW",
+                explanation=f"Analysis failed: {str(e)}",
+                error=str(e)
+            )
+    
+    def _build_quality_analysis_prompt(self, code_content: str, requirement: str) -> str:
+        """Build quality-focused analysis prompt for stylistic requirements."""
+        return f"""Analyze the following web application code to determine if it meets this CODE QUALITY requirement:
+
+REQUIREMENT: {requirement}
+
+CODE:
+{code_content}
+
+Focus on:
+- Code patterns and best practices
+- Implementation quality and consistency
+- Presence of required patterns (e.g., React hooks, error handling, loading states)
+- Accessibility and user experience considerations
+
+Respond in this exact format:
+MET: [YES/NO]
+CONFIDENCE: [HIGH/MEDIUM/LOW]
+EXPLANATION: [Detailed explanation with specific code examples or patterns found]
+
+Provide concrete evidence from the code to support your assessment."""
+    
     async def handle_message(self, websocket, message_data):
         """Handle incoming WebSocket messages."""
         try:
@@ -457,13 +867,28 @@ Focus on whether the functionality described in the requirement is actually impl
                 # Tool selection normalized
                 tools = list(self.extract_selected_tools(message_data) or ["requirements-scanner"])
                 
-                self.log.info(f"Starting AI analysis for {model_slug} app {app_number}")
+                self.log.info(f"Starting AI analysis for {model_slug} app {app_number} with tools: {tools}")
                 if config:
                     self.log.info(f"Using custom configuration: {list(config.keys())}")
                 
-                analysis_results = await self.analyze_app_requirements(
-                    model_slug, app_number, config, analysis_id=analysis_id, selected_tools=tools
-                )
+                # Route to appropriate analysis method based on selected tools
+                if "requirements-checker" in tools:
+                    # Get port information
+                    backend_port = config.get('backend_port', 5000) if config else 5000
+                    frontend_port = config.get('frontend_port', 8000) if config else 8000
+                    
+                    analysis_results = await self.check_requirements_with_curl(
+                        model_slug, app_number, backend_port, frontend_port, config, analysis_id=analysis_id
+                    )
+                elif "code-quality-analyzer" in tools:
+                    analysis_results = await self.analyze_code_quality(
+                        model_slug, app_number, config, analysis_id=analysis_id
+                    )
+                else:
+                    # Legacy: use original requirements analysis
+                    analysis_results = await self.analyze_app_requirements(
+                        model_slug, app_number, config, analysis_id=analysis_id, selected_tools=tools
+                    )
                 
                 response = {
                     "type": "ai_analysis_result",
