@@ -51,6 +51,11 @@ def internal_error(error):
 # === AI GENERATED CODE START ===
 
 if __name__ == '__main__':
+    # Initialize application with setup function if it exists
+    if 'setup_app' in globals():
+        logger.info('Calling setup_app() to initialize database...')
+        setup_app(app)
+    
     # Get port from environment variable with fallback
     port = int(os.environ.get('FLASK_RUN_PORT', os.environ.get('PORT', 5000)))
     debug = os.environ.get('FLASK_ENV', 'production') == 'development'

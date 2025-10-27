@@ -43,7 +43,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Tuple, Dict, List, Set, Any
+from typing import Optional, Tuple, Dict, List, Set, Any, Union, Union, Union, Union, Union, Union, Union, Union, Union, Union, Union, Union, Union, Union
 
 import aiohttp
 from sqlalchemy.exc import SQLAlchemyError
@@ -56,6 +56,7 @@ from app.paths import (
     GENERATED_RAW_API_RESPONSES_DIR,
     GENERATED_INDICES_DIR,
     GENERATED_MARKDOWN_DIR,
+    TEMPLATES_V2_DIR,
 )
 from app.services.port_allocation_service import get_port_allocation_service
 from app.services.openrouter_chat_service import get_openrouter_chat_service
@@ -159,25 +160,13 @@ class ScaffoldingManager:
             'FRONTEND_PORT': str(frontend_port),
         }
         
-        # Files to copy (EXACT list - no wildcards)
-        files_to_copy = [
-            'docker-compose.yml',
-            '.env.example',
-            'README.md',
-            'backend/Dockerfile',
-            'backend/.dockerignore',
-            'backend/app.py',
-            'backend/requirements.txt',
-            'frontend/Dockerfile',
-            'frontend/.dockerignore',
-            'frontend/nginx.conf',
-            'frontend/vite.config.js',
-            'frontend/package.json',
-            'frontend/index.html',
-            'frontend/src/App.css',
-            'frontend/src/App.jsx',
-            'frontend/src/main.jsx',
-        ]
+        # Dynamically discover all files in the scaffolding directory
+        files_to_copy = []
+        for path in self.scaffolding_source.rglob('*'):
+            if path.is_file():
+                files_to_copy.append(str(path.relative_to(self.scaffolding_source)))
+        
+        logger.info(f"Found {len(files_to_copy)} files to copy from scaffolding source.")
         
         copied = 0
         for rel_path in files_to_copy:
@@ -238,7 +227,7 @@ class CodeGenerator:
     def __init__(self):
         self.chat_service = get_openrouter_chat_service()
         self.requirements_dir = REQUIREMENTS_DIR
-        self.template_dir = SCAFFOLDING_DIR / 'templates'
+        self.template_dir = TEMPLATES_V2_DIR
         self.scaffolding_info_path = SCAFFOLDING_DIR / 'SCAFFOLDING_INFO.md'
     
     async def generate(self, config: GenerationConfig) -> Tuple[bool, str, str]:
@@ -299,30 +288,30 @@ class CodeGenerator:
             return False, "", str(e)
     
     def _load_requirements(self, template_id: int) -> Optional[Dict]:
-        """Load requirements from JSON file."""
-        # Map template IDs to requirement files
-        template_map = {
-            1: 'todo_app.json',
-            2: 'base64_converter.json',
-            3: 'xsd_verifier.json'
-        }
-        
-        filename = template_map.get(template_id)
-        if not filename:
-            logger.warning(f"No requirements file for template {template_id}")
+        """Load requirements from JSON file by scanning the directory."""
+        if not self.requirements_dir.exists():
+            logger.error(f"Requirements directory not found: {self.requirements_dir}")
             return None
+
+        for req_file in self.requirements_dir.glob('*.json'):
+            try:
+                data = json.loads(req_file.read_text(encoding='utf-8'))
+                current_id_val = data.get('id') or data.get('app_id')
+                
+                if current_id_val is None:
+                    continue
+
+                # Check if the ID from the file matches the requested template_id
+                # This handles both integer and string IDs gracefully.
+                if str(current_id_val) == str(template_id):
+                    logger.info(f"Found requirements file for template ID {template_id}: {req_file.name}")
+                    return data
+            except (json.JSONDecodeError, ValueError, OSError) as e:
+                logger.warning(f"Could not process requirements file {req_file.name}: {e}")
+                continue
         
-        req_file = self.requirements_dir / filename
-        if not req_file.exists():
-            logger.warning(f"Requirements file not found: {req_file}")
-            return None
-        
-        try:
-            with open(req_file, 'r') as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"Failed to load requirements: {e}")
-            return None
+        logger.warning(f"No requirements file found for template ID {template_id}")
+        return None
     
     def _load_scaffolding_info(self) -> str:
         """Load scaffolding information."""
@@ -339,7 +328,8 @@ class CodeGenerator:
     
     def _load_prompt_template(self, component: str) -> str:
         """Load prompt template for component."""
-        template_file = self.template_dir / f"{component}_prompt_template.md"
+        # Corrected to use the two-query structure
+        template_file = self.template_dir / 'two-query' / f"{component}.md.jinja2"
         
         if not template_file.exists():
             logger.warning(f"Template not found: {template_file}")
@@ -518,43 +508,55 @@ class CodeGenerator:
     
     def _build_prompt(self, config: GenerationConfig) -> str:
         """Build generation prompt based on template + scaffolding + requirements."""
+        from jinja2 import Environment, FileSystemLoader
+
         # Load requirements if not already loaded
         if not config.requirements:
             config.requirements = self._load_requirements(config.template_id)
         
         reqs = config.requirements
         
-        # Load scaffolding info and prompt template
-        scaffolding_info = self._load_scaffolding_info()
-        template = self._load_prompt_template(config.component)
+        # Set up Jinja2 environment
+        env = Environment(loader=FileSystemLoader(self.template_dir / 'two-query'))
         
+        try:
+            template = env.get_template(f"{config.component}.md.jinja2")
+        except Exception:
+            template = None
+
         # If template exists, use it
         if template and reqs:
             app_name = reqs.get('name', 'Application')
             app_description = reqs.get('description', 'web application')
             
             if config.component == 'backend':
-                req_list = '\n'.join([f"- {req}" for req in reqs.get('backend_requirements', [])])
+                req_list = reqs.get('backend_requirements', [])
             else:
-                req_list = '\n'.join([f"- {req}" for req in reqs.get('frontend_requirements', [])])
+                req_list = reqs.get('frontend_requirements', [])
 
             endpoint_text = self._format_api_endpoints(reqs)
             
-            # Fill in template
-            prompt = template.format(
-                scaffolding_info=scaffolding_info,
-                app_name=app_name,
-                app_description=app_description,
-                backend_requirements=req_list if config.component == 'backend' else '',
-                frontend_requirements=req_list if config.component == 'frontend' else '',
-                api_endpoints=endpoint_text
-            )
+            # Load scaffolding content
+            scaffolding_content = self._load_scaffolding_files(config.model_slug, config.app_num)
+
+            # Create context for Jinja2
+            context = {
+                'name': app_name,
+                'description': app_description,
+                'backend_requirements': req_list if config.component == 'backend' else [],
+                'frontend_requirements': req_list if config.component == 'frontend' else [],
+                'api_endpoints': endpoint_text,
+                **scaffolding_content
+            }
             
-            logger.info(f"Built prompt using template: {len(prompt)} chars")
+            # Render the prompt
+            prompt = template.render(context)
+            
+            logger.info(f"Built prompt using Jinja2 template: {len(prompt)} chars")
             return prompt
         
         # Fallback to old format if template/requirements not found
-        logger.warning("Template or requirements not found, using fallback")
+        logger.warning("Jinja2 template or requirements not found, using fallback")
 
         endpoint_text = self._format_api_endpoints(reqs)
 
@@ -680,6 +682,31 @@ IMPORTANT:
 Generate the React component code:"""
                 )
 
+    def _load_scaffolding_files(self, model_slug: str, app_num: int) -> Dict[str, str]:
+        """Load content of key scaffolding files to inject into prompts."""
+        scaffold_manager = ScaffoldingManager()
+        app_dir = scaffold_manager.get_app_dir(model_slug, app_num)
+        
+        files_to_load = {
+            'scaffolding_app_py': app_dir / 'backend' / 'app.py',
+            'scaffolding_app_jsx': app_dir / 'frontend' / 'src' / 'App.jsx',
+            'scaffolding_package_json': app_dir / 'frontend' / 'package.json',
+            'scaffolding_requirements_txt': app_dir / 'backend' / 'requirements.txt',
+        }
+        
+        content = {}
+        for key, path in files_to_load.items():
+            try:
+                if path.exists():
+                    content[key] = path.read_text(encoding='utf-8')
+                else:
+                    content[key] = f"<!-- File not found: {path.name} -->"
+            except Exception as e:
+                logger.warning(f"Could not read scaffolding file {path}: {e}")
+                content[key] = f"<!-- Error reading file: {path.name} -->"
+        
+        return content
+
     def _get_system_prompt(self, component: str) -> str:
         """Get system prompt."""
         if component == 'frontend':
@@ -720,405 +747,211 @@ Return ONLY the Python code wrapped in ```python code blocks."""
 
 
 class CodeMerger:
-    """Merges AI-generated code with scaffolding."""
+    """Merges AI-generated code with scaffolding using a robust append-based strategy."""
 
     def __init__(self):
-        self._backend_scaffold_sections: Optional[Tuple[str, str]] = None
         try:
-            self._stdlib_modules = {name.lower() for name in sys.stdlib_module_names}  # type: ignore[attr-defined]
+            self._stdlib_modules = set(sys.stdlib_module_names)
         except AttributeError:
-            # Python < 3.10 fallback – conservative default
-            self._stdlib_modules = set()
-
-        # Modules that usually point to local project files rather than packages
-        self._local_prefixes = {
-            'app', 'config', 'settings', 'models', 'services', 'schemas',
-            'routes', 'controllers', 'repository', 'repositories', 'tasks',
-            'utils', 'helpers', 'database', 'db', 'storage'
-        }
-
-        # Map common module names to pinned requirement strings (aligns with scaffolding expectations)
+            self._stdlib_modules = {'os', 'sys', 'logging', 'json', 're', 'asyncio', 'datetime', 'pathlib', 'shutil', 'hashlib', 'textwrap', 'time', 'collections'}
+        self._local_prefixes = {'app', 'models', 'routes', 'services', 'utils', 'config', 'db'}
         self._package_version_map = {
             'flask': 'Flask==3.0.0',
             'flask_sqlalchemy': 'Flask-SQLAlchemy==3.1.1',
             'sqlalchemy': 'SQLAlchemy==2.0.25',
             'flask_cors': 'Flask-CORS==4.0.0',
-            'requests': 'requests==2.31.0',
-            'lxml': 'lxml==5.1.0',
-            'bs4': 'beautifulsoup4==4.12.3',
-            'beautifulsoup4': 'beautifulsoup4==4.12.3',
-            'pandas': 'pandas==2.2.0',
-            'numpy': 'numpy==1.26.4',
-            'dotenv': 'python-dotenv==1.0.1',
-            'python_dotenv': 'python-dotenv==1.0.1',
-            'pyjwt': 'PyJWT==2.8.0',
-            'jwt': 'PyJWT==2.8.0',
-            'passlib': 'passlib==1.7.4',
-            'bcrypt': 'bcrypt==4.1.2',
-            'cryptography': 'cryptography==42.0.0',
-            'celery': 'celery==5.3.4',
-            'redis': 'redis==5.0.1',
-            'boto3': 'boto3==1.34.44',
-            'botocore': 'botocore==1.34.44',
-            'pydantic': 'pydantic==2.6.3',
-            'marshmallow': 'marshmallow==3.20.2',
             'werkzeug': 'Werkzeug==3.0.1',
-            'itsdangerous': 'itsdangerous==2.1.2',
             'psycopg2': 'psycopg2-binary==2.9.9',
             'psycopg2_binary': 'psycopg2-binary==2.9.9',
-            'pymongo': 'pymongo==4.6.1',
-            'motor': 'motor==3.3.1',
-            'httpx': 'httpx==0.26.0',
-            'aiohttp': 'aiohttp==3.9.1',
-            'stripe': 'stripe==7.10.0',
-            'twilio': 'twilio==9.0.5',
-            'openpyxl': 'openpyxl==3.1.2',
-            'xlrd': 'xlrd==2.0.1',
-            'pillow': 'Pillow==10.2.0',
-            'pil': 'Pillow==10.2.0',
-            'sqlmodel': 'sqlmodel==0.0.14',
-            'fastapi': 'fastapi==0.110.0',
-            'uvicorn': 'uvicorn==0.27.1',
-            'typer': 'typer==0.9.0',
+            'python_dotenv': 'python-dotenv==1.0.1',
         }
-    
-    def _get_backend_scaffold_sections(self, app_dir: Path) -> Tuple[str, str]:
-        """Load and cache scaffold header/tail sections from the app.py file."""
-        if self._backend_scaffold_sections:
-            return self._backend_scaffold_sections
 
-        scaffold_py_path = app_dir / 'backend' / 'app.py'
-        if not scaffold_py_path.exists():
-            logger.error(f"Scaffolding file not found: {scaffold_py_path}")
-            # Fallback to hardcoded version if file is missing
-            return self._get_hardcoded_backend_scaffold_sections()
+    def _parse_code(self, code: str, description: str) -> Optional[ast.Module]:
+        """Safely parse code into an AST module."""
+        try:
+            return ast.parse(code)
+        except SyntaxError as e:
+            logger.error(f"AST parsing failed for {description}: {e}")
+            return None
 
-        content = scaffold_py_path.read_text(encoding='utf-8')
-        
-        # Use a marker to split the file, or fall back to if __name__
-        marker = "# === AI GENERATED CODE START ==="
-        if marker in content:
-            parts = content.split(marker, 1)
-            self._backend_scaffold_sections = (parts[0].rstrip(), parts[1].lstrip())
-            return self._backend_scaffold_sections
+    def _unparse_ast(self, tree: ast.AST) -> str:
+        """Unparse an AST node back to a string."""
+        try:
+            return ast.unparse(tree)
+        except AttributeError:
+            import astor
+            return astor.to_source(tree)
 
-        # Fallback for old scaffolds without the marker
-        tail_marker = "if __name__ == '__main__':"
-        if tail_marker in content:
-            parts = content.split(tail_marker, 1)
-            self._backend_scaffold_sections = (parts[0].rstrip(), tail_marker + parts[1])
-            return self._backend_scaffold_sections
-        
-        logger.warning("Could not determine scaffold sections, using full file as header.")
-        self._backend_scaffold_sections = (content, "")
-        return self._backend_scaffold_sections
+    def _get_import_key(self, node: Union[ast.Import, ast.ImportFrom]) -> str:
+        """Create a unique key for an import statement to avoid duplicates."""
+        if isinstance(node, ast.Import):
+            return f"import:{node.names[0].name}"
+        if isinstance(node, ast.ImportFrom):
+            module = node.module or ''
+            names = sorted([alias.name for alias in node.names])
+            return f"from:{module}:import:{','.join(names)}"
+        return ""
 
     def merge_backend(self, app_dir: Path, generated_content: str) -> bool:
-        """Merge generated backend code with scaffolding app.py."""
-        app_py = app_dir / 'backend' / 'app.py'
-        
-        if not app_py.exists():
-            logger.error("Scaffolding app.py missing!")
-            return False
-        
-        selected_code = self._select_code_block(
-            generated_content,
-            preferred_languages={'python', 'py', 'python3'}
-        )
-
-        if not selected_code:
-            logger.warning("No Python code detected in generation response")
-            return False
-
-        selected_code = self._strip_existing_scaffold(selected_code)
-
-        scaffold_head, scaffold_tail = self._get_backend_scaffold_sections(app_dir)
-        sanitized = self._sanitize_backend_code(selected_code)
-        inferred_dependencies = self._infer_backend_dependencies(sanitized)
-
-        # The marker from the original file is now in scaffold_head, so we just join the parts.
-        merged_content = '\n\n'.join(
-            part for part in [scaffold_head, sanitized.rstrip(), scaffold_tail] if part
-        )
-
-        if not merged_content.endswith('\n'):
-            merged_content += '\n'
-
-        app_py.write_text(merged_content, encoding='utf-8')
-        logger.info("Merged backend app.py with scaffolding")
-
-        if inferred_dependencies:
-            self._update_backend_requirements(app_dir, inferred_dependencies)
-        return True
-    
-    def merge_frontend(self, app_dir: Path, generated_content: str) -> bool:
-        """Merge generated frontend code with scaffolding App.jsx.
-        
-        Strategy:
-        1. Keep scaffolding structure
-        2. Replace App component with generated one
         """
-        app_jsx = app_dir / 'frontend' / 'src' / 'App.jsx'
+        Merge generated backend code by appending categorized blocks to the scaffold app.py.
+        """
+        logger.info("Starting robust append-based backend merge...")
+        app_py_path = app_dir / 'backend' / 'app.py'
+        if not app_py_path.exists():
+            logger.error(f"Scaffolding app.py missing at {app_py_path}!")
+            return False
+
+        generated_code = self._select_code_block(generated_content, {'python', 'py'})
+        if not generated_code:
+            logger.warning("No Python code block found in generation response. Aborting merge.")
+            return False
+
+        scaffold_code = app_py_path.read_text(encoding='utf-8')
+        scaffold_ast = self._parse_code(scaffold_code, "scaffold app.py")
+        generated_ast = self._parse_code(generated_code, "generated code")
+
+        if not scaffold_ast or not generated_ast:
+            logger.error("AST parsing failed. Cannot proceed with merge.")
+            return False
+
+        scaffold_imports = {self._get_import_key(node) for node in scaffold_ast.body if isinstance(node, (ast.Import, ast.ImportFrom))}
+        scaffold_routes = {
+            self._get_route_path(node) 
+            for node in ast.walk(scaffold_ast) 
+            if isinstance(node, ast.FunctionDef) and self._is_route(node)
+        }
+
+        new_imports, module_level_assignments, new_models, new_routes, new_functions, setup_function = self._categorize_generated_nodes(generated_ast, scaffold_imports, scaffold_routes)
+
+        append_code = self._build_append_code(new_imports, module_level_assignments, new_models, new_routes, new_functions, setup_function)
+
+        if append_code.strip():
+            final_code = scaffold_code + "\n" + append_code
+            app_py_path.write_text(final_code, encoding='utf-8')
+            logger.info("Successfully merged backend code by appending generated blocks.")
+        else:
+            logger.info("No new code blocks to merge for backend.")
+
+        inferred_deps = self._infer_backend_dependencies(generated_code)
+        if inferred_deps:
+            self._update_backend_requirements(app_dir, inferred_deps)
+            
+        return True
+
+    def _categorize_generated_nodes(self, generated_ast, scaffold_imports, scaffold_routes):
+        new_imports, new_models, new_routes, new_functions = [], [], [], []
+        setup_function = None
+        module_level_assignments = []  # NEW: Track module-level variable assignments
+
+        for node in generated_ast.body:
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                key = self._get_import_key(node)
+                if key not in scaffold_imports:
+                    new_imports.append(node)
+                    scaffold_imports.add(key)
+            elif isinstance(node, ast.Assign):
+                # NEW: Capture module-level assignments like db = SQLAlchemy()
+                module_level_assignments.append(node)
+            elif self._is_sqlalchemy_model(node):
+                new_models.append(node)
+            elif self._is_route(node):
+                path = self._get_route_path(node)
+                if path not in scaffold_routes:
+                    new_routes.append(node)
+                    if path: scaffold_routes.add(path)
+            elif isinstance(node, ast.FunctionDef) and node.name == 'setup_app':
+                setup_function = node
+            elif isinstance(node, ast.FunctionDef):
+                new_functions.append(node)
         
+        return new_imports, module_level_assignments, new_models, new_routes, new_functions, setup_function
+
+    def _build_append_code(self, new_imports, module_level_assignments, new_models, new_routes, new_functions, setup_function):
+        code_parts = []
+        if new_imports or module_level_assignments or new_models or new_routes or new_functions or setup_function:
+            code_parts.append("\n# === AI GENERATED AND MERGED CODE ===\n")
+
+            def append_block(title, nodes):
+                if nodes:
+                    code_parts.append(f"# --- {title} ---\n")
+                    for node in nodes:
+                        code_parts.append(self._unparse_ast(node))
+                    code_parts.append("\n")
+
+            append_block("Injected Imports", new_imports)
+            append_block("Module-Level Initialization", module_level_assignments)  # NEW: Add assignments after imports
+            append_block("Injected Models", new_models)
+            append_block("Injected Functions", new_functions)
+            if setup_function:
+                append_block("Injected Setup Function", [setup_function])
+            append_block("Injected Routes", new_routes)
+        
+        return "\n".join(code_parts)
+
+    def _is_route(self, node: ast.AST) -> bool:
+        if not isinstance(node, ast.FunctionDef): return False
+        for decorator in node.decorator_list:
+            if (isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute) and decorator.func.attr == 'route'):
+                return True
+        return False
+
+    def _get_route_path(self, node: ast.FunctionDef) -> Optional[str]:
+        for decorator in node.decorator_list:
+            if (isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute) and decorator.func.attr == 'route'):
+                if decorator.args:
+                    arg = decorator.args[0]
+                    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                        return arg.value
+                    # For older Python versions (before 3.8)
+                    if hasattr(arg, 's') and isinstance(getattr(arg, 's'), str):
+                        return getattr(arg, 's')
+        return None
+
+    def _is_sqlalchemy_model(self, node: ast.AST) -> bool:
+        if not isinstance(node, ast.ClassDef): return False
+        for base in node.bases:
+            if (isinstance(base, ast.Attribute) and isinstance(base.value, ast.Name) and base.value.id == 'db' and base.attr == 'Model'):
+                return True
+        return False
+
+    def merge_frontend(self, app_dir: Path, generated_content: str) -> bool:
+        """Merge generated frontend code with scaffolding App.jsx."""
+        app_jsx = app_dir / 'frontend' / 'src' / 'App.jsx'
         if not app_jsx.exists():
             logger.error("Scaffolding App.jsx missing!")
             return False
         
-        selected_code = self._select_code_block(
-            generated_content,
-            preferred_languages={'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}
-        )
-
+        selected_code = self._select_code_block(generated_content, {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'})
         if not selected_code:
             logger.warning("No frontend code detected in generation response")
             return False
 
-        # Basic guardrails to keep React structure usable
-        if 'import React' not in selected_code:
-            selected_code = "import React from 'react';\n" + selected_code
-        if 'ReactDOM' in selected_code and 'import ReactDOM' not in selected_code:
-            selected_code = "import ReactDOM from 'react-dom/client';\n" + selected_code
-        if 'ReactDOM.createRoot' in selected_code and 'document.getElementById' not in selected_code:
-            selected_code += (
-                "\n\nconst root = ReactDOM.createRoot(document.getElementById('root'));"
-                "\nroot.render(<App />);"
-            )
         if 'export default' not in selected_code:
             selected_code += "\n\nexport default App;"
 
-        if not selected_code.endswith('\n'):
-            selected_code += '\n'
-
         app_jsx.write_text(selected_code, encoding='utf-8')
         logger.info("Replaced App.jsx with generated code")
-
-        main_jsx = app_dir / 'frontend' / 'src' / 'main.jsx'
-        if not main_jsx.exists():
-            scaffold_main = SCAFFOLDING_DIR / 'react-flask' / 'frontend' / 'src' / 'main.jsx'
-            try:
-                if scaffold_main.exists():
-                    main_jsx.write_text(scaffold_main.read_text(encoding='utf-8'), encoding='utf-8')
-                    logger.info("Restored missing main.jsx from scaffolding")
-                else:
-                    fallback = (
-                        "import React from 'react';\n"
-                        "import ReactDOM from 'react-dom/client';\n"
-                        "import App from './App.jsx';\n"
-                        "import './App.css';\n\n"
-                        "const root = ReactDOM.createRoot(document.getElementById('root'));\n"
-                        "root.render(<App />);\n"
-                    )
-                    main_jsx.write_text(fallback, encoding='utf-8')
-                    logger.info("Created fallback main.jsx entrypoint")
-            except Exception as exc:
-                logger.warning("Failed to backfill main.jsx: %s", exc)
         return True
     
     def _select_code_block(self, content: str, preferred_languages: Set[str]) -> Optional[str]:
-        """Pick the first code block that matches preferred languages.
-
-        Falls back to the first available block or the raw content if necessary.
-        """
-        blocks = []
+        """Pick the first code block that matches preferred languages."""
         pattern = re.compile(r"```(?P<lang>[^\n\r`]+)?\s*[\r\n]+(.*?)```", re.DOTALL)
+        matches = list(pattern.finditer(content or ""))
+        
+        if not matches:
+            return content.strip() if content else None
 
-        for match in pattern.finditer(content or ""):
-            lang = (match.group('lang') or 'text').strip().lower()
-            lang = lang.replace('language-', '')
-            code = (match.group(2) or '').strip()
-            if code:
-                blocks.append((lang, code))
-
-        if not blocks and content and content.strip():
-            blocks.append(('text', content.strip()))
-
-        if not blocks:
-            return None
-
-        # Try preferred languages first
-        for lang, code in blocks:
+        for match in matches:
+            lang = (match.group('lang') or '').strip().lower()
             if lang in preferred_languages:
-                return code
+                return (match.group(2) or '').strip()
 
-        # Accept close variants (e.g. python fenced as ``````)
-        for lang, code in blocks:
-            if any(lang.startswith(pref) for pref in preferred_languages):
-                return code
-
-        # Fallback to first available block
-        return blocks[0][1]
-
-    def _get_hardcoded_backend_scaffold_sections(self) -> Tuple[str, str]:
-        """Load and cache scaffold header/tail sections for backend app.py."""
-        if self._backend_scaffold_sections is not None:
-            return self._backend_scaffold_sections
-
-        header = textwrap.dedent(
-            '''
-            # This file will be replaced by AI-generated code
-            # DO NOT modify this file - it's just a placeholder for scaffolding
-
-            import os
-            import logging
-            from flask import Flask, jsonify
-            from flask_cors import CORS
-
-            logging.basicConfig(
-                level=logging.INFO,
-                format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            )
-            logger = logging.getLogger(__name__)
-
-            app = Flask(__name__)
-            CORS(app)
-
-            app.config.setdefault('SQLALCHEMY_DATABASE_URI', os.environ.get('DATABASE_URL', 'sqlite:///app.db'))
-            app.config.setdefault('SQLALCHEMY_TRACK_MODIFICATIONS', False)
-
-            def _scaffold_index():
-                """Fallback index endpoint if AI code does not define one."""
-                return jsonify({
-                    'message': 'AI-Generated Application API',
-                    'status': 'running',
-                    'version': '1.0.0',
-                    'endpoints': {
-                        '/': 'API information',
-                        '/health': 'Health check endpoint'
-                    }
-                })
-
-            def _scaffold_health():
-                """Fallback health endpoint used by Docker health checks."""
-                return jsonify({'status': 'healthy', 'service': 'backend'}), 200
-
-            def _register_scaffold_routes():
-                """Register fallback routes only if they are missing."""
-                try:
-                    existing = {rule.rule for rule in app.url_map.iter_rules()}
-                except Exception:
-                    existing = set()
-
-                added = []
-                if '/' not in existing:
-                    app.add_url_rule('/', 'scaffold_index', _scaffold_index)
-                    added.append('/')
-                if '/health' not in existing:
-                    app.add_url_rule('/health', 'scaffold_health', _scaffold_health)
-                    added.append('/health')
-
-                if added:
-                    logger.info('Registered scaffold fallback routes: %s', ', '.join(added))
-
-            @app.errorhandler(404)
-            def _scaffold_not_found(error):
-                """Handle 404 errors with JSON response."""
-                return jsonify({'error': 'Not found', 'message': 'The requested endpoint does not exist'}), 404
-
-            @app.errorhandler(500)
-            def _scaffold_internal_error(error):
-                """Handle internal errors uniformly."""
-                logger.error('Internal error: %s', error)
-                return jsonify({'error': 'Internal server error', 'message': 'An unexpected error occurred'}), 500
-            '''
-        ).strip()
-
-        tail = textwrap.dedent(
-            '''
-            if __name__ == '__main__':
-                port = int(os.environ.get('FLASK_RUN_PORT', os.environ.get('PORT', 5000)))
-                debug = os.environ.get('FLASK_ENV', 'production') == 'development'
-
-                logger.info('Starting Flask application on port %s', port)
-                logger.info('Debug mode: %s', debug)
-
-                if 'setup_app' in globals():
-                    try:
-                        setup_app(app)
-                        logger.info('Applied setup_app configuration')
-                    except Exception as exc:
-                        logger.error('Failed to configure Flask app: %s', exc)
-                        raise
-                else:
-                    logger.debug('setup_app not defined; skipping setup integration')
-
-                try:
-                    _register_scaffold_routes()
-                except Exception as exc:
-                    logger.error('Failed to register scaffold fallback routes: %s', exc)
-                    raise
-
-                try:
-                    app.run(host='0.0.0.0', port=port, debug=debug)
-                except Exception as exc:
-                    logger.error('Failed to start Flask application: %s', exc)
-                    raise
-            '''
-        ).strip()
-
-        self._backend_scaffold_sections = (header, tail)
-        return self._backend_scaffold_sections
-
-    def _sanitize_backend_code(self, code: str) -> str:
-        """Strip duplicate bootstrap code from generated backend snippet."""
-        lines = (code or "").splitlines()
-        cleaned: List[str] = []
-        skip_block = False
-        block_indent = 0
-
-        for line in lines:
-            stripped = line.strip()
-
-            if skip_block:
-                if not stripped:
-                    continue
-                indent = len(line) - len(line.lstrip(' '))
-                if indent <= block_indent:
-                    skip_block = False
-                else:
-                    continue
-
-            if stripped.startswith("if __name__ == '__main__':") or stripped.startswith('if __name__ == "__main__":'):
-                skip_block = True
-                block_indent = len(line) - len(line.lstrip(' '))
-                continue
-
-            if stripped.startswith('app = Flask(') or stripped.startswith('application = Flask('):
-                continue
-
-            if stripped.startswith('app = create_app('):
-                continue
-
-            if stripped.startswith('CORS(') and 'app' in stripped:
-                continue
-
-            cleaned.append(line)
-
-        cleaned_code = '\n'.join(cleaned).strip()
-        if cleaned_code:
-            cleaned_code += '\n'
-        return cleaned_code
-
-    def _strip_existing_scaffold(self, code: str) -> str:
-        """Remove scaffold markup if we're re-merging an existing file."""
-        if not code:
-            return code
-
-        marker = '# === AI Generated Backend Code ==='
-        if marker in code:
-            code = code.split(marker)[-1]
-
-        tail_markers = ["if __name__ == '__main__':", 'if __name__ == "__main__":']
-        for tail_marker in tail_markers:
-            idx = code.rfind(tail_marker)
-            if idx != -1:
-                code = code[:idx]
-
-        return code.strip()
+        return (matches[0].group(2) or '').strip()
 
     def _infer_backend_dependencies(self, code: str) -> Set[str]:
         """Infer third-party packages from generated backend code."""
         modules: Set[str] = set()
-
         try:
             tree = ast.parse(code or '')
             for node in ast.walk(tree):
@@ -1130,85 +963,36 @@ class CodeMerger:
                         modules.add(node.module.split('.')[0])
         except SyntaxError:
             logger.debug("AST parsing failed for dependency inference; falling back to regex")
-            import_pattern = re.compile(r"^\s*(?:from\s+([\w\.]+)\s+import|import\s+([\w\.]+))", re.MULTILINE)
-            for match in import_pattern.finditer(code or ''):
+            for match in re.finditer(r"^\s*(?:from\s+([\w\.]+)\s+import|import\s+([\w\.]+))", code or '', re.MULTILINE):
                 module = match.group(1) or match.group(2) or ''
-                if module:
-                    modules.add(module.split('.')[0])
-
-        filtered_modules: Set[str] = set()
-        for module in modules:
-            if not module:
-                continue
-            lowered = module.lower()
-            if lowered in self._stdlib_modules:
-                continue
-            if lowered in self._local_prefixes:
-                continue
-            filtered_modules.add(lowered)
+                if module: modules.add(module.split('.')[0])
 
         packages: Set[str] = set()
-        for module in filtered_modules:
-            requirement = self._package_version_map.get(module)
-            if requirement:
-                packages.add(requirement)
-            else:
-                # Fallback: attempt to create a sensible package name
-                fallback = module.replace('_', '-')
-                packages.add(fallback)
-
+        for module in {m for m in modules if m and m.lower() not in self._stdlib_modules and m.lower() not in self._local_prefixes}:
+            packages.add(self._package_version_map.get(module, module.replace('_', '-')))
         return packages
 
     def _update_backend_requirements(self, app_dir: Path, packages: Set[str]) -> None:
         """Append inferred packages to backend requirements.txt if missing."""
-        if not packages:
-            return
-
+        if not packages: return
         requirements_path = app_dir / 'backend' / 'requirements.txt'
         if not requirements_path.exists():
-            logger.warning("Backend requirements.txt missing at %s", requirements_path)
+            logger.warning(f"Backend requirements.txt missing at {requirements_path}")
             return
 
         try:
             original_content = requirements_path.read_text(encoding='utf-8')
-            existing_lines = original_content.splitlines()
+            existing_packages = {re.split(r'[<>=]', line, 1)[0].strip().lower() for line in original_content.splitlines() if line.strip() and not line.strip().startswith('#')}
+            
+            new_entries = [pkg for pkg in sorted(packages) if re.split(r'[<>=]', pkg, 1)[0].strip().lower() not in existing_packages]
+
+            if new_entries:
+                with requirements_path.open('a', encoding='utf-8') as f:
+                    if not original_content.endswith('\n'): f.write('\n')
+                    f.write('\n'.join(new_entries) + '\n')
+                logger.info(f"Added {len(new_entries)} dependencies to backend requirements: {', '.join(new_entries)}")
         except OSError as exc:
-            logger.warning("Failed to read backend requirements: %s", exc)
-            return
-
-        existing_keys: Set[str] = set()
-        for line in existing_lines:
-            stripped = line.strip()
-            if not stripped or stripped.startswith('#'):
-                continue
-            key = re.split(r'[<>=]', stripped, 1)[0].strip().lower()
-            if key:
-                existing_keys.add(key)
-
-        new_entries: List[str] = []
-        for pkg in sorted(packages):
-            key = re.split(r'[<>=]', pkg, 1)[0].strip().lower()
-            if not key or key in existing_keys:
-                continue
-            new_entries.append(pkg)
-            existing_keys.add(key)
-
-        if not new_entries:
-            return
-
-        try:
-            if original_content and not original_content.endswith('\n'):
-                requirements_path.write_text(original_content + '\n', encoding='utf-8')
-            with requirements_path.open('a', encoding='utf-8') as handle:
-                for entry in new_entries:
-                    handle.write(f"{entry}\n")
-            logger.info(
-                "Added %d dependencies to backend requirements: %s",
-                len(new_entries),
-                ', '.join(new_entries),
-            )
-        except OSError as exc:
-            logger.warning("Failed to update backend requirements: %s", exc)
+            logger.warning(f"Failed to update backend requirements: {exc}")
 
 
 class GenerationService:

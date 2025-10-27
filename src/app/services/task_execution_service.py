@@ -865,7 +865,12 @@ class TaskExecutionService:
     def _is_celery_available(self) -> bool:
         """Check if Celery broker and workers are available for parallel execution."""
         try:
-            from app.extensions import celery
+            from app.extensions import get_celery
+            celery = get_celery()
+            
+            if celery is None:
+                logger.warning("Celery instance not initialized")
+                return False
             
             # Check broker connection
             try:
@@ -896,12 +901,25 @@ class TaskExecutionService:
     def _validate_analyzer_containers(self, service_names: list[str]) -> bool:
         """Validate that all required analyzer containers are healthy."""
         try:
-            from app.services.analyzer_integration import get_analyzer_integration
-            analyzer = get_analyzer_integration()
+            from app.services.analyzer_integration import health_monitor
+            
+            if health_monitor is None:
+                logger.warning("Health monitor not available")
+                return False
+            
+            # Get cached health status
+            health_status = health_monitor.get_cached_health_status()
+            
+            # If cache is empty, assume containers are healthy (they'll fail during execution if not)
+            if not health_status:
+                logger.info("Health status cache empty - assuming containers are healthy")
+                return True
             
             unhealthy = []
             for service_name in service_names:
-                if not analyzer._analyzer_service_up(service_name):
+                service_health = health_status.get(service_name, {})
+                status = service_health.get('status', 'unknown')
+                if status != 'healthy':
                     unhealthy.append(service_name)
             
             if unhealthy:
