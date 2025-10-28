@@ -74,7 +74,7 @@
 - `GET /api/gen/apps/<model>/<num>` - Get app details
 
 **Template System**:
-- Requirements: `misc/requirements/*.json` (60+ templates with backend/frontend specs)
+- Requirements: `misc/requirements/*.json` (4 templates: 1.json, 2.json, 3.json, 4.json - numeric naming only)
 - Prompts: `misc/templates/*.jinja2` (V2 Jinja2-based system)
 - Scaffolding: `misc/scaffolding/react-flask/` (15 files, NEVER modify directly)
 

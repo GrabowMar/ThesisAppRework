@@ -113,15 +113,16 @@ class ScaffoldingManager:
             return port_pair.backend, port_pair.frontend
         except Exception as exc:  # noqa: BLE001
             logger = logging.getLogger(__name__)
-            logger.warning(
-                "Falling back to deterministic port allocation for %s/app%s: %s",
+            logger.error(
+                "Port allocation service failed for %s/app%s: %s",
                 model_slug,
                 app_num,
                 exc,
             )
-            backend = self.base_backend_port + (app_num * 2)
-            frontend = self.base_frontend_port + (app_num * 2)
-            return backend, frontend
+            raise RuntimeError(
+                f"Port allocation failed for {model_slug}/app{app_num}. "
+                f"Ensure PortAllocationService is properly initialized. Error: {exc}"
+            )
     
     def get_app_dir(self, model_slug: str, app_num: int) -> Path:
         """Get app directory path."""
@@ -288,30 +289,42 @@ class CodeGenerator:
             return False, "", str(e)
     
     def _load_requirements(self, template_id: int) -> Optional[Dict]:
-        """Load requirements from JSON file by scanning the directory."""
+        """Load requirements from JSON file using numeric naming convention.
+        
+        Templates must be named: {id}.json (e.g., 1.json, 2.json)
+        """
         if not self.requirements_dir.exists():
             logger.error(f"Requirements directory not found: {self.requirements_dir}")
             return None
 
-        for req_file in self.requirements_dir.glob('*.json'):
-            try:
-                data = json.loads(req_file.read_text(encoding='utf-8'))
-                current_id_val = data.get('id') or data.get('app_id')
-                
-                if current_id_val is None:
-                    continue
-
-                # Check if the ID from the file matches the requested template_id
-                # This handles both integer and string IDs gracefully.
-                if str(current_id_val) == str(template_id):
-                    logger.info(f"Found requirements file for template ID {template_id}: {req_file.name}")
-                    return data
-            except (json.JSONDecodeError, ValueError, OSError) as e:
-                logger.warning(f"Could not process requirements file {req_file.name}: {e}")
-                continue
+        # Direct lookup using numeric naming convention
+        req_file = self.requirements_dir / f"{template_id}.json"
         
-        logger.warning(f"No requirements file found for template ID {template_id}")
-        return None
+        if not req_file.exists():
+            logger.warning(f"Requirements file not found: {req_file.name}")
+            return None
+        
+        try:
+            data = json.loads(req_file.read_text(encoding='utf-8'))
+            
+            # Validate ID matches filename
+            file_id = data.get('id') or data.get('app_id')
+            if file_id is None:
+                logger.error(f"Template {req_file.name} missing 'id' field")
+                return None
+            
+            if int(file_id) != int(template_id):
+                logger.error(
+                    f"ID mismatch in {req_file.name}: file has id={file_id}, expected {template_id}"
+                )
+                return None
+            
+            logger.info(f"Loaded requirements for template ID {template_id}")
+            return data
+            
+        except (json.JSONDecodeError, ValueError, OSError) as e:
+            logger.error(f"Failed to load requirements file {req_file.name}: {e}")
+            return None
     
     def _load_scaffolding_info(self) -> str:
         """Load scaffolding information."""
@@ -1005,8 +1018,12 @@ class GenerationService:
         self.max_concurrent = int(os.getenv('GENERATION_MAX_CONCURRENT', os.getenv('SIMPLE_GENERATION_MAX_CONCURRENT', '4')))
 
     def get_template_catalog(self) -> List[Dict[str, Any]]:
-        """Return available generation templates with metadata."""
+        """Return available generation templates with metadata.
+        
+        Validates templates follow numeric naming convention and have required fields.
+        """
         catalog: List[Dict[str, Any]] = []
+        seen_ids = set()
 
         if not REQUIREMENTS_DIR.exists():
             logger.debug("Requirements directory missing: %s", REQUIREMENTS_DIR)
@@ -1016,19 +1033,53 @@ class GenerationService:
             try:
                 data = json.loads(req_file.read_text(encoding='utf-8'))
             except json.JSONDecodeError as exc:
-                logger.warning("Skipping invalid requirements file %s: %s", req_file.name, exc)
+                logger.warning("Skipping invalid JSON in %s: %s", req_file.name, exc)
                 continue
             except OSError as exc:
-                logger.warning("Failed to read requirements file %s: %s", req_file.name, exc)
+                logger.warning("Failed to read %s: %s", req_file.name, exc)
                 continue
 
-            template_id = (
-                data.get('app_id')
-                or data.get('id')
-                or data.get('template_id')
-                or req_file.stem
-            )
-            name = data.get('name') or req_file.stem
+            # Validate required fields
+            template_id = data.get('id') or data.get('app_id')
+            if template_id is None:
+                logger.warning("Skipping %s: missing 'id' field", req_file.name)
+                continue
+            
+            name = data.get('name')
+            if not name:
+                logger.warning("Skipping %s: missing 'name' field", req_file.name)
+                continue
+            
+            # Validate numeric naming convention
+            if not req_file.stem.isdigit():
+                logger.warning(
+                    "Template %s uses legacy naming (should be %s.json)",
+                    req_file.name, template_id
+                )
+                continue
+            
+            # Validate ID matches filename
+            if int(req_file.stem) != int(template_id):
+                logger.error(
+                    "ID mismatch in %s: file has id=%s, filename is %s",
+                    req_file.name, template_id, req_file.stem
+                )
+                continue
+            
+            # Check for duplicate IDs
+            if template_id in seen_ids:
+                logger.error("Duplicate template ID %s in %s", template_id, req_file.name)
+                continue
+            seen_ids.add(template_id)
+            
+            # Validate structure
+            if 'backend_requirements' not in data:
+                logger.warning("Template %s missing 'backend_requirements'", req_file.name)
+            if 'frontend_requirements' not in data:
+                logger.warning("Template %s missing 'frontend_requirements'", req_file.name)
+            if 'api_endpoints' not in data:
+                logger.warning("Template %s missing 'api_endpoints'", req_file.name)
+
             description = data.get('description', '')
             category = data.get('category') or data.get('domain') or 'general'
             complexity = data.get('complexity') or data.get('difficulty') or 'medium'
@@ -1052,6 +1103,7 @@ class GenerationService:
                 'filename': req_file.name,
             })
 
+        logger.info(f"Loaded {len(catalog)} valid templates from {REQUIREMENTS_DIR}")
         return catalog
     
     async def generate_full_app(

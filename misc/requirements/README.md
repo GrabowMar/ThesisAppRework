@@ -18,6 +18,14 @@ Each requirements file follows this structure:
 }
 ```
 
+### Naming Convention
+
+**IMPORTANT**: All template files MUST use numeric naming: `{id}.json`
+- ✅ Correct: `1.json`, `2.json`, `3.json`, `4.json`
+- ❌ Incorrect: `todo_app.json`, `base64_converter.json` (legacy, no longer supported)
+
+This convention ensures consistency across the generation service, Docker containers, and analyzer services.
+
 ### Fields
 
 - **id**: Unique numeric identifier (must match filename: `{id}.json`)
@@ -84,9 +92,9 @@ python scripts/ai_client.py --token "..." generate --model "openai_gpt-4" --app-
 
 To create a new template:
 
-1. Create a new JSON file with the next available ID: `{next_id}.json`
+1. Create a new JSON file with the next available ID: `{next_id}.json` (numeric only!)
 2. Follow the structure defined above
-3. Ensure the `id` field matches the filename
+3. Ensure the `id` field matches the filename (e.g., `5.json` must have `"id": 5`)
 4. Include comprehensive `backend_requirements` and `frontend_requirements`
 5. Define all `api_endpoints` with complete request/response schemas
 6. Add at least one `control_endpoint` for health checking

@@ -711,30 +711,23 @@ Focus on whether the functionality described in the requirement is actually impl
             }
     
     def _find_requirements_template(self, template_id: int) -> Optional[Path]:
-        """Find requirements template file by ID."""
-        # Try multiple locations
+        """Find requirements template file by ID.
+        
+        Templates use numeric naming convention: {id}.json
+        Examples: 1.json, 2.json, 3.json, 4.json
+        """
+        # Try container path first, then development path
         possible_paths = [
-            Path(f"/app/misc/requirements/template_{template_id}.json"),
-            Path(__file__).parent.parent.parent.parent / "misc" / "requirements" / f"template_{template_id}.json"
+            Path(f"/app/misc/requirements/{template_id}.json"),  # Container runtime
+            Path(__file__).parent.parent.parent.parent / "misc" / "requirements" / f"{template_id}.json"  # Local dev
         ]
-        
-        # Also try name-based templates
-        template_names = {
-            1: 'todo_app.json',
-            2: 'base64_converter.json',
-            3: 'xsd_verifier.json'
-        }
-        
-        if template_id in template_names:
-            possible_paths.extend([
-                Path(f"/app/misc/requirements/{template_names[template_id]}"),
-                Path(__file__).parent.parent.parent.parent / "misc" / "requirements" / template_names[template_id]
-            ])
         
         for path in possible_paths:
             if path.exists():
+                logger.info(f"Found template {template_id} at: {path}")
                 return path
         
+        logger.warning(f"Template {template_id} not found in any location")
         return None
     
     async def _read_app_code_focused(self, app_path: Path, focus_dirs: List[str]) -> str:
