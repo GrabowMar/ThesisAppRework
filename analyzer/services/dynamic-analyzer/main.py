@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 
 from analyzer.shared.service_base import BaseWSService
+from sarif_parsers import parse_tool_output_to_sarif, build_sarif_document
 
 
 class DynamicAnalyzer(BaseWSService):
@@ -613,6 +614,40 @@ class DynamicAnalyzer(BaseWSService):
                         'executed': True,
                         'total_issues': sum(z.get('total_vulnerabilities',0) for z in zap_results)
                     }
+                    
+                    # Generate SARIF output for ZAP results
+                    zap_sarif_runs = []
+                    for zap_result in zap_results:
+                        if zap_result.get('status') == 'success':
+                            # Convert custom vulnerability format to ZAP-compatible SARIF format
+                            vulnerabilities = zap_result.get('vulnerabilities', [])
+                            sarif_input = {
+                                'alerts': []
+                            }
+                            
+                            # Transform vulnerabilities to ZAP alert format
+                            for vuln in vulnerabilities:
+                                alert = {
+                                    'alert': vuln.get('type', 'Security Issue'),
+                                    'risk': vuln.get('severity', 'medium'),
+                                    'confidence': 'medium',  # Default confidence
+                                    'description': vuln.get('description', ''),
+                                    'solution': vuln.get('recommendation', ''),
+                                    'instances': [{
+                                        'uri': zap_result.get('url', ''),
+                                        'method': 'GET'
+                                    }]
+                                }
+                                sarif_input['alerts'].append(alert)
+                            
+                            sarif_run = parse_tool_output_to_sarif('zap', sarif_input)
+                            if sarif_run:
+                                zap_sarif_runs.append(sarif_run)
+                                self.log.debug(f"Generated SARIF output for ZAP scan of {zap_result.get('url')}")
+                    
+                    if zap_sarif_runs:
+                        results['sarif_export'] = build_sarif_document(zap_sarif_runs)
+                        self.log.info(f"Generated SARIF document with {len(zap_sarif_runs)} ZAP runs")
             else:
                 if 'zap' in (selected_set or set()):
                     tool_summary['zap'] = {'tool':'zap','status':'not_available','executed':False,'total_issues':0}

@@ -165,7 +165,7 @@ def _ensure_worker_app():
             from app.factory import create_app as _create_flask_app
             _worker_flask_app = _create_flask_app('worker')
         except Exception as _err:  # pragma: no cover - safety
-            print(f"Warning: Could not create worker Flask app: {_err}")
+            logger.warning(f"Could not create worker Flask app: {_err}")
             _worker_flask_app = None
     return _worker_flask_app
 
@@ -179,7 +179,7 @@ def _push_app_context_for_task(task_id: str):
         with _task_ctx_lock:
             _task_ctx_map[task_id] = ctx
     except Exception as e:  # pragma: no cover
-        print(f"Warning: Failed to push app context for task {task_id}: {e}")
+        logger.warning(f"Failed to push app context for task {task_id}: {e}")
 
 def _pop_app_context_for_task(task_id: str):
     try:
@@ -191,7 +191,7 @@ def _pop_app_context_for_task(task_id: str):
             except Exception:
                 pass
     except Exception as e:  # pragma: no cover
-        print(f"Warning: Failed to pop app context for task {task_id}: {e}")
+        logger.warning(f"Failed to pop app context for task {task_id}: {e}")
 
 # Layer 1: Task subclass override
 try:
@@ -225,7 +225,7 @@ try:
 
     celery.Task = _ContextTask
 except Exception as _ctx_err:  # pragma: no cover - best effort safety
-    print(f"Warning: Could not set Celery ContextTask: {_ctx_err}")
+    logger.warning(f"Could not set Celery ContextTask: {_ctx_err}")
 
 def _run_engine(engine_name: str, model_slug: str, app_number: int, **kwargs):
     """Helper to invoke an analysis engine and return payload dict.
@@ -245,7 +245,7 @@ def update_task_progress(current: int, total: int, status: Optional[str] = None,
     """Update task progress for monitoring."""
     # Simplified version to avoid type checking issues
     # In a real implementation, this would update Celery task state
-    print(f"Task progress: {current}/{total} ({int((current/total)*100) if total > 0 else 0}%) - {status or 'running'}")
+    logger.debug(f"Task progress: {current}/{total} ({int((current/total)*100) if total > 0 else 0}%) - {status or 'running'}")
 
 # =============================================================================
 # ANALYZER ORCHESTRATION TASKS
@@ -372,7 +372,6 @@ def security_analysis_task(self, model_slug: str, app_number: int,
             'analysis_id': analysis_id
         }
 
-        update_batch_progress(batch_job_id, task_completed=True, result=final_result)
         update_task_progress(100, 100, "Analysis completed")
         return final_result
 
@@ -407,9 +406,7 @@ def security_analysis_task(self, model_slug: str, app_number: int,
                             analysis.set_metadata(meta)
                         session.commit()
             except Exception as meta_e:
-                print(f"Failed to record failure metadata: {meta_e}")
-
-        update_batch_progress(batch_job_id, task_failed=True)
+                logger.error(f"Failed to record failure metadata: {meta_e}")
 
         # Decide whether to retry: only retry transient infrastructure errors
         transient = any(msg in str(e).lower() for msg in ["timeout", "connection refused", "temporary", "unavailable"])
@@ -628,7 +625,6 @@ def _performance_test_task_impl(model_slug: str, app_number: int, test_config: O
                 reason = f"performance-tester service not running (status={service_status})"
                 _update_db_status('failed', fail_stage='service_health', reason=reason)
                 update_task_progress(0, 100, f"Error: {reason}")
-                update_batch_progress(batch_job_id, task_failed=True)
                 return {
                     'model_slug': model_slug,
                     'app_number': app_number,
@@ -654,7 +650,6 @@ def _performance_test_task_impl(model_slug: str, app_number: int, test_config: O
             # Always treat preflight failure as final (no retry) so tests observe deterministic outcome.
             _update_db_status('failed', fail_stage='preflight', reason=reason, transient=False)
             update_task_progress(0, 100, f"Error: {reason}")
-            update_batch_progress(batch_job_id, task_failed=True)
             return {
                 'model_slug': model_slug,
                 'app_number': app_number,
@@ -700,7 +695,6 @@ def _performance_test_task_impl(model_slug: str, app_number: int, test_config: O
         }
         if status != 'completed':
             _update_db_status('failed', engine_status=status, fail_stage='engine_run')
-            update_batch_progress(batch_job_id, task_failed=True, result=payload)
         else:
             # Persist completion; include marker if present for diagnostics
             marker = None
@@ -713,13 +707,11 @@ def _performance_test_task_impl(model_slug: str, app_number: int, test_config: O
                 _update_db_status('completed', engine_status='completed', marker=marker)
             else:
                 _update_db_status('completed', engine_status='completed')
-            update_batch_progress(batch_job_id, task_completed=True, result=payload)
         update_task_progress(100, 100, "Performance testing completed")
         return payload
     except Exception as e:  # pragma: no cover - defensive
         msg = str(e)
         update_task_progress(0, 100, f"Error: Performance testing failed: {msg}")
-        update_batch_progress(batch_job_id, task_failed=True)
         classification = 'transient_error' if _is_transient_error(msg) else 'unhandled_exception'
         _update_db_status('failed', fail_stage='exception', reason=msg, failure_classification=classification)
         if _is_transient_error(msg) and task_self and getattr(task_self, 'request', None) and task_self.request.retries < 3:  # type: ignore[attr-defined]
@@ -833,9 +825,6 @@ def static_analysis_task(self, model_slug: str, app_number: int,
             'status': result.get('status', 'completed') if isinstance(result, dict) else 'completed'
         }
         
-        # Update batch progress if this is part of a batch
-        update_batch_progress(batch_job_id, task_completed=True, result=final_result)
-        
         update_task_progress(100, 100, "Static analysis completed")
         
         return final_result
@@ -843,9 +832,6 @@ def static_analysis_task(self, model_slug: str, app_number: int,
     except Exception as e:
         error_msg = f"Static analysis failed: {str(e)}"
         update_task_progress(0, 100, f"Error: {error_msg}")
-        
-        # Update batch progress for failed task
-        update_batch_progress(batch_job_id, task_failed=True)
         
         raise self.retry(exc=e, countdown=60, max_retries=3)
 
@@ -969,7 +955,6 @@ def dynamic_analysis_task(self, model_slug: str, app_number: int, options: Optio
             'analysis_id': analysis_id
         }
 
-        update_batch_progress(batch_job_id, task_completed=True, result=final_result)
         update_task_progress(100, 100, "Dynamic analysis completed")
         return final_result
 
@@ -990,9 +975,7 @@ def dynamic_analysis_task(self, model_slug: str, app_number: int, options: Optio
                         analysis.set_metadata(meta)
                         session.commit()
             except Exception as meta_e:
-                print(f"Failed to record failure metadata: {meta_e}")
-
-        update_batch_progress(batch_job_id, task_failed=True)
+                logger.error(f"Failed to record failure metadata: {meta_e}")
 
         # Retry only for transient errors
         transient = any(msg in str(e).lower() for msg in ["timeout", "connection refused", "temporary", "unavailable"]) 
@@ -1202,9 +1185,9 @@ def run_ai_analyzer_subtask(self, subtask_id: int, model_slug: str, app_number: 
 def aggregate_subtask_results(self, subtask_results: List[Dict], main_task_id: str) -> Dict:
     """Aggregate results from parallel subtasks into unified payload."""
     from app.extensions import db, get_session
-    from app.models import AnalysisTask
+    from app.models import AnalysisTask, GeneratedApplication
     from app.constants import AnalysisStatus
-    from app.services import analysis_result_store
+    from app.services.unified_result_service import UnifiedResultService
     
     try:
         # Collect all results
@@ -1415,9 +1398,19 @@ def aggregate_subtask_results(self, subtask_results: List[Dict], main_task_id: s
                 main_task.set_result_summary(unified_payload)
                 session.commit()
         
-        # Persist to analysis result store (includes disk file writes)
+        # Persist to unified result service (database + disk file writes)
         try:
-            analysis_result_store.persist_analysis_payload_by_task_id(main_task_id, unified_payload)
+            result_service = UnifiedResultService()
+            # Get model_slug and app_number from task
+            with get_session() as session:
+                task = session.query(AnalysisTask).filter_by(task_id=main_task_id).first()
+                if task and task.target_model and task.target_app_number:
+                    result_service.store_analysis_results(
+                        task_id=main_task_id,
+                        payload=unified_payload,
+                        model_slug=task.target_model,
+                        app_number=task.target_app_number
+                    )
         except Exception as e:
             logger.warning(f"Failed to persist unified results: {e}")
         
@@ -1478,7 +1471,7 @@ def cleanup_expired_results():
 @task_prerun.connect
 def task_prerun_handler(task_id, task, *args, **kwargs):
     """Handle task pre-execution setup."""
-    print(f"Starting task {task.name} with ID {task_id}")
+    logger.info(f"Starting task {task.name} with ID {task_id}")
     try:
         # Belt-and-suspenders app context push, but skip if our Task override is handling it
         with _task_ctx_lock:
@@ -1486,26 +1479,26 @@ def task_prerun_handler(task_id, task, *args, **kwargs):
         if not managed:
             _push_app_context_for_task(task_id)
     except Exception as e:  # pragma: no cover
-        print(f"Warning: task_prerun app context push failed for {task_id}: {e}")
+        logger.warning(f"task_prerun app context push failed for {task_id}: {e}")
 
 @task_postrun.connect
 def task_postrun_handler(task_id, task, retval, state, *args, **kwargs):
     """Handle task post-execution cleanup."""
-    print(f"Completed task {task.name} with ID {task_id}, state: {state}")
+    logger.info(f"Completed task {task.name} with ID {task_id}, state: {state}")
     try:
         with _task_ctx_lock:
             managed = task_id in _task_ctx_managed_by_override
         if not managed:
             _pop_app_context_for_task(task_id)
     except Exception as e:  # pragma: no cover
-        print(f"Warning: task_postrun app context pop failed for {task_id}: {e}")
+        logger.warning(f"task_postrun app context pop failed for {task_id}: {e}")
 
 @worker_ready.connect
 def worker_ready_handler(sender, **kwargs):
     """Handle worker ready event."""
-    print(f"Celery worker {sender} is ready and connected to analyzer infrastructure")
+    logger.info(f"Celery worker {sender} is ready and connected to analyzer infrastructure")
 
 
 if __name__ == '__main__':
-    print("Celery tasks module loaded successfully")
-    print(f"Available tasks: {list(celery.tasks.keys())}")
+    logger.info("Celery tasks module loaded successfully")
+    logger.info(f"Available tasks: {list(celery.tasks.keys())}")

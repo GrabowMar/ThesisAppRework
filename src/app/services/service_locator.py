@@ -62,9 +62,9 @@ class ServiceLocator:
             AnalysisInspectionService = None  # type: ignore
 
         try:
-            from .results_management_service import ResultsManagementService
+            from .unified_result_service import UnifiedResultService
         except ImportError:  # pragma: no cover
-            ResultsManagementService = None  # type: ignore
+            UnifiedResultService = None  # type: ignore
 
 
         # Register available services
@@ -81,8 +81,8 @@ class ServiceLocator:
             cls.register('docker_manager', DockerManager())
         if AnalysisInspectionService:
             cls.register('analysis_inspection_service', AnalysisInspectionService())
-        if ResultsManagementService:
-            cls.register('results_management_service', ResultsManagementService())
+        if UnifiedResultService:
+            cls.register('unified_result_service', UnifiedResultService())
         if HealthService:
             cls.register('health_service', HealthService())
 
@@ -141,6 +141,11 @@ class ServiceLocator:
     def get_analysis_inspection_service(cls):
         """Get the analysis inspection service."""
         return cls.get('analysis_inspection_service')
+
+    @classmethod
+    def get_unified_result_service(cls):
+        """Get the unified result service."""
+        return cls.get('unified_result_service')
 
     @classmethod
     def get_health_service(cls):

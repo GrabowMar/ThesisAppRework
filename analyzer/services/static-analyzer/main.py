@@ -17,6 +17,7 @@ from typing import Dict, List, Any, Optional, Set
 
 from analyzer.shared.service_base import BaseWSService
 from parsers import parse_tool_output
+from sarif_parsers import parse_tool_output_to_sarif, build_sarif_document, get_available_sarif_parsers
 
 
 class StaticAnalyzer(BaseWSService):
@@ -61,11 +62,24 @@ class StaticAnalyzer(BaseWSService):
                 raw_output = json.loads(result.stdout)
                 # Use tool-specific parser to standardize output
                 parsed_result = parse_tool_output(tool_name, raw_output, config)
+                
+                # Generate SARIF representation if supported
+                sarif_run = parse_tool_output_to_sarif(tool_name, raw_output, config)
+                if sarif_run:
+                    parsed_result['sarif'] = sarif_run
+                    self.log.debug(f"Generated SARIF output for {tool_name}")
+                
                 return parsed_result
             except json.JSONDecodeError as e:
                 self.log.warning(f"{tool_name} produced invalid JSON: {e}")
-                # Fallback for tools that don't produce JSON
-                return {'tool': tool_name, 'executed': True, 'status': 'completed', 'output': result.stdout[:1000]}
+                # Fallback for tools that don't produce JSON (e.g., flake8, mypy text, vulture)
+                # Try SARIF parser with text output
+                sarif_run = parse_tool_output_to_sarif(tool_name, result.stdout, config)
+                fallback_result = {'tool': tool_name, 'executed': True, 'status': 'completed', 'output': result.stdout[:1000]}
+                if sarif_run:
+                    fallback_result['sarif'] = sarif_run
+                    self.log.debug(f"Generated SARIF output for text-based {tool_name}")
+                return fallback_result
 
         except FileNotFoundError:
             self.log.error(f"{tool_name} not found. Is it installed and in PATH?")
@@ -689,6 +703,19 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 'configuration_preset': config.get('preset_name', 'custom') if config else 'default'
             }
             results['tools_used'] = used_tools
+            
+            # Collect SARIF runs and build SARIF document if any tools generated SARIF
+            sarif_runs = []
+            for lang_results in results['results'].values():
+                if isinstance(lang_results, dict):
+                    for tool_result in lang_results.values():
+                        if isinstance(tool_result, dict) and 'sarif' in tool_result:
+                            sarif_runs.append(tool_result['sarif'])
+            
+            if sarif_runs:
+                results['sarif_export'] = build_sarif_document(sarif_runs)
+                self.log.info(f"Generated SARIF document with {len(sarif_runs)} tool runs")
+            
             await self.send_progress('reporting', 'Compiling report', analysis_id=analysis_id,
                                  total_issues=total_issues, tools_run=tools_run)
             await self.send_progress('completed', 'Static analysis completed', analysis_id=analysis_id,

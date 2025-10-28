@@ -24,17 +24,11 @@ from flask_login import current_user
 
 from app.utils.template_paths import render_template_compat as render_template
 from app.services.task_service import AnalysisTaskService
-from app.services.result_file_service import (
-    ResultFileDescriptor,
-    ResultFileService,
-    collect_findings_from_payload,
-    summarise_services_from_payload,
-)
+from app.services.unified_result_service import UnifiedResultService
 from app.models.analysis_models import AnalysisTask
 from app.constants import AnalysisStatus
 from app.extensions import db
 from sqlalchemy import or_
-# (Removed ValidationError, NotFoundError imports after refactor of custom mode logic)
 
 # Create blueprint
 analysis_bp = Blueprint('analysis', __name__, url_prefix='/analysis')
@@ -68,7 +62,7 @@ def analysis_list():
 @analysis_bp.route('/api/tasks/list')
 def analysis_tasks_table():
     """HTMX endpoint: Return table content with unified tasks + results, with pagination."""
-    service = ResultFileService()
+    service = UnifiedResultService()
     
     # Parse filters
     model_filter = (request.args.get('model') or '').strip() or None
@@ -121,49 +115,35 @@ def analysis_tasks_table():
     end = start + per_page
     paginated_tasks = all_tasks[start:end]
 
-    # Preload available result descriptors for tasks shown on this page
-    result_lookup: dict[tuple[str, int], List[ResultFileDescriptor]] = {}
+    # Preload available result files for tasks shown on this page
+    result_lookup: dict[tuple[str, int], List[dict]] = {}
     if paginated_tasks:
         task_pairs = {(task.target_model, task.target_app_number) for task in paginated_tasks}
         for model_slug, app_number in task_pairs:
             try:
-                descriptors = service.list_results(model_slug=model_slug, app_number=app_number)
+                result_files = service.list_result_files(model_slug=model_slug, app_number=app_number)
             except Exception as exc:  # pragma: no cover - defensive logging
                 current_app.logger.warning(
                     "Failed to load results for %s app%s: %s", model_slug, app_number, exc
                 )
-                descriptors = []
-            if descriptors:
-                result_lookup[(model_slug, app_number)] = descriptors
+                result_files = []
+            if result_files:
+                result_lookup[(model_slug, app_number)] = result_files
 
-    def _select_descriptor(
-        task: AnalysisTask, descriptors: List[ResultFileDescriptor]
-    ) -> Optional[ResultFileDescriptor]:
-        if not descriptors:
+    def _select_result_file(
+        task: AnalysisTask, result_files: List[dict]
+    ) -> Optional[dict]:
+        """Select the most relevant result file for a task."""
+        if not result_files:
             return None
 
-        preferred_type: Optional[str] = None
-        if task.analysis_type:
-            try:
-                preferred_type = task.analysis_type.value  # Enum -> str
-            except AttributeError:
-                preferred_type = str(task.analysis_type)
-
-        candidates = [d for d in descriptors if d.analysis_type == preferred_type] if preferred_type else []
-        if not candidates:
-            candidates = list(descriptors)
-
-        target_ts = task.completed_at
-        if target_ts:
-            def _delta_seconds(descriptor: ResultFileDescriptor) -> float:
-                try:
-                    return abs((descriptor.timestamp - target_ts).total_seconds())
-                except Exception:
-                    return float('inf')
-
-            candidates.sort(key=_delta_seconds)
-
-        return candidates[0] if candidates else None
+        # Find result file matching task_id
+        for rf in result_files:
+            if rf.get('task_id') == task.task_id:
+                return rf
+        
+        # Fallback: return most recent
+        return result_files[0] if result_files else None
 
     # Build unified list from paginated tasks
     unified_items = []
@@ -185,8 +165,8 @@ def analysis_tasks_table():
             except Exception as exc:
                 current_app.logger.warning(f"Failed to load subtasks for {task.task_id}: {exc}")
         
-        descriptors = result_lookup.get((task.target_model, task.target_app_number), [])
-        selected_descriptor = _select_descriptor(task, descriptors) if descriptors else None
+        result_files = result_lookup.get((task.target_model, task.target_app_number), [])
+        selected_result = _select_result_file(task, result_files) if result_files else None
 
         unified_items.append({
             'type': 'task',
@@ -204,11 +184,11 @@ def analysis_tasks_table():
             'is_main_task': task.is_main_task,
             'subtasks': subtasks_data,
             'obj': task,
-            'result_descriptor': selected_descriptor,
-            'result_identifier': selected_descriptor.identifier if selected_descriptor else None,
-            'result_status': selected_descriptor.status if selected_descriptor else None,
-            'result_timestamp': selected_descriptor.timestamp if selected_descriptor else None,
-            'has_result': selected_descriptor is not None,
+            'result_descriptor': selected_result,
+            'result_identifier': selected_result.get('task_id') if selected_result else None,
+            'result_status': 'completed' if selected_result else None,
+            'result_timestamp': selected_result.get('modified_at') if selected_result else None,
+            'has_result': selected_result is not None,
         })
     
     # Pagination info
@@ -718,11 +698,11 @@ def htmx_model_applications_fragment(model_slug):
     apps = svc.get_model_apps(model_slug)
     return render_template('pages/analysis/partials/applications_select.html', applications=apps, model_slug=model_slug)
 
-def _get_result_service() -> ResultFileService:
-    """Return a cached ResultFileService instance for the current app."""
-    if not hasattr(current_app, '_result_file_service'):
-        current_app._result_file_service = ResultFileService()  # type: ignore[attr-defined]
-    return current_app._result_file_service  # type: ignore[attr-defined]
+def _get_result_service() -> UnifiedResultService:
+    """Return a cached UnifiedResultService instance for the current app."""
+    if not hasattr(current_app, '_unified_result_service'):
+        current_app._unified_result_service = UnifiedResultService()  # type: ignore[attr-defined]
+    return current_app._unified_result_service  # type: ignore[attr-defined]
 
 
 @analysis_bp.route('/results/<string:result_id>')
@@ -735,29 +715,29 @@ def analysis_result_detail(result_id: str):
         findings_limit = max(1, min(int(limit_param), 1000))
 
     try:
-        descriptor, payload = service.load_result_by_identifier(result_id)
-    except FileNotFoundError:
-        abort(404, description=f"Result {result_id} not found")
+        results = service.load_analysis_results(result_id)
+        if not results:
+            abort(404, description=f"Result {result_id} not found")
+        payload = results.raw_data
     except Exception as exc:  # pragma: no cover - defensive logging
         current_app.logger.exception("Failed to load analysis result %s: %s", result_id, exc)
         abort(500, description="Unable to load analysis result")
 
-    findings = collect_findings_from_payload(payload, limit=findings_limit)
-    services = summarise_services_from_payload(payload)
-    results_block = payload.get('results') if isinstance(payload, dict) else {}
-    results_block = results_block if isinstance(results_block, dict) else {}
-    summary_block = results_block.get('summary') if isinstance(results_block.get('summary'), dict) else {}
-    task_block = results_block.get('task') if isinstance(results_block.get('task'), dict) else {}
-    metadata_block = payload.get('metadata') if isinstance(payload.get('metadata'), dict) else {}
+    # Extract findings and services from structured results
+    findings = results.security.get('findings', [])[:findings_limit] if findings_limit else results.security.get('findings', [])
+    services = results.tools
+    summary_block = results.summary
+    task_info = {'task_id': result_id, 'status': results.status}
+    metadata_block = {}
 
     return render_template(
         'pages/analysis/result_detail.html',
-        descriptor=descriptor,
+        descriptor={'identifier': result_id, 'task_id': result_id},
         payload=payload,
         findings=findings,
         services=services,
         summary=summary_block,
-        task_info=task_block,
+        task_info=task_info,
         metadata=metadata_block,
         findings_limit=findings_limit,
     )
@@ -768,9 +748,10 @@ def analysis_result_json(result_id: str):
     """Return the raw JSON payload for an analysis result."""
     service = _get_result_service()
     try:
-        _, payload = service.load_result_by_identifier(result_id)
-    except FileNotFoundError:
-        return jsonify({'error': 'result not found'}), 404
+        results = service.load_analysis_results(result_id)
+        if not results:
+            return jsonify({'error': 'result not found'}), 404
+        payload = results.raw_data
     except Exception as exc:  # pragma: no cover - defensive logging
         current_app.logger.exception("Failed to serialise analysis result %s: %s", result_id, exc)
         return jsonify({'error': 'unable to load result'}), 500
@@ -793,4 +774,41 @@ def analysis_result_download(result_id: str):
         mimetype='application/json',
         as_attachment=True,
         download_name=f"{result_id}.json",
+    )
+
+
+@analysis_bp.route('/tasks/<string:task_id>/export/sarif')
+def export_task_sarif(task_id: str):
+    """Export analysis results in SARIF 2.1.0 format.
+    
+    Attempts to load pre-generated SARIF document from file system.
+    If not found, returns 404 with suggestion to check if analysis was SARIF-enabled.
+    """
+    from app.paths import RESULTS_DIR
+    from pathlib import Path
+    
+    # Get task to extract model_slug and app_number
+    task = AnalysisTask.query.filter_by(task_id=task_id).first()
+    if not task:
+        abort(404, description=f"Task {task_id} not found")
+    
+    model_slug = task.target_model
+    app_number = task.target_app_number
+    
+    if not model_slug or not app_number:
+        abort(400, description="Task missing model_slug or app_number - cannot locate SARIF file")
+    
+    # Look for SARIF file: results/{model}/app{N}/analysis/{task_id}/consolidated.sarif.json
+    sarif_path = RESULTS_DIR / model_slug / f"app{app_number}" / "analysis" / task_id / "consolidated.sarif.json"
+    
+    if not sarif_path.exists():
+        abort(404, description=f"SARIF file not found for task {task_id}. Analysis may not have generated SARIF output.")
+    
+    current_app.logger.info(f"Serving SARIF export for task {task_id} from {sarif_path}")
+    
+    return send_file(
+        sarif_path,
+        mimetype='application/json',
+        as_attachment=True,
+        download_name=f"{task_id}.sarif.json",
     )

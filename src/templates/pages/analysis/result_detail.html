@@ -23,6 +23,7 @@
     'actions': [
       {'key': 'back', 'type': 'link', 'label': 'Back', 'icon': 'fa-solid fa-arrow-left', 'href': url_for('analysis.analysis_list'), 'classes': 'btn-ghost-secondary', 'visible': True},
       {'key': 'json', 'type': 'link', 'label': 'View JSON', 'icon': 'fa-solid fa-file-code', 'href': url_for('analysis.analysis_result_json', result_id=descriptor.identifier), 'target': '_blank', 'classes': 'btn-ghost-info', 'visible': True},
+      {'key': 'sarif', 'type': 'link', 'label': 'SARIF', 'icon': 'fa-solid fa-file-shield', 'href': url_for('analysis.export_task_sarif', task_id=descriptor.identifier), 'classes': 'btn-ghost-success', 'visible': True, 'title': 'Download SARIF 2.1.0 format'},
       {'key': 'download', 'type': 'link', 'label': 'Download', 'icon': 'fa-solid fa-download', 'href': url_for('analysis.analysis_result_download', result_id=descriptor.identifier), 'classes': 'btn-primary', 'visible': True}
     ]
   } %}

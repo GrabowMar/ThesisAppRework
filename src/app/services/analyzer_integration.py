@@ -501,6 +501,19 @@ class AnalysisExecutor:
             except Exception:
                 pass
             
+            # Handle SARIF export if present
+            sarif_document = analysis_data.get('sarif_export') if isinstance(analysis_data, dict) else None
+            if sarif_document and isinstance(sarif_document, dict):
+                # Extract findings from SARIF and merge with existing findings
+                sarif_findings = self._extract_sarif_findings(sarif_document)
+                if sarif_findings:
+                    findings = list(findings) if findings else []
+                    findings.extend(sarif_findings)
+                    logger.info(f"Added {len(sarif_findings)} findings from SARIF document")
+                
+                # Store SARIF document to file
+                await self._store_sarif_export(task, sarif_document)
+            
             # Store detailed findings
             if findings:
                 await self._store_findings(task, findings)
@@ -560,6 +573,173 @@ class AnalysisExecutor:
         except Exception as e:
             logger.error(f"Error processing failed result for task {task.task_id}: {e}")
     
+    def _extract_sarif_findings(self, sarif_document: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Extract findings from SARIF 2.1.0 document and convert to internal format.
+        
+        Args:
+            sarif_document: Complete SARIF document with runs[]
+            
+        Returns:
+            List of findings in internal format
+        """
+        findings = []
+        
+        try:
+            runs = sarif_document.get('runs', [])
+            if not isinstance(runs, list):
+                return findings
+            
+            for run in runs:
+                if not isinstance(run, dict):
+                    continue
+                
+                # Extract tool information
+                tool_info = run.get('tool', {}).get('driver', {})
+                tool_name = tool_info.get('name', 'unknown')
+                tool_version = tool_info.get('version')
+                
+                results = run.get('results', [])
+                if not isinstance(results, list):
+                    continue
+                
+                for result in results:
+                    if not isinstance(result, dict):
+                        continue
+                    
+                    # Map SARIF level to internal severity
+                    sarif_level = result.get('level', 'warning')
+                    severity_map = {
+                        'error': 'high',
+                        'warning': 'medium',
+                        'note': 'low'
+                    }
+                    severity = severity_map.get(sarif_level, 'medium')
+                    
+                    # Extract message
+                    message_obj = result.get('message', {})
+                    if isinstance(message_obj, dict):
+                        message = message_obj.get('text', 'No description')
+                    else:
+                        message = str(message_obj)
+                    
+                    # Extract location information
+                    file_path = None
+                    line_number = None
+                    column_number = None
+                    code_snippet = None
+                    
+                    locations = result.get('locations', [])
+                    if isinstance(locations, list) and locations:
+                        location = locations[0]  # Use first location
+                        if isinstance(location, dict):
+                            phys_loc = location.get('physicalLocation', {})
+                            if isinstance(phys_loc, dict):
+                                artifact = phys_loc.get('artifactLocation', {})
+                                if isinstance(artifact, dict):
+                                    file_path = artifact.get('uri')
+                                
+                                region = phys_loc.get('region', {})
+                                if isinstance(region, dict):
+                                    line_number = region.get('startLine')
+                                    column_number = region.get('startColumn')
+                                    snippet = region.get('snippet', {})
+                                    if isinstance(snippet, dict):
+                                        code_snippet = snippet.get('text')
+                            
+                            # Fallback: check for logical location (web vulnerabilities)
+                            if not file_path:
+                                logical_locs = location.get('logicalLocations', [])
+                                if isinstance(logical_locs, list) and logical_locs:
+                                    logical_loc = logical_locs[0]
+                                    if isinstance(logical_loc, dict):
+                                        file_path = logical_loc.get('fullyQualifiedName')
+                    
+                    # Extract properties
+                    properties = result.get('properties', {})
+                    confidence = None
+                    cwe_ids = None
+                    tool_severity = None
+                    
+                    if isinstance(properties, dict):
+                        confidence = properties.get('confidence')
+                        cwe_ids = properties.get('cwe')
+                        tool_severity = properties.get('severity')  # Tool-specific severity
+                    
+                    # Build finding dict
+                    finding = {
+                        'tool_name': tool_name,
+                        'tool_version': tool_version,
+                        'type': 'sarif_finding',
+                        'title': f"{tool_name}: {result.get('ruleId', 'unknown')}",
+                        'description': message,
+                        'severity': severity,
+                        'confidence': confidence,
+                        'file_path': file_path,
+                        'line_number': line_number,
+                        'column_number': column_number,
+                        'code_snippet': code_snippet,
+                        'rule_id': result.get('ruleId'),
+                        'category': 'security' if tool_name in ['bandit', 'safety', 'zap', 'semgrep'] else 'quality'
+                    }
+                    
+                    # Add SARIF-specific metadata
+                    sarif_metadata = {
+                        'sarif_level': sarif_level,
+                        'sarif_rule_id': result.get('ruleId'),
+                        'tool_severity': tool_severity,
+                        'cwe_ids': cwe_ids
+                    }
+                    finding['structured_data'] = sarif_metadata
+                    
+                    findings.append(finding)
+            
+            logger.info(f"Extracted {len(findings)} findings from SARIF document with {len(runs)} runs")
+            
+        except Exception as e:
+            logger.error(f"Error extracting SARIF findings: {e}", exc_info=True)
+        
+        return findings
+    
+    async def _store_sarif_export(self, task: Any, sarif_document: Dict[str, Any]):
+        """Store SARIF document to file system.
+        
+        Args:
+            task: AnalysisTask instance
+            sarif_document: Complete SARIF 2.1.0 document
+        """
+        try:
+            from app.paths import RESULTS_DIR
+            from pathlib import Path
+            import json
+            
+            # Build path: results/{model_slug}/app{N}/analysis/{task_id}/consolidated.sarif.json
+            model_slug = task.target_model
+            app_number = task.target_app_number
+            task_id = task.task_id
+            
+            if not model_slug or not app_number:
+                logger.warning(f"Cannot store SARIF: missing model_slug or app_number for task {task_id}")
+                return
+            
+            result_dir = RESULTS_DIR / model_slug / f"app{app_number}" / "analysis" / task_id
+            result_dir.mkdir(parents=True, exist_ok=True)
+            
+            sarif_path = result_dir / "consolidated.sarif.json"
+            
+            # Write SARIF document
+            with open(sarif_path, 'w', encoding='utf-8') as f:
+                json.dump(sarif_document, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"Stored SARIF document at {sarif_path}")
+            
+            # Store path in task metadata
+            metadata = task.get_metadata()
+            metadata['sarif_export_path'] = str(sarif_path)
+            task.set_metadata(metadata)
+            
+        except Exception as e:
+            logger.error(f"Error storing SARIF export for task {task.task_id}: {e}", exc_info=True)
+    
     async def _store_findings(self, task: Any, findings: List[Dict[str, Any]]):
         """Store detailed analysis findings."""
         try:
@@ -593,6 +773,22 @@ class AnalysisExecutor:
                 # Classification
                 result.category = finding_data.get('category')
                 result.rule_id = finding_data.get('rule_id')
+                # SARIF metadata (if from SARIF source)
+                struct_data = finding_data.get('structured_data')
+                if isinstance(struct_data, dict):
+                    result.sarif_level = struct_data.get('sarif_level')
+                    result.sarif_rule_id = struct_data.get('sarif_rule_id')
+                    # Store full SARIF metadata
+                    sarif_meta = {
+                        'sarif_level': struct_data.get('sarif_level'),
+                        'sarif_rule_id': struct_data.get('sarif_rule_id'),
+                        'tool_severity': struct_data.get('tool_severity'),
+                        'cwe_ids': struct_data.get('cwe_ids')
+                    }
+                    # Remove None values
+                    sarif_meta = {k: v for k, v in sarif_meta.items() if v is not None}
+                    if sarif_meta:
+                        result.set_sarif_metadata(sarif_meta)
                 # Raw output
                 result.raw_output = finding_data.get('raw_output')
 
