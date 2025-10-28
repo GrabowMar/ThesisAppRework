@@ -27,6 +27,12 @@ def _normalize_payload_structure(payload: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Normalized structure with all tool results in flat tool_results dict
     """
+    if isinstance(payload.get('tool_results'), dict) and payload['tool_results']:
+        normalized = dict(payload)
+        if not isinstance(normalized.get('summary'), dict):
+            normalized['summary'] = {}
+        return normalized
+
     # Check if it's already a simple results structure
     if 'results' in payload and isinstance(payload.get('results'), dict):
         results = payload['results']

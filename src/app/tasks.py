@@ -1238,44 +1238,200 @@ def aggregate_subtask_results(self, subtask_results: List[Dict], main_task_id: s
     
     try:
         # Collect all results
-        all_results = {}
-        combined_tools = {}
-        all_findings = []
-        
+        all_results: Dict[str, Dict[str, Any]] = {}
+        combined_tools: Dict[str, Dict[str, Any]] = {}
+        all_findings: List[Dict[str, Any]] = []
+        tools_used: List[str] = []
+        tools_successful: List[str] = []
+        tools_failed: List[str] = []
+        aggregated_severity: Dict[str, int] = {}
+        total_findings_accum = 0
+        summary_status = 'completed'
+
         for subtask_result in subtask_results:
-            if subtask_result.get('status') == 'completed':
-                service = subtask_result.get('service')
-                result = subtask_result.get('result', {})
-                
-                all_results[service] = result
-                
-                # Extract tool results
-                if isinstance(result, dict):
-                    tool_results = result.get('tool_results', {})
-                    combined_tools.update(tool_results)
-                    
-                    # Extract findings
-                    findings = result.get('findings', [])
-                    if isinstance(findings, list):
-                        all_findings.extend(findings)
-        
+            if subtask_result.get('status') != 'completed':
+                continue
+
+            service = subtask_result.get('service') or 'unknown-service'
+            result = subtask_result.get('result', {})
+            if not isinstance(result, dict):
+                continue
+
+            payload = result.get('payload') if isinstance(result.get('payload'), dict) else None
+            all_results[service] = result
+
+            result_status = str(result.get('status', '')).lower()
+            if result_status and result_status not in ('completed', 'success', 'ok'):
+                summary_status = 'failed'
+            if payload and payload.get('success') is False:
+                summary_status = 'failed'
+
+            # Gather tool result dictionaries from both top-level and payload shapes
+            candidate_tool_maps: List[Dict[str, Any]] = []
+            direct_tools = result.get('tool_results')
+            if isinstance(direct_tools, dict):
+                candidate_tool_maps.append(direct_tools)
+            if payload and isinstance(payload.get('tool_results'), dict):
+                candidate_tool_maps.append(payload['tool_results'])
+
+            service_tool_issue_sum = 0
+            service_severity: Dict[str, int] = {}
+            severity_from_tools = False
+
+            for tool_map in candidate_tool_maps:
+                for tool_name, tool_data in tool_map.items():
+                    if not isinstance(tool_name, str):
+                        continue
+
+                    existing = combined_tools.get(tool_name)
+                    if isinstance(existing, dict) and isinstance(tool_data, dict):
+                        merged = existing.copy()
+                        for key, value in tool_data.items():
+                            if key not in merged or merged[key] in (None, '', [], {}):
+                                merged[key] = value
+                        combined_tools[tool_name] = merged
+                    else:
+                        combined_tools[tool_name] = tool_data
+
+                    if tool_name not in tools_used:
+                        tools_used.append(tool_name)
+
+                    if isinstance(tool_data, dict):
+                        issues_val = tool_data.get('total_issues')
+                        if isinstance(issues_val, int) and issues_val > 0:
+                            service_tool_issue_sum += issues_val
+
+                        severity_map = tool_data.get('severity_breakdown')
+                        if isinstance(severity_map, dict) and severity_map:
+                            severity_from_tools = True
+                            for severity, count in severity_map.items():
+                                try:
+                                    service_severity[severity] = service_severity.get(severity, 0) + int(count)
+                                except (TypeError, ValueError):
+                                    continue
+
+                        status_val = str(tool_data.get('status', '')).lower()
+                        if status_val in ('success', 'completed', 'ok'):
+                            if tool_name not in tools_successful:
+                                tools_successful.append(tool_name)
+                        elif status_val:
+                            if tool_name not in tools_failed:
+                                tools_failed.append(tool_name)
+
+            # Incorporate requested/used tool hints when analyzer skipped execution
+            candidate_tool_lists: List[List[Any]] = []
+            for key in ('tools_used', 'tools_requested', 'requested_tools'):
+                value = result.get(key)
+                if isinstance(value, list):
+                    candidate_tool_lists.append(value)
+            if payload:
+                for key in ('tools_used', 'tools_requested', 'requested_tools'):
+                    value = payload.get(key)
+                    if isinstance(value, list):
+                        candidate_tool_lists.append(value)
+            for tool_list in candidate_tool_lists:
+                for tool_name in tool_list:
+                    if isinstance(tool_name, str) and tool_name not in tools_used:
+                        tools_used.append(tool_name)
+
+            # Aggregate findings from any structure we can find
+            findings_sources = []
+            if isinstance(result.get('findings'), list):
+                findings_sources.append(result['findings'])
+            if payload and isinstance(payload.get('findings'), list):
+                findings_sources.append(payload['findings'])
+            for findings in findings_sources:
+                for finding in findings:
+                    if isinstance(finding, dict):
+                        all_findings.append(finding)
+
+            # Merge summary information for totals/severity
+            summary_candidates: List[Dict[str, Any]] = []
+            if isinstance(result.get('summary'), dict):
+                summary_candidates.append(result['summary'])
+            if payload and isinstance(payload.get('summary'), dict):
+                summary_candidates.append(payload['summary'])
+
+            service_total_findings = service_tool_issue_sum
+            for summary in summary_candidates:
+                total_from_summary = summary.get('total_findings')
+                if isinstance(total_from_summary, int):
+                    service_total_findings = max(service_total_findings, total_from_summary)
+
+                if not severity_from_tools:
+                    severity_map = summary.get('severity_breakdown')
+                    if isinstance(severity_map, dict):
+                        for severity, count in severity_map.items():
+                            try:
+                                service_severity[severity] = service_severity.get(severity, 0) + int(count)
+                            except (TypeError, ValueError):
+                                continue
+
+            total_findings_accum += service_total_findings
+            for severity, count in service_severity.items():
+                aggregated_severity[severity] = aggregated_severity.get(severity, 0) + count
+
+        if not tools_used and combined_tools:
+            tools_used = list(combined_tools.keys())
+
+        # De-duplicate tool lists while preserving discovery order
+        tools_used = list(dict.fromkeys(tools_used))
+        tools_successful = [t for t in tools_successful if t in combined_tools]
+        tools_failed = [t for t in tools_failed if t in combined_tools]
+
+        total_findings_value = max(total_findings_accum, len(all_findings))
+        success_flag = summary_status in ('completed', 'success', 'ok')
+
         # Build unified payload
         unified_payload = {
             'task': {'task_id': main_task_id},
             'summary': {
-                'total_findings': len(all_findings),
+                'total_findings': total_findings_value,
                 'services_executed': len(all_results),
                 'tools_executed': len(combined_tools),
-                'status': 'completed'
+                'tools_successful': len(tools_successful),
+                'tools_failed': len(tools_failed),
+                'status': summary_status
             },
             'services': all_results,
+            'tool_results': combined_tools,
             'tools': combined_tools,
+            'tools_used': tools_used,
+            'tools_requested': tools_used,
+            'tools_successful': len(tools_successful),
+            'tools_failed': len(tools_failed),
+            'tools_successful_names': tools_successful,
+            'tools_failed_names': tools_failed,
             'findings': all_findings,
             'metadata': {
                 'unified_analysis': True,
-                'generated_at': datetime.now(timezone.utc).isoformat()
-            }
+                'generated_at': datetime.now(timezone.utc).isoformat(),
+                'services_included': list(all_results.keys())
+            },
+            'success': success_flag
         }
+
+        if aggregated_severity:
+            unified_payload['summary']['severity_breakdown'] = aggregated_severity
+        unified_payload['summary']['success'] = success_flag
+
+        # Build condensed raw outputs block so downstream consumers can access artifacts quickly
+        raw_outputs: Dict[str, Dict[str, Any]] = {}
+        for tool_name, tool_meta in combined_tools.items():
+            if not isinstance(tool_name, str) or not isinstance(tool_meta, dict):
+                continue
+            artifact: Dict[str, Any] = {}
+            for key in ('raw_output', 'stdout', 'stderr', 'command_line', 'exit_code', 'error'):
+                value = tool_meta.get(key)
+                if value not in (None, '', [], {}):
+                    artifact[key] = value
+            raw_details = tool_meta.get('raw_details')
+            if isinstance(raw_details, dict) and raw_details:
+                artifact.setdefault('raw_details', raw_details)
+            if artifact:
+                raw_outputs[tool_name] = artifact
+        if raw_outputs:
+            unified_payload['raw_outputs'] = raw_outputs
         
         # Persist unified results to database
         with get_session() as session:

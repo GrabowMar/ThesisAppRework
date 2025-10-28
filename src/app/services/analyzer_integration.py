@@ -9,6 +9,7 @@ Handles WebSocket connections, task execution, and result processing.
 from app.utils.logging_config import get_logger
 from app.config.config_manager import get_config
 import asyncio
+from copy import deepcopy
 import json
 import uuid
 from typing import Dict, List, Optional, Any, Callable
@@ -717,6 +718,232 @@ class AnalysisExecutor:
         
         tool_results = {}
         tools_requested = requested_tools or []
+
+        def _ensure_tool_requested(name: Any) -> None:
+            if isinstance(name, str) and name not in tools_requested:
+                tools_requested.append(name)
+
+        def _merge_tool_run_details(entry: Dict[str, Any], run_data: Dict[str, Any]) -> None:
+            if not isinstance(run_data, dict):
+                return
+
+            duration_hint = run_data.get('duration_seconds') or run_data.get('duration')
+            if duration_hint and not entry.get('duration_seconds'):
+                try:
+                    entry['duration_seconds'] = float(duration_hint)
+                except (TypeError, ValueError):
+                    entry['duration_seconds'] = duration_hint
+
+            if 'executed' not in entry and 'executed' in run_data:
+                entry['executed'] = run_data['executed']
+
+            if 'status' not in entry and 'status' in run_data:
+                entry['status'] = run_data['status']
+
+            if 'command_line' not in entry and run_data.get('command'):
+                entry['command_line'] = run_data.get('command')
+
+            exit_code = run_data.get('exit_code')
+            if exit_code is None:
+                exit_code = run_data.get('returncode')
+            if exit_code is not None and 'exit_code' not in entry:
+                entry['exit_code'] = exit_code
+
+            if 'error' not in entry and run_data.get('error'):
+                entry['error'] = run_data['error']
+
+            if 'raw_output' in entry and entry['raw_output']:
+                return
+
+            raw_output = run_data.get('raw_output') or run_data.get('stdout')
+            if not raw_output and isinstance(run_data.get('commands'), list):
+                chunks: List[str] = []
+                for idx, cmd_data in enumerate(run_data['commands']):
+                    if not isinstance(cmd_data, dict):
+                        continue
+                    cmd_parts = cmd_data.get('cmd')
+                    if isinstance(cmd_parts, list):
+                        cmd_text = ' '.join(str(part) for part in cmd_parts)
+                    else:
+                        cmd_text = str(cmd_parts) if cmd_parts else ''
+                    lines: List[str] = []
+                    if cmd_text:
+                        lines.append(f"$ {cmd_text}")
+                    if cmd_data.get('exit_code') is not None:
+                        lines.append(f"exit_code: {cmd_data['exit_code']}")
+                    stdout = (cmd_data.get('stdout') or '').strip()
+                    if stdout:
+                        lines.append('stdout:')
+                        lines.append(stdout)
+                    stderr = (cmd_data.get('stderr') or '').strip()
+                    if stderr:
+                        lines.append('stderr:')
+                        lines.append(stderr)
+                    if lines:
+                        chunks.append('\n'.join(lines))
+                if chunks:
+                    raw_output = '\n\n'.join(chunks)
+
+            if raw_output:
+                entry['raw_output'] = raw_output
+
+        def _merge_tool_entry(target: Dict[str, Any], updates: Dict[str, Any]) -> Dict[str, Any]:
+            if not updates:
+                return target
+
+            if not target:
+                target.update(updates)
+                return target
+
+            for key, value in updates.items():
+                if value is None:
+                    continue
+
+                if key == 'issues' and isinstance(value, list):
+                    existing = target.get('issues')
+                    if isinstance(existing, list):
+                        existing.extend(value)
+                        target['issues'] = existing
+                        target['total_issues'] = len(existing)
+                    else:
+                        target['issues'] = list(value)
+                        target['total_issues'] = len(value)
+                    continue
+
+                if key == 'severity_breakdown' and isinstance(value, dict):
+                    existing_sb = target.get('severity_breakdown')
+                    if isinstance(existing_sb, dict):
+                        merged = existing_sb.copy()
+                        for sev, count in value.items():
+                            try:
+                                merged[sev] = merged.get(sev, 0) + int(count)
+                            except (TypeError, ValueError):
+                                merged[sev] = merged.get(sev, 0)
+                        target['severity_breakdown'] = merged
+                    else:
+                        target['severity_breakdown'] = value
+                    continue
+
+                if key == 'raw_details' and isinstance(value, dict):
+                    existing_raw = target.get('raw_details')
+                    if isinstance(existing_raw, dict):
+                        merged_raw = existing_raw.copy()
+                        merged_raw.update(value)
+                        target['raw_details'] = merged_raw
+                    else:
+                        target['raw_details'] = value
+                    continue
+
+                if key in ('raw_output', 'stdout', 'stderr', 'command_line', 'error', 'message', 'summary'):
+                    if not target.get(key) and value not in ('', [], {}):
+                        target[key] = value
+                    continue
+
+                if key in ('status', 'executed'):
+                    target[key] = value
+                    continue
+
+                if key == 'total_issues':
+                    if target.get('total_issues') is None:
+                        target['total_issues'] = value
+                    continue
+
+                if key == 'duration_seconds':
+                    if target.get('duration_seconds') is None:
+                        target['duration_seconds'] = value
+                    continue
+
+                if key == 'exit_code':
+                    if target.get('exit_code') is None:
+                        target['exit_code'] = value
+                    continue
+
+                if key == 'metrics' and isinstance(value, dict):
+                    if not isinstance(target.get('metrics'), dict):
+                        target['metrics'] = value
+                    continue
+
+                if key == 'config_used' and value:
+                    if not target.get('config_used'):
+                        target['config_used'] = value
+                    continue
+
+                if key == 'recommendations' and value:
+                    if not target.get('recommendations'):
+                        target['recommendations'] = value
+                    continue
+
+                target.setdefault(key, value)
+            return target
+
+        def _build_tool_entry(tool_name: str, tool_data: Any, *, run_details: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+            entry: Dict[str, Any] = {}
+            data = tool_data if isinstance(tool_data, dict) else {}
+
+            status = str(data.get('status', 'unknown'))
+            entry['status'] = status
+
+            executed = data.get('executed')
+            if executed is None:
+                executed = status not in ('not_available', 'skipped', 'error', 'failed', 'unknown')
+            entry['executed'] = bool(executed)
+
+            duration = data.get('duration_seconds')
+            if duration is None:
+                duration = data.get('duration')
+            if duration is not None:
+                try:
+                    entry['duration_seconds'] = float(duration)
+                except (TypeError, ValueError):
+                    entry['duration_seconds'] = duration
+
+            total_issues = data.get('total_issues')
+            issues_collection = data.get('issues')
+            if issues_collection is None and isinstance(data.get('results'), list):
+                issues_collection = data.get('results')
+
+            if isinstance(issues_collection, list) and issues_collection:
+                entry['issues'] = issues_collection
+                if total_issues is None:
+                    total_issues = len(issues_collection)
+
+            if isinstance(total_issues, int):
+                entry['total_issues'] = total_issues
+
+            severity_breakdown = data.get('severity_breakdown')
+            if isinstance(severity_breakdown, dict) and severity_breakdown:
+                entry['severity_breakdown'] = severity_breakdown
+
+            metrics = data.get('metrics')
+            if isinstance(metrics, dict) and metrics:
+                entry['metrics'] = metrics
+
+            config_used = data.get('config_used')
+            if config_used:
+                entry['config_used'] = config_used
+
+            recommendations = data.get('recommendations') or data.get('references') or data.get('fixes')
+            if recommendations:
+                entry['recommendations'] = recommendations
+
+            for field in ('raw_output', 'stdout', 'stderr', 'command_line', 'error', 'message', 'summary'):
+                value = data.get(field)
+                if value not in (None, '', [], {}):
+                    entry[field] = value
+
+            exit_code = data.get('exit_code')
+            if exit_code is None:
+                exit_code = data.get('returncode')
+            if exit_code is not None:
+                entry['exit_code'] = exit_code
+
+            if run_details:
+                _merge_tool_run_details(entry, run_details)
+
+            if data:
+                entry['raw_details'] = deepcopy(data)
+
+            return entry
         
         # Calculate analysis duration (fallback to reasonable estimate)
         analysis_duration = 1.0  # Default fallback
@@ -732,6 +959,35 @@ class AnalysisExecutor:
                 except Exception:
                     pass
         
+        # Surface dynamic/performance summary maps when available
+        if isinstance(analysis, dict):
+            if isinstance(analysis.get('tools_used'), list):
+                for tool_name in analysis['tools_used']:
+                    _ensure_tool_requested(tool_name)
+
+            results_section = analysis.get('results') if isinstance(analysis.get('results'), dict) else {}
+            tool_runs_section = {}
+            if isinstance(results_section, dict):
+                candidate_runs = results_section.get('tool_runs')
+                if isinstance(candidate_runs, dict):
+                    tool_runs_section = candidate_runs
+
+            summary_section = analysis.get('tool_results')
+            if isinstance(summary_section, dict):
+                for tool_name, tool_data in summary_section.items():
+                    if not isinstance(tool_name, str) or not isinstance(tool_data, dict):
+                        continue
+
+                    _ensure_tool_requested(tool_name)
+
+                    run_details = tool_runs_section.get(tool_name)
+                    entry = _build_tool_entry(tool_name, tool_data, run_details=run_details)
+
+                    if tool_name in tool_results:
+                        _merge_tool_entry(tool_results[tool_name], entry)
+                    else:
+                        tool_results[tool_name] = entry
+
         # Extract tool results from the analysis structure
         if isinstance(analysis, dict) and 'results' in analysis:
             results = analysis['results']
@@ -743,26 +999,26 @@ class AnalysisExecutor:
                         continue  # Skip meta information
                     
                     if isinstance(tool_data, dict):
-                        # Extract tool information
-                        executed = tool_data.get('executed', False)
-                        status = 'success' if tool_data.get('status') == 'success' and executed else 'error'
-                        total_issues = tool_data.get('total_issues', 0)
-                        
-                        # Calculate realistic duration (use analysis duration / number of tools as estimate)
-                        num_tools = len([t for t in results.get('python', {}).keys() if t != 'tool_status'])
-                        tool_duration = analysis_duration / max(1, num_tools)
-                        
-                        tool_results[tool_name] = {
-                            'status': status,
-                            'duration_seconds': round(tool_duration, 2),
-                            'total_issues': total_issues,
-                            'executed': executed,
-                            'raw_output': tool_data.get('raw_output', ''),
-                            'command_line': tool_data.get('command_line', ''),
-                            'exit_code': tool_data.get('exit_code', 0 if status == 'success' else 1)
-                        }
-                        
-                        # Add tool to requested list if not already there
+                        run_details = tool_runs_section.get(tool_name)
+                        entry = _build_tool_entry(tool_name, tool_data, run_details=run_details)
+
+                        if 'duration_seconds' not in entry or entry.get('duration_seconds') in (None, 0):
+                            num_tools = len([t for t in results.get('python', {}).keys() if t != 'tool_status'])
+                            tool_duration = analysis_duration / max(1, num_tools)
+                            entry['duration_seconds'] = round(tool_duration, 2)
+
+                        if 'total_issues' not in entry:
+                            total_issues = tool_data.get('total_issues')
+                            if total_issues is None and isinstance(tool_data.get('issues'), list):
+                                total_issues = len(tool_data['issues'])
+                            if total_issues is not None:
+                                entry['total_issues'] = total_issues
+
+                        if tool_name in tool_results:
+                            _merge_tool_entry(tool_results[tool_name], entry)
+                        else:
+                            tool_results[tool_name] = entry
+
                         if tool_name not in tools_requested:
                             tools_requested.append(tool_name)
             
@@ -771,16 +1027,18 @@ class AnalysisExecutor:
                 if lang in results and isinstance(results[lang], dict):
                     for tool_name, tool_data in results[lang].items():
                         if isinstance(tool_data, dict) and 'status' in tool_data:
-                            status = 'success' if tool_data.get('status') == 'success' else 'error'
-                            tool_results[tool_name] = {
-                                'status': status,
-                                'duration_seconds': round(analysis_duration / max(1, len(tools_requested)), 2),
-                                'total_issues': tool_data.get('total_issues', 0),
-                                'executed': True,
-                                'raw_output': tool_data.get('raw_output', ''),
-                                'command_line': tool_data.get('command_line', ''),
-                                'exit_code': 0 if status == 'success' else 1
-                            }
+                            entry = _build_tool_entry(tool_name, tool_data)
+
+                            if 'duration_seconds' not in entry or entry.get('duration_seconds') in (None, 0):
+                                entry['duration_seconds'] = round(analysis_duration / max(1, len(tools_requested) or 1), 2)
+
+                            if 'total_issues' not in entry and tool_data.get('total_issues') is not None:
+                                entry['total_issues'] = tool_data.get('total_issues')
+
+                            if tool_name in tool_results:
+                                _merge_tool_entry(tool_results[tool_name], entry)
+                            else:
+                                tool_results[tool_name] = entry
             
             # Handle AI analyzer tools (requirements-scanner, etc.)
             if 'tools_used' in analysis and 'requirement_checks' in results:
@@ -819,15 +1077,24 @@ class AnalysisExecutor:
                         
                         raw_output = "\n".join(raw_output_lines)
                         
-                        tool_results[tool_name] = {
+                        entry = {
                             'status': 'success',
                             'duration_seconds': round(analysis_duration, 2),
                             'total_issues': issues_found,
                             'executed': True,
                             'raw_output': raw_output,
                             'command_line': f'ai-analyzer analyze {analysis.get("model_slug", "")} {analysis.get("app_number", "")}',
-                            'exit_code': 0
+                            'exit_code': 0,
+                            'raw_details': {
+                                'requirements_summary': summary_data,
+                                'requirement_checks': requirements_data
+                            }
                         }
+
+                        if tool_name in tool_results:
+                            _merge_tool_entry(tool_results[tool_name], entry)
+                        else:
+                            tool_results[tool_name] = entry
                         
                         # Add tool to requested list if not already there
                         if tool_name not in tools_requested:
@@ -879,15 +1146,24 @@ class AnalysisExecutor:
                             
                             raw_output = "\n".join(raw_output_lines)
                             
-                            tool_results[tool_name] = {
+                            entry = {
                                 'status': 'success' if status == 'success' else 'error',
                                 'duration_seconds': round(analysis_duration, 2),
                                 'total_issues': total_issues,
                                 'executed': True,
                                 'raw_output': raw_output,
                                 'command_line': f'{tool_name} --target {url}',
-                                'exit_code': 0 if status == 'success' else 1
+                                'exit_code': 0 if status == 'success' else 1,
+                                'raw_details': {
+                                    'target_url': url,
+                                    'tool_output': tool_data
+                                }
                             }
+
+                            if tool_name in tool_results:
+                                _merge_tool_entry(tool_results[tool_name], entry)
+                            else:
+                                tool_results[tool_name] = entry
         
         # Handle dynamic analyzer results (structure may vary)
         elif isinstance(analyzer_output.get('results', {}), dict):
@@ -929,25 +1205,48 @@ class AnalysisExecutor:
                         
                         raw_output = "\n".join(raw_output_lines)
                         
-                        tool_results[tool_name] = {
+                        entry = {
                             'status': 'success',
                             'duration_seconds': round(analysis_duration, 2),
                             'total_issues': vulnerabilities_found,
                             'executed': True,
                             'raw_output': raw_output,
                             'command_line': f'{tool_name} --dynamic-scan',
-                            'exit_code': 0
+                            'exit_code': 0,
+                            'raw_details': {
+                                'scan_results': scan_results,
+                                'vulnerabilities_found': vulnerabilities_found,
+                                'target_urls': results_data.get('target_urls')
+                            }
                         }
+
+                        if tool_name in tool_results:
+                            _merge_tool_entry(tool_results[tool_name], entry)
+                        else:
+                            tool_results[tool_name] = entry
         
+        # Deduplicate requested tools while preserving order
+        tools_requested = list(dict.fromkeys(tools_requested))
+
         # Ensure all requested tools have results (create placeholder for missing ones)
         for tool_name in tools_requested:
             if tool_name not in tool_results:
+                reason = f'Tool {tool_name} was not executed by analyzer'
                 tool_results[tool_name] = {
                     'status': 'not_available',
-                    'duration_seconds': 0.1,
+                    'duration_seconds': 0.0,
                     'total_issues': 0,
                     'executed': False,
-                    'error': f'Tool {tool_name} was not executed by analyzer'
+                    'error': reason,
+                    'not_executed_reason': 'analyzer_did_not_return_result',
+                    'requested': True,
+                    'issues': [],
+                    'severity_breakdown': {},
+                    'raw_details': {
+                        'status': 'not_available',
+                        'reason': reason,
+                        'requested': True
+                    }
                 }
         
         # Build the transformed response
