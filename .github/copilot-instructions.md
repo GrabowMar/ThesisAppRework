@@ -38,6 +38,8 @@
   - Markers: `@pytest.mark.integration`, `@pytest.mark.slow`, `@pytest.mark.analyzer`
 - **Initialize/Reset DB**: `cd src && python init_db.py`
 - **Create Admin User**: `python scripts/create_admin.py` (interactive) or set `ADMIN_USERNAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` in `.env`
+- **Generate API Token**: `python scripts/generate_api_token.py` (for programmatic access)
+- **Cleanup Logs**: `python scripts/log_cleanup.py` (maintenance utility)
 
 ### Analyzer Services
 - **Start Services**: `python analyzer/analyzer_manager.py start`

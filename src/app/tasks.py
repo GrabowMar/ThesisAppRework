@@ -29,9 +29,6 @@ try:  # pragma: no cover - import guard
     from app.services.analysis_engines import get_engine
 except Exception:  # pragma: no cover
     get_engine = None  # type: ignore
-# Legacy batch service retired; keep sentinel for compatibility when helper is invoked.
-batch_service = None  # type: ignore
-
 # Import configuration
 from config.celery_config import (
     BROKER_URL, CELERY_RESULT_BACKEND, CELERY_TASK_SERIALIZER, 
@@ -249,13 +246,6 @@ def update_task_progress(current: int, total: int, status: Optional[str] = None,
     # Simplified version to avoid type checking issues
     # In a real implementation, this would update Celery task state
     print(f"Task progress: {current}/{total} ({int((current/total)*100) if total > 0 else 0}%) - {status or 'running'}")
-
-def update_batch_progress(batch_job_id: Optional[str], task_completed: bool = False,
-                         task_failed: bool = False, result: Optional[Dict] = None):
-    """Legacy hook for batch progress updates (no-op)."""
-    # Batch orchestration was removed; retain signature for compatibility.
-    if batch_job_id:
-        pass
 
 # =============================================================================
 # ANALYZER ORCHESTRATION TASKS
@@ -1010,27 +1000,7 @@ def dynamic_analysis_task(self, model_slug: str, app_number: int, options: Optio
             raise self.retry(exc=e, countdown=60, max_retries=3)
     raise
 
-@celery.task(bind=True, name='app.tasks.ai_analysis_task')
-def ai_analysis_task(self, model_slug: str, app_number: int,
-                    analysis_types: Optional[List[str]] = None, options: Optional[Dict] = None):
-    """
-    Run AI-powered code analysis on a specific model application.
-    
-    Args:
-        model_slug: Model identifier
-        app_number: Application number
-        analysis_types: Types of AI analysis to perform
-        options: Additional analysis options
-    """
-    
-    # Deprecated placeholder – composite AI engine not yet implemented
-    return {
-        'status': 'deprecated',
-        'message': 'ai_analysis_task deprecated pending composite AI engine implementation',
-        'model_slug': model_slug,
-        'app_number': app_number,
-        'timestamp': datetime.now(timezone.utc).isoformat()
-    }
+
 
 # =============================================================================
 # PARALLEL SUBTASK EXECUTION
@@ -1468,73 +1438,18 @@ def aggregate_subtask_results(self, subtask_results: List[Dict], main_task_id: s
             pass
         raise
 
-@celery.task(bind=True, name='app.tasks.batch_analysis_task')
-def batch_analysis_task(self, models: List[str], apps: List[int],
-                       analysis_types: List[str], options: Optional[Dict] = None):
-    """
-    Run batch analysis across multiple models and applications.
-    
-    Args:
-        models: List of model slugs
-        apps: List of application numbers
-        analysis_types: Types of analysis to perform
-        options: Additional options
-    """
-    
-    return {
-        'status': 'deprecated',
-        'message': 'batch_analysis_task deprecated – use individual engine tasks or future orchestrator',
-        'models': models,
-        'apps': apps,
-        'analysis_types': analysis_types,
-        'timestamp': datetime.now(timezone.utc).isoformat()
-    }
+
 
 # =============================================================================
 # CONTAINER MANAGEMENT TASKS
 # =============================================================================
-
-@celery.task(bind=True, name='app.tasks.container_management_task')
-def container_management_task(self, action: str, service: Optional[str] = None):
-    """
-    Manage analyzer container operations.
-    
-    Args:
-        action: Action to perform (start, stop, restart, status)
-        service: Specific service name (optional)
-    """
-    
-    return {
-        'status': 'deprecated',
-        'message': f'container_management_task action {action} deprecated – externalized to infra tooling',
-        'action': action,
-        'service': service,
-        'timestamp': datetime.now(timezone.utc).isoformat()
-    }
+# Container management externalized to analyzer_manager.py CLI and DockerManager service
 
 # =============================================================================
 # MONITORING TASKS
 # =============================================================================
 
-@celery.task(name='app.tasks.health_check_analyzers')
-def health_check_analyzers():
-    """Periodic health check of analyzer services."""
-    
-    return {
-        'status': 'deprecated',
-        'message': 'Analyzer service health check deprecated with engine refactor',
-        'timestamp': datetime.now(timezone.utc).isoformat()
-    }
-
-@celery.task(name='app.tasks.monitor_analyzer_containers')
-def monitor_analyzer_containers():
-    """Monitor analyzer container resources and performance."""
-    
-    return {
-        'status': 'deprecated',
-        'message': 'Container monitoring deprecated with engine refactor',
-        'timestamp': datetime.now(timezone.utc).isoformat()
-    }
+# Health checking and monitoring now handled by HealthService and analyzer_manager.py
 
 @celery.task(name='app.tasks.cleanup_expired_results')
 def cleanup_expired_results():
@@ -1589,176 +1504,6 @@ def task_postrun_handler(task_id, task, retval, state, *args, **kwargs):
 def worker_ready_handler(sender, **kwargs):
     """Handle worker ready event."""
     print(f"Celery worker {sender} is ready and connected to analyzer infrastructure")
-
-
-@celery.task(bind=True, name='app.tasks.run_enhanced_analysis')
-def run_enhanced_analysis(self, model_slug: str, app_number: int, config: Dict) -> Dict:
-    """
-    Run enhanced analysis with custom configuration.
-    
-    This task orchestrates multiple analyzer services with enhanced configuration
-    options for comprehensive testing.
-    
-    Args:
-        model_slug: The model identifier (e.g., 'anthropic_claude-3.5-sonnet')
-        app_number: The application number to analyze
-        config: Enhanced configuration dict with tool-specific settings
-        
-    Returns:
-        Dict containing analysis results and metadata
-    """
-    task_id = self.request.id
-    print(f"Starting enhanced analysis task {task_id} for {model_slug} app {app_number}")
-    
-    try:
-        # Placeholder composite orchestration – deprecated
-        results = {}
-        
-        # Update task progress
-        self.update_state(state='PROGRESS', meta={'stage': 'starting', 'progress': 0})
-        
-        # Deprecated – no-op sections retained for backward compatibility
-        if config.get('static'):
-            self.update_state(state='PROGRESS', meta={'stage': 'static_analysis', 'progress': 20})
-            results['static_analysis'] = {'status': 'deprecated'}
-        if config.get('performance'):
-            self.update_state(state='PROGRESS', meta={'stage': 'performance_testing', 'progress': 50})
-            results['performance_testing'] = {'status': 'deprecated'}
-        if config.get('ai'):
-            self.update_state(state='PROGRESS', meta={'stage': 'ai_analysis', 'progress': 80})
-            results['ai_analysis'] = {'status': 'deprecated'}
-        
-        # Compile final results
-        self.update_state(state='PROGRESS', meta={'stage': 'finalizing', 'progress': 95})
-        
-        # Calculate overall scores and summary
-        overall_results = {
-            'status': 'completed',
-            'task_id': task_id,
-            'model_slug': model_slug,
-            'app_number': app_number,
-            'config_used': config,
-            'analysis_results': results,
-            'completed_at': datetime.now(timezone.utc).isoformat(),
-            'summary': _generate_enhanced_summary(results)
-        }
-        
-        # Save results to database
-        _save_enhanced_results(overall_results)
-        
-        print(f"Enhanced analysis task {task_id} completed successfully")
-        return overall_results
-        
-    except Exception as e:
-        print(f"Enhanced analysis task {task_id} failed: {e}")
-        error_result = {
-            'status': 'error',
-            'error': str(e),
-            'task_id': task_id,
-            'model_slug': model_slug,
-            'app_number': app_number,
-            'failed_at': datetime.now(timezone.utc).isoformat()
-        }
-        
-        # Try to save error to database
-        try:
-            _save_enhanced_results(error_result)
-        except Exception as save_error:
-            print(f"Failed to save error results: {save_error}")
-        
-        # Re-raise for Celery to handle
-        raise self.retry(exc=e, countdown=60, max_retries=3)
-
-
-def _generate_enhanced_summary(results: Dict) -> Dict:
-    """Generate summary from enhanced analysis results."""
-    summary = {
-        'total_analyses': 0,
-        'successful_analyses': 0,
-        'failed_analyses': 0,
-        'overall_score': 0,
-        'issues_found': 0,
-        'recommendations': []
-    }
-    
-    scores = []
-    
-    for analysis_type, result in results.items():
-        summary['total_analyses'] += 1
-        
-        if result.get('status') == 'success':
-            summary['successful_analyses'] += 1
-            
-            # Extract scores based on analysis type
-            if analysis_type == 'static_analysis':
-                if 'bandit' in result and result['bandit'].get('total_issues'):
-                    summary['issues_found'] += result['bandit']['total_issues']
-                if 'pylint' in result and result['pylint'].get('score'):
-                    scores.append(result['pylint']['score'])
-                    
-            elif analysis_type == 'performance_testing':
-                if 'apache_bench' in result and result['apache_bench'].get('requests_per_second'):
-                    # Convert RPS to a 0-100 score (normalize based on expected performance)
-                    rps = result['apache_bench']['requests_per_second']
-                    score = min(100, (rps / 100) * 100)  # 100 RPS = 100% score
-                    scores.append(score)
-                    
-            elif analysis_type == 'ai_analysis':
-                if result.get('quality_score'):
-                    scores.append(result['quality_score'])
-        else:
-            summary['failed_analyses'] += 1
-    
-    # Calculate overall score
-    if scores:
-        summary['overall_score'] = sum(scores) / len(scores)
-    
-    # Generate recommendations based on results
-    if summary['issues_found'] > 10:
-        summary['recommendations'].append('High number of security issues detected - review critical vulnerabilities')
-    
-    if summary['overall_score'] < 60:
-        summary['recommendations'].append('Overall score is below acceptable threshold - consider code improvements')
-    
-    if summary['failed_analyses'] > 0:
-        summary['recommendations'].append('Some analyses failed - check analyzer configuration and connectivity')
-    
-    return summary
-
-
-def _save_enhanced_results(results: Dict) -> None:
-    """Save enhanced analysis results to database."""
-    try:
-        from app.extensions import db
-        import app.models as _models
-
-        EnhancedAnalysisModel = getattr(_models, 'EnhancedAnalysis', None)
-        if EnhancedAnalysisModel is None:
-            print("EnhancedAnalysis model not available; skipping DB save")
-            return
-
-        # Create enhanced analysis record
-        analysis = EnhancedAnalysisModel(
-            task_id=results.get('task_id'),
-            model_slug=results.get('model_slug'),
-            app_number=results.get('app_number'),
-            status=results.get('status'),
-            config_json=results.get('config_used', {}),
-            results_json=results.get('analysis_results', {}),
-            summary_json=results.get('summary', {}),
-            overall_score=(results.get('summary') or {}).get('overall_score'),
-            created_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc) if results.get('status') == 'completed' else None
-        )
-
-        db.session.add(analysis)
-        db.session.commit()
-
-        print(f"Saved enhanced analysis results for task {results.get('task_id')}")
-
-    except Exception as e:
-        print(f"Failed to save enhanced analysis results: {e}")
-        # Don't re-raise - this is not critical for task completion
 
 
 if __name__ == '__main__':
