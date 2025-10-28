@@ -50,6 +50,25 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import websockets
 from websockets.exceptions import ConnectionClosed
 
+# Import slug normalization utilities from Flask app
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
+try:
+    from app.utils.slug_utils import normalize_model_slug, generate_slug_variants
+except ImportError:
+    # Fallback if running standalone
+    def normalize_model_slug(raw: str) -> str:
+        """Fallback slug normalization."""
+        return raw.strip().lower().replace('/', '_').replace(' ', '-').replace('.', '-')
+    def generate_slug_variants(slug: str) -> List[str]:
+        """Fallback variant generation."""
+        variants = [
+            slug,
+            slug.replace('_', '-'),
+            slug.replace('-', '_'),
+            slug.replace('_', '/'),
+        ]
+        return list(dict.fromkeys(variants))  # dedupe
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -350,6 +369,33 @@ class AnalyzerManager:
         
         return self._port_config_cache
 
+    def _normalize_and_validate_app(self, model_slug: str, app_number: int) -> Optional[Tuple[str, Path]]:
+        """Normalize model slug and validate app exists.
+        
+        Returns:
+            Tuple of (normalized_slug, app_path) if app exists, None otherwise
+        """
+        # Normalize slug to canonical format (provider_model-name)
+        normalized_slug = normalize_model_slug(model_slug)
+        
+        # Check if app exists in filesystem
+        root = Path(__file__).parent.parent  # project root
+        app_path = root / 'generated' / 'apps' / normalized_slug / f'app{app_number}'
+        
+        if not app_path.exists() or not app_path.is_dir():
+            # Try slug variants for backward compatibility
+            for variant in generate_slug_variants(model_slug):
+                variant_path = root / 'generated' / 'apps' / variant / f'app{app_number}'
+                if variant_path.exists() and variant_path.is_dir():
+                    logger.info(f"Found app using variant slug: {variant} (requested: {model_slug})")
+                    return variant, variant_path
+            
+            logger.error(f"App does not exist: {app_path}")
+            logger.error(f"Cannot analyze non-existent app. Generate it first or check model slug.")
+            return None
+        
+        return normalized_slug, app_path
+
     def _resolve_app_ports(self, model_slug: str, app_number: int) -> Optional[Tuple[int, int]]:
         """Resolve backend & frontend ports for a model/app.
 
@@ -357,7 +403,7 @@ class AnalyzerManager:
         1. .env file in generated app directory (source of truth for running apps)
         2. Database/JSON configuration (fallback for apps without .env)
 
-        Returns None if no configuration found so caller can choose defaults.
+        Returns None if no configuration found (caller MUST handle this error).
         """
         try:
             # PRIORITY 1: Try reading from generated app's .env file FIRST (source of truth)
@@ -381,26 +427,19 @@ class AnalyzerManager:
             except Exception as env_err:
                 logger.debug(f"Could not read .env file for {model_slug} app {app_number}: {env_err}")
             
-            # PRIORITY 2: Fall back to database/JSON configuration
-            model_variations = [
-                model_slug,  # exact match
-                model_slug.replace('_', '/'),  # filesystem underscore to JSON slash
-                model_slug.replace('-', '/'),  # hyphens to slash
-                model_slug.replace('_', '-'),  # underscores to hyphens
-                model_slug.replace('-', '_'),  # hyphens to underscores
-            ]
-            
-            for entry in self._load_port_config():
-                for model_variant in model_variations:
-                    if (entry.get('model') == model_variant and  # changed from model_name to model
+            # PRIORITY 2: Fall back to database/JSON configuration using slug variants
+            for variant in generate_slug_variants(model_slug):
+                for entry in self._load_port_config():
+                    if (entry.get('model') == variant and
                             int(entry.get('app_number', -1)) == int(app_number)):
                         b = entry.get('backend_port')
                         f = entry.get('frontend_port')
                         if isinstance(b, int) and isinstance(f, int):
-                            logger.debug(f"Resolved ports for {model_slug} app {app_number}: backend={b}, frontend={f} (matched as {model_variant} from database)")
+                            logger.debug(f"Resolved ports for {model_slug} app {app_number}: backend={b}, frontend={f} (matched as {variant} from database)")
                             return b, f
             
-            logger.warning(f"No port configuration found for {model_slug} app {app_number}")
+            logger.error(f"No port configuration found for {model_slug} app {app_number}")
+            logger.error(f"Cannot run dynamic/performance analysis without port configuration.")
         except Exception as e:
             logger.error(f"Error resolving ports for {model_slug} app {app_number}: {e}")
         return None
@@ -786,25 +825,40 @@ class AnalyzerManager:
                                   tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run dynamic analysis against running app endpoints."""
         logger.info(f"🕷️  Running dynamic analysis on {model_slug} app {app_number}")
+        
+        # Validate app exists and normalize slug
+        validation = self._normalize_and_validate_app(model_slug, app_number)
+        if not validation:
+            return {
+                'status': 'error',
+                'error': f'App does not exist: {model_slug} app{app_number}',
+                'message': 'Generate the app first before running analysis'
+            }
+        normalized_slug, app_path = validation
+        
         resolved_urls: List[str] = []
         if target_urls:
             resolved_urls = list(target_urls)
         else:
-            ports = self._resolve_app_ports(model_slug, app_number)
-            if ports:
-                backend_port, frontend_port = ports
-                # Use host.docker.internal for container-to-container communication from analyzer containers
-                resolved_urls = [
-                    f"http://host.docker.internal:{backend_port}", 
-                    f"http://host.docker.internal:{frontend_port}"
-                ]
-            else:
-                # Fallback to localhost if ports not resolved
-                resolved_urls = [f"http://host.docker.internal:300{app_number}"]
+            ports = self._resolve_app_ports(normalized_slug, app_number)
+            if not ports:
+                return {
+                    'status': 'error',
+                    'error': f'No port configuration found for {normalized_slug} app{app_number}',
+                    'message': 'Start the app with docker-compose or configure ports in database'
+                }
+            
+            backend_port, frontend_port = ports
+            # Use host.docker.internal for container-to-container communication from analyzer containers
+            resolved_urls = [
+                f"http://host.docker.internal:{backend_port}", 
+                f"http://host.docker.internal:{frontend_port}"
+            ]
+            logger.info(f"Target URLs for dynamic analysis: {resolved_urls}")
         
         message = {
             "type": "dynamic_analyze",
-            "model_slug": model_slug,
+            "model_slug": normalized_slug,
             "app_number": app_number,
             "target_urls": resolved_urls,
             # Optional tools selection propagated to service for gating
@@ -820,28 +874,50 @@ class AnalyzerManager:
                                  duration: int = 60, tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run performance test on an application."""
         logger.info(f"⚡ Running performance test on {model_slug} app {app_number}")
+        
+        # Validate app exists and normalize slug
+        validation = self._normalize_and_validate_app(model_slug, app_number)
+        if not validation:
+            return {
+                'status': 'error',
+                'error': f'App does not exist: {model_slug} app{app_number}',
+                'message': 'Generate the app first before running analysis'
+            }
+        normalized_slug, app_path = validation
+        
         # New behavior: send explicit target_urls list derived from port config when available.
         urls: List[str] = []
         if target_url:
             urls.append(target_url)
         else:
-            ports = self._resolve_app_ports(model_slug, app_number)
-            if ports:
-                backend_port, frontend_port = ports
-                # Use host.docker.internal for container-to-container communication from analyzer containers
-                urls = [
-                    f"http://host.docker.internal:{backend_port}", 
-                    f"http://host.docker.internal:{frontend_port}"
-                ]
-            else:
-                # Fallback to localhost if ports not resolved
-                urls = [f"http://host.docker.internal:300{app_number}"]
+            ports = self._resolve_app_ports(normalized_slug, app_number)
+            if not ports:
+                return {
+                    'status': 'error',
+                    'error': f'No port configuration found for {normalized_slug} app{app_number}',
+                    'message': 'Start the app with docker-compose or configure ports in database'
+                }
+            
+            backend_port, frontend_port = ports
+            # Use host.docker.internal for container-to-container communication from analyzer containers
+            urls = [
+                f"http://host.docker.internal:{backend_port}", 
+                f"http://host.docker.internal:{frontend_port}"
+            ]
+            logger.info(f"Target URLs for performance test: {urls}")
         
         # Backwards compatible: we still include legacy 'target_url' key (first url or None)
-        legacy_single = urls[0] if urls else (target_url or f"http://host.docker.internal:300{app_number}")
+        legacy_single = urls[0] if urls else target_url
+        if not legacy_single:
+            return {
+                'status': 'error',
+                'error': 'No target URL available',
+                'message': 'Could not determine target URL for performance test'
+            }
+        
         message = {
             "type": "performance_test",
-            "model_slug": model_slug,
+            "model_slug": normalized_slug,
             "app_number": app_number,
             "target_url": legacy_single,  # legacy field (service ignores if target_urls present)
             "target_urls": urls,
@@ -2328,6 +2404,12 @@ async def main():
             model_slug = sys.argv[2]
             app_number = int(sys.argv[3])
             analysis_type = sys.argv[4] if len(sys.argv) > 4 else 'comprehensive'
+            
+            # Normalize model slug before analysis
+            normalized_slug = normalize_model_slug(model_slug)
+            if normalized_slug != model_slug:
+                logger.info(f"Normalized model slug: {model_slug} → {normalized_slug}")
+                model_slug = normalized_slug
             # Optional: parse tool selection e.g., --tools bandit pylint
             tools_arg: Optional[List[str]] = None
             if '--tools' in sys.argv:

@@ -178,8 +178,18 @@
                   <span class="badge bg-danger-lt text-danger">
                     <i class="fas fa-times me-1"></i>Failed
                   </span>
+                {% elif item.status == 'cancelled' %}
+                  <span class="badge bg-secondary-lt text-secondary">
+                    <i class="fas fa-ban me-1"></i>Cancelled
+                  </span>
+                {% elif item.status == 'unknown' or not item.status %}
+                  <span class="badge bg-secondary-lt text-secondary">
+                    <i class="fas fa-question me-1"></i>Unknown
+                  </span>
                 {% else %}
-                  <span class="badge bg-secondary-lt text-secondary">{{ item.status|title }}</span>
+                  <span class="badge bg-info-lt text-info">
+                    <i class="fas fa-info-circle me-1"></i>{{ item.status|title }}
+                  </span>
                 {% endif %}
               </td>
               <td>
@@ -318,8 +328,18 @@
                       <span class="badge bg-danger-lt text-danger">
                         <i class="fas fa-times me-1"></i>Failed
                       </span>
+                    {% elif subtask.status == 'cancelled' %}
+                      <span class="badge bg-secondary-lt text-secondary">
+                        <i class="fas fa-ban me-1"></i>Cancelled
+                      </span>
+                    {% elif subtask.status == 'unknown' or not subtask.status %}
+                      <span class="badge bg-secondary-lt text-secondary">
+                        <i class="fas fa-question me-1"></i>Unknown
+                      </span>
                     {% else %}
-                      <span class="badge bg-secondary-lt text-secondary">{{ subtask.status|title }}</span>
+                      <span class="badge bg-info-lt text-info">
+                        <i class="fas fa-info-circle me-1"></i>{{ subtask.status|title }}
+                      </span>
                     {% endif %}
                   </td>
                   <td>
