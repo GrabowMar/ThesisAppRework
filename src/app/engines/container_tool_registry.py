@@ -306,33 +306,6 @@ class ContainerToolRegistry:
             config_schema=mypy_schema
         )
         
-        # JSHint - JavaScript quality tool
-        jshint_schema = ToolConfigSchema(
-            parameters=[
-                ToolParameter("esversion", "integer", "ECMAScript version", 6,
-                            options=[5, 6, 7, 8, 9, 10, 11]),
-                ToolParameter("strict", "boolean", "Require strict mode", True),
-                ToolParameter("undef", "boolean", "Require variable declarations", True),
-                ToolParameter("unused", "boolean", "Check for unused variables", True),
-                ToolParameter("browser", "boolean", "Browser environment", True),
-                ToolParameter("node", "boolean", "Node.js environment", True),
-                ToolParameter("max_files", "integer", "Maximum files to analyze", 30,
-                            min_value=1, max_value=100)
-            ],
-            documentation_url="https://jshint.com/"
-        )
-        
-        self._tools["jshint"] = ContainerTool(
-            name="jshint",
-            display_name="JSHint Code Quality",
-            description="JavaScript code quality tool",
-            container=AnalyzerContainer.STATIC,
-            tags={"quality", "javascript", "linting"},
-            supported_languages={"javascript"},
-            available=True,
-            config_schema=jshint_schema
-        )
-        
         # Vulture - Dead code detector
         vulture_schema = ToolConfigSchema(
             parameters=[
@@ -356,6 +329,32 @@ class ContainerToolRegistry:
             supported_languages={"python"},
             available=True,
             config_schema=vulture_schema
+        )
+        
+        # Ruff - Fast Python linter
+        ruff_schema = ToolConfigSchema(
+            parameters=[
+                ToolParameter("select", "array", "Rules to enable", []),
+                ToolParameter("ignore", "array", "Rules to ignore", []),
+                ToolParameter("fix", "boolean", "Auto-fix issues", False),
+                ToolParameter("line_length", "integer", "Maximum line length", 88,
+                            min_value=50, max_value=200),
+                ToolParameter("target_version", "string", "Python version", "py311",
+                            options=["py37", "py38", "py39", "py310", "py311", "py312"]),
+                ToolParameter("respect_gitignore", "boolean", "Respect .gitignore", True)
+            ],
+            documentation_url="https://docs.astral.sh/ruff/"
+        )
+        
+        self._tools["ruff"] = ContainerTool(
+            name="ruff",
+            display_name="Ruff Fast Linter",
+            description="Extremely fast Python linter (10-100x faster than pylint/flake8)",
+            container=AnalyzerContainer.STATIC,
+            tags={"quality", "python", "linting", "fast"},
+            supported_languages={"python"},
+            available=True,
+            config_schema=ruff_schema
         )
     
     def _register_dynamic_analyzer_tools(self) -> None:
@@ -569,6 +568,86 @@ class ContainerToolRegistry:
             supported_languages={"documentation", "code"},
             available=True,
             config_schema=requirements_schema
+        )
+        
+        # Requirements Checker (NEW) - Functional requirements + endpoint testing
+        import os
+        has_openrouter_key = bool(os.getenv('OPENROUTER_API_KEY'))
+        
+        checker_schema = ToolConfigSchema(
+            parameters=[
+                ToolParameter("template_id", "integer", "Requirements template ID", 1,
+                            min_value=1, max_value=100),
+                ToolParameter("backend_port", "integer", "Application backend port", 5000,
+                            min_value=1024, max_value=65535),
+                ToolParameter("frontend_port", "integer", "Application frontend port", 8000,
+                            min_value=1024, max_value=65535),
+                ToolParameter("gemini_model", "string", "AI model for analysis", "anthropic/claude-3-5-haiku",
+                            options=["anthropic/claude-3-5-haiku", "anthropic/claude-3-5-sonnet", 
+                                   "openai/gpt-4o-mini", "openai/gpt-4o"])
+            ],
+            examples={
+                "default": {
+                    "template_id": 1,
+                    "backend_port": 5000,
+                    "frontend_port": 8000,
+                    "gemini_model": "anthropic/claude-3-5-haiku"
+                },
+                "high_quality": {
+                    "template_id": 1,
+                    "backend_port": 5000,
+                    "frontend_port": 8000,
+                    "gemini_model": "anthropic/claude-3-5-sonnet"
+                }
+            },
+            documentation_url="https://github.com/GrabowMar/ThesisAppRework/blob/main/docs/features/ANALYSIS.md"
+        )
+        
+        self._tools["requirements-checker"] = ContainerTool(
+            name="requirements-checker",
+            display_name="Functional Requirements Tester",
+            description="Tests functional requirements with curl endpoint validation and AI code analysis",
+            container=AnalyzerContainer.AI,
+            tags={"ai", "requirements", "functional", "testing", "endpoints"},
+            supported_languages={"python", "javascript", "typescript"},
+            available=has_openrouter_key,
+            config_schema=checker_schema
+        )
+        
+        # Code Quality Analyzer (NEW) - Stylistic requirements analysis
+        quality_schema = ToolConfigSchema(
+            parameters=[
+                ToolParameter("template_id", "integer", "Requirements template ID", 1,
+                            min_value=1, max_value=100),
+                ToolParameter("gemini_model", "string", "AI model for analysis", "anthropic/claude-3-5-haiku",
+                            options=["anthropic/claude-3-5-haiku", "anthropic/claude-3-5-sonnet",
+                                   "openai/gpt-4o-mini", "openai/gpt-4o"]),
+                ToolParameter("full_scan", "boolean", "Scan entire codebase (vs backend+frontend only)", False)
+            ],
+            examples={
+                "focused": {
+                    "template_id": 1,
+                    "full_scan": False,
+                    "gemini_model": "anthropic/claude-3-5-haiku"
+                },
+                "comprehensive": {
+                    "template_id": 1,
+                    "full_scan": True,
+                    "gemini_model": "anthropic/claude-3-5-sonnet"
+                }
+            },
+            documentation_url="https://github.com/GrabowMar/ThesisAppRework/blob/main/docs/features/ANALYSIS.md"
+        )
+        
+        self._tools["code-quality-analyzer"] = ContainerTool(
+            name="code-quality-analyzer",
+            display_name="Stylistic Code Quality Analyzer",
+            description="AI-powered analysis of stylistic requirements (React hooks, error handling, accessibility)",
+            container=AnalyzerContainer.AI,
+            tags={"ai", "quality", "stylistic", "patterns", "best-practices"},
+            supported_languages={"python", "javascript", "typescript", "react"},
+            available=has_openrouter_key,
+            config_schema=quality_schema
         )
     
     def get_tools_by_container(self, container: AnalyzerContainer) -> List[ContainerTool]:

@@ -17,6 +17,7 @@ from typing import Dict, List, Any, Optional, Set
 
 from analyzer.shared.service_base import BaseWSService
 from parsers import parse_tool_output
+from sarif_parsers import parse_tool_output_to_sarif, build_sarif_document, get_available_sarif_parsers
 
 
 class StaticAnalyzer(BaseWSService):
@@ -61,11 +62,24 @@ class StaticAnalyzer(BaseWSService):
                 raw_output = json.loads(result.stdout)
                 # Use tool-specific parser to standardize output
                 parsed_result = parse_tool_output(tool_name, raw_output, config)
+                
+                # Generate SARIF representation if supported
+                sarif_run = parse_tool_output_to_sarif(tool_name, raw_output, config)
+                if sarif_run:
+                    parsed_result['sarif'] = sarif_run
+                    self.log.debug(f"Generated SARIF output for {tool_name}")
+                
                 return parsed_result
             except json.JSONDecodeError as e:
                 self.log.warning(f"{tool_name} produced invalid JSON: {e}")
-                # Fallback for tools that don't produce JSON
-                return {'tool': tool_name, 'executed': True, 'status': 'completed', 'output': result.stdout[:1000]}
+                # Fallback for tools that don't produce JSON (e.g., flake8, mypy text, vulture)
+                # Try SARIF parser with text output
+                sarif_run = parse_tool_output_to_sarif(tool_name, result.stdout, config)
+                fallback_result = {'tool': tool_name, 'executed': True, 'status': 'completed', 'output': result.stdout[:1000]}
+                if sarif_run:
+                    fallback_result['sarif'] = sarif_run
+                    self.log.debug(f"Generated SARIF output for text-based {tool_name}")
+                return fallback_result
 
         except FileNotFoundError:
             self.log.error(f"{tool_name} not found. Is it installed and in PATH?")
@@ -79,7 +93,7 @@ class StaticAnalyzer(BaseWSService):
 
     def _detect_available_tools(self) -> List[str]:
         tools: List[str] = []
-        for tool in ['bandit', 'pylint', 'mypy', 'eslint', 'stylelint', 'semgrep', 'snyk', 'safety', 'jshint', 'vulture', 'flake8']:
+        for tool in ['bandit', 'pylint', 'mypy', 'eslint', 'stylelint', 'semgrep', 'snyk', 'safety', 'vulture', 'flake8']:
             try:
                 result = subprocess.run([tool, '--version'], capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
@@ -229,7 +243,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             and mypy_config.get('enabled', True)
             and python_files
         ):
-            cmd = ['mypy', '--show-error-codes', '--no-error-summary', '--ignore-missing-imports']
+            cmd = ['mypy', '--output', 'json', '--show-error-codes', '--no-error-summary', '--ignore-missing-imports']
             max_files = mypy_config.get('max_files', 10)
             files_to_check = python_files[:max_files]
             cmd.extend([str(f) for f in files_to_check])
@@ -269,13 +283,20 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             and (selected_tools is None or 'safety' in selected_tools)
             and safety_config.get('enabled', True)
         ):
-            cmd = ['safety', 'scan', '--output', 'json']
             requirements_file = source_path / 'requirements.txt'
-            if requirements_file.exists():
-                cmd.extend(['--file', str(requirements_file)])
-
-            # Parser handles all output formatting
-            results['safety'] = await self._run_tool(cmd, 'safety', config=safety_config, success_exit_codes=[0, 1])
+            if not requirements_file.exists():
+                self.log.info("Skipping Safety - no requirements.txt found")
+                results['safety'] = {
+                    'tool': 'safety',
+                    'executed': False,
+                    'status': 'skipped',
+                    'message': 'No requirements.txt file found',
+                    'total_issues': 0
+                }
+            else:
+                cmd = ['safety', 'scan', '--output', 'json', '--file', str(requirements_file)]
+                # Parser handles all output formatting
+                results['safety'] = await self._run_tool(cmd, 'safety', config=safety_config, success_exit_codes=[0, 1])
 
         # Vulture dead code detection
         if (
@@ -288,7 +309,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             if vulture_config.get('min_confidence'):
                 cmd.extend(['--min-confidence', str(vulture_config['min_confidence'])])
 
-            vulture_result = await self._run_tool(cmd, 'vulture')
+            vulture_result = await self._run_tool(cmd, 'vulture', success_exit_codes=[0, 1])
 
             if vulture_result.get('status') == 'error':
                 results['vulture'] = vulture_result
@@ -330,10 +351,33 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             # Parser handles all output formatting
             results['flake8'] = await self._run_tool(cmd, 'flake8', config=flake8_config, success_exit_codes=[0, 1])
         
+        # Ruff - Fast Python linter (10-100x faster than pylint/flake8)
+        ruff_config = config.get('ruff', {}) if config else {}
+        if (
+            'ruff' in self.available_tools
+            and (selected_tools is None or 'ruff' in selected_tools)
+            and ruff_config.get('enabled', True)
+            and python_files
+        ):
+            cmd = ['ruff', 'check', '--output-format=json']
+            # Add config options
+            if ruff_config.get('select'):
+                cmd.extend(['--select', ','.join(ruff_config['select'])])
+            if ruff_config.get('ignore'):
+                cmd.extend(['--ignore', ','.join(ruff_config['ignore'])])
+            if ruff_config.get('fix', False):
+                cmd.append('--fix')
+            
+            cmd.append(str(source_path))
+            
+            # Ruff exit codes: 0=no issues, 1=issues found, 2=error
+            # Parser handles all output formatting
+            results['ruff'] = await self._run_tool(cmd, 'ruff', config=ruff_config, success_exit_codes=[0, 1])
+        
         # Summarize per-tool status for Python analyzers
         try:
             summary = {}
-            for name in ['bandit', 'pylint', 'semgrep', 'mypy', 'safety', 'vulture', 'flake8']:
+            for name in ['bandit', 'pylint', 'semgrep', 'mypy', 'safety', 'vulture', 'flake8', 'ruff']:
                 t = results.get(name)
                 if isinstance(t, dict):
                     try:
@@ -401,33 +445,6 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 self.log.error(f"ESLint analysis failed: {e}")
                 results['eslint'] = {'tool': 'eslint', 'executed': True, 'status': 'error', 'error': str(e)}
 
-        # JSHint JavaScript quality analysis
-        if (
-            'jshint' in self.available_tools
-            and (selected_tools is None or 'jshint' in selected_tools)
-            and jshint_config.get('enabled', True)
-            and js_files
-        ):
-            cmd = ['jshint', '--reporter', 'json']
-            max_files = jshint_config.get('max_files', 30)
-            files_to_check = js_files[:max_files]
-            cmd.extend([str(f) for f in files_to_check])
-
-            jshint_result = await self._run_tool(cmd, 'jshint', success_exit_codes=[0, 1, 2])
-
-            if jshint_result.get('status') == 'error':
-                results['jshint'] = jshint_result
-            else:
-                jshint_data = jshint_result.get('result', []) if isinstance(jshint_result, dict) else []
-                results['jshint'] = {
-                    'tool': 'jshint',
-                    'executed': True,
-                    'status': 'success' if jshint_data else 'no_issues',
-                    'results': jshint_data,
-                    'total_issues': len(jshint_data),
-                    'config_used': jshint_config
-                }
-        
         # Snyk Code vulnerability analysis
         if (
             'snyk' in self.available_tools
@@ -686,6 +703,19 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 'configuration_preset': config.get('preset_name', 'custom') if config else 'default'
             }
             results['tools_used'] = used_tools
+            
+            # Collect SARIF runs and build SARIF document if any tools generated SARIF
+            sarif_runs = []
+            for lang_results in results['results'].values():
+                if isinstance(lang_results, dict):
+                    for tool_result in lang_results.values():
+                        if isinstance(tool_result, dict) and 'sarif' in tool_result:
+                            sarif_runs.append(tool_result['sarif'])
+            
+            if sarif_runs:
+                results['sarif_export'] = build_sarif_document(sarif_runs)
+                self.log.info(f"Generated SARIF document with {len(sarif_runs)} tool runs")
+            
             await self.send_progress('reporting', 'Compiling report', analysis_id=analysis_id,
                                  total_issues=total_issues, tools_run=tools_run)
             await self.send_progress('completed', 'Static analysis completed', analysis_id=analysis_id,

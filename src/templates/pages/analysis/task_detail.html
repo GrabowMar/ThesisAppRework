@@ -1,0 +1,246 @@
+{# Task Detail - Database-Backed View #}
+{% extends 'layouts/base.html' %}
+{% from 'components/detail_macros.html' import research_detail_header, research_metric_grid %}
+{% set active_page = 'analysis' %}
+{% set page_title = 'Task ' ~ task.task_id[:16] ~ '…' %}
+
+{% block content %}
+{% set severity_order = ['critical', 'high', 'medium', 'low', 'info'] %}
+
+<div class="research-detail-shell">
+  {# Build view structure for unified header #}
+  {% set status_color = 'success' if task.status.value in ['completed', 'success'] else ('danger' if task.status.value in ['failed', 'error'] else 'secondary') %}
+  {% set view = {
+    'pretitle': (task.target_model or 'Unknown Model') + ' · App #' + (task.target_app_number|string),
+    'icon': 'fa-solid fa-microscope',
+    'title': page_title,
+    'subtitle': 'Task ID: ' + task.task_id + ' · ' + (task.created_at.strftime('%Y-%m-%d %H:%M:%S UTC') if task.created_at else 'Unknown time'),
+    'badges': [
+      {'label': task.status.value.replace('_', ' ').title(), 'variant': 'badge bg-' + status_color + '-lt text-' + status_color, 'icon': 'fa-solid fa-circle-dot'},
+      {'label': (summary.tools_used|length|string) + ' tools', 'variant': 'badge bg-info-lt text-info'} if summary.tools_used else None
+    ]|select|list,
+    'actions': [
+      {'key': 'back', 'type': 'link', 'label': 'Back', 'icon': 'fa-solid fa-arrow-left', 'href': url_for('analysis.analysis_list'), 'classes': 'btn-ghost-secondary', 'visible': True}
+    ]
+  } %}
+  
+  {# Build metrics for unified grid #}
+  {% set metrics = [
+    {
+      'label': 'Total Findings',
+      'value': summary.total_findings,
+      'hint': (summary.severity_breakdown.items()|map('join', ': ')|join(', ')) if summary.severity_breakdown else 'No findings',
+      'icon': 'fa-solid fa-list-check',
+      'tone': 'danger' if summary.total_findings > 10 else ('warning' if summary.total_findings > 0 else 'success')
+    },
+    {
+      'label': 'Tools Used',
+      'value': summary.tools_used|length,
+      'hint': summary.tools_used|join(', ') if summary.tools_used else 'None',
+      'icon': 'fa-solid fa-wrench',
+      'tone': 'success' if summary.tools_used else 'muted'
+    },
+    {
+      'label': 'Status',
+      'value': task.status.value.replace('_', ' ').title(),
+      'hint': 'Completed: ' + (task.completed_at.strftime('%Y-%m-%d %H:%M:%S') if task.completed_at else 'Not completed'),
+      'tone': 'success' if task.status.value in ['completed', 'success'] else ('danger' if task.status.value in ['failed', 'error'] else 'warning'),
+      'icon': 'fa-solid fa-circle-check'
+    },
+    {
+      'label': 'Created',
+      'value': task.created_at.strftime('%Y-%m-%d %H:%M') if task.created_at else 'Unknown',
+      'hint': 'Started: ' + (task.started_at.strftime('%Y-%m-%d %H:%M:%S') if task.started_at else 'Not started'),
+      'icon': 'fa-solid fa-clock'
+    }
+  ] %}
+  
+  {# Compact header bar #}
+  {{ research_detail_header(view, []) }}
+  
+  {# Dense metric grid #}
+  {{ research_metric_grid(metrics) }}
+  
+  {# Main Content #}
+  <div class="container-fluid px-4 py-4">
+    
+    {% if task.error_message %}
+    {# Error message if task failed #}
+    <div class="alert alert-danger d-flex align-items-start gap-3 mb-4" role="alert">
+      <div class="flex-shrink-0">
+        <i class="fa-solid fa-triangle-exclamation fa-2x" aria-hidden="true"></i>
+      </div>
+      <div class="flex-grow-1">
+        <h4 class="alert-heading mb-2">
+          <strong>Task Failed</strong>
+        </h4>
+        <p class="mb-0">{{ task.error_message }}</p>
+      </div>
+    </div>
+    {% endif %}
+    
+    {# Severity Breakdown #}
+    {% if summary.severity_breakdown %}
+    <div class="card mb-4">
+      <div class="card-header">
+        <h3 class="card-title mb-0">
+          <i class="fa-solid fa-chart-bar me-2"></i>
+          Severity Breakdown
+        </h3>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          {% for severity in severity_order %}
+            {% if severity in summary.severity_breakdown %}
+            <div class="col-auto">
+              <div class="badge bg-{{ 'danger' if severity == 'critical' else ('warning' if severity == 'high' else ('info' if severity == 'medium' else 'secondary')) }}-lt text-{{ 'danger' if severity == 'critical' else ('warning' if severity == 'high' else ('info' if severity == 'medium' else 'secondary')) }} fs-5 px-3 py-2">
+                <strong>{{ severity|capitalize }}:</strong> {{ summary.severity_breakdown[severity] }}
+              </div>
+            </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    
+    {# Findings Table #}
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="card-title mb-0">
+          <i class="fa-solid fa-bug me-2"></i>
+          Findings
+          {% if findings_limit %}
+          <span class="badge bg-info-lt text-info ms-2">Showing first {{ findings_limit }} of {{ total_findings }}</span>
+          {% endif %}
+        </h3>
+        {% if total_findings > 0 and not findings_limit %}
+        <a href="{{ url_for('analysis.analysis_task_detail', task_id=task.task_id, findings=100) }}" class="btn btn-sm btn-ghost-secondary">
+          <i class="fa-solid fa-filter me-1"></i>
+          Show first 100
+        </a>
+        {% elif findings_limit %}
+        <a href="{{ url_for('analysis.analysis_task_detail', task_id=task.task_id) }}" class="btn btn-sm btn-ghost-secondary">
+          <i class="fa-solid fa-eye me-1"></i>
+          Show all
+        </a>
+        {% endif %}
+      </div>
+      <div class="card-body p-0">
+        {% if findings %}
+        <div class="table-responsive">
+          <table class="table table-vcenter table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Severity</th>
+                <th>Tool</th>
+                <th>Message</th>
+                <th>Location</th>
+                <th>Category</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for finding in findings %}
+              <tr>
+                <td>
+                  {% if finding.severity %}
+                  <span class="badge bg-{{ 'danger' if finding.severity.value == 'critical' else ('warning' if finding.severity.value == 'high' else ('info' if finding.severity.value == 'medium' else 'secondary')) }}-lt text-{{ 'danger' if finding.severity.value == 'critical' else ('warning' if finding.severity.value == 'high' else ('info' if finding.severity.value == 'medium' else 'secondary')) }}">
+                    {{ finding.severity.value|capitalize }}
+                  </span>
+                  {% else %}
+                  <span class="badge bg-secondary-lt text-secondary">Unknown</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <span class="badge bg-primary-lt text-primary">{{ finding.tool_name }}</span>
+                </td>
+                <td>
+                  <div class="text-truncate" style="max-width: 400px;" title="{{ finding.message }}">
+                    {{ finding.message }}
+                  </div>
+                </td>
+                <td>
+                  {% if finding.file_path %}
+                  <code class="text-muted small">
+                    {{ finding.file_path }}{% if finding.line_number %}:{{ finding.line_number }}{% endif %}
+                  </code>
+                  {% else %}
+                  <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if finding.category %}
+                  <span class="badge bg-light text-muted">{{ finding.category }}</span>
+                  {% else %}
+                  <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty py-5">
+          <div class="empty-icon">
+            <i class="fa-solid fa-check-circle text-success" style="font-size: 3rem;"></i>
+          </div>
+          <p class="empty-title h3">No Findings</p>
+          <p class="empty-subtitle text-muted">
+            This task completed successfully with no issues found.
+          </p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    {# Results by Tool #}
+    {% if results_by_tool %}
+    <div class="card mt-4">
+      <div class="card-header">
+        <h3 class="card-title mb-0">
+          <i class="fa-solid fa-wrench me-2"></i>
+          Results by Tool
+        </h3>
+      </div>
+      <div class="card-body">
+        <div class="row g-3">
+          {% for tool_name, tool_results in results_by_tool.items() %}
+          <div class="col-md-4">
+            <div class="card border">
+              <div class="card-body">
+                <h5 class="card-title">
+                  <span class="badge bg-primary-lt text-primary">{{ tool_name }}</span>
+                </h5>
+                <p class="card-text">
+                  <strong>{{ tool_results|length }}</strong> finding{{ 's' if tool_results|length != 1 else '' }}
+                </p>
+                {% set tool_severity_counts = {} %}
+                {% for result in tool_results %}
+                  {% if result.severity %}
+                    {% set _ = tool_severity_counts.update({result.severity.value: tool_severity_counts.get(result.severity.value, 0) + 1}) %}
+                  {% endif %}
+                {% endfor %}
+                {% if tool_severity_counts %}
+                <div class="mt-2">
+                  {% for severity in severity_order %}
+                    {% if severity in tool_severity_counts %}
+                    <span class="badge bg-{{ 'danger' if severity == 'critical' else ('warning' if severity == 'high' else ('info' if severity == 'medium' else 'secondary')) }}-lt text-{{ 'danger' if severity == 'critical' else ('warning' if severity == 'high' else ('info' if severity == 'medium' else 'secondary')) }} me-1">
+                      {{ severity }}: {{ tool_severity_counts[severity] }}
+                    </span>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    
+  </div>
+</div>
+{% endblock %}

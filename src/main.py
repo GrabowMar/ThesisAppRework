@@ -60,7 +60,7 @@ def main():
     # Get configuration from environment
     config_name = os.environ.get('FLASK_ENV', 'development')
     port = int(os.environ.get('PORT', 5000))
-    host = os.environ.get('HOST', '127.0.0.1')
+    host = os.environ.get('HOST', '0.0.0.0')
     debug = os.environ.get('DEBUG', 'true').lower() == 'true'
     
     logger.info(f"Starting Thesis App in {config_name} mode")
@@ -126,13 +126,13 @@ def main():
             SOCKETIO_AVAILABLE, socketio = False, None
 
         if SOCKETIO_AVAILABLE and socketio is not None:
-            socketio.run(app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True)
+            socketio.run(app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True, use_reloader=False)
         else:
             app.run(
                 host=host,
                 port=port,
                 debug=debug,
-                threaded=True
+                use_reloader=False
             )
     except KeyboardInterrupt:
         logger.info("Application shutdown requested by user")

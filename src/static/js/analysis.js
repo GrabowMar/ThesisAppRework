@@ -28,10 +28,13 @@
     if (extra.page) params.set('page', extra.page);
 
     // Trigger HTMX reload with filters
-    htmx.ajax('GET', `/analysis/api/tasks/list?${params.toString()}`, {
-      target: '#main-tasks-table-wrapper',
-      swap: 'innerHTML'
-    });
+    const wrapper = document.getElementById('main-tasks-table-wrapper');
+    if (wrapper) {
+      htmx.ajax('GET', `/analysis/api/tasks/list?${params.toString()}`, {
+        target: '#main-tasks-table-wrapper',
+        swap: 'innerHTML'
+      });
+    }
   }
 
   function refreshAnalysisTasks() {
@@ -50,10 +53,13 @@
     if (statusSelect) statusSelect.value = '';
     
     // Reload without filters
-    htmx.ajax('GET', '/analysis/api/tasks/list', {
-      target: '#main-tasks-table-wrapper',
-      swap: 'innerHTML'
-    });
+    const wrapper = document.getElementById('main-tasks-table-wrapper');
+    if (wrapper) {
+      htmx.ajax('GET', '/analysis/api/tasks/list', {
+        target: '#main-tasks-table-wrapper',
+        swap: 'innerHTML'
+      });
+    }
   }
 
   function changeAnalysisPage(page) {
@@ -72,51 +78,21 @@
   window.changeAnalysisPage = changeAnalysisPage;
   window.changeAnalysisPerPage = changeAnalysisPerPage;
 
-  // Auto-refresh active tasks every 10 seconds when page is visible
-  let refreshInterval;
-  
-  function startAutoRefresh() {
-    if (refreshInterval) return; // Already running
+  // Toggle subtasks visibility for hierarchical task display
+  window.toggleSubtasks = function(taskId) {
+    const rows = document.querySelectorAll(`tr.subtask-row[data-parent="${taskId}"]`);
+    const icon = document.getElementById(`icon-${taskId}`);
     
-    refreshInterval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        // Check if there are active tasks
-        const activeTasks = document.querySelectorAll('[data-type="task"]');
-        if (activeTasks.length > 0) {
-          // Silently refresh to update progress
-          refreshAnalysisTasks();
-        }
-      }
-    }, 10000); // 10 seconds
-  }
-
-  function stopAutoRefresh() {
-    if (refreshInterval) {
-      clearInterval(refreshInterval);
-      refreshInterval = null;
-    }
-  }
-
-  // Start auto-refresh on page load
-  document.addEventListener('DOMContentLoaded', startAutoRefresh);
-
-  // Stop auto-refresh when navigating away
-  window.addEventListener('beforeunload', stopAutoRefresh);
-
-  // Restart auto-refresh after HTMX swaps
-  document.body.addEventListener('htmx:afterSwap', (evt) => {
-    if (evt.target?.id === 'main-tasks-table-wrapper') {
-      startAutoRefresh();
-    }
-  });
-
-  // Handle visibility changes to pause/resume auto-refresh
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      startAutoRefresh();
-    } else {
-      stopAutoRefresh();
-    }
-  });
+    if (!rows.length || !icon) return;
+    
+    rows.forEach(row => {
+      const isHidden = row.style.display === 'none';
+      row.style.display = isHidden ? 'table-row' : 'none';
+    });
+    
+    // Toggle chevron direction
+    icon.classList.toggle('fa-chevron-right');
+    icon.classList.toggle('fa-chevron-down');
+  };
 
 })();

@@ -42,18 +42,14 @@ async function loadInitialData() {
       const templatesData = await templatesResponse.json();
       console.log('[Wizard] Templates response:', templatesData);
       
-      // Handle standardized API envelope: {success: true, data: [...], message: "..."}
-      if (templatesData.success && templatesData.data) {
-        templatesCache = Array.isArray(templatesData.data) ? templatesData.data : [];
-      } else if (Array.isArray(templatesData)) {
-        templatesCache = templatesData;
-      } else if (templatesData.templates && Array.isArray(templatesData.templates)) {
-        templatesCache = templatesData.templates;
+      // Standardized API envelope: {success: true, data: [...], message: "..."}
+      if (templatesData.success && Array.isArray(templatesData.data)) {
+        templatesCache = templatesData.data;
+        console.log(`[Wizard] Loaded ${templatesCache.length} templates`);
       } else {
-        console.warn('[Wizard] Unexpected templates response format:', templatesData);
+        console.error('[Wizard] Invalid templates response format:', templatesData);
         templatesCache = [];
       }
-      console.log(`[Wizard] Loaded ${templatesCache.length} templates`);
     } else {
       console.error('[Wizard] Failed to load templates:', templatesResponse.status, templatesResponse.statusText);
       const errorText = await templatesResponse.text();

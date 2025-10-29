@@ -42,34 +42,65 @@
 
 ## Backend API Information
 
-The backend is running at `http://localhost:5000` with the following endpoints:
-- `GET /health` - Health check endpoint
+The backend is running in a Docker container and is accessible from the frontend container at `http://backend:5000`. **DO NOT** use `localhost`.
 
-Additional endpoints will be provided by the backend implementation.
+- `GET /health` - Health check endpoint.
 
-## Instructions
+Additional endpoints will be created by the backend implementation. You must call them to fulfill the requirements.
 
-1. **Use the scaffolding code as your starting point**
-2. **Implement all frontend requirements listed above**
-3. **Follow these patterns:**
-   - Use React functional components with hooks
-   - Use fetch API for backend communication
-   - Add proper error handling and loading states
-   - Implement responsive design
-   - Use modern CSS (flexbox/grid)
-   - Include user-friendly error messages
+## Crucial Rules for Code Generation
 
-4. **Important:**
-   - Connect to backend at `http://localhost:5000`
-   - Maintain the Vite development server configuration
-   - Add any new dependencies to package.json
-   - Use environment variables for API URLs
+**You are generating a complete, self-contained React `App.jsx` file. Your code will replace the scaffold file entirely.**
 
-5. **Output Format:**
-   - Provide complete, working React code
-   - Include all necessary imports
-   - Add comments for complex logic
-   - Ensure code is production-ready
-   - Use modern JavaScript (ES6+)
+1.  **API URL IS FIXED**: You **MUST** use `const API_URL = 'http://backend:5000';` for all backend requests. This is non-negotiable. The frontend and backend run in separate Docker containers, and this is the only valid address. **DO NOT USE `localhost` OR ANY OTHER URL.**
+2.  **NO MOCK DATA**: Your application **MUST NOT** contain any mock data, placeholder arrays, or hardcoded API responses. All dynamic content must be fetched from the live backend API.
+3.  **IMPLEMENT UI STATES**: Your application **MUST** visually represent `loading`, `error`, and `success` (data loaded) states.
+    -   Show a "Loading..." message or spinner while data is being fetched.
+    -   Show a clear, user-friendly error message if an API call fails.
+    -   Render the main UI only after data has been successfully fetched.
+4.  **USE AXIOS**: You **MUST** use the `axios` library for all HTTP requests. Do not use `fetch`.
+5.  **GENERATE ONLY `App.jsx`**: Your output must be a single, complete `App.jsx` file. **DO NOT** generate `main.jsx`, `index.html`, or any other files. The scaffolding provides them. Your `App.jsx` should be self-contained or use relative imports for components *if you create them within the same file*.
+6.  **MODERN REACT**: Use functional components, `useState`, and `useEffect` hooks.
+7.  **HANDLE RELATIONAL DATA**: The UI must correctly display the one-to-many relationship between authors and their books. This means rendering a list of books nested within each author's details.
+8.  **IMPLEMENT** all frontend requirements listed above.
+9.  **OUTPUT ONLY JSX CODE.** Do not wrap it in markdown blocks or add explanatory text.
 
-Return the complete frontend code that satisfies all requirements and integrates with the backend.
+**Example of a valid API call structure:**
+
+```jsx
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+
+const API_URL = 'http://backend:5000';
+
+function App() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get(`${API_URL}/api/items`);
+        setData(response.data);
+        setError(null);
+      } catch (err) {
+        setError('Failed to fetch data from the server. Please try again later.');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div className="error">Error: {error}</div>;
+
+  // ... render UI with data ...
+}
+
+export default App;
+```

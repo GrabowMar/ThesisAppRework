@@ -28,7 +28,6 @@ RUN npm install -g \
     eslint-plugin-vue \
     stylelint \
     stylelint-config-standard \
-    jshint \
     snyk \
     prettier \
     csslint

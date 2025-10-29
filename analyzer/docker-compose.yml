@@ -141,8 +141,8 @@ services:
   # AI-Powered Requirements & Code Analyzer
   ai-analyzer:
     build:
-      context: .
-      dockerfile: ./services/ai-analyzer/Dockerfile
+      context: ..
+      dockerfile: ./analyzer/services/ai-analyzer/Dockerfile
     ports:
       - "2004:2004"
     environment:

@@ -625,18 +625,47 @@ class DockerManager:
             return []
         
         try:
+            from datetime import timezone
+            from dateutil import parser as date_parser
             containers = self.client.containers.list(all=True)
             result = []
             
             for container in containers:
+                # Parse created timestamp and ensure it's timezone-aware (UTC)
+                created_str = container.attrs.get('Created', '')
+                try:
+                    created_dt = date_parser.parse(created_str)
+                    if created_dt.tzinfo is None:
+                        # If naive, assume UTC
+                        created_dt = created_dt.replace(tzinfo=timezone.utc)
+                    created = created_dt.isoformat()
+                except Exception:
+                    created = created_str  # Fallback to raw string
+                
+                # Calculate uptime if container is running
+                uptime = None
+                if container.status == 'running':
+                    try:
+                        started_str = container.attrs.get('State', {}).get('StartedAt', '')
+                        if started_str:
+                            started_dt = date_parser.parse(started_str)
+                            if started_dt.tzinfo is None:
+                                started_dt = started_dt.replace(tzinfo=timezone.utc)
+                            now = datetime.now(timezone.utc)
+                            uptime_seconds = (now - started_dt).total_seconds()
+                            uptime = int(uptime_seconds)
+                    except Exception as e:
+                        self.logger.debug(f"Error calculating uptime for {container.name}: {e}")
+                
                 result.append({
                     'id': container.id[:12],  # Short ID
                     'name': container.name,
                     'status': container.status,
-                    'state': container.attrs.get('State', {}).get('Status', 'unknown'),  # Add actual state
+                    'state': container.attrs.get('State', {}).get('Status', 'unknown'),
                     'image': container.image.tags[0] if container.image.tags else 'unknown',
                     'ports': container.ports,
-                    'created': container.attrs['Created'],
+                    'created': created,
+                    'uptime': uptime,
                     'labels': container.labels
                 })
             

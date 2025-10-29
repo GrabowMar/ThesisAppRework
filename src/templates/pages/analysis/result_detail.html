@@ -11,18 +11,19 @@
   {# Build view structure for unified header #}
   {% set status_color = 'success' if descriptor.status in ['completed', 'success'] else ('danger' if descriptor.status in ['failed', 'error'] else 'secondary') %}
   {% set view = {
-    'pretitle': descriptor.analysis_type.replace('_', ' ').title() + ' Analysis',
+    'pretitle': descriptor.task_name.replace('_', ' ').title() + ' Analysis',
     'icon': 'fa-solid fa-microscope',
     'title': page_title,
     'subtitle': 'Result ID: ' + descriptor.identifier[:24] + ('…' if descriptor.identifier|length > 24 else '') + ' · ' + descriptor.display_timestamp(),
     'badges': [
       {'label': descriptor.status.replace('_', ' ').title(), 'variant': 'badge bg-' + status_color + '-lt text-' + status_color, 'icon': 'fa-solid fa-circle-dot'},
-      {'label': descriptor.analysis_type.replace('_', ' ').title(), 'variant': 'badge bg-primary-lt text-primary'},
+      {'label': descriptor.task_name.replace('_', ' ').title(), 'variant': 'badge bg-primary-lt text-primary'},
       {'label': (descriptor.tools_used|length|string) + ' tools', 'variant': 'badge bg-info-lt text-info'} if descriptor.tools_used else None
     ]|select|list,
     'actions': [
       {'key': 'back', 'type': 'link', 'label': 'Back', 'icon': 'fa-solid fa-arrow-left', 'href': url_for('analysis.analysis_list'), 'classes': 'btn-ghost-secondary', 'visible': True},
       {'key': 'json', 'type': 'link', 'label': 'View JSON', 'icon': 'fa-solid fa-file-code', 'href': url_for('analysis.analysis_result_json', result_id=descriptor.identifier), 'target': '_blank', 'classes': 'btn-ghost-info', 'visible': True},
+      {'key': 'sarif', 'type': 'link', 'label': 'SARIF', 'icon': 'fa-solid fa-file-shield', 'href': url_for('analysis.export_task_sarif', task_id=descriptor.identifier), 'classes': 'btn-ghost-success', 'visible': True, 'title': 'Download SARIF 2.1.0 format'},
       {'key': 'download', 'type': 'link', 'label': 'Download', 'icon': 'fa-solid fa-download', 'href': url_for('analysis.analysis_result_download', result_id=descriptor.identifier), 'classes': 'btn-primary', 'visible': True}
     ]
   } %}
@@ -46,12 +47,13 @@
     {
       'label': 'Services',
       'value': services|length,
-      'hint': (summary.get('services_executed', services|length)|string) + ' executed',
-      'icon': 'fa-solid fa-server'
+      'hint': (summary.get('services_degraded', 0)|string + ' degraded') if summary.get('services_degraded', 0) > 0 else ((summary.get('services_executed', services|length)|string) + ' executed'),
+      'icon': 'fa-solid fa-server',
+      'tone': 'warning' if summary.get('services_degraded', 0) > 0 else None
     },
     {
       'label': 'Analysis Type',
-      'value': descriptor.analysis_type.replace('_', ' ').title(),
+      'value': descriptor.task_name.replace('_', ' ').title(),
       'hint': metadata.get('module', 'N/A'),
       'icon': 'fa-solid fa-tag'
     },
@@ -82,6 +84,37 @@
   
   {# Dense metric grid #}
   {{ research_metric_grid(metrics) }}
+  
+  {# Degraded services warning (if any) #}
+  {% if metadata.get('degraded_services') and metadata.degraded_services|length > 0 %}
+  <div class="alert alert-warning d-flex align-items-start gap-3 mb-4" role="alert">
+    <div class="flex-shrink-0">
+      <i class="fa-solid fa-triangle-exclamation fa-2x" aria-hidden="true"></i>
+    </div>
+    <div class="flex-grow-1">
+      <h4 class="alert-heading mb-2">
+        <strong>Partial Results Available</strong>
+      </h4>
+      <p class="mb-2">
+        {{ metadata.degraded_services|length }} service{{ 's' if metadata.degraded_services|length > 1 else '' }} 
+        {{ 'were' if metadata.degraded_services|length > 1 else 'was' }} unavailable during analysis. 
+        Results are shown from successfully completed services only.
+      </p>
+      <ul class="mb-0 small">
+        {% for svc in metadata.degraded_services %}
+        <li>
+          <strong>{{ svc.service }}</strong>: 
+          <span class="text-muted">{{ svc.status }}</span>
+          {% if svc.error %}
+          <span class="text-danger">— {{ svc.error[:100] }}{{ '...' if svc.error|length > 100 else '' }}</span>
+          {% endif %}
+          <span class="text-muted">({{ svc.tools_affected|length }} tool{{ 's' if svc.tools_affected|length > 1 else '' }} affected)</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  {% endif %}
   
   {# Sticky section navigation #}
   {{ research_section_nav(sections) }}

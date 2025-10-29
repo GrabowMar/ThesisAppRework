@@ -145,24 +145,26 @@ class ThesisPlatformClient:
         """Check system health (no auth required)."""
         return self._make_request('/api/health', require_auth=False)
     
-    def generate_app(self, model: str, template_id: int, app_name: str, 
-                    description: Optional[str] = None) -> Dict[str, Any]:
+    def generate_app(self, model_slug: str, app_num: int, template_id: int,
+                    temperature: float = 0.3, description: Optional[str] = None) -> Dict[str, Any]:
         """
         Generate a new application.
         
         Args:
-            model: Model identifier (e.g., 'openai_gpt-4')
+            model_slug: Model identifier (e.g., 'openai_gpt-4')
+            app_num: The application number for this model.
             template_id: Template ID number
-            app_name: Name for the generated application
+            temperature: The generation temperature.
             description: Optional description
             
         Returns:
             Generation result
         """
         data = {
-            'model': model,
+            'model_slug': model_slug,
+            'app_num': app_num,
             'template_id': template_id,
-            'app_name': app_name
+            'temperature': temperature,
         }
         if description:
             data['description'] = description
@@ -266,10 +268,11 @@ Examples:
     
     # generate command
     gen_parser = subparsers.add_parser('generate', help='Generate a new application')
-    gen_parser.add_argument('--model', required=True, help='Model identifier (e.g., openai_gpt-4)')
-    gen_parser.add_argument('--template', type=int, required=True, help='Template ID')
-    gen_parser.add_argument('--name', required=True, help='Application name')
-    gen_parser.add_argument('--description', help='Optional description')
+    gen_parser.add_argument('--model', required=True, dest='model_slug', help='Model slug (e.g., openai_gpt-4)')
+    gen_parser.add_argument('--app-num', type=int, required=True, dest='app_num', help='Application number for this model')
+    gen_parser.add_argument('--template-id', type=int, required=True, dest='template_id', help='Template ID to use for generation')
+    gen_parser.add_argument('--temperature', type=float, default=0.3, help='Generation temperature (default: 0.3)')
+    gen_parser.add_argument('--description', help='Optional description for the app')
     
     args = parser.parse_args()
     
@@ -279,53 +282,54 @@ Examples:
     try:
         # Handle commands
         if args.command == 'get-token':
-            print("🔐 Logging in and generating token...")
+            print("Logging in and generating token...")
             token = client.get_token(args.username, args.password)
-            print(f"\n✅ Token generated successfully!")
-            print(f"\n🔑 Your API Token:")
+            print(f"\nToken generated successfully!")
+            print(f"\nYour API Token:")
             print(f"{token}")
-            print(f"\n💡 Save this token! Use it with:")
+            print(f"\nSave this token! Use it with:")
             print(f"   python {sys.argv[0]} --token {token} list-models")
             
         elif args.command == 'list-models':
             result = client.list_models()
-            print(f"📋 Found {len(result.get('models', []))} models:")
+            print(f"Found {len(result.get('models', []))} models:")
             print_json(result)
             
         elif args.command == 'list-apps':
             result = client.list_applications()
-            print(f"📱 Found {len(result.get('applications', []))} applications:")
+            print(f"Found {len(result.get('applications', []))} applications:")
             print_json(result)
             
         elif args.command == 'stats':
             result = client.get_stats()
-            print("📊 Dashboard Statistics:")
+            print("Dashboard Statistics:")
             print_json(result)
             
         elif args.command == 'health':
             result = client.health_check()
-            print("💚 System Health:")
+            print("System Health:")
             print_json(result)
             
         elif args.command == 'verify':
             result = client.verify_token()
             if result.get('valid'):
-                print("✅ Token is valid!")
+                print("Token is valid!")
                 print_json(result)
             else:
-                print("❌ Token is invalid!")
+                print("Token is invalid!")
                 print_json(result)
                 sys.exit(1)
                 
         elif args.command == 'generate':
-            print(f"🚀 Generating application '{args.name}' with {args.model}...")
+            print(f"Generating application '{args.model_slug}/app{args.app_num}'...")
             result = client.generate_app(
-                model=args.model,
-                template_id=args.template,
-                app_name=args.name,
+                model_slug=args.model_slug,
+                app_num=args.app_num,
+                template_id=args.template_id,
+                temperature=args.temperature,
                 description=args.description
             )
-            print("✅ Generation request submitted!")
+            print("Generation request submitted!")
             print_json(result)
             
         else:
@@ -333,7 +337,7 @@ Examples:
             interactive_mode(client)
             
     except Exception as e:
-        print(f"❌ Error: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 

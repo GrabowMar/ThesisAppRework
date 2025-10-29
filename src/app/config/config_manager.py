@@ -52,7 +52,8 @@ class ConfigManager:
                 # Fallback to defaults if config file doesn't exist
                 self._analyzer_config = self._get_default_analyzer_config()
         except Exception as e:
-            print(f"Warning: Could not load configuration: {e}")
+            import logging
+            logging.getLogger(__name__).warning(f"Could not load configuration: {e}")
             self._analyzer_config = self._get_default_analyzer_config()
     
     def _parse_analyzer_config(self, data: Dict[str, Any]) -> AnalyzerConfig:

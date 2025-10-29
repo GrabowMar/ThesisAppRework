@@ -45,10 +45,29 @@ except Exception:  # pragma: no cover - optional path
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import websockets
 from websockets.exceptions import ConnectionClosed
+
+# Import slug normalization utilities from Flask app
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'src'))
+try:
+    from app.utils.slug_utils import normalize_model_slug, generate_slug_variants
+except ImportError:
+    # Fallback if running standalone
+    def normalize_model_slug(raw: str) -> str:
+        """Fallback slug normalization."""
+        return raw.strip().lower().replace('/', '_').replace(' ', '-').replace('.', '-')
+    def generate_slug_variants(slug: str) -> List[str]:
+        """Fallback variant generation."""
+        variants = [
+            slug,
+            slug.replace('_', '-'),
+            slug.replace('-', '_'),
+            slug.replace('_', '/'),
+        ]
+        return list(dict.fromkeys(variants))  # dedupe
 
 # Configure logging
 logging.basicConfig(
@@ -159,21 +178,112 @@ class AnalyzerManager:
         # Legacy directory names we want to keep pruned under each app folder
         self._legacy_result_dirs = ["static-analyzer","dynamic-analyzer","performance-tester","ai-analyzer","security-analyzer"]
 
+    @staticmethod
+    def _sanitize_task_id(task_id: str) -> str:
+        cleaned = ''.join(c if c.isalnum() or c in ('-', '_') else '_' for c in str(task_id))
+        return cleaned or 'task'
+
+    @staticmethod
+    def _is_task_dir_name(name: str) -> bool:
+        return name.startswith('task-') or name.startswith('task_')
+
+    def _build_task_output_dir(self, model_slug: str, app_number: int, task_id: str) -> Path:
+        """Return the folder where consolidated results for a task should live."""
+        safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
+        sanitized_task = self._sanitize_task_id(task_id)
+        app_dir = self.results_dir / safe_slug / f"app{app_number}"
+        app_dir.mkdir(parents=True, exist_ok=True)
+        target_dir = app_dir / f"task_{sanitized_task}"
+        legacy_candidates = [
+            app_dir / 'analysis' / f"task_{sanitized_task}",
+            app_dir / 'analysis' / f"task-{sanitized_task}",
+        ]
+
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        for legacy_dir in legacy_candidates:
+            if not legacy_dir.exists() or not legacy_dir.is_dir():
+                continue
+            for item in legacy_dir.iterdir():
+                destination = target_dir / item.name
+                if destination.exists():
+                    continue
+                try:
+                    item.replace(destination)
+                except Exception:
+                    try:
+                        item.rename(destination)
+                    except Exception:
+                        logger.debug("Failed to migrate legacy artefact %s", item)
+            try:
+                legacy_dir.rmdir()
+            except OSError:
+                pass
+
+        return target_dir
+
     # ---------------------------------------------------------------
     # Legacy Results Pruning
     # ---------------------------------------------------------------
     def prune_legacy_results(self, model_slug: str, app_number: int) -> None:
         """Remove legacy per-service result directories & stray files.
 
-        Earlier versions emitted per-service folders (e.g. results/<model>/appN/static-analyzer/...).
-        The current design consolidates into results/<model>/appN/analysis/ only. This helper
-        aggressively deletes those obsolete folders and well-known stray json artifacts.
+        Earlier versions emitted per-service folders and nested everything under an
+        `analysis/` directory. The current design consolidates into
+        results/<model>/appN/task_<task>. This helper deletes obsolete folders,
+        migrates any remaining task directories, and cleans well-known stray artefacts.
         """
         try:
             base = (self.results_dir / model_slug.replace('/', '_').replace('\\', '_') / f"app{app_number}")
             if not base.exists():
                 return
             removed = []
+            analysis_dir = base / 'analysis'
+            if analysis_dir.exists():
+                for legacy_file in analysis_dir.glob('*.json'):
+                    try:
+                        legacy_file.unlink(missing_ok=True)  # type: ignore[arg-type]
+                    except Exception:
+                        pass
+                for legacy_task_dir in analysis_dir.iterdir():
+                    if not legacy_task_dir.is_dir() or not self._is_task_dir_name(legacy_task_dir.name):
+                        continue
+                    remainder = legacy_task_dir.name[5:]
+                    if remainder.startswith(('-', '_')):
+                        remainder = remainder[1:]
+                    sanitized = self._sanitize_task_id(remainder)
+                    destination = base / f"task_{sanitized}"
+                    if destination.exists():
+                        continue
+                    try:
+                        legacy_task_dir.rename(destination)
+                        continue
+                    except OSError:
+                        destination.mkdir(parents=True, exist_ok=True)
+                        for item in legacy_task_dir.iterdir():
+                            dest_item = destination / item.name
+                            if dest_item.exists():
+                                continue
+                            try:
+                                item.replace(dest_item)
+                            except Exception:
+                                try:
+                                    item.rename(dest_item)
+                                except Exception:
+                                    logger.debug("Failed to relocate legacy artefact %s", item)
+                        try:
+                            legacy_task_dir.rmdir()
+                        except OSError:
+                            pass
+                try:
+                    next(analysis_dir.iterdir())
+                except StopIteration:
+                    try:
+                        analysis_dir.rmdir()
+                    except OSError:
+                        pass
+                except Exception:
+                    pass
             for legacy in self._legacy_result_dirs:
                 d = base / legacy
                 if d.exists() and d.is_dir():
@@ -259,32 +369,77 @@ class AnalyzerManager:
         
         return self._port_config_cache
 
+    def _normalize_and_validate_app(self, model_slug: str, app_number: int) -> Optional[Tuple[str, Path]]:
+        """Normalize model slug and validate app exists.
+        
+        Returns:
+            Tuple of (normalized_slug, app_path) if app exists, None otherwise
+        """
+        # Normalize slug to canonical format (provider_model-name)
+        normalized_slug = normalize_model_slug(model_slug)
+        
+        # Check if app exists in filesystem
+        root = Path(__file__).parent.parent  # project root
+        app_path = root / 'generated' / 'apps' / normalized_slug / f'app{app_number}'
+        
+        if not app_path.exists() or not app_path.is_dir():
+            # Try slug variants for backward compatibility
+            for variant in generate_slug_variants(model_slug):
+                variant_path = root / 'generated' / 'apps' / variant / f'app{app_number}'
+                if variant_path.exists() and variant_path.is_dir():
+                    logger.info(f"Found app using variant slug: {variant} (requested: {model_slug})")
+                    return variant, variant_path
+            
+            logger.error(f"App does not exist: {app_path}")
+            logger.error(f"Cannot analyze non-existent app. Generate it first or check model slug.")
+            return None
+        
+        return normalized_slug, app_path
+
     def _resolve_app_ports(self, model_slug: str, app_number: int) -> Optional[Tuple[int, int]]:
         """Resolve backend & frontend ports for a model/app.
 
-        Searches cached port config list for matching (model_name, app_number).
-        Falls back to None if not found so caller can choose defaults.
+        PRIORITY ORDER (highest to lowest):
+        1. .env file in generated app directory (source of truth for running apps)
+        2. Database/JSON configuration (fallback for apps without .env)
+
+        Returns None if no configuration found (caller MUST handle this error).
         """
         try:
-            # Try multiple model name variations to handle slug differences
-            model_variations = [
-                model_slug,  # exact match
-                model_slug.replace('_', '/'),  # filesystem underscore to JSON slash
-                model_slug.replace('-', '/'),  # hyphens to slash
-                model_slug.replace('_', '-'),  # underscores to hyphens
-                model_slug.replace('-', '_'),  # hyphens to underscores
-            ]
+            # PRIORITY 1: Try reading from generated app's .env file FIRST (source of truth)
+            try:
+                root = Path(__file__).parent.parent  # project root
+                app_env_path = root / 'generated' / 'apps' / model_slug / f'app{app_number}' / '.env'
+                if app_env_path.exists():
+                    backend_port = None
+                    frontend_port = None
+                    with open(app_env_path, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            line = line.strip()
+                            if line.startswith('BACKEND_PORT='):
+                                backend_port = int(line.split('=', 1)[1].strip())
+                            elif line.startswith('FRONTEND_PORT='):
+                                frontend_port = int(line.split('=', 1)[1].strip())
+                    
+                    if backend_port and frontend_port:
+                        logger.info(f"Resolved ports from .env file for {model_slug} app {app_number}: backend={backend_port}, frontend={frontend_port}")
+                        return backend_port, frontend_port
+            except Exception as env_err:
+                logger.debug(f"Could not read .env file for {model_slug} app {app_number}: {env_err}")
             
-            for entry in self._load_port_config():
-                for model_variant in model_variations:
-                    if (entry.get('model') == model_variant and  # changed from model_name to model
+            # PRIORITY 2: Fall back to database/JSON configuration using slug variants
+            for variant in generate_slug_variants(model_slug):
+                for entry in self._load_port_config():
+                    if (entry.get('model') == variant and
                             int(entry.get('app_number', -1)) == int(app_number)):
                         b = entry.get('backend_port')
                         f = entry.get('frontend_port')
                         if isinstance(b, int) and isinstance(f, int):
-                            logger.debug(f"Resolved ports for {model_slug} app {app_number}: backend={b}, frontend={f} (matched as {model_variant})")
+                            logger.debug(f"Resolved ports for {model_slug} app {app_number}: backend={b}, frontend={f} (matched as {variant} from database)")
                             return b, f
-            logger.warning(f"No port configuration found for {model_slug} app {app_number}")
+            
+            logger.error(f"No port configuration found for {model_slug} app {app_number}")
+            logger.error(f"Cannot run dynamic/performance analysis without port configuration.")
         except Exception as e:
             logger.error(f"Error resolving ports for {model_slug} app {app_number}: {e}")
         return None
@@ -559,13 +714,25 @@ class AnalyzerManager:
                         first_frame = frame
 
                     ftype = str(frame.get('type','')).lower()
+                    has_analysis = isinstance(frame.get('analysis'), dict)
+                    logger.debug(
+                        f"WebSocket frame from {service_name}: type={ftype} "
+                        f"has_analysis={has_analysis} status={frame.get('status')} "
+                        f"keys={list(frame.keys())[:5]}"
+                    )
+                    
                     # Heuristic: treat *_analysis_result or *_analysis (with status) as terminal
                     if ('analysis_result' in ftype) or (ftype.endswith('_analysis') and 'analysis' in frame):
                         terminal_frame = frame
                         # Break only if it already contains nested 'analysis' key to avoid prematurely
                         # returning a progress-like message that happens to match pattern.
-                        if isinstance(frame.get('analysis'), dict):
+                        if has_analysis:
+                            logger.debug(f"Found terminal frame with analysis data from {service_name}")
                             break
+                
+                # Log what we're returning
+                result_type = 'terminal' if terminal_frame else ('first' if first_frame else 'no_response')
+                logger.debug(f"Returning {result_type} frame from {service_name}")
                 return terminal_frame or first_frame or {'status': 'error', 'error': 'no_response'}
                 
         except asyncio.TimeoutError:
@@ -658,25 +825,40 @@ class AnalyzerManager:
                                   tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run dynamic analysis against running app endpoints."""
         logger.info(f"🕷️  Running dynamic analysis on {model_slug} app {app_number}")
+        
+        # Validate app exists and normalize slug
+        validation = self._normalize_and_validate_app(model_slug, app_number)
+        if not validation:
+            return {
+                'status': 'error',
+                'error': f'App does not exist: {model_slug} app{app_number}',
+                'message': 'Generate the app first before running analysis'
+            }
+        normalized_slug, app_path = validation
+        
         resolved_urls: List[str] = []
         if target_urls:
             resolved_urls = list(target_urls)
         else:
-            ports = self._resolve_app_ports(model_slug, app_number)
-            if ports:
-                backend_port, frontend_port = ports
-                # Use host.docker.internal for container-to-container communication from analyzer containers
-                resolved_urls = [
-                    f"http://host.docker.internal:{backend_port}", 
-                    f"http://host.docker.internal:{frontend_port}"
-                ]
-            else:
-                # Fallback to localhost if ports not resolved
-                resolved_urls = [f"http://host.docker.internal:300{app_number}"]
+            ports = self._resolve_app_ports(normalized_slug, app_number)
+            if not ports:
+                return {
+                    'status': 'error',
+                    'error': f'No port configuration found for {normalized_slug} app{app_number}',
+                    'message': 'Start the app with docker-compose or configure ports in database'
+                }
+            
+            backend_port, frontend_port = ports
+            # Use host.docker.internal for container-to-container communication from analyzer containers
+            resolved_urls = [
+                f"http://host.docker.internal:{backend_port}", 
+                f"http://host.docker.internal:{frontend_port}"
+            ]
+            logger.info(f"Target URLs for dynamic analysis: {resolved_urls}")
         
         message = {
             "type": "dynamic_analyze",
-            "model_slug": model_slug,
+            "model_slug": normalized_slug,
             "app_number": app_number,
             "target_urls": resolved_urls,
             # Optional tools selection propagated to service for gating
@@ -692,28 +874,50 @@ class AnalyzerManager:
                                  duration: int = 60, tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run performance test on an application."""
         logger.info(f"⚡ Running performance test on {model_slug} app {app_number}")
+        
+        # Validate app exists and normalize slug
+        validation = self._normalize_and_validate_app(model_slug, app_number)
+        if not validation:
+            return {
+                'status': 'error',
+                'error': f'App does not exist: {model_slug} app{app_number}',
+                'message': 'Generate the app first before running analysis'
+            }
+        normalized_slug, app_path = validation
+        
         # New behavior: send explicit target_urls list derived from port config when available.
         urls: List[str] = []
         if target_url:
             urls.append(target_url)
         else:
-            ports = self._resolve_app_ports(model_slug, app_number)
-            if ports:
-                backend_port, frontend_port = ports
-                # Use host.docker.internal for container-to-container communication from analyzer containers
-                urls = [
-                    f"http://host.docker.internal:{backend_port}", 
-                    f"http://host.docker.internal:{frontend_port}"
-                ]
-            else:
-                # Fallback to localhost if ports not resolved
-                urls = [f"http://host.docker.internal:300{app_number}"]
+            ports = self._resolve_app_ports(normalized_slug, app_number)
+            if not ports:
+                return {
+                    'status': 'error',
+                    'error': f'No port configuration found for {normalized_slug} app{app_number}',
+                    'message': 'Start the app with docker-compose or configure ports in database'
+                }
+            
+            backend_port, frontend_port = ports
+            # Use host.docker.internal for container-to-container communication from analyzer containers
+            urls = [
+                f"http://host.docker.internal:{backend_port}", 
+                f"http://host.docker.internal:{frontend_port}"
+            ]
+            logger.info(f"Target URLs for performance test: {urls}")
         
         # Backwards compatible: we still include legacy 'target_url' key (first url or None)
-        legacy_single = urls[0] if urls else (target_url or f"http://host.docker.internal:300{app_number}")
+        legacy_single = urls[0] if urls else target_url
+        if not legacy_single:
+            return {
+                'status': 'error',
+                'error': 'No target URL available',
+                'message': 'Could not determine target URL for performance test'
+            }
+        
         message = {
             "type": "performance_test",
-            "model_slug": model_slug,
+            "model_slug": normalized_slug,
             "app_number": app_number,
             "target_url": legacy_single,  # legacy field (service ignores if target_urls present)
             "target_urls": urls,
@@ -823,7 +1027,7 @@ class AnalyzerManager:
         static_timeout = int(os.environ.get('STATIC_ANALYSIS_TIMEOUT', '480'))
         return await self.send_websocket_message('static-analyzer', message, timeout=static_timeout)
     
-    async def run_comprehensive_analysis(self, model_slug: str, app_number: int) -> Dict[str, Dict[str, Any]]:
+    async def run_comprehensive_analysis(self, model_slug: str, app_number: int, task_name: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
         """Run comprehensive analysis (security, static, performance, dynamic) without AI."""
         logger.info(f"[ANALYZE] Running comprehensive analysis on {model_slug} app {app_number}")
 
@@ -853,8 +1057,12 @@ class AnalyzerManager:
                 logger.error(f"[ERROR] {analysis_type.title()} analysis error: {e}")
                 results[analysis_type] = {'status': 'error', 'error': str(e)}
 
+        # Use provided task name or generate timestamp-based name
+        if not task_name:
+            task_name = f"analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
         # Save consolidated results using the new method
-        await self.save_task_results(model_slug, app_number, 'comprehensive', results)
+        await self.save_task_results(model_slug, app_number, task_name, results)
 
         return results
     
@@ -927,11 +1135,7 @@ class AnalyzerManager:
     async def save_analysis_results(self, model_slug: str, app_number: int,
                                   analysis_type: str, results: Dict[str, Any]) -> Path:
         """Save analysis results to project-root results/<model>/appN/<container-dir>/<timestamped>.json"""
-        # HARD ENFORCEMENT: Per-service result files are deprecated. Always suppress.
-        safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
-        dummy = self.results_dir / safe_slug / f"app{app_number}" / 'analysis' / f"{safe_slug}_app{app_number}_{analysis_type}_suppressed.json"
-        dummy.parent.mkdir(parents=True, exist_ok=True)
-        return dummy
+        # RESULT PERSISTENCE ENABLED: Write per-service results for debugging and traceability
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         container_dir = self._map_analysis_type_to_container_dir(analysis_type)
@@ -1543,14 +1747,13 @@ class AnalyzerManager:
         """Save consolidated results for a task, aggregate findings, and write universal format."""
         safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # Create a unique ID for this consolidated run
-        run_id = f"{task_id}_{timestamp}"
 
-        # Define the main output file for the consolidated results
-        out_dir = self.results_dir / safe_slug / f"app{app_number}" / 'analysis'
-        out_dir.mkdir(parents=True, exist_ok=True)
-        filepath = out_dir / f"{safe_slug}_app{app_number}_{run_id}.json"
+        # Group consolidated artifacts under task_<task_id>/ (legacy analysis/* migrated)
+        sanitized_task = self._sanitize_task_id(task_id)
+        task_dir = self._build_task_output_dir(model_slug, app_number, sanitized_task)
+        task_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"{safe_slug}_app{app_number}_task_{sanitized_task}_{timestamp}.json"
+        filepath = task_dir / filename
 
         try:
             # 1. Aggregate findings from all tools
@@ -1575,7 +1778,7 @@ class AnalyzerManager:
                 'metadata': {
                     'model_slug': model_slug,
                     'app_number': app_number,
-                    'analysis_type': 'unified',
+                    'analysis_type': task_id,
                     'timestamp': datetime.now().isoformat() + '+00:00',
                     'analyzer_version': '1.0.0',
                     'module': 'analysis',
@@ -1584,7 +1787,7 @@ class AnalyzerManager:
                 'results': {
                     'task': {
                         'task_id': task_id,
-                        'analysis_type': 'unified',
+                        'analysis_type': task_id,
                         'model_slug': model_slug,
                         'app_number': app_number,
                         'started_at': datetime.now().isoformat(),
@@ -1611,10 +1814,20 @@ class AnalyzerManager:
                 }
             }
 
-            # 3. Save the detailed consolidated JSON file
+            # 3. Save the detailed consolidated JSON file alongside per-service snapshots
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(task_metadata, f, indent=2, default=str)
             logger.info(f"[SAVE] Consolidated task results saved to: {filepath}")
+
+            self._write_service_snapshots(task_dir, safe_slug, model_slug, app_number, task_id, consolidated_results)
+            self._write_task_manifest(task_dir, filename, model_slug, app_number, task_id, consolidated_results)
+            self._remove_existing_task_payloads(
+                task_dir,
+                safe_slug,
+                app_number,
+                {task_id, sanitized_task},
+                preserve=filepath,
+            )
 
             # 4. If universal format helpers are available, write that too
             if build_universal_payload and write_universal_file:
@@ -1630,6 +1843,14 @@ class AnalyzerManager:
                         detected_languages=[] # Placeholder
                     )
                     universal_filepath = Path(write_universal_file(self.results_dir, model_slug, app_number, task_id, payload))
+                    if universal_filepath.exists() and universal_filepath.parent != task_dir:
+                        try:
+                            # Move legacy universal output under the grouped folder for consistency
+                            target = task_dir / universal_filepath.name
+                            universal_filepath.replace(target)
+                            universal_filepath = target
+                        except Exception as move_exc:
+                            logger.debug("Failed to relocate universal file %s: %s", universal_filepath, move_exc)
                     logger.info(f"[SAVE] Universal results saved to: {universal_filepath}")
                 except Exception as e:
                     logger.warning(f"Could not write universal results file: {e}")
@@ -1642,6 +1863,202 @@ class AnalyzerManager:
         except Exception as e:
             logger.error(f"[ERROR] Failed to save consolidated task results: {e}")
             raise
+
+    def _remove_existing_task_payloads(
+        self,
+        task_dir: Path,
+        safe_slug: str,
+        app_number: int,
+        task_ids: Iterable[str],
+        preserve: Optional[Path] = None,
+    ) -> None:
+        """Remove previously written consolidated payloads for this task."""
+        identifiers: set[str] = set()
+        for tid in task_ids:
+            if tid:
+                identifiers.add(str(tid))
+                identifiers.add(self._sanitize_task_id(tid))
+
+        for ident in identifiers:
+            patterns = [
+                f"{safe_slug}_app{app_number}_task-{ident}_*.json",
+                f"{safe_slug}_app{app_number}_task_{ident}_*.json",
+            ]
+            for pattern in patterns:
+                for candidate in task_dir.glob(pattern):
+                    if candidate.name.endswith('_universal.json'):
+                        continue
+                    if preserve and candidate.resolve() == preserve.resolve():
+                        continue
+                    try:
+                        candidate.unlink()
+                    except Exception:
+                        logger.debug("Failed to remove legacy task payload %s", candidate)
+
+    def _write_service_snapshots(
+        self,
+        task_dir: Path,
+        safe_slug: str,
+        model_slug: str,
+        app_number: int,
+        task_id: str,
+        consolidated_results: Dict[str, Any],
+    ) -> None:
+        """Persist individual service payloads beside the consolidated result."""
+        if not consolidated_results:
+            return
+
+        services_dir = task_dir / 'services'
+        services_dir.mkdir(parents=True, exist_ok=True)
+
+        for service_name, payload in consolidated_results.items():
+            if not isinstance(payload, dict):
+                continue
+            snapshot = {
+                'metadata': {
+                    'model_slug': model_slug,
+                    'app_number': app_number,
+                    'task_id': task_id,
+                    'service_name': service_name,
+                    'created_at': datetime.now().isoformat() + '+00:00',
+                },
+                'results': payload,
+            }
+            filename = f"{safe_slug}_app{app_number}_{service_name}.json"
+            target = services_dir / filename
+            try:
+                with open(target, 'w', encoding='utf-8') as handle:
+                    json.dump(snapshot, handle, indent=2, default=str)
+            except Exception as snapshot_exc:
+                logger.debug("Failed to persist %s snapshot for task %s: %s", service_name, task_id, snapshot_exc)
+
+    def _write_task_manifest(
+        self,
+        task_dir: Path,
+        primary_filename: str,
+        model_slug: str,
+        app_number: int,
+        task_id: str,
+        consolidated_results: Dict[str, Any],
+    ) -> None:
+        """Emit a lightweight manifest describing artefacts for the grouped task."""
+        service_files = {}
+        services_dir = task_dir / 'services'
+        if services_dir.exists():
+            for service_path in services_dir.glob('*.json'):
+                key = service_path.stem.split('_')[-1]
+                service_files[key] = service_path.name
+
+        manifest = {
+            'task_id': task_id,
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'primary_result': primary_filename,
+            'services': sorted(service_files.keys() or consolidated_results.keys()),
+            'service_files': service_files,
+            'created_at': datetime.now().isoformat() + '+00:00',
+        }
+
+        try:
+            with open(task_dir / 'manifest.json', 'w', encoding='utf-8') as handle:
+                json.dump(manifest, handle, indent=2, default=str)
+        except Exception as manifest_exc:
+            logger.debug("Failed to write manifest for task %s: %s", task_id, manifest_exc)
+
+    def find_latest_results(self, model_slug: str, app_number: int) -> Dict[str, Path]:
+        """Find the latest result file for each analysis type for a given model/app."""
+        latest_results: Dict[str, Path] = {}
+        safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
+
+        app_dir = self.results_dir / safe_slug / f"app{app_number}"
+        if not app_dir.exists():
+            return {}
+
+        pattern = f"{safe_slug}_app{app_number}_*.json"
+        search_roots = [app_dir]
+        legacy_dir = app_dir / 'analysis'
+        if legacy_dir.exists():
+            search_roots.append(legacy_dir)
+
+        seen: set[Path] = set()
+
+        for root in search_roots:
+            if not root.exists():
+                continue
+            for candidate in root.rglob(pattern):
+                try:
+                    if any(part.lower() == 'services' for part in candidate.parts):
+                        continue
+                    if candidate.name.endswith('_universal.json'):
+                        continue
+                    resolved = candidate.resolve()
+                    if resolved in seen:
+                        continue
+                    seen.add(resolved)
+                    analysis_key = self._resolve_analysis_key(candidate, app_number)
+                    if not analysis_key:
+                        continue
+                    current = latest_results.get(analysis_key)
+                    candidate_mtime = candidate.stat().st_mtime
+                    if current is None or candidate_mtime > current.stat().st_mtime:
+                        latest_results[analysis_key] = candidate
+                except FileNotFoundError:
+                    continue
+                except Exception as exc:
+                    logger.debug("Skipping candidate %s due to error: %s", candidate, exc)
+                    continue
+
+        return latest_results
+
+    def _resolve_analysis_key(self, path: Path, app_number: int) -> Optional[str]:
+        stem = path.stem
+        marker = f"_app{app_number}_"
+        idx = stem.find(marker)
+        if idx == -1:
+            return None
+        remainder = stem[idx + len(marker):]
+        for prefix in ('task-', 'task_'):
+            if remainder.startswith(prefix):
+                task_part = remainder.split('_', 1)[0]
+                suffix = task_part[len(prefix):]
+                return suffix or None
+        # Legacy style: <analysis_type>_<timestamp>
+        analysis_type = remainder.split('_', 1)[0]
+        if analysis_type in {'suppressed', 'task'}:
+            return None
+        return analysis_type or None
+
+    async def create_unified_result(self, model_slug: str, app_number: int, task_id: str = "unified") -> Optional[Path]:
+        """
+        Create a unified result file from the latest individual analysis results.
+        """
+        logger.info(f"Creating unified result for {model_slug} app {app_number}...")
+        
+        latest_results = self.find_latest_results(model_slug, app_number)
+        
+        if not latest_results:
+            logger.warning(f"No individual results found for {model_slug} app {app_number}. Cannot create unified result.")
+            return None
+
+        consolidated_results: Dict[str, Any] = {}
+        for analysis_type, filepath in latest_results.items():
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                # The actual results are usually under a 'results' key
+                consolidated_results[analysis_type] = data.get('results', data)
+            except Exception as e:
+                logger.error(f"Failed to load result file {filepath}: {e}")
+                consolidated_results[analysis_type] = {'status': 'error', 'error': f'Failed to load: {e}'}
+
+        try:
+            # Use the existing save_task_results to generate the unified file
+            unified_filepath = await self.save_task_results(model_slug, app_number, task_id, consolidated_results)
+            logger.info(f"Successfully created unified result file: {unified_filepath}")
+            return unified_filepath
+        except Exception as e:
+            logger.error(f"Failed to create unified result file: {e}")
+            return None
 
     def _ordered_services(self, consolidated_results: Dict[str, Any]) -> Dict[str, Any]:
         """Return services dict in a stable, logical order for readability.
@@ -1709,6 +2126,7 @@ class AnalyzerManager:
                             'duration_seconds': tdata.get('duration') or tdata.get('duration_seconds') if isinstance(tdata, dict) else None,
                             'total_issues': tdata.get('total_issues', 0),
                             'executed': tdata.get('executed', False),
+
                             'error': tdata.get('error')
                         }
 
@@ -1880,160 +2298,10 @@ class AnalyzerManager:
             return []
 
         return matches
-    
-    # =================================================================
-    # TESTING AND VALIDATION
-    # =================================================================
-    
-    async def test_all_services(self) -> Dict[str, Any]:
-        """Run comprehensive tests on all services."""
-        logger.info("🧪 Running comprehensive analyzer service tests")
-        
-        test_results = {
-            'test_start_time': datetime.now().isoformat(),
-            'services_tested': len(self.services),
-            'health_checks': {},
-            'ping_tests': {},
-            'functional_tests': {},
-            'summary': {}
-        }
-        
-        # Health check tests
-        logger.info("Running health check tests...")
-        health_results = await self.check_all_services_health()
-        test_results['health_checks'] = health_results
-        
-        # Ping tests
-        logger.info("Running ping tests...")
-        ping_tasks = [
-            self._test_service_ping(service_name)
-            for service_name in self.services.keys()
-        ]
-        ping_results = await asyncio.gather(*ping_tasks, return_exceptions=True)
-        
-        for i, (service_name, result) in enumerate(zip(self.services.keys(), ping_results)):
-            if isinstance(result, Exception):
-                test_results['ping_tests'][service_name] = {
-                    'status': 'error',
-                    'error': str(result)
-                }
-            else:
-                test_results['ping_tests'][service_name] = result
-        
-        # Functional tests (on working services only)
-        logger.info("Running functional tests...")
-        
-        # Test a sample application if services are healthy
-        healthy_services = [
-            name for name, result in health_results.items()
-            if result.get('status') == 'healthy'
-        ]
-        
-        # Choose a real model slug that exists on disk to avoid path-not-found
-        sample_model = self._pick_available_model_slug(
-            preferred=[
-                'anthropic_claude-3.7-sonnet',
-                'openai_gpt_4',
-                'openai_gpt-4.1',
-            ]
-        ) or 'anthropic_claude-3.7-sonnet'
-
-        if 'static-analyzer' in healthy_services:
-            try:
-                security_result = await self.run_security_analysis(sample_model, 1)
-                test_results['functional_tests']['static-analyzer'] = security_result
-            except Exception as e:
-                test_results['functional_tests']['static-analyzer'] = {
-                    'status': 'error', 'error': str(e)
-                }
-        
-        if 'ai-analyzer' in healthy_services:
-            try:
-                ai_result = await self.run_ai_analysis(sample_model, 1)
-                test_results['functional_tests']['ai-analyzer'] = ai_result
-            except Exception as e:
-                test_results['functional_tests']['ai-analyzer'] = {
-                    'status': 'error', 'error': str(e)
-                }
-        
-        # Calculate summary
-        healthy_count = sum(1 for result in health_results.values() 
-                          if result.get('status') == 'healthy')
-        ping_success_count = sum(1 for result in test_results['ping_tests'].values() 
-                               if result.get('status') == 'success')
-        functional_success_count = sum(1 for result in test_results['functional_tests'].values() 
-                                     if result.get('status') == 'success')
-        
-        test_results['summary'] = {
-            'healthy_services': healthy_count,
-            'total_services': len(self.services),
-            'successful_pings': ping_success_count,
-            'functional_tests_passed': functional_success_count,
-            'overall_health': 'good' if healthy_count >= 4 else 'partial' if healthy_count >= 2 else 'poor',
-            'test_completion_time': datetime.now().isoformat()
-        }
-        
-        return test_results
-
-    def _pick_available_model_slug(self, preferred: Optional[List[str]] = None) -> Optional[str]:
-        """Pick a model slug that exists under generated and has an app1 folder.
-
-        Preference order:
-        - Any slug in the preferred list that exists and contains app1
-        - Otherwise, the first directory with an app1 child
-        Returns None if none are found.
-        """
-        try:
-            root = self._models_root
-            if not root or not root.exists():
-                return None
-
-            def has_app1(p: Path) -> bool:
-                return (p / 'app1').exists()
-
-            # Try preferred list first
-            if preferred:
-                for slug in preferred:
-                    candidate = root / slug
-                    if candidate.exists() and candidate.is_dir() and has_app1(candidate):
-                        return slug
-
-            # Fallback: scan all directories
-            for entry in sorted(root.iterdir()):
-                try:
-                    if entry.is_dir() and has_app1(entry):
-                        return entry.name
-                except Exception:
-                    continue
-        except Exception:
-            return None
-        return None
-    
-    async def _test_service_ping(self, service_name: str) -> Dict[str, Any]:
-        """Test ping/pong for a service."""
-        ping_message = {
-            "type": "ping",
-            "timestamp": datetime.now().isoformat(),
-            "id": str(uuid.uuid4())
-        }
-        
-        start_time = time.time()
-        result = await self.send_websocket_message(service_name, ping_message, timeout=10)
-        end_time = time.time()
-        
-        if result.get('type') == 'pong' or 'pong' in str(result):
-            return {
-                'status': 'success',
-                'service': service_name,
-                'response_time': end_time - start_time,
-                'response': result
-            }
-        else:
-            return {
-                'status': 'error',
-                'service': service_name,
-                'error': result.get('error', 'No pong response')
-            }
+async def handle_unify(args):
+    """Handler for the 'unify' command."""
+    manager = AnalyzerManager()
+    await manager.create_unified_result(args.model, args.app)
 
 
 # =================================================================
@@ -2136,6 +2404,12 @@ async def main():
             model_slug = sys.argv[2]
             app_number = int(sys.argv[3])
             analysis_type = sys.argv[4] if len(sys.argv) > 4 else 'comprehensive'
+            
+            # Normalize model slug before analysis
+            normalized_slug = normalize_model_slug(model_slug)
+            if normalized_slug != model_slug:
+                logger.info(f"Normalized model slug: {model_slug} → {normalized_slug}")
+                model_slug = normalized_slug
             # Optional: parse tool selection e.g., --tools bandit pylint
             tools_arg: Optional[List[str]] = None
             if '--tools' in sys.argv:
@@ -2159,40 +2433,14 @@ async def main():
                 results = await manager.run_comprehensive_analysis(model_slug, app_number)
             elif analysis_type == 'security':
                 results = await manager.run_security_analysis(model_slug, app_number, tools=tools_arg)
-                # Save as consolidated task result
-                consolidated = {'security': results}
-                try:
-                    await manager.save_task_results(model_slug, app_number, 'security', consolidated)
-                except Exception as e:
-                    logger.warning(f"Could not save security analysis results: {e}")
             elif analysis_type == 'performance':
                 results = await manager.run_performance_test(model_slug, app_number, tools=tools_arg)
-                consolidated = {'performance': results}
-                try:
-                    await manager.save_task_results(model_slug, app_number, 'performance', consolidated)
-                except Exception as e:
-                    logger.warning(f"Could not save performance test results: {e}")
             elif analysis_type in ['dynamic', 'zap']:
                 results = await manager.run_dynamic_analysis(model_slug, app_number, tools=tools_arg)
-                consolidated = {'dynamic': results}
-                try:
-                    await manager.save_task_results(model_slug, app_number, 'dynamic', consolidated)
-                except Exception as e:
-                    logger.warning(f"Could not save dynamic analysis results: {e}")
             elif analysis_type == 'ai':
                 results = await manager.run_ai_analysis(model_slug, app_number, tools=tools_arg)
-                consolidated = {'ai': results}
-                try:
-                    await manager.save_task_results(model_slug, app_number, 'ai', consolidated)
-                except Exception as e:
-                    logger.warning(f"Could not save AI analysis results: {e}")
             elif analysis_type == 'static':
                 results = await manager.run_static_analysis(model_slug, app_number, tools=tools_arg)
-                consolidated = {'static': results}
-                try:
-                    await manager.save_task_results(model_slug, app_number, 'static', consolidated)
-                except Exception as e:
-                    logger.warning(f"Could not save static analysis results: {e}")
             else:
                 if JSON_MODE:
                     print(json.dumps({"status": "error", "error": f"unknown_type:{analysis_type}"}))

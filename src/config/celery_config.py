@@ -59,6 +59,12 @@ CELERY_ROUTES = {
     'app.tasks.batch_analysis_task': {'queue': 'batch_processing'},
     'app.tasks.container_management_task': {'queue': 'container_ops'},
     'app.tasks.health_check_task': {'queue': 'monitoring'},
+    # Parallel subtask routing
+    'app.tasks.run_static_analyzer_subtask': {'queue': 'subtasks'},
+    'app.tasks.run_dynamic_analyzer_subtask': {'queue': 'subtasks'},
+    'app.tasks.run_performance_tester_subtask': {'queue': 'subtasks'},
+    'app.tasks.run_ai_analyzer_subtask': {'queue': 'subtasks'},
+    'app.tasks.aggregate_subtask_results': {'queue': 'aggregation'},
 }
 
 # Queue configuration
@@ -71,17 +77,19 @@ CELERY_QUEUES = (
     Queue('batch_processing', routing_key='batch_processing'),
     Queue('container_ops', routing_key='container_ops'),
     Queue('monitoring', routing_key='monitoring'),
+    Queue('subtasks', routing_key='subtasks'),  # Parallel subtask queue
+    Queue('aggregation', routing_key='aggregation'),  # Result aggregation queue
     Queue('celery', routing_key='celery'),  # Default queue
 )
 
 # Worker configuration
-CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_WORKER_PREFETCH_MULTIPLIER = 4  # Allow prefetch for parallel execution
 CELERY_WORKER_MAX_TASKS_PER_CHILD = 50
 CELERY_WORKER_DISABLE_RATE_LIMITS = False
 
-# Windows-specific configuration to fix permission errors
-CELERY_WORKER_POOL = 'solo'  # Use solo pool on Windows to avoid multiprocessing issues
-CELERY_WORKER_CONCURRENCY = 1  # Single worker process
+# Windows-specific configuration - use threads for parallel execution
+CELERY_WORKER_POOL = 'threads'  # Use thread pool for Windows compatibility and parallelism
+CELERY_WORKER_CONCURRENCY = 8  # Allow 8 concurrent subtasks (2 full analyses in parallel)
 
 # Task execution configuration
 CELERY_TASK_TRACK_STARTED = True

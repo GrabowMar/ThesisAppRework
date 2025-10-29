@@ -843,6 +843,16 @@ def test_endpoint():
     return jsonify({"message": "Models API is working", "endpoint": "/api/models/test"})
 
 
+@models_bp.route('/debug-slugs')
+def debug_slugs():
+    """Debug endpoint to list all canonical slugs."""
+    try:
+        slugs = [m.canonical_slug for m in ModelCapability.query.all()]
+        return jsonify(sorted(slugs))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @models_bp.route('/comparison/refresh', methods=['POST'])
 def models_comparison_refresh():
     """Compute lightweight comparison metrics for provided models.

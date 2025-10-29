@@ -1,58 +1,82 @@
 """
-Lightweight no-op mock WebSocket service.
+Mock WebSocket Service
+===================
 
-Kept to satisfy factory fallback imports when Celery-backed WebSocket is unavailable.
-All methods are safe no-ops suitable for tests/development without SocketIO.
+Simple mock implementation of WebSocket service for development/testing
+when Celery-backed service is unavailable.
 """
 
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class MockWebSocketService:
-    def __init__(self) -> None:
-        self._events: List[Dict[str, Any]] = []
+    """Mock WebSocket service that logs events without real WebSocket connections."""
 
-    def emit(self, event: str, data: Dict[str, Any], room: Optional[str] = None) -> None:
-        self._events.append({'event': event, 'data': data, 'room': room})
-
-    def broadcast_message(self, event: str, data: Dict[str, Any]) -> None:
-        self.emit(event, data)
-
-    def send_to_analysis_room(self, analysis_id: str, event: str, data: Dict[str, Any]) -> None:
-        self.emit(event, data, room=f"analysis_{analysis_id}")
+    def __init__(self):
+        self.event_log: List[Dict[str, Any]] = []
+        self.active_analyses: Dict[str, Dict[str, Any]] = {}
+        logger.info("MockWebSocketService initialized")
 
     def get_status(self) -> Dict[str, Any]:
-        return {'service': 'mock_websocket', 'events': len(self._events)}
+        return {
+            'active_analyses': len(self.active_analyses),
+            'connected': False,  # mock service
+            'last_update': datetime.now(timezone.utc).isoformat(),
+            'service': 'mock_websocket',
+        }
 
     def get_active_analyses(self) -> List[Dict[str, Any]]:
-        return []
+        return list(self.active_analyses.values())
 
     def get_event_log(self) -> List[Dict[str, Any]]:
-        return list(self._events)
+        return list(self.event_log)
 
     def clear_event_log(self) -> None:
-        self._events.clear()
+        self.event_log.clear()
 
+    def start_analysis(self, data: Dict[str, Any]) -> Optional[str]:
+        """Mock analysis start - just logs the request."""
+        analysis_id = f"mock_{datetime.now(timezone.utc).timestamp()}"
+        self.active_analyses[analysis_id] = {
+            'id': analysis_id,
+            'status': 'pending',
+            'data': data,
+            'started_at': datetime.now(timezone.utc).isoformat()
+        }
+        self._log_event('analysis_started', {'analysis_id': analysis_id, 'data': data})
+        logger.info(f"Mock analysis started: {analysis_id}")
+        return analysis_id
 
-_mock_service: Optional[MockWebSocketService] = None
+    def get_analysis_status(self, analysis_id: str) -> Optional[Dict[str, Any]]:
+        return self.active_analyses.get(analysis_id)
+
+    def cancel_analysis(self, analysis_id: str) -> bool:
+        if analysis_id in self.active_analyses:
+            self.active_analyses[analysis_id]['status'] = 'cancelled'
+            self._log_event('analysis_cancelled', {'analysis_id': analysis_id})
+            return True
+        return False
+
+    def emit(self, event: str, data: Any, room: Optional[str] = None) -> None:
+        """Mock emit - just logs."""
+        self._log_event(event, data)
+
+    def _log_event(self, event_type: str, data: Any) -> None:
+        event = {
+            'type': event_type,
+            'data': data,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        }
+        self.event_log.append(event)
+        logger.debug(f"Mock WebSocket event: {event_type}")
 
 
 def initialize_mock_websocket_service() -> MockWebSocketService:
-    global _mock_service
-    _mock_service = MockWebSocketService()
-    return _mock_service
-
-
-def get_mock_websocket_service() -> Optional[MockWebSocketService]:
-    return _mock_service
-
-
-def broadcast_analysis_update(analysis_id: str, event: str, data: Dict[str, Any]) -> None:
-    if _mock_service:
-        _mock_service.send_to_analysis_room(analysis_id, event, data)
-        _mock_service.broadcast_message(event, {**data, 'analysis_id': analysis_id})
-
-
-def broadcast_system_update(event: str, data: Dict[str, Any]) -> None:
-    if _mock_service:
-        _mock_service.broadcast_message(event, data)
+    """Initialize and return mock WebSocket service."""
+    return MockWebSocketService()

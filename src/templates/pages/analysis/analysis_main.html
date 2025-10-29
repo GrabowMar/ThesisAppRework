@@ -8,8 +8,7 @@
 
 {% block content %}
 
-  <div id="main-tasks-table-wrapper" class="htmx-indicator-parent" hx-indicator="#global-spinner"
-       hx-get="/analysis/api/tasks/list" hx-trigger="load, every 10s" hx-swap="innerHTML">
+  <div id="main-tasks-table-wrapper" hx-get="/analysis/api/tasks/list" hx-trigger="load" hx-swap="innerHTML">
     <div class="p-4 text-center text-muted">
       <div class="spinner-border spinner-border-sm me-2" role="status"></div>
       <span>Loading tasks…</span>

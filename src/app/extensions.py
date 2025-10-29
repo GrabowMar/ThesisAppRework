@@ -230,7 +230,8 @@ def get_session():
                 self._ctx = app.app_context()
                 self._ctx.push()
             except Exception as e:  # Best-effort: leave _ctx as None and let db.session fail if needed
-                print(f"Warning: get_session could not push app context: {e}")
+                import logging
+                logging.getLogger(__name__).warning(f"get_session could not push app context: {e}")
             return db.session
 
         def __exit__(self, exc_type, exc_val, exc_tb):

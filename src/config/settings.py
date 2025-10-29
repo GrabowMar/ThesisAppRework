@@ -75,6 +75,14 @@ class Config:
     CELERY_TIMEZONE = 'UTC'
     CELERY_ENABLE_UTC = True
     
+    # Analyzer Service Configuration
+    # Timeout for individual analyzer services (seconds)
+    # If a service takes longer than this, it will be marked as failed but analysis continues
+    ANALYZER_SERVICE_TIMEOUT = int(os.environ.get('ANALYZER_SERVICE_TIMEOUT', '600'))  # 10 minutes default
+    
+    # Whether to retry failed analyzer services (default: no retry for faster feedback)
+    ANALYZER_RETRY_FAILED_SERVICES = os.environ.get('ANALYZER_RETRY_FAILED_SERVICES', 'false').lower() == 'true'
+    
     # Security Analysis Tool Configurations
     SECURITY_ANALYZER_CONFIG = {
         'bandit': {

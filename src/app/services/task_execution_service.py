@@ -29,7 +29,7 @@ from __future__ import annotations
 import threading
 import time
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
@@ -38,7 +38,7 @@ from app.config.config_manager import get_config
 from app.extensions import db, get_components
 from app.models import AnalysisTask
 from app.constants import AnalysisStatus
-from app.services import analysis_result_store
+from app.services.result_summary_utils import summarise_findings
 
 logger = get_logger("task_executor")
 
@@ -59,6 +59,80 @@ class TaskExecutionService:
         self._thread: Optional[threading.Thread] = None
         self._running = False
         self._app = app  # Keep explicit reference so we can push context inside thread
+        
+        # Load analyzer service configuration
+        try:
+            from flask import current_app
+            if current_app:
+                self._service_timeout = current_app.config.get('ANALYZER_SERVICE_TIMEOUT', 600)
+                self._retry_enabled = current_app.config.get('ANALYZER_RETRY_FAILED_SERVICES', False)
+            else:
+                self._service_timeout = 600
+                self._retry_enabled = False
+        except (RuntimeError, ImportError):
+            self._service_timeout = 600
+            self._retry_enabled = False
+
+    def _execute_service_with_timeout(self, engine, model_slug: str, app_number: int, tools: list, service_name: str) -> Dict[str, Any]:
+        """Execute a service with timeout protection.
+        
+        Returns:
+            Dict with status, payload, and error (if any)
+        """
+        try:
+            import threading
+            result_container = {'result': None, 'error': None, 'completed': False}
+            
+            def run_service():
+                try:
+                    service_result = engine.run(
+                        model_slug=model_slug,
+                        app_number=app_number,
+                        tools=tools,
+                        persist=False
+                    )
+                    result_container['result'] = service_result
+                    result_container['completed'] = True
+                except Exception as e:
+                    result_container['error'] = str(e)
+                    result_container['completed'] = True
+            
+            thread = threading.Thread(target=run_service, daemon=True)
+            thread.start()
+            thread.join(timeout=self._service_timeout)
+            
+            if not result_container['completed']:
+                logger.warning(
+                    f"Service {service_name} timed out after {self._service_timeout}s - continuing with other services"
+                )
+                return {
+                    'status': 'timeout',
+                    'error': f'Service execution timed out after {self._service_timeout} seconds',
+                    'payload': {}
+                }
+            
+            if result_container['error']:
+                logger.error(f"Service {service_name} failed: {result_container['error']}")
+                return {
+                    'status': 'error',
+                    'error': result_container['error'],
+                    'payload': {}
+                }
+            
+            service_result = result_container['result']
+            return {
+                'status': service_result.status if service_result else 'error',
+                'payload': service_result.payload if service_result else {},
+                'error': service_result.error if service_result else None
+            }
+            
+        except Exception as e:
+            logger.exception(f"Unexpected error executing service {service_name}: {e}")
+            return {
+                'status': 'error',
+                'error': str(e),
+                'payload': {}
+            }
 
     def start(self):  # pragma: no cover - thread start trivial
         if self._running:
@@ -90,6 +164,8 @@ class TaskExecutionService:
 
                     next_tasks = queue_service.get_next_tasks(limit=self.batch_size)
                     if not next_tasks:
+                        # No pending tasks - check for running tasks with subtasks (parallel execution polling)
+                        self._poll_running_tasks_with_subtasks()
                         time.sleep(self.poll_interval)
                         continue
 
@@ -98,9 +174,8 @@ class TaskExecutionService:
                         if not task_db or task_db.status != AnalysisStatus.PENDING:
                             continue
                         task_db.status = AnalysisStatus.RUNNING
-                        # Use naive UTC timestamps for compatibility with existing
-                        # columns that may store naive datetimes (avoids aware/naive errors)
-                        task_db.started_at = datetime.utcnow()
+                        # Use timezone-aware UTC timestamps to prevent naive/aware mixing errors
+                        task_db.started_at = datetime.now(timezone.utc)
                         db.session.commit()
                         try:  # Emit start
                             from app.realtime.task_events import emit_task_event
@@ -121,6 +196,13 @@ class TaskExecutionService:
                         # Execute real analysis instead of simulation
                         try:
                             result = self._execute_real_analysis(task_db)
+                            
+                            # Handle parallel execution (status='running' means Celery took over)
+                            if result.get('status') == 'running':
+                                logger.info(f"Task {task_db.task_id} delegated to Celery workers, will poll for completion")
+                                # Don't mark as completed yet - let polling handle it
+                                continue
+                            
                             # Engine returns 'completed' on success or 'failed'/'error' otherwise
                             success = result.get('status') in ('success', 'completed')
                             
@@ -148,7 +230,7 @@ class TaskExecutionService:
                                 error_payload = {
                                     'status': 'error',
                                     'error': result['error'],
-                                    'timestamp': datetime.utcnow().isoformat()
+                                    'timestamp': datetime.now(timezone.utc).isoformat()
                                 }
                                 task_db.set_result_summary(error_payload)
                                 task_db.error_message = result['error']
@@ -161,7 +243,7 @@ class TaskExecutionService:
                             error_payload = {
                                 'status': 'error',
                                 'error': str(e),
-                                'timestamp': datetime.utcnow().isoformat()
+                                'timestamp': datetime.now(timezone.utc).isoformat()
                             }
                             task_db.set_result_summary(error_payload)
                             task_db.error_message = str(e)
@@ -169,7 +251,7 @@ class TaskExecutionService:
                         # Set final status based on analysis result
                         task_db.status = AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED
                         task_db.progress_percentage = 100.0
-                        task_db.completed_at = datetime.utcnow()
+                        task_db.completed_at = datetime.now(timezone.utc)
                         
                         # Store analysis results if available (merge with existing metadata)
                         if result and result.get('payload'):
@@ -179,12 +261,26 @@ class TaskExecutionService:
                                 merged_metadata = existing_metadata.copy()
                                 merged_metadata.update(result['payload'])
                                 task_db.set_metadata(merged_metadata)
+                                
+                                # Write result files to disk (standardized persistence)
+                                from app.services.result_file_writer import write_task_result_files
+                                try:
+                                    written_path = write_task_result_files(task_db, result['payload'])
+                                    if written_path:
+                                        logger.info(f"Wrote result files to disk for task {task_db.task_id}: {written_path}")
+                                    else:
+                                        logger.warning(f"Result file write returned None for task {task_db.task_id} - check logs for details")
+                                except Exception as write_err:
+                                    logger.warning(f"Failed to write result files to disk for task {task_db.task_id}: {write_err}")
                             except Exception as e:
                                 logger.warning("Failed to store analysis results for task %s: %s", task_db.task_id, e)
                         
                         try:
                             if task_db.started_at and task_db.completed_at:
-                                task_db.actual_duration = (task_db.completed_at - task_db.started_at).total_seconds()
+                                # Ensure both timestamps are timezone-aware before subtraction
+                                start = task_db.started_at if task_db.started_at.tzinfo else task_db.started_at.replace(tzinfo=timezone.utc)
+                                end = task_db.completed_at if task_db.completed_at.tzinfo else task_db.completed_at.replace(tzinfo=timezone.utc)
+                                task_db.actual_duration = (end - start).total_seconds()
                         except Exception:  # pragma: no cover - defensive
                             task_db.actual_duration = None
                         db.session.commit()
@@ -219,14 +315,14 @@ class TaskExecutionService:
         """Execute real analysis using the analysis engines."""
         try:
             # Get the analysis type (string)
-            analysis_type = task.analysis_type.value if hasattr(task.analysis_type, 'value') else str(task.analysis_type)
+            analysis_type = task.task_name
             
             # Update progress to indicate analysis starting
             task.progress_percentage = 20.0
             db.session.commit()
             
             # Import engine registry and resolve a valid engine name
-            from app.services.analysis_engines import get_engine, ENGINE_REGISTRY
+            from app.services.analysis_engines import get_engine
 
             # Check if this is a unified analysis with tools from multiple services
             meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
@@ -278,7 +374,7 @@ class TaskExecutionService:
                 return self._execute_unified_analysis(task)
             else:
                 # Regular single-engine analysis
-                engine_name = analysis_type
+                engine_name = task.task_name
                 # Defensive correction: if metadata shows ONLY ai-analyzer tools but engine not 'ai', fix it.
                 try:
                     only_services = list(meta_tools_by_service.keys())
@@ -290,14 +386,12 @@ class TaskExecutionService:
                         engine_name = 'ai'
                 except Exception:
                     pass
-                if engine_name not in ENGINE_REGISTRY:
-                    # Fallback: treat unknown/custom types as security (static) analysis
-                    engine_name = 'security'
+                
                 engine = get_engine(engine_name)
                 
                 logger.info(
                     "Executing %s analysis for task %s",
-                    analysis_type,
+                    engine_name,
                     getattr(task, "task_id", "unknown")
                 )
             
@@ -407,11 +501,12 @@ class TaskExecutionService:
             except Exception:
                 pass
 
-            # Execute the analysis with resolved tools
+            # Execute the analysis with resolved tools (with persistence enabled)
             result = engine.run(
                 model_slug=task.target_model,
                 app_number=task.target_app_number,
-                tools=resolved_tools
+                tools=resolved_tools,
+                persist=True  # Enable result file writes
             )
 
             try:
@@ -511,214 +606,147 @@ class TaskExecutionService:
             total_services = len(tools_by_service)
             progress_per_service = 60.0 / total_services if total_services > 0 else 60.0
             
-            for i, (service_name, tool_ids) in enumerate(tools_by_service.items()):
-                logger.info(f"Executing service {service_name} with {len(tool_ids)} tools: {tool_ids}")
-                
-                # Get engine for this service
-                engine_name = service_to_engine.get(service_name, 'security')
-                engine = get_engine(engine_name)
-                
-                # Resolve tool IDs to names for this service
-                service_tool_names = self._resolve_tool_ids_to_names(tool_ids)
-                logger.info(f"Service {service_name} resolved tools: {service_tool_names}")
-                
-                try:
-                    # Run analysis for this service (suppress immediate persistence; we'll merge later)
-                    service_result = engine.run(
-                        model_slug=task.target_model,
-                        app_number=task.target_app_number,
-                        tools=service_tool_names,
-                        persist=False
-                    )
-                    
-                    logger.info(f"Service {service_name} completed with status: {service_result.status}")
-                    logger.info(f"Service {service_name} payload keys: {list(service_result.payload.keys()) if service_result.payload else 'None'}")
-                    
-                    # Extract and combine results
-                    if service_result.status in ('completed', 'success'):
-                        payload = service_result.payload or {}
-                        
-                        # Combine tool results
-                        service_tools_requested = payload.get('tools_requested', service_tool_names)
-                        service_tool_results = payload.get('tool_results', {})
-                        
-                        logger.info(f"Service {service_name}: tools_requested={service_tools_requested}, tool_results_keys={list(service_tool_results.keys()) if service_tool_results else 'empty'}")
-                        
-                        # If no tool_results but we have tools_requested, create dummy results
-                        if not service_tool_results and service_tools_requested:
-                            logger.warning(f"Service {service_name}: Creating dummy results for {service_tools_requested} because tool_results is empty")
-                            for tool_name in service_tools_requested:
-                                service_tool_results[tool_name] = {
-                                    'status': 'success',
-                                    'duration_seconds': 0.1,
-                                    'total_issues': 0,
-                                    'executed': True
-                                }
-                        else:
-                            logger.info(f"Service {service_name}: Using real tool results: {list(service_tool_results.keys())}")
-                        
-                        combined_tools_requested.extend(service_tools_requested)
-                        combined_tools_successful += len(service_tool_results)
-                        combined_tool_results.update(service_tool_results)
-                        
-                        all_results[service_name] = payload
-                        if isinstance(payload.get('summary'), dict):
-                            service_summaries.append(payload['summary'])
-                        findings_payload = payload.get('findings') or []
-                        if isinstance(findings_payload, list):
-                            all_findings.extend([f for f in findings_payload if isinstance(f, dict)])
-                        logger.info(f"Service {service_name} contributed {len(service_tool_results)} tool results")
-                    else:
-                        logger.warning(f"Service {service_name} failed: {service_result.error or 'Unknown error'}")
-                        combined_tools_failed += len(tool_ids)
-                        
-                        # Create error results for failed tools
-                        service_tool_names = self._resolve_tool_ids_to_names(tool_ids)
-                        for tool_name in service_tool_names:
-                            combined_tool_results[tool_name] = {
-                                'status': 'failed',
-                                'error': service_result.error or 'Service execution failed',
-                                'executed': False
-                            }
-                
-                except Exception as e:
-                    logger.exception(f"Failed to execute service {service_name}: {e}")
-                    combined_tools_failed += len(tool_ids)
-                    
-                    # Create error results for failed tools  
-                    service_tool_names = self._resolve_tool_ids_to_names(tool_ids)
-                    for tool_name in service_tool_names:
-                        combined_tool_results[tool_name] = {
-                            'status': 'error',
-                            'error': str(e),
-                            'executed': False
-                        }
-                
-                # Update progress
-                task.progress_percentage = 20.0 + (i + 1) * progress_per_service
-                db.session.commit()
+            # Get subtasks if this is a main task
+            subtasks_by_service = {}
+            if hasattr(task, 'subtasks') and task.subtasks:
+                for subtask in task.subtasks:
+                    if subtask.service_name:
+                        subtasks_by_service[subtask.service_name] = subtask
+                logger.info(f"Found {len(subtasks_by_service)} subtasks for main task")
             
-            # Augment with saved service payloads (if any exist on disk)
-            saved_payloads = self._load_saved_service_payloads(task.target_model, task.target_app_number)
-            for svc_name, saved_blob in saved_payloads.items():
-                service_payload = self._unwrap_service_payload(saved_blob)
-                if not service_payload:
-                    continue
-                all_results[svc_name] = service_payload
-                summary_obj = service_payload.get('summary')
-                if isinstance(summary_obj, dict):
-                    service_summaries.append(summary_obj)
-                findings_payload = service_payload.get('findings') or []
-                if isinstance(findings_payload, list):
-                    all_findings.extend([f for f in findings_payload if isinstance(f, dict)])
-                new_tools = self._extract_tool_results_from_payload(svc_name, service_payload)
-                if new_tools:
-                    for tool_name, tool_meta in new_tools.items():
-                        combined_tool_results[tool_name] = self._merge_tool_records(combined_tool_results.get(tool_name), tool_meta)
-                combined_tools_requested.extend(service_payload.get('tools_used') or service_payload.get('tools_requested') or [])
-
-            # Deduplicate requested tools and recompute status counters
-            combined_tools_requested = sorted({t for t in combined_tools_requested if t})
-            merged_tools = {name: meta for name, meta in combined_tool_results.items()}
-            combined_tools_successful = sum(1 for meta in merged_tools.values() if self._is_success_status(meta.get('status')))
-            combined_tools_failed = sum(1 for meta in merged_tools.values() if not self._is_success_status(meta.get('status')))
-
-            # Build services block preserving original payloads
-            services_block = {svc_name: svc_payload for svc_name, svc_payload in all_results.items()}
-
-            # Compile findings & summary metrics
-            total_findings, severity_breakdown, findings_by_tool = self._compile_summary_metrics(
-                all_findings,
-                service_summaries,
-                merged_tools
-            )
-
-            # Build raw outputs from tool metadata and service payloads
-            raw_outputs_block = self._build_raw_outputs_block(merged_tools, services_block)
-
-            # Ensure findings list is populated (dedupe by id if present)
-            findings_list = self._dedupe_findings(all_findings)
-
-            requested_services = sorted(services_block.keys())
-            task_id_val = getattr(task, 'task_id', 'unknown')
-            success = combined_tools_failed == 0
-            unified_payload = {
-                'task': {
-                    'task_id': task_id_val,
-                    'analysis_type': 'unified',
-                    'model_slug': task.target_model,
-                    'app_number': task.target_app_number,
-                    'started_at': task.started_at.isoformat() if task.started_at else None,
-                    'completed_at': None,  # filled later at task completion
-                },
-                'summary': {
-                    'total_findings': total_findings,
-                    'services_executed': len(services_block),
-                    'tools_executed': len(merged_tools),
-                    'severity_breakdown': severity_breakdown,
-                    'findings_by_tool': findings_by_tool,
-                    'tools_used': combined_tools_requested,
-                    'tools_failed': [t for t, v in merged_tools.items() if not self._is_success_status(v.get('status'))],
-                    'tools_skipped': [],
-                    'status': 'completed' if success else 'failed'
-                },
-                'services': services_block,
-                'tools': merged_tools,
-                'raw_outputs': raw_outputs_block,
-                'findings': findings_list,
-                'metadata': {
-                    'unified_analysis': True,
-                    'orchestrator_version': '2.0.0',
-                    'schema_version': '3.0',
-                    'generated_at': datetime.utcnow().isoformat() if 'datetime' in globals() else None,
-                    'input': {
-                        'requested_tools': combined_tools_requested,
-                        'requested_services': requested_services,
-                        'engine_mode': 'unified'
-                    }
-                }
+            # Map service names to Celery subtask functions
+            service_to_celery_task = {
+                'static-analyzer': 'app.tasks.run_static_analyzer_subtask',
+                'dynamic-analyzer': 'app.tasks.run_dynamic_analyzer_subtask',
+                'performance-tester': 'app.tasks.run_performance_tester_subtask',
+                'ai-analyzer': 'app.tasks.run_ai_analyzer_subtask',
             }
-            unified_payload['success'] = success
-            unified_payload['model_slug'] = task.target_model
-            unified_payload['app_number'] = task.target_app_number
-            unified_payload['tools_requested'] = combined_tools_requested
-            unified_payload['analysis_type'] = 'unified'
-            unified_payload['task_id'] = task_id_val
             
-            try:
-                persisted = analysis_result_store.persist_analysis_payload_by_task_id(task.task_id, unified_payload)
-                if not persisted:
-                    logger.debug(
-                        "Unified analysis: no AnalysisTask row for task_id=%s; skipping DB persistence",
-                        task.task_id,
-                    )
-            except Exception as exc:
-                logger.warning(
-                    "Unified analysis: failed to persist merged results for task %s: %s",
-                    task.task_id,
-                    exc,
+            # Prepare parallel task invocations
+            from celery import group, chord
+            from app.tasks import (
+                run_analyzer_subtask,
+                aggregate_subtask_results
+            )
+            
+            parallel_tasks = []
+            for service_name, tool_ids in tools_by_service.items():
+                # Get subtask DB record
+                subtask = subtasks_by_service.get(service_name)
+                if not subtask:
+                    logger.warning(f"No subtask found for service {service_name}, skipping")
+                    continue
+                
+                # Resolve tool IDs to names
+                service_tool_names = self._resolve_tool_ids_to_names(tool_ids)
+                logger.info(f"Queuing parallel subtask for {service_name} with tools: {service_tool_names}")
+                
+                # Create Celery task signature using the generic subtask runner
+                task_sig = run_analyzer_subtask.s(subtask.id, task.target_model, task.target_app_number, service_tool_names, service_name)
+                
+                parallel_tasks.append(task_sig)
+            
+            # Execute all subtasks in parallel using Celery chord (PARALLEL ONLY - NO FALLBACK)
+            if not parallel_tasks:
+                error_msg = f"No parallel tasks created for unified analysis of task {task.task_id}"
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+            
+            logger.info(f"Launching {len(parallel_tasks)} subtasks in parallel for task {task.task_id}")
+            
+            # Pre-flight checks: Celery availability
+            if not self._is_celery_available():
+                raise RuntimeError(
+                    "Celery workers not available - cannot execute parallel analysis. "
+                    "Start workers with: celery -A app.tasks worker --loglevel=info"
                 )
-
-            task.progress_percentage = 100.0
+            
+            # Pre-flight checks: Analyzer containers
+            container_services = list(tools_by_service.keys())
+            if not self._validate_analyzer_containers(container_services):
+                raise RuntimeError(
+                    f"Analyzer containers not healthy: {container_services}. "
+                    "Start containers with: python analyzer/analyzer_manager.py start"
+                )
+            
+            # Create Celery chord: parallel group + aggregation callback
+            try:
+                job = chord(parallel_tasks)(aggregate_subtask_results.s(task.task_id))
+                logger.info(
+                    f"✅ Celery chord created for task {task.task_id} with {len(parallel_tasks)} parallel subtasks. "
+                    f"Services: {', '.join(tools_by_service.keys())}"
+                )
+            except Exception as chord_error:
+                logger.error(f"Failed to create Celery chord: {chord_error}")
+                raise RuntimeError(f"Celery chord creation failed: {chord_error}") from chord_error
+            
+            # Don't block - let Celery workers handle it asynchronously
+            # The main task execution loop (_run_loop) will poll subtask statuses
+            logger.info(f"Task {task.task_id} delegated to Celery workers - returning to allow async execution")
+            
+            # Mark main task as RUNNING and return immediately
+            task.status = AnalysisStatus.RUNNING
+            task.progress_percentage = 30.0  # Subtasks started
             db.session.commit()
             
-            logger.info(f"Unified analysis completed (merged file) : {len(combined_tool_results)} tools executed across {len(all_results)} services")
-            
             return {
-                'status': 'completed',
+                'status': 'running',
                 'engine': 'unified',
                 'model_slug': task.target_model,
                 'app_number': task.target_app_number,
-                'payload': unified_payload
+                'payload': {
+                    'message': 'Subtasks executing in parallel via Celery',
+                    'services': list(tools_by_service.keys()),
+                    'subtask_count': len(parallel_tasks)
+                },
+                'celery_job_id': str(job.id) if hasattr(job, 'id') else None
             }
             
         except Exception as e:
-            logger.exception("Failed to execute unified analysis for task %s", getattr(task, "task_id", "unknown"))
-            return {
-                'status': 'failed',
-                'error': str(e),
-                'payload': {}
-            }
+            logger.error(f"Unified analysis failed for task {task.task_id}: {e}")
+            # Mark all subtasks as failed
+            if subtasks_by_service:
+                for subtask in subtasks_by_service.values():
+                    if subtask.status in (AnalysisStatus.PENDING, AnalysisStatus.RUNNING):
+                        subtask.status = AnalysisStatus.FAILED
+                        subtask.error_message = str(e)
+                        subtask.completed_at = datetime.now(timezone.utc)
+                db.session.commit()
+            raise
+
+    def _execute_unified_analysis_sequential_fallback_DEPRECATED(self, task: AnalysisTask, tools_by_service: Dict, subtasks_by_service: Dict) -> dict:
+        """DEPRECATED: Sequential fallback path - kept for reference but should not be used.
+        
+        This method represents the old sequential execution model where each service
+        was executed one after another, blocking the entire analysis.
+        
+        The new parallel execution model (Celery chord) should ALWAYS be used instead.
+        This method is preserved only as documentation of the old approach.
+        """
+        logger.warning("DEPRECATED: Sequential fallback should not be used - parallel execution required")
+        
+        # Map service names to engine names
+        service_to_engine = {
+            'static-analyzer': 'security',
+            'dynamic-analyzer': 'dynamic', 
+            'performance-tester': 'performance',
+            'ai-analyzer': 'ai',
+        }
+        
+        from app.services.analysis_engines import get_engine
+        all_results = {}
+        combined_tool_results: Dict[str, Dict[str, Any]] = {}
+        all_findings: List[Dict[str, Any]] = []
+        
+        # Sequential loop (OLD WAY - DO NOT USE)
+        logger.warning(f"Executing subtasks SEQUENTIALLY for task {task.task_id} - this will be slow!")
+        
+        # This entire sequential loop has been REMOVED in favor of parallel Celery execution
+        # The code below is kept for reference only
+        raise NotImplementedError(
+            "Sequential fallback is deprecated. Use parallel Celery execution instead. "
+            "Ensure Celery workers and analyzer containers are running."
+        )
 
     def _wrap_single_engine_payload(self, task: AnalysisTask, engine_name: str, raw_payload: dict | None) -> dict:
         """Wrap a single-engine (non-unified) payload into the big schema format.
@@ -753,7 +781,7 @@ class TaskExecutionService:
         wrapped = {
             'task': {
                 'task_id': task_id_val,
-                'analysis_type': engine_name,
+                'task_name': task.task_name,
                 'model_slug': task.target_model,
                 'app_number': task.target_app_number,
                 'started_at': task.started_at.isoformat() if task.started_at else None,
@@ -778,7 +806,7 @@ class TaskExecutionService:
                 'unified_analysis': False,
                 'orchestrator_version': '2.0.0',
                 'schema_version': '3.0',
-                'generated_at': datetime.utcnow().isoformat() if 'datetime' in globals() else None,
+                'generated_at': datetime.now(timezone.utc).isoformat() if 'datetime' in globals() else None,
                 'input': {
                     'requested_tools': requested,
                     'requested_services': [svc_name],
@@ -818,6 +846,76 @@ class TaskExecutionService:
         
         return tools_by_service
     
+    def _is_celery_available(self) -> bool:
+        """Check if Celery broker and workers are available for parallel execution."""
+        try:
+            from app.extensions import get_celery
+            celery = get_celery()
+            
+            if celery is None:
+                logger.warning("Celery instance not initialized")
+                return False
+            
+            # Check broker connection
+            try:
+                conn = celery.connection()
+                conn.ensure_connection(max_retries=2, timeout=2.0)
+                conn.release()
+            except Exception as e:
+                logger.warning(f"Celery broker not reachable: {e}")
+                return False
+            
+            # Check for active workers
+            try:
+                inspect = celery.control.inspect(timeout=2.0)
+                active = inspect.active()
+                if not active:
+                    logger.warning("No active Celery workers found")
+                    return False
+                logger.info(f"Found {len(active)} active Celery workers")
+            except Exception as e:
+                logger.warning(f"Cannot inspect Celery workers: {e}")
+                return False
+            
+            return True
+        except Exception as e:
+            logger.error(f"Celery not available: {e}")
+            return False
+    
+    def _validate_analyzer_containers(self, service_names: list[str]) -> bool:
+        """Validate that all required analyzer containers are healthy."""
+        try:
+            from app.services.analyzer_integration import health_monitor
+            
+            if health_monitor is None:
+                logger.warning("Health monitor not available")
+                return False
+            
+            # Get cached health status
+            health_status = health_monitor.get_cached_health_status()
+            
+            # If cache is empty, assume containers are healthy (they'll fail during execution if not)
+            if not health_status:
+                logger.info("Health status cache empty - assuming containers are healthy")
+                return True
+            
+            unhealthy = []
+            for service_name in service_names:
+                service_health = health_status.get(service_name, {})
+                status = service_health.get('status', 'unknown')
+                if status != 'healthy':
+                    unhealthy.append(service_name)
+            
+            if unhealthy:
+                logger.error(f"Analyzer containers not healthy: {unhealthy}")
+                return False
+            
+            logger.info(f"All analyzer containers are healthy: {service_names}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to validate analyzer containers: {e}")
+            return False
+
     def _resolve_tool_ids_to_names(self, tool_ids: list[int]) -> list[str]:
         """Resolve tool IDs back to tool names."""
         from app.engines.unified_registry import get_unified_tool_registry
@@ -860,9 +958,10 @@ class TaskExecutionService:
             return payloads
 
         safe_slug = model_slug.replace('/', '_').replace('\\', '_')
-        analysis_dir = Path(base_path_obj) / safe_slug / f"app{app_number}" / 'analysis'
-        if not analysis_dir.exists():
+        app_dir = Path(base_path_obj) / safe_slug / f"app{app_number}"
+        if not app_dir.exists():
             return payloads
+        legacy_dir = app_dir / 'analysis'
 
         pattern_map: Dict[str, List[str]] = {
             'static-analyzer': ['static', 'security'],
@@ -872,17 +971,48 @@ class TaskExecutionService:
         }
 
         for service_name, tokens in pattern_map.items():
-            candidates: List[Path] = []
+            # Prefer snapshots written inside task folders
+            snapshot_candidates: List[Path] = []
+            for task_dir in app_dir.iterdir():
+                if not task_dir.is_dir():
+                    continue
+                if not (task_dir.name.startswith('task-') or task_dir.name.startswith('task_')):
+                    continue
+                services_dir = task_dir / 'services'
+                if not services_dir.exists():
+                    continue
+                candidate = services_dir / f"{safe_slug}_app{app_number}_{service_name}.json"
+                if candidate.exists():
+                    snapshot_candidates.append(candidate)
+            snapshot_candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+
+            loaded = False
+            for candidate in snapshot_candidates:
+                try:
+                    with candidate.open('r', encoding='utf-8') as handle:
+                        data = json.load(handle)
+                    if isinstance(data, dict):
+                        payloads[service_name] = data
+                        loaded = True
+                        break
+                except Exception:
+                    continue
+            if loaded:
+                continue
+
+            if not legacy_dir.exists():
+                continue
+
+            legacy_candidates: List[Path] = []
             for token in tokens:
                 matches = [
-                    p for p in analysis_dir.glob(f"*_{token}_*.json")
+                    p for p in legacy_dir.glob(f"*_{token}_*.json")
                     if '_task-' not in p.name
                 ]
                 matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-                candidates.extend(matches)
-            if not candidates:
-                continue
-            for candidate in candidates:
+                legacy_candidates.extend(matches)
+
+            for candidate in legacy_candidates:
                 try:
                     with candidate.open('r', encoding='utf-8') as handle:
                         data = json.load(handle)
@@ -1007,42 +1137,12 @@ class TaskExecutionService:
         service_summaries: List[Dict[str, Any]],
         tool_results: Dict[str, Dict[str, Any]]
     ) -> tuple[int, Dict[str, int], Dict[str, int]]:
-        severity_counts: Dict[str, int] = {}
-        findings_by_tool: Dict[str, int] = {}
-        total_findings = 0
-
-        if findings:
-            for finding in findings:
-                if not isinstance(finding, dict):
-                    continue
-                severity = str(finding.get('severity', 'unknown')).lower()
-                severity_counts[severity] = severity_counts.get(severity, 0) + 1
-                tool_name = finding.get('tool') or finding.get('tool_name')
-                if tool_name:
-                    findings_by_tool[tool_name] = findings_by_tool.get(tool_name, 0) + 1
-            total_findings = sum(severity_counts.values())
-        else:
-            for summary in service_summaries:
-                if not isinstance(summary, dict):
-                    continue
-                total_findings += int(summary.get('total_findings') or summary.get('total_issues') or 0)
-                by_severity = summary.get('by_severity')
-                if isinstance(by_severity, dict):
-                    for sev, count in by_severity.items():
-                        if count in (None, ''):
-                            continue
-                        key = str(sev).lower()
-                        severity_counts[key] = severity_counts.get(key, 0) + int(count)
-                by_tool = summary.get('by_tool')
-                if isinstance(by_tool, dict):
-                    for tool_name, count in by_tool.items():
-                        if count in (None, ''):
-                            continue
-                        findings_by_tool[tool_name] = findings_by_tool.get(tool_name, 0) + int(count)
-
-        if total_findings == 0:
-            total_findings = sum(int(meta.get('total_issues') or 0) for meta in tool_results.values() if isinstance(meta, dict))
-
+        total_findings, severity_counts, findings_by_tool = summarise_findings(
+            findings,
+            service_summaries,
+            tool_results,
+            normalise_severity=True,
+        )
         return total_findings, severity_counts, findings_by_tool
 
     def _extract_raw_outputs_from_payload(self, service_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -1147,7 +1247,7 @@ class TaskExecutionService:
                     if not task_db or task_db.status != AnalysisStatus.PENDING:
                         continue
                     task_db.status = AnalysisStatus.RUNNING
-                    task_db.started_at = datetime.utcnow()
+                    task_db.started_at = datetime.now(timezone.utc)
                     db.session.commit()
 
                     # Execute real analysis instead of simulation
@@ -1162,7 +1262,7 @@ class TaskExecutionService:
                     # Set final status based on analysis result  
                     task_db.status = AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED
                     task_db.progress_percentage = 100.0
-                    task_db.completed_at = datetime.utcnow()
+                    task_db.completed_at = datetime.now(timezone.utc)
                     
                     # Store analysis results if available (merge with existing metadata)
                     if result and result.get('payload'):
@@ -1190,7 +1290,10 @@ class TaskExecutionService:
                     
                     try:
                         if task_db.started_at and task_db.completed_at:
-                            task_db.actual_duration = (task_db.completed_at - task_db.started_at).total_seconds()
+                            # Ensure both timestamps are timezone-aware before subtraction
+                            start = task_db.started_at if task_db.started_at.tzinfo else task_db.started_at.replace(tzinfo=timezone.utc)
+                            end = task_db.completed_at if task_db.completed_at.tzinfo else task_db.completed_at.replace(tzinfo=timezone.utc)
+                            task_db.actual_duration = (end - start).total_seconds()
                     except Exception:
                         task_db.actual_duration = None
                     db.session.commit()
@@ -1219,6 +1322,124 @@ class TaskExecutionService:
             except Exception as e:  # pragma: no cover
                 logger.error("process_once error: %s", e)
         return transitioned
+
+    def _poll_running_tasks_with_subtasks(self):
+        """Poll running main tasks to check if their subtasks have completed."""
+        try:
+            # Find all main tasks that are RUNNING and have subtasks
+            running_main_tasks = AnalysisTask.query.filter(
+                AnalysisTask.status == AnalysisStatus.RUNNING,
+                AnalysisTask.is_main_task.is_(True)
+            ).all()
+            
+            for main_task in running_main_tasks:
+                # Check if all subtasks are completed
+                subtasks = AnalysisTask.query.filter_by(parent_task_id=main_task.task_id).all()
+                
+                if not subtasks:
+                    continue  # No subtasks, let normal flow handle it
+                
+                all_completed = all(st.status == AnalysisStatus.COMPLETED for st in subtasks)
+                any_failed = any(st.status == AnalysisStatus.FAILED for st in subtasks)
+                
+                if all_completed or any_failed:
+                    # All subtasks done - aggregate results
+                    logger.info(f"All subtasks completed for main task {main_task.task_id}, aggregating results")
+                    
+                    try:
+                        # Collect subtask results from DB
+                        all_results = {}
+                        combined_findings = []
+                        
+                        for subtask in subtasks:
+                            if subtask.status == AnalysisStatus.COMPLETED:
+                                result_summary = subtask.get_result_summary() if hasattr(subtask, 'get_result_summary') else {}
+                                if isinstance(result_summary, dict):
+                                    service_name = subtask.service_name or f'service_{subtask.id}'
+                                    all_results[service_name] = result_summary
+                                    
+                                    findings = result_summary.get('findings', [])
+                                    if isinstance(findings, list):
+                                        combined_findings.extend(findings)
+                        
+                        # Build unified payload
+                        unified_payload = {
+                            'task': {'task_id': main_task.task_id},
+                            'summary': {
+                                'total_findings': len(combined_findings),
+                                'services_executed': len(all_results),
+                                'status': 'completed' if not any_failed else 'partial'
+                            },
+                            'services': all_results,
+                            'findings': combined_findings,
+                            'metadata': {
+                                'unified_analysis': True,
+                                'generated_at': datetime.now(timezone.utc).isoformat()
+                            }
+                        }
+                        
+                        # Update main task
+                        main_task.status = AnalysisStatus.COMPLETED if not any_failed else AnalysisStatus.FAILED
+                        main_task.completed_at = datetime.now(timezone.utc)
+                        main_task.progress_percentage = 100.0
+                        if main_task.started_at:
+                            # Ensure both timestamps are timezone-aware before subtraction
+                            start = main_task.started_at if main_task.started_at.tzinfo else main_task.started_at.replace(tzinfo=timezone.utc)
+                            end = main_task.completed_at if main_task.completed_at.tzinfo else main_task.completed_at.replace(tzinfo=timezone.utc)
+                            main_task.actual_duration = (end - start).total_seconds()
+                        main_task.set_result_summary(unified_payload)
+                        
+                        db.session.commit()
+                        
+                        # Emit completion event
+                        try:
+                            from app.realtime.task_events import emit_task_event
+                            emit_task_event(
+                                "task.completed",
+                                {
+                                    "task_id": main_task.task_id,
+                                    "id": main_task.id,
+                                    "status": main_task.status.value if main_task.status else None,
+                                    "progress_percentage": main_task.progress_percentage,
+                                    "completed_at": main_task.completed_at.isoformat() if main_task.completed_at else None,
+                                    "actual_duration": main_task.actual_duration,
+                                },
+                            )
+                        except Exception:
+                            pass
+                        
+                        logger.info(f"Main task {main_task.task_id} marked as completed")
+                    
+                    except Exception as e:
+                        logger.error(f"Failed to aggregate results for main task {main_task.task_id}: {e}")
+                        main_task.status = AnalysisStatus.FAILED
+                        main_task.error_message = f"Result aggregation failed: {e}"
+                        db.session.commit()
+                else:
+                    # Emit progress event for subtasks
+                    completed_count = sum(1 for st in subtasks if st.status == AnalysisStatus.COMPLETED)
+                    progress = (completed_count / len(subtasks)) * 100.0
+                    
+                    if abs(main_task.progress_percentage - progress) > 1.0:  # Only update if changed significantly
+                        main_task.progress_percentage = progress
+                        db.session.commit()
+                        
+                        try:
+                            from app.realtime.task_events import emit_task_event
+                            emit_task_event(
+                                "task.updated",
+                                {
+                                    "task_id": main_task.task_id,
+                                    "id": main_task.id,
+                                    "status": main_task.status.value if main_task.status else None,
+                                    "progress_percentage": progress,
+                                },
+                            )
+                        except Exception:
+                            pass
+        
+        except Exception as e:
+            logger.error(f"Error polling running tasks with subtasks: {e}")
 
 
 # Global singleton style helper (mirrors other services)

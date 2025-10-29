@@ -146,6 +146,71 @@
 
               <div id="step3-inline-error" class="alert alert-danger py-2 d-none mt-3" role="alert"></div>
 
+              <div id="profile-load-error" class="alert alert-warning d-none mt-3" role="alert">
+                <div class="d-flex align-items-start">
+                  <i class="fas fa-exclamation-triangle text-warning me-2 mt-1"></i>
+                  <div>
+                    <div class="fw-semibold">Could not load analysis profiles.</div>
+                    <div class="small text-muted" id="profile-error-message">You can still configure the analysis by selecting tools manually.</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-3">
+                <label class="form-label fw-medium">Quick Profiles</label>
+                <div class="row g-3">
+                  <div class="col-md-3 col-sm-6">
+                    <div class="card card-sm h-100 m-0">
+                      <div class="card-body py-2 d-flex align-items-start gap-2">
+                        <input class="form-check-input mt-1" type="radio" name="profile_type" id="profile-security" value="security" checked>
+                        <label class="form-check-label d-block" for="profile-security">
+                          <span class="fw-semibold d-block">Security</span>
+                          <span class="text-muted small">Static &amp; dependency checks</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-3 col-sm-6">
+                    <div class="card card-sm h-100 m-0">
+                      <div class="card-body py-2 d-flex align-items-start gap-2">
+                        <input class="form-check-input mt-1" type="radio" name="profile_type" id="profile-performance" value="performance">
+                        <label class="form-check-label d-block" for="profile-performance">
+                          <span class="fw-semibold d-block">Performance</span>
+                          <span class="text-muted small">Load &amp; stress tools</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-3 col-sm-6">
+                    <div class="card card-sm h-100 m-0">
+                      <div class="card-body py-2 d-flex align-items-start gap-2">
+                        <input class="form-check-input mt-1" type="radio" name="profile_type" id="profile-quality" value="quality">
+                        <label class="form-check-label d-block" for="profile-quality">
+                          <span class="fw-semibold d-block">Quality</span>
+                          <span class="text-muted small">Static analysis focus</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-3 col-sm-6">
+                    <div class="card card-sm h-100 m-0">
+                      <div class="card-body py-2 d-flex align-items-start gap-2">
+                        <input class="form-check-input mt-1" type="radio" name="profile_type" id="profile-custom" value="custom">
+                        <label class="form-check-label d-block" for="profile-custom">
+                          <span class="fw-semibold d-block">Custom</span>
+                          <span class="text-muted small">Pick tools manually</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="custom-tool-picker" class="alert alert-info d-none mt-3 mb-0" role="alert">
+                <i class="fas fa-hand-pointer me-2"></i>
+                Select tools from the categories below to build a custom analysis run.
+              </div>
+
               <!-- Tool Containers -->
               <div class="row g-3 mt-0 pt-3">
                 <!-- Static Analyzer -->
@@ -333,6 +398,14 @@
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div id="selected-tools-summary" class="border-top bg-light-subtle p-3 d-none">
+              <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="small text-muted fw-medium">Selected Tools</span>
+                <span class="badge bg-secondary-lt" id="selected-tools-count">0</span>
+              </div>
+              <div class="small" id="selected-tools-list"></div>
             </div>
 
             <div id="step3-error" class="alert alert-danger d-none mt-3">
@@ -681,6 +754,46 @@ const modelAppsCache = {};
 let allTools = [];
 let analysisProfiles = [];
 let toolsLoadPromise = null;
+let selectedAnalysisProfileDisplay = null;
+const profileLoadErrorAlert = document.getElementById('profile-load-error');
+const profileErrorMessage = document.getElementById('profile-error-message');
+
+const KNOWN_PROFILE_KEYS = ['security', 'performance', 'quality', 'comprehensive'];
+
+function normalizeProfileKey(value) {
+  if (!value) return null;
+  const lower = String(value).toLowerCase();
+  if (KNOWN_PROFILE_KEYS.includes(lower)) {
+    return lower;
+  }
+  const fuzzy = KNOWN_PROFILE_KEYS.find(key => lower.includes(key));
+  return fuzzy || null;
+}
+
+function resolveProfileDisplayName(defaultValue) {
+  if (selectedAnalysisProfileDisplay) {
+    return selectedAnalysisProfileDisplay;
+  }
+  if (!defaultValue) return '';
+  const lower = defaultValue.toLowerCase();
+  if (lower === defaultValue) {
+    return defaultValue.charAt(0).toUpperCase() + defaultValue.slice(1);
+  }
+  return defaultValue;
+}
+
+function showProfileLoadError(message) {
+  if (!profileLoadErrorAlert) return;
+  if (profileErrorMessage && message) {
+    profileErrorMessage.textContent = message;
+  }
+  profileLoadErrorAlert.classList.remove('d-none');
+}
+
+function hideProfileLoadError() {
+  if (!profileLoadErrorAlert) return;
+  profileLoadErrorAlert.classList.add('d-none');
+}
 
 // Wizard navigation functions
 function nextStep() {
@@ -1269,11 +1382,13 @@ function refreshBatchApplicationsAggregate() {
 
 // Analysis configuration functions
 function loadAnalysisProfile(profileName) {
+    const normalized = normalizeProfileKey(profileName) || 'security';
     analysisMode = 'profile';
-    selectedAnalysisProfile = profileName;
-    
+    selectedAnalysisProfile = normalized;
+    selectedAnalysisProfileDisplay = null;
+
   // For performance profile, populate selectedTools with performance tool IDs
-  if (profileName === 'performance') {
+  if (normalized === 'performance') {
     const applyPerformanceTools = () => {
       const performanceTools = allTools
         .filter(t => (t.category || '').toLowerCase() === 'performance')
@@ -1305,14 +1420,20 @@ function loadAnalysisProfile(profileName) {
   }
     
     // Hide custom tool picker
-    document.getElementById('custom-tool-picker').classList.add('d-none');
+    const customPicker = document.getElementById('custom-tool-picker');
+    if (customPicker) {
+      customPicker.classList.add('d-none');
+    }
     
     // Show configuration options
     document.getElementById('analysis-config-options').style.display = 'block';
     document.getElementById('live-estimate').style.display = 'block';
     
     // Find the actual profile from loaded data
-    const profile = analysisProfiles.find(p => p.name.toLowerCase().includes(profileName.toLowerCase()));
+    const profile = analysisProfiles.find(p => {
+      const name = String(p.name || '').toLowerCase();
+      return name === normalized || name.includes(normalized);
+    });
     
     if (profile) {
         // Calculate estimates based on actual profile tools
@@ -1323,7 +1444,7 @@ function loadAnalysisProfile(profileName) {
         document.getElementById('estimate-time').textContent = estimatedTime + ' minutes';
         document.getElementById('estimate-cost').textContent = '$' + estimatedCost;
         
-        selectedAnalysisProfile = profile.name; // Use actual profile name
+      selectedAnalysisProfileDisplay = profile.name;
     } else {
         // Fallback estimates for unknown profiles
         const estimates = {
@@ -1332,15 +1453,18 @@ function loadAnalysisProfile(profileName) {
             quality: { time: '4-7 minutes', cost: '$0.04-$0.10' }
         };
         
-        if (estimates[profileName]) {
-            document.getElementById('estimate-time').textContent = estimates[profileName].time;
-            document.getElementById('estimate-cost').textContent = estimates[profileName].cost;
+      if (estimates[normalized]) {
+        document.getElementById('estimate-time').textContent = estimates[normalized].time;
+        document.getElementById('estimate-cost').textContent = estimates[normalized].cost;
         }
+
+      selectedAnalysisProfileDisplay = normalized.charAt(0).toUpperCase() + normalized.slice(1);
     }
     
     // Store selection
     try {
-        sessionStorage.setItem('analysis_selected_profile', selectedAnalysisProfile);
+      sessionStorage.setItem('analysis_selected_profile', selectedAnalysisProfile);
+      sessionStorage.setItem('analysis_mode', 'profile');
         sessionStorage.removeItem('analysis_selected_tools'); // Clear custom tools
     } catch (e) {
         console.warn('Could not store analysis profile in sessionStorage:', e);
@@ -1353,9 +1477,13 @@ function loadAnalysisProfile(profileName) {
 function enableCustomToolPicker() {
     analysisMode = 'custom';
     selectedAnalysisProfile = null;
+  selectedAnalysisProfileDisplay = null;
     
     // Show custom tool picker
-    document.getElementById('custom-tool-picker').classList.remove('d-none');
+    const customPicker = document.getElementById('custom-tool-picker');
+    if (customPicker) {
+      customPicker.classList.remove('d-none');
+    }
     
     // Load tools by category if not already loaded
     if (allTools.length === 0) {
@@ -1396,6 +1524,7 @@ async function loadAnalysisTools(force = false) {
 
   toolsLoadPromise = (async () => {
     console.log('Loading container-based analysis tools...');
+    hideProfileLoadError();
 
     try {
       const toolsResponse = await fetch('/api/container-tools/all');
@@ -1449,11 +1578,14 @@ async function loadAnalysisTools(force = false) {
           const profilesData = await profilesResponse.json();
           analysisProfiles = profilesData.data || [];
           console.log('Loaded profiles:', analysisProfiles.length);
+          hideProfileLoadError();
         } else {
           console.warn('Failed to load analysis profiles:', profilesResponse.status);
+          showProfileLoadError('Automatic profiles are unavailable right now. Select tools manually below.');
         }
       } catch (profileError) {
         console.warn('Error fetching analysis profiles:', profileError);
+        showProfileLoadError('Automatic profiles are unavailable right now. Select tools manually below.');
       }
 
       const toolsByContainer = {
@@ -1493,6 +1625,9 @@ async function loadAnalysisTools(force = false) {
       updateSidebarToolDisplay();
       updateCustomAnalysisEstimate();
       updateNavigationButtons();
+      if (analysisMode === 'profile' && selectedAnalysisProfile) {
+        loadAnalysisProfile(selectedAnalysisProfile);
+      }
       return allTools;
     } catch (error) {
       console.error('Error loading analysis tools:', error);
@@ -1513,6 +1648,7 @@ function showToolLoadingError(message) {
         if (containerElement) {
             containerElement.innerHTML = `<div class="text-danger small"><i class="fas fa-exclamation-triangle me-1"></i>${message}</div>`;
         }
+    updateContainerStatus(containerId, 'error', 0);
     });
 }
 
@@ -1854,6 +1990,7 @@ function toggleTool(toolName, toolDisplayName, container) {
         if (analysisMode !== 'custom') {
             analysisMode = 'custom';
             selectedAnalysisProfile = null;
+          selectedAnalysisProfileDisplay = null;
             
             // Check the custom radio button
             const customRadio = document.querySelector('input[name="profile_type"][value="custom"]');
@@ -1866,6 +2003,12 @@ function toggleTool(toolName, toolDisplayName, container) {
             profileRadios.forEach(radio => radio.checked = false);
             
             console.log('Auto-switched to custom mode due to tool selection');
+            try {
+              sessionStorage.setItem('analysis_mode', 'custom');
+              sessionStorage.removeItem('analysis_selected_profile');
+            } catch (storageErr) {
+              console.warn('Could not persist custom mode switch:', storageErr);
+            }
         }
     } else {
         // Remove tool from selection
@@ -2113,8 +2256,10 @@ function updateSelectedToolsSummary() {
     if (!summaryContainer || !countElement || !listElement) return;
     
     if (selectedTools.length === 0) {
-        summaryContainer.classList.add('d-none');
-        return;
+      summaryContainer.classList.add('d-none');
+      countElement.textContent = '0';
+      listElement.innerHTML = '';
+      return;
     }
     
     summaryContainer.classList.remove('d-none');
@@ -2266,51 +2411,65 @@ function updateCustomAnalysisEstimate() {
 
 function updateAnalysisSummary() {
   // Models summary
-  if (modelSelectionMode === 'single') {
-    document.getElementById('summary-model').textContent = selectedModel ? selectedModel.name : '-';
-  } else {
-    document.getElementById('summary-model').innerHTML = selectedModels.length ? `${selectedModels.length} models` : '-';
+  const summaryModelElement = document.getElementById('summary-model');
+  if (summaryModelElement) {
+    if (modelSelectionMode === 'single') {
+      summaryModelElement.textContent = selectedModel ? selectedModel.name : '-';
+    } else {
+      summaryModelElement.innerHTML = selectedModels.length ? `${selectedModels.length} models` : '-';
+    }
   }
   // Apps summary
-  if (appSelectionMode === 'single') {
-    document.getElementById('summary-app').textContent = selectedApp ? `Application #${selectedApp.number}` : '-';
-  } else {
-    document.getElementById('summary-app').innerHTML = selectedApps.length ? `${selectedApps.length} apps` : '-';
+  const summaryAppElement = document.getElementById('summary-app');
+  if (summaryAppElement) {
+    if (appSelectionMode === 'single') {
+      summaryAppElement.textContent = selectedApp ? `Application #${selectedApp.number}` : '-';
+    } else {
+      summaryAppElement.innerHTML = selectedApps.length ? `${selectedApps.length} apps` : '-';
+    }
   }
   
   // Analysis type/tools summary
   const summaryTypeElement = document.getElementById('summary-type');
-  if (analysisMode === 'profile' && selectedAnalysisProfile) {
-    const profileDisplayName = selectedAnalysisProfile.charAt(0).toUpperCase() + selectedAnalysisProfile.slice(1);
-    summaryTypeElement.textContent = `${profileDisplayName} Profile`;
-  } else if (analysisMode === 'custom' && selectedTools.length > 0) {
-    // Compute per-container grouping
-    const toolsByContainer = {};
-    selectedTools.forEach(toolName => {
-      const t = allTools.find(x => x.name === toolName);
-      if (!t) return;
-      const container = t.container || 'unknown';
-      toolsByContainer[container] = toolsByContainer[container] || [];
-      toolsByContainer[container].push(t);
-    });
-    const containerParts = Object.keys(toolsByContainer).map(container => `${container}: ${toolsByContainer[container].length}`).join(', ');
-    summaryTypeElement.textContent = `Custom (${selectedTools.length} tools; ${Object.keys(toolsByContainer).length} container(s): ${containerParts})`;
-  } else {
-    summaryTypeElement.textContent = '-';
+  if (summaryTypeElement) {
+    if (analysisMode === 'profile' && selectedAnalysisProfile) {
+      const displaySource = selectedAnalysisProfileDisplay || selectedAnalysisProfile;
+      const profileDisplayName = resolveProfileDisplayName(displaySource);
+      summaryTypeElement.textContent = profileDisplayName ? `${profileDisplayName} Profile` : 'Profile';
+    } else if (analysisMode === 'custom' && selectedTools.length > 0) {
+      // Compute per-container grouping
+      const toolsByContainer = {};
+      selectedTools.forEach(toolName => {
+        const t = allTools.find(x => x.name === toolName);
+        if (!t) return;
+        const container = t.container || 'unknown';
+        toolsByContainer[container] = toolsByContainer[container] || [];
+        toolsByContainer[container].push(t);
+      });
+      const containerParts = Object.keys(toolsByContainer).map(container => `${container}: ${toolsByContainer[container].length}`).join(', ');
+      summaryTypeElement.textContent = `Custom (${selectedTools.length} tools; ${Object.keys(toolsByContainer).length} container(s): ${containerParts})`;
+    } else {
+      summaryTypeElement.textContent = '-';
+    }
   }
   
   // Priority
   const priority = document.querySelector('select[name="priority"]');
-  if (priority) {
-    document.getElementById('summary-priority').textContent = priority.value.charAt(0).toUpperCase() + priority.value.slice(1);
+  const summaryPriorityElement = document.getElementById('summary-priority');
+  if (priority && summaryPriorityElement) {
+    summaryPriorityElement.textContent = priority.value.charAt(0).toUpperCase() + priority.value.slice(1);
   }
   
   // Estimates
   const timeElement = document.getElementById('estimate-time');
   const costElement = document.getElementById('estimate-cost');
-  if (timeElement && costElement) {
-    document.getElementById('summary-time').textContent = timeElement.textContent || '-';
-    document.getElementById('summary-cost').textContent = costElement.textContent || '-';
+  const summaryTimeElement = document.getElementById('summary-time');
+  const summaryCostElement = document.getElementById('summary-cost');
+  if (timeElement && summaryTimeElement) {
+    summaryTimeElement.textContent = timeElement.textContent || '-';
+  }
+  if (costElement && summaryCostElement) {
+    summaryCostElement.textContent = costElement.textContent || '-';
   }
 }
 
@@ -2432,6 +2591,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // Analysis profile radio handlers
+    const profileRadios = document.querySelectorAll('input[name="profile_type"]');
+    profileRadios.forEach(radio => {
+      radio.addEventListener('change', (event) => {
+        if (!event.target.checked) return;
+        const value = event.target.value;
+        if (value === 'custom') {
+          enableCustomToolPicker();
+        } else {
+          loadAnalysisProfile(value);
+        }
+      });
+    });
     
     // Advanced options toggle
     const advToggle = document.getElementById('advanced-options-toggle');
@@ -2585,8 +2758,13 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Restored app selection:', selectedApp);
         }
         if (savedProfile) {
-            selectedAnalysisProfile = savedProfile;
+          const normalizedProfile = normalizeProfileKey(savedProfile) || savedProfile;
+          selectedAnalysisProfile = normalizedProfile;
+          if (normalizedProfile !== savedProfile) {
+            console.log('Normalized saved profile value', savedProfile, '->', normalizedProfile);
+          } else {
             console.log('Restored analysis profile:', selectedAnalysisProfile);
+          }
         }
         if (savedMode) {
             analysisMode = savedMode;
@@ -2598,6 +2776,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     } catch (e) {
         console.warn('Could not restore selections from sessionStorage:', e);
+    }
+
+    // Ensure profile radio state matches restored mode
+    if (analysisMode === 'custom') {
+      const customRadio = document.getElementById('profile-custom');
+      if (customRadio) customRadio.checked = true;
+      enableCustomToolPicker();
+    } else {
+      let profileValue = selectedAnalysisProfile || 'security';
+      const normalizedForRadio = normalizeProfileKey(profileValue) || 'security';
+      profileValue = normalizedForRadio;
+      const profileRadio = document.querySelector(`input[name="profile_type"][value="${profileValue}"]`);
+      if (profileRadio) {
+        profileRadio.checked = true;
+      }
+      loadAnalysisProfile(profileValue);
     }
 
       refreshModelSelectionsUI();

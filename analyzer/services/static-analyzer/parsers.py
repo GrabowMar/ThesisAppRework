@@ -519,6 +519,253 @@ class SemgrepParser:
         }
 
 
+class MyPyParser:
+    """Parser for MyPy JSON output (mypy --output json)."""
+    
+    @staticmethod
+    def parse(raw_output: Any, config: Optional[Dict] = None) -> Dict:
+        """
+        Parse MyPy JSON output.
+        
+        MyPy JSON structure (mypy --output json):
+        [
+            {
+                "file": "app.py",
+                "line": 10,
+                "column": 5,
+                "severity": "error",
+                "message": "Incompatible types in assignment",
+                "error_code": "assignment"
+            }
+        ]
+        """
+        if isinstance(raw_output, str):
+            # Handle plain text output (fallback for older mypy versions)
+            issues = []
+            severity_breakdown = {'high': 0, 'medium': 0, 'low': 0}
+            
+            for line in raw_output.splitlines():
+                if ':' in line and (' error:' in line or ' warning:' in line or ' note:' in line):
+                    parts = line.strip().split(':', 3)
+                    if len(parts) >= 4:
+                        severity = 'high' if ' error:' in line else ('medium' if ' warning:' in line else 'low')
+                        severity_breakdown[severity] += 1
+                        issues.append({
+                            'file': parts[0],
+                            'line': int(parts[1]) if parts[1].isdigit() else 0,
+                            'column': int(parts[2]) if parts[2].isdigit() else 0,
+                            'message': parts[3].strip(),
+                            'severity': severity,
+                            'rule': 'type-check'
+                        })
+            
+            return {
+                'tool': 'mypy',
+                'executed': True,
+                'status': 'success' if issues else 'no_issues',
+                'issues': issues,
+                'total_issues': len(issues),
+                'severity_breakdown': severity_breakdown,
+                'config_used': config or {}
+            }
+        
+        if not isinstance(raw_output, list):
+            return {
+                'tool': 'mypy',
+                'executed': True,
+                'status': 'error',
+                'error': 'Invalid JSON output format',
+                'issues': [],
+                'total_issues': 0
+            }
+        
+        issues = []
+        severity_breakdown = {'high': 0, 'medium': 0, 'low': 0}
+        
+        for finding in raw_output:
+            mypy_severity = finding.get('severity', 'error')
+            severity = 'high' if mypy_severity == 'error' else ('medium' if mypy_severity == 'warning' else 'low')
+            severity_breakdown[severity] += 1
+            
+            issues.append({
+                'file': finding.get('file', ''),
+                'line': finding.get('line', 0),
+                'column': finding.get('column', 0),
+                'severity': severity,
+                'message': finding.get('message', ''),
+                'rule': finding.get('error_code', 'type-check')
+            })
+        
+        return {
+            'tool': 'mypy',
+            'executed': True,
+            'status': 'success' if issues else 'no_issues',
+            'issues': issues,
+            'total_issues': len(issues),
+            'severity_breakdown': severity_breakdown,
+            'config_used': config or {}
+        }
+
+
+class VultureParser:
+    """Parser for Vulture text output."""
+    
+    @staticmethod
+    def parse(raw_output: Any, config: Optional[Dict] = None) -> Dict:
+        """
+        Parse Vulture text output.
+        
+        Vulture output format:
+        app.py:10: unused variable 'x' (60% confidence)
+        app.py:25: unused function 'old_function' (100% confidence)
+        """
+        if not isinstance(raw_output, str):
+            return {
+                'tool': 'vulture',
+                'executed': True,
+                'status': 'error',
+                'error': 'Invalid output format',
+                'issues': [],
+                'total_issues': 0
+            }
+        
+        issues = []
+        severity_breakdown = {'high': 0, 'medium': 0, 'low': 0}
+        
+        for line in raw_output.splitlines():
+            if ':' in line and ('unused' in line.lower() or 'unreachable' in line.lower()):
+                parts = line.split(':', 2)
+                if len(parts) >= 3:
+                    # Extract confidence if present
+                    confidence = 60  # default
+                    message = parts[2].strip()
+                    if '(' in message and '% confidence)' in message:
+                        conf_str = message.split('(')[1].split('%')[0].strip()
+                        try:
+                            confidence = int(conf_str)
+                        except ValueError:
+                            pass
+                    
+                    # Map confidence to severity (higher confidence = higher severity)
+                    if confidence >= 80:
+                        severity = 'medium'
+                    elif confidence >= 60:
+                        severity = 'low'
+                    else:
+                        severity = 'low'
+                    
+                    severity_breakdown[severity] += 1
+                    
+                    issues.append({
+                        'file': parts[0],
+                        'line': int(parts[1]) if parts[1].isdigit() else 0,
+                        'severity': severity,
+                        'message': message,
+                        'rule': 'dead-code',
+                        'confidence': confidence
+                    })
+        
+        return {
+            'tool': 'vulture',
+            'executed': True,
+            'status': 'success' if issues else 'no_issues',
+            'issues': issues,
+            'total_issues': len(issues),
+            'severity_breakdown': severity_breakdown,
+            'config_used': config or {}
+        }
+
+
+class RuffParser:
+    """Parser for Ruff JSON output."""
+    
+    @staticmethod
+    def parse(raw_output: Any, config: Optional[Dict] = None) -> Dict:
+        """
+        Parse Ruff JSON output.
+        
+        Ruff JSON structure (ruff check --output-format=json):
+        [
+            {
+                "code": "F401",
+                "message": "'os' imported but unused",
+                "location": {
+                    "row": 1,
+                    "column": 8
+                },
+                "end_location": {
+                    "row": 1,
+                    "column": 10
+                },
+                "filename": "app.py",
+                "fix": null,
+                "noqa_row": null
+            }
+        ]
+        """
+        if not isinstance(raw_output, list):
+            return {
+                'tool': 'ruff',
+                'executed': True,
+                'status': 'error',
+                'error': 'Invalid JSON output format',
+                'issues': [],
+                'total_issues': 0
+            }
+        
+        issues = []
+        severity_breakdown = {'high': 0, 'medium': 0, 'low': 0}
+        
+        # Map Ruff rule prefixes to severity
+        # E/W = errors/warnings (medium), F = pyflakes (high), I = isort (low), etc.
+        severity_map = {
+            'F': 'high',      # Pyflakes errors
+            'E': 'medium',    # pycodestyle errors
+            'W': 'medium',    # pycodestyle warnings
+            'C': 'medium',    # mccabe complexity
+            'I': 'low',       # isort
+            'N': 'low',       # pep8-naming
+            'D': 'low',       # pydocstyle
+            'UP': 'low',      # pyupgrade
+            'S': 'high',      # flake8-bandit (security)
+            'B': 'high',      # flake8-bugbear
+            'A': 'medium',    # flake8-builtins
+            'T': 'low',       # flake8-print
+            'Q': 'low',       # flake8-quotes
+        }
+        
+        for finding in raw_output:
+            code = finding.get('code', '')
+            prefix = code[0] if code else 'E'
+            severity = severity_map.get(prefix, 'medium')
+            severity_breakdown[severity] += 1
+            
+            location = finding.get('location', {})
+            end_location = finding.get('end_location', {})
+            
+            issues.append({
+                'file': finding.get('filename', ''),
+                'line': location.get('row', 0),
+                'column': location.get('column', 0),
+                'end_line': end_location.get('row'),
+                'end_column': end_location.get('column'),
+                'severity': severity,
+                'message': finding.get('message', ''),
+                'rule': code,
+                'fix_available': finding.get('fix') is not None
+            })
+        
+        return {
+            'tool': 'ruff',
+            'executed': True,
+            'status': 'success' if issues else 'no_issues',
+            'issues': issues,
+            'total_issues': len(issues),
+            'severity_breakdown': severity_breakdown,
+            'config_used': config or {}
+        }
+
+
 # Parser registry
 PARSERS = {
     'bandit': BanditParser,
@@ -526,7 +773,10 @@ PARSERS = {
     'pylint': PylintParser,
     'flake8': Flake8Parser,
     'eslint': ESLintParser,
-    'semgrep': SemgrepParser
+    'semgrep': SemgrepParser,
+    'mypy': MyPyParser,
+    'vulture': VultureParser,
+    'ruff': RuffParser
 }
 
 

@@ -301,7 +301,8 @@ class AnalysisOrchestrator:
             
             # Save results unless caller suppressed persistence (used by unified aggregation)
             persist = kwargs.get('persist', True)
-            single_file_mode = os.environ.get('SINGLE_FILE_RESULTS', '1') == '1'
+            # ALWAYS write per-service files for debugging (override env var)
+            single_file_mode = False  # CHANGED: Force file writes even if env says otherwise
             if persist and not single_file_mode:
                 try:
                     # Determine analysis type based on tools used

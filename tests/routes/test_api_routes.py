@@ -176,7 +176,7 @@ class TestAnalysisRoutes:
                 mock_task.return_value = Mock(id='test-task-id')
                 response = client.post(
                     '/api/applications/test-model/1/analyze',
-                    json={'analysis_type': 'security'}
+                    json={'task_name': 'security'}
                 )
                 assert response.status_code in [200, 201, 400, 404, 500]
 
