@@ -724,10 +724,10 @@ Focus on whether the functionality described in the requirement is actually impl
         
         for path in possible_paths:
             if path.exists():
-                logger.info(f"Found template {template_id} at: {path}")
+                self.log.info(f"Found template {template_id} at: {path}")
                 return path
         
-        logger.warning(f"Template {template_id} not found in any location")
+        self.log.warning(f"Template {template_id} not found in any location")
         return None
     
     async def _read_app_code_focused(self, app_path: Path, focus_dirs: List[str]) -> str:

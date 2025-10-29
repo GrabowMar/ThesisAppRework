@@ -1450,9 +1450,22 @@ class TaskExecutionService:
 
         results_section = payload.get('results')
         if isinstance(results_section, dict):
+            # Check for tool_results at results level
             nested = results_section.get('tool_results')
             if isinstance(nested, dict):
                 candidates.append(nested)
+            
+            # CRITICAL FIX: Extract from language-specific sections (e.g., results.python.bandit)
+            # This is the actual structure returned by static-analyzer and dynamic-analyzer services
+            for lang_key in ['python', 'javascript', 'css', 'html', 'connectivity']:
+                lang_section = results_section.get(lang_key)
+                if isinstance(lang_section, dict):
+                    # Each tool is a direct key in the language section
+                    for tool_name, tool_data in lang_section.items():
+                        if isinstance(tool_data, dict) and 'status' in tool_data:
+                            # This is a tool result (has status, executed, etc.)
+                            normalized = self._normalize_tool_result(tool_data)
+                            tools[tool_name] = self._merge_tool_records(tools.get(tool_name), normalized)
 
         services_section = payload.get('services')
         if isinstance(services_section, dict):
