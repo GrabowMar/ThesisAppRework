@@ -119,6 +119,7 @@ def analysis_tasks_table():
     paginated_tasks = all_tasks[start:end]
 
     # Preload available result files for tasks shown on this page
+    # Also check database for result_summary data
     result_lookup: dict[tuple[str, int], List[dict]] = {}
     if paginated_tasks:
         task_pairs = {(task.target_model, task.target_app_number) for task in paginated_tasks}
@@ -136,7 +137,26 @@ def analysis_tasks_table():
     def _select_result_file(
         task: AnalysisTask, result_files: List[dict]
     ) -> Optional[dict]:
-        """Select the most relevant result file for a task."""
+        """Select the most relevant result file for a task, checking both filesystem and database."""
+        # First check if task has result_summary in database (check both COMPLETED and FAILED status)
+        if task.result_summary and task.status in [AnalysisStatus.COMPLETED, AnalysisStatus.FAILED]:
+            try:
+                result_summary = task.get_result_summary()
+                if result_summary:
+                    # Return descriptor indicating database-stored results exist
+                    return {
+                        'identifier': task.task_id,
+                        'task_id': task.task_id,
+                        'source': 'database',
+                        'total_findings': result_summary.get('summary', {}).get('total_findings', 0),
+                        'severity_breakdown': result_summary.get('summary', {}).get('severity_breakdown', {}),
+                        'modified_at': task.completed_at,
+                        'has_data': True
+                    }
+            except Exception as exc:
+                current_app.logger.warning(f"Failed to parse result_summary for task {task.task_id}: {exc}")
+        
+        # Fallback to filesystem-based results
         if not result_files:
             return None
 
@@ -680,13 +700,70 @@ def _get_result_service() -> UnifiedResultService:
 
 @analysis_bp.route('/results/<string:result_id>')
 def analysis_result_detail(result_id: str):
-    """Render the detail page for a stored analysis result file."""
+    """Render the detail page for a stored analysis result (file or database)."""
     service = _get_result_service()
     findings_limit: Optional[int] = None
     limit_param = (request.args.get('findings') or '').strip()
     if limit_param.isdigit():
         findings_limit = max(1, min(int(limit_param), 1000))
 
+    # First, try to load from database (check both COMPLETED and FAILED status)
+    task = AnalysisTask.query.filter_by(task_id=result_id).first()
+    if task and task.result_summary and task.status in [AnalysisStatus.COMPLETED, AnalysisStatus.FAILED]:
+        try:
+            payload = task.get_result_summary()
+            if payload:
+                # Extract data from database-stored results
+                summary_block = payload.get('summary', {})
+                services_data = payload.get('services', {})
+                
+                # Extract findings from all services
+                findings = []
+                for service_name, service_data in services_data.items():
+                    if isinstance(service_data, dict):
+                        raw_details = service_data.get('raw_details', {})
+                        if 'issues' in raw_details:
+                            for issue in raw_details['issues']:
+                                findings.append({
+                                    'service': service_name,
+                                    'severity': issue.get('severity', 'unknown'),
+                                    'message': issue.get('message', ''),
+                                    'file': issue.get('file', ''),
+                                    'line': issue.get('line', ''),
+                                    'rule': issue.get('rule', ''),
+                                    **issue
+                                })
+                
+                if findings_limit:
+                    findings = findings[:findings_limit]
+                
+                task_info = {
+                    'task_id': result_id,
+                    'status': task.status.value if task.status else 'unknown',
+                    'model': task.target_model,
+                    'app': task.target_app_number,
+                    'created_at': task.created_at,
+                    'completed_at': task.completed_at,
+                    'duration': task.actual_duration
+                }
+                
+                metadata_block = task.get_metadata()
+                
+                return render_template(
+                    'pages/analysis/result_detail.html',
+                    descriptor={'identifier': result_id, 'task_id': result_id, 'source': 'database'},
+                    payload=payload,
+                    findings=findings,
+                    services=services_data,
+                    summary=summary_block,
+                    task_info=task_info,
+                    metadata=metadata_block,
+                    findings_limit=findings_limit,
+                )
+        except Exception as exc:
+            current_app.logger.warning(f"Failed to load database results for {result_id}: {exc}")
+    
+    # Fallback to filesystem-based results
     try:
         results = service.load_analysis_results(result_id)
         if not results:
@@ -737,7 +814,23 @@ def analysis_result_json(result_id: str):
 
 @analysis_bp.route('/results/<string:result_id>/download')
 def analysis_result_download(result_id: str):
-    """Send the stored JSON file for download."""
+    """Send the stored JSON file for download (from file or database)."""
+    # First try database (check both COMPLETED and FAILED status)
+    task = AnalysisTask.query.filter_by(task_id=result_id).first()
+    if task and task.result_summary and task.status in [AnalysisStatus.COMPLETED, AnalysisStatus.FAILED]:
+        try:
+            payload = task.get_result_summary()
+            if payload:
+                response = make_response(json.dumps(payload, indent=2, default=str))
+                response.headers['Content-Type'] = 'application/json; charset=utf-8'
+                response.headers['Content-Disposition'] = f'attachment; filename="{result_id}.json"'
+                response.headers['X-Analysis-Result'] = result_id
+                response.headers['X-Result-Source'] = 'database'
+                return response
+        except Exception as exc:
+            current_app.logger.warning(f"Failed to export database results for {result_id}: {exc}")
+    
+    # Fallback to filesystem
     service = _get_result_service()
     path = service.find_path_by_identifier(result_id)
     if not path or not path.exists():

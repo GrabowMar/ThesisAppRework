@@ -207,7 +207,7 @@
               <td>
                 {% if item.type == 'task' %}
                   {% set descriptor = item.result_descriptor %}
-                  {% if item.status in ['completed', 'success'] and descriptor %}
+                  {% if item.status in ['completed', 'success', 'failed', 'error'] and descriptor %}
                     <div class="d-flex flex-wrap gap-1">
                       <span class="badge bg-dark">{{ descriptor.total_findings if descriptor.total_findings is not none else '—' }}</span>
                       {% set breakdown = descriptor.severity_breakdown or {} %}
@@ -272,12 +272,12 @@
                        title="Download JSON">
                       <i class="fas fa-download"></i>
                     </a>
-                  {% elif item.status in ['completed', 'success'] and item.completed_at %}
+                  {% elif item.status in ['completed', 'success', 'failed', 'error'] and item.completed_at %}
                     {% set descriptor = item.result_descriptor %}
                     {% if descriptor %}
                       <a href="{{ url_for('analysis.analysis_result_detail', result_id=descriptor.identifier) }}" 
                          class="btn btn-ghost-primary" 
-                         title="View results">
+                         title="View results{% if item.status in ['failed', 'error'] %} (partial){% endif %}">
                         <i class="fas fa-eye"></i>
                       </a>
                       <a href="{{ url_for('analysis.analysis_result_download', result_id=descriptor.identifier) }}" 
