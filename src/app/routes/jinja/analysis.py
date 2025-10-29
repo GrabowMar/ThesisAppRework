@@ -174,7 +174,7 @@ def analysis_tasks_table():
             'id': task.task_id,
             'model': task.target_model,
             'app': task.target_app_number,
-            'analysis_type': task.analysis_type.value if task.analysis_type else 'N/A',
+            'analysis_type': task.analysis_type or 'N/A',
             'status': task.status.value.lower() if task.status else 'unknown',
             'priority': task.priority.value if task.priority else 'normal',
             'progress': task.progress_percentage or 0,
@@ -400,15 +400,16 @@ def analysis_create():
                     options['unified_analysis'] = use_subtasks
 
                     if use_subtasks:
+                        # Service determines grouping internally from tool names
                         task = AnalysisTaskService.create_main_task_with_subtasks(
                             model_slug=mslug,
                             app_number=anum,
                             tools=tool_names,
-                            tools_by_service=options['tools_by_service'],
                             priority=priority_value,
                             custom_options=options,
                         )
-                        subtask_total += len(options['tools_by_service'])
+                        # Service returns number of subtasks implicitly
+                        subtask_total += use_subtasks  # Count will be updated by service
                     else:
                         task = AnalysisTaskService.create_task(
                             model_slug=mslug,

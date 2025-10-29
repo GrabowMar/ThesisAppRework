@@ -79,6 +79,8 @@ class ContainerState(BaseEnum):
 
 class AnalysisType(BaseEnum):
     """Types of analysis that can be performed."""
+    CUSTOM = "custom"  # Custom tool selection
+    UNIFIED = "unified"  # Multi-service orchestrated analysis
     SECURITY = "security"  # General security analysis (maps to backend by default)
     SECURITY_BACKEND = "security_backend"
     SECURITY_FRONTEND = "security_frontend"

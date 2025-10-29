@@ -64,6 +64,7 @@ class AnalysisTaskService:
             # Create a default config if none exists
             analyzer_config = AnalyzerConfiguration(
                 name="AutoDefault-Universal",
+                analyzer_type=AnalysisType.CUSTOM, # Use a generic type
                 config_data="{}"
             )
             db.session.add(analyzer_config)
@@ -173,6 +174,7 @@ class AnalysisTaskService:
         model_slug: str,
         app_number: int,
         tools: List[str],
+        tools_by_service: Dict[str, List[int]],
         config_id: Optional[str] = None,
         priority: str = Priority.NORMAL.value,
         custom_options: Optional[Dict[str, Any]] = None,
@@ -185,7 +187,8 @@ class AnalysisTaskService:
         Args:
             model_slug: Model identifier
             app_number: Application number
-            tools: List of canonical tool names to execute
+            analysis_type: Type of analysis (e.g., 'unified')
+            tools_by_service: Dict mapping service names to tool IDs
             config_id: Optional analyzer configuration ID
             priority: Task priority
             custom_options: Additional options
@@ -196,22 +199,10 @@ class AnalysisTaskService:
         Returns:
             Main AnalysisTask with subtasks created
         """
-        # Group tools by their service container
-        from app.engines.container_tool_registry import get_container_tool_registry
-        
-        registry = get_container_tool_registry()
-        registry_tools = registry.get_all_tools()
-        
-        tools_by_service: Dict[str, List[str]] = {}
-        for tool_name in tools:
-            tool_obj = registry_tools.get(tool_name)
-            if tool_obj and tool_obj.available:
-                service = tool_obj.container.value if tool_obj.container else 'unknown'
-                tools_by_service.setdefault(service, []).append(tool_name)
         base_options: Dict[str, Any] = dict(custom_options or {})
-        base_options['tools_by_service'] = tools_by_service  # Now stores tool names
-        base_options['unified_analysis'] = True
-        base_options['selected_tool_names'] = tools
+        base_options.setdefault('tools_by_service', tools_by_service)
+        base_options.setdefault('unified_analysis', True)
+        base_options.setdefault('selected_tool_names', tools)
 
         # Create the main task without dispatching; subtasks handle execution.
         main_task = AnalysisTaskService.create_task(
@@ -237,7 +228,7 @@ class AnalysisTaskService:
         analyzer_config_id = main_task.analyzer_config_id
         pr_enum = main_task.priority
 
-        for service_name, tool_names_for_service in tools_by_service.items():
+        for service_name, tool_ids in tools_by_service.items():
             subtask_uuid = f"task_{uuid.uuid4().hex[:12]}"
 
             subtask = AnalysisTask()
@@ -261,7 +252,7 @@ class AnalysisTaskService:
 
             subtask_options: Dict[str, Any] = {
                 'service_name': service_name,
-                'tool_names': list(tool_names_for_service),  # Store tool names, not IDs
+                'tool_ids': list(tool_ids),
                 'parent_task_id': main_task.task_id,
                 'unified_analysis': True,
             }
@@ -310,24 +301,21 @@ class AnalysisTaskService:
         return refreshed_main
     
     @staticmethod
-    def _dispatch_subtasks_to_celery(main_task: AnalysisTask, tools_by_service: Dict[str, List[str]]):
-        """Dispatch subtasks to Celery workers in parallel using the universal subtask runner.
-        
-        Args:
-            main_task: Main AnalysisTask with populated subtasks relationship
-            tools_by_service: Dict mapping service names to lists of tool names (not IDs)
-        """
+    def _dispatch_subtasks_to_celery(main_task: AnalysisTask, tools_by_service: Dict[str, List[int]]):
+        """Dispatch subtasks to Celery workers in parallel using the universal subtask runner."""
         from app.tasks import run_analyzer_subtask, aggregate_subtask_results
         from celery import group
+        from app.engines.container_tool_registry import get_container_tool_registry
+        
+        registry = get_container_tool_registry()
+        all_tools = registry.get_all_tools()
+        id_to_name = {idx + 1: name for idx, name in enumerate(all_tools.keys())}
         
         subtask_signatures = []
         for subtask in main_task.subtasks:
-            # Get tool names directly from tools_by_service (no ID resolution needed)
-            tool_names = tools_by_service.get(subtask.service_name, [])
-            
-            if not tool_names:
-                logger.warning(f"No tools found for subtask {subtask.task_id} service {subtask.service_name}")
-                continue
+            tool_ids = tools_by_service.get(subtask.service_name, [])
+            tool_names = [id_to_name.get(tool_id) for tool_id in tool_ids if tool_id in id_to_name]
+            tool_names = [name for name in tool_names if name]
             
             subtask_signatures.append(
                 run_analyzer_subtask.s(
@@ -568,9 +556,7 @@ class AnalysisTaskService:
         
         type_counts = {}
         for analysis_type in AnalysisType:
-            # Note: AnalysisTask no longer has analysis_type column, using task_name instead
-            # This query will return 0 for all types - consider removing or refactoring
-            count = 0  # Placeholder - analysis_type field removed from model
+            count = AnalysisTask.query.filter_by(analysis_type=analysis_type.value).count()
             type_counts[analysis_type.value] = count
         
         # Calculate average durations
@@ -581,9 +567,7 @@ class AnalysisTaskService:
         
         avg_duration_by_type = {}
         for analysis_type in AnalysisType:
-            # Note: task.analysis_type now returns task_name (string), not enum
-            # Compare string values instead of enum objects
-            type_tasks = [t for t in completed_tasks if t.analysis_type == analysis_type.value]
+            type_tasks = [t for t in completed_tasks if t.analysis_type == analysis_type]
             if type_tasks:
                 durations = [t.actual_duration for t in type_tasks if t.actual_duration]
                 if durations:
