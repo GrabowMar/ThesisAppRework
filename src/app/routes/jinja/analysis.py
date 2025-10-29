@@ -716,6 +716,74 @@ def analysis_result_detail(result_id: str):
     )
 
 
+@analysis_bp.route('/tasks/<string:task_id>')
+def analysis_task_detail(task_id: str):
+    """Render detailed view of a task and its database-backed results."""
+    from app.models import AnalysisResult
+    from sqlalchemy import func
+    
+    # Load task from database
+    task = AnalysisTask.query.filter_by(task_id=task_id).first()
+    if not task:
+        abort(404, description=f"Task {task_id} not found")
+    
+    # Load results from database
+    results = AnalysisResult.query.filter_by(task_id=task_id).order_by(
+        AnalysisResult.severity.desc(),
+        AnalysisResult.created_at.desc()
+    ).all()
+    
+    # Group results by tool
+    results_by_tool = {}
+    for result in results:
+        tool = result.tool_name
+        if tool not in results_by_tool:
+            results_by_tool[tool] = []
+        results_by_tool[tool].append(result)
+    
+    # Calculate severity breakdown
+    severity_counts = db.session.query(
+        AnalysisResult.severity,
+        func.count(AnalysisResult.id)
+    ).filter(
+        AnalysisResult.task_id == task_id
+    ).group_by(AnalysisResult.severity).all()
+    
+    severity_breakdown = {}
+    for severity, count in severity_counts:
+        if severity:
+            severity_breakdown[severity.value] = count
+    
+    # Calculate summary
+    total_findings = len(results)
+    tools_used = list(results_by_tool.keys())
+    
+    summary = {
+        'total_findings': total_findings,
+        'severity_breakdown': severity_breakdown,
+        'tools_used': tools_used,
+        'issues_found': task.issues_found or 0
+    }
+    
+    # Handle findings limit
+    findings_limit = None
+    limit_param = (request.args.get('findings') or '').strip()
+    if limit_param.isdigit():
+        findings_limit = max(1, min(int(limit_param), 1000))
+    
+    findings = results[:findings_limit] if findings_limit else results
+    
+    return render_template(
+        'pages/analysis/task_detail.html',
+        task=task,
+        findings=findings,
+        results_by_tool=results_by_tool,
+        summary=summary,
+        total_findings=total_findings,
+        findings_limit=findings_limit
+    )
+
+
 @analysis_bp.route('/results/<string:result_id>.json')
 def analysis_result_json(result_id: str):
     """Return the raw JSON payload for an analysis result."""
