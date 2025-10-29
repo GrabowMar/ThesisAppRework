@@ -25,10 +25,10 @@ from flask_login import current_user
 from app.utils.template_paths import render_template_compat as render_template
 from app.services.task_service import AnalysisTaskService
 from app.services.unified_result_service import UnifiedResultService
-from app.models import AnalysisTask, GeneratedApplication
+from app.models import AnalysisTask, GeneratedApplication, AnalysisResult
 from app.constants import AnalysisStatus
 from app.extensions import db
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 # Create blueprint
 analysis_bp = Blueprint('analysis', __name__, url_prefix='/analysis')
@@ -747,6 +747,65 @@ def analysis_result_download(result_id: str):
         mimetype='application/json',
         as_attachment=True,
         download_name=f"{result_id}.json",
+    )
+
+
+@analysis_bp.route('/tasks/<string:task_id>')
+def analysis_task_detail(task_id: str):
+    """Render the detail page for an analysis task with database-backed results."""
+    # Load task from database
+    task = AnalysisTask.query.filter_by(task_id=task_id).first()
+    if not task:
+        abort(404, description=f"Task {task_id} not found")
+    
+    # Query all findings for this task
+    findings_query = AnalysisResult.query.filter_by(task_id=task_id)
+    
+    # Support optional findings limit parameter
+    findings_limit: Optional[int] = None
+    limit_param = (request.args.get('findings') or '').strip()
+    if limit_param.isdigit():
+        findings_limit = max(1, min(int(limit_param), 1000))
+        findings_query = findings_query.limit(findings_limit)
+    
+    # Get all findings
+    findings = findings_query.all()
+    
+    # Group results by tool name
+    results_by_tool = {}
+    for finding in findings:
+        tool_name = finding.tool_name or 'unknown'
+        if tool_name not in results_by_tool:
+            results_by_tool[tool_name] = []
+        results_by_tool[tool_name].append(finding)
+    
+    # Calculate severity breakdown using SQLAlchemy
+    severity_counts = db.session.query(
+        AnalysisResult.severity,
+        func.count(AnalysisResult.id).label('count')
+    ).filter_by(task_id=task_id).group_by(AnalysisResult.severity).all()
+    
+    # Build summary dict
+    summary = {
+        'total_findings': len(findings),
+        'severity_breakdown': {str(sev): count for sev, count in severity_counts},
+        'tools_used': list(results_by_tool.keys()),
+        'tools_count': len(results_by_tool)
+    }
+    
+    # Add zero counts for missing severities
+    from app.constants import SeverityLevel
+    for severity in SeverityLevel:
+        if severity.value not in summary['severity_breakdown']:
+            summary['severity_breakdown'][severity.value] = 0
+    
+    return render_template(
+        'pages/analysis/task_detail.html',
+        task=task,
+        findings=findings,
+        results_by_tool=results_by_tool,
+        summary=summary,
+        findings_limit=findings_limit,
     )
 
 
