@@ -178,28 +178,43 @@ class ZAPSARIFParser:
             if not isinstance(alert, dict):
                 continue
             
-            # Extract risk level
-            risk = alert.get('risk', alert.get('riskdesc', 'medium')).lower()
+            # Extract risk level (handle both string and numeric formats)
+            risk = alert.get('risk', alert.get('riskdesc', 'medium'))
             if isinstance(risk, str):
-                # Handle "High (Medium)" format
+                # Handle "High (Medium)" format and normalize to lowercase
                 risk = risk.split('(')[0].strip().lower()
+            elif isinstance(risk, (int, float)):
+                # Convert numeric to string using risk map
+                risk_map = {0: 'informational', 1: 'low', 2: 'medium', 3: 'high'}
+                risk = risk_map.get(int(risk), 'medium')
             
-            # Map numeric risk codes to text
+            # Check for separate numeric riskcode field (native ZAP format)
             risk_code = alert.get('riskcode')
             if risk_code is not None:
-                risk_map = {0: 'informational', 1: 'low', 2: 'medium', 3: 'high'}
-                risk = risk_map.get(int(risk_code), 'medium')
+                try:
+                    risk_map = {0: 'informational', 1: 'low', 2: 'medium', 3: 'high'}
+                    risk = risk_map.get(int(risk_code), risk)
+                except (ValueError, TypeError):
+                    pass  # Keep string value if conversion fails
             
             level = RISK_TO_LEVEL.get(risk, 'warning')
             
-            # Extract confidence
+            # Extract confidence (handle both string and numeric formats)
             confidence = alert.get('confidence', 'medium')
             if isinstance(confidence, str):
+                # Normalize string format and check if it's a numeric string
                 confidence = confidence.split('(')[0].strip().lower()
-            confidence_code = alert.get('confidence')
-            if confidence_code is not None:
+                # Try converting numeric strings like '1', '2', '3' to text
+                try:
+                    if confidence in ['1', '2', '3']:
+                        conf_map = {1: 'low', 2: 'medium', 3: 'high'}
+                        confidence = conf_map[int(confidence)]
+                except (ValueError, KeyError):
+                    pass  # Keep normalized string value
+            elif isinstance(confidence, (int, float)):
+                # Native ZAP numeric format
                 conf_map = {1: 'low', 2: 'medium', 3: 'high'}
-                confidence = conf_map.get(int(confidence_code), 'medium')
+                confidence = conf_map.get(int(confidence), 'medium')
             
             # Extract CWE and WASC
             cwe_id = None
