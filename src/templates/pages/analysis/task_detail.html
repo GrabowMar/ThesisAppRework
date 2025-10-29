@@ -1,0 +1,301 @@
+{# Task Detail Page - Database-Backed Analysis Results #}
+{% extends 'layouts/base.html' %}
+{% set active_page = 'analysis' %}
+{% set page_title = 'Task ' ~ task.task_id[:16] ~ '...' %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  {# Header Section #}
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h1 class="h2 mb-2">
+            <i class="fas fa-tasks me-2"></i>Analysis Task Details
+          </h1>
+          <p class="text-muted mb-0">
+            <small>Task ID: <code>{{ task.task_id }}</code></small>
+          </p>
+        </div>
+        <div>
+          <a href="{{ url_for('analysis.analysis_list') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Back to Tasks
+          </a>
+        </div>
+      </div>
+      
+      {# Task Status and Info Card #}
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col-md-3">
+              <h6 class="text-muted mb-1">Status</h6>
+              {% if task.status.value == 'completed' %}
+                <span class="badge bg-success fs-6">
+                  <i class="fas fa-check-circle me-1"></i>Completed
+                </span>
+              {% elif task.status.value == 'running' %}
+                <span class="badge bg-primary fs-6">
+                  <i class="fas fa-spinner fa-spin me-1"></i>Running
+                </span>
+              {% elif task.status.value == 'failed' %}
+                <span class="badge bg-danger fs-6">
+                  <i class="fas fa-times-circle me-1"></i>Failed
+                </span>
+              {% elif task.status.value == 'pending' %}
+                <span class="badge bg-secondary fs-6">
+                  <i class="fas fa-clock me-1"></i>Pending
+                </span>
+              {% else %}
+                <span class="badge bg-secondary fs-6">{{ task.status.value|title }}</span>
+              {% endif %}
+            </div>
+            <div class="col-md-3">
+              <h6 class="text-muted mb-1">Model</h6>
+              <p class="mb-0"><strong>{{ task.target_model }}</strong></p>
+            </div>
+            <div class="col-md-2">
+              <h6 class="text-muted mb-1">App Number</h6>
+              <p class="mb-0"><strong>#{{ task.target_app_number }}</strong></p>
+            </div>
+            <div class="col-md-4">
+              <h6 class="text-muted mb-1">Timestamps</h6>
+              <p class="mb-0 small">
+                <strong>Created:</strong> {{ task.created_at.strftime('%Y-%m-%d %H:%M:%S') if task.created_at else 'N/A' }}<br>
+                {% if task.completed_at %}
+                <strong>Completed:</strong> {{ task.completed_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                {% endif %}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Summary Statistics #}
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card text-center shadow-sm">
+        <div class="card-body">
+          <h3 class="mb-1">{{ summary.total_findings }}</h3>
+          <p class="text-muted mb-0">Total Findings</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center shadow-sm">
+        <div class="card-body">
+          <h3 class="mb-1 text-danger">{{ summary.severity_breakdown.get('critical', 0) }}</h3>
+          <p class="text-muted mb-0">
+            <span class="badge bg-danger">Critical</span>
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center shadow-sm">
+        <div class="card-body">
+          <h3 class="mb-1 text-warning">{{ summary.severity_breakdown.get('high', 0) }}</h3>
+          <p class="text-muted mb-0">
+            <span class="badge bg-warning">High</span>
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center shadow-sm">
+        <div class="card-body">
+          <h3 class="mb-1 text-info">{{ summary.severity_breakdown.get('medium', 0) }}</h3>
+          <p class="text-muted mb-0">
+            <span class="badge bg-info">Medium</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <div class="card text-center shadow-sm">
+        <div class="card-body">
+          <h3 class="mb-1 text-secondary">{{ summary.severity_breakdown.get('low', 0) }}</h3>
+          <p class="text-muted mb-0">
+            <span class="badge bg-secondary">Low</span>
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center shadow-sm">
+        <div class="card-body">
+          <h3 class="mb-1">{{ summary.tools_count }}</h3>
+          <p class="text-muted mb-0">Tools Used</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Findings Table #}
+  <div class="row">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header bg-white">
+          <h5 class="mb-0">
+            <i class="fas fa-list me-2"></i>Findings
+            {% if findings_limit %}
+              <small class="text-muted">(Limited to {{ findings_limit }} results)</small>
+            {% endif %}
+          </h5>
+        </div>
+        <div class="card-body p-0">
+          {% if findings %}
+            <div class="table-responsive">
+              <table class="table table-hover table-striped mb-0">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width: 10%">Severity</th>
+                    <th style="width: 15%">Tool</th>
+                    <th style="width: 30%">Title</th>
+                    <th style="width: 25%">Location</th>
+                    <th style="width: 20%">Category</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for finding in findings %}
+                    <tr>
+                      <td>
+                        {% if finding.severity.value == 'critical' %}
+                          <span class="badge bg-danger">
+                            <i class="fas fa-exclamation-triangle me-1"></i>Critical
+                          </span>
+                        {% elif finding.severity.value == 'high' %}
+                          <span class="badge bg-warning text-dark">
+                            <i class="fas fa-exclamation-circle me-1"></i>High
+                          </span>
+                        {% elif finding.severity.value == 'medium' %}
+                          <span class="badge bg-info">
+                            <i class="fas fa-info-circle me-1"></i>Medium
+                          </span>
+                        {% elif finding.severity.value == 'low' %}
+                          <span class="badge bg-secondary">
+                            <i class="fas fa-circle me-1"></i>Low
+                          </span>
+                        {% else %}
+                          <span class="badge bg-light text-dark">{{ finding.severity.value|title }}</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <code class="small">{{ finding.tool_name }}</code>
+                        {% if finding.tool_version %}
+                          <br><small class="text-muted">v{{ finding.tool_version }}</small>
+                        {% endif %}
+                      </td>
+                      <td>
+                        <strong>{{ finding.title }}</strong>
+                        {% if finding.description %}
+                          <br><small class="text-muted">{{ finding.description[:100] }}{% if finding.description|length > 100 %}...{% endif %}</small>
+                        {% endif %}
+                        {% if finding.message %}
+                          <br><small class="text-muted">{{ finding.message }}</small>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if finding.file_path %}
+                          <code class="small">{{ finding.file_path }}</code>
+                          {% if finding.line_number %}
+                            <br><small class="text-muted">Line {{ finding.line_number }}{% if finding.column_number %}, Col {{ finding.column_number }}{% endif %}</small>
+                          {% endif %}
+                        {% else %}
+                          <span class="text-muted">—</span>
+                        {% endif %}
+                      </td>
+                      <td>
+                        {% if finding.category %}
+                          <span class="badge bg-light text-dark">{{ finding.category }}</span>
+                        {% endif %}
+                        {% if finding.rule_id %}
+                          <br><code class="small text-muted">{{ finding.rule_id }}</code>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-center py-5">
+              <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+              <h4>No Findings</h4>
+              <p class="text-muted">
+                This analysis task completed successfully with no issues found.
+                {% if task.status.value != 'completed' %}
+                  <br>Task may still be running or no results have been stored yet.
+                {% endif %}
+              </p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Grouped by Tool (Optional expandable section) #}
+  {% if results_by_tool %}
+    <div class="row mt-4">
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">
+              <i class="fas fa-wrench me-2"></i>Findings by Tool
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="accordion" id="toolAccordion">
+              {% for tool_name, tool_findings in results_by_tool.items() %}
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="heading-{{ loop.index }}">
+                    <button class="accordion-button{% if not loop.first %} collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ loop.index }}" aria-expanded="{{ 'true' if loop.first else 'false' }}" aria-controls="collapse-{{ loop.index }}">
+                      <strong>{{ tool_name }}</strong>
+                      <span class="badge bg-primary ms-2">{{ tool_findings|length }} findings</span>
+                    </button>
+                  </h2>
+                  <div id="collapse-{{ loop.index }}" class="accordion-collapse collapse{% if loop.first %} show{% endif %}" aria-labelledby="heading-{{ loop.index }}" data-bs-parent="#toolAccordion">
+                    <div class="accordion-body">
+                      <ul class="list-group list-group-flush">
+                        {% for finding in tool_findings %}
+                          <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                              <div class="flex-grow-1">
+                                <strong>{{ finding.title }}</strong>
+                                {% if finding.file_path %}
+                                  <br><code class="small">{{ finding.file_path }}{% if finding.line_number %}:{{ finding.line_number }}{% endif %}</code>
+                                {% endif %}
+                              </div>
+                              <div>
+                                {% if finding.severity.value == 'critical' %}
+                                  <span class="badge bg-danger">Critical</span>
+                                {% elif finding.severity.value == 'high' %}
+                                  <span class="badge bg-warning">High</span>
+                                {% elif finding.severity.value == 'medium' %}
+                                  <span class="badge bg-info">Medium</span>
+                                {% else %}
+                                  <span class="badge bg-secondary">{{ finding.severity.value|title }}</span>
+                                {% endif %}
+                              </div>
+                            </div>
+                          </li>
+                        {% endfor %}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
