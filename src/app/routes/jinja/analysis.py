@@ -6,6 +6,7 @@ Analysis-related web routes that render Jinja templates.
 """
 
 import json
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from flask import (
@@ -29,6 +30,25 @@ from app.models import AnalysisTask, GeneratedApplication
 from app.constants import AnalysisStatus
 from app.extensions import db
 from sqlalchemy import or_
+
+
+# Helper class for descriptor objects
+class DescriptorDict(dict):
+    """Dictionary that allows attribute access and has display_timestamp method."""
+    def __getattr__(self, key):
+        return self.get(key)
+    def display_timestamp(self):
+        if self.get('modified_at'):
+            dt = self['modified_at']
+            if isinstance(dt, str):
+                try:
+                    dt = datetime.fromisoformat(dt.replace('Z', '+00:00'))
+                except:
+                    pass
+            if isinstance(dt, datetime):
+                return dt.strftime('%Y-%m-%d %H:%M:%S')
+        return 'N/A'
+
 
 # Create blueprint
 analysis_bp = Blueprint('analysis', __name__, url_prefix='/analysis')
@@ -143,16 +163,24 @@ def analysis_tasks_table():
             try:
                 result_summary = task.get_result_summary()
                 if result_summary:
-                    # Return descriptor indicating database-stored results exist
-                    return {
+                    summary_data = result_summary.get('summary', {})
+                    # Return DescriptorDict indicating database-stored results exist
+                    return DescriptorDict({
                         'identifier': task.task_id,
                         'task_id': task.task_id,
                         'source': 'database',
-                        'total_findings': result_summary.get('summary', {}).get('total_findings', 0),
-                        'severity_breakdown': result_summary.get('summary', {}).get('severity_breakdown', {}),
+                        'task_name': task.task_name or task.task_id[:16],
+                        'model_slug': task.target_model,
+                        'app_number': task.target_app_number,
+                        'status': task.status.value if task.status else 'unknown',
+                        'total_findings': summary_data.get('total_findings', 0),
+                        'severity_breakdown': summary_data.get('severity_breakdown', {}),
+                        'tools_executed': summary_data.get('tools_executed', 0) if isinstance(summary_data.get('tools_executed'), int) else 0,
+                        'tools_failed': 0,
+                        'tools_used': [],
                         'modified_at': task.completed_at,
                         'has_data': True
-                    }
+                    })
             except Exception as exc:
                 current_app.logger.warning(f"Failed to parse result_summary for task {task.task_id}: {exc}")
         
@@ -188,7 +216,8 @@ def analysis_tasks_table():
             except Exception as exc:
                 current_app.logger.warning(f"Failed to load subtasks for {task.task_id}: {exc}")
         result_files = result_lookup.get((task.target_model, task.target_app_number), [])
-        selected_result = _select_result_file(task, result_files) if result_files else None
+        # Always call _select_result_file - it checks database first, then falls back to files
+        selected_result = _select_result_file(task, result_files)
         unified_items.append({
             'type': 'task',
             'id': task.task_id,
@@ -747,12 +776,40 @@ def analysis_result_detail(result_id: str):
                     'duration': task.actual_duration
                 }
                 
-                metadata_block = task.get_metadata()
+                metadata_block = task.get_metadata() or {}
+                
+                # Build a complete descriptor object with all required fields
+                descriptor = DescriptorDict({
+                    'identifier': result_id,
+                    'task_id': result_id,
+                    'source': 'database',
+                    'model_slug': task.target_model,
+                    'app_number': task.target_app_number,
+                    'task_name': task.task_name or result_id[:16],
+                    'status': task.status.value if task.status else 'unknown',
+                    'tools_used': summary_block.get('tools_executed', []) if isinstance(summary_block.get('tools_executed'), list) else [],
+                    'total_findings': summary_block.get('total_findings', 0),
+                    'severity_breakdown': summary_block.get('severity_breakdown', {}),
+                    'tools_executed': summary_block.get('tools_executed', 0) if isinstance(summary_block.get('tools_executed'), int) else 0,
+                    'tools_failed': 0,  # TODO: extract from services
+                    'modified_at': task.completed_at,
+                })
+                
+                # Wrap payload in expected structure for template compatibility
+                # Template expects payload.results.services, but DB stores services at top level
+                wrapped_payload = DescriptorDict({
+                    'results': DescriptorDict({
+                        'services': services_data,
+                        'summary': summary_block
+                    }),
+                    'task': payload.get('task', {}),
+                    'metadata': metadata_block
+                })
                 
                 return render_template(
                     'pages/analysis/result_detail.html',
-                    descriptor={'identifier': result_id, 'task_id': result_id, 'source': 'database'},
-                    payload=payload,
+                    descriptor=descriptor,
+                    payload=wrapped_payload,
                     findings=findings,
                     services=services_data,
                     summary=summary_block,
@@ -761,7 +818,13 @@ def analysis_result_detail(result_id: str):
                     findings_limit=findings_limit,
                 )
         except Exception as exc:
-            current_app.logger.warning(f"Failed to load database results for {result_id}: {exc}")
+            import traceback
+            current_app.logger.error(f"Exception while rendering database results for {result_id}: {exc}")
+            current_app.logger.error(f"Traceback: {traceback.format_exc()}")
+            # Re-raise if it's an abort or other HTTP exception
+            if hasattr(exc, 'code'):
+                raise
+            # Otherwise, try filesystem fallback
     
     # Fallback to filesystem-based results
     try:
@@ -779,11 +842,38 @@ def analysis_result_detail(result_id: str):
     summary_block = results.summary
     task_info = {'task_id': result_id, 'status': results.status}
     metadata_block = {}
+    
+    # Build descriptor for filesystem results
+    descriptor = DescriptorDict({
+        'identifier': result_id,
+        'task_id': result_id,
+        'source': 'filesystem',
+        'model_slug': getattr(results, 'model_slug', 'unknown'),
+        'app_number': getattr(results, 'app_number', 0),
+        'task_name': result_id[:16],
+        'status': results.status or 'unknown',
+        'tools_used': list(services.keys()) if services else [],
+        'total_findings': summary_block.get('total_findings', 0),
+        'severity_breakdown': summary_block.get('severity_breakdown', {}),
+        'tools_executed': len(services) if services else 0,
+        'tools_failed': 0,
+        'modified_at': getattr(results, 'modified_at', None),
+    })
+    
+    # Wrap payload in expected structure for template compatibility
+    wrapped_payload = DescriptorDict({
+        'results': DescriptorDict({
+            'services': services,
+            'summary': summary_block
+        }),
+        'task': payload.get('task', {}),
+        'metadata': metadata_block
+    })
 
     return render_template(
         'pages/analysis/result_detail.html',
-        descriptor={'identifier': result_id, 'task_id': result_id},
-        payload=payload,
+        descriptor=descriptor,
+        payload=wrapped_payload,
         findings=findings,
         services=services,
         summary=summary_block,
