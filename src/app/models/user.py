@@ -44,5 +44,9 @@ class User(UserMixin, db.Model):
         """Check if password matches hash."""
         return check_password_hash(self.password_hash, password)
     
+    def update_last_login(self):
+        """Update last login timestamp."""
+        self.last_login_at = datetime.now(timezone.utc)
+    
     def __repr__(self):
         return f"<User {self.username}>"

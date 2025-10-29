@@ -14,7 +14,7 @@ from sqlalchemy import Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..extensions import db
-from ..constants import AnalysisStatus, SeverityLevel
+from ..constants import AnalysisStatus, SeverityLevel, JobPriority
 
 
 class AnalyzerConfiguration(db.Model):
@@ -62,10 +62,22 @@ class AnalysisTask(db.Model):
     # Configuration
     config_id: Mapped[Optional[str]] = mapped_column(db.String(100), nullable=True)
     batch_id: Mapped[Optional[int]] = mapped_column(db.Integer, nullable=True, index=True)
+    priority: Mapped[Optional[JobPriority]] = mapped_column(db.Enum(JobPriority), nullable=True, default=JobPriority.NORMAL)
     metadata_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
     
     # Service information
     service_name: Mapped[Optional[str]] = mapped_column(db.String(100), nullable=True)
+    task_name: Mapped[Optional[str]] = mapped_column(db.String(200), nullable=True)
+    analysis_type: Mapped[Optional[str]] = mapped_column(db.String(50), nullable=True)
+    progress_percentage: Mapped[Optional[int]] = mapped_column(db.Integer, nullable=True, default=0)
+    
+    # Relationships (lazy loaded)
+    @property
+    def subtasks(self):
+        """Get subtasks if this is a main task."""
+        if self.is_main_task:
+            return AnalysisTask.query.filter_by(parent_task_id=self.task_id).all()
+        return []
     
     def get_metadata(self) -> Dict[str, Any]:
         """Get metadata as dictionary."""
