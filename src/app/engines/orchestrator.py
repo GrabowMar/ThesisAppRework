@@ -139,29 +139,47 @@ class AnalysisOrchestrator:
         """
         start_time = __import__('time').time()
         
+        logger.info(
+            "[ORCH] Starting run_analysis: model=%s, app=%s, tools=%s, tags=%s, target_path=%s",
+            model_slug, app_number, tools, tags, target_path
+        )
+        
         try:
             # Resolve target path
             if target_path is None:
+                logger.debug("[ORCH] Target path not provided, resolving...")
                 target_path = self._resolve_target_path(model_slug, app_number)
+                logger.info("[ORCH] Resolved target_path: %s", target_path)
+            else:
+                logger.debug("[ORCH] Using provided target_path: %s", target_path)
             
             if not target_path.exists():
+                error_msg = f"Target path does not exist: {target_path}"
+                logger.error(
+                    "[ORCH] PATH VALIDATION FAILED - %s (model=%s, app=%s)",
+                    error_msg, model_slug, app_number
+                )
                 return {
                     'success': False,
-                    'error': f"Target path does not exist: {target_path}",
+                    'error': error_msg,
                     'model_slug': model_slug,
                     'app_number': app_number
                 }
             
+            logger.info("[ORCH] Path validation SUCCESS: %s exists", target_path)
+            
             # Determine tools to run
             if tools is None:
+                logger.debug("[ORCH] No tools provided, detecting from context...")
                 tools = self.get_tools_for_context(target_path, tags)
+                logger.info("[ORCH] Context-detected tools: %s", tools)
 
-            logger.info(f"Analysis orchestrator: initial tools={tools}, tags={tags}")
+            logger.info("[ORCH] Initial tools (before normalization): %s, tags=%s", tools, tags)
 
             # Alias resolution via unified registry
             tools = self.unified.resolve(tools or [])
             
-            logger.info(f"Analysis orchestrator: normalized tools={tools}")
+            logger.info("[ORCH] Normalized tools (after alias resolution): %s", tools)
             
             if not tools:
                 return {
@@ -182,23 +200,40 @@ class AnalysisOrchestrator:
             service_groups: Dict[str, List[str]] = {}
             service_for_tool: Dict[str, Optional[str]] = {}
 
+            logger.debug("[ORCH] Grouping tools by service for delegation...")
             for tool_name in tools:
                 ut = self.unified.get(tool_name)
                 svc = self._map_tool_to_service(tool_name)
                 service_for_tool[tool_name] = svc
                 if svc:
                     service_groups.setdefault(svc, []).append(tool_name)
+            
+            logger.info(
+                "[ORCH] Service groups: %s (total_services=%s, total_tools=%s)",
+                {k: len(v) for k, v in service_groups.items()},
+                len(service_groups), len(tools)
+            )
 
             # Decide delegation: unified model delegates any tool whose container != 'local'
             delegated_tools: Set[str] = set()
             for svc, svc_tools in service_groups.items():
                 service_up = self._analyzer_service_up(svc)
-                logger.info(f"Service delegation check (unified): {svc} service_up={service_up} tools={svc_tools}")
+                logger.info(
+                    "[ORCH] Service %s: up=%s, tools=%s",
+                    svc, service_up, svc_tools
+                )
                 if service_up:
                     # Delegate this group to analyzer containers
-                    logger.info(f"Delegating tools {svc_tools} to container service {svc}")
+                    logger.info(
+                        "[ORCH] DELEGATING to container: service=%s, model=%s, app=%s, tools=%s",
+                        svc, model_slug, app_number, svc_tools
+                    )
                     try:
                         svc_result = self._run_via_container(svc, model_slug, app_number, svc_tools)
+                        logger.debug(
+                            "[ORCH] Container %s returned: success=%s, has_data=%s",
+                            svc, svc_result.get('success'), bool(svc_result.get('data'))
+                        )
                         extracted, svc_findings = self._extract_container_tool_results(svc, svc_result, svc_tools)
                         tool_results.update(extracted)
                         all_findings.extend(svc_findings)
@@ -210,7 +245,10 @@ class AnalysisOrchestrator:
                             else:
                                 successful_tools += 1
                     except Exception as e:
-                        logger.warning(f"Container delegation failed for {svc}: {e}")
+                        logger.warning(
+                            "[ORCH] Container delegation FAILED for %s: %s",
+                            svc, e, exc_info=True
+                        )
                         # Mark tools as not available to preserve previous behavior
                         for t in svc_tools:
                             if t not in tool_results:
@@ -614,29 +652,58 @@ class AnalysisOrchestrator:
           3) Heuristic fallback using helpers.get_app_directory
           4) Last-resort: return canonical generated path (may not exist)
         """
+        logger.debug(
+            "[ORCH] Resolving target path for model=%s, app=%s",
+            model_slug, app_number
+        )
+        
         # 1) Prefer new unified generated/apps structure (project-root anchored)
         try:
             gen_candidate = GENERATED_APPS_DIR / model_slug / f"app{app_number}"
+            logger.debug(
+                "[ORCH] Path attempt #1 (generated/apps): %s - exists=%s",
+                gen_candidate, gen_candidate.exists()
+            )
             if gen_candidate.exists():
+                logger.info("[ORCH] Resolved via generated/apps: %s", gen_candidate)
                 return gen_candidate
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("[ORCH] Path attempt #1 exception: %s", e)
 
         # 2) Legacy misc/models path relative to project root
         legacy_candidate = (Path(__file__).resolve().parents[3] / "misc" / "models" / model_slug / f"app{app_number}")
+        logger.debug(
+            "[ORCH] Path attempt #2 (misc/models): %s - exists=%s",
+            legacy_candidate, legacy_candidate.exists()
+        )
         if legacy_candidate.exists():
+            logger.info("[ORCH] Resolved via misc/models (legacy): %s", legacy_candidate)
             return legacy_candidate
 
         # 3) Use helpers (handles variations and fuzzy matching)
         try:
             helper_path = get_app_directory(model_slug, app_number)
-            if helper_path.exists():
+            logger.debug(
+                "[ORCH] Path attempt #3 (helper fuzzy match): %s - exists=%s",
+                helper_path, helper_path.exists() if helper_path else False
+            )
+            if helper_path and helper_path.exists():
+                logger.info("[ORCH] Resolved via helper (fuzzy): %s", helper_path)
                 return helper_path
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("[ORCH] Path attempt #3 exception: %s", e)
 
         # 4) Return canonical new path even if missing (callers will validate)
-        return GENERATED_APPS_DIR / model_slug / f"app{app_number}"
+        fallback = GENERATED_APPS_DIR / model_slug / f"app{app_number}"
+        logger.warning(
+            "[ORCH] All path attempts FAILED - returning fallback (may not exist): %s",
+            fallback
+        )
+        logger.info(
+            "[ORCH] TIP: Generate the application first - it doesn't exist in filesystem. "
+            "DB record may exist but files are missing."
+        )
+        return fallback
     
     def _detect_languages(self, target_path: Path) -> Set[str]:
         """Detect programming languages in target path."""

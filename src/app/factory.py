@@ -3,7 +3,7 @@ Flask Application Factory
 =========================
 
 Factory pattern for creating Flask application instances with
-Celery integration and proper initialization.
+proper initialization.
 """
 
 import os
@@ -12,11 +12,9 @@ from pathlib import Path
 from typing import Optional
 
 from flask import Flask
-from celery import Celery
 from sqlalchemy import text
 
 # Import extensions and configurations
-from config.celery_config import CeleryConfig
 from app.extensions import db, init_extensions, get_components
 # Lazy import analyzer integration only if enabled to reduce startup coupling
 try:
@@ -28,51 +26,6 @@ except Exception:  # pragma: no cover - optional
 # Import logging from utils
 from app.utils.logging_config import get_logger
 logger = get_logger('factory')
-
-def create_celery(app: Optional[Flask] = None) -> Celery:
-    """
-    Create and configure Celery instance.
-    
-    Args:
-        app: Flask application instance
-        
-    Returns:
-        Configured Celery instance
-    """
-    
-    # Prefer Flask app configuration when available; fallback to CeleryConfig
-    _backend = None
-    _broker = None
-    if app is not None:
-        try:
-            _backend = app.config.get('CELERY_RESULT_BACKEND', None)
-            _broker = app.config.get('CELERY_BROKER_URL', None)
-        except Exception:
-            _backend = None
-            _broker = None
-    celery = Celery(
-        app.import_name if app else 'thesis_app',
-        backend=_backend or CeleryConfig.result_backend,
-        broker=_broker or CeleryConfig.broker_url,
-        include=['app.tasks']
-    )
-    
-    # Apply configuration
-    celery.config_from_object(CeleryConfig)
-    
-    if app:
-        # Configure Celery to work with Flask app context
-        class ContextTask(celery.Task):
-            """Make celery tasks work with Flask app context."""
-            def __call__(self, *args, **kwargs):
-                with app.app_context():
-                    return self.run(*args, **kwargs)
-        
-        celery.Task = ContextTask
-        
-        # Note: Celery instance is managed by components, not direct app attribute
-    
-    return celery
 
 def create_app(config_name: str = 'default') -> Flask:
     """
@@ -172,10 +125,6 @@ def create_app(config_name: str = 'default') -> Flask:
         # Authentication configuration
         REGISTRATION_ENABLED=os.environ.get('REGISTRATION_ENABLED', 'false').lower() == 'true',
         
-        # Celery configuration
-        CELERY_BROKER_URL=CeleryConfig.broker_url,
-        CELERY_RESULT_BACKEND=CeleryConfig.result_backend,
-        
         # Task configuration
         TASK_TIMEOUT=int(os.environ.get('TASK_TIMEOUT', '1800')),  # 30 minutes
         MAX_CONCURRENT_TASKS=int(os.environ.get('MAX_CONCURRENT_TASKS', '5')),
@@ -183,9 +132,6 @@ def create_app(config_name: str = 'default') -> Flask:
         # Analyzer configuration
         ANALYZER_ENABLED=os.environ.get('ANALYZER_ENABLED', 'true').lower() == 'true',
         ANALYZER_AUTO_START=os.environ.get('ANALYZER_AUTO_START', 'false').lower() == 'true',
-
-    # Websocket strict mode: when true, do NOT fall back to mock service if Celery-backed init fails
-    WEBSOCKET_STRICT_CELERY=os.environ.get('WEBSOCKET_STRICT_CELERY', 'false').lower() == 'true',
     )
 
     # Surface OpenRouter key in app config if present (without logging)
@@ -193,29 +139,6 @@ def create_app(config_name: str = 'default') -> Flask:
         _ork = os.getenv('OPENROUTER_API_KEY')
         if _ork and not app.config.get('OPENROUTER_API_KEY'):
             app.config['OPENROUTER_API_KEY'] = _ork
-    except Exception:
-        pass
-
-    # Normalize Redis configuration early: if REDIS_URL missing but host/port present, synthesize it
-    try:  # pragma: no cover - configuration wiring
-        if not os.environ.get('REDIS_URL'):
-            _r_host = os.environ.get('REDIS_HOST')
-            _r_port = os.environ.get('REDIS_PORT')
-            if _r_host and _r_port:
-                _constructed = f"redis://{_r_host}:{_r_port}/0"
-                os.environ['REDIS_URL'] = _constructed
-                # Mark that REDIS_URL was synthesized from host/port, not an explicit URL
-                os.environ['REDIS_URL_SYNTHETIC'] = '1'
-        # Propagate to app config if still missing
-        if not app.config.get('REDIS_URL') and os.environ.get('REDIS_URL'):
-            app.config['REDIS_URL'] = os.environ['REDIS_URL']
-            if os.environ.get('REDIS_URL_SYNTHETIC'):
-                app.config['REDIS_URL_SYNTHETIC'] = True
-        # Ensure Celery URLs align when using Redis
-        if str(app.config.get('CELERY_BROKER_URL', '')).startswith('redis') is False and os.environ.get('REDIS_URL'):
-            app.config['CELERY_BROKER_URL'] = os.environ['REDIS_URL']
-        if str(app.config.get('CELERY_RESULT_BACKEND', '')).startswith('redis') is False and os.environ.get('REDIS_URL'):
-            app.config['CELERY_RESULT_BACKEND'] = os.environ['REDIS_URL']
     except Exception:
         pass
     
@@ -287,10 +210,6 @@ def create_app(config_name: str = 'default') -> Flask:
             return f'{years} year{"s" if years != 1 else ""} ago'
     
     app.jinja_env.filters['timeago'] = timeago_filter
-    
-    # Create Celery instance
-    celery = create_celery(app)
-    components.set_celery(celery)
     
     # Initialize database with app context
     with app.app_context():
@@ -521,15 +440,7 @@ def create_cli_app() -> Flask:
     return app
 
 # Global instances for import convenience
-celery_app = None
 flask_app = None
-
-def get_celery_app() -> Celery:
-    """Get global Celery application instance."""
-    global celery_app
-    if celery_app is None:
-        celery_app = create_celery()
-    return celery_app
 
 def get_flask_app() -> Flask:
     """Get global Flask application instance."""

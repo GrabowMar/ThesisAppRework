@@ -3,14 +3,13 @@
 ## Project Overview
 **Purpose**: Research platform for generating and analyzing AI-generated applications across multiple dimensions (security, performance, code quality, AI reviews).
 
-**Architecture**: Flask backend with Celery workers, Redis queue, Dockerized analyzer microservices (WebSocket-based), Bootstrap 5 + HTMX frontend with real-time updates.
+**Architecture**: Flask backend with ThreadPoolExecutor workers, Dockerized analyzer microservices (WebSocket-based), Bootstrap 5 + HTMX frontend with real-time updates.
 
 **Key Directories**:
 - `src/app/`: Flask application core
   - `routes/`: API and Jinja blueprints (organized: `api/`, `jinja/`, `websockets/`)
   - `services/`: Business logic (50+ services, see `ServiceLocator`)
   - `models/`: SQLAlchemy models (User, GeneratedApplication, AnalysisTask, etc.)
-  - `tasks.py`: Celery task definitions with model gating
   - `factory.py`: App factory with extension initialization and service registration
   - `paths.py` + `constants.py`: Centralized path/enum definitions
 - `analyzer/`: Analysis orchestration and microservices
@@ -31,7 +30,6 @@
 
 ### Development
 - **Run Flask App**: `cd src && python main.py` (port 5000)
-  - Requires Celery worker: `celery -A app.tasks worker --loglevel=info`
   - Database auto-initializes on first run (SQLite: `src/data/thesis_app.db`)
 - **Run Tests**: `pytest -m "not integration and not slow and not analyzer"` (fast suite)
   - VS Code tasks: "pytest - fast", "smoke: run http_smoke"
@@ -104,12 +102,11 @@
 **Service Locator Pattern**: `app/services/service_locator.py`
 - Core services auto-registered: `ModelService`, `GenerationService`, `DockerManager`, `HealthService`, `AnalysisInspectionService`, `ResultsManagementService`
 - Retrieval: `ServiceLocator.get_<service_name>()` or `ServiceLocator.get('service_name')`
-- Components: Extensions managed via `app/extensions.py` (Celery, TaskManager, AnalyzerIntegration, WebSocketService)
+- Components: Extensions managed via `app/extensions.py` (TaskManager, AnalyzerIntegration, WebSocketService)
 
 **WebSocket Service** (Real-time Progress):
-- Default: Celery-backed service (`celery_websocket_service.py`)
-- Fallback: Mock service if Celery init fails (unless `WEBSOCKET_STRICT_CELERY=true`)
-- Control: `WEBSOCKET_SERVICE=auto|celery|mock`
+- Default: Mock service for real-time progress updates
+- Control: `WEBSOCKET_SERVICE=auto|mock`
 
 **Path Management**: ALL paths centralized in `app/paths.py` (use instead of hardcoding)
 - Generated content: `GENERATED_APPS_DIR`, `GENERATED_RAW_API_DIR`, `GENERATED_METADATA_DIR`
@@ -125,15 +122,13 @@
 ### Database & Tasks
 - **Database**: SQLite dev (`src/data/thesis_app.db`), PostgreSQL prod
 - **Models**: Auto-imported in `factory.py` before `db.create_all()` to prevent "no such table" errors
-- **Celery**: `@celery.task(bind=True, name='app.tasks.task_name')` pattern
-- **Task Execution**: Lightweight in-process service (`task_execution_service.py`) advances AnalysisTask state for dev/tests
+- **Task Execution**: ThreadPoolExecutor-based service (4 workers) handles parallel analysis task execution
 
 ### Configuration & Environment
 - **Environment**: `.env` auto-loaded in `factory.py` (project root)
 - **Logging**: Set `LOG_LEVEL=DEBUG|INFO|WARNING|ERROR`
 - **OpenRouter**: `OPENROUTER_API_KEY` required for AI analysis
   - Research mode: `OPENROUTER_ALLOW_ALL_PROVIDERS=true` (bypass zero data retention restrictions)
-- **Redis**: Auto-synthesizes `REDIS_URL` from `REDIS_HOST`+`REDIS_PORT` if missing
 - **Session**: `SESSION_COOKIE_SECURE`, `SESSION_LIFETIME`, `PERMANENT_SESSION_LIFETIME`
 - **Registration**: `REGISTRATION_ENABLED=false` by default (admin-created users only)
 
@@ -212,7 +207,6 @@ REGISTRATION_ENABLED=false  # Prevent unauthorized account creation
   - Configure via `OPENROUTER_SITE_URL` and `OPENROUTER_SITE_NAME`
   - Chat service: `app/services/openrouter_chat_service.py` (streaming + non-streaming)
 - **Security/Performance Tools**: Bandit, Safety, OWASP ZAP, Locust, ESLint, PyLint, Flake8
-- **Celery**: Task queue for async analysis jobs (Redis broker/backend)
 - **WebSocket Gateway**: Real-time progress updates (port 8765, see `analyzer/websocket_gateway.py`)
 - **Analyzer Microservices**: 
   - static-analyzer (2001): PyLint, Flake8, ESLint, Bandit, Safety
@@ -222,6 +216,7 @@ REGISTRATION_ENABLED=false  # Prevent unauthorized account creation
 - **Configuration Management**: `src/app/config/config_manager.py` for analyzer settings
 - **Component System**: Extensions managed via `app/extensions.py` with component registry
 - **Container Management**: Full Docker lifecycle through UI (start/stop/restart/build/logs) via `DockerManager` service
+- **Task Execution**: ThreadPoolExecutor (4 workers) for parallel analysis execution
 
 ## Troubleshooting & Tips
 - **Service Health**: `python analyzer/analyzer_manager.py health` or check `/health` endpoint
@@ -229,7 +224,7 @@ REGISTRATION_ENABLED=false  # Prevent unauthorized account creation
 - **Common Issues**: Ensure Docker is running, ports are available, containers are healthy
 - **Testing**: Use VS Code tasks for quick smoke/fast tests; maintain >90% coverage
   - Fast suite excludes: `@pytest.mark.integration`, `@pytest.mark.slow`, `@pytest.mark.analyzer`
-- **WebSocket Services**: Can fall back to mock service if Celery unavailable (set `WEBSOCKET_SERVICE=mock`)
+- **WebSocket Services**: Uses mock service for real-time progress updates
 - **Database Init**: Models auto-imported in `factory.py` before `db.create_all()`
 - **Path Structure**: All paths centralized in `src/app/paths.py` and `src/app/constants.py`
 - **Template Changes**: `TEMPLATES_AUTO_RELOAD=True` ensures Jinja picks up changes without restart
@@ -239,7 +234,7 @@ REGISTRATION_ENABLED=false  # Prevent unauthorized account creation
 ## Development Patterns
 - **Factory Pattern**: App creation in `src/app/factory.py` with extension initialization
 - **Service Registration**: Use `ServiceLocator.initialize(app)` for dependency injection
-- **Background Tasks**: Task execution service handles lightweight in-process task advancement
+- **Background Tasks**: ThreadPoolExecutor-based task execution service handles parallel task execution
 - **Analysis Engines**: Engine registry in `src/app/services/analysis_engines.py` (compatibility layer for new tool-based orchestration)
 - **Configuration Hierarchy**: environment vars → `settings.py` → `config_manager.py`
 - **Error Handling**: Rich error handlers with HTML + JSON negotiation (see `app/errors.py`)

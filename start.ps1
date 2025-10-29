@@ -3,11 +3,11 @@
 
 <#
 .SYNOPSIS
-    ThesisApp Orchestrator - Modern service management for Flask + Celery + Analyzers
+    ThesisApp Orchestrator - Modern service management for Flask + Analyzers
 
 .DESCRIPTION
     Complete orchestration script for ThesisApp with:
-    - Dependency-aware startup sequencing (Redis → Analyzers → Celery → Flask)
+    - Dependency-aware startup sequencing (Analyzers → Flask)
     - Real-time health monitoring with auto-refresh
     - Live log aggregation with color-coded output
     - Interactive mode selection and graceful shutdown
@@ -81,23 +81,6 @@ $Script:CONFIG = @{
         HealthEndpoint = "http://127.0.0.1:$Port/health"
         StartupTime = 10
         Color = "Cyan"
-    }
-    Celery = @{
-        Name = "Celery"
-        PidFile = Join-Path $RUN_DIR "celery.pid"
-        LogFile = Join-Path $LOGS_DIR "celery_worker.log"
-        Port = $null
-        HealthCheck = "Redis"
-        StartupTime = 5
-        Color = "Magenta"
-    }
-    Redis = @{
-        Name = "Redis"
-        Container = "analyzer-redis-1"
-        Port = 6379
-        HealthCheck = "docker exec analyzer-redis-1 redis-cli ping 2>$null"
-        StartupTime = 3
-        Color = "Yellow"
     }
     Analyzers = @{
         Name = "Analyzers"
@@ -194,12 +177,6 @@ class HealthMonitor {
             'Flask' {
                 return $this.CheckFlask($state)
             }
-            'Celery' {
-                return $this.CheckCelery($state)
-            }
-            'Redis' {
-                return $this.CheckRedis($state)
-            }
             'Analyzers' {
                 return $this.CheckAnalyzers($state)
             }
@@ -226,35 +203,6 @@ class HealthMonitor {
             }
             $state.UpdateStatus('Degraded', 'Unhealthy')
             return $true
-        } catch {
-            return $false
-        }
-    }
-
-    [bool]CheckCelery([ServiceState]$state) {
-        try {
-            if (-not (Test-Path $Script:CONFIG.Celery.PidFile)) { return $false }
-            
-            $processId = Get-Content $Script:CONFIG.Celery.PidFile -Raw
-            $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
-            if ($process) {
-                $state.UpdateStatus('Running', 'Healthy')
-                return $true
-            }
-            return $false
-        } catch {
-            return $false
-        }
-    }
-
-    [bool]CheckRedis([ServiceState]$state) {
-        try {
-            $result = docker exec analyzer-redis-1 redis-cli ping 2>$null
-            if ($result -match 'PONG') {
-                $state.UpdateStatus('Running', 'Healthy')
-                return $true
-            }
-            return $false
         } catch {
             return $false
         }
@@ -419,15 +367,12 @@ function Initialize-Environment {
     $env:HOST = '127.0.0.1'
     $env:PORT = $Port
     $env:DEBUG = 'false'
-    $env:REDIS_URL = 'redis://localhost:6379/0'
     $env:PYTHONUTF8 = '1'
     $env:PYTHONIOENCODING = 'utf-8'
 
     # Initialize service states
     $Script:Services = @{
-        Redis = [ServiceState]::new('Redis')
         Analyzers = [ServiceState]::new('Analyzers')
-        Celery = [ServiceState]::new('Celery')
         Flask = [ServiceState]::new('Flask')
     }
 
@@ -484,48 +429,6 @@ function Test-Dependencies {
     return $true
 }
 
-function Start-RedisService {
-    Write-Status "Starting Redis..." "Info"
-    
-    Push-Location $Script:ANALYZER_DIR
-    try {
-        # Check if already running
-        $running = docker ps --filter "name=analyzer-redis-1" --filter "status=running" --format "{{.Names}}" 2>$null
-        if ($running) {
-            Write-Status "  Redis already running" "Success"
-            $Script:Services.Redis.UpdateStatus('Running', 'Healthy')
-            return $true
-        }
-
-        # Start Redis container
-        docker-compose up -d redis 2>&1 | Out-Null
-        
-        # Wait for Redis to be healthy
-        $maxWait = $Script:CONFIG.Redis.StartupTime
-        $waited = 0
-        while ($waited -lt $maxWait) {
-            Start-Sleep -Seconds 1
-            $waited++
-            
-            try {
-                $result = Invoke-Expression "docker exec analyzer-redis-1 redis-cli ping 2>$null"
-                if ($result -eq 'PONG') {
-                    Write-Status "  Redis started successfully (${waited}s)" "Success"
-                    $Script:Services.Redis.UpdateStatus('Running', 'Healthy')
-                    return $true
-                }
-            } catch {}
-            
-            Write-Host "." -NoNewline -ForegroundColor Yellow
-        }
-
-        Write-Status "  Redis failed to start within ${maxWait}s" "Error"
-        return $false
-    } finally {
-        Pop-Location
-    }
-}
-
 function Start-AnalyzerServices {
     if ($NoAnalyzer) {
         Write-Status "Skipping analyzer services (NoAnalyzer flag)" "Warning"
@@ -575,61 +478,6 @@ function Start-AnalyzerServices {
         return $true
     } finally {
         Pop-Location
-    }
-}
-
-function Start-CeleryWorker {
-    Write-Status "Starting Celery worker..." "Info"
-    
-    # Check if already running
-    if (Test-Path $Script:CONFIG.Celery.PidFile) {
-        $processId = Get-Content $Script:CONFIG.Celery.PidFile -Raw
-        $process = Get-Process -Id $processId -ErrorAction SilentlyContinue
-        if ($process) {
-            Write-Status "  Celery already running (PID: $processId)" "Success"
-            return $true
-        }
-    }
-
-    # Verify Redis is running
-    if (-not $Script:HealthMonitor.CheckRedis($Script:Services.Redis)) {
-        Write-Status "  Redis is not running - Celery requires Redis" "Error"
-        return $false
-    }
-
-    try {
-        $arguments = @(
-            "-m", "celery",
-            "-A", "app.tasks",
-            "worker",
-            "--pool=solo",
-            "--loglevel=info",
-            "--logfile=$($Script:CONFIG.Celery.LogFile)"
-        )
-
-        $process = Start-Process -FilePath $Script:PYTHON_CMD `
-            -ArgumentList $arguments `
-            -WorkingDirectory $Script:SRC_DIR `
-            -WindowStyle Hidden `
-            -PassThru
-
-        $process.Id | Out-File -FilePath $Script:CONFIG.Celery.PidFile -Encoding ASCII
-        
-        # Wait a moment for startup
-        Start-Sleep -Seconds 2
-        
-        if ($process.HasExited) {
-            Write-Status "  Celery worker failed to start" "Error"
-            return $false
-        }
-
-        Write-Status "  Celery worker started (PID: $($process.Id))" "Success"
-        $Script:Services.Celery.UpdateStatus('Running', 'Healthy')
-        $Script:Services.Celery.Pid = $process.Id
-        return $true
-    } catch {
-        Write-Status "  Failed to start Celery: $_" "Error"
-        return $false
     }
 }
 
@@ -689,15 +537,11 @@ function Stop-Service {
 
     $config = $Script:CONFIG[$ServiceName]
     
-    if ($ServiceName -eq 'Analyzers' -or $ServiceName -eq 'Redis') {
+    if ($ServiceName -eq 'Analyzers') {
         # Docker services
         Push-Location $Script:ANALYZER_DIR
         try {
-            if ($ServiceName -eq 'Analyzers') {
-                docker-compose stop static-analyzer dynamic-analyzer performance-tester ai-analyzer gateway 2>$null | Out-Null
-            } else {
-                docker-compose stop redis 2>$null | Out-Null
-            }
+            docker-compose stop static-analyzer dynamic-analyzer performance-tester ai-analyzer gateway 2>$null | Out-Null
             Write-Status "  $ServiceName stopped" "Success"
         } finally {
             Pop-Location
@@ -730,7 +574,7 @@ function Stop-AllServices {
     Write-Banner "Stopping ThesisApp Services"
     
     # Stop in reverse dependency order
-    $stopOrder = @('Flask', 'Celery', 'Analyzers', 'Redis')
+    $stopOrder = @('Flask', 'Analyzers')
     
     foreach ($service in $stopOrder) {
         Stop-Service $service
@@ -751,7 +595,7 @@ function Show-StatusDashboard {
         Write-Host "Services Status:" -ForegroundColor Cyan
         Write-Host ("─" * 80) -ForegroundColor DarkGray
         
-        foreach ($key in @('Redis', 'Analyzers', 'Celery', 'Flask')) {
+        foreach ($key in @('Analyzers', 'Flask')) {
             $state = $Script:Services[$key]
             $isHealthy = $healthResults[$key]
             
@@ -769,9 +613,7 @@ function Show-StatusDashboard {
             # Additional info
             if ($key -eq 'Flask' -and $isHealthy) {
                 Write-Host "     URL: http://127.0.0.1:$($Script:CONFIG.Flask.Port)" -ForegroundColor DarkGray
-            }
-            if ($key -eq 'Celery' -and $state.Pid) {
-                Write-Host "     PID: $($state.Pid)" -ForegroundColor DarkGray
+                Write-Host "     Task Execution: ThreadPoolExecutor (4 workers)" -ForegroundColor DarkGray
             }
             if ($key -eq 'Analyzers' -and $state.Metadata['ServiceCount']) {
                 Write-Host "     Services: $($state.Metadata['ServiceCount'])/4" -ForegroundColor DarkGray
@@ -794,24 +636,12 @@ function Start-FullStack {
     # Dependency-aware startup sequence
     $success = $true
     
-    # 1. Redis (required for everything)
-    if (-not (Start-RedisService)) {
-        Write-Status "Failed to start Redis - cannot continue" "Error"
-        return $false
-    }
-    
-    # 2. Analyzer services (optional but recommended)
+    # 1. Analyzer services (optional but recommended)
     if (-not (Start-AnalyzerServices)) {
         Write-Status "Analyzer services failed, but continuing..." "Warning"
     }
     
-    # 3. Celery worker (requires Redis)
-    if (-not (Start-CeleryWorker)) {
-        Write-Status "Celery worker failed - analysis tasks won't execute" "Warning"
-        $success = $false
-    }
-    
-    # 4. Flask app (can work with just Redis)
+    # 2. Flask app (with built-in ThreadPoolExecutor task execution)
     if (-not (Start-FlaskApp)) {
         Write-Status "Failed to start Flask application" "Error"
         return $false
@@ -837,6 +667,7 @@ function Start-FullStack {
         Write-Banner "ThesisApp Started Successfully"
         Write-Host "🌐 Application URL: " -NoNewline -ForegroundColor Cyan
         Write-Host "http://127.0.0.1:$Port" -ForegroundColor White
+        Write-Host "⚡ Task Execution: ThreadPoolExecutor (4 workers)" -ForegroundColor Gray
         Write-Host ""
         Write-Host "💡 Quick Commands:" -ForegroundColor Cyan
         Write-Host "   .\start.ps1 -Mode Status    - Check service status" -ForegroundColor Gray
@@ -852,7 +683,7 @@ function Start-DevMode {
     Write-Banner "Starting ThesisApp (Developer Mode)"
     
     Write-Host "Developer mode configuration:" -ForegroundColor Yellow
-    Write-Host "  • Flask only (quick startup)" -ForegroundColor Gray
+    Write-Host "  • Flask with ThreadPoolExecutor (4 workers)" -ForegroundColor Gray
     Write-Host "  • Debug enabled" -ForegroundColor Gray
     Write-Host "  • Analyzer services: $(if ($NoAnalyzer) { 'Disabled' } else { 'Enabled' })" -ForegroundColor Gray
     Write-Host ""
@@ -861,11 +692,6 @@ function Start-DevMode {
     $env:FLASK_ENV = 'development'
     
     # Start minimal stack
-    if (-not (Start-RedisService)) {
-        Write-Status "Failed to start Redis" "Error"
-        return $false
-    }
-    
     if (-not $NoAnalyzer) {
         Start-AnalyzerServices | Out-Null
     }
@@ -879,8 +705,8 @@ function Show-InteractiveMenu {
     
     Write-Host "Select an option:" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "  [S] Start     - Start full stack (Flask + Celery + Analyzers)" -ForegroundColor White
-    Write-Host "  [D] Dev       - Developer mode (Flask only, debug on)" -ForegroundColor White
+    Write-Host "  [S] Start     - Start full stack (Flask + Analyzers)" -ForegroundColor White
+    Write-Host "  [D] Dev       - Developer mode (Flask + ThreadPoolExecutor, debug on)" -ForegroundColor White
     Write-Host "  [R] Rebuild   - Rebuild analyzer containers" -ForegroundColor White
     Write-Host "  [L] Logs      - View aggregated logs" -ForegroundColor White
     Write-Host "  [M] Monitor   - Live status monitoring" -ForegroundColor White
@@ -912,7 +738,6 @@ function Show-InteractiveMenu {
         'L' {
             $logFiles = @{
                 Flask = $Script:CONFIG.Flask.LogFile
-                Celery = $Script:CONFIG.Celery.LogFile
                 Analyzers = $Script:CONFIG.Analyzers.LogFile
             }
             $aggregator = [LogAggregator]::new($logFiles, (-not $NoFollow))
@@ -1185,8 +1010,8 @@ function Show-Help {
     
     Write-Host "MODES:" -ForegroundColor Cyan
     Write-Host "  Interactive   Launch interactive menu (default)" -ForegroundColor White
-    Write-Host "  Start         Start full stack (Flask + Celery + Analyzers)" -ForegroundColor White
-    Write-Host "  Dev           Developer mode (Flask only, debug enabled)" -ForegroundColor White
+    Write-Host "  Start         Start full stack (Flask + Analyzers)" -ForegroundColor White
+    Write-Host "  Dev           Developer mode (Flask with ThreadPoolExecutor, debug enabled)" -ForegroundColor White
     Write-Host "  Stop          Stop all services gracefully" -ForegroundColor White
     Write-Host "  Status        Show service status (one-time check)" -ForegroundColor White
     Write-Host "  Health        Continuous health monitoring (auto-refresh)" -ForegroundColor White
@@ -1204,10 +1029,8 @@ function Show-Help {
     Write-Host "  -Verbose      Enable verbose diagnostic output`n" -ForegroundColor White
     
     Write-Host "STARTUP SEQUENCE:" -ForegroundColor Cyan
-    Write-Host "  1. Redis       (Required - message broker for Celery)" -ForegroundColor Gray
-    Write-Host "  2. Analyzers   (Optional - 4 microservices on ports 2001-2004)" -ForegroundColor Gray
-    Write-Host "  3. Celery      (Required - background task worker)" -ForegroundColor Gray
-    Write-Host "  4. Flask       (Required - web application on port 5000)`n" -ForegroundColor Gray
+    Write-Host "  1. Analyzers   (Optional - 4 microservices on ports 2001-2004)" -ForegroundColor Gray
+    Write-Host "  2. Flask       (Required - web app with ThreadPoolExecutor on port 5000)`n" -ForegroundColor Gray
     
     Write-Host "EXAMPLES:" -ForegroundColor Cyan
     Write-Host "  .\start.ps1" -ForegroundColor Yellow
@@ -1250,7 +1073,6 @@ function Show-Help {
     
     Write-Host "LOG FILES:" -ForegroundColor Cyan
     Write-Host "  Flask:     $($Script:CONFIG.Flask.LogFile)" -ForegroundColor Gray
-    Write-Host "  Celery:    $($Script:CONFIG.Celery.LogFile)" -ForegroundColor Gray
     Write-Host "  Analyzers: $($Script:CONFIG.Analyzers.LogFile)`n" -ForegroundColor Gray
     
     Write-Host "DEPENDENCIES:" -ForegroundColor Cyan
@@ -1310,7 +1132,6 @@ try {
         'Logs' {
             $logFiles = @{
                 Flask = $Script:CONFIG.Flask.LogFile
-                Celery = $Script:CONFIG.Celery.LogFile
                 Analyzers = $Script:CONFIG.Analyzers.LogFile
             }
             $aggregator = [LogAggregator]::new($logFiles, (-not $NoFollow))

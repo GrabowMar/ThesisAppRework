@@ -32,7 +32,6 @@ class AppComponents:
     """Centralized component manager for Flask app."""
     
     def __init__(self):
-        self.celery = None
         self.task_manager = None
         self.analyzer_integration = None
         self.websocket_service = None
@@ -40,10 +39,6 @@ class AppComponents:
     def init_app(self, app: Flask):
         """Initialize components with Flask app."""
         app.extensions['app_components'] = self
-    
-    def set_celery(self, celery):
-        """Set Celery instance."""
-        self.celery = celery
     
     def set_task_manager(self, task_manager):
         """Set task manager instance."""
@@ -61,11 +56,6 @@ def get_components() -> Optional[AppComponents]:
     """Get components from current Flask app."""
     return current_app.extensions.get('app_components')
 
-def get_celery():
-    """Get Celery instance from app components."""
-    components = get_components()
-    return components.celery if components else None
-
 def get_task_manager():
     """Get task manager from app components."""
     components = get_components()
@@ -80,45 +70,23 @@ def get_websocket_service():
     """Get WebSocket service from app components."""
     components = get_components()
     svc = components.websocket_service if components else None
-    # Prefer Celery-backed service. If current looks like mock, proactively swap to Celery.
+    # Use mock service only
     try:
         if not components:
             return None
 
-        strict = bool(current_app and current_app.config.get('WEBSOCKET_STRICT_CELERY', False))
-        pref = (current_app.config.get('WEBSOCKET_SERVICE_PREFERENCE')
-                if current_app else None) or 'auto'
-
-        def _is_mock(service_obj) -> bool:
-            try:
-                # Status-based detection
-                st = service_obj.get_status() if hasattr(service_obj, 'get_status') else None
-                if isinstance(st, dict) and (st.get('service') == 'mock_websocket' or st.get('mock_mode') is True):
-                    return True
-                # Class-name heuristic as fallback
-                cls = getattr(service_obj, '__class__', None)
-                name = getattr(cls, '__name__', '') if cls else ''
-                return name.lower().startswith('mock')
-            except Exception:
-                # If we can't read status, treat as needing a switch
-                return True
-
-        # Determine if we should replace current service
-        should_prefer_celery = strict or (pref != 'mock')
-        if svc is None or (_is_mock(svc) and should_prefer_celery):
+        # If no service initialized, create mock service
+        if svc is None:
             from .extensions import SOCKETIO_AVAILABLE, socketio as _sio  # self-import safe inside function
-            from app.services.celery_websocket_service import initialize_celery_websocket_service
+            from app.services.mock_websocket_service import MockWebSocketService
             sio = _sio if (SOCKETIO_AVAILABLE and _sio) else None
             try:
-                new_svc = initialize_celery_websocket_service(sio)
+                new_svc = MockWebSocketService(sio)
                 components.set_websocket_service(new_svc)
                 return new_svc
             except Exception:
-                # In strict mode, fail hard to prevent mock usage
-                if strict:
-                    raise
-                # Otherwise, return whatever we have (possibly mock)
-                return svc
+                # Return None if we can't create service
+                return None
     except Exception:
         # Best-effort enforcement; if anything fails, return what we have
         pass

@@ -1463,6 +1463,11 @@ class AnalysisExecutor:
         import json
         import sys
         
+        logger.info(
+            "[ANALYZER-SUBPROCESS] Starting subprocess: type=%s, model=%s, app=%s, tools=%s",
+            analysis_type, model_slug, app_number, kwargs.get('tools')
+        )
+        
         try:
             # Build command - use absolute path to Python executable
             analyzer_dir = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'analyzer')
@@ -1479,7 +1484,14 @@ class AnalysisExecutor:
             if 'tools' in kwargs and kwargs['tools']:
                 cmd.extend(['--tools'] + kwargs['tools'])
             
-            logger.info(f"Running analyzer subprocess: {' '.join(cmd)}")
+            logger.info(
+                "[ANALYZER-SUBPROCESS] Command: %s (cwd=%s)",
+                ' '.join(cmd), analyzer_dir
+            )
+            logger.debug(
+                "[ANALYZER-SUBPROCESS] Python executable: %s",
+                python_exe
+            )
             
             # Set up environment with UTF-8 encoding and JSON mode
             env = os.environ.copy()
@@ -1488,6 +1500,7 @@ class AnalysisExecutor:
             env['ANALYZER_JSON'] = '1'  # Enable JSON output mode
             
             # Run with proper UTF-8 encoding
+            logger.debug("[ANALYZER-SUBPROCESS] Executing subprocess.run (timeout=1800s)...")
             result = subprocess.run(
                 cmd,
                 cwd=analyzer_dir,
@@ -1496,6 +1509,11 @@ class AnalysisExecutor:
                 encoding='utf-8',
                 env=env,
                 timeout=1800  # 30 minute timeout
+            )
+            
+            logger.info(
+                "[ANALYZER-SUBPROCESS] Process completed: returncode=%s, stdout_len=%s, stderr_len=%s",
+                result.returncode, len(result.stdout or ''), len(result.stderr or '')
             )
             
             if analysis_type == 'ai':
@@ -1512,7 +1530,10 @@ class AnalysisExecutor:
                     pass
 
             if result.returncode != 0:
-                logger.error(f"Analyzer subprocess failed: {result.stderr}")
+                logger.error(
+                    "[ANALYZER-SUBPROCESS] FAILED: returncode=%s, stderr=%s",
+                    result.returncode, result.stderr[:500] if result.stderr else "No stderr"
+                )
                 return {
                     'status': 'error',
                     'error': f"Analyzer process failed: {result.stderr}",

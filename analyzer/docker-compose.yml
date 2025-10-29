@@ -173,35 +173,6 @@ services:
           memory: 1G
           cpus: '0.5'
 
-  # Redis for caching and task queues
-  redis:
-    image: redis:7-alpine
-    command: redis-server --appendonly yes
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      # Use shell form to ensure non-zero exit on failure and wait a bit for startup
-      test: ["CMD-SHELL", "redis-cli -h 127.0.0.1 -p 6379 ping || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    user: "999:999"
-    restart: unless-stopped
-    networks:
-      - analyzer-network
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.1'
-
-volumes:
-  redis-data:
-    driver: local
-
 networks:
   analyzer-network:
     driver: bridge

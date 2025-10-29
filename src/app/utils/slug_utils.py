@@ -45,8 +45,8 @@ def normalize_model_slug(raw_slug: str) -> str:
     # Step 3: Convert spaces to hyphens (for readability in model names)
     slug = slug.replace(' ', '-')
     
-    # Step 4: Normalize dots to hyphens (e.g., "3.5" → "3-5")
-    slug = slug.replace('.', '-')
+    # Step 4: Preserve dots in slugs (e.g., keep "4.1" as is for filesystem compatibility)
+    # Note: Dots are kept to match actual directory names in generated/apps/
     
     # Step 5: Collapse multiple consecutive hyphens/underscores
     slug = re.sub(r'-+', '-', slug)

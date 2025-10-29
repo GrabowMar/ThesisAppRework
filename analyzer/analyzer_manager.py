@@ -58,7 +58,7 @@ except ImportError:
     # Fallback if running standalone
     def normalize_model_slug(raw: str) -> str:
         """Fallback slug normalization."""
-        return raw.strip().lower().replace('/', '_').replace(' ', '-').replace('.', '-')
+        return raw.strip().lower().replace('/', '_').replace(' ', '-')
     def generate_slug_variants(slug: str) -> List[str]:
         """Fallback variant generation."""
         variants = [

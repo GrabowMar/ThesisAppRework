@@ -84,7 +84,7 @@ def main():
 ║ Host: {host:<25} │ Port: {port:<10}                       ║
 ║                                                                              ║
 ║ Features:                                                                    ║
-║  • Celery Task Queue Integration                                             ║
+║  • ThreadPoolExecutor Task Execution (4 workers)                             ║
 ║  • Containerized Analyzer Services                                           ║
 ║  • Real-time Analysis Results                                                ║
 ║  • Batch Processing Capabilities                                             ║
@@ -98,10 +98,6 @@ def main():
 ║  • POST /api/analyzer/stop        - Stop analyzer services                  ║
 ║  • POST /api/analyzer/restart     - Restart analyzer services               ║
 ║                                                                              ║
-║ Celery Workers:                                                              ║
-║  To start Celery worker: celery -A app.tasks worker --loglevel=info         ║
-║  To start Celery beat: celery -A app.tasks beat --loglevel=info             ║
-║                                                                              ║
 ║ Analyzer Services:                                                           ║
 ║  Auto-start: {str(app.config.get('ANALYZER_AUTO_START', False)):<5}                                                ║
 ║  Location: ../analyzer/analyzer_manager.py                                   ║
@@ -112,7 +108,7 @@ def main():
             "Thesis App - AI Model Analyzer\n"
             f"Environment: {config_name} | Debug: {debug}\n"
             f"Host: {host} | Port: {port}\n"
-            "Features: Celery integration, Analyzer services, Real-time results, Batch processing\n"
+            "Features: ThreadPoolExecutor (4 workers), Analyzer services, Real-time results, Batch processing\n"
             "Endpoints: /health, /api/tasks/status, /api/tasks/history, /api/analyzer/*\n"
             f"Analyzer Auto-start: {app.config.get('ANALYZER_AUTO_START', False)} | Location: ../analyzer/analyzer_manager.py\n"
         )

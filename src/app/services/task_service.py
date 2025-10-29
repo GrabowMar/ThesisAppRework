@@ -107,13 +107,15 @@ class AnalysisTaskService:
             tools,
         )
         
-        # CRITICAL: Dispatch to Celery worker (unless caller opts out)
+        # CRITICAL: Dispatch to execution service (unless caller opts out)
         if dispatch:
             try:
-                AnalysisTaskService._dispatch_to_celery(task, options)
-                logger.info("Task %s dispatched to Celery successfully", task.task_id)
+                from app.services.task_execution_service import TaskExecutionService
+                execution_service = TaskExecutionService()
+                execution_service.execute_task(task.task_id, options)
+                logger.info("Task %s dispatched to execution service successfully", task.task_id)
             except Exception as e:
-                logger.error("Failed to dispatch task %s to Celery: %s", task.task_id, e)
+                logger.error("Failed to dispatch task %s: %s", task.task_id, e)
                 task.status = AnalysisStatus.FAILED
                 task.error_message = f"Dispatch failed: {str(e)}"
                 db.session.commit()
@@ -141,33 +143,6 @@ class AnalysisTaskService:
             pass
         return task
     
-    @staticmethod
-    def _dispatch_to_celery(task: AnalysisTask, custom_options: Optional[Dict[str, Any]] = None):
-        """Dispatch task to the universal Celery worker for execution."""
-        from app.tasks import execute_analysis
-        
-        model_slug = task.target_model
-        app_number = task.target_app_number
-        options = custom_options or {}
-        
-        # Tools are now the primary driver, not analysis_type
-        tools = options.get('tools')
-        if not tools:
-            logger.error(f"Task {task.task_id} has no tools to run. Aborting dispatch.")
-            task.status = AnalysisStatus.FAILED
-            task.error_message = "No tools specified for analysis."
-            db.session.commit()
-            return
-
-        logger.info(f"Dispatching universal task {task.task_id} to Celery worker with tools: {tools}")
-        
-        execute_analysis.delay(
-            model_slug=model_slug,
-            app_number=app_number,
-            tools=tools,
-            options=options
-        )
-
     @staticmethod
     def create_main_task_with_subtasks(
         model_slug: str,
@@ -288,65 +263,24 @@ class AnalysisTaskService:
             len(tools_by_service),
         )
 
-        # Reload main task with fresh relationships before dispatching subtasks.
+        # NOTE: Do NOT dispatch subtasks immediately - let the daemon TaskExecutionService pick up
+        # the main task and execute it through _execute_unified_analysis, which will then submit
+        # subtasks to the daemon's ThreadPoolExecutor (not a temporary one that dies immediately).
+        # 
+        # Previous behavior: Created TaskExecutionService here with separate ThreadPoolExecutor,
+        # marked task as RUNNING, then exited - killing the executor before subtasks completed.
+        # This prevented the daemon from ever picking up the task (it was stuck in RUNNING state).
+        
+        # Reload main task with fresh relationships for return value
         refreshed_main = AnalysisTaskService.get_task(main_task.task_id) or main_task
-
-        try:
-            AnalysisTaskService._dispatch_subtasks_to_celery(refreshed_main, tools_by_service)
-            logger.info(
-                "Dispatched %s subtasks for main task %s",
-                len(tools_by_service),
-                main_task.task_id,
-            )
-        except Exception as e:
-            logger.error("Failed to dispatch subtasks for %s: %s", main_task.task_id, e)
-            main_task.status = AnalysisStatus.FAILED
-            main_task.error_message = f"Subtask dispatch failed: {str(e)}"
-            if refreshed_main is not main_task:
-                refreshed_main.status = main_task.status
-                refreshed_main.error_message = main_task.error_message
-            db.session.commit()
+        logger.info(
+            "Main task %s with %s subtasks created and queued for daemon execution",
+            main_task.task_id,
+            len(tools_by_service)
+        )
 
         return refreshed_main
     
-    @staticmethod
-    def _dispatch_subtasks_to_celery(main_task: AnalysisTask, tools_by_service: Dict[str, List[str]]):
-        """Dispatch subtasks to Celery workers in parallel using the universal subtask runner.
-        
-        Args:
-            main_task: Main AnalysisTask with populated subtasks relationship
-            tools_by_service: Dict mapping service names to lists of tool names (not IDs)
-        """
-        from app.tasks import run_analyzer_subtask, aggregate_subtask_results
-        from celery import group
-        
-        subtask_signatures = []
-        for subtask in main_task.subtasks:
-            # Get tool names directly from tools_by_service (no ID resolution needed)
-            tool_names = tools_by_service.get(subtask.service_name, [])
-            
-            if not tool_names:
-                logger.warning(f"No tools found for subtask {subtask.task_id} service {subtask.service_name}")
-                continue
-            
-            subtask_signatures.append(
-                run_analyzer_subtask.s(
-                    subtask.id, 
-                    subtask.target_model, 
-                    subtask.target_app_number, 
-                    tool_names,
-                    subtask.service_name
-                )
-            )
-            logger.debug(f"Added signature for {subtask.service_name} subtask {subtask.id} with tools: {tool_names}")
-        
-        if subtask_signatures:
-            job = group(subtask_signatures) | aggregate_subtask_results.s(main_task.task_id)
-            job.apply_async()
-            logger.info(f"Dispatched {len(subtask_signatures)} subtasks in parallel for main task {main_task.task_id}")
-        else:
-            logger.warning(f"No valid subtasks to dispatch for main task {main_task.task_id}")
-
     @staticmethod
     def _estimate_task_duration(analysis_type: str, config: Dict[str, Any]) -> int:
         mapping = {
@@ -658,8 +592,10 @@ class TaskQueueService:
             return []
         
         # Get pending tasks ordered by priority
+        # ONLY get main tasks (subtasks are handled by their parent task's executor)
         pending_tasks = AnalysisTask.query.filter_by(
-            status=AnalysisStatus.PENDING
+            status=AnalysisStatus.PENDING,
+            is_main_task=True  # Prevent daemon from picking up subtasks
         ).order_by(
             self._get_priority_order(),
             AnalysisTask.created_at.asc()
