@@ -11,13 +11,13 @@
   {# Build view structure for unified header #}
   {% set status_color = 'success' if descriptor.status in ['completed', 'success'] else ('danger' if descriptor.status in ['failed', 'error'] else 'secondary') %}
   {% set view = {
-    'pretitle': descriptor.analysis_type.replace('_', ' ').title() + ' Analysis',
+    'pretitle': descriptor.task_name.replace('_', ' ').title() + ' Analysis',
     'icon': 'fa-solid fa-microscope',
     'title': page_title,
     'subtitle': 'Result ID: ' + descriptor.identifier[:24] + ('…' if descriptor.identifier|length > 24 else '') + ' · ' + descriptor.display_timestamp(),
     'badges': [
       {'label': descriptor.status.replace('_', ' ').title(), 'variant': 'badge bg-' + status_color + '-lt text-' + status_color, 'icon': 'fa-solid fa-circle-dot'},
-      {'label': descriptor.analysis_type.replace('_', ' ').title(), 'variant': 'badge bg-primary-lt text-primary'},
+      {'label': descriptor.task_name.replace('_', ' ').title(), 'variant': 'badge bg-primary-lt text-primary'},
       {'label': (descriptor.tools_used|length|string) + ' tools', 'variant': 'badge bg-info-lt text-info'} if descriptor.tools_used else None
     ]|select|list,
     'actions': [
@@ -53,7 +53,7 @@
     },
     {
       'label': 'Analysis Type',
-      'value': descriptor.analysis_type.replace('_', ' ').title(),
+      'value': descriptor.task_name.replace('_', ' ').title(),
       'hint': metadata.get('module', 'N/A'),
       'icon': 'fa-solid fa-tag'
     },

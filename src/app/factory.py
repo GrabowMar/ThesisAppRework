@@ -447,39 +447,6 @@ def create_app(config_name: str = 'default') -> Flask:
     except Exception as _mw_err:  # pragma: no cover
         logger.warning(f"Request logging middleware not active: {_mw_err}")
     
-    # Health check endpoint
-    @app.route('/health')
-    def health_check():
-        """Application health check endpoint."""
-        from app.services.service_locator import ServiceLocator
-        health_service = ServiceLocator.get_health_service()
-        
-        if not health_service:
-            return {
-                "status": "unhealthy",
-                "message": "HealthService not available"
-            }, 500
-
-        health_status = health_service.check_all()
-        
-        # Determine overall status
-        is_healthy = all(
-            component["status"] == "healthy"
-            for component in health_status.values()
-        )
-        
-        overall_status = "healthy" if is_healthy else "degraded"
-        
-        # If database is down, the whole system is unhealthy
-        if health_status.get("database", {}).get("status") != "healthy":
-            overall_status = "unhealthy"
-
-        return {
-            'status': overall_status,
-            'components': health_status,
-            'timestamp': datetime.now(timezone.utc).isoformat()
-        }
-    
     logger.info(f"Flask application created successfully with config: {config_name}")
 
     # Log disabled analysis models (environment-driven gating) for operator visibility

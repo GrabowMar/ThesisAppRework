@@ -193,7 +193,7 @@ def run_analysis():
                 task = AnalysisTaskService.create_main_task_with_subtasks(
                     model_slug=model_slug,
                     app_number=app_number,
-                    analysis_type='unified',
+                    tools=tool_names,
                     tools_by_service=tools_by_service,
                     priority=priority,
                     custom_options={
@@ -219,7 +219,7 @@ def run_analysis():
                 task = AnalysisTaskService.create_task(
                     model_slug=model_slug,
                     app_number=app_number,
-                    analysis_type=engine_name,
+                    tools=tool_names,
                     priority=priority,
                     custom_options={
                         'selected_tools': tool_ids,
@@ -246,7 +246,7 @@ def run_analysis():
                 task = AnalysisTaskService.create_main_task_with_subtasks(
                     model_slug=model_slug,
                     app_number=app_number,
-                    analysis_type=analysis_type,
+                    tools=all_tool_names,
                     tools_by_service=tools_by_service,
                     priority=priority,
                     custom_options={
@@ -254,18 +254,30 @@ def run_analysis():
                         'selected_tool_names': all_tool_names,
                         'tools_by_service': tools_by_service,
                         'unified_analysis': True,
-                        'source': 'api'
+                        'source': 'api',
+                        'original_analysis_type': analysis_type
                     },
                     task_name=f"api:{model_slug}:{app_number}"
                 )
             else:
                 # Run default tools for specified analysis type
+                # This part is tricky as analysis_type is deprecated.
+                # We'll map it to a default set of tools.
+                # This is a placeholder for a more robust mapping.
+                default_tools_map = {
+                    'security': ['bandit', 'safety', 'eslint'],
+                    'performance': ['locust'],
+                    'dynamic': ['zap'],
+                    'ai': ['ai-analyzer']
+                }
+                tools_to_run = default_tools_map.get(analysis_type, ['bandit', 'safety'])
+
                 task = AnalysisTaskService.create_task(
                     model_slug=model_slug,
                     app_number=app_number,
-                    analysis_type=analysis_type,
+                    tools=tools_to_run,
                     priority=priority,
-                    custom_options={'source': 'api'}
+                    custom_options={'source': 'api', 'original_analysis_type': analysis_type}
                 )
         
         # Return task information

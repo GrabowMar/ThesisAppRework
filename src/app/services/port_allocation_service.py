@@ -15,6 +15,7 @@ Key features:
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any, List
 from dataclasses import dataclass
@@ -80,6 +81,9 @@ class PortAllocationService:
         3. Dynamically allocate the next free port pair
         4. Register the allocation in the database
         
+        This method is thread-safe using retry logic to handle race conditions
+        during concurrent generation requests.
+        
         Args:
             model_name: The model name (e.g., "openai_gpt-4")
             app_num: The application number (1-based)
@@ -109,29 +113,68 @@ class PortAllocationService:
                 backend = config.get('backend_port')
                 frontend = config.get('frontend_port')
                 if backend and frontend:
-                    # Register in database
-                    self._register_ports(model_name, app_num, backend, frontend)
-                    logger.info(f"Using pre-configured ports for {model_name}/app{app_num}: "
-                               f"backend={backend}, frontend={frontend}")
-                    return PortPair(
-                        backend=backend,
-                        frontend=frontend,
-                        model=model_name,
-                        app_num=app_num
-                    )
+                    # Try to register in database (this will handle conflicts)
+                    try:
+                        self._register_ports(model_name, app_num, backend, frontend)
+                        logger.info(f"Using pre-configured ports for {model_name}/app{app_num}: "
+                                   f"backend={backend}, frontend={frontend}")
+                        return PortPair(
+                            backend=backend,
+                            frontend=frontend,
+                            model=model_name,
+                            app_num=app_num
+                        )
+                    except ValueError as e:
+                        # Ports already in use, continue to dynamic allocation
+                        logger.warning(f"Pre-configured ports unavailable for {model_name}/app{app_num}: {e}")
+                        break
         
-        # 3. Dynamically allocate next free port pair
-        backend, frontend = self._find_next_free_ports()
-        self._register_ports(model_name, app_num, backend, frontend)
-        logger.info(f"Dynamically allocated ports for {model_name}/app{app_num}: "
-                   f"backend={backend}, frontend={frontend}")
+        # 3. Dynamically allocate next free port pair with retry logic
+        max_retries = 5
+        retry_count = 0
+        last_error = None
         
-        return PortPair(
-            backend=backend,
-            frontend=frontend,
-            model=model_name,
-            app_num=app_num
-        )
+        while retry_count < max_retries:
+            try:
+                backend, frontend = self._find_next_free_ports()
+                self._register_ports(model_name, app_num, backend, frontend)
+                logger.info(f"Dynamically allocated ports for {model_name}/app{app_num}: "
+                           f"backend={backend}, frontend={frontend}")
+                
+                return PortPair(
+                    backend=backend,
+                    frontend=frontend,
+                    model=model_name,
+                    app_num=app_num
+                )
+            except ValueError as e:
+                # Port conflict - ports were taken between our check and registration
+                # This can happen with concurrent requests
+                retry_count += 1
+                last_error = e
+                logger.warning(f"Port allocation collision (retry {retry_count}/{max_retries}): {e}")
+                
+                if retry_count >= max_retries:
+                    break
+                
+                # Small delay to reduce contention
+                import time
+                time.sleep(0.1 * retry_count)
+            except Exception as e:
+                # Other errors (database issues, etc.)
+                logger.error(f"Unexpected error during port allocation: {e}")
+                raise
+        
+        # If we've exhausted retries, raise the last error
+        if last_error:
+            logger.error(f"Failed to allocate ports after {max_retries} retries")
+            raise RuntimeError(
+                f"Failed to allocate ports for {model_name}/app{app_num} after {max_retries} "
+                f"retries. Last error: {last_error}"
+            )
+        
+        # This should never be reached, but for type safety:
+        raise RuntimeError(f"Failed to allocate ports for {model_name}/app{app_num}")
     
     def _find_next_free_ports(self) -> Tuple[int, int]:
         """Find the next free backend/frontend port pair.
@@ -166,14 +209,34 @@ class PortAllocationService:
                        backend_port: int, frontend_port: int) -> None:
         """Register port allocation in the database.
         
+        This method handles race conditions by checking for existing allocations
+        and port conflicts before inserting. It's designed to work with SQLite
+        which has limited locking capabilities.
+        
         Args:
             model_name: The model name
             app_num: The application number
             backend_port: The backend port to register
             frontend_port: The frontend port to register
+        
+        Raises:
+            ValueError: If ports are already in use or allocation already exists
         """
         try:
-            # Check for conflicts
+            # Check if this model/app combo already has an allocation
+            existing_alloc = PortConfiguration.query.filter_by(
+                model=model_name,
+                app_num=app_num
+            ).first()
+            
+            if existing_alloc:
+                # Allocation already exists - this is OK, just use it
+                logger.debug(f"Port allocation already exists for {model_name}/app{app_num}, "
+                           f"using existing: backend={existing_alloc.backend_port}, "
+                           f"frontend={existing_alloc.frontend_port}")
+                return
+            
+            # Check for port conflicts
             conflict = PortConfiguration.query.filter(
                 or_(
                     PortConfiguration.backend_port == backend_port,
@@ -182,10 +245,10 @@ class PortAllocationService:
             ).first()
             
             if conflict:
-                logger.error(f"Port conflict detected! Attempted to register "
-                           f"backend={backend_port}, frontend={frontend_port} "
-                           f"but they're already used by {conflict.model}/app{conflict.app_num}")
-                raise ValueError("Port conflict: ports already in use")
+                raise ValueError(
+                    f"Port conflict: backend={backend_port} or frontend={frontend_port} "
+                    f"already in use by {conflict.model}/app{conflict.app_num}"
+                )
             
             # Create new allocation
             port_config = PortConfiguration()
@@ -194,15 +257,40 @@ class PortAllocationService:
             port_config.backend_port = backend_port
             port_config.frontend_port = frontend_port
             port_config.is_available = True
+            
             db.session.add(port_config)
             db.session.commit()
             
             logger.debug(f"Registered ports for {model_name}/app{app_num}: "
                         f"backend={backend_port}, frontend={frontend_port}")
         
-        except Exception as e:
+        except ValueError:
+            # Re-raise ValueError (port conflicts) as-is
             db.session.rollback()
-            logger.error(f"Failed to register ports for {model_name}/app{app_num}: {e}")
+            raise
+        except Exception as e:
+            # Handle database errors (like UNIQUE constraint violations)
+            db.session.rollback()
+            
+            # Check if it's a duplicate entry error
+            error_msg = str(e).lower()
+            if 'unique' in error_msg or 'duplicate' in error_msg:
+                # Check if allocation now exists (race condition)
+                existing = PortConfiguration.query.filter_by(
+                    model=model_name,
+                    app_num=app_num
+                ).first()
+                
+                if existing:
+                    # Another thread created it - that's OK
+                    logger.debug(f"Port allocation created by another request for {model_name}/app{app_num}")
+                    return
+                
+                # Otherwise, it's a port conflict
+                raise ValueError(f"Port conflict during registration: {e}")
+            
+            # Other database errors
+            logger.error(f"Database error registering ports for {model_name}/app{app_num}: {e}")
             raise
     
     def release_ports(self, model_name: str, app_num: int) -> bool:
@@ -289,6 +377,42 @@ class PortAllocationService:
                 conflicts.append(f"Frontend port {port} used by multiple apps: {', '.join(apps)}")
         
         return conflicts
+    
+    def cleanup_orphaned_allocations(self, model_name: Optional[str] = None) -> int:
+        """Remove port allocations for apps that no longer exist on disk.
+        
+        Args:
+            model_name: Optional - only clean up for specific model
+            
+        Returns:
+            Number of allocations removed
+        """
+        from app.paths import GENERATED_APPS_DIR
+        
+        removed_count = 0
+        query = PortConfiguration.query
+        
+        if model_name:
+            query = query.filter_by(model=model_name)
+        
+        allocations = query.all()
+        
+        for alloc in allocations:
+            # Check if app directory exists
+            safe_model = re.sub(r'[^\w\-.]', '_', alloc.model)
+            app_dir = GENERATED_APPS_DIR / safe_model / f"app{alloc.app_num}"
+            
+            if not app_dir.exists():
+                logger.info(f"Removing orphaned port allocation for {alloc.model}/app{alloc.app_num} "
+                           f"(app directory not found)")
+                db.session.delete(alloc)
+                removed_count += 1
+        
+        if removed_count > 0:
+            db.session.commit()
+            logger.info(f"Cleaned up {removed_count} orphaned port allocation(s)")
+        
+        return removed_count
 
 
 # Singleton accessor

@@ -119,7 +119,7 @@
           <th scope="col">Task ID</th>
           <th scope="col">Model</th>
           <th scope="col" class="text-center">App</th>
-          <th scope="col">Type</th>
+          <th scope="col">Tools</th>
           <th scope="col" class="text-center">Status</th>
           <th scope="col">Progress / Findings</th>
           <th scope="col" class="text-end">Time</th>
@@ -158,8 +158,20 @@
               <td class="text-center">
                 <strong>{{ item.app }}</strong>
               </td>
-              <td class="text-capitalize text-muted small">
-                {{ item.analysis_type }}
+              <td style="max-width: 250px;">
+                {% set tools = item.task_name.split(',')|map('trim')|list %}
+                {% if tools and tools[0] %}
+                  <div class="d-flex flex-wrap gap-1">
+                    {% for tool in tools[:3] %}
+                      <span class="badge bg-secondary-lt">{{ tool }}</span>
+                    {% endfor %}
+                    {% if tools|length > 3 %}
+                      <span class="badge bg-secondary-lt" title="{{ tools[3:]|join(', ') }}">+{{ tools|length - 3 }} more</span>
+                    {% endif %}
+                  </div>
+                {% else %}
+                  <span class="text-muted fst-italic">N/A</span>
+                {% endif %}
               </td>
               <td class="text-center">
                 {% if item.status == 'running' %}

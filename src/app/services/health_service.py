@@ -57,29 +57,30 @@ class HealthService:
             redis_url = current_app.config.get("CELERY_BROKER_URL") or os.environ.get("REDIS_URL", "redis://localhost:6379/0")
             
             # Use redis.from_url to handle parsing and connection
-            r = redis.from_url(redis_url)
+            r = redis.from_url(redis_url, socket_connect_timeout=2)
             
             if r.ping():
                 return {"status": "healthy", "message": "Connected"}
             else:
-                return {"status": "degraded", "message": "Ping failed"}
+                # Fail hard - Redis must be available
+                return {"status": "unhealthy", "message": "Ping failed - Redis unreachable"}
         except redis.exceptions.ConnectionError as e:
-            # Try to parse the URL to provide a better error message
+            # Fail hard on connection errors
             try:
                 parsed_url = urlparse(redis_url)
-                host = parsed_url.hostname
-                port = parsed_url.port
+                host = parsed_url.hostname or 'localhost'
+                port = parsed_url.port or 6379
                 return {
-                    "status": "degraded",
-                    "message": f"Ping failed: {e} connecting to {host}:{port}. Check if Redis is running and accessible.",
+                    "status": "unhealthy",
+                    "message": f"Connection failed connecting to {host}:{port}. Redis must be running.",
                 }
             except Exception:
                  return {
                     "status": "unhealthy",
-                    "message": f"Connection failed: {e}. Invalid REDIS_URL format.",
+                    "message": f"Connection failed: {e}. Redis must be running.",
                 }
         except Exception as e:
-            return {"status": "unhealthy", "message": f"An unexpected error occurred: {e}"}
+            return {"status": "unhealthy", "message": f"Redis check failed: {e}"}
 
 
     def check_celery(self) -> Dict[str, Any]:
@@ -90,14 +91,18 @@ class HealthService:
             A dictionary with the status and a message.
         """
         try:
-            stats = celery.control.inspect().stats()
+            # Set timeout to avoid hanging
+            inspect = celery.control.inspect(timeout=2.0)
+            stats = inspect.stats()
             if not stats:
-                return {"status": "degraded", "message": "No running workers found"}
+                # Fail hard - Celery workers must be running
+                return {"status": "unhealthy", "message": "No running workers found - Celery worker required"}
             
             worker_count = len(stats)
             return {"status": "healthy", "message": f"{worker_count} worker(s) online"}
         except Exception as e:
-            return {"status": "unhealthy", "message": f"Cannot connect to message broker: {e}"}
+            # Fail hard on any Celery connection error
+            return {"status": "unhealthy", "message": f"Cannot connect to Celery: {e}"}
 
     def check_analyzer(self, name: str, port: int) -> Dict[str, Any]:
         """

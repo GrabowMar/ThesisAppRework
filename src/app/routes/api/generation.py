@@ -132,9 +132,12 @@ def generate():
         data = request.get_json() or {}
         
         # Required parameters
-        model_slug = data.get('model_slug')
+        model_slug_raw = data.get('model_slug')
         app_num = data.get('app_num')
         template_id = data.get('template_id', 1)
+        
+        # Normalize model slug to match database format (replace / with _)
+        model_slug = model_slug_raw.replace('/', '_') if model_slug_raw else None
         
         if not model_slug or app_num is None:
             return create_error_response(
@@ -146,7 +149,7 @@ def generate():
         from app.models import ModelCapability
         model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
         if not model:
-            logger.error(f"Model not found in database: {model_slug}")
+            logger.error(f"Model not found in database: {model_slug} (raw: {model_slug_raw})")
             return create_error_response(
                 f"Model '{model_slug}' not found in database. Please ensure the model is loaded.",
                 404

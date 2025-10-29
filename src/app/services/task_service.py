@@ -26,92 +26,154 @@ class AnalysisTaskService:
     def create_task(
         model_slug: str,
         app_number: int,
-        analysis_type: str,
+        tools: List[str],  # Replaced analysis_type with tools
         config_id: Optional[str] = None,
         priority: str = Priority.NORMAL.value,
         custom_options: Optional[Dict[str, Any]] = None,
         batch_id: Optional[int] = None,
         task_name: Optional[str] = None,
-        description: Optional[str] = None
+        description: Optional[str] = None,
+        dispatch: bool = True,
     ) -> AnalysisTask:
-        """Create and persist an AnalysisTask using actual model fields.
+        """Create and persist an AnalysisTask based on a list of tools.
 
-        Notes:
-        - Maps legacy (model_slug/app_number) to target_model/target_app_number.
-        - Stores enum instances directly (model uses Enum columns).
-        - Accepts integer batch DB id; stores its batch_id string in task.batch_id.
+        Args:
+            model_slug: Model identifier.
+            app_number: Application number.
+            tools: Canonical tool names to execute.
+            config_id: Optional analyzer configuration id.
+            priority: Task priority enum value.
+            custom_options: Metadata stored with the task.
+            batch_id: Optional batch identifier.
+            task_name: Optional override for task name.
+            description: Optional description.
+            dispatch: When False, skip immediate Celery dispatch (caller handles).
         """
         task_uuid = f"task_{uuid.uuid4().hex[:12]}"
 
-        # Resolve analyzer configuration
+        # Resolve analyzer configuration (less relevant now, but kept for structure)
         analyzer_config = None
         if config_id:
             try:
-                analyzer_config = AnalyzerConfiguration.query.get(int(config_id))  # type: ignore[arg-type]
+                analyzer_config = AnalyzerConfiguration.query.get(int(config_id))
             except Exception:
                 analyzer_config = None
         if analyzer_config is None:
             analyzer_config = AnalyzerConfiguration.query.first()
         if analyzer_config is None:
-            default_type = list(AnalysisType)[0]
-            analyzer_config = AnalyzerConfiguration()
-            analyzer_config.name = f"AutoDefault-{default_type.value}"
-            analyzer_config.analyzer_type = default_type
-            analyzer_config.config_data = "{}"
+            # Create a default config if none exists
+            analyzer_config = AnalyzerConfiguration(
+                name="AutoDefault-Universal",
+                analyzer_type=AnalysisType.CUSTOM, # Use a generic type
+                config_data="{}"
+            )
             db.session.add(analyzer_config)
             db.session.flush()
 
-        at_enum = next((at for at in AnalysisType if at.value == analysis_type), None) or list(AnalysisType)[0]
+        # Use a generic/custom analysis type as the old enum is deprecated
+        at_enum = AnalysisType.CUSTOM
         pr_enum = next((pr for pr in Priority if pr.value == priority), None) or Priority.NORMAL
 
         task = AnalysisTask()
         task.task_id = task_uuid
         task.analyzer_config_id = analyzer_config.id
-        task.analysis_type = at_enum
         task.status = AnalysisStatus.PENDING
         task.priority = pr_enum
         task.target_model = model_slug
         task.target_app_number = app_number
-        task.task_name = task_name or f"{at_enum.value}:{model_slug}:{app_number}"
+        task.task_name = task_name or f"custom:{model_slug}:{app_number}"
         task.description = description
+        
+        # Store tools in metadata
+        options: Dict[str, Any] = dict(custom_options or {})
+        options['tools'] = tools
+        
         if batch_id is not None:
             batch_obj = BatchAnalysis.query.get(batch_id)
             if batch_obj:
                 task.batch_id = batch_obj.batch_id
-        if custom_options:
-            try:
-                task.set_metadata({'custom_options': custom_options})
-            except Exception:
-                pass
+        
+        try:
+            task.set_metadata({'custom_options': options})
+        except Exception:
+            pass
+            
         db.session.add(task)
         db.session.commit()
-        logger.info(f"Created analysis task {task.task_id}: {at_enum.value} for {model_slug} app {app_number}")
+        logger.info(
+            "Created analysis task %s for %s app %s with tools: %s",
+            task.task_id,
+            model_slug,
+            app_number,
+            tools,
+        )
+        
+        # CRITICAL: Dispatch to Celery worker (unless caller opts out)
+        if dispatch:
+            try:
+                AnalysisTaskService._dispatch_to_celery(task, options)
+                logger.info("Task %s dispatched to Celery successfully", task.task_id)
+            except Exception as e:
+                logger.error("Failed to dispatch task %s to Celery: %s", task.task_id, e)
+                task.status = AnalysisStatus.FAILED
+                task.error_message = f"Dispatch failed: {str(e)}"
+                db.session.commit()
+        
         # Realtime event (best-effort)
-        try:  # pragma: no cover - small wrapper
+        try:
             from app.realtime.task_events import emit_task_event
+            status_value = task.status.value if hasattr(task.status, 'value') else str(task.status)
+            analysis_label = options.get('analysis_type') or (task.task_name or 'analysis')
             emit_task_event(
                 "task.created",
                 {
                     "id": task.id,
                     "task_id": task.task_id,
-                    "analysis_type": task.analysis_type.value if task.analysis_type else None,
-                    "status": task.status.value if task.status else None,
-                    "priority": task.priority.value if task.priority else None,
+                    "analysis_type": analysis_label,
+                    "status": status_value,
+                    "priority": task.priority.value,
                     "target_model": task.target_model,
                     "target_app_number": task.target_app_number,
                     "progress_percentage": task.progress_percentage,
-                    "created_at": task.created_at.isoformat() if task.created_at else None,
+                    "created_at": task.created_at.isoformat(),
                 },
             )
         except Exception:
             pass
         return task
+    
+    @staticmethod
+    def _dispatch_to_celery(task: AnalysisTask, custom_options: Optional[Dict[str, Any]] = None):
+        """Dispatch task to the universal Celery worker for execution."""
+        from app.tasks import execute_analysis
+        
+        model_slug = task.target_model
+        app_number = task.target_app_number
+        options = custom_options or {}
+        
+        # Tools are now the primary driver, not analysis_type
+        tools = options.get('tools')
+        if not tools:
+            logger.error(f"Task {task.task_id} has no tools to run. Aborting dispatch.")
+            task.status = AnalysisStatus.FAILED
+            task.error_message = "No tools specified for analysis."
+            db.session.commit()
+            return
+
+        logger.info(f"Dispatching universal task {task.task_id} to Celery worker with tools: {tools}")
+        
+        execute_analysis.delay(
+            model_slug=model_slug,
+            app_number=app_number,
+            tools=tools,
+            options=options
+        )
 
     @staticmethod
     def create_main_task_with_subtasks(
         model_slug: str,
         app_number: int,
-        analysis_type: str,
+        tools: List[str],
         tools_by_service: Dict[str, List[int]],
         config_id: Optional[str] = None,
         priority: str = Priority.NORMAL.value,
@@ -137,89 +199,141 @@ class AnalysisTaskService:
         Returns:
             Main AnalysisTask with subtasks created
         """
-        # Create main task
+        base_options: Dict[str, Any] = dict(custom_options or {})
+        base_options.setdefault('tools_by_service', tools_by_service)
+        base_options.setdefault('unified_analysis', True)
+        base_options.setdefault('selected_tool_names', tools)
+
+        # Create the main task without dispatching; subtasks handle execution.
         main_task = AnalysisTaskService.create_task(
             model_slug=model_slug,
             app_number=app_number,
-            analysis_type=analysis_type,
+            tools=tools,
             config_id=config_id,
             priority=priority,
-            custom_options=custom_options,
+            custom_options=base_options,
             batch_id=batch_id,
             task_name=task_name,
-            description=description
+            description=description,
+            dispatch=False,
         )
-        
-        # Mark as main task
+
         main_task.is_main_task = True
         main_task.total_steps = len(tools_by_service)
         main_task.completed_steps = 0
-        
-        # Create subtasks for each service
+        main_task.status = AnalysisStatus.PENDING
+        db.session.add(main_task)
+        db.session.commit()
+
+        analyzer_config_id = main_task.analyzer_config_id
+        pr_enum = main_task.priority
+
         for service_name, tool_ids in tools_by_service.items():
             subtask_uuid = f"task_{uuid.uuid4().hex[:12]}"
-            
-            # Resolve analyzer configuration (same as main task)
-            analyzer_config = None
-            if config_id:
-                try:
-                    analyzer_config = AnalyzerConfiguration.query.get(int(config_id))
-                except Exception:
-                    analyzer_config = None
-            if analyzer_config is None:
-                analyzer_config = AnalyzerConfiguration.query.first()
-            if analyzer_config is None:
-                default_type = list(AnalysisType)[0]
-                analyzer_config = AnalyzerConfiguration()
-                analyzer_config.name = f"AutoDefault-{default_type.value}"
-                analyzer_config.analyzer_type = default_type
-                analyzer_config.config_data = "{}"
-                db.session.add(analyzer_config)
-                db.session.flush()
-            
-            at_enum = next((at for at in AnalysisType if at.value == analysis_type), None) or list(AnalysisType)[0]
-            pr_enum = next((pr for pr in Priority if pr.value == priority), None) or Priority.NORMAL
-            
+
             subtask = AnalysisTask()
             subtask.task_id = subtask_uuid
             subtask.parent_task_id = main_task.task_id
             subtask.is_main_task = False
             subtask.service_name = service_name
-            subtask.analyzer_config_id = analyzer_config.id
-            subtask.analysis_type = at_enum
+            subtask.analyzer_config_id = analyzer_config_id
             subtask.status = AnalysisStatus.PENDING
             subtask.priority = pr_enum
             subtask.target_model = model_slug
             subtask.target_app_number = app_number
             subtask.task_name = f"{service_name}:{model_slug}:{app_number}"
-            subtask.description = f"Subtask for {service_name} service"
-            
+            subtask.description = description or f"Subtask for {service_name} service"
+            subtask.progress_percentage = 0.0
+
             if batch_id is not None:
                 batch_obj = BatchAnalysis.query.get(batch_id)
                 if batch_obj:
                     subtask.batch_id = batch_obj.batch_id
-            
-            # Store service-specific metadata
-            subtask_options = {
+
+            subtask_options: Dict[str, Any] = {
                 'service_name': service_name,
-                'tool_ids': tool_ids,
-                'parent_task_id': main_task.task_id
+                'tool_ids': list(tool_ids),
+                'parent_task_id': main_task.task_id,
+                'unified_analysis': True,
             }
             if custom_options:
                 subtask_options.update(custom_options)
-            
+
             try:
                 subtask.set_metadata({'custom_options': subtask_options})
             except Exception:
                 pass
-            
+
             db.session.add(subtask)
-            logger.info(f"Created subtask {subtask.task_id} for service {service_name} under main task {main_task.task_id}")
-        
+            logger.info(
+                "Created subtask %s for service %s under main task %s",
+                subtask.task_id,
+                service_name,
+                main_task.task_id,
+            )
+
         db.session.commit()
-        logger.info(f"Created main task {main_task.task_id} with {len(tools_by_service)} subtasks")
+        logger.info(
+            "Created main task %s with %s subtasks",
+            main_task.task_id,
+            len(tools_by_service),
+        )
+
+        # Reload main task with fresh relationships before dispatching subtasks.
+        refreshed_main = AnalysisTaskService.get_task(main_task.task_id) or main_task
+
+        try:
+            AnalysisTaskService._dispatch_subtasks_to_celery(refreshed_main, tools_by_service)
+            logger.info(
+                "Dispatched %s subtasks for main task %s",
+                len(tools_by_service),
+                main_task.task_id,
+            )
+        except Exception as e:
+            logger.error("Failed to dispatch subtasks for %s: %s", main_task.task_id, e)
+            main_task.status = AnalysisStatus.FAILED
+            main_task.error_message = f"Subtask dispatch failed: {str(e)}"
+            if refreshed_main is not main_task:
+                refreshed_main.status = main_task.status
+                refreshed_main.error_message = main_task.error_message
+            db.session.commit()
+
+        return refreshed_main
+    
+    @staticmethod
+    def _dispatch_subtasks_to_celery(main_task: AnalysisTask, tools_by_service: Dict[str, List[int]]):
+        """Dispatch subtasks to Celery workers in parallel using the universal subtask runner."""
+        from app.tasks import run_analyzer_subtask, aggregate_subtask_results
+        from celery import group
+        from app.engines.container_tool_registry import get_container_tool_registry
         
-        return main_task
+        registry = get_container_tool_registry()
+        all_tools = registry.get_all_tools()
+        id_to_name = {idx + 1: name for idx, name in enumerate(all_tools.keys())}
+        
+        subtask_signatures = []
+        for subtask in main_task.subtasks:
+            tool_ids = tools_by_service.get(subtask.service_name, [])
+            tool_names = [id_to_name.get(tool_id) for tool_id in tool_ids if tool_id in id_to_name]
+            tool_names = [name for name in tool_names if name]
+            
+            subtask_signatures.append(
+                run_analyzer_subtask.s(
+                    subtask.id, 
+                    subtask.target_model, 
+                    subtask.target_app_number, 
+                    tool_names,
+                    subtask.service_name
+                )
+            )
+            logger.debug(f"Added signature for {subtask.service_name} subtask {subtask.id} with tools: {tool_names}")
+        
+        if subtask_signatures:
+            job = group(subtask_signatures) | aggregate_subtask_results.s(main_task.task_id)
+            job.apply_async()
+            logger.info(f"Dispatched {len(subtask_signatures)} subtasks in parallel for main task {main_task.task_id}")
+        else:
+            logger.warning(f"No valid subtasks to dispatch for main task {main_task.task_id}")
 
     @staticmethod
     def _estimate_task_duration(analysis_type: str, config: Dict[str, Any]) -> int:

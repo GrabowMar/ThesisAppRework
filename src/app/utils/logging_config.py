@@ -642,6 +642,7 @@ class LoggingConfig:
             'celery.worker.control',
             'celery.app.trace',
             'celery.task',
+            'celery.beat',
         ]
         
         for logger_name in celery_loggers:

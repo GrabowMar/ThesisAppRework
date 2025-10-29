@@ -38,7 +38,6 @@ from app.config.config_manager import get_config
 from app.extensions import db, get_components
 from app.models import AnalysisTask
 from app.constants import AnalysisStatus
-from app.services import analysis_result_store
 from app.services.result_summary_utils import summarise_findings
 
 logger = get_logger("task_executor")
@@ -316,14 +315,14 @@ class TaskExecutionService:
         """Execute real analysis using the analysis engines."""
         try:
             # Get the analysis type (string)
-            analysis_type = task.analysis_type.value if hasattr(task.analysis_type, 'value') else str(task.analysis_type)
+            analysis_type = task.task_name
             
             # Update progress to indicate analysis starting
             task.progress_percentage = 20.0
             db.session.commit()
             
             # Import engine registry and resolve a valid engine name
-            from app.services.analysis_engines import get_engine, ENGINE_REGISTRY
+            from app.services.analysis_engines import get_engine
 
             # Check if this is a unified analysis with tools from multiple services
             meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
@@ -375,7 +374,7 @@ class TaskExecutionService:
                 return self._execute_unified_analysis(task)
             else:
                 # Regular single-engine analysis
-                engine_name = analysis_type
+                engine_name = task.task_name
                 # Defensive correction: if metadata shows ONLY ai-analyzer tools but engine not 'ai', fix it.
                 try:
                     only_services = list(meta_tools_by_service.keys())
@@ -387,14 +386,12 @@ class TaskExecutionService:
                         engine_name = 'ai'
                 except Exception:
                     pass
-                if engine_name not in ENGINE_REGISTRY:
-                    # Fallback: treat unknown/custom types as security (static) analysis
-                    engine_name = 'security'
+                
                 engine = get_engine(engine_name)
                 
                 logger.info(
                     "Executing %s analysis for task %s",
-                    analysis_type,
+                    engine_name,
                     getattr(task, "task_id", "unknown")
                 )
             
@@ -628,10 +625,7 @@ class TaskExecutionService:
             # Prepare parallel task invocations
             from celery import group, chord
             from app.tasks import (
-                run_static_analyzer_subtask,
-                run_dynamic_analyzer_subtask,
-                run_performance_tester_subtask,
-                run_ai_analyzer_subtask,
+                run_analyzer_subtask,
                 aggregate_subtask_results
             )
             
@@ -647,18 +641,8 @@ class TaskExecutionService:
                 service_tool_names = self._resolve_tool_ids_to_names(tool_ids)
                 logger.info(f"Queuing parallel subtask for {service_name} with tools: {service_tool_names}")
                 
-                # Create Celery task signature
-                if service_name == 'static-analyzer':
-                    task_sig = run_static_analyzer_subtask.s(subtask.id, task.target_model, task.target_app_number, service_tool_names)
-                elif service_name == 'dynamic-analyzer':
-                    task_sig = run_dynamic_analyzer_subtask.s(subtask.id, task.target_model, task.target_app_number, service_tool_names)
-                elif service_name == 'performance-tester':
-                    task_sig = run_performance_tester_subtask.s(subtask.id, task.target_model, task.target_app_number, service_tool_names)
-                elif service_name == 'ai-analyzer':
-                    task_sig = run_ai_analyzer_subtask.s(subtask.id, task.target_model, task.target_app_number, service_tool_names)
-                else:
-                    logger.warning(f"Unknown service {service_name}, skipping")
-                    continue
+                # Create Celery task signature using the generic subtask runner
+                task_sig = run_analyzer_subtask.s(subtask.id, task.target_model, task.target_app_number, service_tool_names, service_name)
                 
                 parallel_tasks.append(task_sig)
             
@@ -797,7 +781,7 @@ class TaskExecutionService:
         wrapped = {
             'task': {
                 'task_id': task_id_val,
-                'analysis_type': engine_name,
+                'task_name': task.task_name,
                 'model_slug': task.target_model,
                 'app_number': task.target_app_number,
                 'started_at': task.started_at.isoformat() if task.started_at else None,
@@ -1345,7 +1329,7 @@ class TaskExecutionService:
             # Find all main tasks that are RUNNING and have subtasks
             running_main_tasks = AnalysisTask.query.filter(
                 AnalysisTask.status == AnalysisStatus.RUNNING,
-                AnalysisTask.is_main_task == True
+                AnalysisTask.is_main_task.is_(True)
             ).all()
             
             for main_task in running_main_tasks:
