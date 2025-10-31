@@ -71,7 +71,7 @@ class AIAnalyzer(BaseWSService):
             self.gpt4all_timeout = int(os.getenv('GPT4ALL_TIMEOUT', '30'))
             
             # Default models
-            self.default_openrouter_model = os.getenv('AI_MODEL', 'anthropic/claude-3-haiku')
+            self.default_openrouter_model = os.getenv('AI_MODEL', 'anthropic/claude-3.5-haiku')
             self.preferred_gpt4all_model = os.getenv('GPT4ALL_MODEL', 'Llama 3 8B Instruct')
             
             # GPT4All available models cache

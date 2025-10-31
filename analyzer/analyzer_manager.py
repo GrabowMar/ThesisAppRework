@@ -1771,7 +1771,7 @@ class AnalyzerManager:
                 status = str(tinfo.get('status', 'unknown')).lower()
                 if status in ('skipped', 'not_available'):
                     tools_skipped.append(tname)
-                elif status not in ('success', 'completed'):
+                elif status not in ('success', 'completed', 'no_issues'):
                     tools_failed.append(tname)
 
             # 2. Build the full consolidated task metadata dictionary

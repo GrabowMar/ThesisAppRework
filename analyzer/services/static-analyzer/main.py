@@ -54,7 +54,7 @@ class StaticAnalyzer(BaseWSService):
             if result.returncode not in success_exit_codes:
                 error_message = f"{tool_name} exited with {result.returncode}. Stderr: {result.stderr[:500]}"
                 self.log.error(error_message)
-                return {'tool': tool_name, 'executed': True, 'status': 'error', 'error': error_message}
+                return {'tool': tool_name, 'executed': True, 'status': 'error', 'error': error_message, 'exit_code': result.returncode}
 
             if not result.stdout:
                 return {'tool': tool_name, 'executed': True, 'status': 'no_issues', 'issues': [], 'total_issues': 0}
@@ -597,8 +597,10 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             snyk_result = await self._run_tool(cmd, 'snyk', success_exit_codes=[0, 1])
 
             if snyk_result.get('status') == 'error':
-                if 'authenticate' in snyk_result.get('error', '').lower():
-                    results['snyk'] = {'tool': 'snyk', 'executed': True, 'status': 'auth_required', 'message': 'Snyk authentication required'}
+                error_msg = snyk_result.get('error', '').lower()
+                # Check for authentication or not configured errors
+                if 'authenticate' in error_msg or 'auth' in error_msg or 'token' in error_msg or snyk_result.get('exit_code') == 2:
+                    results['snyk'] = {'tool': 'snyk', 'executed': False, 'status': 'skipped', 'message': 'Snyk authentication required (use SNYK_TOKEN env variable)'}
                 else:
                     results['snyk'] = snyk_result
             else:
