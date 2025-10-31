@@ -980,6 +980,20 @@ class TaskExecutionService:
                 main_task.set_result_summary(unified_payload)
                 db.session.commit()
                 
+                # Persist results to filesystem (matching analyzer_manager structure)
+                try:
+                    self._write_task_results_to_filesystem(
+                        main_task.target_model,
+                        main_task.target_app_number,
+                        main_task_id,
+                        unified_payload
+                    )
+                except Exception as fs_error:
+                    self._log(
+                        f"[AGGREGATE] Failed to write results to filesystem: {fs_error}",
+                        level='warning'
+                    )
+                
                 self._log(f"[AGGREGATE] Main task {main_task_id} marked as completed")
                 
                 # Remove from active futures
@@ -1257,6 +1271,69 @@ class TaskExecutionService:
             }
         }
         return wrapped
+    
+    def _write_task_results_to_filesystem(
+        self,
+        model_slug: str,
+        app_number: int,
+        task_id: str,
+        unified_payload: Dict[str, Any]
+    ) -> None:
+        """Write task results to filesystem matching analyzer_manager structure.
+        
+        Saves to: results/{model_slug}/app{app_number}/task_{task_id}/
+        """
+        # Build results directory path (mirroring analyzer_manager.py structure)
+        results_base = Path(__file__).resolve().parent.parent.parent.parent / "results"
+        safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
+        sanitized_task = str(task_id).replace(':', '_').replace('/', '_')
+        
+        task_dir = results_base / safe_slug / f"app{app_number}" / f"task_{sanitized_task}"
+        task_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Build filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{safe_slug}_app{app_number}_task_{sanitized_task}_{timestamp}.json"
+        filepath = task_dir / filename
+        
+        # Build comprehensive results structure (matching analyzer_manager format)
+        full_results = {
+            'metadata': {
+                'model_slug': model_slug,
+                'app_number': app_number,
+                'analysis_type': task_id,
+                'timestamp': datetime.now().isoformat() + '+00:00',
+                'analyzer_version': '1.0.0',
+                'module': 'analysis',
+                'version': '1.0',
+                'executor': 'task_execution_service'
+            },
+            'results': unified_payload
+        }
+        
+        # Write the main consolidated file
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(full_results, f, indent=2, default=str)
+        
+        self._log(
+            f"[FILESYSTEM] Task results written to: {filepath}",
+            level='info'
+        )
+        
+        # Also write a manifest.json for easy discovery
+        manifest_path = task_dir / "manifest.json"
+        manifest = {
+            'task_id': task_id,
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'result_file': filename,
+            'created_at': datetime.now().isoformat(),
+            'status': unified_payload.get('summary', {}).get('status', 'unknown'),
+            'total_findings': unified_payload.get('summary', {}).get('total_findings', 0),
+            'services_executed': unified_payload.get('summary', {}).get('services_executed', 0)
+        }
+        with open(manifest_path, 'w', encoding='utf-8') as f:
+            json.dump(manifest, f, indent=2, default=str)
     
     def _validate_analyzer_containers(self, service_names: list[str]) -> bool:
         """Validate that all required analyzer containers are healthy."""

@@ -107,18 +107,11 @@ class AnalysisTaskService:
             tools,
         )
         
-        # CRITICAL: Dispatch to execution service (unless caller opts out)
+        # Note: TaskExecutionService background thread picks up pending tasks automatically
+        # Manual dispatch via execute_task() method not needed (and doesn't exist)
+        # Task will be executed when the background thread processes the queue
         if dispatch:
-            try:
-                from app.services.task_execution_service import TaskExecutionService
-                execution_service = TaskExecutionService()
-                execution_service.execute_task(task.task_id, options)
-                logger.info("Task %s dispatched to execution service successfully", task.task_id)
-            except Exception as e:
-                logger.error("Failed to dispatch task %s: %s", task.task_id, e)
-                task.status = AnalysisStatus.FAILED
-                task.error_message = f"Dispatch failed: {str(e)}"
-                db.session.commit()
+            logger.info("Task %s created and pending - will be picked up by TaskExecutionService background thread", task.task_id)
         
         # Realtime event (best-effort)
         try:
@@ -593,9 +586,10 @@ class TaskQueueService:
         
         # Get pending tasks ordered by priority
         # ONLY get main tasks (subtasks are handled by their parent task's executor)
-        pending_tasks = AnalysisTask.query.filter_by(
-            status=AnalysisStatus.PENDING,
-            is_main_task=True  # Prevent daemon from picking up subtasks
+        # Include tasks where is_main_task is None for backward compatibility
+        pending_tasks = AnalysisTask.query.filter(
+            AnalysisTask.status == AnalysisStatus.PENDING,
+            (AnalysisTask.is_main_task == True) | (AnalysisTask.is_main_task == None)  # noqa: E711,E712
         ).order_by(
             self._get_priority_order(),
             AnalysisTask.created_at.asc()
