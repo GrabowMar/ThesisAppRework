@@ -688,7 +688,8 @@ class AnalyzerManager:
                 open_timeout=10,
                 close_timeout=10,
                 ping_interval=None,
-                ping_timeout=None
+                ping_timeout=None,
+                max_size=100 * 1024 * 1024  # 100 MB for large SARIF responses
             ) as websocket:
                 # Send request
                 await websocket.send(json.dumps(message))
@@ -2096,6 +2097,8 @@ class AnalyzerManager:
             analysis = service_result.get('analysis', {})
             if not isinstance(analysis, dict):
                 continue
+            
+            # Check for tool_results at top level
             tool_results = analysis.get('tool_results')
             if isinstance(tool_results, dict):
                 for tname, tdata in tool_results.items():
@@ -2109,6 +2112,26 @@ class AnalyzerManager:
                         'severity_breakdown': tdata.get('severity_breakdown'),
                         'error': tdata.get('error')
                     }
+            
+            # Also check for static analyzer's nested structure: analysis.results.python/javascript/css
+            results = analysis.get('results', {})
+            if isinstance(results, dict):
+                for lang_category in ['python', 'javascript', 'css']:
+                    lang_tools = results.get(lang_category, {})
+                    if isinstance(lang_tools, dict):
+                        for tname, tdata in lang_tools.items():
+                            if tname in tools or not isinstance(tdata, dict):
+                                continue
+                            if tname == 'tool_status':  # Skip metadata keys
+                                continue
+                            tools[tname] = {
+                                'status': tdata.get('status', 'unknown'),
+                                'duration_seconds': None,  # Static analyzer doesn't track per-tool duration
+                                'total_issues': tdata.get('total_issues', 0),
+                                'executed': tdata.get('executed', False),
+                                'severity_breakdown': None,
+                                'error': tdata.get('error')
+                            }
 
         # Fallback/augment from lightweight raw_outputs if needed
         if not tools:

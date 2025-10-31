@@ -903,8 +903,21 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     "timestamp": datetime.now().isoformat()
                 }
                 
-                await websocket.send(json.dumps(response))
-                self.log.info(f"Static analysis completed for {model_slug} app {app_number}")
+                try:
+                    response_json = json.dumps(response)
+                    await websocket.send(response_json)
+                    self.log.info(f"Static analysis completed for {model_slug} app {app_number}")
+                except TypeError as e:
+                    self.log.error(f"Failed to serialize response: {e}")
+                    # Send error response instead
+                    error_response = {
+                        "type": "static_analysis_result",
+                        "status": "error",
+                        "service": self.info.name,
+                        "error": f"Serialization error: {str(e)}",
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    await websocket.send(json.dumps(error_response))
                 
             else:
                 response = {

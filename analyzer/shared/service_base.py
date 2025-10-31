@@ -183,12 +183,14 @@ class BaseWSService:
         try:
             # Disable keepalive pings on the server to avoid ping timeouts while
             # long-running subprocess tasks block the event loop.
+            # Increase max_size to 100MB to handle large SARIF responses
             async with serve(
                 self._handle_client,
                 host,
                 port,
                 ping_interval=None,
                 ping_timeout=None,
+                max_size=100 * 1024 * 1024,  # 100 MB for large SARIF responses
             ):
                 self.log.info(f"{self.info.name} listening on ws://{host}:{port}")
                 await asyncio.Future()  # run forever

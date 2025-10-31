@@ -193,13 +193,16 @@ class ZAPSARIFParser:
             level = RISK_TO_LEVEL.get(risk, 'warning')
             
             # Extract confidence
-            confidence = alert.get('confidence', 'medium')
-            if isinstance(confidence, str):
-                confidence = confidence.split('(')[0].strip().lower()
-            confidence_code = alert.get('confidence')
-            if confidence_code is not None:
+            confidence_raw = alert.get('confidence', 'medium')
+            if isinstance(confidence_raw, str):
+                # If it's already a string like 'low', 'medium', 'high', use it directly
+                confidence = confidence_raw.split('(')[0].strip().lower()
+            elif isinstance(confidence_raw, (int, float)):
+                # If it's a numeric code, map it
                 conf_map = {1: 'low', 2: 'medium', 3: 'high'}
-                confidence = conf_map.get(int(confidence_code), 'medium')
+                confidence = conf_map.get(int(confidence_raw), 'medium')
+            else:
+                confidence = 'medium'
             
             # Extract CWE and WASC
             cwe_id = None
