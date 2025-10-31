@@ -3,9 +3,8 @@
 Dynamic Analyzer Service - Web Application Security Scanner
 ==========================================================
 
-Refactored to use BaseWSService with strict tool selection gating.
-Provides connectivity testing and basic vulnerability scanning.
-OWASP ZAP integration has been removed for simplicity.
+Integrates OWASP ZAP for real security scanning along with connectivity
+testing and port scanning capabilities.
 """
 
 import asyncio
@@ -17,14 +16,17 @@ from typing import Dict, List, Any, Optional
 
 from analyzer.shared.service_base import BaseWSService
 from sarif_parsers import parse_tool_output_to_sarif, build_sarif_document
+from zap_scanner import ZAPScanner
 
 
 class DynamicAnalyzer(BaseWSService):
-    """Dynamic web application security analyzer with connectivity testing and basic vulnerability scanning."""
+    """Dynamic web application security analyzer with OWASP ZAP integration."""
     
     def __init__(self):
-        super().__init__(service_name="dynamic-analyzer", default_port=2002, version="1.0.0")
+        super().__init__(service_name="dynamic-analyzer", default_port=2002, version="2.0.0")
         self._tool_runs: Dict[str, Dict[str, Any]] = {}
+        self.zap_scanner: Optional[ZAPScanner] = None
+        self._zap_started = False
 
     def _record(self, tool: str, cmd: List[str], proc: subprocess.CompletedProcess, start: float):
         duration = time.time() - start
@@ -53,6 +55,28 @@ class DynamicAnalyzer(BaseWSService):
         self._record(tool, cmd, proc, start)
         return proc
     
+    def _ensure_zap_started(self) -> bool:
+        """Connect to the already-running ZAP daemon."""
+        if self._zap_started and self.zap_scanner and self.zap_scanner.zap:
+            return True
+        
+        try:
+            self.log.info("Connecting to OWASP ZAP daemon...")
+            self.zap_scanner = ZAPScanner()
+            
+            # ZAP is already running as a background service in the container
+            # Just connect to it
+            if self.zap_scanner.connect_to_zap():
+                self._zap_started = True
+                self.log.info("OWASP ZAP ready for scanning")
+                return True
+            else:
+                self.log.error("Failed to connect to ZAP daemon")
+                return False
+        except Exception as e:
+            self.log.error(f"Error connecting to ZAP: {e}")
+            return False
+    
     def _detect_available_tools(self) -> List[str]:
         """Detect which dynamic analysis tools are available."""
         tools = []
@@ -67,16 +91,6 @@ class DynamicAnalyzer(BaseWSService):
         except Exception as e:
             self.log.debug(f"curl not available: {e}")
         
-        # Check for wget
-        try:
-            result = subprocess.run(['wget', '--version'], 
-                                  capture_output=True, text=True, timeout=10)
-            if result.returncode == 0:
-                tools.append('wget')
-                self.log.debug("wget available")
-        except Exception as e:
-            self.log.debug(f"wget not available: {e}")
-        
         # Check for nmap
         try:
             result = subprocess.run(['nmap', '--version'], 
@@ -87,68 +101,85 @@ class DynamicAnalyzer(BaseWSService):
         except Exception as e:
             self.log.debug(f"nmap not available: {e}")
         
-        # Check for ZAP (integrated ZAP-style security scanning)
-        try:
-            # ZAP functionality is now provided via curl-based security checks
-            # This maintains ZAP compatibility without requiring separate daemon
-            tools.append('zap')
-            self.log.debug("ZAP-style security scanning available via curl")
-        except Exception as e:
-            self.log.debug(f"ZAP functionality not available: {e}")
+        # ZAP is always "available" (will be started on demand)
+        tools.append('zap')
+        self.log.debug("OWASP ZAP available")
         
         return tools
 
-    async def zap_style_security_scan(self, url: str) -> Dict[str, Any]:
-        """Perform ZAP-style security scanning using curl and basic checks."""
+    async def run_zap_scan(self, url: str, scan_type: str = 'baseline') -> Dict[str, Any]:
+        """
+        Run OWASP ZAP security scan on target URL.
+        
+        Args:
+            url: Target URL to scan
+            scan_type: Type of scan ('quick', 'baseline', 'full')
+            
+        Returns:
+            ZAP scan results with alerts
+        """
         try:
-            self.log.info(f"Running ZAP-style security scan on {url}")
+            # Ensure ZAP is running
+            if not self._ensure_zap_started():
+                return {
+                    'status': 'error',
+                    'error': 'Failed to start ZAP daemon',
+                    'url': url
+                }
             
-            findings = []
+            self.log.info(f"Running OWASP ZAP {scan_type} scan on {url}")
             
-            # 1. SSL/TLS Security Check
-            ssl_result = await self._check_ssl_security(url)
-            if ssl_result.get('vulnerabilities'):
-                findings.extend(ssl_result['vulnerabilities'])
+            # Run appropriate scan type
+            if scan_type == 'full':
+                # Spider + Active scan
+                spider_result = await asyncio.to_thread(
+                    self.zap_scanner.spider_scan, url, max_depth=2, max_duration=60
+                )
+                scan_result = await asyncio.to_thread(
+                    self.zap_scanner.active_scan, url, max_duration=120
+                )
+            elif scan_type == 'baseline':
+                # Spider + Passive scan
+                scan_result = await asyncio.to_thread(
+                    self.zap_scanner.quick_scan, url, scan_type='baseline'
+                )
+            else:  # quick
+                # Passive scan only
+                scan_result = await asyncio.to_thread(
+                    self.zap_scanner.quick_scan, url, scan_type='quick'
+                )
             
-            # 2. Security Headers Check
-            headers_result = await self._check_security_headers(url)
-            if headers_result.get('vulnerabilities'):
-                findings.extend(headers_result['vulnerabilities'])
-            
-            # 3. Common Vulnerabilities Check
-            common_result = await self._check_common_vulnerabilities(url)
-            if common_result.get('vulnerabilities'):
-                findings.extend(common_result['vulnerabilities'])
-            
-            # 4. Information Disclosure Check
-            info_result = await self._check_information_disclosure(url)
-            if info_result.get('vulnerabilities'):
-                findings.extend(info_result['vulnerabilities'])
-            
-            return {
-                'status': 'success',
-                'url': url,
-                'scan_type': 'ZAP-style security scan',
-                'total_vulnerabilities': len(findings),
-                'vulnerabilities': findings,
-                'checks_performed': ['ssl_security', 'security_headers', 'common_vulnerabilities', 'information_disclosure']
-            }
-            
+            if scan_result.get('status') == 'success':
+                # Get alerts grouped by risk
+                alerts_by_risk = await asyncio.to_thread(
+                    self.zap_scanner.get_alerts_by_risk, url
+                )
+                
+                total_alerts = sum(len(alerts) for alerts in alerts_by_risk.values())
+                
+                self.log.info(f"ZAP scan completed. Found {total_alerts} alerts "
+                            f"(High: {len(alerts_by_risk['High'])}, "
+                            f"Medium: {len(alerts_by_risk['Medium'])}, "
+                            f"Low: {len(alerts_by_risk['Low'])})")
+                
+                return {
+                    'status': 'success',
+                    'url': url,
+                    'scan_type': scan_type,
+                    'total_alerts': total_alerts,
+                    'alerts_by_risk': alerts_by_risk,
+                    'all_alerts': scan_result.get('alerts', [])
+                }
+            else:
+                return scan_result
+                
         except Exception as e:
-            self.log.error(f"ZAP-style security scan failed for {url}: {e}")
+            self.log.error(f"ZAP scan failed for {url}: {e}")
             return {
                 'status': 'error',
                 'error': str(e),
                 'url': url
             }
-    
-    async def _check_ssl_security(self, url: str) -> Dict[str, Any]:
-        """Check SSL/TLS security configuration."""
-        vulnerabilities = []
-        
-        try:
-            # Test SSL configuration
-            cmd = ['curl', '-I', '--ssl-reqd', '--max-time', '10', url]
             result = self._exec('curl', cmd, timeout=15)
             
             if result.returncode != 0 and 'SSL' in result.stderr:
@@ -595,50 +626,33 @@ class DynamicAnalyzer(BaseWSService):
                         # augment curl summary
                         tool_summary.setdefault('curl', {'tool':'curl','status':'success','executed':True,'total_issues':0})
 
-            # ZAP-style security scanning - run independently if requested
+            # OWASP ZAP security scanning - real implementation
             if (selected_set is None or 'zap' in selected_set):
                 # Use reachable URLs if available, otherwise use all target URLs for ZAP
                 zap_target_urls = reachable_urls if reachable_urls else target_urls
                 if zap_target_urls:
                     zap_results = []
                     for url in zap_target_urls[:2]:  # Limit to first 2 URLs
-                        zap_result = await self.zap_style_security_scan(url)
-                        zap_result['url'] = url
+                        # Run baseline scan (spider + passive)
+                        zap_result = await self.run_zap_scan(url, scan_type='baseline')
                         zap_results.append(zap_result)
                     
                     results['results']['zap_security_scan'] = zap_results
                     results['tools_used'] = list(set(results['tools_used'] + ['zap']))
                     tool_summary['zap'] = {
                         'tool': 'zap',
-                        'status': 'success',
+                        'status': 'success' if any(r.get('status') == 'success' for r in zap_results) else 'error',
                         'executed': True,
-                        'total_issues': sum(z.get('total_vulnerabilities',0) for z in zap_results)
+                        'total_issues': sum(z.get('total_alerts', 0) for z in zap_results)
                     }
                     
                     # Generate SARIF output for ZAP results
                     zap_sarif_runs = []
                     for zap_result in zap_results:
                         if zap_result.get('status') == 'success':
-                            # Convert custom vulnerability format to ZAP-compatible SARIF format
-                            vulnerabilities = zap_result.get('vulnerabilities', [])
-                            sarif_input = {
-                                'alerts': []
-                            }
-                            
-                            # Transform vulnerabilities to ZAP alert format
-                            for vuln in vulnerabilities:
-                                alert = {
-                                    'alert': vuln.get('type', 'Security Issue'),
-                                    'risk': vuln.get('severity', 'medium'),
-                                    'confidence': 'medium',  # Default confidence
-                                    'description': vuln.get('description', ''),
-                                    'solution': vuln.get('recommendation', ''),
-                                    'instances': [{
-                                        'uri': zap_result.get('url', ''),
-                                        'method': 'GET'
-                                    }]
-                                }
-                                sarif_input['alerts'].append(alert)
+                            # ZAP alerts are already in ZAP format
+                            all_alerts = zap_result.get('all_alerts', [])
+                            sarif_input = {'alerts': all_alerts}
                             
                             sarif_run = parse_tool_output_to_sarif('zap', sarif_input)
                             if sarif_run:
@@ -648,6 +662,8 @@ class DynamicAnalyzer(BaseWSService):
                     if zap_sarif_runs:
                         results['sarif_export'] = build_sarif_document(zap_sarif_runs)
                         self.log.info(f"Generated SARIF document with {len(zap_sarif_runs)} ZAP runs")
+                else:
+                    tool_summary['zap'] = {'tool':'zap','status':'skipped','executed':False,'total_issues':0}
             else:
                 if 'zap' in (selected_set or set()):
                     tool_summary['zap'] = {'tool':'zap','status':'not_available','executed':False,'total_issues':0}
@@ -759,13 +775,23 @@ class DynamicAnalyzer(BaseWSService):
                 "service": self.info.name
             }
             try:
-                await websocket.send(json.dumps(error_response))
+                await websocket.send(json.dumps(response))
             except Exception:
                 pass
+    
+    async def cleanup(self):
+        """Cleanup resources when service stops."""
+        # ZAP runs persistently in the container, no need to stop it
+        if self.zap_scanner:
+            self.log.info("Disconnecting from OWASP ZAP daemon...")
+            self.zap_scanner.zap = None
 
 async def main():
     service = DynamicAnalyzer()
-    await service.run()
+    try:
+        await service.run()
+    finally:
+        await service.cleanup()
 
 if __name__ == "__main__":
     try:
