@@ -1,0 +1,9 @@
+{
+  "name": "static-analyzer",
+  "version": "1.0.0",
+  "description": "Static analysis service with SARIF support",
+  "dependencies": {
+    "eslint": "^9.0.0",
+    "@microsoft/eslint-formatter-sarif": "^3.1.0"
+  }
+}

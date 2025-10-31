@@ -32,7 +32,7 @@ class StaticAnalyzer(BaseWSService):
             'coverage', 'site-packages'
         ]
 
-    async def _run_tool(self, cmd: List[str], tool_name: str, config: Optional[Dict] = None, timeout: int = 120, success_exit_codes: List[int] = [0]) -> Dict[str, Any]:
+    async def _run_tool(self, cmd: List[str], tool_name: str, config: Optional[Dict] = None, timeout: int = 120, success_exit_codes: List[int] = [0], skip_parser: bool = False) -> Dict[str, Any]:
         """
         Run a tool and capture its output, parsing with tool-specific parsers.
         
@@ -42,6 +42,7 @@ class StaticAnalyzer(BaseWSService):
             config: Configuration dict to include in parsed output
             timeout: Command timeout in seconds
             success_exit_codes: List of exit codes considered successful
+            skip_parser: If True, return raw output without parsing (for SARIF tools)
             
         Returns:
             Standardized result dictionary with parsed issues
@@ -57,6 +58,10 @@ class StaticAnalyzer(BaseWSService):
 
             if not result.stdout:
                 return {'tool': tool_name, 'executed': True, 'status': 'no_issues', 'issues': [], 'total_issues': 0}
+
+            # Skip parser for SARIF tools - they handle output themselves
+            if skip_parser:
+                return {'tool': tool_name, 'executed': True, 'status': 'success', 'output': result.stdout}
 
             try:
                 raw_output = json.loads(result.stdout)
@@ -93,7 +98,8 @@ class StaticAnalyzer(BaseWSService):
 
     def _detect_available_tools(self) -> List[str]:
         tools: List[str] = []
-        for tool in ['bandit', 'pylint', 'mypy', 'eslint', 'stylelint', 'semgrep', 'snyk', 'safety', 'vulture', 'flake8']:
+        # Check Python tools
+        for tool in ['bandit', 'pylint', 'mypy', 'semgrep', 'snyk', 'safety', 'vulture', 'ruff']:
             try:
                 result = subprocess.run([tool, '--version'], capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
@@ -101,6 +107,17 @@ class StaticAnalyzer(BaseWSService):
                     self.log.debug(f"{tool} available")
             except Exception as e:
                 self.log.debug(f"{tool} not available: {e}")
+        
+        # Check Node.js tools
+        for tool in ['eslint', 'stylelint']:
+            try:
+                result = subprocess.run([tool, '--version'], capture_output=True, text=True, timeout=10)
+                if result.returncode == 0:
+                    tools.append(tool)
+                    self.log.debug(f"{tool} available")
+            except Exception as e:
+                self.log.debug(f"{tool} not available: {e}")
+        
         return tools
     
     def _generate_pylintrc(self, config: Dict[str, Any]) -> str:
@@ -149,6 +166,18 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
 """
         return rcfile_content
     
+    def _pylint_severity_to_sarif(self, pylint_type: str) -> str:
+        """Convert pylint message type to SARIF level."""
+        mapping = {
+            'fatal': 'error',
+            'error': 'error',
+            'warning': 'warning',
+            'convention': 'note',
+            'refactor': 'note',
+            'information': 'note'
+        }
+        return mapping.get(pylint_type.lower(), 'warning')
+    
     async def analyze_python_files(self, source_path: Path, config: Optional[Dict[str, Any]] = None, selected_tools: Optional[Set[str]] = None) -> Dict[str, Any]:
         """Run Python static analysis tools with custom configuration.
 
@@ -176,7 +205,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         vulture_config = config.get('vulture', {}) if config else {}
         semgrep_config = config.get('semgrep', {}) if config else {}
         
-        # Bandit security analysis
+        # Bandit security analysis with SARIF output
         if (
             'bandit' in self.available_tools
             and (selected_tools is None or 'bandit' in selected_tools)
@@ -185,15 +214,31 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             # Build exclude list
             exclude_dirs = bandit_config.get('exclude_dirs') or self.default_ignores
             exclude_arg = ','.join(str(source_path / d) for d in exclude_dirs)
-            cmd = ['bandit', '-r', str(source_path), '-x', exclude_arg, '-f', 'json']
+            # Use native SARIF format output
+            cmd = ['bandit', '-r', str(source_path), '-x', exclude_arg, '-f', 'sarif', '-o', '/tmp/bandit_output.sarif']
             
             if bandit_config.get('skips'):
                 cmd.extend(['--skip', ','.join(bandit_config['skips'])])
             else:
                 cmd.extend(['--skip', 'B101'])
 
-            # Parser handles all output formatting
-            results['bandit'] = await self._run_tool(cmd, 'bandit', config=bandit_config, success_exit_codes=[0, 1])
+            # Run and read SARIF output
+            result = await self._run_tool(cmd, 'bandit', config=bandit_config, success_exit_codes=[0, 1], skip_parser=True)
+            if result.get('status') != 'error':
+                try:
+                    with open('/tmp/bandit_output.sarif', 'r') as f:
+                        sarif_data = json.load(f)
+                        result['sarif'] = sarif_data
+                        result['format'] = 'sarif'
+                        # Extract issue count from SARIF
+                        total_issues = 0
+                        if 'runs' in sarif_data:
+                            for run in sarif_data['runs']:
+                                total_issues += len(run.get('results', []))
+                        result['total_issues'] = total_issues
+                except Exception as e:
+                    self.log.warning(f"Could not read bandit SARIF output: {e}")
+            results['bandit'] = result
         
         # Pylint code quality
         if (
@@ -217,65 +262,151 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 cmd = ['pylint', '--rcfile', pylintrc_file, '--output-format=json'] + [str(f) for f in files_to_check]
                 
                 # Pylint uses bitflags: 1=fatal, 2=error, 4=warning, 8=refactor, 16=convention, 32=usage error
-                # Parser handles all output formatting
-                results['pylint'] = await self._run_tool(cmd, 'pylint', config=pylint_config, 
+                result = await self._run_tool(cmd, 'pylint', config=pylint_config, 
                                                         success_exit_codes=[0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32])
+                
+                # Convert JSON to SARIF format manually
+                if result.get('status') != 'error' and 'output' in result:
+                    try:
+                        pylint_issues = json.loads(result['output'])
+                        
+                        # Create SARIF structure
+                        sarif_data = {
+                            "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+                            "version": "2.1.0",
+                            "runs": [{
+                                "tool": {
+                                    "driver": {
+                                        "name": "pylint",
+                                        "informationUri": "https://pylint.pycqa.org/",
+                                        "version": "latest"
+                                    }
+                                },
+                                "results": [
+                                    {
+                                        "ruleId": issue.get('message-id', issue.get('symbol', 'unknown')),
+                                        "level": self._pylint_severity_to_sarif(issue.get('type', 'warning')),
+                                        "message": {"text": issue.get('message', '')},
+                                        "locations": [{
+                                            "physicalLocation": {
+                                                "artifactLocation": {"uri": issue.get('path', '')},
+                                                "region": {
+                                                    "startLine": issue.get('line', 0),
+                                                    "startColumn": issue.get('column', 0)
+                                                }
+                                            }
+                                        }]
+                                    }
+                                    for issue in pylint_issues
+                                ]
+                            }]
+                        }
+                        
+                        result['sarif'] = sarif_data
+                        result['format'] = 'sarif'
+                    except Exception as e:
+                        self.log.warning(f"Could not convert pylint output to SARIF: {e}")
+                
+                results['pylint'] = result
                 os.unlink(pylintrc_file)
 
             except Exception as e:
                 self.log.error(f"Pylint analysis failed: {e}")
                 results['pylint'] = {'tool': 'pylint', 'executed': True, 'status': 'error', 'error': str(e)}
 
-        # Semgrep multi-language security analysis
+        # Semgrep multi-language security analysis with SARIF output
         if (
             'semgrep' in self.available_tools
             and (selected_tools is None or 'semgrep' in selected_tools)
             and semgrep_config.get('enabled', True)
         ):
-            cmd = ['semgrep', 'scan', '--json', '--config=auto', str(source_path)]
-            # Parser handles all output formatting
-            results['semgrep'] = await self._run_tool(cmd, 'semgrep', config=semgrep_config)
+            # Use SARIF format for better standardization
+            cmd = ['semgrep', 'scan', '--sarif', '--config=auto', str(source_path)]
+            result = await self._run_tool(cmd, 'semgrep', config=semgrep_config, skip_parser=True)
+            if result.get('status') != 'error' and 'output' in result:
+                try:
+                    sarif_data = json.loads(result['output'])
+                    result['sarif'] = sarif_data
+                    result['format'] = 'sarif'
+                    # Extract issue count
+                    total_issues = 0
+                    if 'runs' in sarif_data:
+                        for run in sarif_data['runs']:
+                            total_issues += len(run.get('results', []))
+                    result['total_issues'] = total_issues
+                except Exception as e:
+                    self.log.warning(f"Could not parse semgrep SARIF output: {e}")
+            results['semgrep'] = result
 
-        # Mypy type checking
+        # Mypy type checking with SARIF conversion
         if (
             'mypy' in self.available_tools
             and (selected_tools is None or 'mypy' in selected_tools)
             and mypy_config.get('enabled', True)
             and python_files
         ):
+            # Use mypy with JSON output to stdout
             cmd = ['mypy', '--output', 'json', '--show-error-codes', '--no-error-summary', '--ignore-missing-imports']
             max_files = mypy_config.get('max_files', 10)
             files_to_check = python_files[:max_files]
             cmd.extend([str(f) for f in files_to_check])
 
+            # MyPy with JSON format
             mypy_result = await self._run_tool(cmd, 'mypy', success_exit_codes=[0, 1])
 
-            if mypy_result.get('status') == 'error':
-                results['mypy'] = mypy_result
-            else:
-                errors = []
-                if 'output' in mypy_result:
+            if mypy_result.get('status') != 'error' and 'output' in mypy_result:
+                # Parse JSON output and convert to SARIF manually
+                try:
+                    # MyPy outputs newline-delimited JSON
+                    findings = []
                     for line in mypy_result['output'].splitlines():
-                        if ':' in line and (' error:' in line or ' warning:' in line):
-                            parts = line.strip().split(':', 3)
-                            if len(parts) >= 4:
-                                errors.append({
-                                    'file': parts[0],
-                                    'line': int(parts[1]) if parts[1].isdigit() else 0,
-                                    'column': int(parts[2]) if parts[2].isdigit() else 0,
-                                    'message': parts[3].strip(),
-                                    'severity': 'error' if ' error:' in line else 'warning'
-                                })
-                
-                results['mypy'] = {
-                    'tool': 'mypy',
-                    'executed': True,
-                    'status': 'success' if errors else 'no_issues',
-                    'results': errors,
-                    'total_issues': len(errors),
-                    'files_analyzed': len(files_to_check),
-                    'config_used': mypy_config
-                }
+                        line = line.strip()
+                        if line:
+                            try:
+                                finding = json.loads(line)
+                                findings.append(finding)
+                            except:
+                                pass
+                    
+                    # Create SARIF structure
+                    sarif_data = {
+                        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+                        "version": "2.1.0",
+                        "runs": [{
+                            "tool": {
+                                "driver": {
+                                    "name": "mypy",
+                                    "informationUri": "https://mypy.readthedocs.io/",
+                                    "version": "latest"
+                                }
+                            },
+                            "results": [
+                                {
+                                    "ruleId": f.get('error_code', 'type-error'),
+                                    "level": "error" if f.get('severity') == 'error' else "warning",
+                                    "message": {"text": f.get('message', '')},
+                                    "locations": [{
+                                        "physicalLocation": {
+                                            "artifactLocation": {"uri": f.get('file', '')},
+                                            "region": {
+                                                "startLine": f.get('line', 0),
+                                                "startColumn": f.get('column', 0)
+                                            }
+                                        }
+                                    }]
+                                }
+                                for f in findings
+                            ]
+                        }]
+                    }
+                    
+                    mypy_result['sarif'] = sarif_data
+                    mypy_result['format'] = 'sarif'
+                    mypy_result['total_issues'] = len(findings)
+                except Exception as e:
+                    self.log.warning(f"Could not convert mypy output to SARIF: {e}")
+            
+            results['mypy'] = mypy_result
 
         # Safety dependency vulnerability scanning
         if (
@@ -309,7 +440,9 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             if vulture_config.get('min_confidence'):
                 cmd.extend(['--min-confidence', str(vulture_config['min_confidence'])])
 
-            vulture_result = await self._run_tool(cmd, 'vulture', success_exit_codes=[0, 1])
+            # Vulture returns: 0=no issues, 1=dead code found, 3=syntax errors in checked files
+            # All are valid outcomes for analysis purposes
+            vulture_result = await self._run_tool(cmd, 'vulture', success_exit_codes=[0, 1, 3])
 
             if vulture_result.get('status') == 'error':
                 results['vulture'] = vulture_result
@@ -335,49 +468,42 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     'config_used': vulture_config
                 }
         
-        # Flake8 Python style checker
-        flake8_config = config.get('flake8', {}) if config else {}
-        if (
-            'flake8' in self.available_tools
-            and (selected_tools is None or 'flake8' in selected_tools)
-            and flake8_config.get('enabled', True)
-            and python_files
-        ):
-            cmd = ['flake8', '--format=json']
-            max_files = flake8_config.get('max_files', 20)
-            files_to_check = python_files[:max_files]
-            cmd.extend([str(f) for f in files_to_check])
-            
-            # Parser handles all output formatting
-            results['flake8'] = await self._run_tool(cmd, 'flake8', config=flake8_config, success_exit_codes=[0, 1])
-        
-        # Ruff - Fast Python linter (10-100x faster than pylint/flake8)
+        # Ruff - Fast Python linter with SARIF support (replaces flake8)
         ruff_config = config.get('ruff', {}) if config else {}
         if (
             'ruff' in self.available_tools
-            and (selected_tools is None or 'ruff' in selected_tools)
+            and (selected_tools is None or 'ruff' in selected_tools or 'flake8' in (selected_tools or set()))
             and ruff_config.get('enabled', True)
             and python_files
         ):
-            cmd = ['ruff', 'check', '--output-format=json']
-            # Add config options
-            if ruff_config.get('select'):
-                cmd.extend(['--select', ','.join(ruff_config['select'])])
-            if ruff_config.get('ignore'):
-                cmd.extend(['--ignore', ','.join(ruff_config['ignore'])])
-            if ruff_config.get('fix', False):
-                cmd.append('--fix')
-            
-            cmd.append(str(source_path))
-            
-            # Ruff exit codes: 0=no issues, 1=issues found, 2=error
-            # Parser handles all output formatting
-            results['ruff'] = await self._run_tool(cmd, 'ruff', config=ruff_config, success_exit_codes=[0, 1])
+            # Ruff supports SARIF output natively via --output-format=sarif
+            # Use /tmp for cache to avoid permission issues
+            cmd = ['ruff', 'check', '--output-format=sarif', '--cache-dir', '/tmp/ruff_cache', str(source_path)]
+            result = await self._run_tool(cmd, 'ruff', config=ruff_config, success_exit_codes=[0, 1], skip_parser=True)
+            if result.get('status') != 'error' and 'output' in result:
+                try:
+                    sarif_data = json.loads(result['output'])
+                    result['sarif'] = sarif_data
+                    result['format'] = 'sarif'
+                    # Extract issue count
+                    total_issues = 0
+                    if 'runs' in sarif_data:
+                        for run in sarif_data['runs']:
+                            total_issues += len(run.get('results', []))
+                    result['total_issues'] = total_issues
+                except Exception as e:
+                    self.log.warning(f"Could not parse ruff SARIF output: {e}")
+            results['ruff'] = result
+            # Also add as 'flake8' for backward compatibility
+            if 'flake8' in (selected_tools or set()):
+                results['flake8'] = result
+        
+
         
         # Summarize per-tool status for Python analyzers
         try:
             summary = {}
-            for name in ['bandit', 'pylint', 'semgrep', 'mypy', 'safety', 'vulture', 'flake8', 'ruff']:
+            for name in ['bandit', 'pylint', 'semgrep', 'mypy', 'safety', 'vulture', 'ruff', 'flake8']:
                 t = results.get(name)
                 if isinstance(t, dict):
                     try:
@@ -386,6 +512,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                             'status': t.get('status'),
                             'total_issues': int(t.get('total_issues', 0)),
                             'error': t.get('error') if 'error' in t else None,
+                            'format': t.get('format', 'json')  # Track output format (sarif/json)
                         }
                     except Exception as e:
                         self.log.error(f"Error creating tool_status for {name}: {e}")
@@ -393,7 +520,8 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                             'executed': False,
                             'status': 'error',
                             'total_issues': 0,
-                            'error': f'Failed to create status: {str(e)}'
+                            'error': f'Failed to create status: {str(e)}',
+                            'format': 'unknown'
                         }
             if summary:
                 results['tool_status'] = summary
@@ -430,17 +558,30 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             and eslint_config.get('enabled', True)
         ):
             try:
-                # Use ESLint without config file to avoid ES module import issues in ESLint 9.x
+                # Use ESLint with Microsoft SARIF formatter
                 # ESLint will use default recommended rules
-                cmd = ['eslint', '--format', 'json', '--no-config-lookup']
+                cmd = ['eslint', '--format', '@microsoft/eslint-formatter-sarif', '--no-config-lookup']
                 
                 if len(js_files) <= 20:
                     cmd.extend([str(f) for f in js_files])
                 else:
                     cmd.append(str(source_path))
 
-                # Parser handles all output formatting
-                results['eslint'] = await self._run_tool(cmd, 'eslint', config=eslint_config, success_exit_codes=[0, 1, 2])
+                result = await self._run_tool(cmd, 'eslint', config=eslint_config, success_exit_codes=[0, 1, 2], skip_parser=True)
+                if result.get('status') != 'error' and 'output' in result:
+                    try:
+                        sarif_data = json.loads(result['output'])
+                        result['sarif'] = sarif_data
+                        result['format'] = 'sarif'
+                        # Extract issue count
+                        total_issues = 0
+                        if 'runs' in sarif_data:
+                            for run in sarif_data['runs']:
+                                total_issues += len(run.get('results', []))
+                        result['total_issues'] = total_issues
+                    except Exception as e:
+                        self.log.warning(f"Could not parse eslint SARIF output: {e}")
+                results['eslint'] = result
             except Exception as e:
                 self.log.error(f"ESLint analysis failed: {e}")
                 results['eslint'] = {'tool': 'eslint', 'executed': True, 'status': 'error', 'error': str(e)}
