@@ -1288,12 +1288,16 @@ class TaskExecutionService:
         safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
         sanitized_task = str(task_id).replace(':', '_').replace('/', '_')
         
-        task_dir = results_base / safe_slug / f"app{app_number}" / f"task_{sanitized_task}"
+        # Don't add "task_" prefix if task_id already starts with "task_"
+        task_folder_name = sanitized_task if sanitized_task.startswith('task_') else f"task_{sanitized_task}"
+        
+        task_dir = results_base / safe_slug / f"app{app_number}" / task_folder_name
         task_dir.mkdir(parents=True, exist_ok=True)
         
         # Build filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{safe_slug}_app{app_number}_task_{sanitized_task}_{timestamp}.json"
+        # Use task_folder_name which already has correct "task_" prefix handling
+        filename = f"{safe_slug}_app{app_number}_{task_folder_name}_{timestamp}.json"
         filepath = task_dir / filename
         
         # Build comprehensive results structure (matching analyzer_manager format)
