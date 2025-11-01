@@ -194,7 +194,6 @@ def run_analysis():
                     model_slug=model_slug,
                     app_number=app_number,
                     tools=tool_names,
-                    tools_by_service=tools_by_service,
                     priority=priority,
                     custom_options={
                         'selected_tools': tool_ids,
@@ -247,7 +246,6 @@ def run_analysis():
                     model_slug=model_slug,
                     app_number=app_number,
                     tools=all_tool_names,
-                    tools_by_service=tools_by_service,
                     priority=priority,
                     custom_options={
                         'selected_tools': all_tool_ids,

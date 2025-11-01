@@ -24,21 +24,21 @@ async def test_complete_analysis():
     print("COMPLETE ANALYSIS TEST")
     print("=" * 80)
     print()
-    print("Testing model: openai_gpt-4.1-2025-04-14 app 3")
+    print("Testing model: anthropic_claude-4.5-haiku-20251001 app 1")
     print()
     
     # Run comprehensive analysis
     print("[1/5] Running comprehensive analysis...")
     task_name = f"analysis_{asyncio.get_event_loop().time():.0f}"
     service_results = await manager.run_comprehensive_analysis(
-        model_slug="openai_gpt-4.1-2025-04-14",
-        app_number=3,
+        model_slug="anthropic_claude-4.5-haiku-20251001",
+        app_number=1,
         task_name=task_name
     )
     
     # Find and load the saved consolidated results
     results_base = Path("c:/Users/grabowmar/Desktop/ThesisAppRework/results")
-    model_dir = results_base / "openai_gpt-4.1-2025-04-14" / "app3"
+    model_dir = results_base / "anthropic_claude-4.5-haiku-20251001" / "app1"
     
     # Find the latest task directory
     task_dirs = [d for d in model_dir.glob("task_*") if d.is_dir()]

@@ -164,6 +164,11 @@ class AnalysisTaskService:
         Returns:
             Main AnalysisTask with subtasks created
         """
+        # DEBUG: Print arguments received
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"create_main_task_with_subtasks called with: {locals()}")
+        
         # Group tools by their service container
         from app.engines.container_tool_registry import get_container_tool_registry
         

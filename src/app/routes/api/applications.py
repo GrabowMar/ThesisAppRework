@@ -507,8 +507,7 @@ def analyze_application(model_slug, app_number):
                 task = AnalysisTaskService.create_main_task_with_subtasks(
                     model_slug=model_slug,
                     app_number=app_number,
-                    analysis_type='unified',
-                    tools_by_service=tools_by_service,
+                    tools=tool_names,
                     priority=priority,
                     custom_options={
                         'selected_tools': tool_ids,
@@ -532,7 +531,7 @@ def analyze_application(model_slug, app_number):
                 task = AnalysisTaskService.create_task(
                     model_slug=model_slug,
                     app_number=app_number,
-                    analysis_type=engine_name,
+                    tools=tool_names,
                     priority=priority,
                     custom_options={
                         'selected_tools': tool_ids,
@@ -547,7 +546,7 @@ def analyze_application(model_slug, app_number):
             task = AnalysisTaskService.create_task(
                 model_slug=model_slug,
                 app_number=app_number,
-                analysis_type=analysis_type,
+                tools=[],
                 priority=priority,
                 custom_options={'source': 'api'}
             )
