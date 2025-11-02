@@ -486,29 +486,33 @@ class AnalysisOrchestrator:
         return name_mapping.get(tool_name, tool_name)
 
     def _map_tool_to_service(self, tool_name: str) -> Optional[str]:
-        """Map a tool name to its analyzer service."""
-        mapping = {
-            # Static analyzer container tools (port 2001)
-            'bandit': 'static-analyzer', 'safety': 'static-analyzer', 'pylint': 'static-analyzer',
-            'mypy': 'static-analyzer', 'flake8': 'static-analyzer', 'semgrep': 'static-analyzer',
-            'snyk': 'static-analyzer', 'eslint': 'static-analyzer', 'jshint': 'static-analyzer',
-            'stylelint': 'static-analyzer', 'vulture': 'static-analyzer',
+        """Map a tool name to its analyzer service using container registry.
+        
+        Returns the service name that should handle this tool,
+        or None if tool is not recognized.
+        """
+        if not tool_name:
+            return None
+        
+        try:
+            # Use unified tool registry to determine which container provides this tool
+            from app.engines.unified_registry import get_unified_tool_registry
+            registry = get_unified_tool_registry()
+            tool = registry.get(tool_name)  # Returns UnifiedTool or None
             
-            # Dynamic analyzer container tools (port 2002) - includes integrated ZAP
-            'curl': 'dynamic-analyzer', 'wget': 'dynamic-analyzer', 'nmap': 'dynamic-analyzer',
-            'zap': 'dynamic-analyzer', 'zap-baseline': 'dynamic-analyzer',
+            if tool:
+                logger.debug(f"[TOOL-MAPPING] Tool '{tool_name}' -> container '{tool.container}'")
+                return tool.container
             
-            # Performance tester container tools (port 2003)
-            'ab': 'performance-tester', 'ab-load-test': 'performance-tester', 'apache-bench': 'performance-tester',
-            'artillery': 'performance-tester', 'aiohttp': 'performance-tester', 
-            'locust': 'performance-tester', 'locust-performance': 'performance-tester',
+            # Tool not in registry - log warning and use safe default
+            logger.warning(
+                f"[TOOL-MAPPING] Tool '{tool_name}' not found in registry, defaulting to static-analyzer"
+            )
+            return 'static-analyzer'
             
-            # AI analyzer container tools (port 2004)
-            'ai-requirements': 'ai-analyzer',
-            'requirements-scanner': 'ai-analyzer',
-            'requirements-analyzer': 'ai-analyzer'
-        }
-        return mapping.get((tool_name or '').lower())
+        except Exception as e:
+            logger.warning(f"[TOOL-MAPPING] Error mapping tool '{tool_name}': {e}")
+            return 'static-analyzer'  # Safe fallback
 
     def _run_via_container(self, service_name: str, model_slug: str, app_number: int, tools: List[str]) -> Dict[str, Any]:
         """Delegate execution to analyzer containers via analyzer_integration subprocess bridge."""

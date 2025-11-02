@@ -82,6 +82,7 @@ class AnalysisTaskService:
         task.target_app_number = app_number
         task.task_name = task_name or f"custom:{model_slug}:{app_number}"
         task.description = description
+        task.is_main_task = True  # Mark as main task so daemon will pick it up
         
         # Store tools in metadata
         options: Dict[str, Any] = dict(custom_options or {})
@@ -560,9 +561,21 @@ class TaskQueueService:
     """Service for managing task queues and execution order."""
     
     def __init__(self):
+        """Initialize the queue service with configuration from config manager."""
+        try:
+            from app.config.config_manager import get_config
+            config = get_config()
+            queue_cfg = config.get_queue_config()
+            max_concurrent = queue_cfg['max_concurrent_tasks']
+            max_per_type = queue_cfg['max_concurrent_per_type']
+        except (RuntimeError, ImportError, AttributeError):
+            # Fallback when not in app context or config not available
+            max_concurrent = 5
+            max_per_type = 3
+        
         self.queue_config = {
-            'max_concurrent_tasks': 5,
-            'max_concurrent_per_type': 2,
+            'max_concurrent_tasks': max_concurrent,
+            'max_concurrent_per_type': max_per_type,
             'priority_weights': {
                 Priority.URGENT.value: 10,
                 Priority.HIGH.value: 5,
@@ -570,9 +583,15 @@ class TaskQueueService:
                 Priority.LOW.value: 0.5
             }
         }
+        logger.info(
+            "QueueService initialized: max_concurrent=%d, max_per_type=%d",
+            max_concurrent, max_per_type
+        )
     
     def get_next_tasks(self, limit: Optional[int] = None) -> List[AnalysisTask]:
         """Get next tasks to execute based on priority and availability."""
+        logger.debug("[QUEUE] get_next_tasks called with limit=%s", limit)
+        
         if limit is None:
             limit = self.queue_config['max_concurrent_tasks']
         
@@ -586,7 +605,13 @@ class TaskQueueService:
         limit_int = int(limit) if limit is not None else self.queue_config['max_concurrent_tasks']
         available_slots = min(available_slots, limit_int)
         
+        logger.debug(
+            "[QUEUE] Concurrency check: running=%d, max_concurrent=%d, available_slots=%d",
+            running_count, self.queue_config['max_concurrent_tasks'], available_slots
+        )
+        
         if available_slots == 0:
+            logger.debug("[QUEUE] No available slots - returning empty list")
             return []
         
         # Get pending tasks ordered by priority
@@ -600,14 +625,30 @@ class TaskQueueService:
             AnalysisTask.created_at.asc()
         ).limit(available_slots * 2).all()  # Get more than needed for filtering
         
+        logger.debug(
+            "[QUEUE] Found %d PENDING main tasks in DB (is_main_task=True or NULL)",
+            len(pending_tasks)
+        )
+        if pending_tasks:
+            logger.debug(
+                "[QUEUE] Pending task IDs: %s",
+                [t.task_id for t in pending_tasks[:5]]  # Show first 5
+            )
+        
         # Filter based on per-type concurrency limits
         running_by_type = {}
         for task in running_tasks:
             if task.status == AnalysisStatus.RUNNING:
                 running_by_type[task.analysis_type] = running_by_type.get(task.analysis_type, 0) + 1
         
+        logger.debug(
+            "[QUEUE] Running tasks by type: %s (max_per_type=%d)",
+            running_by_type, self.queue_config['max_concurrent_per_type']
+        )
+        
         selected_tasks = []
         selected_by_type = {}
+        filtered_count = 0
         
         for task in pending_tasks:
             if len(selected_tasks) >= available_slots:
@@ -619,6 +660,21 @@ class TaskQueueService:
             if current_type_count < max_per_type:
                 selected_tasks.append(task)
                 selected_by_type[task.analysis_type] = selected_by_type.get(task.analysis_type, 0) + 1
+            else:
+                filtered_count += 1
+                logger.debug(
+                    "[QUEUE] Filtered task %s (type=%s) - per-type limit reached (%d/%d)",
+                    task.task_id, task.analysis_type, current_type_count, max_per_type
+                )
+        
+        if filtered_count > 0:
+            logger.debug("[QUEUE] Filtered %d tasks due to per-type limits", filtered_count)
+        
+        logger.debug(
+            "[QUEUE] Returning %d selected task(s): %s",
+            len(selected_tasks),
+            [t.task_id for t in selected_tasks]
+        )
         
         return selected_tasks
     

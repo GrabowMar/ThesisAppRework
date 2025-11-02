@@ -95,4 +95,61 @@
     icon.classList.toggle('fa-chevron-down');
   };
 
+  // Stop all active tasks
+  window.stopAllTasks = function() {
+    if (!confirm('Are you sure you want to stop all pending and running tasks? This action cannot be undone.')) {
+      return;
+    }
+    
+    // Show loading state
+    const btn = event.target.closest('button');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Stopping...';
+    
+    // Make API call
+    fetch('/analysis/api/tasks/stop-all', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        // Show success message
+        const message = data.cancelled > 0 
+          ? `Successfully stopped ${data.cancelled} task(s)` 
+          : 'No active tasks to stop';
+        
+        // Create toast/alert (you can customize this based on your UI framework)
+        if (window.showToast) {
+          window.showToast(message, 'success');
+        } else {
+          alert(message);
+        }
+        
+        // Refresh the tasks table
+        setTimeout(() => {
+          refreshAnalysisTasks();
+        }, 500);
+      } else {
+        throw new Error(data.message || 'Failed to stop tasks');
+      }
+    })
+    .catch(error => {
+      console.error('Error stopping tasks:', error);
+      if (window.showToast) {
+        window.showToast('Failed to stop tasks: ' + error.message, 'error');
+      } else {
+        alert('Failed to stop tasks: ' + error.message);
+      }
+    })
+    .finally(() => {
+      // Restore button state
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    });
+  };
+
 })();

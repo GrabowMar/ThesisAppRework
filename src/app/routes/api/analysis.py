@@ -14,6 +14,40 @@ logger = logging.getLogger(__name__)
 # Create analysis blueprint
 analysis_bp = Blueprint('api_analysis', __name__)
 
+
+def _resolve_tools_from_names(tool_names, all_tools):
+    """Helper to resolve tool names to IDs and group by service.
+    
+    Returns:
+        tuple: (tool_ids, tool_names, tools_by_service) or (None, None, None) if no valid tools
+    """
+    tool_ids = []
+    valid_tool_names = []
+    tools_by_service = {}
+    
+    # Build lookup: name (case-insensitive) -> tool object
+    tools_lookup = {t.name.lower(): t for t in all_tools.values()}
+    name_to_idx = {t.name.lower(): idx + 1 for idx, t in enumerate(all_tools.values())}
+    
+    for tool_name in tool_names:
+        tool_name_lower = tool_name.lower()
+        tool_obj = tools_lookup.get(tool_name_lower)
+        
+        if tool_obj and tool_obj.available:
+            tool_id = name_to_idx.get(tool_name_lower)
+            if tool_id:
+                tool_ids.append(tool_id)
+                valid_tool_names.append(tool_obj.name)
+                service = tool_obj.container.value
+                tools_by_service.setdefault(service, []).append(tool_id)
+        else:
+            logger.warning(f"Tool '{tool_name}' not found or unavailable")
+    
+    if not tools_by_service:
+        return None, None, None
+    
+    return tool_ids, valid_tool_names, tools_by_service
+
 @analysis_bp.route('/tool-registry/custom-analysis', methods=['POST'])
 def create_custom_analysis():
     """Create a custom analysis request using container tools."""
@@ -150,133 +184,55 @@ def run_analysis():
         registry = get_container_tool_registry()
         all_tools = registry.get_all_tools()
         
-        # Build tool configuration
-        if tools:
-            # User specified tools - convert names to IDs and group by service
-            tool_ids = []
-            tools_by_service = {}
-            tool_names = []
-            
-            # Build lookup tables
-            name_to_idx = {tool_name.lower(): idx + 1 for idx, tool_name in enumerate(all_tools.keys())}
-            
-            for tool_name in tools:
-                tool_name_lower = tool_name.lower()
-                if tool_name_lower in name_to_idx:
-                    tool_id = name_to_idx[tool_name_lower]
-                    tool_ids.append(tool_id)
-                    
-                    # Find tool object to get container
-                    tool_obj = all_tools.get(tool_name)
-                    if not tool_obj:
-                        # Try case-insensitive lookup
-                        for t_name, t_obj in all_tools.items():
-                            if t_name.lower() == tool_name_lower:
-                                tool_obj = t_obj
-                                break
-                    
-                    if tool_obj and tool_obj.available:
-                        service = tool_obj.container.value
-                        tools_by_service.setdefault(service, []).append(tool_id)
-                        tool_names.append(tool_obj.name)
-                else:
-                    logger.warning(f"Unknown tool: {tool_name}")
-            
-            if not tools_by_service:
-                return api_error("No valid tools found", 400)
-            
-            # Decide if we need multi-service task or single-service
-            multiple_services = len(tools_by_service) > 1
-            
-            if multiple_services:
-                # Create main task with subtasks
-                task = AnalysisTaskService.create_main_task_with_subtasks(
-                    model_slug=model_slug,
-                    app_number=app_number,
-                    tools=tool_names,
-                    priority=priority,
-                    custom_options={
-                        'selected_tools': tool_ids,
-                        'selected_tool_names': tool_names,
-                        'tools_by_service': tools_by_service,
-                        'unified_analysis': True,
-                        'source': 'api'
-                    },
-                    task_name=f"api:{model_slug}:{app_number}"
-                )
-            else:
-                # Single service - create simple task
-                service_to_engine = {
-                    'static-analyzer': 'security',
-                    'dynamic-analyzer': 'dynamic',
-                    'performance-tester': 'performance',
-                    'ai-analyzer': 'ai',
-                }
-                only_service = next(iter(tools_by_service.keys()))
-                engine_name = service_to_engine.get(only_service, analysis_type)
-                
-                task = AnalysisTaskService.create_task(
-                    model_slug=model_slug,
-                    app_number=app_number,
-                    tools=tool_names,
-                    priority=priority,
-                    custom_options={
-                        'selected_tools': tool_ids,
-                        'selected_tool_names': tool_names,
-                        'tools_by_service': tools_by_service,
-                        'unified_analysis': False,
-                        'source': 'api'
-                    }
-                )
-        else:
-            # No tools specified - run all tools for the analysis type
+        # Determine which tools to run
+        if not tools:
+            # No tools specified - use analysis_type to determine tools
             if analysis_type in ['unified', 'comprehensive']:
-                # Run all tools across all services
-                all_tool_ids = list(range(1, len(all_tools) + 1))
-                all_tool_names = list(all_tools.keys())
-                
-                tools_by_service = {}
-                for idx, (tool_name, tool) in enumerate(all_tools.items()):
-                    if tool.available:
-                        service = tool.container.value
-                        tool_id = idx + 1
-                        tools_by_service.setdefault(service, []).append(tool_id)
-                
-                task = AnalysisTaskService.create_main_task_with_subtasks(
-                    model_slug=model_slug,
-                    app_number=app_number,
-                    tools=all_tool_names,
-                    priority=priority,
-                    custom_options={
-                        'selected_tools': all_tool_ids,
-                        'selected_tool_names': all_tool_names,
-                        'tools_by_service': tools_by_service,
-                        'unified_analysis': True,
-                        'source': 'api',
-                        'original_analysis_type': analysis_type
-                    },
-                    task_name=f"api:{model_slug}:{app_number}"
-                )
+                tools = [t.name for t in all_tools.values() if t.available]
             else:
-                # Run default tools for specified analysis type
-                # This part is tricky as analysis_type is deprecated.
-                # We'll map it to a default set of tools.
-                # This is a placeholder for a more robust mapping.
+                # Map analysis_type to default tools
                 default_tools_map = {
                     'security': ['bandit', 'safety', 'eslint'],
                     'performance': ['locust'],
                     'dynamic': ['zap'],
                     'ai': ['ai-analyzer']
                 }
-                tools_to_run = default_tools_map.get(analysis_type, ['bandit', 'safety'])
-
-                task = AnalysisTaskService.create_task(
-                    model_slug=model_slug,
-                    app_number=app_number,
-                    tools=tools_to_run,
-                    priority=priority,
-                    custom_options={'source': 'api', 'original_analysis_type': analysis_type}
-                )
+                tools = default_tools_map.get(analysis_type, ['bandit', 'safety'])
+        
+        # Resolve tool names to IDs and group by service
+        tool_ids, tool_names, tools_by_service = _resolve_tools_from_names(tools, all_tools)
+        
+        if not tools_by_service:
+            return api_error("No valid tools found", 400)
+        
+        # Build custom options for task
+        custom_options = {
+            'selected_tools': tool_ids,
+            'selected_tool_names': tool_names,
+            'tools_by_service': tools_by_service,
+            'source': 'api'
+        }
+        
+        # Create task - use multi-service if multiple containers involved
+        if len(tools_by_service) > 1:
+            custom_options['unified_analysis'] = True
+            task = AnalysisTaskService.create_main_task_with_subtasks(
+                model_slug=model_slug,
+                app_number=app_number,
+                tools=tool_names,
+                priority=priority,
+                custom_options=custom_options,
+                task_name=f"api:{model_slug}:{app_number}"
+            )
+        else:
+            custom_options['unified_analysis'] = False
+            task = AnalysisTaskService.create_task(
+                model_slug=model_slug,
+                app_number=app_number,
+                tools=tool_names,
+                priority=priority,
+                custom_options=custom_options
+            )
         
         # Return task information
         return jsonify({

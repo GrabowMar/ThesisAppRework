@@ -933,6 +933,50 @@ def analysis_result_download(result_id: str):
     )
 
 
+@analysis_bp.route('/api/tasks/stop-all', methods=['POST'])
+def stop_all_tasks():
+    """Stop all pending and running tasks.
+    
+    Returns JSON with count of cancelled tasks.
+    """
+    try:
+        # Get all active tasks (pending or running)
+        active_tasks = AnalysisTask.query.filter(
+            AnalysisTask.status.in_([AnalysisStatus.PENDING, AnalysisStatus.RUNNING])
+        ).all()
+        
+        cancelled_count = 0
+        failed_count = 0
+        
+        for task in active_tasks:
+            try:
+                result = AnalysisTaskService.cancel_task(task.task_id)
+                if result:
+                    cancelled_count += 1
+                    current_app.logger.info(f"Cancelled task {task.task_id}")
+                else:
+                    failed_count += 1
+            except Exception as e:
+                current_app.logger.warning(f"Failed to cancel task {task.task_id}: {e}")
+                failed_count += 1
+        
+        return jsonify({
+            'success': True,
+            'cancelled': cancelled_count,
+            'failed': failed_count,
+            'total': len(active_tasks),
+            'message': f"Cancelled {cancelled_count} task(s)"
+        }), 200
+        
+    except Exception as e:
+        current_app.logger.error(f"Error stopping all tasks: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'message': 'Failed to stop tasks'
+        }), 500
+
+
 @analysis_bp.route('/tasks/<string:task_id>/export/sarif')
 def export_task_sarif(task_id: str):
     """Export analysis results in SARIF 2.1.0 format.

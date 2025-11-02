@@ -313,10 +313,12 @@ def create_app(config_name: str = 'default') -> Flask:
         # objects from pending -> running -> completed for development and tests.
         try:  # pragma: no cover - wiring
             from app.services.task_execution_service import init_task_execution_service
-            init_task_execution_service(app=app)
-            logger.info("Task execution service initialized")
+            svc = init_task_execution_service(app=app)
+            logger.info(f"Task execution service initialized and started (daemon thread running, poll_interval={svc.poll_interval}s)")
+            logger.info("Web app analyses will now generate result files in results/{model}/app{N}/task_{task_id}/")
         except Exception as _exec_err:  # pragma: no cover
             logger.warning(f"Task execution service not started: {_exec_err}")
+            logger.warning("Web app analyses will NOT generate result files until service is started")
         
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")

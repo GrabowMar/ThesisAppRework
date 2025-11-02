@@ -19,10 +19,13 @@ Use this as your working map for coding in this repo. Keep answers specific to t
 - Run an analysis directly (fastest for scripts):
   - `python analyzer/analyzer_manager.py analyze openai_gpt-4 1 security --tools bandit`
   - Comprehensive: `... analyze <model> <app> comprehensive`
-- VS Code Tasks: use “Terminal → Run Task” and pick one of:
-  - `pytest - fast (no integration/slow/analyzer)`
-  - `smoke: run http_smoke (fast)` to ping key HTTP endpoints
-- Tests: prefer `pytest -m "not integration and not slow and not analyzer"` for quick cycles. Full suite runs without the marker.
+- VS Code Tasks: use "Terminal → Run Task" and pick one of:
+  - `pytest: unit tests only` (default, fastest) - Quick unit test cycle
+  - `pytest: smoke tests` - Fast critical path health check
+  - `pytest: integration tests` - All integration tests
+  - `pytest: api integration` / `websocket integration` / `analyzer integration` / `web ui integration` - Targeted suites
+- Tests: prefer `pytest -m "not integration and not slow and not analyzer"` for quick cycles. Smoke tests via `pytest tests/smoke/`. Full suite runs without markers.
+- VS Code Test Explorer: open Testing panel (Ctrl+Shift+T) for interactive test discovery and debugging.
 
 ### Choose your path: CLI vs UI vs API
 - CLI (fast/dev/automation without DB records): use `analyzer/analyzer_manager.py` directly; writes results to `results/...` only.
@@ -45,7 +48,10 @@ Use this as your working map for coding in this repo. Keep answers specific to t
 - Flask wiring and services: `src/app/factory.py` (ServiceLocator, WS service selection, DB init, Jinja setup).
 - Analyzer control, saving, and normalization: `analyzer/analyzer_manager.py` (`run_*` methods, `_aggregate_findings`, `_collect_normalized_tools`, result persistence).
 - Unified WS gateway and shared protocol: `analyzer/websocket_gateway.py` and `analyzer/shared/protocol.py`.
-- Test guidance and markers: `docs/knowledge_base/testing/README.md`, `tests/` (markers: `integration`, `slow`, `analyzer`).
+- Test organization: `tests/` (unit, smoke, integration/{api,websocket,analyzer,web_ui}); markers: `smoke`, `integration`, `slow`, `analyzer`, `api`, `websocket`, `web_ui`.
+- Test guidance: `docs/guides/QUICK_TEST_GUIDE.md`, `docs/knowledge_base/testing/README.md`.
+- Diagnostic scripts: `scripts/diagnostics/` (check_*.py, verify_*.py for troubleshooting).
+- Maintenance scripts: `scripts/maintenance/` (cleanup, reaggregation, demos).
 - End-to-end workflow docs: `docs/API_AUTH_AND_METHODS.md`, `docs/ANALYSIS_WORKFLOW_TESTING.md`, `analyzer/README.md`.
 
 ## Typical tasks you’ll automate
@@ -98,5 +104,7 @@ Keep contributions aligned with these patterns and prefer citing concrete files 
 
 ### Quick code/data probes
 - DB quick check (inside a Flask shell-like snippet): import `create_app` then inspect `PortConfiguration`/`AnalysisTask` under app context.
-- Tests as examples: see `tests/test_unified_analysis.py`, `tests/test_unified_websocket.py`, `tests/test_task_orchestration.py`; run fast set via VS Code Task “pytest - fast (no integration/slow/analyzer)”.
+- Tests as examples: see `tests/integration/analyzer/test_unified_execution.py`, `tests/integration/websocket/test_unified_protocol.py`, `tests/test_task_orchestration.py`; run fast set via VS Code Task "pytest: unit tests only".
+- Smoke tests: `tests/smoke/` for critical path health checks (HTTP endpoints, analyzer services).
+- Diagnostic scripts: run `python scripts/diagnostics/check_tasks.py` or `check_db_apps.py` for quick data inspection.
 - Troubleshoot noisy WS logs: internal websockets loggers are lowered in gateway/services; handshake stack traces from stray probes are benign.

@@ -49,6 +49,11 @@
         <button class="btn btn-sm btn-primary" onclick="refreshAnalysisTasks()" title="Refresh tasks" type="button">
           <i class="fas fa-sync me-1" aria-hidden="true"></i>Refresh
         </button>
+        {% if pagination and pagination.active_count > 0 %}
+        <button class="btn btn-sm btn-danger" onclick="stopAllTasks()" title="Stop all pending and running tasks" type="button">
+          <i class="fas fa-stop-circle me-1" aria-hidden="true"></i>Stop All
+        </button>
+        {% endif %}
         <a href="{{ url_for('analysis.analysis_create') }}" class="btn btn-sm btn-success">
           <i class="fas fa-plus me-1" aria-hidden="true"></i>New Analysis
         </a>

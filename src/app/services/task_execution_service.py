@@ -189,9 +189,17 @@ class TaskExecutionService:
                     next_tasks = queue_service.get_next_tasks(limit=self.batch_size)
                     if not next_tasks:
                         # No pending tasks - sleep and continue
+                        self._log("[POLL] No tasks selected by queue service (checked PENDING tasks)", level='debug')
                         time.sleep(self.poll_interval)
                         continue
-
+                    
+                    self._log(
+                        "[POLL] Selected %d task(s) for execution: %s",
+                        len(next_tasks),
+                        [t.task_id for t in next_tasks],
+                        level='debug'
+                    )
+                    
                     for task in next_tasks:
                         task_db: AnalysisTask | None = AnalysisTask.query.filter_by(id=task.id).first()
                         if not task_db or task_db.status != AnalysisStatus.PENDING:
@@ -290,11 +298,17 @@ class TaskExecutionService:
                                 try:
                                     written_path = write_task_result_files(task_db, result['payload'])
                                     if written_path:
-                                        self._log(f"Wrote result files to disk for task {task_db.task_id}: {written_path}")
+                                        self._log(f"Successfully wrote result files to disk for task {task_db.task_id}: {written_path}")
+                                        # Store file path in task metadata for reference
+                                        task_db.set_metadata({**task_db.get_metadata(), 'result_file_path': str(written_path)})
                                     else:
-                                        self._log(f"Result file write returned None for task {task_db.task_id} - check logs for details", level='warning')
+                                        self._log(f"Result file write returned None for task {task_db.task_id} - payload may be incomplete. Check earlier logs for details.", level='error')
+                                        # Add warning to task status
+                                        task_db.set_metadata({**task_db.get_metadata(), 'result_file_warning': 'File write returned None'})
                                 except Exception as write_err:
-                                    self._log(f"Failed to write result files to disk for task {task_db.task_id}: {write_err}", level='warning')
+                                    self._log(f"CRITICAL: Failed to write result files to disk for task {task_db.task_id}: {write_err}", level='error', exc_info=True)
+                                    # Store error in task metadata
+                                    task_db.set_metadata({**task_db.get_metadata(), 'result_file_error': str(write_err)})
                             except Exception as e:
                                 self._log("Failed to store analysis results for task %s: %s", task_db.task_id, e, level='warning')
                         
@@ -438,89 +452,72 @@ class TaskExecutionService:
             task.progress_percentage = 40.0
             db.session.commit()
             
-            # Resolve selected tools from task metadata (where routes store custom_options)
+            # Streamlined tool resolution: check tool NAMES first (stored by create_task)
             resolved_tools = None
             try:
-                # Routes store selected tools in metadata['custom_options']
                 meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
                 if not isinstance(meta, dict):
                     meta = {}
                 
-                # Extract custom_options from metadata
                 custom_options = meta.get('custom_options', {})
                 if not isinstance(custom_options, dict):
                     custom_options = {}
                 
-                # Get selected tools from custom_options
-                cand = custom_options.get('selected_tools')
+                # Priority 1: Check 'tools' key (canonical names set by create_task)
+                tools_cand = custom_options.get('tools')
+                if isinstance(tools_cand, list) and tools_cand and all(isinstance(t, str) for t in tools_cand):
+                    resolved_tools = tools_cand
+                    self._log(
+                        "[TOOL-SELECT] Task %s: Using tools from metadata.custom_options.tools: %s",
+                        task.task_id, resolved_tools, level='debug'
+                    )
                 
-                # Fallback: check direct metadata keys
-                if not isinstance(cand, list):
-                    cand = meta.get('selected_tools')
-            except Exception:
-                cand = None
-            if isinstance(cand, list):
-                # Normalize: resolve tool IDs (ints or numeric strings) to names via ToolRegistryService
-                def _as_int_list(seq):
-                    vals: list[int] = []
-                    for v in seq:
-                        if isinstance(v, int):
-                            vals.append(v)
-                        elif isinstance(v, str):
-                            v2 = v.strip()
-                            if v2.isdigit():
-                                try:
-                                    vals.append(int(v2))
-                                except Exception:
-                                    pass
-                    return vals
-
-                id_list = _as_int_list(cand)
-                if id_list:
-                    try:
-                        # Primary: use unified registry deterministic IDs
-                        from app.engines.unified_registry import get_unified_tool_registry
-                        unified = get_unified_tool_registry()
-                        names: list[str] = []
-                        for tid in id_list:
-                            tool_name = unified.id_to_name(tid)
-                            if tool_name:
-                                names.append(tool_name)
-                        # Transitional fallback: if no names resolved (older tasks saved using container order)
-                        if not names:
+                # Priority 2: Check 'selected_tool_names' (legacy UI route format)
+                if resolved_tools is None:
+                    names_cand = custom_options.get('selected_tool_names')
+                    if isinstance(names_cand, list) and names_cand and all(isinstance(t, str) for t in names_cand):
+                        resolved_tools = names_cand
+                        self._log(
+                            "[TOOL-SELECT] Task %s: Using tools from metadata.custom_options.selected_tool_names: %s",
+                            task.task_id, resolved_tools, level='debug'
+                        )
+                
+                # Priority 3: Legacy ID resolution (for old tasks with 'selected_tools' IDs)
+                if resolved_tools is None:
+                    ids_cand = custom_options.get('selected_tools')
+                    if isinstance(ids_cand, list) and ids_cand:
+                        # Try to resolve IDs to names
+                        id_list = [v for v in ids_cand if isinstance(v, int)]
+                        if id_list:
                             try:
-                                from app.engines.container_tool_registry import get_container_tool_registry
-                                c_registry = get_container_tool_registry()
-                                all_tools = c_registry.get_all_tools()
-                                fallback_map = {idx + 1: tname for idx, (tname, _tool) in enumerate(all_tools.items())}
-                                for tid in id_list:
-                                    tname = fallback_map.get(tid)
-                                    if tname and tname not in names:
-                                        names.append(tname)
-                            except Exception:
-                                pass
-                        resolved_tools = names or None
-                    except Exception as e:
-                        self._log(f"Failed to resolve tool IDs to names: {e}", level='warning')
-                        resolved_tools = None
-                elif cand and all(isinstance(x, str) for x in cand):
-                    resolved_tools = cand  # already names
-                elif cand == []:
-                    resolved_tools = []  # explicit empty (should rarely happen due to form validation)
-
-            # Apply defaults only when no explicit selection present
-            if resolved_tools is None:
-                config = get_config()
-                resolved_tools = config.get_default_tools(engine_name)
+                                from app.engines.unified_registry import get_unified_tool_registry
+                                unified = get_unified_tool_registry()
+                                names = [unified.id_to_name(tid) for tid in id_list]
+                                names = [n for n in names if n]  # filter None
+                                if names:
+                                    resolved_tools = names
+                                    self._log(
+                                        "[TOOL-SELECT] Task %s: Resolved tool IDs to names: %s",
+                                        task.task_id, resolved_tools, level='debug'
+                                    )
+                            except Exception as e:
+                                self._log(f"[TOOL-SELECT] Failed to resolve tool IDs: {e}", level='warning')
+            
+            except Exception as e:
+                self._log(f"[TOOL-SELECT] Error reading tool metadata: {e}", level='warning')
+            
+            # No fallback to defaults - if tools not specified, that's an error
+            if resolved_tools is None or not resolved_tools:
                 self._log(
-                    "[EXEC] Task %s: No explicit tools, using defaults from config: %s",
-                    task.task_id, resolved_tools
-                , level='debug')
-            else:
-                self._log(
-                    "[EXEC] Task %s: Using explicitly resolved tools: %s",
-                    task.task_id, resolved_tools
-                , level='debug')
+                    "[TOOL-SELECT] ERROR: Task %s has NO TOOLS specified in metadata! Cannot execute.",
+                    task.task_id, level='error'
+                )
+                # Return error result
+                return ExecutionResult(
+                    status='failed',
+                    error=f'No tools specified for task {task.task_id}',
+                    payload=None
+                )
 
             # If engine_name is 'ai' but resolved_tools accidentally contains non-AI legacy defaults, restrict to requirements-scanner.
             if engine_name == 'ai':
