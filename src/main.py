@@ -128,17 +128,16 @@ def main():
                 host=host,
                 port=port,
                 debug=debug,
-                use_reloader=False
+                use_reloader=False,
+                threaded=True
             )
     except KeyboardInterrupt:
         logger.info("Application shutdown requested by user")
         return 0
     except Exception as e:
-        logger.error(f"Application failed to start: {e}")
+        logger.error(f"Application failed to start: {e}", exc_info=True)
         return 1
 
 if __name__ == '__main__':
     sys.exit(main())
-
-# reload
 

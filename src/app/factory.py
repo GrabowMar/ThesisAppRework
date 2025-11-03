@@ -222,6 +222,58 @@ def create_app(config_name: str = 'default') -> Flask:
                 logger.warning(f"Could not import app.models before DB init: {_imp_err}")
             db.create_all()
             logger.info("Database initialized successfully")
+            
+            # Clean up old/stuck tasks from previous runs
+            try:
+                from datetime import datetime, timezone, timedelta
+                from app.models import AnalysisTask, AnalysisStatus
+                
+                # Define cutoff time (tasks older than 30 minutes)
+                # Use naive datetime since DB stores naive timestamps
+                cutoff = datetime.now() - timedelta(minutes=30)
+                
+                # Find all stuck RUNNING or old PENDING tasks
+                stuck_running = AnalysisTask.query.filter(
+                    AnalysisTask.status == AnalysisStatus.RUNNING,
+                    AnalysisTask.started_at < cutoff
+                ).all()
+                
+                old_pending = AnalysisTask.query.filter(
+                    AnalysisTask.status == AnalysisStatus.PENDING,
+                    AnalysisTask.created_at < cutoff
+                ).all()
+                
+                cleanup_count = 0
+                
+                # Mark stuck RUNNING tasks as FAILED
+                for task in stuck_running:
+                    task.status = AnalysisStatus.FAILED
+                    task.error_message = "Task stuck in RUNNING state - cleaned up on app startup"
+                    task.completed_at = datetime.now()
+                    cleanup_count += 1
+                    logger.info(f"Cleaned up stuck RUNNING task: {task.task_id}")
+                
+                # Mark old PENDING tasks as CANCELLED
+                for task in old_pending:
+                    task.status = AnalysisStatus.CANCELLED
+                    task.error_message = "Old pending task - cleaned up on app startup"
+                    task.completed_at = datetime.now()
+                    cleanup_count += 1
+                    logger.info(f"Cleaned up old PENDING task: {task.task_id}")
+                
+                if cleanup_count > 0:
+                    db.session.commit()
+                    logger.info(f"Cleaned up {cleanup_count} old/stuck tasks on startup")
+                else:
+                    logger.debug("No old/stuck tasks to clean up")
+                    
+            except Exception as cleanup_err:
+                logger.warning(f"Failed to clean up old tasks: {cleanup_err}")
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
+                    
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")
     

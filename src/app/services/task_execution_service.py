@@ -1256,7 +1256,295 @@ class TaskExecutionService:
                 }
             }
         }
-        return wrapped
+            return wrapped
+    
+    def _extract_sarif_to_files(self, services: Dict[str, Any], sarif_dir: Path) -> Dict[str, Any]:
+        """Extract SARIF data from service results to separate files.
+        
+        Returns a copy of services with SARIF data replaced by file references.
+        Matches analyzer_manager.py implementation.
+        """
+        services_copy = {}
+        
+        for service_name, service_data in services.items():
+            if not isinstance(service_data, dict):
+                services_copy[service_name] = service_data
+                continue
+            
+            service_copy = dict(service_data)
+            
+            # Handle different service result structures
+            # Some services have analysis.tool_results, others have analysis.results
+            analysis = service_copy.get('analysis', {})
+            if not isinstance(analysis, dict):
+                services_copy[service_name] = service_copy
+                continue
+            
+            analysis_copy = dict(analysis)
+            
+            # Handle tool_results (dynamic, performance)
+            if 'tool_results' in analysis_copy and isinstance(analysis_copy['tool_results'], dict):
+                tool_results_copy = {}
+                for tool_name, tool_data in analysis_copy['tool_results'].items():
+                    if not isinstance(tool_data, dict):
+                        tool_results_copy[tool_name] = tool_data
+                        continue
+                    
+                    tool_copy = dict(tool_data)
+                    if 'sarif' in tool_copy and isinstance(tool_copy['sarif'], dict):
+                        sarif_filename = f"{service_name}_{tool_name}.sarif.json"
+                        sarif_path = sarif_dir / sarif_filename
+                        
+                        try:
+                            with open(sarif_path, 'w', encoding='utf-8') as f:
+                                json.dump(tool_copy['sarif'], f, indent=2, default=str)
+                            self._log(f"Extracted SARIF for {tool_name} to {sarif_filename}", level='info')
+                            tool_copy['sarif_file'] = f"sarif/{sarif_filename}"
+                            del tool_copy['sarif']
+                        except Exception as e:
+                            self._log(f"Failed to extract SARIF for {tool_name}: {e}", level='error')
+                    
+                    tool_results_copy[tool_name] = tool_copy
+                
+                analysis_copy['tool_results'] = tool_results_copy
+            
+            # Handle nested results structure (static, security)
+            if 'results' in analysis_copy and isinstance(analysis_copy['results'], dict):
+                results_copy = {}
+                for category, category_data in analysis_copy['results'].items():
+                    if not isinstance(category_data, dict):
+                        results_copy[category] = category_data
+                        continue
+                    
+                    category_copy = {}
+                    for tool_name, tool_data in category_data.items():
+                        if not isinstance(tool_data, dict):
+                            category_copy[tool_name] = tool_data
+                            continue
+                        
+                        tool_copy = dict(tool_data)
+                        if 'sarif' in tool_copy and isinstance(tool_copy['sarif'], dict):
+                            sarif_filename = f"{service_name}_{category}_{tool_name}.sarif.json"
+                            sarif_path = sarif_dir / sarif_filename
+                            
+                            try:
+                                with open(sarif_path, 'w', encoding='utf-8') as f:
+                                    json.dump(tool_copy['sarif'], f, indent=2, default=str)
+                                self._log(f"Extracted SARIF for {category}/{tool_name} to {sarif_filename}", level='info')
+                                tool_copy['sarif_file'] = f"sarif/{sarif_filename}"
+                                del tool_copy['sarif']
+                            except Exception as e:
+                                self._log(f"Failed to extract SARIF for {category}/{tool_name}: {e}", level='error')
+                        
+                        category_copy[tool_name] = tool_copy
+                    
+                    results_copy[category] = category_copy
+                
+                analysis_copy['results'] = results_copy
+            
+            service_copy['analysis'] = analysis_copy
+            services_copy[service_name] = service_copy
+        
+        return services_copy
+    
+    def _write_service_snapshots(self, task_dir: Path, services: Dict[str, Any], timestamp: str) -> None:
+        """Write per-service snapshot files with full original data including SARIF.
+        
+        Provides backward compatibility for tools expecting full SARIF embedded.
+        """
+        services_dir = task_dir / 'services'
+        services_dir.mkdir(exist_ok=True)
+        
+        for service_name, service_data in services.items():
+            if not isinstance(service_data, dict):
+                continue
+            
+            snapshot_filename = f"{service_name}_analysis_{timestamp}.json"
+            snapshot_path = services_dir / snapshot_filename
+            
+            try:
+                with open(snapshot_path, 'w', encoding='utf-8') as f:
+                    json.dump(service_data, f, indent=2, default=str)
+                self._log(f"Wrote service snapshot: {snapshot_filename}", level='debug')
+            except Exception as e:
+                self._log(f"Failed to write service snapshot for {service_name}: {e}", level='error')
+    
+    def _aggregate_findings_from_services(self, services: Dict[str, Any]) -> Dict[str, Any]:
+        """Aggregate findings from all services into flat severity-based structure.
+        
+        Matches analyzer_manager._aggregate_findings behavior.
+        """
+        aggregated = {
+            'critical': [],
+            'high': [],
+            'medium': [],
+            'low': [],
+            'info': []
+        }
+        
+        tools_executed = set()
+        findings_by_tool = {}
+        
+        for service_name, service_data in services.items():
+            if not isinstance(service_data, dict):
+                continue
+            
+            analysis = service_data.get('analysis', {})
+            if not isinstance(analysis, dict):
+                continue
+            
+            # Extract from tool_results
+            tool_results = analysis.get('tool_results', {})
+            if isinstance(tool_results, dict):
+                for tool_name, tool_data in tool_results.items():
+                    if not isinstance(tool_data, dict):
+                        continue
+                    
+                    tools_executed.add(tool_name)
+                    
+                    # Get issues/findings
+                    issues = tool_data.get('issues', [])
+                    if not isinstance(issues, list):
+                        issues = []
+                    
+                    findings_by_tool[tool_name] = len(issues)
+                    
+                    # Categorize by severity
+                    for issue in issues:
+                        if not isinstance(issue, dict):
+                            continue
+                        
+                        severity = str(issue.get('severity', 'info')).lower()
+                        finding = {
+                            'severity': severity,
+                            'message': issue.get('message', ''),
+                            'file': issue.get('file', issue.get('filename', '')),
+                            'line': issue.get('line', issue.get('line_number', 0)),
+                            'tool': tool_name,
+                            'service': service_name,
+                            'rule_id': issue.get('rule_id', issue.get('test_id', ''))
+                        }
+                        
+                        if severity in aggregated:
+                            aggregated[severity].append(finding)
+                        else:
+                            aggregated['info'].append(finding)
+            
+            # Extract from nested results structure
+            results = analysis.get('results', {})
+            if isinstance(results, dict):
+                for category, category_data in results.items():
+                    if not isinstance(category_data, dict):
+                        continue
+                    
+                    for tool_name, tool_data in category_data.items():
+                        if not isinstance(tool_data, dict):
+                            continue
+                        
+                        tools_executed.add(tool_name)
+                        
+                        issues = tool_data.get('issues', [])
+                        if not isinstance(issues, list):
+                            issues = []
+                        
+                        findings_by_tool[tool_name] = findings_by_tool.get(tool_name, 0) + len(issues)
+                        
+                        for issue in issues:
+                            if not isinstance(issue, dict):
+                                continue
+                            
+                            severity = str(issue.get('severity', 'info')).lower()
+                            finding = {
+                                'severity': severity,
+                                'message': issue.get('message', ''),
+                                'file': issue.get('file', issue.get('filename', '')),
+                                'line': issue.get('line', issue.get('line_number', 0)),
+                                'tool': tool_name,
+                                'service': service_name,
+                                'category': category,
+                                'rule_id': issue.get('rule_id', issue.get('test_id', ''))
+                            }
+                            
+                            if severity in aggregated:
+                                aggregated[severity].append(finding)
+                            else:
+                                aggregated['info'].append(finding)
+        
+        total_findings = sum(len(v) for v in aggregated.values())
+        
+        return {
+            'findings': aggregated,
+            'findings_total': total_findings,
+            'findings_by_severity': {k: len(v) for k, v in aggregated.items()},
+            'findings_by_tool': findings_by_tool,
+            'tools_executed': sorted(list(tools_executed))
+        }
+    
+    def _collect_normalized_tools(self, services: Dict[str, Any]) -> Dict[str, Any]:
+        """Collect normalized tool status map across all services.
+        
+        Returns flat dict of {tool_name: {status, exit_code, findings_count, service, ...}}
+        """
+        normalized_tools = {}
+        
+        for service_name, service_data in services.items():
+            if not isinstance(service_data, dict):
+                continue
+            
+            analysis = service_data.get('analysis', {})
+            if not isinstance(analysis, dict):
+                continue
+            
+            # Process tool_results
+            tool_results = analysis.get('tool_results', {})
+            if isinstance(tool_results, dict):
+                for tool_name, tool_data in tool_results.items():
+                    if not isinstance(tool_data, dict):
+                        continue
+                    
+                    issues = tool_data.get('issues', [])
+                    normalized_tools[tool_name] = {
+                        'status': tool_data.get('status', 'unknown'),
+                        'exit_code': tool_data.get('exit_code', 0),
+                        'findings_count': len(issues) if isinstance(issues, list) else 0,
+                        'service': service_name
+                    }
+                    
+                    # Add SARIF file reference if present
+                    if 'sarif_file' in tool_data:
+                        normalized_tools[tool_name]['sarif_file'] = tool_data['sarif_file']
+            
+            # Process nested results
+            results = analysis.get('results', {})
+            if isinstance(results, dict):
+                for category, category_data in results.items():
+                    if not isinstance(category_data, dict):
+                        continue
+                    
+                    for tool_name, tool_data in category_data.items():
+                        if not isinstance(tool_data, dict):
+                            continue
+                        
+                        issues = tool_data.get('issues', [])
+                        
+                        # Update or create tool entry
+                        if tool_name not in normalized_tools:
+                            normalized_tools[tool_name] = {
+                                'status': tool_data.get('status', 'unknown'),
+                                'exit_code': tool_data.get('exit_code', 0),
+                                'findings_count': 0,
+                                'service': service_name,
+                                'category': category
+                            }
+                        
+                        # Add to findings count
+                        normalized_tools[tool_name]['findings_count'] = normalized_tools[tool_name].get('findings_count', 0) + (len(issues) if isinstance(issues, list) else 0)
+                        
+                        # Add SARIF file reference if present
+                        if 'sarif_file' in tool_data:
+                            normalized_tools[tool_name]['sarif_file'] = tool_data['sarif_file']
+        
+        return normalized_tools
     
     def _write_task_results_to_filesystem(
         self,
@@ -1268,6 +1556,12 @@ class TaskExecutionService:
         """Write task results to filesystem matching analyzer_manager structure.
         
         Saves to: results/{model_slug}/app{app_number}/task_{task_id}/
+        
+        Creates:
+        - Main consolidated JSON (with SARIF extracted)
+        - sarif/ directory with individual SARIF files
+        - services/ directory with full service snapshots
+        - manifest.json for quick metadata access
         """
         # Build results directory path (mirroring analyzer_manager.py structure)
         results_base = Path(__file__).resolve().parent.parent.parent.parent / "results"
@@ -1282,11 +1576,27 @@ class TaskExecutionService:
         
         # Build filename with timestamp
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        # Use task_folder_name which already has correct "task_" prefix handling
         filename = f"{safe_slug}_app{app_number}_{task_folder_name}_{timestamp}.json"
         filepath = task_dir / filename
         
-        # Build comprehensive results structure (matching analyzer_manager format)
+        # Extract services from unified_payload
+        services = unified_payload.get('services', {})
+        
+        # 1. Write service snapshots FIRST (before SARIF extraction) - preserves full original data
+        self._write_service_snapshots(task_dir, services, timestamp)
+        
+        # 2. Create SARIF directory and extract SARIF to separate files
+        sarif_dir = task_dir / 'sarif'
+        sarif_dir.mkdir(exist_ok=True)
+        services_with_sarif_refs = self._extract_sarif_to_files(services, sarif_dir)
+        
+        # 3. Aggregate findings from services (use original services with full SARIF)
+        aggregated_findings = self._aggregate_findings_from_services(services)
+        
+        # 4. Collect normalized tools
+        normalized_tools = self._collect_normalized_tools(services_with_sarif_refs)
+        
+        # 5. Build comprehensive results structure (matching analyzer_manager format)
         full_results = {
             'metadata': {
                 'model_slug': model_slug,
@@ -1298,34 +1608,70 @@ class TaskExecutionService:
                 'version': '1.0',
                 'executor': 'task_execution_service'
             },
-            'results': unified_payload
+            'results': {
+                'task': unified_payload.get('task', {
+                    'task_id': task_id,
+                    'analysis_type': task_id,
+                    'model_slug': model_slug,
+                    'app_number': app_number,
+                    'started_at': datetime.now().isoformat(),
+                    'completed_at': datetime.now().isoformat()
+                }),
+                'summary': {
+                    'total_findings': aggregated_findings.get('findings_total', 0),
+                    'services_executed': len([k for k, v in services.items() if isinstance(v, dict) and v.get('status') == 'success']),
+                    'tools_executed': len(normalized_tools),
+                    'severity_breakdown': aggregated_findings.get('findings_by_severity', {}),
+                    'findings_by_tool': aggregated_findings.get('findings_by_tool', {}),
+                    'tools_used': sorted(aggregated_findings.get('tools_executed', [])),
+                    'tools_failed': sorted([t for t, d in normalized_tools.items() if str(d.get('status', '')).lower() not in ('success', 'completed', 'no_issues')]),
+                    'tools_skipped': [],
+                    'status': 'completed'
+                },
+                # Services with SARIF extracted to separate files
+                'services': services_with_sarif_refs,
+                # Flat normalized view of all tools
+                'tools': normalized_tools,
+                # Aggregated findings by severity
+                'findings': aggregated_findings.get('findings', {})
+            }
         }
         
-        # Write the main consolidated file
+        # 6. Write the main consolidated file (with SARIF extracted)
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(full_results, f, indent=2, default=str)
         
         self._log(
-            f"[FILESYSTEM] Task results written to: {filepath}",
+            f"[FILESYSTEM] Consolidated task results saved to: {filepath}",
+            level='info'
+        )
+        self._log(
+            f"[FILESYSTEM] SARIF files extracted to: {sarif_dir}",
             level='info'
         )
         
-        # Also write a manifest.json for easy discovery
+        # 7. Write enhanced manifest.json
         manifest_path = task_dir / "manifest.json"
         manifest = {
             'task_id': task_id,
             'model_slug': model_slug,
             'app_number': app_number,
-            'result_file': filename,
-            'created_at': datetime.now().isoformat(),
-            'status': unified_payload.get('summary', {}).get('status', 'unknown'),
-            'total_findings': unified_payload.get('summary', {}).get('total_findings', 0),
-            'services_executed': unified_payload.get('summary', {}).get('services_executed', 0)
+            'analysis_type': task_id,
+            'timestamp': datetime.now().isoformat(),
+            'status': 'completed',
+            'main_result_file': filename,
+            'sarif_directory': 'sarif/',
+            'services_directory': 'services/',
+            'total_findings': aggregated_findings.get('findings_total', 0),
+            'services': {name: data.get('status', 'unknown') if isinstance(data, dict) else 'unknown' for name, data in services.items()},
+            'tools_count': len(normalized_tools),
+            'file_sizes': {
+                'main_json_mb': round(filepath.stat().st_size / 1024 / 1024, 2) if filepath.exists() else 0,
+                'sarif_total_mb': round(sum(f.stat().st_size for f in sarif_dir.glob('*.sarif.json')) / 1024 / 1024, 2) if sarif_dir.exists() else 0
+            }
         }
         with open(manifest_path, 'w', encoding='utf-8') as f:
-            json.dump(manifest, f, indent=2, default=str)
-    
-    def _validate_analyzer_containers(self, service_names: list[str]) -> bool:
+            json.dump(manifest, f, indent=2, default=str)    def _validate_analyzer_containers(self, service_names: list[str]) -> bool:
         """Validate that all required analyzer containers are healthy."""
         try:
             from app.services.analyzer_integration import health_monitor
