@@ -178,43 +178,67 @@ class ZAPScanner:
             if self.zap_process:
                 self.zap_process.kill()
     
-    def spider_scan(self, url: str, max_depth: int = 2, max_duration: int = 60) -> Dict[str, Any]:
+    def spider_scan(self, url: str, max_depth: int = 5, max_duration: int = 180, max_children: int = 0) -> Dict[str, Any]:
         """
-        Run ZAP spider scan on target URL.
+        Run ZAP spider scan on target URL with thorough coverage.
         
         Args:
             url: Target URL to spider
-            max_depth: Maximum spider depth
-            max_duration: Maximum scan duration in seconds
+            max_depth: Maximum spider depth (default: 5 for regular apps)
+            max_duration: Maximum scan duration in seconds (default: 180s = 3 minutes)
+            max_children: Maximum number of children to spider (0 = unlimited, ZAP default)
             
         Returns:
             Spider scan results
         """
         try:
-            logger.info(f"Starting spider scan on {url}")
+            logger.info(f"Starting comprehensive spider scan on {url} (max_depth={max_depth}, max_duration={max_duration}s)")
             
-            # Start the spider (note: ZAP API uses 'maxchildren' and no 'maxduration' in some versions)
-            scan_id = self.zap.spider.scan(url, maxchildren=max_depth)
+            # Configure spider for thorough scanning (ZAP default settings)
+            # Set thread count for faster scanning
+            self.zap.spider.set_option_max_depth(max_depth)
+            self.zap.spider.set_option_thread_count(5)  # Default ZAP threads
             
-            # Wait for spider to complete
+            # Start the spider with ZAP defaults
+            # maxchildren=0 means no limit (ZAP default behavior)
+            scan_id = self.zap.spider.scan(url, maxchildren=max_children, recurse=True, subtreeonly=False)
+            logger.info(f"Spider scan started with ID: {scan_id}")
+            
+            # Wait for spider to complete with progress updates
             start_time = time.time()
-            while int(self.zap.spider.status(scan_id)) < 100:
-                if time.time() - start_time > max_duration:
-                    logger.warning(f"Spider scan timeout after {max_duration}s")
+            last_progress = 0
+            while True:
+                progress = int(self.zap.spider.status(scan_id))
+                elapsed = int(time.time() - start_time)
+                
+                # Log progress every 20%
+                if progress >= last_progress + 20:
+                    logger.info(f"Spider progress: {progress}% (elapsed: {elapsed}s)")
+                    last_progress = progress
+                
+                if progress >= 100:
+                    break
+                    
+                if elapsed > max_duration:
+                    logger.warning(f"Spider scan timeout after {max_duration}s (progress: {progress}%)")
                     self.zap.spider.stop(scan_id)
                     break
-                time.sleep(2)
+                    
+                time.sleep(3)  # Check every 3 seconds
             
             # Get spider results
             urls_found = self.zap.spider.results(scan_id)
+            elapsed_total = int(time.time() - start_time)
             
-            logger.info(f"Spider scan completed. Found {len(urls_found)} URLs")
+            logger.info(f"Spider scan completed in {elapsed_total}s. Found {len(urls_found)} URLs")
             
             return {
                 'status': 'success',
                 'scan_id': scan_id,
                 'urls_found': len(urls_found),
-                'urls': urls_found[:100]  # Limit to first 100
+                'urls': urls_found,  # Include all URLs for comprehensive results
+                'duration': elapsed_total,
+                'max_depth': max_depth
             }
             
         except Exception as e:
@@ -315,11 +339,11 @@ class ZAPScanner:
     
     def quick_scan(self, url: str, scan_type: str = 'baseline') -> Dict[str, Any]:
         """
-        Run a quick ZAP scan (baseline or quick).
+        Run a comprehensive ZAP scan (baseline or quick).
         
         Args:
             url: Target URL to scan
-            scan_type: 'baseline' or 'quick' scan
+            scan_type: 'baseline' (thorough spider + passive) or 'quick' (passive only)
             
         Returns:
             Scan results with alerts
@@ -327,17 +351,40 @@ class ZAPScanner:
         try:
             logger.info(f"Starting {scan_type} scan on {url}")
             
-            # Access the URL
+            # Access the URL to initialize
             self.zap.urlopen(url)
             time.sleep(2)
             
             if scan_type == 'baseline':
-                # Spider + Passive scan
-                spider_result = self.spider_scan(url, max_depth=1, max_duration=30)
-                time.sleep(5)  # Let passive scanner analyze
+                # Thorough spider + Passive scan (default ZAP behavior for regular apps)
+                logger.info("Running comprehensive spider scan with ZAP defaults...")
+                spider_result = self.spider_scan(
+                    url, 
+                    max_depth=5,      # Deeper crawl for regular apps
+                    max_duration=180,  # 3 minutes for thorough coverage
+                    max_children=0     # Unlimited (ZAP default)
+                )
+                
+                if spider_result.get('status') == 'success':
+                    logger.info(f"Spider discovered {spider_result.get('urls_found', 0)} URLs")
+                
+                # Wait for passive scanner to analyze all spidered URLs
+                logger.info("Waiting for passive scan analysis...")
+                time.sleep(10)  # Give passive scanner time to process all URLs
+                
+                # Wait for passive scan queue to empty
+                records_remaining = int(self.zap.pscan.records_to_scan)
+                wait_count = 0
+                while records_remaining > 0 and wait_count < 30:  # Max 30 iterations (60s)
+                    logger.debug(f"Passive scan: {records_remaining} records remaining")
+                    time.sleep(2)
+                    records_remaining = int(self.zap.pscan.records_to_scan)
+                    wait_count += 1
+                
                 alerts = self.zap.core.alerts(baseurl=url)
             else:
-                # Just passive scan
+                # Quick passive scan only
+                time.sleep(5)
                 alerts = self.zap.core.alerts(baseurl=url)
             
             logger.info(f"{scan_type.capitalize()} scan completed. Found {len(alerts)} alerts")

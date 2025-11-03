@@ -905,21 +905,36 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     "timestamp": datetime.now().isoformat()
                 }
                 
-                try:
-                    response_json = json.dumps(response)
-                    await websocket.send(response_json)
-                    self.log.info(f"Static analysis completed for {model_slug} app {app_number}")
-                except TypeError as e:
-                    self.log.error(f"Failed to serialize response: {e}")
-                    # Send error response instead
-                    error_response = {
-                        "type": "static_analysis_result",
-                        "status": "error",
-                        "service": self.info.name,
-                        "error": f"Serialization error: {str(e)}",
-                        "timestamp": datetime.now().isoformat()
-                    }
-                    await websocket.send(json.dumps(error_response))
+                # Retry logic for WebSocket send (handle connection issues)
+                max_retries = 3
+                retry_delay = 1
+                
+                for attempt in range(max_retries):
+                    try:
+                        response_json = json.dumps(response)
+                        await websocket.send(response_json)
+                        self.log.info(f"Static analysis completed for {model_slug} app {app_number}")
+                        break  # Success - exit retry loop
+                    except TypeError as e:
+                        self.log.error(f"Failed to serialize response: {e}")
+                        # Send error response instead
+                        error_response = {
+                            "type": "static_analysis_result",
+                            "status": "error",
+                            "service": self.info.name,
+                            "error": f"Serialization error: {str(e)}",
+                            "timestamp": datetime.now().isoformat()
+                        }
+                        await websocket.send(json.dumps(error_response))
+                        break  # Don't retry serialization errors
+                    except Exception as send_err:
+                        if attempt < max_retries - 1:
+                            self.log.warning(f"WebSocket send failed (attempt {attempt + 1}/{max_retries}): {send_err}. Retrying...")
+                            await asyncio.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                        else:
+                            self.log.error(f"WebSocket send failed after {max_retries} attempts: {send_err}")
+                            raise
                 
             else:
                 response = {

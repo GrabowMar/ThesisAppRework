@@ -85,7 +85,7 @@ class PerformanceTester(BaseWSService):
             self.log.info(f"Quick response check for {url}")
             await self.send_progress('checking', f'Checking connectivity: {url}', url=url)
 
-            # Try multiple hostnames for Docker networking
+            # Try multiple hostnames for Docker networking  
             test_urls = [url]
             parsed = urlparse(url)
             if parsed.hostname in ['localhost', '127.0.0.1']:
@@ -98,7 +98,8 @@ class PerformanceTester(BaseWSService):
             
             for test_url in test_urls:
                 try:
-                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
+                    # Use shorter timeout for faster failure detection
+                    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
                         async with session.get(test_url) as response:
                             if response.status < 500:  # Accept anything that's not a server error
                                 successful_url = test_url
@@ -137,8 +138,8 @@ class PerformanceTester(BaseWSService):
         try:
             # Get configuration
             ab_config = config.get('apache_bench', {}) if config else {}
-            requests = ab_config.get('requests', 100)
-            concurrency = ab_config.get('concurrency', 10)
+            requests = ab_config.get('requests', 20)  # Reduced from 100 for faster tests
+            concurrency = ab_config.get('concurrency', 5)  # Reduced from 10 for faster tests
             
             # Apache Bench requires a path component - ensure URL has trailing slash
             ab_url = url.rstrip('/') + '/'
@@ -150,9 +151,9 @@ class PerformanceTester(BaseWSService):
             # Build command
             cmd = ['ab', '-n', str(requests), '-c', str(concurrency), '-g', 'ab_results.tsv', ab_url]
             
-            # Run test with extended timeout for performance tests
+            # Run test with shorter timeout for faster tests (was 600s)
             start_ts = time.time()
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, cwd=str(self.test_output_dir))
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=45, cwd=str(self.test_output_dir))
             duration = time.time() - start_ts
             
             if result.returncode == 0:
@@ -241,9 +242,9 @@ class PerformanceTester(BaseWSService):
         try:
             # Get configuration
             locust_config = config.get('locust', {}) if config else {}
-            users = locust_config.get('users', 50)
+            users = locust_config.get('users', 10)  # Reduced from 50 for faster tests
             spawn_rate = locust_config.get('spawn_rate', 2)
-            run_time = locust_config.get('run_time', '30s')
+            run_time = locust_config.get('run_time', '15s')  # Reduced from 30s for faster tests
             
             self.log.info(f"Running Locust: {users} users, {spawn_rate}/s spawn rate, {run_time} duration on {url}")
             await self.send_progress('locust_start', f'Locust starting: {url}', 
@@ -277,9 +278,9 @@ class SimpleUser(HttpUser):
                 '--csv', csv_prefix
             ]
             
-            # Run test with extended timeout for performance tests
+            # Run test with shorter timeout for faster tests (was 900s)
             start_ts = time.time()
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=900, cwd=str(self.test_output_dir))
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=str(self.test_output_dir))
             duration = time.time() - start_ts
             
             if result.returncode == 0:
@@ -384,9 +385,9 @@ scenarios:
             output_json = str(self.test_output_dir / "artillery_report.json")
             cmd = ['artillery', 'run', '--output', output_json, str(artillery_config_path)]
             
-            # Run test with extended timeout for performance tests
+            # Run test with shorter timeout for faster tests (was 600s)
             start_ts = time.time()
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, cwd=str(self.test_output_dir))
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=str(self.test_output_dir))
             duration_actual = time.time() - start_ts
             
             if result.returncode == 0:
@@ -476,8 +477,8 @@ scenarios:
         try:
             # Get configuration
             aiohttp_config = config.get('aiohttp', {}) if config else {}
-            requests = aiohttp_config.get('requests', 50)
-            concurrency = aiohttp_config.get('concurrency', 5)
+            requests = aiohttp_config.get('requests', 20)  # Reduced from 50 for faster tests
+            concurrency = aiohttp_config.get('concurrency', 3)  # Reduced from 5 for faster tests
             # Debug override: allow quick test via env PERF_DEBUG=1 to slash workload
             if os.getenv('PERF_DEBUG','0') in ('1','true','True'):
                 requests = min(requests, 10)
@@ -508,7 +509,7 @@ scenarios:
                         return False
             
             start_ts = time.time()
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=120)) as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:  # Reduced from 120s
                 tasks = [single_request(session) for _ in range(requests)]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
             duration = time.time() - start_ts
@@ -727,9 +728,19 @@ scenarios:
                     config.setdefault('locust', {})['run_time'] = f"{message_data.get('duration')}s"
                 
                 self.log.info(f"Received performance test request for {model_slug} app {app_number}")
+                self.log.info(f"[PERF-TEST] Target URLs: {target_urls}")
+                self.log.info(f"[PERF-TEST] Selected tools: {selected_tools}")
+                
                 result = await self.test_application_performance(
                     model_slug, app_number, target_urls, config, selected_tools
                 )
+                
+                # Log result summary for debugging
+                self.log.info(f"[PERF-RESULT] Status: {result.get('status')}")
+                self.log.info(f"[PERF-RESULT] Tools used: {result.get('tools_used')}")
+                if 'results' in result and 'tool_runs' in result['results']:
+                    self.log.info(f"[PERF-RESULT] Tool runs: {list(result['results']['tool_runs'].keys())}")
+                
                 # Ensure tool_runs surfaced (some callers rely on this path)
                 if 'results' in result and 'tool_runs' not in result['results']:
                     # If individual URL sections exist, aggregate minimal tool list
@@ -743,6 +754,7 @@ scenarios:
                                 tool_runs[tool_name] = tdata
                     if tool_runs:
                         result['results']['tool_runs'] = tool_runs
+                        self.log.info(f"[PERF-RESULT] Aggregated tool_runs: {list(tool_runs.keys())}")
 
                 wrapped = {
                     'type': 'performance_analysis_result',
@@ -751,6 +763,8 @@ scenarios:
                     'analysis': result,
                     'timestamp': datetime.now().isoformat()
                 }
+                
+                self.log.info(f"[PERF-RESPONSE] Sending response with analysis status={result.get('status')}")
                 await websocket.send(json.dumps(wrapped))
             
             elif message_type == 'health_check':

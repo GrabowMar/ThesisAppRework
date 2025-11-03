@@ -8,9 +8,12 @@ Replaces the old rigid type-based analysis engines.
 
 import json
 import logging
+import asyncio
+import uuid
+import os
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
-import os
 
 from .base import (
     ToolConfig, Finding, ToolStatus, parse_file_extensions
@@ -19,7 +22,7 @@ from .unified_registry import get_unified_tool_registry
 from ..utils.json_results_manager import JsonResultsManager
 from ..utils.helpers import get_app_directory
 from ..paths import GENERATED_APPS_DIR, PROJECT_ROOT
-from ..services import analyzer_integration as analyzer_bridge
+from ..extensions import get_components, get_analyzer_integration
 import socket
 
 logger = logging.getLogger(__name__)
@@ -515,7 +518,10 @@ class AnalysisOrchestrator:
             return 'static-analyzer'  # Safe fallback
 
     def _run_via_container(self, service_name: str, model_slug: str, app_number: int, tools: List[str]) -> Dict[str, Any]:
-        """Delegate execution to analyzer containers via analyzer_integration subprocess bridge."""
+        """Delegate execution to analyzer containers via analyzer integration service.
+        
+        Uses the analyzer_integration service which handles WebSocket communication.
+        """
         
         # For dynamic analysis, provide default tools if none specified
         if service_name == 'dynamic-analyzer' and not tools:
@@ -523,17 +529,49 @@ class AnalysisOrchestrator:
             tools = ['curl', 'nmap', 'zap']
             logger.info(f"Dynamic analysis: no tools specified, using default tools: {tools}")
         
-        # Route based on service name
-        if service_name == 'static-analyzer':
-            return analyzer_bridge.analysis_executor.run_static_analysis(model_slug, app_number, tools=tools)
-        if service_name == 'dynamic-analyzer':
-            return analyzer_bridge.analysis_executor.run_dynamic_analysis(model_slug, app_number, tools=tools)
-        if service_name == 'performance-tester':
-            return analyzer_bridge.analysis_executor.run_performance_test(model_slug, app_number, tools=tools)
-        if service_name == 'ai-analyzer':
-            logger.info(f"Delegating AI tools {tools} to ai-analyzer service on port 2004")
-            return analyzer_bridge.analysis_executor.run_ai_analysis(model_slug, app_number, tools=tools)
-        raise ValueError(f"Unknown analyzer service: {service_name}")
+        logger.info(f"[ORCH] Delegating to analyzer integration: service={service_name}, model={model_slug}, app={app_number}, tools={tools}")
+        
+        # Use analyzer integration for execution
+        try:
+            analyzer_int = get_analyzer_integration()
+            
+            if not analyzer_int:
+                logger.error("[ORCH] Analyzer integration not available")
+                return {
+                    'status': 'error',
+                    'error': 'Analyzer integration service not initialized',
+                    'tool_results': {t: {'status': 'error', 'error': 'Service not available'} for t in tools}
+                }
+            
+            # Call appropriate analyzer integration method based on service
+            if service_name == 'static-analyzer':
+                result = analyzer_int.run_static_analysis(model_slug, app_number, tools=tools)
+            elif service_name == 'dynamic-analyzer':
+                result = analyzer_int.run_dynamic_analysis(model_slug, app_number, tools=tools)
+            elif service_name == 'performance-tester':
+                result = analyzer_int.run_performance_test(model_slug, app_number, tools=tools)
+            elif service_name == 'ai-analyzer':
+                result = analyzer_int.run_ai_analysis(model_slug, app_number, tools=tools)
+            else:
+                logger.error(f"[ORCH] Unknown service: {service_name}")
+                return {
+                    'status': 'error',
+                    'error': f'Unknown analyzer service: {service_name}',
+                    'tool_results': {t: {'status': 'error', 'error': 'Unknown service'} for t in tools}
+                }
+            
+            return result
+            
+            
+            return result
+            
+        except Exception as e:
+            logger.exception(f"[ORCH] Error executing {service_name}: {e}")
+            return {
+                'status': 'error',
+                'error': str(e),
+                'tool_results': {t: {'status': 'error', 'error': str(e)} for t in tools}
+            }
 
     def _extract_container_tool_results(self, service_name: str, container_result: Dict[str, Any], requested_tools: List[str]) -> Tuple[Dict[str, Any], List[Finding]]:
         """Extract per-tool results and findings from container response, resilient to schema variations."""

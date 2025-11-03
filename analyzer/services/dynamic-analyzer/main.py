@@ -131,20 +131,23 @@ class DynamicAnalyzer(BaseWSService):
             
             # Run appropriate scan type
             if scan_type == 'full':
-                # Spider + Active scan
+                # Thorough spider + Active scan
+                self.log.info("Running full scan: thorough spider + active scan")
                 spider_result = await asyncio.to_thread(
-                    self.zap_scanner.spider_scan, url, max_depth=2, max_duration=60
+                    self.zap_scanner.spider_scan, url, max_depth=5, max_duration=180
                 )
                 scan_result = await asyncio.to_thread(
-                    self.zap_scanner.active_scan, url, max_duration=120
+                    self.zap_scanner.active_scan, url, max_duration=300
                 )
             elif scan_type == 'baseline':
-                # Spider + Passive scan
+                # Thorough spider + Passive scan (default for regular apps)
+                self.log.info("Running baseline scan: thorough spider + passive scan with ZAP defaults")
                 scan_result = await asyncio.to_thread(
                     self.zap_scanner.quick_scan, url, scan_type='baseline'
                 )
             else:  # quick
                 # Passive scan only
+                self.log.info("Running quick scan: passive scan only")
                 scan_result = await asyncio.to_thread(
                     self.zap_scanner.quick_scan, url, scan_type='quick'
                 )

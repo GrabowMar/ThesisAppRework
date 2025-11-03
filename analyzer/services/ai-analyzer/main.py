@@ -121,6 +121,8 @@ class AIAnalyzer(BaseWSService):
             
             if requirements_data:
                 print(f"[ai-analyzer] Successfully loaded requirements data from {found_path}")
+                self.log.info(f"Requirements file loaded: {found_path} ({len(requirements_data)} app entries)")
+                
                 # Parse and cache requirements by app number
                 for app_key, app_data in requirements_data.items():
                     if app_key.startswith('APP_'):
@@ -131,10 +133,13 @@ class AIAnalyzer(BaseWSService):
                             all_reqs = backend_reqs + frontend_reqs
                             self.requirements_cache[app_num] = (all_reqs, f"App {app_num}")
                             print(f"[ai-analyzer] Loaded {len(all_reqs)} requirements for App {app_num}")
+                            self.log.debug(f"App {app_num}: {len(backend_reqs)} backend + {len(frontend_reqs)} frontend requirements")
                         except (ValueError, IndexError) as e:
                             print(f"[ai-analyzer] Could not parse app key {app_key}: {e}")
+                            self.log.error(f"Failed to parse app key {app_key}: {e}")
                 
                 print(f"[ai-analyzer] Loaded requirements for {len(self.requirements_cache)} applications")
+                self.log.info(f"Requirements cache populated: {len(self.requirements_cache)} applications total")
                 if hasattr(self, 'log'):
                     self.log.info(f"Loaded requirements for {len(self.requirements_cache)} applications")
             else:
@@ -234,6 +239,8 @@ class AIAnalyzer(BaseWSService):
             
             for i, requirement in enumerate(requirements, 1):
                 await self.send_progress('checking_requirement', f"Checking requirement {i}/{total_requirements}", analysis_id=analysis_id)
+                self.log.info(f"[REQUIREMENT {i}/{total_requirements}] Analyzing: {requirement[:100]}...")
+                print(f"[ai-analyzer] Checking requirement {i}/{total_requirements}: {requirement[:80]}...")
                 
                 check = RequirementCheck(requirement=requirement)
                 try:
@@ -241,20 +248,40 @@ class AIAnalyzer(BaseWSService):
                     check.result = await self._analyze_requirement(code_content, requirement, config)
                     if check.result.met:
                         total_met += 1
+                        self.log.info(f"[REQUIREMENT {i}] ✓ MET (confidence={check.result.confidence}): {check.result.explanation[:100]}...")
+                        print(f"[ai-analyzer] Requirement {i} MET: {requirement[:50]}...")
+                    else:
+                        self.log.info(f"[REQUIREMENT {i}] ✗ NOT MET (confidence={check.result.confidence}): {check.result.explanation[:100]}...")
+                        print(f"[ai-analyzer] Requirement {i} NOT MET: {requirement[:50]}...")
                 except Exception as e:
                     check.result.error = str(e)
-                    self.log.error(f"Error analyzing requirement '{requirement}': {e}")
+                    self.log.error(f"[REQUIREMENT {i}] ERROR: {e}")
+                    print(f"[ai-analyzer] Requirement {i} ERROR: {e}")
+                    import traceback
+                    traceback.print_exc()
                 
                 requirement_checks.append(check.to_dict())
             
             results['results']['requirement_checks'] = requirement_checks
+            compliance_pct = (total_met / total_requirements * 100) if total_requirements > 0 else 0
             results['results']['summary'] = {
                 'total_requirements': total_requirements,
                 'requirements_met': total_met,
                 'requirements_not_met': total_requirements - total_met,
-                'compliance_percentage': (total_met / total_requirements * 100) if total_requirements > 0 else 0,
+                'compliance_percentage': compliance_pct,
                 'analysis_status': 'completed'
             }
+            
+            self.log.info(f"[ANALYSIS-COMPLETE] {model_slug} app{app_number}: {total_met}/{total_requirements} requirements met ({compliance_pct:.1f}% compliance)")
+            print(f"[ai-analyzer] Analysis complete: {total_met}/{total_requirements} met ({compliance_pct:.1f}%)")
+            
+            # Log distribution of confidence levels
+            confidence_counts = {'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}
+            for check in requirement_checks:
+                conf = check.get('result', {}).get('confidence', 'LOW')
+                confidence_counts[conf] = confidence_counts.get(conf, 0) + 1
+            self.log.info(f"[ANALYSIS-COMPLETE] Confidence distribution: HIGH={confidence_counts['HIGH']}, MEDIUM={confidence_counts['MEDIUM']}, LOW={confidence_counts['LOW']}")
+            print(f"[ai-analyzer] Confidence: HIGH={confidence_counts['HIGH']}, MEDIUM={confidence_counts['MEDIUM']}, LOW={confidence_counts['LOW']}")
             
             await self.send_progress('completed', f"Analysis completed: {total_met}/{total_requirements} requirements met", 
                                  analysis_id=analysis_id, total_issues=total_requirements - total_met)
@@ -365,9 +392,11 @@ class AIAnalyzer(BaseWSService):
         """Try analysis using OpenRouter API."""
         try:
             if not self.openrouter_api_key:
+                self.log.warning("[API] OpenRouter API key not available")
                 return None
             
             prompt = self._build_analysis_prompt(code_content, requirement)
+            self.log.debug(f"[API-OPENROUTER] Built prompt: {len(prompt)} chars for requirement: {requirement[:100]}...")
             
             async with aiohttp.ClientSession() as session:
                 import aiohttp as _aiohttp
@@ -384,6 +413,11 @@ class AIAnalyzer(BaseWSService):
                     "max_tokens": 500,
                     "temperature": 0.1
                 }
+                # Log sanitized version for security
+                sanitized_key = f"{self.openrouter_api_key[:10]}...{self.openrouter_api_key[-5:]}"
+                self.log.info(f"[API-OPENROUTER] Sending request to OpenRouter (model={self.default_openrouter_model}, prompt_len={len(prompt)}, key={sanitized_key})")
+                print(f"[ai-analyzer] API call to OpenRouter: model={self.default_openrouter_model}")
+                
                 async with session.post(
                     "https://openrouter.ai/api/v1/chat/completions",
                     headers=headers,
@@ -393,12 +427,23 @@ class AIAnalyzer(BaseWSService):
                     if response.status == 200:
                         data = await response.json()
                         ai_response = data['choices'][0]['message']['content']
-                        return self._parse_ai_response(ai_response)
+                        self.log.info(f"[API-OPENROUTER] Success - Response length: {len(ai_response)} chars")
+                        self.log.debug(f"[API-OPENROUTER] Raw response: {ai_response[:200]}...")
+                        print(f"[ai-analyzer] OpenRouter API success: {len(ai_response)} chars")
+                        
+                        parsed_result = self._parse_ai_response(ai_response)
+                        self.log.debug(f"[API-OPENROUTER] Parsed result: met={parsed_result.met}, confidence={parsed_result.confidence}")
+                        return parsed_result
                     else:
-                        self.log.warning(f"OpenRouter API error: {response.status}")
+                        error_text = await response.text()
+                        self.log.warning(f"[API-OPENROUTER] API error: {response.status} - {error_text[:200]}")
+                        print(f"[ai-analyzer] OpenRouter API error: {response.status}")
                         return None
         except Exception as e:
-            self.log.debug(f"OpenRouter analysis failed: {e}")
+            self.log.error(f"[API-OPENROUTER] Exception: {e}")
+            print(f"[ai-analyzer] OpenRouter exception: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def _build_analysis_prompt(self, code_content: str, requirement: str) -> str:
@@ -426,25 +471,46 @@ Focus on whether the functionality described in the requirement is actually impl
         """Parse AI response into RequirementResult."""
         result = RequirementResult()
         
+        self.log.debug(f"[PARSE] Parsing AI response ({len(response)} chars): {response[:150]}...")
+        print(f"[ai-analyzer] Parsing response: {response[:100]}...")
+        
         try:
             # Extract structured information from response
             met_match = re.search(r'MET:\s*(YES|NO)', response, re.IGNORECASE)
             if met_match:
                 result.met = met_match.group(1).upper() == 'YES'
+                self.log.debug(f"[PARSE] Extracted MET={result.met}")
+            else:
+                self.log.warning(f"[PARSE] Could not find MET field in response")
+                print(f"[ai-analyzer] WARNING: No MET field found in response")
             
             confidence_match = re.search(r'CONFIDENCE:\s*(HIGH|MEDIUM|LOW)', response, re.IGNORECASE)
             if confidence_match:
                 result.confidence = confidence_match.group(1).upper()
+                self.log.debug(f"[PARSE] Extracted CONFIDENCE={result.confidence}")
+            else:
+                self.log.warning(f"[PARSE] Could not find CONFIDENCE field in response")
+                print(f"[ai-analyzer] WARNING: No CONFIDENCE field found in response")
             
             explanation_match = re.search(r'EXPLANATION:\s*(.+)', response, re.IGNORECASE | re.DOTALL)
             if explanation_match:
                 result.explanation = explanation_match.group(1).strip()
+                self.log.debug(f"[PARSE] Extracted EXPLANATION ({len(result.explanation)} chars)")
             else:
                 result.explanation = response  # Fallback to full response
+                self.log.warning(f"[PARSE] Could not find EXPLANATION field, using full response")
+                print(f"[ai-analyzer] WARNING: No EXPLANATION field, using full response")
+            
+            self.log.info(f"[PARSE] Parse complete: met={result.met}, confidence={result.confidence}")
+            print(f"[ai-analyzer] Parse result: met={result.met}, confidence={result.confidence}")
         
         except Exception as e:
             result.explanation = f"Error parsing AI response: {e}"
             result.error = str(e)
+            self.log.error(f"[PARSE] Exception during parsing: {e}")
+            print(f"[ai-analyzer] Parse exception: {e}")
+            import traceback
+            traceback.print_exc()
         
         return result
     
@@ -860,11 +926,14 @@ Provide concrete evidence from the code to support your assessment."""
                 # Tool selection normalized
                 tools = list(self.extract_selected_tools(message_data) or ["requirements-scanner"])
                 
-                self.log.info(f"Starting AI analysis for {model_slug} app {app_number} with tools: {tools}")
+                self.log.info(f"[TOOL-EXEC] Starting AI analysis for {model_slug} app {app_number} with tools: {tools}")
+                print(f"[ai-analyzer] Tool execution started: model={model_slug}, app={app_number}, tools={tools}")
                 if config:
-                    self.log.info(f"Using custom configuration: {list(config.keys())}")
+                    self.log.info(f"[TOOL-EXEC] Using custom configuration: {list(config.keys())}")
+                    print(f"[ai-analyzer] Config keys: {list(config.keys())}")
                 
                 # Route to appropriate analysis method based on selected tools
+                self.log.debug(f"[TOOL-ROUTING] Routing analysis based on tools: {tools}")
                 if "requirements-checker" in tools:
                     # Get port information
                     backend_port = config.get('backend_port', 5000) if config else 5000
