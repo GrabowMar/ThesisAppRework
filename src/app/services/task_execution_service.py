@@ -1220,17 +1220,7 @@ class TaskExecutionService:
             'ai': 'ai-analyzer'
         }
         svc_name = engine_service_map.get(engine_name, engine_name)
-        # Build raw outputs from tool results
-        raw_outputs_block = {}
-        for tname, meta in tools.items():
-            if isinstance(meta, dict):
-                ro = {}
-                for k in ('raw_output','stdout','stderr','command_line','exit_code','error','duration_seconds'):
-                    if k in meta and meta[k] not in (None, ''):
-                        ro[k] = meta[k]
-                if ro:
-                    raw_outputs_block[tname] = ro
-        # Compose
+        # Compose unified result structure
         wrapped = {
             'task': {
                 'task_id': task_id_val,
@@ -1253,7 +1243,6 @@ class TaskExecutionService:
             },
             'services': {svc_name: raw_payload},
             'tools': tools,
-            'raw_outputs': raw_outputs_block,
             'findings': raw_payload.get('findings', []),
             'metadata': {
                 'unified_analysis': False,

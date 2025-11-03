@@ -1744,6 +1744,102 @@ class AnalyzerManager:
             'findings': all_findings
         }
 
+    def _extract_sarif_to_files(self, consolidated_results: Dict[str, Any], sarif_dir: Path) -> Dict[str, Any]:
+        """Extract SARIF data from service results to separate files.
+        
+        Returns a copy of consolidated_results with SARIF data replaced by file references.
+        """
+        services_copy = {}
+        
+        for service_name, service_result in consolidated_results.items():
+            if not isinstance(service_result, dict):
+                services_copy[service_name] = service_result
+                continue
+                
+            service_copy = dict(service_result)
+            analysis = service_copy.get('analysis', {})
+            
+            if not isinstance(analysis, dict):
+                services_copy[service_name] = service_copy
+                continue
+                
+            analysis_copy = dict(analysis)
+            
+            # Handle tool_results with SARIF data
+            tool_results = analysis_copy.get('tool_results', {})
+            if isinstance(tool_results, dict):
+                tool_results_copy = {}
+                for tool_name, tool_data in tool_results.items():
+                    if not isinstance(tool_data, dict):
+                        tool_results_copy[tool_name] = tool_data
+                        continue
+                        
+                    tool_copy = dict(tool_data)
+                    
+                    # Extract SARIF if present
+                    if 'sarif' in tool_copy:
+                        sarif_data = tool_copy['sarif']
+                        sarif_filename = f"{service_name}_{tool_name}.sarif.json"
+                        sarif_path = sarif_dir / sarif_filename
+                        
+                        try:
+                            with open(sarif_path, 'w', encoding='utf-8') as f:
+                                json.dump(sarif_data, f, indent=2, default=str)
+                            logger.info(f"Extracted SARIF for {tool_name} to {sarif_filename}")
+                            
+                            # Replace SARIF data with file reference
+                            tool_copy['sarif'] = {"sarif_file": f"sarif/{sarif_filename}"}
+                        except Exception as e:
+                            logger.error(f"Failed to extract SARIF for {tool_name}: {e}")
+                    
+                    tool_results_copy[tool_name] = tool_copy
+                
+                analysis_copy['tool_results'] = tool_results_copy
+            
+            # Handle nested results structure (static analyzer)
+            results = analysis_copy.get('results', {})
+            if isinstance(results, dict):
+                results_copy = {}
+                for category, category_data in results.items():
+                    if not isinstance(category_data, dict):
+                        results_copy[category] = category_data
+                        continue
+                        
+                    category_copy = {}
+                    for tool_name, tool_data in category_data.items():
+                        if not isinstance(tool_data, dict):
+                            category_copy[tool_name] = tool_data
+                            continue
+                            
+                        tool_copy = dict(tool_data)
+                        
+                        # Extract SARIF if present
+                        if 'sarif' in tool_copy:
+                            sarif_data = tool_copy['sarif']
+                            sarif_filename = f"{service_name}_{category}_{tool_name}.sarif.json"
+                            sarif_path = sarif_dir / sarif_filename
+                            
+                            try:
+                                with open(sarif_path, 'w', encoding='utf-8') as f:
+                                    json.dump(sarif_data, f, indent=2, default=str)
+                                logger.info(f"Extracted SARIF for {category}/{tool_name} to {sarif_filename}")
+                                
+                                # Replace SARIF data with file reference
+                                tool_copy['sarif'] = {"sarif_file": f"sarif/{sarif_filename}"}
+                            except Exception as e:
+                                logger.error(f"Failed to extract SARIF for {category}/{tool_name}: {e}")
+                        
+                        category_copy[tool_name] = tool_copy
+                    
+                    results_copy[category] = category_copy
+                
+                analysis_copy['results'] = results_copy
+            
+            service_copy['analysis'] = analysis_copy
+            services_copy[service_name] = service_copy
+        
+        return services_copy
+
     async def save_task_results(self, model_slug: str, app_number: int, task_id: str, consolidated_results: Dict[str, Any]) -> Path:
         """Save consolidated results for a task, aggregate findings, and write universal format."""
         safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
@@ -1753,11 +1849,19 @@ class AnalyzerManager:
         sanitized_task = self._sanitize_task_id(task_id)
         task_dir = self._build_task_output_dir(model_slug, app_number, sanitized_task)
         task_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create SARIF directory for separate SARIF files
+        sarif_dir = task_dir / 'sarif'
+        sarif_dir.mkdir(exist_ok=True)
+        
+        # Extract SARIF data to separate files before processing
+        services_with_sarif_refs = self._extract_sarif_to_files(consolidated_results, sarif_dir)
+        
         filename = f"{safe_slug}_app{app_number}_task_{sanitized_task}_{timestamp}.json"
         filepath = task_dir / filename
 
         try:
-            # 1. Aggregate findings from all tools
+            # 1. Aggregate findings from all tools (use original consolidated_results for complete data)
             aggregated_findings = self._aggregate_findings(consolidated_results)
             tools_executed = aggregated_findings.get('tools_executed', [])
 
@@ -1774,7 +1878,7 @@ class AnalyzerManager:
                 elif status not in ('success', 'completed', 'no_issues'):
                     tools_failed.append(tname)
 
-            # 2. Build the full consolidated task metadata dictionary
+            # 2. Build the full consolidated task metadata dictionary (use services_with_sarif_refs)
             task_metadata = {
                 'metadata': {
                     'model_slug': model_slug,
@@ -1806,11 +1910,11 @@ class AnalyzerManager:
                         'status': 'completed'
                     },
                     # Keep raw per-service payloads, but order consistently for readability
-                    'services': self._ordered_services(consolidated_results),
+                    # NOW with SARIF extracted to separate files
+                    'services': self._ordered_services(services_with_sarif_refs),
                     # Flat, organized view of tools across all services
                     'tools': normalized_tools,
-                    # Provide a lightweight summary for templates without full duplication
-                    'raw_outputs': self._build_lightweight_raw_outputs(consolidated_results),
+                    # Findings extracted from all services
                     'findings': aggregated_findings.get('findings')
                 }
             }
@@ -1819,6 +1923,7 @@ class AnalyzerManager:
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(task_metadata, f, indent=2, default=str)
             logger.info(f"[SAVE] Consolidated task results saved to: {filepath}")
+            logger.info(f"[SAVE] SARIF files extracted to: {sarif_dir}")
 
             self._write_service_snapshots(task_dir, safe_slug, model_slug, app_number, task_id, consolidated_results)
             self._write_task_manifest(task_dir, filename, model_slug, app_number, task_id, consolidated_results)
