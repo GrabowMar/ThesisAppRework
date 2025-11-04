@@ -39,7 +39,8 @@ class AnalyzerManagerWrapper:
         self,
         model_slug: str,
         app_number: int,
-        task_name: Optional[str] = None
+        task_name: Optional[str] = None,
+        tools: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """Run comprehensive analysis (security, static, performance, dynamic).
         
@@ -50,6 +51,7 @@ class AnalyzerManagerWrapper:
             model_slug: Model identifier (e.g., 'anthropic_claude-4.5-haiku-20251001')
             app_number: Application number (e.g., 1)
             task_name: Optional task name for results folder (auto-generated if not provided)
+            tools: Optional list of specific tools to run (defaults to all if None)
         
         Returns:
             Consolidated result dictionary with structure:
@@ -76,7 +78,8 @@ class AnalyzerManagerWrapper:
                 self.manager.run_comprehensive_analysis(
                     model_slug=model_slug,
                     app_number=app_number,
-                    task_name=task_name
+                    task_name=task_name,
+                    tools=tools
                 )
             )
             
@@ -90,12 +93,14 @@ class AnalyzerManagerWrapper:
             # Read back the consolidated result file that was just saved
             # This ensures 1:1 parity with CLI output structure
             safe_slug = model_slug.replace('/', '_').replace('\\', '_')
-            task_dir = Path(f"results/{safe_slug}/app{app_number}/task_{task_id}")
+            # Don't add task_ prefix if task_id already starts with it
+            dir_name = task_id if task_id.startswith('task_') else f"task_{task_id}"
+            task_dir = Path(f"results/{safe_slug}/app{app_number}/{dir_name}")
             
             # Find the most recent JSON file in the task directory
             if task_dir.exists():
                 json_files = sorted(
-                    task_dir.glob(f"{safe_slug}_app{app_number}_task_{task_id}_*.json"),
+                    task_dir.glob(f"{safe_slug}_app{app_number}_{dir_name}_*.json"),
                     key=lambda p: p.stat().st_mtime,
                     reverse=True
                 )

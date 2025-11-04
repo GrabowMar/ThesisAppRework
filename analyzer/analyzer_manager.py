@@ -193,10 +193,12 @@ class AnalyzerManager:
         sanitized_task = self._sanitize_task_id(task_id)
         app_dir = self.results_dir / safe_slug / f"app{app_number}"
         app_dir.mkdir(parents=True, exist_ok=True)
-        target_dir = app_dir / f"task_{sanitized_task}"
+        # Don't add task_ prefix if sanitized_task already starts with it
+        dir_name = sanitized_task if sanitized_task.startswith('task_') else f"task_{sanitized_task}"
+        target_dir = app_dir / dir_name
         legacy_candidates = [
-            app_dir / 'analysis' / f"task_{sanitized_task}",
-            app_dir / 'analysis' / f"task-{sanitized_task}",
+            app_dir / 'analysis' / dir_name,
+            app_dir / 'analysis' / sanitized_task.replace('_', '-'),
         ]
 
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -1027,13 +1029,23 @@ class AnalyzerManager:
         static_timeout = int(os.environ.get('STATIC_ANALYSIS_TIMEOUT', '480'))
         return await self.send_websocket_message('static-analyzer', message, timeout=static_timeout)
     
-    async def run_comprehensive_analysis(self, model_slug: str, app_number: int, task_name: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
-        """Run comprehensive analysis (static, performance, dynamic, AI)."""
+    async def run_comprehensive_analysis(self, model_slug: str, app_number: int, task_name: Optional[str] = None, tools: Optional[List[str]] = None) -> Dict[str, Dict[str, Any]]:
+        """Run comprehensive analysis (static, performance, dynamic, AI).
+        
+        Args:
+            model_slug: Model identifier
+            app_number: Application number
+            task_name: Optional task name for results folder
+            tools: Optional list of specific tools to run. If None, runs all available tools.
+        """
         logger.info(f"[ANALYZE] Running comprehensive analysis on {model_slug} app {app_number}")
+        if tools:
+            logger.info(f"[ANALYZE] Tool filter applied: {tools}")
 
         # Run all analysis types including AI
+        # Pass tools parameter to static analysis; other services ignore it or use defaults
         analysis_tasks = [
-            ('static', self.run_static_analysis(model_slug, app_number)),
+            ('static', self.run_static_analysis(model_slug, app_number, tools=tools)),
             ('performance', self.run_performance_test(model_slug, app_number)),
             ('dynamic', self.run_dynamic_analysis(model_slug, app_number)),
             ('ai', self.run_ai_analysis(model_slug, app_number)),

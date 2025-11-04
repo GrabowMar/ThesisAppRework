@@ -372,6 +372,12 @@ class TaskExecutionService:
             custom_options = meta.get('custom_options', {})
             tool_names = custom_options.get('tools') or custom_options.get('selected_tool_names') or []
             
+            # DEBUG: Log full metadata
+            self._log(
+                "[DEBUG] Task %s metadata: custom_options=%s, tools=%s",
+                task.task_id, custom_options, tool_names
+            )
+            
             # Determine analysis type from task_name or infer from tools
             analysis_type_map = {
                 'security': 'security',
@@ -394,16 +400,32 @@ class TaskExecutionService:
             db.session.commit()
             
             # Generate task name for results folder
-            task_name = f"task_{task.task_id}"
+            task_name = task.task_id  # Use task_id directly instead of prepending "task_"
             
-            # Call appropriate analyzer method
-            if analysis_method == 'comprehensive':
-                analyzer_result = wrapper.run_comprehensive_analysis(
-                    model_slug=task.target_model,
-                    app_number=task.target_app_number,
-                    task_name=task_name
+            # Use comprehensive analysis because it saves results incrementally to disk,
+            # avoiding WebSocket payload size issues with large SARIF documents.
+            # When tools are specified, pass them to run only those tools; otherwise run all.
+            if tool_names:
+                self._log(
+                    "[EXEC] Task %s: Running comprehensive analysis with tool filter: %s",
+                    task.task_id, tool_names
                 )
-            elif analysis_method == 'security':
+            else:
+                self._log(
+                    "[EXEC] Task %s: Running comprehensive analysis with all tools",
+                    task.task_id
+                )
+            
+            analyzer_result = wrapper.run_comprehensive_analysis(
+                model_slug=task.target_model,
+                app_number=task.target_app_number,
+                task_name=task_name,
+                tools=tool_names if tool_names else None
+            )
+            
+            # The following specific analysis types are kept for backwards compatibility
+            # but are rarely used since most analyses go through comprehensive
+            if analysis_method == 'security':
                 analyzer_result = {
                     'security': wrapper.run_security_analysis(
                         model_slug=task.target_model,
@@ -411,7 +433,7 @@ class TaskExecutionService:
                         tools=tool_names if tool_names else None
                     )
                 }
-            elif analysis_method == 'static':
+            if analysis_method == 'static':
                 analyzer_result = {
                     'static': wrapper.run_static_analysis(
                         model_slug=task.target_model,
@@ -419,7 +441,7 @@ class TaskExecutionService:
                         tools=tool_names if tool_names else None
                     )
                 }
-            elif analysis_method == 'dynamic':
+            if analysis_method == 'dynamic':
                 analyzer_result = {
                     'dynamic': wrapper.run_dynamic_analysis(
                         model_slug=task.target_model,
@@ -427,7 +449,7 @@ class TaskExecutionService:
                         tools=tool_names if tool_names else None
                     )
                 }
-            elif analysis_method == 'performance':
+            if analysis_method == 'performance':
                 analyzer_result = {
                     'performance': wrapper.run_performance_test(
                         model_slug=task.target_model,
@@ -435,7 +457,7 @@ class TaskExecutionService:
                         tools=tool_names if tool_names else None
                     )
                 }
-            elif analysis_method == 'ai':
+            if analysis_method == 'ai':
                 analyzer_result = {
                     'ai': wrapper.run_ai_analysis(
                         model_slug=task.target_model,
@@ -478,7 +500,12 @@ class TaskExecutionService:
                 if isinstance(service_result.get('analysis'), dict):
                     summary = service_result['analysis'].get('summary', {})
                     if isinstance(summary, dict):
-                        total_findings += summary.get('total_findings', 0)
+                        # Support both field names: total_findings and total_issues_found
+                        findings = summary.get('total_findings') or summary.get('total_issues_found', 0)
+                        total_findings += findings
+                        self._log(f"[DEBUG] Service {service_name} has {findings} findings")
+            
+            self._log(f"[DEBUG] Total findings across all services: {total_findings}")
             
             # Determine overall status
             if all(s == 'success' for s in all_services_status):
