@@ -52,14 +52,14 @@ def write_task_result_files(task: AnalysisTask, payload: Dict[str, Any]) -> Opti
         app_number = task.target_app_number
         task_id = task.task_id
         
-        # Use task_{task_id} structure to match CLI output (analyzer_manager.py line 192)
-        base_dir = RESULTS_DIR / model_slug / f"app{app_number}" / f"task_{task_id}"
+        # Use task_id directly (it already has "task_" prefix)
+        base_dir = RESULTS_DIR / model_slug / f"app{app_number}" / task_id
         base_dir.mkdir(parents=True, exist_ok=True)
         
         # Main result file with timestamp for uniqueness
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        result_file = base_dir / f"{model_slug}_app{app_number}_task_{task_id}_{timestamp}.json"
+        result_file = base_dir / f"{model_slug}_app{app_number}_{task_id}_{timestamp}.json"
         
         # Build comprehensive consolidated structure matching analyzer_manager.py
         from datetime import datetime

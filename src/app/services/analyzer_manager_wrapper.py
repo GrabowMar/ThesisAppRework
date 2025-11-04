@@ -93,14 +93,15 @@ class AnalyzerManagerWrapper:
             # Read back the consolidated result file that was just saved
             # This ensures 1:1 parity with CLI output structure
             safe_slug = model_slug.replace('/', '_').replace('\\', '_')
-            # Don't add task_ prefix if task_id already starts with it
-            dir_name = task_id if task_id.startswith('task_') else f"task_{task_id}"
-            task_dir = Path(f"results/{safe_slug}/app{app_number}/{dir_name}")
+            # Use task_id directly as the directory name (it already has task_ prefix)
+            task_dir = Path(f"results/{safe_slug}/app{app_number}/{task_id}")
             
             # Find the most recent JSON file in the task directory
             if task_dir.exists():
+                # Pattern: {model}_app{num}_{task_id}_{timestamp}.json
+                # task_id already includes "task_" prefix
                 json_files = sorted(
-                    task_dir.glob(f"{safe_slug}_app{app_number}_{dir_name}_*.json"),
+                    task_dir.glob(f"{safe_slug}_app{app_number}_{task_id}_*.json"),
                     key=lambda p: p.stat().st_mtime,
                     reverse=True
                 )

@@ -402,30 +402,29 @@ class TaskExecutionService:
             # Generate task name for results folder
             task_name = task.task_id  # Use task_id directly instead of prepending "task_"
             
-            # Use comprehensive analysis because it saves results incrementally to disk,
-            # avoiding WebSocket payload size issues with large SARIF documents.
-            # When tools are specified, pass them to run only those tools; otherwise run all.
-            if tool_names:
-                self._log(
-                    "[EXEC] Task %s: Running comprehensive analysis with tool filter: %s",
-                    task.task_id, tool_names
+            # Run the appropriate analysis method based on analysis_method
+            if analysis_method == 'comprehensive':
+                # Use comprehensive analysis because it saves results incrementally to disk,
+                # avoiding WebSocket payload size issues with large SARIF documents.
+                # When tools are specified, pass them to run only those tools; otherwise run all.
+                if tool_names:
+                    self._log(
+                        "[EXEC] Task %s: Running comprehensive analysis with tool filter: %s",
+                        task.task_id, tool_names
+                    )
+                else:
+                    self._log(
+                        "[EXEC] Task %s: Running comprehensive analysis with all tools",
+                        task.task_id
+                    )
+                
+                analyzer_result = wrapper.run_comprehensive_analysis(
+                    model_slug=task.target_model,
+                    app_number=task.target_app_number,
+                    task_name=task_name,
+                    tools=tool_names if tool_names else None
                 )
-            else:
-                self._log(
-                    "[EXEC] Task %s: Running comprehensive analysis with all tools",
-                    task.task_id
-                )
-            
-            analyzer_result = wrapper.run_comprehensive_analysis(
-                model_slug=task.target_model,
-                app_number=task.target_app_number,
-                task_name=task_name,
-                tools=tool_names if tool_names else None
-            )
-            
-            # The following specific analysis types are kept for backwards compatibility
-            # but are rarely used since most analyses go through comprehensive
-            if analysis_method == 'security':
+            elif analysis_method == 'security':
                 analyzer_result = {
                     'security': wrapper.run_security_analysis(
                         model_slug=task.target_model,
@@ -433,7 +432,7 @@ class TaskExecutionService:
                         tools=tool_names if tool_names else None
                     )
                 }
-            if analysis_method == 'static':
+            elif analysis_method == 'static':
                 analyzer_result = {
                     'static': wrapper.run_static_analysis(
                         model_slug=task.target_model,
@@ -441,7 +440,7 @@ class TaskExecutionService:
                         tools=tool_names if tool_names else None
                     )
                 }
-            if analysis_method == 'dynamic':
+            elif analysis_method == 'dynamic':
                 analyzer_result = {
                     'dynamic': wrapper.run_dynamic_analysis(
                         model_slug=task.target_model,
@@ -449,7 +448,7 @@ class TaskExecutionService:
                         tools=tool_names if tool_names else None
                     )
                 }
-            if analysis_method == 'performance':
+            elif analysis_method == 'performance':
                 analyzer_result = {
                     'performance': wrapper.run_performance_test(
                         model_slug=task.target_model,
@@ -457,7 +456,7 @@ class TaskExecutionService:
                         tools=tool_names if tool_names else None
                     )
                 }
-            if analysis_method == 'ai':
+            elif analysis_method == 'ai':
                 analyzer_result = {
                     'ai': wrapper.run_ai_analysis(
                         model_slug=task.target_model,
@@ -577,7 +576,7 @@ class TaskExecutionService:
             from app.services.analyzer_manager_wrapper import get_analyzer_wrapper
             wrapper = get_analyzer_wrapper()
             
-            task_name = f"task_{task.task_id}"
+            task_name = task.task_id  # Use task_id directly (already has "task_" prefix)
             
             self._log(
                 "[UNIFIED] Task %s: Running comprehensive analysis via analyzer_manager",
