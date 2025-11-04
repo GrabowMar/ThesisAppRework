@@ -349,13 +349,13 @@ class TaskExecutionService:
             return False
 
     def _execute_real_analysis(self, task: AnalysisTask) -> dict:
-        """Execute real analysis using the analysis engines."""
+        """Execute real analysis using analyzer_manager directly."""
         try:
             # Get the analysis type (string)
             analysis_type = task.task_name
             
             self._log(
-                "[EXEC] Starting analysis execution for task %s: type=%s, model=%s, app=%s",
+                "[EXEC] Starting analysis execution via analyzer_manager for task %s: type=%s, model=%s, app=%s",
                 task.task_id, analysis_type, task.target_model, task.target_app_number
             )
             
@@ -363,226 +363,155 @@ class TaskExecutionService:
             task.progress_percentage = 20.0
             db.session.commit()
             
-            # Import engine registry and resolve a valid engine name
-            from app.services.analysis_engines import get_engine
-
-            # Check if this is a unified analysis with tools from multiple services
+            # Import analyzer wrapper
+            from app.services.analyzer_manager_wrapper import get_analyzer_wrapper
+            wrapper = get_analyzer_wrapper()
+            
+            # Extract tool names from metadata if available
             meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
+            custom_options = meta.get('custom_options', {})
+            tool_names = custom_options.get('tools') or custom_options.get('selected_tool_names') or []
             
-            # Unified if explicit flag true AND more than one service represented
-            meta_tools_by_service = meta.get('tools_by_service') or meta.get('custom_options', {}).get('tools_by_service') or {}
-            if not isinstance(meta_tools_by_service, dict):
-                meta_tools_by_service = {}
-            multi_service = len(meta_tools_by_service.keys()) > 1
-            explicit_unified_flag = bool(
-                meta.get('unified_analysis') or meta.get('custom_options', {}).get('unified_analysis')
+            # Determine analysis type from task_name or infer from tools
+            analysis_type_map = {
+                'security': 'security',
+                'static': 'static',
+                'dynamic': 'dynamic',
+                'performance': 'performance',
+                'ai': 'ai',
+                'comprehensive': 'comprehensive'
+            }
+            
+            analysis_method = analysis_type_map.get(task.task_name, 'comprehensive')
+            
+            self._log(
+                "[EXEC] Task %s: Running %s analysis via analyzer_manager (tools=%s)",
+                task.task_id, analysis_method, tool_names
             )
-            selected_tools = meta.get('selected_tool_names', []) or meta.get('custom_options', {}).get('selected_tool_names', [])
-            is_unified_analysis = explicit_unified_flag and multi_service
-            
-            self._log(
-                "[EXEC] Task %s metadata analysis: unified_flag=%s, multi_service=%s (services=%s), "
-                "is_unified=%s, selected_tools=%s",
-                task.task_id, explicit_unified_flag, multi_service, list(meta_tools_by_service.keys()),
-                is_unified_analysis, selected_tools
-            , level='debug')
-            
-            if explicit_unified_flag and not multi_service:
-                self._log(
-                    "Unified flag present but only one service (%s); treating as single-engine run.",
-                    list(meta_tools_by_service.keys())
-                , level='debug')
-
-            try:
-                self._log(
-                    "Task %s metadata tool snapshot: unified=%s selected_ids=%s selected_names=%s tools_by_service_keys=%s",
-                    getattr(task, 'task_id', 'unknown'),
-                    is_unified_analysis,
-                    meta.get('selected_tools') or meta.get('custom_options', {}).get('selected_tools'),
-                    selected_tools,
-                    list((meta.get('tools_by_service') or {}).keys()) if isinstance(meta.get('tools_by_service'), dict) else None
-                , level='debug')
-            except Exception:
-                pass
-
-            self._log(
-                "Unified decision for task %s => unified=%s explicit_flag=%s multi_service=%s services=%s tool_count=%s",
-                getattr(task, 'task_id', 'unknown'),
-                is_unified_analysis,
-                explicit_unified_flag,
-                multi_service,
-                list(meta_tools_by_service.keys()),
-                len(selected_tools) if isinstance(selected_tools, list) else 'n/a'
-            , level='debug')
-            
-            if is_unified_analysis:
-                self._log(
-                    "[EXEC] Task %s => UNIFIED analysis path (multi-service orchestration)",
-                    task.task_id
-                )
-                # Handle unified analysis with multiple engines
-                return self._execute_unified_analysis(task)
-            else:
-                # Regular single-engine analysis
-                engine_name = task.task_name
-                self._log(
-                    "[EXEC] Task %s => SINGLE-ENGINE analysis path (engine=%s)",
-                    task.task_id, engine_name
-                )
-                # Defensive correction: if metadata shows ONLY ai-analyzer tools but engine not 'ai', fix it.
-                try:
-                    only_services = list(meta_tools_by_service.keys())
-                    if only_services and len(only_services) == 1 and only_services[0] == 'ai-analyzer' and engine_name != 'ai':
-                        self._log(
-                            "Task %s: correcting engine '%s' -> 'ai' because only AI tools selected (%s)",
-                            getattr(task, 'task_id', 'unknown'), engine_name, selected_tools
-                        , level='warning')
-                        engine_name = 'ai'
-                except Exception:
-                    pass
-                
-                engine = get_engine(engine_name)
-                
-                self._log(
-                    "[EXEC] Task %s: Engine resolved to '%s' (%s)",
-                    task.task_id, engine_name, type(engine).__name__
-                )
             
             # Update progress
             task.progress_percentage = 40.0
             db.session.commit()
             
-            # Streamlined tool resolution: check tool NAMES first (stored by create_task)
-            resolved_tools = None
-            try:
-                meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
-                if not isinstance(meta, dict):
-                    meta = {}
-                
-                custom_options = meta.get('custom_options', {})
-                if not isinstance(custom_options, dict):
-                    custom_options = {}
-                
-                # Priority 1: Check 'tools' key (canonical names set by create_task)
-                tools_cand = custom_options.get('tools')
-                if isinstance(tools_cand, list) and tools_cand and all(isinstance(t, str) for t in tools_cand):
-                    resolved_tools = tools_cand
-                    self._log(
-                        "[TOOL-SELECT] Task %s: Using tools from metadata.custom_options.tools: %s",
-                        task.task_id, resolved_tools, level='debug'
+            # Generate task name for results folder
+            task_name = f"task_{task.task_id}"
+            
+            # Call appropriate analyzer method
+            if analysis_method == 'comprehensive':
+                analyzer_result = wrapper.run_comprehensive_analysis(
+                    model_slug=task.target_model,
+                    app_number=task.target_app_number,
+                    task_name=task_name
+                )
+            elif analysis_method == 'security':
+                analyzer_result = {
+                    'security': wrapper.run_security_analysis(
+                        model_slug=task.target_model,
+                        app_number=task.target_app_number,
+                        tools=tool_names if tool_names else None
                     )
-                
-                # Priority 2: Check 'selected_tool_names' (legacy UI route format)
-                if resolved_tools is None:
-                    names_cand = custom_options.get('selected_tool_names')
-                    if isinstance(names_cand, list) and names_cand and all(isinstance(t, str) for t in names_cand):
-                        resolved_tools = names_cand
-                        self._log(
-                            "[TOOL-SELECT] Task %s: Using tools from metadata.custom_options.selected_tool_names: %s",
-                            task.task_id, resolved_tools, level='debug'
-                        )
-                
-                # Priority 3: Legacy ID resolution (for old tasks with 'selected_tools' IDs)
-                if resolved_tools is None:
-                    ids_cand = custom_options.get('selected_tools')
-                    if isinstance(ids_cand, list) and ids_cand:
-                        # Try to resolve IDs to names
-                        id_list = [v for v in ids_cand if isinstance(v, int)]
-                        if id_list:
-                            try:
-                                from app.engines.unified_registry import get_unified_tool_registry
-                                unified = get_unified_tool_registry()
-                                names = [unified.id_to_name(tid) for tid in id_list]
-                                names = [n for n in names if n]  # filter None
-                                if names:
-                                    resolved_tools = names
-                                    self._log(
-                                        "[TOOL-SELECT] Task %s: Resolved tool IDs to names: %s",
-                                        task.task_id, resolved_tools, level='debug'
-                                    )
-                            except Exception as e:
-                                self._log(f"[TOOL-SELECT] Failed to resolve tool IDs: {e}", level='warning')
-            
-            except Exception as e:
-                self._log(f"[TOOL-SELECT] Error reading tool metadata: {e}", level='warning')
-            
-            # No fallback to defaults - if tools not specified, that's an error
-            if resolved_tools is None or not resolved_tools:
-                self._log(
-                    "[TOOL-SELECT] ERROR: Task %s has NO TOOLS specified in metadata! Cannot execute.",
-                    task.task_id, level='error'
-                )
-                # Return error result
-                return ExecutionResult(
-                    status='failed',
-                    error=f'No tools specified for task {task.task_id}',
-                    payload=None
-                )
-
-            # If engine_name is 'ai' but resolved_tools accidentally contains non-AI legacy defaults, restrict to requirements-scanner.
-            if engine_name == 'ai':
-                try:
-                    from app.engines.unified_registry import get_unified_tool_registry
-                    unified = get_unified_tool_registry()
-                    ai_tools = [t for t in unified.by_container('ai-analyzer')]
-                    # Filter to AI tools only (after alias resolution)
-                    resolved_tools = [t for t in (resolved_tools or []) if t in ai_tools] or ['requirements-scanner']
-                    if any(t not in ai_tools for t in (resolved_tools or [])):
-                        self._log(
-                            "Task %s: filtered non-AI tools from AI run (unified) -> %s", getattr(task, 'task_id', 'unknown'), resolved_tools
-                        , level='debug')
-                except Exception as e:
-                    self._log(f"Failed AI tool filtering (unified): {e}", level='warning')
-
-            # Log the orchestrator call parameters
-            self._log(
-                "[EXEC] Task %s: Calling engine.run(model_slug=%s, app_number=%s, tools=%s, persist=True)",
-                task.task_id, task.target_model, task.target_app_number, resolved_tools
-            )
-
-            # Execute the analysis with resolved tools (with persistence enabled)
-            result = engine.run(
-                model_slug=task.target_model,
-                app_number=task.target_app_number,
-                tools=resolved_tools,
-                persist=True  # Enable result file writes
-            )
+                }
+            elif analysis_method == 'static':
+                analyzer_result = {
+                    'static': wrapper.run_static_analysis(
+                        model_slug=task.target_model,
+                        app_number=task.target_app_number,
+                        tools=tool_names if tool_names else None
+                    )
+                }
+            elif analysis_method == 'dynamic':
+                analyzer_result = {
+                    'dynamic': wrapper.run_dynamic_analysis(
+                        model_slug=task.target_model,
+                        app_number=task.target_app_number,
+                        tools=tool_names if tool_names else None
+                    )
+                }
+            elif analysis_method == 'performance':
+                analyzer_result = {
+                    'performance': wrapper.run_performance_test(
+                        model_slug=task.target_model,
+                        app_number=task.target_app_number,
+                        tools=tool_names if tool_names else None
+                    )
+                }
+            elif analysis_method == 'ai':
+                analyzer_result = {
+                    'ai': wrapper.run_ai_analysis(
+                        model_slug=task.target_model,
+                        app_number=task.target_app_number,
+                        tools=tool_names if tool_names else None
+                    )
+                }
+            else:
+                raise ValueError(f"Unknown analysis type: {analysis_method}")
             
             self._log(
-                "[EXEC] Task %s: Engine.run completed with status=%s, has_payload=%s, error=%s",
-                task.task_id, result.status, bool(result.payload), bool(result.error)
+                "[EXEC] Task %s: analyzer_manager completed with results for services: %s",
+                task.task_id, list(analyzer_result.keys())
             )
-
-            try:
-                self._log(
-                    "Task %s resolved tools: %s",
-                    getattr(task, "task_id", "unknown"),
-                    resolved_tools,
-                    level='debug')
-            except Exception:
-                pass
+            
+            # Extract metadata about saved results
+            meta = analyzer_result.get('_meta', {})
+            results_path = meta.get('results_path', f"results/{task.target_model}/app{task.target_app_number}/{task_name}")
             
             # Update progress
             task.progress_percentage = 80.0
             db.session.commit()
             
+            # analyzer_result is already the correct format from analyzer_manager
+            # It has: {security: {...}, static: {...}, performance: {...}, dynamic: {...}, _meta: {...}}
+            # This matches the CLI output structure exactly
+            
+            # Count statistics for summary
+            total_findings = 0
+            all_services_status = []
+            
+            for service_name, service_result in analyzer_result.items():
+                if service_name == '_meta':
+                    continue  # Skip metadata
+                
+                status = service_result.get('status', 'unknown')
+                all_services_status.append(status)
+                
+                # Count findings from analysis section if available
+                if isinstance(service_result.get('analysis'), dict):
+                    summary = service_result['analysis'].get('summary', {})
+                    if isinstance(summary, dict):
+                        total_findings += summary.get('total_findings', 0)
+            
+            # Determine overall status
+            if all(s == 'success' for s in all_services_status):
+                overall_status = 'completed'
+            elif any(s == 'success' for s in all_services_status):
+                overall_status = 'partial'
+            else:
+                overall_status = 'failed'
+            
+            # The payload structure matches analyzer_manager's saved JSON structure:
+            # {metadata: {...}, services: {...}, tools: {...}, findings: [...], summary: {...}}
+            # We just need to wrap it minimally for task execution context
+            wrapped_payload = {
+                'analysis_type': analysis_method,
+                'task_name': task_name,
+                'results_path': results_path,
+                'services': {k: v for k, v in analyzer_result.items() if k != '_meta'},
+                'summary': {
+                    'total_findings': total_findings,
+                    'services_completed': list(analyzer_result.keys() - {'_meta'}),
+                    'overall_status': overall_status
+                }
+            }
+            
             self._log(
-                "[EXEC] Task %s: Analysis completed with status=%s",
-                task.task_id, result.status
+                "[EXEC] Task %s: Analysis completed with status=%s, total_findings=%s, results_path=%s",
+                task.task_id, overall_status, total_findings, results_path
             )
             
-            wrapped_payload = self._wrap_single_engine_payload(task, engine_name, result.payload)
-            self._log(
-                "[EXEC] Task %s: Wrapped payload - total_findings=%s, tools_executed=%s",
-                task.task_id, 
-                wrapped_payload.get('summary', {}).get('total_findings', 0),
-                wrapped_payload.get('summary', {}).get('tools_executed', 0)
-            , level='debug')
-            
             return {
-                'status': result.status,
+                'status': overall_status,
                 'payload': wrapped_payload,
-                'error': result.error
+                'error': None
             }
             
         except Exception as e:
@@ -610,89 +539,83 @@ class TaskExecutionService:
             }
 
     def _execute_unified_analysis(self, task: AnalysisTask) -> dict:
-        """Execute unified analysis using ThreadPoolExecutor for parallel subtask execution."""
+        """Execute unified/comprehensive analysis using analyzer_manager directly."""
         try:
             self._log(
-                "[UNIFIED] Starting unified analysis for task %s (model=%s, app=%s)",
+                "[UNIFIED] Starting comprehensive analysis for task %s (model=%s, app=%s)",
                 task.task_id, task.target_model, task.target_app_number
             )
             
-            # Get ALL tools from unified registry
-            from app.engines.unified_registry import get_unified_tool_registry
-            unified = get_unified_tool_registry()
-            detailed = unified.list_tools_detailed()
-
-            tools_by_service: dict[str, list[int]] = {}
-            for tool_info in detailed:
-                container_val = tool_info.get('container')
-                name_val = tool_info.get('name')
-                if not isinstance(container_val, str) or not isinstance(name_val, str):
-                    continue
-                # Exclude purely local legacy tools from forced unified runs
-                if container_val == 'local':
-                    continue
-                tid = unified.tool_id(name_val)
-                if tid is None:
-                    continue
-                tools_by_service.setdefault(container_val, []).append(tid)
+            # For unified analysis, always run comprehensive
+            from app.services.analyzer_manager_wrapper import get_analyzer_wrapper
+            wrapper = get_analyzer_wrapper()
+            
+            task_name = f"task_{task.task_id}"
             
             self._log(
-                "[UNIFIED] Task %s: Forcing execution across ALL services: %s (total_tools=%s)",
-                task.task_id, list(tools_by_service.keys()), 
-                sum(len(tools) for tools in tools_by_service.values())
+                "[UNIFIED] Task %s: Running comprehensive analysis via analyzer_manager",
+                task.task_id
             )
             
-            # Get subtasks if this is a main task
-            subtasks_by_service = {}
-            if hasattr(task, 'subtasks') and task.subtasks:
-                for subtask in task.subtasks:
-                    if subtask.service_name:
-                        subtasks_by_service[subtask.service_name] = subtask
-                self._log(
-                    "[UNIFIED] Task %s: Found %s subtasks: %s",
-                    task.task_id, len(subtasks_by_service), list(subtasks_by_service.keys())
-                )
+            # Update task to running
+            task.progress_percentage = 30.0
+            db.session.commit()
             
-            # Validate analyzer containers
-            container_services = list(tools_by_service.keys())
+            # Run comprehensive analysis
+            analyzer_result = wrapper.run_comprehensive_analysis(
+                model_slug=task.target_model,
+                app_number=task.target_app_number,
+                task_name=task_name
+            )
+            
             self._log(
-                "[UNIFIED] Task %s: Validating analyzer containers: %s",
-                task.task_id, container_services
-            , level='debug')
-            if not self._validate_analyzer_containers(container_services):
-                error_msg = (
-                    f"Analyzer containers not healthy: {container_services}. "
-                    "Start containers with: python analyzer/analyzer_manager.py start"
-                )
-                self._log("[UNIFIED] Task %s: %s", task.task_id, error_msg, level='error')
-                
-                # Mark all subtasks as failed before raising
-                for subtask in subtasks_by_service.values():
-                    subtask.status = AnalysisStatus.FAILED
-                    subtask.error_message = error_msg
-                    subtask.completed_at = datetime.now(timezone.utc)
-                db.session.commit()
-                
-                raise RuntimeError(error_msg)
-            self._log("[UNIFIED] Task %s: All analyzer containers healthy", task.task_id)
+                "[UNIFIED] Task %s: Comprehensive analysis completed with services: %s",
+                task.task_id, list(analyzer_result.keys())
+            )
             
-            # Execute subtasks in parallel using ThreadPoolExecutor
-            subtask_ids = [subtask.task_id for subtask in subtasks_by_service.values()]
-            return self.submit_parallel_subtasks(task.task_id, subtask_ids)
+            # Transform results
+            total_findings = 0
+            all_services_status = []
+            
+            for service_name, service_result in analyzer_result.items():
+                status = service_result.get('status', 'unknown')
+                all_services_status.append(status)
+                
+                # Count findings if available
+                if isinstance(service_result.get('analysis'), dict):
+                    summary = service_result['analysis'].get('summary', {})
+                    total_findings += summary.get('total_findings', 0)
+            
+            # Determine overall status
+            if all(s == 'success' for s in all_services_status):
+                overall_status = 'completed'
+            elif any(s == 'success' for s in all_services_status):
+                overall_status = 'partial'
+            else:
+                overall_status = 'failed'
+            
+            wrapped_payload = {
+                'summary': {
+                    'total_findings': total_findings,
+                    'services': list(analyzer_result.keys()),
+                    'analysis_type': 'comprehensive'
+                },
+                'services': analyzer_result,
+                'task_name': task_name,
+                'results_path': f"results/{task.target_model}/app{task.target_app_number}/{task_name}"
+            }
+            
+            return {
+                'status': overall_status,
+                'payload': wrapped_payload,
+                'error': None
+            }
             
         except Exception as e:
             self._log(
-                "[UNIFIED] Task %s: EXCEPTION during unified analysis: %s",
+                "[UNIFIED] Task %s: EXCEPTION during comprehensive analysis: %s",
                 task.task_id, e, exc_info=True
             , level='error')
-            # Mark all subtasks as failed
-            if 'subtasks_by_service' in locals():
-                for subtask in subtasks_by_service.values():
-                    if subtask.status in (AnalysisStatus.PENDING, AnalysisStatus.RUNNING):
-                        subtask.status = AnalysisStatus.FAILED
-                        subtask.error_message = str(e)
-                        subtask.completed_at = datetime.now(timezone.utc)
-                db.session.commit()
             raise
     
     def submit_parallel_subtasks(
@@ -1256,7 +1179,7 @@ class TaskExecutionService:
                 }
             }
         }
-            return wrapped
+        return wrapped
     
     def _extract_sarif_to_files(self, services: Dict[str, Any], sarif_dir: Path) -> Dict[str, Any]:
         """Extract SARIF data from service results to separate files.
@@ -1671,7 +1594,9 @@ class TaskExecutionService:
             }
         }
         with open(manifest_path, 'w', encoding='utf-8') as f:
-            json.dump(manifest, f, indent=2, default=str)    def _validate_analyzer_containers(self, service_names: list[str]) -> bool:
+            json.dump(manifest, f, indent=2, default=str)
+    
+    def _validate_analyzer_containers(self, service_names: list[str]) -> bool:
         """Validate that all required analyzer containers are healthy."""
         try:
             from app.services.analyzer_integration import health_monitor

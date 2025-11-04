@@ -997,16 +997,15 @@ class AnalyzerManager:
         
         return await self.send_websocket_message('ai-analyzer', message, timeout=180)
     
-    async def run_static_analysis(self, model_slug: str, app_number: int,
-                                tools: Optional[List[str]] = None) -> Dict[str, Any]:
+    async def run_static_analysis(self, model_slug: str, app_number: int, 
+                                 tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Run static code analysis."""
         # Only apply defaults when tools is explicitly None. Respect provided selections.
         if tools is None:
-            # Include ALL available static analysis tools
-            tools = ['bandit', 'pylint', 'flake8', 'mypy', 'semgrep', 'safety', 'vulture',
-                    'eslint', 'jshint', 'snyk', 'stylelint']
-        
-        logger.info(f"[SEARCH] Running static analysis on {model_slug} app {app_number}")
+            # Include ALL available static analysis tools (including security tools)
+            tools = ['bandit', 'safety', 'semgrep',  # Security tools
+                    'pylint', 'flake8', 'mypy', 'vulture', 'ruff',  # Python static analysis
+                    'eslint', 'jshint', 'snyk', 'stylelint']  # JavaScript/CSS tools        logger.info(f"[SEARCH] Running static analysis on {model_slug} app {app_number}")
         
         request = AnalysisRequest(
             model_slug=model_slug,
@@ -1029,15 +1028,15 @@ class AnalyzerManager:
         return await self.send_websocket_message('static-analyzer', message, timeout=static_timeout)
     
     async def run_comprehensive_analysis(self, model_slug: str, app_number: int, task_name: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
-        """Run comprehensive analysis (security, static, performance, dynamic) without AI."""
+        """Run comprehensive analysis (static, performance, dynamic, AI)."""
         logger.info(f"[ANALYZE] Running comprehensive analysis on {model_slug} app {app_number}")
 
-        # Prepare tasks (no AI per request)
+        # Run all analysis types including AI
         analysis_tasks = [
-            ('security', self.run_security_analysis(model_slug, app_number)),
             ('static', self.run_static_analysis(model_slug, app_number)),
             ('performance', self.run_performance_test(model_slug, app_number)),
             ('dynamic', self.run_dynamic_analysis(model_slug, app_number)),
+            ('ai', self.run_ai_analysis(model_slug, app_number)),
         ]
         
         results = {}
