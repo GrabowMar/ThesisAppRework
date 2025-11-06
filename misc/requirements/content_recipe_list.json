@@ -1,0 +1,48 @@
+{
+  "slug": "content_recipe_list",
+  "name": "Recipe Book",
+  "category": "Content",
+  "description": "Save and view recipes",
+  "backend_requirements": [
+    "Recipe model: id, title (required), ingredients (text), instructions (text), prep_time, servings",
+    "CRUD endpoints: GET /api/recipes, GET /api/recipes/:id, POST, PUT, DELETE",
+    "Search recipes: ?query=text searches title and ingredients",
+    "Seed with 3-5 sample recipes"
+  ],
+  "frontend_requirements": [
+    "Recipe list showing title, prep time, servings",
+    "Click recipe to view full details (ingredients and instructions)",
+    "Add/edit recipe form with all fields",
+    "Delete button with confirmation",
+    "Search box to filter recipes"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/recipes",
+      "description": "List all recipes"
+    },
+    {
+      "method": "POST",
+      "path": "/api/recipes",
+      "description": "Create new recipe"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/recipes/:id",
+      "description": "Update recipe"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/recipes/:id",
+      "description": "Delete recipe"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

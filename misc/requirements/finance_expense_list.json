@@ -1,0 +1,48 @@
+{
+  "slug": "finance_expense_list",
+  "name": "Expense Tracker",
+  "category": "Finance",
+  "description": "Track your expenses",
+  "backend_requirements": [
+    "Expense model: id, amount (decimal, required), category (required), description, date (default today)",
+    "CRUD endpoints: GET /api/expenses, POST, PUT, DELETE",
+    "GET /api/expenses/total - return sum of all expenses",
+    "GET /api/expenses/by-category - group totals by category"
+  ],
+  "frontend_requirements": [
+    "Expense list showing date, amount, category, description",
+    "Display total at top prominently",
+    "Add expense form with amount, category dropdown, description, date",
+    "Delete expense button",
+    "Filter by category and date range"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/expenses",
+      "description": "List all expenses"
+    },
+    {
+      "method": "POST",
+      "path": "/api/expenses",
+      "description": "Create new expense"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/expenses/:id",
+      "description": "Update expense"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/expenses/:id",
+      "description": "Delete expense"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

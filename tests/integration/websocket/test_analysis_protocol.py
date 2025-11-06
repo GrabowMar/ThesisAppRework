@@ -34,7 +34,7 @@ def main():
             test_app = GeneratedApplication(
                 model_slug='openai_gpt-4.1-2025-04-14',
                 app_number=1,
-                template_id='1',
+                template_slug='crud_todo_list',
                 status='completed',
                 created_at=datetime.now(timezone.utc)
             )

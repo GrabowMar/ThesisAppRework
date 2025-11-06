@@ -216,7 +216,7 @@ class TestSimpleGenerationRoutes:
             json={
                 'model_slug': 'test/model',
                 'app_num': 1,
-                'template_id': 1,
+                'template_slug': 'crud_todo_list',
                 'component': 'frontend'
             }
         )

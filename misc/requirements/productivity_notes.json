@@ -1,0 +1,48 @@
+{
+  "slug": "productivity_notes",
+  "name": "Note Taking",
+  "category": "Productivity",
+  "description": "Create and organize notes",
+  "backend_requirements": [
+    "Note model: id, title (required), content (text), created_at, updated_at, pinned (boolean)",
+    "CRUD endpoints: GET /api/notes, POST, PUT /api/notes/:id, DELETE",
+    "Search notes: ?query=text searches title and content",
+    "Pin/unpin notes: PUT /api/notes/:id/pin"
+  ],
+  "frontend_requirements": [
+    "Two-column layout: note list (left), editor (right)",
+    "Note list shows titles with preview, pinned notes at top",
+    "Click note to load in editor",
+    "Auto-save on typing (debounced)",
+    "Delete note button with confirmation"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/notess",
+      "description": "List all notess"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notess",
+      "description": "Create new notes"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/notess/:id",
+      "description": "Update notes"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/notess/:id",
+      "description": "Delete notes"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

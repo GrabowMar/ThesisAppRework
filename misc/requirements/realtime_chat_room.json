@@ -1,0 +1,48 @@
+{
+  "slug": "realtime_chat_room",
+  "name": "Chat Room",
+  "category": "Real-time",
+  "description": "Simple real-time messaging",
+  "backend_requirements": [
+    "WebSocket endpoint at /ws/chat for bidirectional communication",
+    "Message model: id, username, text, timestamp",
+    "Broadcast incoming messages to all connected clients",
+    "Store last 50 messages in memory or SQLite"
+  ],
+  "frontend_requirements": [
+    "Message list showing username, text, and time",
+    "Input field with send button at bottom",
+    "Auto-scroll to newest message",
+    "WebSocket connection with reconnect logic",
+    "Show 'typing...' indicator when appropriate"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/chats",
+      "description": "List all chats"
+    },
+    {
+      "method": "POST",
+      "path": "/api/chats",
+      "description": "Create new chat"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/chats/:id",
+      "description": "Update chat"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/chats/:id",
+      "description": "Delete chat"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

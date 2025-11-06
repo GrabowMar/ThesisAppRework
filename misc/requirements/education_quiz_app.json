@@ -1,0 +1,48 @@
+{
+  "slug": "education_quiz_app",
+  "name": "Quiz Application",
+  "category": "Education",
+  "description": "Take multiple choice quizzes",
+  "backend_requirements": [
+    "Question model: id, question_text (required), options (JSON array), correct_answer (integer index)",
+    "GET /api/quiz/questions - return 5-10 random questions",
+    "POST /api/quiz/submit - accept answers array, return score and correct answers",
+    "Seed with 20+ sample questions"
+  ],
+  "frontend_requirements": [
+    "Display one question at a time with radio buttons for options",
+    "'Next' button to proceed, 'Submit' on last question",
+    "Show score after submission with correct/incorrect indicators",
+    "Review mode showing all questions with correct answers",
+    "'Start New Quiz' button"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/quizs",
+      "description": "List all quizs"
+    },
+    {
+      "method": "POST",
+      "path": "/api/quizs",
+      "description": "Create new quiz"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/quizs/:id",
+      "description": "Update quiz"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/quizs/:id",
+      "description": "Delete quiz"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

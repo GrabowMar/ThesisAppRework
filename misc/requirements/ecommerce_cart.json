@@ -1,0 +1,49 @@
+{
+  "slug": "ecommerce_cart",
+  "name": "Shopping Cart",
+  "category": "E-commerce",
+  "description": "Add products to cart and checkout",
+  "backend_requirements": [
+    "Product model: id, name, price (decimal), description, image_url",
+    "Cart stored in session or database: product_id, quantity",
+    "POST /api/cart/add - add item to cart",
+    "PUT /api/cart/:id - update quantity, DELETE /api/cart/:id - remove item",
+    "GET /api/cart/total - calculate total price"
+  ],
+  "frontend_requirements": [
+    "Product grid with name, price, image, 'Add to Cart' button",
+    "Cart sidebar showing items with quantity controls (+/-)",
+    "Display subtotal and total price",
+    "Remove item button for each cart item",
+    "Empty cart message when no items"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/carts",
+      "description": "List all carts"
+    },
+    {
+      "method": "POST",
+      "path": "/api/carts",
+      "description": "Create new cart"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/carts/:id",
+      "description": "Update cart"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/carts/:id",
+      "description": "Delete cart"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

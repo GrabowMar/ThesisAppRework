@@ -1,0 +1,48 @@
+{
+  "slug": "workflow_task_board",
+  "name": "Kanban Board",
+  "category": "Workflow",
+  "description": "Visual task workflow",
+  "backend_requirements": [
+    "Task model: id, title (required), description, status (todo/in_progress/done), priority",
+    "CRUD endpoints: GET /api/tasks, POST, PUT, DELETE",
+    "Update status: PUT /api/tasks/:id/status with {status: 'done'}",
+    "Filter by status: ?status=todo"
+  ],
+  "frontend_requirements": [
+    "Three columns: To Do, In Progress, Done",
+    "Task cards showing title and description",
+    "Button to move task to next column",
+    "Add task form with title, description, priority",
+    "Delete button per task"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/tasks",
+      "description": "List all tasks"
+    },
+    {
+      "method": "POST",
+      "path": "/api/tasks",
+      "description": "Create new task"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/tasks/:id",
+      "description": "Update task"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/tasks/:id",
+      "description": "Delete task"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

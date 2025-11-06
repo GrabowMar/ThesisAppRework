@@ -1,0 +1,48 @@
+{
+  "slug": "auth_user_login",
+  "name": "User Login",
+  "category": "Authentication",
+  "description": "Basic authentication system",
+  "backend_requirements": [
+    "User model: id, username (unique), password_hash, created_at",
+    "POST /api/auth/register - hash password with bcrypt, return success/error",
+    "POST /api/auth/login - verify credentials, return JWT token",
+    "GET /api/auth/me - return current user info from token"
+  ],
+  "frontend_requirements": [
+    "Login form with username and password fields",
+    "Registration form with username, password, confirm password",
+    "Display logged-in username in header",
+    "Logout button that clears token",
+    "Show error messages for invalid credentials"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/users",
+      "description": "List all users"
+    },
+    {
+      "method": "POST",
+      "path": "/api/users",
+      "description": "Create new user"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/users/:id",
+      "description": "Update user"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/users/:id",
+      "description": "Delete user"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

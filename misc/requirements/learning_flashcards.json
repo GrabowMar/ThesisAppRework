@@ -1,0 +1,48 @@
+{
+  "slug": "learning_flashcards",
+  "name": "Flashcard Study Tool",
+  "category": "Learning",
+  "description": "Study with flashcards",
+  "backend_requirements": [
+    "Flashcard model: id, question (required), answer (required), category, difficulty",
+    "CRUD endpoints: GET /api/flashcards, POST, PUT, DELETE",
+    "GET /api/flashcards/random - return random card",
+    "Filter by category: ?category=math"
+  ],
+  "frontend_requirements": [
+    "Card display: large question text centered",
+    "Click card or 'Show Answer' button to flip and reveal answer",
+    "'Next Card' button to load random card",
+    "Add flashcard form with question, answer, category",
+    "Category filter dropdown"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/flashcardss",
+      "description": "List all flashcardss"
+    },
+    {
+      "method": "POST",
+      "path": "/api/flashcardss",
+      "description": "Create new flashcards"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/flashcardss/:id",
+      "description": "Update flashcards"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/flashcardss/:id",
+      "description": "Delete flashcards"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

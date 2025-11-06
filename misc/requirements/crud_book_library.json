@@ -1,0 +1,48 @@
+{
+  "slug": "crud_book_library",
+  "name": "Book Library",
+  "category": "CRUD",
+  "description": "Track your book collection",
+  "backend_requirements": [
+    "Book model: id, title (required), author (required), year (integer, optional), isbn (optional)",
+    "CRUD endpoints: GET /api/books, POST /api/books, PUT /api/books/:id, DELETE /api/books/:id",
+    "Search support: ?query=text searches title and author",
+    "Input validation: title and author required, year must be 4 digits"
+  ],
+  "frontend_requirements": [
+    "Book list table with columns: title, author, year",
+    "Add book form with title, author, year, isbn fields",
+    "Edit button opens form with pre-filled data",
+    "Delete button with confirmation dialog",
+    "Simple search box to filter books"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/books",
+      "description": "List all books"
+    },
+    {
+      "method": "POST",
+      "path": "/api/books",
+      "description": "Create new book"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/books/:id",
+      "description": "Update book"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/books/:id",
+      "description": "Delete book"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

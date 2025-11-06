@@ -56,12 +56,12 @@ def list_templates():
         templates = service.get_template_catalog()
 
         return create_success_response(
-            templates,
+            data=templates,
             message=f"Found {len(templates)} app templates"
         )
     except Exception as e:
         logger.exception("Failed to list templates")
-        return create_error_response(str(e), 500)
+        return create_error_response(str(e), code=500)
 
 
 @gen_bp.route('/scaffold', methods=['POST'])
@@ -106,7 +106,7 @@ def scaffold():
                     if f.is_file():
                         files.append(str(f.relative_to(app_dir)))
             
-            return create_success_response({
+            return create_success_response(data={
                 'scaffolded': True,
                 'app_dir': str(app_dir),
                 'backend_port': backend_port,
@@ -115,11 +115,11 @@ def scaffold():
                 'file_count': len(files)
             })
         else:
-            return create_error_response("Scaffolding failed", 500)
+            return create_error_response("Scaffolding failed", code=500)
             
     except Exception as e:
         logger.exception("Scaffold failed")
-        return create_error_response(str(e), 500)
+        return create_error_response(str(e), code=500)
 
 
 @gen_bp.route('/generate', methods=['POST'])
@@ -134,7 +134,7 @@ def generate():
         # Required parameters
         model_slug_raw = data.get('model_slug')
         app_num = data.get('app_num')
-        template_id = data.get('template_id', 1)
+        template_slug = data.get('template_slug', 'crud_todo_list')  # Default to first template
         
         # Normalize model slug to match database format (replace / with _)
         model_slug = model_slug_raw.replace('/', '_') if model_slug_raw else None
@@ -142,7 +142,7 @@ def generate():
         if not model_slug or app_num is None:
             return create_error_response(
                 "model_slug and app_num are required",
-                400
+                code=400
             )
         
         # Validate model exists in database
@@ -152,7 +152,7 @@ def generate():
             logger.error(f"Model not found in database: {model_slug} (raw: {model_slug_raw})")
             return create_error_response(
                 f"Model '{model_slug}' not found in database. Please ensure the model is loaded.",
-                404
+                code=404
             )
         
         logger.info(f"Found model: {model.model_name} (ID: {model.model_id})")
@@ -170,13 +170,13 @@ def generate():
         result = asyncio.run(service.generate_full_app(
             model_slug=model_slug,
             app_num=app_num,
-            template_id=template_id,
+            template_slug=template_slug,
             generate_frontend=gen_frontend,
             generate_backend=gen_backend
         ))
         
         if result['success']:
-            return create_success_response(result, "Generation successful")
+            return create_success_response(data=result, message="Generation successful")
         else:
             # Provide detailed error information
             errors = result.get('errors', [])
@@ -192,13 +192,13 @@ def generate():
             logger.error(f"Generation failed for {model_slug}/app{app_num}: {errors}")
             return create_error_response(
                 f"Generation failed: {', '.join(errors)}",
-                500,
+                code=500,
                 details=error_details
             )
             
     except Exception as e:
         logger.exception("V2 generation failed")
-        return create_error_response(str(e), 500)
+        return create_error_response(str(e), code=500)
 
 
 @gen_bp.route('/test-scaffold', methods=['POST'])
@@ -225,7 +225,7 @@ def test_scaffold():
                 if f.is_file():
                     files.append(str(f.relative_to(app_dir)))
             
-            return create_success_response({
+            return create_success_response(data={
                 'scaffolded': True,
                 'app_dir': str(app_dir),
                 'backend_port': backend_port,
@@ -234,11 +234,11 @@ def test_scaffold():
                 'file_count': len(files)
             })
         else:
-            return create_error_response("Scaffolding failed", 500)
+            return create_error_response("Scaffolding failed", code=500)
             
     except Exception as e:
         logger.exception("Test scaffold failed")
-        return create_error_response(str(e), 500)
+        return create_error_response(str(e), code=500)
 
 
 @gen_bp.route('/apps', methods=['GET'])
@@ -258,7 +258,7 @@ def list_apps():
         apps = []
         
         if not GENERATED_APPS_DIR.exists():
-            return create_success_response([])
+            return create_success_response(data=[])
         
         for model_dir in GENERATED_APPS_DIR.iterdir():
             if not model_dir.is_dir():
@@ -293,11 +293,11 @@ def list_apps():
         # Sort by model slug and app num
         apps.sort(key=lambda x: (x['model_slug'], x['app_num']))
         
-        return create_success_response(apps)
+        return create_success_response(data=apps)
         
     except Exception as e:
         logger.exception("Failed to list apps")
-        return create_error_response(str(e), 500)
+        return create_error_response(str(e), code=500)
 
 
 @gen_bp.route('/apps/<path:model_slug>/<int:app_num>', methods=['GET'])
@@ -317,7 +317,7 @@ def get_app_details(model_slug: str, app_num: int):
         app_dir = service.scaffolding.get_app_dir(model_slug, app_num)
         
         if not app_dir.exists():
-            return create_error_response("App not found", 404)
+            return create_error_response("App not found", code=404)
         
         # Get all files
         files = []
@@ -332,7 +332,7 @@ def get_app_details(model_slug: str, app_num: int):
 
         backend_port, frontend_port = service.scaffolding.get_ports(model_slug, app_num)
         
-        return create_success_response({
+        return create_success_response(data={
             'model_slug': model_slug,
             'app_num': app_num,
             'app_dir': str(app_dir),
@@ -344,4 +344,4 @@ def get_app_details(model_slug: str, app_num: int):
         
     except Exception as e:
         logger.exception("Failed to get app details")
-        return create_error_response(str(e), 500)
+        return create_error_response(str(e), code=500)

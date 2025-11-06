@@ -538,12 +538,12 @@ Focus on whether the functionality described in the requirement is actually impl
             await self.send_progress('starting', f"Starting requirements checker for {model_slug} app {app_number}", analysis_id=analysis_id)
             
             # Load requirements template
-            template_id = config.get('template_id', 1) if config else 1
-            requirements_file = self._find_requirements_template(template_id)
+            template_slug = config.get('template_slug', 'crud_todo_list') if config else 'crud_todo_list'
+            requirements_file = self._find_requirements_template(template_slug)
             if not requirements_file:
                 return {
                     'status': 'error',
-                    'error': f'Requirements template {template_id} not found',
+                    'error': f'Requirements template {template_slug} not found',
                     'tool_name': 'requirements-checker'
                 }
             
@@ -638,7 +638,7 @@ Focus on whether the functionality described in the requirement is actually impl
                     'model_slug': model_slug,
                     'app_number': app_number,
                     'ai_model_used': gemini_model,
-                    'template_id': template_id,
+                    'template_slug': template_slug,
                     'analysis_time': datetime.now().isoformat()
                 },
                 'results': {
@@ -689,12 +689,12 @@ Focus on whether the functionality described in the requirement is actually impl
             await self.send_progress('starting', f"Starting code quality analysis for {model_slug} app {app_number}", analysis_id=analysis_id)
             
             # Load requirements template
-            template_id = config.get('template_id', 1) if config else 1
-            requirements_file = self._find_requirements_template(template_id)
+            template_slug = config.get('template_slug', 'crud_todo_list') if config else 'crud_todo_list'
+            requirements_file = self._find_requirements_template(template_slug)
             if not requirements_file:
                 return {
                     'status': 'error',
-                    'error': f'Requirements template {template_id} not found',
+                    'error': f'Requirements template {template_slug} not found',
                     'tool_name': 'code-quality-analyzer'
                 }
             
@@ -751,7 +751,7 @@ Focus on whether the functionality described in the requirement is actually impl
                     'model_slug': model_slug,
                     'app_number': app_number,
                     'ai_model_used': gemini_model,
-                    'template_id': template_id,
+                    'template_slug': template_slug,
                     'full_scan': full_scan,
                     'analysis_time': datetime.now().isoformat()
                 },
@@ -776,24 +776,27 @@ Focus on whether the functionality described in the requirement is actually impl
                 'tool_name': 'code-quality-analyzer'
             }
     
-    def _find_requirements_template(self, template_id: int) -> Optional[Path]:
-        """Find requirements template file by ID.
+    def _find_requirements_template(self, template_slug: str) -> Optional[Path]:
+        """Find requirements template file by slug.
         
-        Templates use numeric naming convention: {id}.json
-        Examples: 1.json, 2.json, 3.json, 4.json
+        Templates use slug naming convention: {slug}.json
+        Examples: crud_todo_list.json, auth_user_management.json, realtime_chat_application.json
         """
+        # Normalize slug (allow hyphens and underscores)
+        normalized_slug = template_slug.lower().replace('-', '_')
+        
         # Try container path first, then development path
         possible_paths = [
-            Path(f"/app/misc/requirements/{template_id}.json"),  # Container runtime
-            Path(__file__).parent.parent.parent.parent / "misc" / "requirements" / f"{template_id}.json"  # Local dev
+            Path(f"/app/misc/requirements/{normalized_slug}.json"),  # Container runtime
+            Path(__file__).parent.parent.parent.parent / "misc" / "requirements" / f"{normalized_slug}.json"  # Local dev
         ]
         
         for path in possible_paths:
             if path.exists():
-                self.log.info(f"Found template {template_id} at: {path}")
+                self.log.info(f"Found template '{template_slug}' at: {path}")
                 return path
         
-        self.log.warning(f"Template {template_id} not found in any location")
+        self.log.warning(f"Template '{template_slug}' not found in any location")
         return None
     
     async def _read_app_code_focused(self, app_path: Path, focus_dirs: List[str]) -> str:

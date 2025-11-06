@@ -1,0 +1,48 @@
+{
+  "slug": "api_url_shortener",
+  "name": "URL Shortener",
+  "category": "API Integration",
+  "description": "Create short URLs",
+  "backend_requirements": [
+    "POST /api/shorten - accept long URL, generate 6-character random code",
+    "URL model: id, original_url, short_code (unique), created_at, click_count",
+    "GET /:code - lookup and redirect to original URL, increment counter",
+    "Validate URL format before shortening"
+  ],
+  "frontend_requirements": [
+    "Input field for long URL with 'Shorten' button",
+    "Display shortened URL with copy-to-clipboard button",
+    "Show click count for generated URLs",
+    "List of recently shortened URLs",
+    "Validation error for invalid URLs"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/urls",
+      "description": "List all urls"
+    },
+    {
+      "method": "POST",
+      "path": "/api/urls",
+      "description": "Create new url"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/urls/:id",
+      "description": "Update url"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/urls/:id",
+      "description": "Delete url"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

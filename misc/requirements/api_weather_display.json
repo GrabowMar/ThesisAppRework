@@ -1,0 +1,48 @@
+{
+  "slug": "api_weather_display",
+  "name": "Weather Checker",
+  "category": "API Integration",
+  "description": "Get current weather for any city",
+  "backend_requirements": [
+    "GET /api/weather?city=name - proxy request to OpenWeatherMap or similar free API",
+    "Return JSON: temperature, condition, humidity, city name",
+    "Cache results for 15 minutes to avoid API rate limits",
+    "Handle API errors and return user-friendly messages"
+  ],
+  "frontend_requirements": [
+    "City input field with search button",
+    "Display temperature in Celsius/Fahrenheit with toggle",
+    "Show weather condition with appropriate icon",
+    "Loading spinner while fetching data",
+    "Error message for invalid city or API failure"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/weathers",
+      "description": "List all weathers"
+    },
+    {
+      "method": "POST",
+      "path": "/api/weathers",
+      "description": "Create new weather"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/weathers/:id",
+      "description": "Update weather"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/weathers/:id",
+      "description": "Delete weather"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "slug": "scheduling_event_list",
+  "name": "Event Calendar",
+  "category": "Scheduling",
+  "description": "Track events by date",
+  "backend_requirements": [
+    "Event model: id, title (required), date (required), time, description, location",
+    "CRUD endpoints: GET /api/events, POST, PUT, DELETE",
+    "Filter by date range: ?start=YYYY-MM-DD&end=YYYY-MM-DD",
+    "Sort events by date ascending"
+  ],
+  "frontend_requirements": [
+    "Event list grouped by date, showing title and time",
+    "Add event form with date picker, time picker, title, description",
+    "Click event to view details in modal",
+    "Edit and delete buttons per event",
+    "Filter buttons: Today, This Week, This Month, All"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/events",
+      "description": "List all events"
+    },
+    {
+      "method": "POST",
+      "path": "/api/events",
+      "description": "Create new event"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/events/:id",
+      "description": "Update event"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/events/:id",
+      "description": "Delete event"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

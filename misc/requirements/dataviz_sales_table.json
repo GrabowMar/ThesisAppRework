@@ -1,0 +1,48 @@
+{
+  "slug": "dataviz_sales_table",
+  "name": "Sales Dashboard",
+  "category": "Data Visualization",
+  "description": "View and visualize sales data",
+  "backend_requirements": [
+    "Sale model: id, date, amount (decimal), category, description",
+    "GET /api/sales - return all sales, support date range filter",
+    "GET /api/sales/summary - return totals by category and month",
+    "Seed with sample data if database is empty"
+  ],
+  "frontend_requirements": [
+    "Sales table with date, amount, category, description columns",
+    "Total sales displayed prominently at top",
+    "Simple bar chart showing sales by category (Chart.js or similar)",
+    "Date range filter (this month, last month, custom)",
+    "Export to CSV button"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/saless",
+      "description": "List all saless"
+    },
+    {
+      "method": "POST",
+      "path": "/api/saless",
+      "description": "Create new sales"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/saless/:id",
+      "description": "Update sales"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/saless/:id",
+      "description": "Delete sales"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

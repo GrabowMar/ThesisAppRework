@@ -1,0 +1,48 @@
+{
+  "slug": "messaging_notifications",
+  "name": "Notification Center",
+  "category": "Messaging",
+  "description": "View and manage notifications",
+  "backend_requirements": [
+    "Notification model: id, message (required), type (info/warning/error), read (boolean), created_at",
+    "GET /api/notifications - return all, support ?unread=true filter",
+    "PUT /api/notifications/:id/read - mark as read",
+    "DELETE /api/notifications/:id - delete notification"
+  ],
+  "frontend_requirements": [
+    "Notification list with icon based on type, message, time ago",
+    "Unread count badge in header",
+    "Unread notifications highlighted",
+    "'Mark as read' button per notification",
+    "Delete button, 'Mark all as read' button"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/notificationss",
+      "description": "List all notificationss"
+    },
+    {
+      "method": "POST",
+      "path": "/api/notificationss",
+      "description": "Create new notifications"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/notificationss/:id",
+      "description": "Update notifications"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/notificationss/:id",
+      "description": "Delete notifications"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

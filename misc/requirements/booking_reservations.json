@@ -1,0 +1,48 @@
+{
+  "slug": "booking_reservations",
+  "name": "Reservation System",
+  "category": "Booking",
+  "description": "Book time slots or rooms",
+  "backend_requirements": [
+    "Reservation model: id, name (required), resource (room/table/etc), date (required), time_slot, guests",
+    "CRUD endpoints: GET /api/reservations, POST, PUT, DELETE",
+    "GET /api/reservations/available?date=X&resource=Y - show available time slots",
+    "Validate: prevent double-booking same resource/time"
+  ],
+  "frontend_requirements": [
+    "Reservation list grouped by date, showing name, resource, time",
+    "Book form: name, resource dropdown, date picker, time slot picker, guests",
+    "Show available slots when date/resource selected",
+    "Cancel reservation button",
+    "Today's reservations highlighted"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/reservationss",
+      "description": "List all reservationss"
+    },
+    {
+      "method": "POST",
+      "path": "/api/reservationss",
+      "description": "Create new reservations"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/reservationss/:id",
+      "description": "Update reservations"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/reservationss/:id",
+      "description": "Delete reservations"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

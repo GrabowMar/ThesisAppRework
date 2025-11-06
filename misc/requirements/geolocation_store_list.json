@@ -1,0 +1,48 @@
+{
+  "slug": "geolocation_store_list",
+  "name": "Store Finder",
+  "category": "Geolocation",
+  "description": "Find stores by location",
+  "backend_requirements": [
+    "Store model: id, name, address, latitude, longitude, phone",
+    "GET /api/stores - return all stores",
+    "GET /api/stores/nearby?lat=X&lng=Y&radius=5 - filter by distance",
+    "Seed with 5-10 sample store locations"
+  ],
+  "frontend_requirements": [
+    "Store list showing name, address, phone",
+    "Display distance from user location (if permission granted)",
+    "Optional: simple map using Leaflet.js showing store markers",
+    "Click store to view details",
+    "'Get Directions' button with link to Google Maps"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/stores",
+      "description": "List all stores"
+    },
+    {
+      "method": "POST",
+      "path": "/api/stores",
+      "description": "Create new store"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/stores/:id",
+      "description": "Update store"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/stores/:id",
+      "description": "Delete store"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

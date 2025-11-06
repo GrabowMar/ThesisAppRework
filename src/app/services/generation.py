@@ -72,7 +72,7 @@ class GenerationConfig:
     """Configuration for code generation."""
     model_slug: str
     app_num: int
-    template_id: int
+    template_slug: str
     component: str  # 'frontend' or 'backend'
     temperature: float = 0.3
     max_tokens: int = 16000
@@ -288,17 +288,20 @@ class CodeGenerator:
             logger.error(f"Generation failed: {e}")
             return False, "", str(e)
     
-    def _load_requirements(self, template_id: int) -> Optional[Dict]:
-        """Load requirements from JSON file using numeric naming convention.
+    def _load_requirements(self, template_slug: str) -> Optional[Dict]:
+        """Load requirements from JSON file using slug naming convention.
         
-        Templates must be named: {id}.json (e.g., 1.json, 2.json)
+        Templates must be named: {slug}.json (e.g., crud_todo_list.json, realtime_chat_app.json)
         """
         if not self.requirements_dir.exists():
             logger.error(f"Requirements directory not found: {self.requirements_dir}")
             return None
 
-        # Direct lookup using numeric naming convention
-        req_file = self.requirements_dir / f"{template_id}.json"
+        # Normalize slug (allow underscores and hyphens)
+        normalized_slug = template_slug.lower().replace('-', '_')
+        
+        # Try direct lookup with normalized slug
+        req_file = self.requirements_dir / f"{normalized_slug}.json"
         
         if not req_file.exists():
             logger.warning(f"Requirements file not found: {req_file.name}")
@@ -307,19 +310,19 @@ class CodeGenerator:
         try:
             data = json.loads(req_file.read_text(encoding='utf-8'))
             
-            # Validate ID matches filename
-            file_id = data.get('id') or data.get('app_id')
-            if file_id is None:
-                logger.error(f"Template {req_file.name} missing 'id' field")
+            # Validate slug matches filename
+            file_slug = data.get('slug')
+            if file_slug is None:
+                logger.error(f"Template {req_file.name} missing 'slug' field")
                 return None
             
-            if int(file_id) != int(template_id):
+            if file_slug.lower().replace('-', '_') != normalized_slug:
                 logger.error(
-                    f"ID mismatch in {req_file.name}: file has id={file_id}, expected {template_id}"
+                    f"Slug mismatch in {req_file.name}: file has slug={file_slug}, expected {template_slug}"
                 )
                 return None
             
-            logger.info(f"Loaded requirements for template ID {template_id}")
+            logger.info(f"Loaded requirements for template slug '{template_slug}'")
             return data
             
         except (json.JSONDecodeError, ValueError, OSError) as e:
@@ -525,7 +528,7 @@ class CodeGenerator:
 
         # Load requirements if not already loaded
         if not config.requirements:
-            config.requirements = self._load_requirements(config.template_id)
+            config.requirements = self._load_requirements(config.template_slug)
         
         reqs = config.requirements
         
@@ -1020,10 +1023,10 @@ class GenerationService:
     def get_template_catalog(self) -> List[Dict[str, Any]]:
         """Return available generation templates with metadata.
         
-        Validates templates follow numeric naming convention and have required fields.
+        Validates templates follow slug naming convention and have required fields.
         """
         catalog: List[Dict[str, Any]] = []
-        seen_ids = set()
+        seen_slugs = set()
 
         if not REQUIREMENTS_DIR.exists():
             logger.debug("Requirements directory missing: %s", REQUIREMENTS_DIR)
@@ -1040,9 +1043,9 @@ class GenerationService:
                 continue
 
             # Validate required fields
-            template_id = data.get('id') or data.get('app_id')
-            if template_id is None:
-                logger.warning("Skipping %s: missing 'id' field", req_file.name)
+            template_slug = data.get('slug')
+            if template_slug is None:
+                logger.warning("Skipping %s: missing 'slug' field", req_file.name)
                 continue
             
             name = data.get('name')
@@ -1050,27 +1053,20 @@ class GenerationService:
                 logger.warning("Skipping %s: missing 'name' field", req_file.name)
                 continue
             
-            # Validate numeric naming convention
-            if not req_file.stem.isdigit():
+            # Validate slug matches filename (normalized)
+            normalized_slug = template_slug.lower().replace('-', '_')
+            if req_file.stem.lower().replace('-', '_') != normalized_slug:
                 logger.warning(
-                    "Template %s uses legacy naming (should be %s.json)",
-                    req_file.name, template_id
+                    "Slug mismatch in %s: file has slug='%s', filename is %s",
+                    req_file.name, template_slug, req_file.stem
                 )
                 continue
             
-            # Validate ID matches filename
-            if int(req_file.stem) != int(template_id):
-                logger.error(
-                    "ID mismatch in %s: file has id=%s, filename is %s",
-                    req_file.name, template_id, req_file.stem
-                )
+            # Check for duplicate slugs
+            if template_slug in seen_slugs:
+                logger.error("Duplicate template slug %s in %s", template_slug, req_file.name)
                 continue
-            
-            # Check for duplicate IDs
-            if template_id in seen_ids:
-                logger.error("Duplicate template ID %s in %s", template_id, req_file.name)
-                continue
-            seen_ids.add(template_id)
+            seen_slugs.add(template_slug)
             
             # Validate structure
             if 'backend_requirements' not in data:
@@ -1081,7 +1077,7 @@ class GenerationService:
                 logger.warning("Template %s missing 'api_endpoints'", req_file.name)
 
             description = data.get('description', '')
-            category = data.get('category') or data.get('domain') or 'general'
+            category = data.get('category', 'general')
             complexity = data.get('complexity') or data.get('difficulty') or 'medium'
 
             features = data.get('features') or data.get('key_features') or []
@@ -1093,7 +1089,7 @@ class GenerationService:
                 tech_stack = {'value': tech_stack}
 
             catalog.append({
-                'id': template_id,
+                'slug': template_slug,
                 'name': name,
                 'description': description,
                 'category': category,
@@ -1110,7 +1106,7 @@ class GenerationService:
         self,
         model_slug: str,
         app_num: int,
-        template_id: int,
+        template_slug: str,
         generate_frontend: bool = True,
         generate_backend: bool = True
     ) -> dict:
@@ -1148,7 +1144,7 @@ class GenerationService:
             config = GenerationConfig(
                 model_slug=model_slug,
                 app_num=app_num,
-                template_id=template_id,
+                template_slug=template_slug,
                 component='backend'
             )
             
@@ -1169,7 +1165,7 @@ class GenerationService:
             config = GenerationConfig(
                 model_slug=model_slug,
                 app_num=app_num,
-                template_id=template_id,
+                template_slug=template_slug,
                 component='frontend'
             )
             
@@ -1200,7 +1196,7 @@ class GenerationService:
                 model_slug=model_slug,
                 app_num=app_num,
                 app_dir=app_dir,
-                template_id=template_id,
+                template_slug=template_slug,
                 backend_port=backend_port,
                 frontend_port=frontend_port,
                 generate_backend=generate_backend,
@@ -1227,7 +1223,7 @@ class GenerationService:
         model_slug: str,
         app_num: int,
         app_dir: Path,
-        template_id: int,
+        template_slug: str,
         backend_port: int,
         frontend_port: int,
         generate_backend: bool,
@@ -1270,6 +1266,7 @@ class GenerationService:
         app_record.has_docker_compose = app_features['has_docker_compose']
         app_record.backend_framework = app_features['backend_framework']
         app_record.frontend_framework = app_features['frontend_framework']
+        app_record.template_slug = template_slug
         app_record.generation_status = (
             AnalysisStatus.COMPLETED if result_snapshot.get('success') else AnalysisStatus.FAILED
         )
@@ -1278,7 +1275,7 @@ class GenerationService:
 
         metadata = app_record.get_metadata() or {}
         metadata_updates = {
-            'template_id': template_id,
+            'template_slug': template_slug,
             'generate_backend': generate_backend,
             'generate_frontend': generate_frontend,
             'backend_generated': result_snapshot.get('backend_generated'),

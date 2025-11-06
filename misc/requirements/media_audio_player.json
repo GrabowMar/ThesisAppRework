@@ -1,0 +1,48 @@
+{
+  "slug": "media_audio_player",
+  "name": "Audio Player",
+  "category": "Media",
+  "description": "Play audio files",
+  "backend_requirements": [
+    "Episode model: id, title, audio_url, duration, description",
+    "GET /api/episodes - return list of episodes",
+    "Serve static audio files from /audio directory",
+    "Seed with 2-3 sample audio URLs"
+  ],
+  "frontend_requirements": [
+    "Episode list with title and duration",
+    "Click episode to load in HTML5 audio player",
+    "Player controls: play/pause, seek bar, volume, current time",
+    "Currently playing episode highlighted",
+    "Auto-play next episode option"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/audios",
+      "description": "List all audios"
+    },
+    {
+      "method": "POST",
+      "path": "/api/audios",
+      "description": "Create new audio"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/audios/:id",
+      "description": "Update audio"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/audios/:id",
+      "description": "Delete audio"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

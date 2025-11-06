@@ -156,7 +156,7 @@ def main():
             test_app = GeneratedApplication(
                 model_slug=model_slug,
                 app_number=app_number,
-                template_id='1',
+                template_slug='crud_todo_list',
                 status='completed',
                 created_at=datetime.now(timezone.utc)
             )

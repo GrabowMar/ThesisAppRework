@@ -415,37 +415,33 @@ function createTemplateListItem(template) {
   item.href = '#';
   item.className = 'list-group-item list-group-item-action';
   
-  // Safe property access with better fallbacks, ensure numeric app_num
-  let appNum = template.app_num || template.number || 0;
-  appNum = typeof appNum === 'string' ? parseInt(appNum, 10) : appNum;
-  const name = template.display_name || template.name || template.title || `Template ${appNum}`;
+  // Use slug-based identification
+  const slug = template.slug || '';
+  const name = template.name || template.display_name || template.title || `Template ${slug}`;
   const templateType = 'both'; // V2 requirements generate both backend and frontend
   const description = template.description || template.desc || '';
-  const requirementId = template.id || ''; // Store V2 requirement ID
+  const category = template.category || 'general';
   
-  console.log('[Wizard] Creating template item:', { appNum, name, requirementId });
+  console.log('[Wizard] Creating template item:', { slug, name, category });
   
-  // Store the app_num and requirement_id as data attributes
-  item.setAttribute('data-app-num', appNum);
-  if (requirementId) {
-    item.setAttribute('data-requirement-id', requirementId);
-  }
+  // Store the slug as data attribute
+  item.setAttribute('data-template-slug', slug);
   
   // Add click handler using addEventListener instead of onclick
   item.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('[Wizard] Template item clicked, app_num:', appNum);
-    const templateAppNum = parseInt(item.getAttribute('data-app-num'), 10);
-    if (templateAppNum) {
-      toggleTemplateSelection(templateAppNum);
+    console.log('[Wizard] Template item clicked, slug:', slug);
+    const templateSlug = item.getAttribute('data-template-slug');
+    if (templateSlug) {
+      toggleTemplateSelection(templateSlug);
     } else {
-      console.error('[Wizard] No app_num found for clicked template');
+      console.error('[Wizard] No slug found for clicked template');
     }
   });
   
-  // Ensure consistent numeric comparison
-  const isSelected = selectedTemplates.includes(appNum);
+  // Check if selected
+  const isSelected = selectedTemplates.includes(slug);
   if (isSelected) {
     item.classList.add('active');
   }
@@ -458,17 +454,20 @@ function createTemplateListItem(template) {
     typeBadge = '<span class="badge bg-green-lt"><i class="fas fa-window-maximize me-1"></i>Frontend</span>';
   }
   
+  // Category badge
+  const categoryBadge = `<span class="badge bg-secondary-lt">${escapeHtml(category)}</span>`;
+  
   const descriptionHtml = description ? `<div class="text-muted small mt-1">${escapeHtml(description.slice(0, 100))}${description.length > 100 ? '...' : ''}</div>` : '';
   
   item.innerHTML = `
     <div class="d-flex align-items-center">
       <div class="flex-fill">
         <strong>${escapeHtml(name)}</strong>
-        <div class="text-muted small">${typeBadge} <span class="text-muted">App #${appNum}</span></div>
+        <div class="text-muted small">${typeBadge} ${categoryBadge}</div>
         ${descriptionHtml}
       </div>
       <div class="form-check">
-        <input class="form-check-input" type="checkbox" data-template="${appNum}" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();">
+        <input class="form-check-input" type="checkbox" data-template-slug="${slug}" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();">
       </div>
     </div>
   `;
@@ -476,20 +475,17 @@ function createTemplateListItem(template) {
   return item;
 }
 
-function toggleTemplateSelection(appNum) {
-  console.log('[Wizard] Toggle template:', appNum, 'Type:', typeof appNum);
+function toggleTemplateSelection(slug) {
+  console.log('[Wizard] Toggle template:', slug, 'Type:', typeof slug);
   console.log('[Wizard] Current selected templates length:', selectedTemplates.length);
   
-  // Ensure appNum is a number for consistent comparison
-  const numericAppNum = typeof appNum === 'string' ? parseInt(appNum, 10) : appNum;
-  
-  const index = selectedTemplates.indexOf(numericAppNum);
+  const index = selectedTemplates.indexOf(slug);
   if (index > -1) {
     selectedTemplates.splice(index, 1);
-    console.log('[Wizard] Removed template:', numericAppNum, 'New count:', selectedTemplates.length);
+    console.log('[Wizard] Removed template:', slug, 'New count:', selectedTemplates.length);
   } else {
-    selectedTemplates.push(numericAppNum);
-    console.log('[Wizard] Added template:', numericAppNum, 'New count:', selectedTemplates.length);
+    selectedTemplates.push(slug);
+    console.log('[Wizard] Added template:', slug, 'New count:', selectedTemplates.length);
   }
   
   console.log('[Wizard] Updated selected templates count:', selectedTemplates.length, 'First few:', selectedTemplates.slice(0, 3));
@@ -531,11 +527,8 @@ function updateModelSelectionUI() {
 function selectAllTemplates() {
   if (templatesCache) {
     console.log('[Wizard] Select all templates, cache:', templatesCache);
-    // Extract app_num with multiple fallbacks and ensure it's a number
-    selectedTemplates = templatesCache.map(t => {
-      const appNum = t.app_num || t.id || t.number || 0;
-      return typeof appNum === 'string' ? parseInt(appNum, 10) : appNum;
-    }).filter(num => num > 0); // Remove any invalid entries
+    // Extract slug from each template
+    selectedTemplates = templatesCache.map(t => t.slug).filter(slug => slug);
     console.log('[Wizard] Selected all templates:', selectedTemplates);
     loadTemplates();
     updateNavigationButtons();
@@ -916,18 +909,18 @@ async function startGeneration() {
   
   try {
     // Generate each combination
-    for (const templateId of selectedTemplates) {
+    for (const templateSlug of selectedTemplates) {
       for (const modelSlug of selectedModels) {
-        console.log(`[Wizard] Generating: template ${templateId}, model ${modelSlug}`);
+        console.log(`[Wizard] Generating: template ${templateSlug}, model ${modelSlug}`);
         
         try {
           const response = await fetch('/api/gen/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              template_id: templateId,
+              template_slug: templateSlug,
               model_slug: modelSlug,
-              app_num: templateId,  // Use template_id as app_num
+              app_num: Date.now() % 10000,  // Use random app number
               generate_frontend: true,
               generate_backend: true,
               scaffold: true
@@ -940,16 +933,16 @@ async function startGeneration() {
             completed++;
             results.push({
               success: true,
-              template_id: templateId,
+              template_slug: templateSlug,
               model: modelSlug,
-              result_id: `${templateId}_${modelSlug.replace(/\//g, '_')}`,
+              result_id: `${templateSlug}_${modelSlug.replace(/\//g, '_')}`,
               message: 'Generated successfully'
             });
           } else {
             failed++;
             results.push({
               success: false,
-              template_id: templateId,
+              template_slug: templateSlug,
               model: modelSlug,
               error: result.message || result.error || 'Generation failed'
             });
@@ -958,7 +951,7 @@ async function startGeneration() {
           failed++;
           results.push({
             success: false,
-            template_id: templateId,
+            template_slug: templateSlug,
             model: modelSlug,
             error: error.message
           });
@@ -1082,16 +1075,16 @@ function displayBatchResults(batchResults) {
         hasError,
         resultId: genResult.result_id,
         model: genResult.model,
-        templateId: genResult.template_id || genResult.app_num
+        templateSlug: genResult.template_slug
       });
       
       const statusBadge = success
         ? '<span class="badge bg-success"><i class="fas fa-check me-1"></i>Success</span>'
         : '<span class="badge bg-danger"><i class="fas fa-times me-1"></i>Failed</span>';
       
-  const templateId = genResult.template_id || genResult.app_num || genResult.result_id?.split('_')[0];
+  const templateSlug = genResult.template_slug || genResult.result_id?.split('_')[0];
   const modelSlug = genResult.model || 'Unknown';
-  const templateName = templatesCache?.find(t => t.app_num == templateId)?.display_name || `Template ${templateId}`;
+  const templateName = templatesCache?.find(t => t.slug === templateSlug)?.name || `Template ${templateSlug}`;
   const matchedModel = modelsCache?.find(m => getModelSlug(m) === modelSlug);
   const modelName = matchedModel?.model_name || matchedModel?.name || modelSlug;
       

@@ -1,0 +1,48 @@
+{
+  "slug": "iot_sensor_display",
+  "name": "Sensor Dashboard",
+  "category": "IoT",
+  "description": "Display sensor readings",
+  "backend_requirements": [
+    "Reading model: id, temperature, humidity, timestamp",
+    "GET /api/sensors/current - return latest reading (or generate random mock data)",
+    "GET /api/sensors/history?hours=24 - return readings from last N hours",
+    "POST /api/sensors/reading - accept new reading (for simulated sensor)"
+  ],
+  "frontend_requirements": [
+    "Large cards displaying current temperature and humidity",
+    "Timestamp of last reading",
+    "Simple line chart showing last 24 hours (Chart.js)",
+    "Color-coded alerts if values outside normal range",
+    "Auto-refresh every 30 seconds"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/sensors",
+      "description": "List all sensors"
+    },
+    {
+      "method": "POST",
+      "path": "/api/sensors",
+      "description": "Create new sensor"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/sensors/:id",
+      "description": "Update sensor"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/sensors/:id",
+      "description": "Delete sensor"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

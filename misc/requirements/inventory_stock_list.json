@@ -1,0 +1,48 @@
+{
+  "slug": "inventory_stock_list",
+  "name": "Inventory Tracker",
+  "category": "Inventory",
+  "description": "Track stock quantities",
+  "backend_requirements": [
+    "Item model: id, name (required), sku, quantity (integer), min_quantity, location",
+    "CRUD endpoints: GET /api/items, POST, PUT, DELETE",
+    "PUT /api/items/:id/adjust - accept {adjustment: +5 or -3} to modify quantity",
+    "Alert when quantity < min_quantity"
+  ],
+  "frontend_requirements": [
+    "Item list table: name, SKU, quantity, location",
+    "Low stock items highlighted in red",
+    "Add item form with all fields",
+    "Quantity adjustment controls: +/- buttons or input",
+    "Delete item button"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/stocks",
+      "description": "List all stocks"
+    },
+    {
+      "method": "POST",
+      "path": "/api/stocks",
+      "description": "Create new stock"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/stocks/:id",
+      "description": "Update stock"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/stocks/:id",
+      "description": "Delete stock"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

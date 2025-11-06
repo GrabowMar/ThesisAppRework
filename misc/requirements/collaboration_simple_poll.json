@@ -1,0 +1,48 @@
+{
+  "slug": "collaboration_simple_poll",
+  "name": "Quick Poll",
+  "category": "Collaboration",
+  "description": "Create and vote on polls",
+  "backend_requirements": [
+    "Poll model: id, question (required), created_at",
+    "Option model: id, poll_id, option_text, vote_count (integer, default 0)",
+    "POST /api/polls - create poll with question and options array",
+    "POST /api/polls/:id/vote - accept {option_id}, increment vote_count"
+  ],
+  "frontend_requirements": [
+    "Display poll question with options as buttons or radio buttons",
+    "Click option to vote",
+    "Show vote counts and percentages after voting",
+    "Create poll form with question and 2-5 option inputs",
+    "Can only vote once (tracked by session or localStorage)"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/simples",
+      "description": "List all simples"
+    },
+    {
+      "method": "POST",
+      "path": "/api/simples",
+      "description": "Create new simple"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/simples/:id",
+      "description": "Update simple"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/simples/:id",
+      "description": "Delete simple"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

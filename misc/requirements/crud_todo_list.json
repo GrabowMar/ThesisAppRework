@@ -1,0 +1,48 @@
+{
+  "slug": "crud_todo_list",
+  "name": "Todo List",
+  "category": "CRUD",
+  "description": "Simple task management - add, complete, and delete todos",
+  "backend_requirements": [
+    "Todo model with SQLAlchemy: id, title (string, required), completed (boolean, default False), created_at",
+    "REST API endpoints: GET /api/todos (list all), POST /api/todos (create), PUT /api/todos/:id (update), DELETE /api/todos/:id",
+    "Filter support: ?completed=true/false query parameter",
+    "JSON responses with proper status codes (200, 201, 404)"
+  ],
+  "frontend_requirements": [
+    "Display todo list with title and checkbox for completion status",
+    "Input field with 'Add' button to create new todos",
+    "Click checkbox to toggle completed state",
+    "Delete button per todo with confirmation",
+    "Show empty state when no todos exist"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/todos",
+      "description": "List all todos"
+    },
+    {
+      "method": "POST",
+      "path": "/api/todos",
+      "description": "Create new todo"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/todos/:id",
+      "description": "Update todo"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/todos/:id",
+      "description": "Delete todo"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

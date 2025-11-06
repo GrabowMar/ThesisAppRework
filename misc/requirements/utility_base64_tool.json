@@ -1,0 +1,48 @@
+{
+  "slug": "utility_base64_tool",
+  "name": "Base64 Converter",
+  "category": "Utility",
+  "description": "Encode and decode base64",
+  "backend_requirements": [
+    "POST /api/base64/encode - accept {text: string}, return {encoded: string}",
+    "POST /api/base64/decode - accept {encoded: string}, return {text: string}",
+    "Handle decode errors for invalid base64",
+    "Support UTF-8 encoding"
+  ],
+  "frontend_requirements": [
+    "Two textareas: input and output",
+    "'Encode' button converts input to base64 in output",
+    "'Decode' button converts base64 input to text in output",
+    "Swap button to switch input/output",
+    "Copy to clipboard button for output"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/base64s",
+      "description": "List all base64s"
+    },
+    {
+      "method": "POST",
+      "path": "/api/base64s",
+      "description": "Create new base64"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/base64s/:id",
+      "description": "Update base64"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/base64s/:id",
+      "description": "Delete base64"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

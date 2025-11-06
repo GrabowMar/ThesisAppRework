@@ -1,0 +1,49 @@
+{
+  "slug": "fileproc_image_upload",
+  "name": "Image Gallery",
+  "category": "File Processing",
+  "description": "Upload and view images",
+  "backend_requirements": [
+    "POST /api/images/upload - accept multipart/form-data image files",
+    "Save images to /uploads directory with unique filenames",
+    "Image model: id, filename, original_name, upload_date, file_size",
+    "GET /api/images - return list of images with URLs",
+    "Validate file type (jpg, png, gif) and size (<5MB)"
+  ],
+  "frontend_requirements": [
+    "File input with 'Upload' button, show selected filename",
+    "Image grid displaying thumbnails (CSS grid)",
+    "Click image to view full size in modal/lightbox",
+    "Delete button per image with confirmation",
+    "Upload progress bar or spinner"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/images",
+      "description": "List all images"
+    },
+    {
+      "method": "POST",
+      "path": "/api/images",
+      "description": "Create new image"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/images/:id",
+      "description": "Update image"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/images/:id",
+      "description": "Delete image"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}

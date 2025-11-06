@@ -1,0 +1,48 @@
+{
+  "slug": "validation_xml_checker",
+  "name": "XML Validator",
+  "category": "Validation",
+  "description": "Validate XML syntax",
+  "backend_requirements": [
+    "POST /api/validate/xml - accept {xml: string}",
+    "Parse XML using Python's xml.etree or lxml",
+    "Return {valid: true} or {valid: false, error: message, line: number}",
+    "Handle syntax errors with helpful messages"
+  ],
+  "frontend_requirements": [
+    "Large textarea for XML input with monospace font",
+    "'Validate' button",
+    "Result display: green checkmark for valid, red X with error message for invalid",
+    "Show line number for errors",
+    "Sample XML button to load example"
+  ],
+  "api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/xmls",
+      "description": "List all xmls"
+    },
+    {
+      "method": "POST",
+      "path": "/api/xmls",
+      "description": "Create new xml"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/xmls/:id",
+      "description": "Update xml"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/xmls/:id",
+      "description": "Delete xml"
+    }
+  ],
+  "control_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "description": "Health check endpoint"
+    }
+  ]
+}
