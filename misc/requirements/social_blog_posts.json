@@ -19,26 +19,29 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/blogs",
-      "description": "List all blogs"
+      "path": "/api/posts",
+      "description": "List all posts (supports ?page=, ?limit=, ?search= parameters)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/posts/:id",
+      "description": "Get single post by ID"
     },
     {
       "method": "POST",
-      "path": "/api/blogs",
-      "description": "Create new blog"
+      "path": "/api/posts",
+      "description": "Create new post"
     },
     {
       "method": "PUT",
-      "path": "/api/blogs/:id",
-      "description": "Update blog"
+      "path": "/api/posts/:id",
+      "description": "Update post"
     },
     {
       "method": "DELETE",
-      "path": "/api/blogs/:id",
-      "description": "Delete blog"
-    }
-  ],
-  "control_endpoints": [
+      "path": "/api/posts/:id",
+      "description": "Delete post"
+    },
     {
       "method": "GET",
       "path": "/api/health",

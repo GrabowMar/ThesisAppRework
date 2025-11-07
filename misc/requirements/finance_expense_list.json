@@ -20,7 +20,17 @@
     {
       "method": "GET",
       "path": "/api/expenses",
-      "description": "List all expenses"
+      "description": "List all expenses (supports ?category= and ?start_date=, ?end_date= filters)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/expenses/total",
+      "description": "Get sum of all expenses"
+    },
+    {
+      "method": "GET",
+      "path": "/api/expenses/by-category",
+      "description": "Get totals grouped by category"
     },
     {
       "method": "POST",
@@ -36,9 +46,7 @@
       "method": "DELETE",
       "path": "/api/expenses/:id",
       "description": "Delete expense"
-    }
-  ],
-  "control_endpoints": [
+    },
     {
       "method": "GET",
       "path": "/api/health",

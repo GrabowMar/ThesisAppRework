@@ -4,10 +4,11 @@
   "category": "Authentication",
   "description": "Basic authentication system",
   "backend_requirements": [
-    "1. User model: id, username (unique), password_hash, created_at",
-    "2. POST /api/auth/register - hash password with bcrypt, return success/error",
-    "3. POST /api/auth/login - verify credentials, return JWT token",
-    "4. GET /api/auth/me - return current user info from token"
+    "1. User model: id, username (unique, required), password_hash, email, created_at",
+    "2. POST /api/auth/register - validate input, hash password with bcrypt, save user, return user object",
+    "3. POST /api/auth/login - verify credentials, return JWT token with 24h expiry and user info",
+    "4. GET /api/auth/me - validate JWT from Authorization header, return user info (no password)",
+    "5. Validate: username 3-20 chars alphanumeric, password min 8 chars, check duplicate username"
   ],
   "frontend_requirements": [
     "1. Login form with username and password fields",
@@ -18,27 +19,25 @@
   ],
   "api_endpoints": [
     {
-      "method": "GET",
-      "path": "/api/users",
-      "description": "List all users"
+      "method": "POST",
+      "path": "/api/auth/register",
+      "description": "Register new user"
     },
     {
       "method": "POST",
-      "path": "/api/users",
-      "description": "Create new user"
+      "path": "/api/auth/login",
+      "description": "Login and get JWT token"
     },
     {
-      "method": "PUT",
-      "path": "/api/users/:id",
-      "description": "Update user"
+      "method": "GET",
+      "path": "/api/auth/me",
+      "description": "Get current user info (requires auth)"
     },
     {
-      "method": "DELETE",
-      "path": "/api/users/:id",
-      "description": "Delete user"
-    }
-  ],
-  "control_endpoints": [
+      "method": "POST",
+      "path": "/api/auth/logout",
+      "description": "Logout user"
+    },
     {
       "method": "GET",
       "path": "/api/health",

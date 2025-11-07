@@ -20,7 +20,7 @@
     {
       "method": "GET",
       "path": "/api/books",
-      "description": "List all books"
+      "description": "List all books (supports ?query=text to search title and author)"
     },
     {
       "method": "POST",
@@ -36,9 +36,7 @@
       "method": "DELETE",
       "path": "/api/books/:id",
       "description": "Delete book"
-    }
-  ],
-  "control_endpoints": [
+    },
     {
       "method": "GET",
       "path": "/api/health",

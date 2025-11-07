@@ -19,26 +19,19 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/quizs",
-      "description": "List all quizs"
+      "path": "/api/quiz/start",
+      "description": "Get random quiz questions (returns quiz session ID)"
     },
     {
       "method": "POST",
-      "path": "/api/quizs",
-      "description": "Create new quiz"
+      "path": "/api/quiz/submit",
+      "description": "Submit quiz answers and get score"
     },
     {
-      "method": "PUT",
-      "path": "/api/quizs/:id",
-      "description": "Update quiz"
+      "method": "GET",
+      "path": "/api/quiz/results/:sessionId",
+      "description": "Review quiz results with correct answers"
     },
-    {
-      "method": "DELETE",
-      "path": "/api/quizs/:id",
-      "description": "Delete quiz"
-    }
-  ],
-  "control_endpoints": [
     {
       "method": "GET",
       "path": "/api/health",

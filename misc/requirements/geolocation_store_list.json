@@ -23,6 +23,11 @@
       "description": "List all stores"
     },
     {
+      "method": "GET",
+      "path": "/api/stores/nearby",
+      "description": "Find stores near location (supports ?lat=, ?lng=, ?radius= in km)"
+    },
+    {
       "method": "POST",
       "path": "/api/stores",
       "description": "Create new store"
@@ -36,9 +41,7 @@
       "method": "DELETE",
       "path": "/api/stores/:id",
       "description": "Delete store"
-    }
-  ],
-  "control_endpoints": [
+    },
     {
       "method": "GET",
       "path": "/api/health",

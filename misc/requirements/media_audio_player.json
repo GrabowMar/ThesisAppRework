@@ -19,26 +19,24 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/audios",
-      "description": "List all audios"
+      "path": "/api/episodes",
+      "description": "List all audio episodes"
     },
     {
       "method": "POST",
-      "path": "/api/audios",
-      "description": "Create new audio"
+      "path": "/api/episodes",
+      "description": "Create new episode"
     },
     {
       "method": "PUT",
-      "path": "/api/audios/:id",
-      "description": "Update audio"
+      "path": "/api/episodes/:id",
+      "description": "Update episode"
     },
     {
       "method": "DELETE",
-      "path": "/api/audios/:id",
-      "description": "Delete audio"
-    }
-  ],
-  "control_endpoints": [
+      "path": "/api/episodes/:id",
+      "description": "Delete episode"
+    },
     {
       "method": "GET",
       "path": "/api/health",

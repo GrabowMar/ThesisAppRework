@@ -19,26 +19,14 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/servers",
-      "description": "List all servers"
+      "path": "/api/stats",
+      "description": "Get current server statistics"
     },
     {
-      "method": "POST",
-      "path": "/api/servers",
-      "description": "Create new server"
+      "method": "GET",
+      "path": "/api/stats/history",
+      "description": "Get last 10 statistics readings"
     },
-    {
-      "method": "PUT",
-      "path": "/api/servers/:id",
-      "description": "Update server"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/servers/:id",
-      "description": "Delete server"
-    }
-  ],
-  "control_endpoints": [
     {
       "method": "GET",
       "path": "/api/health",

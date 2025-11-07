@@ -19,26 +19,29 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/saless",
-      "description": "List all saless"
+      "path": "/api/sales",
+      "description": "List all sales (supports ?start_date= and ?end_date= for date range filtering)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/sales/summary",
+      "description": "Get totals by category and month"
     },
     {
       "method": "POST",
-      "path": "/api/saless",
-      "description": "Create new sales"
+      "path": "/api/sales",
+      "description": "Create new sale"
     },
     {
       "method": "PUT",
-      "path": "/api/saless/:id",
-      "description": "Update sales"
+      "path": "/api/sales/:id",
+      "description": "Update sale"
     },
     {
       "method": "DELETE",
-      "path": "/api/saless/:id",
-      "description": "Delete sales"
-    }
-  ],
-  "control_endpoints": [
+      "path": "/api/sales/:id",
+      "description": "Delete sale"
+    },
     {
       "method": "GET",
       "path": "/api/health",

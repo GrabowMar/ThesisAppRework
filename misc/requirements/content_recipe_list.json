@@ -20,7 +20,12 @@
     {
       "method": "GET",
       "path": "/api/recipes",
-      "description": "List all recipes"
+      "description": "List all recipes (supports ?query=text to search title and ingredients)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/recipes/:id",
+      "description": "Get single recipe by ID"
     },
     {
       "method": "POST",
@@ -36,9 +41,7 @@
       "method": "DELETE",
       "path": "/api/recipes/:id",
       "description": "Delete recipe"
-    }
-  ],
-  "control_endpoints": [
+    },
     {
       "method": "GET",
       "path": "/api/health",

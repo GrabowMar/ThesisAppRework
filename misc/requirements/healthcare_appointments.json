@@ -19,26 +19,24 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/appointmentss",
-      "description": "List all appointmentss"
+      "path": "/api/appointments",
+      "description": "List all appointments (supports ?date=YYYY-MM-DD filter)"
     },
     {
       "method": "POST",
-      "path": "/api/appointmentss",
-      "description": "Create new appointments"
+      "path": "/api/appointments",
+      "description": "Create new appointment"
     },
     {
       "method": "PUT",
-      "path": "/api/appointmentss/:id",
-      "description": "Update appointments"
+      "path": "/api/appointments/:id",
+      "description": "Update appointment"
     },
     {
       "method": "DELETE",
-      "path": "/api/appointmentss/:id",
-      "description": "Delete appointments"
-    }
-  ],
-  "control_endpoints": [
+      "path": "/api/appointments/:id",
+      "description": "Delete appointment"
+    },
     {
       "method": "GET",
       "path": "/api/health",

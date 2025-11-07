@@ -20,25 +20,18 @@
     {
       "method": "GET",
       "path": "/api/urls",
-      "description": "List all urls"
+      "description": "List recently shortened URLs"
     },
     {
       "method": "POST",
-      "path": "/api/urls",
-      "description": "Create new url"
+      "path": "/api/shorten",
+      "description": "Create short URL from original URL"
     },
     {
-      "method": "PUT",
-      "path": "/api/urls/:id",
-      "description": "Update url"
+      "method": "GET",
+      "path": "/:code",
+      "description": "Redirect short code to original URL"
     },
-    {
-      "method": "DELETE",
-      "path": "/api/urls/:id",
-      "description": "Delete url"
-    }
-  ],
-  "control_endpoints": [
     {
       "method": "GET",
       "path": "/api/health",

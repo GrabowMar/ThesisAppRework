@@ -19,27 +19,25 @@
   ],
   "api_endpoints": [
     {
+      "method": "POST",
+      "path": "/api/images/upload",
+      "description": "Upload image file (multipart/form-data)"
+    },
+    {
       "method": "GET",
       "path": "/api/images",
-      "description": "List all images"
-    },
-    {
-      "method": "POST",
-      "path": "/api/images",
-      "description": "Create new image"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/images/:id",
-      "description": "Update image"
+      "description": "List all uploaded images"
     },
     {
       "method": "DELETE",
       "path": "/api/images/:id",
-      "description": "Delete image"
-    }
-  ],
-  "control_endpoints": [
+      "description": "Delete image and file"
+    },
+    {
+      "method": "GET",
+      "path": "/uploads/:filename",
+      "description": "Serve static image file"
+    },
     {
       "method": "GET",
       "path": "/api/health",

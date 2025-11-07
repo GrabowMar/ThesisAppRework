@@ -20,7 +20,7 @@
     {
       "method": "GET",
       "path": "/api/events",
-      "description": "List all events"
+      "description": "List all events (supports ?start=YYYY-MM-DD&end=YYYY-MM-DD filters)"
     },
     {
       "method": "POST",
@@ -36,9 +36,7 @@
       "method": "DELETE",
       "path": "/api/events/:id",
       "description": "Delete event"
-    }
-  ],
-  "control_endpoints": [
+    },
     {
       "method": "GET",
       "path": "/api/health",

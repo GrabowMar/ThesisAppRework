@@ -18,27 +18,15 @@
   ],
   "api_endpoints": [
     {
-      "method": "GET",
-      "path": "/api/base64s",
-      "description": "List all base64s"
+      "method": "POST",
+      "path": "/api/base64/encode",
+      "description": "Encode text to base64"
     },
     {
       "method": "POST",
-      "path": "/api/base64s",
-      "description": "Create new base64"
+      "path": "/api/base64/decode",
+      "description": "Decode base64 to text"
     },
-    {
-      "method": "PUT",
-      "path": "/api/base64s/:id",
-      "description": "Update base64"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/base64s/:id",
-      "description": "Delete base64"
-    }
-  ],
-  "control_endpoints": [
     {
       "method": "GET",
       "path": "/api/health",

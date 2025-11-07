@@ -18,27 +18,10 @@
   ],
   "api_endpoints": [
     {
-      "method": "GET",
-      "path": "/api/xmls",
-      "description": "List all xmls"
-    },
-    {
       "method": "POST",
-      "path": "/api/xmls",
-      "description": "Create new xml"
+      "path": "/api/validate/xml",
+      "description": "Validate XML syntax (accepts {xml: string}, returns {valid: bool, error?: string, line?: number})"
     },
-    {
-      "method": "PUT",
-      "path": "/api/xmls/:id",
-      "description": "Update xml"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/xmls/:id",
-      "description": "Delete xml"
-    }
-  ],
-  "control_endpoints": [
     {
       "method": "GET",
       "path": "/api/health",

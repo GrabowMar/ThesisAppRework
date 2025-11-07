@@ -19,26 +19,29 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/reservationss",
-      "description": "List all reservationss"
+      "path": "/api/reservations",
+      "description": "List all reservations"
     },
     {
       "method": "POST",
-      "path": "/api/reservationss",
-      "description": "Create new reservations"
+      "path": "/api/reservations",
+      "description": "Create new reservation"
     },
     {
       "method": "PUT",
-      "path": "/api/reservationss/:id",
-      "description": "Update reservations"
+      "path": "/api/reservations/:id",
+      "description": "Update reservation"
     },
     {
       "method": "DELETE",
-      "path": "/api/reservationss/:id",
-      "description": "Delete reservations"
-    }
-  ],
-  "control_endpoints": [
+      "path": "/api/reservations/:id",
+      "description": "Delete reservation"
+    },
+    {
+      "method": "GET",
+      "path": "/api/reservations/available",
+      "description": "Check available time slots (query params: date, resource)"
+    },
     {
       "method": "GET",
       "path": "/api/health",

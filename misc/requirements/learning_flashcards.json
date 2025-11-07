@@ -19,26 +19,29 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/flashcardss",
-      "description": "List all flashcardss"
+      "path": "/api/flashcards",
+      "description": "List all flashcards (supports ?category= filter)"
+    },
+    {
+      "method": "GET",
+      "path": "/api/flashcards/random",
+      "description": "Get random flashcard"
     },
     {
       "method": "POST",
-      "path": "/api/flashcardss",
-      "description": "Create new flashcards"
+      "path": "/api/flashcards",
+      "description": "Create new flashcard"
     },
     {
       "method": "PUT",
-      "path": "/api/flashcardss/:id",
-      "description": "Update flashcards"
+      "path": "/api/flashcards/:id",
+      "description": "Update flashcard"
     },
     {
       "method": "DELETE",
-      "path": "/api/flashcardss/:id",
-      "description": "Delete flashcards"
-    }
-  ],
-  "control_endpoints": [
+      "path": "/api/flashcards/:id",
+      "description": "Delete flashcard"
+    },
     {
       "method": "GET",
       "path": "/api/health",

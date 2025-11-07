@@ -20,7 +20,7 @@
     {
       "method": "GET",
       "path": "/api/tasks",
-      "description": "List all tasks"
+      "description": "List all tasks (supports ?status= filter)"
     },
     {
       "method": "POST",
@@ -33,12 +33,15 @@
       "description": "Update task"
     },
     {
+      "method": "PUT",
+      "path": "/api/tasks/:id/status",
+      "description": "Update task status (accepts {status: 'todo'|'in_progress'|'done'})"
+    },
+    {
       "method": "DELETE",
       "path": "/api/tasks/:id",
       "description": "Delete task"
-    }
-  ],
-  "control_endpoints": [
+    },
     {
       "method": "GET",
       "path": "/api/health",

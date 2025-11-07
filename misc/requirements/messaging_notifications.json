@@ -19,26 +19,24 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/notificationss",
-      "description": "List all notificationss"
+      "path": "/api/notifications",
+      "description": "List all notifications (supports ?unread=true filter)"
     },
     {
       "method": "POST",
-      "path": "/api/notificationss",
-      "description": "Create new notifications"
+      "path": "/api/notifications",
+      "description": "Create new notification"
     },
     {
       "method": "PUT",
-      "path": "/api/notificationss/:id",
-      "description": "Update notifications"
+      "path": "/api/notifications/:id/read",
+      "description": "Mark notification as read"
     },
     {
       "method": "DELETE",
-      "path": "/api/notificationss/:id",
-      "description": "Delete notifications"
-    }
-  ],
-  "control_endpoints": [
+      "path": "/api/notifications/:id",
+      "description": "Delete notification"
+    },
     {
       "method": "GET",
       "path": "/api/health",

@@ -19,26 +19,14 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/chats",
-      "description": "List all chats"
+      "path": "/api/messages",
+      "description": "Get recent chat messages"
     },
     {
-      "method": "POST",
-      "path": "/api/chats",
-      "description": "Create new chat"
+      "method": "WS",
+      "path": "/ws/chat",
+      "description": "WebSocket endpoint for real-time messaging"
     },
-    {
-      "method": "PUT",
-      "path": "/api/chats/:id",
-      "description": "Update chat"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/chats/:id",
-      "description": "Delete chat"
-    }
-  ],
-  "control_endpoints": [
     {
       "method": "GET",
       "path": "/api/health",

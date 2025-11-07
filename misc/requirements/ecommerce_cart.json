@@ -20,26 +20,34 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/carts",
-      "description": "List all carts"
+      "path": "/api/products",
+      "description": "List all products"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cart",
+      "description": "Get current cart items"
     },
     {
       "method": "POST",
-      "path": "/api/carts",
-      "description": "Create new cart"
+      "path": "/api/cart/add",
+      "description": "Add product to cart"
     },
     {
       "method": "PUT",
-      "path": "/api/carts/:id",
-      "description": "Update cart"
+      "path": "/api/cart/:itemId",
+      "description": "Update cart item quantity"
     },
     {
       "method": "DELETE",
-      "path": "/api/carts/:id",
-      "description": "Delete cart"
-    }
-  ],
-  "control_endpoints": [
+      "path": "/api/cart/:itemId",
+      "description": "Remove item from cart"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cart/total",
+      "description": "Get cart total price"
+    },
     {
       "method": "GET",
       "path": "/api/health",

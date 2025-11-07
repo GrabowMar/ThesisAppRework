@@ -20,7 +20,7 @@
     {
       "method": "GET",
       "path": "/api/todos",
-      "description": "List all todos"
+      "description": "List all todos (supports ?completed=true/false filter)"
     },
     {
       "method": "POST",
@@ -36,9 +36,7 @@
       "method": "DELETE",
       "path": "/api/todos/:id",
       "description": "Delete todo"
-    }
-  ],
-  "control_endpoints": [
+    },
     {
       "method": "GET",
       "path": "/api/health",

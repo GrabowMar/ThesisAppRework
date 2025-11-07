@@ -20,7 +20,7 @@
     {
       "method": "GET",
       "path": "/api/customers",
-      "description": "List all customers"
+      "description": "List all customers (supports ?query=text to search name, email, company)"
     },
     {
       "method": "POST",
@@ -36,9 +36,7 @@
       "method": "DELETE",
       "path": "/api/customers/:id",
       "description": "Delete customer"
-    }
-  ],
-  "control_endpoints": [
+    },
     {
       "method": "GET",
       "path": "/api/health",

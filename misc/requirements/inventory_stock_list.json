@@ -19,26 +19,29 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/stocks",
-      "description": "List all stocks"
+      "path": "/api/items",
+      "description": "List all inventory items"
     },
     {
       "method": "POST",
-      "path": "/api/stocks",
-      "description": "Create new stock"
+      "path": "/api/items",
+      "description": "Create new inventory item"
     },
     {
       "method": "PUT",
-      "path": "/api/stocks/:id",
-      "description": "Update stock"
+      "path": "/api/items/:id",
+      "description": "Update inventory item"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/items/:id/adjust",
+      "description": "Adjust item quantity (accepts {adjustment: +N or -N})"
     },
     {
       "method": "DELETE",
-      "path": "/api/stocks/:id",
-      "description": "Delete stock"
-    }
-  ],
-  "control_endpoints": [
+      "path": "/api/items/:id",
+      "description": "Delete inventory item"
+    },
     {
       "method": "GET",
       "path": "/api/health",

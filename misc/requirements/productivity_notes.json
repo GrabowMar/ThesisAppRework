@@ -19,26 +19,29 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/notess",
-      "description": "List all notess"
+      "path": "/api/notes",
+      "description": "List all notes (supports ?query=text to search title and content)"
     },
     {
       "method": "POST",
-      "path": "/api/notess",
-      "description": "Create new notes"
+      "path": "/api/notes",
+      "description": "Create new note"
     },
     {
       "method": "PUT",
-      "path": "/api/notess/:id",
-      "description": "Update notes"
+      "path": "/api/notes/:id",
+      "description": "Update note"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/notes/:id/pin",
+      "description": "Pin or unpin note"
     },
     {
       "method": "DELETE",
-      "path": "/api/notess/:id",
-      "description": "Delete notes"
-    }
-  ],
-  "control_endpoints": [
+      "path": "/api/notes/:id",
+      "description": "Delete note"
+    },
     {
       "method": "GET",
       "path": "/api/health",

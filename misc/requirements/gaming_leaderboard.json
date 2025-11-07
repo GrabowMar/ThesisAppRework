@@ -18,27 +18,20 @@
   ],
   "api_endpoints": [
     {
-      "method": "GET",
-      "path": "/api/leaderboards",
-      "description": "List all leaderboards"
-    },
-    {
       "method": "POST",
-      "path": "/api/leaderboards",
-      "description": "Create new leaderboard"
+      "path": "/api/scores",
+      "description": "Submit new score"
     },
     {
-      "method": "PUT",
-      "path": "/api/leaderboards/:id",
-      "description": "Update leaderboard"
+      "method": "GET",
+      "path": "/api/leaderboard",
+      "description": "Get top scores (query params: limit, timeframe)"
     },
     {
-      "method": "DELETE",
-      "path": "/api/leaderboards/:id",
-      "description": "Delete leaderboard"
-    }
-  ],
-  "control_endpoints": [
+      "method": "GET",
+      "path": "/api/scores/player/:name",
+      "description": "Get specific player's scores and rank"
+    },
     {
       "method": "GET",
       "path": "/api/health",

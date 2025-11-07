@@ -18,27 +18,25 @@
   ],
   "api_endpoints": [
     {
+      "method": "POST",
+      "path": "/api/polls",
+      "description": "Create new poll with question and options"
+    },
+    {
       "method": "GET",
-      "path": "/api/simples",
-      "description": "List all simples"
+      "path": "/api/polls",
+      "description": "List all polls"
+    },
+    {
+      "method": "GET",
+      "path": "/api/polls/:id",
+      "description": "Get poll details with current vote counts"
     },
     {
       "method": "POST",
-      "path": "/api/simples",
-      "description": "Create new simple"
+      "path": "/api/polls/:id/vote",
+      "description": "Vote on a poll option"
     },
-    {
-      "method": "PUT",
-      "path": "/api/simples/:id",
-      "description": "Update simple"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/simples/:id",
-      "description": "Delete simple"
-    }
-  ],
-  "control_endpoints": [
     {
       "method": "GET",
       "path": "/api/health",

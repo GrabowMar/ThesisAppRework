@@ -4,10 +4,11 @@
   "category": "API Integration",
   "description": "Get current weather for any city",
   "backend_requirements": [
-    "1. GET /api/weather?city=name - proxy request to OpenWeatherMap or similar free API",
-    "2. Return JSON: temperature, condition, humidity, city name",
-    "3. Cache results for 15 minutes to avoid API rate limits",
-    "4. Handle API errors and return user-friendly messages"
+    "1. GET /api/weather?city=name - proxy to OpenWeatherMap API with your API key",
+    "2. Return JSON: {city, temperature, condition, humidity, feels_like, icon}",
+    "3. Cache results for 15 minutes per city to avoid API rate limits",
+    "4. Handle errors: 404 for city not found, 503 for API down, 400 for missing city param",
+    "5. Validate city parameter is not empty, sanitize input"
   ],
   "frontend_requirements": [
     "1. City input field with search button",
@@ -19,26 +20,9 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/weathers",
-      "description": "List all weathers"
+      "path": "/api/weather",
+      "description": "Get weather for a city (query param: city)"
     },
-    {
-      "method": "POST",
-      "path": "/api/weathers",
-      "description": "Create new weather"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/weathers/:id",
-      "description": "Update weather"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/weathers/:id",
-      "description": "Delete weather"
-    }
-  ],
-  "control_endpoints": [
     {
       "method": "GET",
       "path": "/api/health",
