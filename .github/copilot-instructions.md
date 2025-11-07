@@ -49,10 +49,7 @@ Use this as your working map for coding in this repo. Keep answers specific to t
 - Analyzer control, saving, and normalization: `analyzer/analyzer_manager.py` (`run_*` methods, `_aggregate_findings`, `_collect_normalized_tools`, result persistence).
 - Unified WS gateway and shared protocol: `analyzer/websocket_gateway.py` and `analyzer/shared/protocol.py`.
 - Test organization: `tests/` (unit, smoke, integration/{api,websocket,analyzer,web_ui}); markers: `smoke`, `integration`, `slow`, `analyzer`, `api`, `websocket`, `web_ui`.
-- Test guidance: `docs/guides/QUICK_TEST_GUIDE.md`, `docs/knowledge_base/testing/README.md`.
-- Diagnostic scripts: `scripts/diagnostics/` (check_*.py, verify_*.py for troubleshooting).
-- Maintenance scripts: `scripts/maintenance/` (cleanup, reaggregation, demos).
-- End-to-end workflow docs: `docs/API_AUTH_AND_METHODS.md`, `docs/ANALYSIS_WORKFLOW_TESTING.md`, `analyzer/README.md`.
+- End-to-end workflow docs: `analyzer/README.md`.
 
 ## Typical tasks you’ll automate
 - Trigger analysis for an app created under `generated/apps/...`, then read consolidated results under `results/.../task_{id}/`.
@@ -106,5 +103,4 @@ Keep contributions aligned with these patterns and prefer citing concrete files 
 - DB quick check (inside a Flask shell-like snippet): import `create_app` then inspect `PortConfiguration`/`AnalysisTask` under app context.
 - Tests as examples: see `tests/integration/analyzer/test_unified_execution.py`, `tests/integration/websocket/test_unified_protocol.py`, `tests/test_task_orchestration.py`; run fast set via VS Code Task "pytest: unit tests only".
 - Smoke tests: `tests/smoke/` for critical path health checks (HTTP endpoints, analyzer services).
-- Diagnostic scripts: run `python scripts/diagnostics/check_tasks.py` or `check_db_apps.py` for quick data inspection.
 - Troubleshoot noisy WS logs: internal websockets loggers are lowered in gateway/services; handshake stack traces from stray probes are benign.
