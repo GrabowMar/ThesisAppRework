@@ -4,17 +4,17 @@
   "category": "Authentication",
   "description": "Basic authentication system",
   "backend_requirements": [
-    "User model: id, username (unique), password_hash, created_at",
-    "POST /api/auth/register - hash password with bcrypt, return success/error",
-    "POST /api/auth/login - verify credentials, return JWT token",
-    "GET /api/auth/me - return current user info from token"
+    "1. User model: id, username (unique), password_hash, created_at",
+    "2. POST /api/auth/register - hash password with bcrypt, return success/error",
+    "3. POST /api/auth/login - verify credentials, return JWT token",
+    "4. GET /api/auth/me - return current user info from token"
   ],
   "frontend_requirements": [
-    "Login form with username and password fields",
-    "Registration form with username, password, confirm password",
-    "Display logged-in username in header",
-    "Logout button that clears token",
-    "Show error messages for invalid credentials"
+    "1. Login form with username and password fields",
+    "2. Registration form with username, password, confirm password",
+    "3. Display logged-in username in header",
+    "4. Logout button that clears token",
+    "5. Show error messages for invalid credentials"
   ],
   "api_endpoints": [
     {

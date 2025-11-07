@@ -4,18 +4,18 @@
   "category": "File Processing",
   "description": "Upload and view images",
   "backend_requirements": [
-    "POST /api/images/upload - accept multipart/form-data image files",
-    "Save images to /uploads directory with unique filenames",
-    "Image model: id, filename, original_name, upload_date, file_size",
-    "GET /api/images - return list of images with URLs",
-    "Validate file type (jpg, png, gif) and size (<5MB)"
+    "1. POST /api/images/upload - accept multipart/form-data image files",
+    "2. Save images to /uploads directory with unique filenames",
+    "3. Image model: id, filename, original_name, upload_date, file_size",
+    "4. GET /api/images - return list of images with URLs",
+    "5. Validate file type (jpg, png, gif) and size (<5MB)"
   ],
   "frontend_requirements": [
-    "File input with 'Upload' button, show selected filename",
-    "Image grid displaying thumbnails (CSS grid)",
-    "Click image to view full size in modal/lightbox",
-    "Delete button per image with confirmation",
-    "Upload progress bar or spinner"
+    "1. File input with 'Upload' button, show selected filename",
+    "2. Image grid displaying thumbnails (CSS grid)",
+    "3. Click image to view full size in modal/lightbox",
+    "4. Delete button per image with confirmation",
+    "5. Upload progress bar or spinner"
   ],
   "api_endpoints": [
     {

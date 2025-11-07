@@ -4,17 +4,17 @@
   "category": "CRM",
   "description": "Manage customer contacts",
   "backend_requirements": [
-    "Customer model: id, name (required), email (required, unique), phone, company, notes",
-    "CRUD endpoints: GET /api/customers, POST, PUT, DELETE",
-    "Search customers: ?query=text searches name, email, company",
-    "Email validation on create/update"
+    "1. Customer model: id, name (required), email (required, unique), phone, company, notes",
+    "2. CRUD endpoints: GET /api/customers, POST, PUT, DELETE",
+    "3. Search customers: ?query=text searches name, email, company",
+    "4. Email validation on create/update"
   ],
   "frontend_requirements": [
-    "Customer list table: name, email, phone, company",
-    "Add customer form with validation",
-    "Click customer to view/edit details",
-    "Delete button with confirmation",
-    "Search box to filter customers"
+    "1. Customer list table: name, email, phone, company",
+    "2. Add customer form with validation",
+    "3. Click customer to view/edit details",
+    "4. Delete button with confirmation",
+    "5. Search box to filter customers"
   ],
   "api_endpoints": [
     {

@@ -4,17 +4,17 @@
   "category": "Workflow",
   "description": "Visual task workflow",
   "backend_requirements": [
-    "Task model: id, title (required), description, status (todo/in_progress/done), priority",
-    "CRUD endpoints: GET /api/tasks, POST, PUT, DELETE",
-    "Update status: PUT /api/tasks/:id/status with {status: 'done'}",
-    "Filter by status: ?status=todo"
+    "1. Task model: id, title (required), description, status (todo/in_progress/done), priority",
+    "2. CRUD endpoints: GET /api/tasks, POST, PUT, DELETE",
+    "3. Update status: PUT /api/tasks/:id/status with {status: 'done'}",
+    "4. Filter by status: ?status=todo"
   ],
   "frontend_requirements": [
-    "Three columns: To Do, In Progress, Done",
-    "Task cards showing title and description",
-    "Button to move task to next column",
-    "Add task form with title, description, priority",
-    "Delete button per task"
+    "1. Three columns: To Do, In Progress, Done",
+    "2. Task cards showing title and description",
+    "3. Button to move task to next column",
+    "4. Add task form with title, description, priority",
+    "5. Delete button per task"
   ],
   "api_endpoints": [
     {

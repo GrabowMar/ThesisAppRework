@@ -4,17 +4,17 @@
   "category": "Gaming",
   "description": "Track player scores",
   "backend_requirements": [
-    "Score model: id, player_name (required), score (integer, required), achieved_at",
-    "POST /api/scores - submit new score",
-    "GET /api/leaderboard - return top 10 scores sorted descending",
-    "GET /api/leaderboard?player=name - get player's rank and best score"
+    "1. Score model: id, player_name (required), score (integer, required), achieved_at",
+    "2. POST /api/scores - submit new score",
+    "3. GET /api/leaderboard - return top 10 scores sorted descending",
+    "4. GET /api/leaderboard?player=name - get player's rank and best score"
   ],
   "frontend_requirements": [
-    "Leaderboard table: rank, player name, score, date",
-    "Top 3 highlighted with gold/silver/bronze",
-    "Submit score form with player name and score",
-    "Filter to show all-time or today's scores",
-    "'Refresh' button to update"
+    "1. Leaderboard table: rank, player name, score, date",
+    "2. Top 3 highlighted with gold/silver/bronze",
+    "3. Submit score form with player name and score",
+    "4. Filter to show all-time or today's scores",
+    "5. 'Refresh' button to update"
   ],
   "api_endpoints": [
     {

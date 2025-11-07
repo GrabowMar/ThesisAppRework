@@ -4,17 +4,17 @@
   "category": "Utility",
   "description": "Encode and decode base64",
   "backend_requirements": [
-    "POST /api/base64/encode - accept {text: string}, return {encoded: string}",
-    "POST /api/base64/decode - accept {encoded: string}, return {text: string}",
-    "Handle decode errors for invalid base64",
-    "Support UTF-8 encoding"
+    "1. POST /api/base64/encode - accept {text: string}, return {encoded: string}",
+    "2. POST /api/base64/decode - accept {encoded: string}, return {text: string}",
+    "3. Handle decode errors for invalid base64",
+    "4. Support UTF-8 encoding"
   ],
   "frontend_requirements": [
-    "Two textareas: input and output",
-    "'Encode' button converts input to base64 in output",
-    "'Decode' button converts base64 input to text in output",
-    "Swap button to switch input/output",
-    "Copy to clipboard button for output"
+    "1. Two textareas: input and output",
+    "2. 'Encode' button converts input to base64 in output",
+    "3. 'Decode' button converts base64 input to text in output",
+    "4. Swap button to switch input/output",
+    "5. Copy to clipboard button for output"
   ],
   "api_endpoints": [
     {

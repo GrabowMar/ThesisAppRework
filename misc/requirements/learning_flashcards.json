@@ -4,17 +4,17 @@
   "category": "Learning",
   "description": "Study with flashcards",
   "backend_requirements": [
-    "Flashcard model: id, question (required), answer (required), category, difficulty",
-    "CRUD endpoints: GET /api/flashcards, POST, PUT, DELETE",
-    "GET /api/flashcards/random - return random card",
-    "Filter by category: ?category=math"
+    "1. Flashcard model: id, question (required), answer (required), category, difficulty",
+    "2. CRUD endpoints: GET /api/flashcards, POST, PUT, DELETE",
+    "3. GET /api/flashcards/random - return random card",
+    "4. Filter by category: ?category=math"
   ],
   "frontend_requirements": [
-    "Card display: large question text centered",
-    "Click card or 'Show Answer' button to flip and reveal answer",
-    "'Next Card' button to load random card",
-    "Add flashcard form with question, answer, category",
-    "Category filter dropdown"
+    "1. Card display: large question text centered",
+    "2. Click card or 'Show Answer' button to flip and reveal answer",
+    "3. 'Next Card' button to load random card",
+    "4. Add flashcard form with question, answer, category",
+    "5. Category filter dropdown"
   ],
   "api_endpoints": [
     {

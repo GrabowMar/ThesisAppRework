@@ -4,17 +4,17 @@
   "category": "CRUD",
   "description": "Simple task management - add, complete, and delete todos",
   "backend_requirements": [
-    "Todo model with SQLAlchemy: id, title (string, required), completed (boolean, default False), created_at",
-    "REST API endpoints: GET /api/todos (list all), POST /api/todos (create), PUT /api/todos/:id (update), DELETE /api/todos/:id",
-    "Filter support: ?completed=true/false query parameter",
-    "JSON responses with proper status codes (200, 201, 404)"
+    "1. Todo model with SQLAlchemy: id, title (string, required), completed (boolean, default False), created_at",
+    "2. REST API endpoints: GET /api/todos (list all), POST /api/todos (create), PUT /api/todos/:id (update), DELETE /api/todos/:id",
+    "3. Filter support: ?completed=true/false query parameter",
+    "4. JSON responses with proper status codes (200, 201, 404)"
   ],
   "frontend_requirements": [
-    "Display todo list with title and checkbox for completion status",
-    "Input field with 'Add' button to create new todos",
-    "Click checkbox to toggle completed state",
-    "Delete button per todo with confirmation",
-    "Show empty state when no todos exist"
+    "1. Display todo list with title and checkbox for completion status",
+    "2. Input field with 'Add' button to create new todos",
+    "3. Click checkbox to toggle completed state",
+    "4. Delete button per todo with confirmation",
+    "5. Show empty state when no todos exist"
   ],
   "api_endpoints": [
     {

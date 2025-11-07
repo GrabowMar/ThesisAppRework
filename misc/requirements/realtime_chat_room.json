@@ -4,17 +4,17 @@
   "category": "Real-time",
   "description": "Simple real-time messaging",
   "backend_requirements": [
-    "WebSocket endpoint at /ws/chat for bidirectional communication",
-    "Message model: id, username, text, timestamp",
-    "Broadcast incoming messages to all connected clients",
-    "Store last 50 messages in memory or SQLite"
+    "1. WebSocket endpoint at /ws/chat for bidirectional communication",
+    "2. Message model: id, username, text, timestamp",
+    "3. Broadcast incoming messages to all connected clients",
+    "4. Store last 50 messages in memory or SQLite"
   ],
   "frontend_requirements": [
-    "Message list showing username, text, and time",
-    "Input field with send button at bottom",
-    "Auto-scroll to newest message",
-    "WebSocket connection with reconnect logic",
-    "Show 'typing...' indicator when appropriate"
+    "1. Message list showing username, text, and time",
+    "2. Input field with send button at bottom",
+    "3. Auto-scroll to newest message",
+    "4. WebSocket connection with reconnect logic",
+    "5. Show 'typing...' indicator when appropriate"
   ],
   "api_endpoints": [
     {

@@ -4,17 +4,17 @@
   "category": "Geolocation",
   "description": "Find stores by location",
   "backend_requirements": [
-    "Store model: id, name, address, latitude, longitude, phone",
-    "GET /api/stores - return all stores",
-    "GET /api/stores/nearby?lat=X&lng=Y&radius=5 - filter by distance",
-    "Seed with 5-10 sample store locations"
+    "1. Store model: id, name, address, latitude, longitude, phone",
+    "2. GET /api/stores - return all stores",
+    "3. GET /api/stores/nearby?lat=X&lng=Y&radius=5 - filter by distance",
+    "4. Seed with 5-10 sample store locations"
   ],
   "frontend_requirements": [
-    "Store list showing name, address, phone",
-    "Display distance from user location (if permission granted)",
-    "Optional: simple map using Leaflet.js showing store markers",
-    "Click store to view details",
-    "'Get Directions' button with link to Google Maps"
+    "1. Store list showing name, address, phone",
+    "2. Display distance from user location (if permission granted)",
+    "3. Optional: simple map using Leaflet.js showing store markers",
+    "4. Click store to view details",
+    "5. 'Get Directions' button with link to Google Maps"
   ],
   "api_endpoints": [
     {

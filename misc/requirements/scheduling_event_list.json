@@ -4,17 +4,17 @@
   "category": "Scheduling",
   "description": "Track events by date",
   "backend_requirements": [
-    "Event model: id, title (required), date (required), time, description, location",
-    "CRUD endpoints: GET /api/events, POST, PUT, DELETE",
-    "Filter by date range: ?start=YYYY-MM-DD&end=YYYY-MM-DD",
-    "Sort events by date ascending"
+    "1. Event model: id, title (required), date (required), time, description, location",
+    "2. CRUD endpoints: GET /api/events, POST, PUT, DELETE",
+    "3. Filter by date range: ?start=YYYY-MM-DD&end=YYYY-MM-DD",
+    "4. Sort events by date ascending"
   ],
   "frontend_requirements": [
-    "Event list grouped by date, showing title and time",
-    "Add event form with date picker, time picker, title, description",
-    "Click event to view details in modal",
-    "Edit and delete buttons per event",
-    "Filter buttons: Today, This Week, This Month, All"
+    "1. Event list grouped by date, showing title and time",
+    "2. Add event form with date picker, time picker, title, description",
+    "3. Click event to view details in modal",
+    "4. Edit and delete buttons per event",
+    "5. Filter buttons: Today, This Week, This Month, All"
   ],
   "api_endpoints": [
     {

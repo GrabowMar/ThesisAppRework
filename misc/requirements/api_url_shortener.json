@@ -4,17 +4,17 @@
   "category": "API Integration",
   "description": "Create short URLs",
   "backend_requirements": [
-    "POST /api/shorten - accept long URL, generate 6-character random code",
-    "URL model: id, original_url, short_code (unique), created_at, click_count",
-    "GET /:code - lookup and redirect to original URL, increment counter",
-    "Validate URL format before shortening"
+    "1. POST /api/shorten - accept long URL, generate 6-character random code",
+    "2. URL model: id, original_url, short_code (unique), created_at, click_count",
+    "3. GET /:code - lookup and redirect to original URL, increment counter",
+    "4. Validate URL format before shortening"
   ],
   "frontend_requirements": [
-    "Input field for long URL with 'Shorten' button",
-    "Display shortened URL with copy-to-clipboard button",
-    "Show click count for generated URLs",
-    "List of recently shortened URLs",
-    "Validation error for invalid URLs"
+    "1. Input field for long URL with 'Shorten' button",
+    "2. Display shortened URL with copy-to-clipboard button",
+    "3. Show click count for generated URLs",
+    "4. List of recently shortened URLs",
+    "5. Validation error for invalid URLs"
   ],
   "api_endpoints": [
     {

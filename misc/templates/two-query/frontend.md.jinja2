@@ -1,105 +1,80 @@
-# Goal: Generate {{ name }} - Frontend
+# Generate {{ name }} - Frontend
 
-## Application Description
 {{ description }}
 
-## Frontend Requirements
+## Requirements
 {% for req in frontend_requirements %}
 - {{ req }}
 {% endfor %}
 
-## Scaffolding Code
+## What Scaffold Provides
+React 18.2, Axios 1.6, Bootstrap 5.3.2, Vite 5.0, `index.html`, `main.jsx`, `App.css`
 
-### package.json
-```json
-{{ scaffolding_package_json }}
-```
+**Your code replaces `src/App.jsx` entirely.**
 
-### index.html
-```html
-{{ scaffolding_index_html }}
-```
+## Backend API
+Backend runs at `http://backend:5000` (Docker container, don't use localhost)
+- `GET /health` - Health check
+- Additional endpoints per requirements
 
-### src/App.jsx
-```jsx
-{{ scaffolding_app_jsx }}
-```
+## Critical Constraints
 
-### src/App.css
-```css
-{{ scaffolding_app_css }}
-```
+**API URL:** Must use `const API_URL = 'http://backend:5000';` (Docker networking)
 
-### vite.config.js
-```javascript
-{{ scaffolding_vite_config }}
-```
+**No mock data:** Fetch all dynamic content from backend API
 
-### src/main.jsx
-```jsx
-{{ scaffolding_main_jsx }}
-```
+**UI states:** Show loading, error, and success states visually
 
-## Backend API Information
+**Use Axios:** For all HTTP requests (not fetch)
 
-The backend is running in a Docker container and is accessible from the frontend container at `http://backend:5000`. **DO NOT** use `localhost`.
+**Modern React:** Functional components, hooks (`useState`, `useEffect`, `useCallback`)
 
-- `GET /health` - Health check endpoint.
+**Must implement:**
+- Error handling (try/catch, user-friendly messages)
+- Form validation (clear errors, disable during submit)
+- Loading indicators, success/error feedback
+- Responsive design (Bootstrap classes)
+- Complete functionality (no TODOs/placeholders)
 
-Additional endpoints will be created by the backend implementation. You must call them to fulfill the requirements.
+**Output only JSX code for App.jsx**
 
-## Crucial Rules for Code Generation
-
-**You are generating a complete, self-contained React `App.jsx` file. Your code will replace the scaffold file entirely.**
-
-1.  **API URL IS FIXED**: You **MUST** use `const API_URL = 'http://backend:5000';` for all backend requests. This is non-negotiable. The frontend and backend run in separate Docker containers, and this is the only valid address. **DO NOT USE `localhost` OR ANY OTHER URL.**
-2.  **NO MOCK DATA**: Your application **MUST NOT** contain any mock data, placeholder arrays, or hardcoded API responses. All dynamic content must be fetched from the live backend API.
-3.  **IMPLEMENT UI STATES**: Your application **MUST** visually represent `loading`, `error`, and `success` (data loaded) states.
-    -   Show a "Loading..." message or spinner while data is being fetched.
-    -   Show a clear, user-friendly error message if an API call fails.
-    -   Render the main UI only after data has been successfully fetched.
-4.  **USE AXIOS**: You **MUST** use the `axios` library for all HTTP requests. Do not use `fetch`.
-5.  **GENERATE ONLY `App.jsx`**: Your output must be a single, complete `App.jsx` file. **DO NOT** generate `main.jsx`, `index.html`, or any other files. The scaffolding provides them. Your `App.jsx` should be self-contained or use relative imports for components *if you create them within the same file*.
-6.  **MODERN REACT**: Use functional components, `useState`, and `useEffect` hooks.
-7.  **HANDLE RELATIONAL DATA**: The UI must correctly display the one-to-many relationship between authors and their books. This means rendering a list of books nested within each author's details.
-8.  **IMPLEMENT** all frontend requirements listed above.
-9.  **OUTPUT ONLY JSX CODE.** Do not wrap it in markdown blocks or add explanatory text.
-
-**Example of a valid API call structure:**
+## Pattern
 
 ```jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import 'bootstrap/dist/css/bootstrap.min.css';
 
 const API_URL = 'http://backend:5000';
 
 function App() {
-  const [data, setData] = useState(null);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        setLoading(true);
         const response = await axios.get(`${API_URL}/api/items`);
-        setData(response.data);
-        setError(null);
+        setItems(response.data.items || []);
       } catch (err) {
-        setError('Failed to fetch data from the server. Please try again later.');
-        console.error(err);
+        setError(err.response?.data?.error || 'Failed to load');
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
   }, []);
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div className="error">Error: {error}</div>;
+  if (loading) return <div className="container mt-5">Loading...</div>;
+  if (error) return <div className="container mt-5 alert alert-danger">{error}</div>;
 
-  // ... render UI with data ...
+  return (
+    <div className="container mt-4">
+      <h1>Items</h1>
+      {items.map(item => <div key={item.id}>{item.name}</div>)}
+    </div>
+  );
 }
 
 export default App;

@@ -4,17 +4,17 @@
   "category": "API Integration",
   "description": "Get current weather for any city",
   "backend_requirements": [
-    "GET /api/weather?city=name - proxy request to OpenWeatherMap or similar free API",
-    "Return JSON: temperature, condition, humidity, city name",
-    "Cache results for 15 minutes to avoid API rate limits",
-    "Handle API errors and return user-friendly messages"
+    "1. GET /api/weather?city=name - proxy request to OpenWeatherMap or similar free API",
+    "2. Return JSON: temperature, condition, humidity, city name",
+    "3. Cache results for 15 minutes to avoid API rate limits",
+    "4. Handle API errors and return user-friendly messages"
   ],
   "frontend_requirements": [
-    "City input field with search button",
-    "Display temperature in Celsius/Fahrenheit with toggle",
-    "Show weather condition with appropriate icon",
-    "Loading spinner while fetching data",
-    "Error message for invalid city or API failure"
+    "1. City input field with search button",
+    "2. Display temperature in Celsius/Fahrenheit with toggle",
+    "3. Show weather condition with appropriate icon",
+    "4. Loading spinner while fetching data",
+    "5. Error message for invalid city or API failure"
   ],
   "api_endpoints": [
     {

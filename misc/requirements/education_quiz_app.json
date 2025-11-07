@@ -4,17 +4,17 @@
   "category": "Education",
   "description": "Take multiple choice quizzes",
   "backend_requirements": [
-    "Question model: id, question_text (required), options (JSON array), correct_answer (integer index)",
-    "GET /api/quiz/questions - return 5-10 random questions",
-    "POST /api/quiz/submit - accept answers array, return score and correct answers",
-    "Seed with 20+ sample questions"
+    "1. Question model: id, question_text (required), options (JSON array), correct_answer (integer index)",
+    "2. GET /api/quiz/questions - return 5-10 random questions",
+    "3. POST /api/quiz/submit - accept answers array, return score and correct answers",
+    "4. Seed with 20+ sample questions"
   ],
   "frontend_requirements": [
-    "Display one question at a time with radio buttons for options",
-    "'Next' button to proceed, 'Submit' on last question",
-    "Show score after submission with correct/incorrect indicators",
-    "Review mode showing all questions with correct answers",
-    "'Start New Quiz' button"
+    "1. Display one question at a time with radio buttons for options",
+    "2. 'Next' button to proceed, 'Submit' on last question",
+    "3. Show score after submission with correct/incorrect indicators",
+    "4. Review mode showing all questions with correct answers",
+    "5. 'Start New Quiz' button"
   ],
   "api_endpoints": [
     {

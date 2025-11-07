@@ -4,17 +4,17 @@
   "category": "Collaboration",
   "description": "Create and vote on polls",
   "backend_requirements": [
-    "Poll model: id, question (required), created_at",
-    "Option model: id, poll_id, option_text, vote_count (integer, default 0)",
-    "POST /api/polls - create poll with question and options array",
-    "POST /api/polls/:id/vote - accept {option_id}, increment vote_count"
+    "1. Poll model: id, question (required), created_at",
+    "2. Option model: id, poll_id, option_text, vote_count (integer, default 0)",
+    "3. POST /api/polls - create poll with question and options array",
+    "4. POST /api/polls/:id/vote - accept {option_id}, increment vote_count"
   ],
   "frontend_requirements": [
-    "Display poll question with options as buttons or radio buttons",
-    "Click option to vote",
-    "Show vote counts and percentages after voting",
-    "Create poll form with question and 2-5 option inputs",
-    "Can only vote once (tracked by session or localStorage)"
+    "1. Display poll question with options as buttons or radio buttons",
+    "2. Click option to vote",
+    "3. Show vote counts and percentages after voting",
+    "4. Create poll form with question and 2-5 option inputs",
+    "5. Can only vote once (tracked by session or localStorage)"
   ],
   "api_endpoints": [
     {

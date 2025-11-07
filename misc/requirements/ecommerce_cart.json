@@ -4,18 +4,18 @@
   "category": "E-commerce",
   "description": "Add products to cart and checkout",
   "backend_requirements": [
-    "Product model: id, name, price (decimal), description, image_url",
-    "Cart stored in session or database: product_id, quantity",
-    "POST /api/cart/add - add item to cart",
-    "PUT /api/cart/:id - update quantity, DELETE /api/cart/:id - remove item",
-    "GET /api/cart/total - calculate total price"
+    "1. Product model: id, name, price (decimal), description, image_url",
+    "2. Cart stored in session or database: product_id, quantity",
+    "3. POST /api/cart/add - add item to cart",
+    "4. PUT /api/cart/:id - update quantity, DELETE /api/cart/:id - remove item",
+    "5. GET /api/cart/total - calculate total price"
   ],
   "frontend_requirements": [
-    "Product grid with name, price, image, 'Add to Cart' button",
-    "Cart sidebar showing items with quantity controls (+/-)",
-    "Display subtotal and total price",
-    "Remove item button for each cart item",
-    "Empty cart message when no items"
+    "1. Product grid with name, price, image, 'Add to Cart' button",
+    "2. Cart sidebar showing items with quantity controls (+/-)",
+    "3. Display subtotal and total price",
+    "4. Remove item button for each cart item",
+    "5. Empty cart message when no items"
   ],
   "api_endpoints": [
     {

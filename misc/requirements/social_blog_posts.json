@@ -4,17 +4,17 @@
   "category": "Social",
   "description": "Write and read blog posts",
   "backend_requirements": [
-    "Post model: id, title (required), content (text), author, created_at, updated_at",
-    "CRUD endpoints: GET /api/posts (list), GET /api/posts/:id (single), POST, PUT, DELETE",
-    "Support pagination: ?page=1&limit=10",
-    "Search posts: ?search=query"
+    "1. Post model: id, title (required), content (text), author, created_at, updated_at",
+    "2. CRUD endpoints: GET /api/posts (list), GET /api/posts/:id (single), POST, PUT, DELETE",
+    "3. Support pagination: ?page=1&limit=10",
+    "4. Search posts: ?search=query"
   ],
   "frontend_requirements": [
-    "Post list showing title, excerpt (first 200 chars), date, author",
-    "Click post title to view full content",
-    "Create/edit post form with title and content textarea",
-    "Delete button with confirmation",
-    "Pagination controls at bottom"
+    "1. Post list showing title, excerpt (first 200 chars), date, author",
+    "2. Click post title to view full content",
+    "3. Create/edit post form with title and content textarea",
+    "4. Delete button with confirmation",
+    "5. Pagination controls at bottom"
   ],
   "api_endpoints": [
     {

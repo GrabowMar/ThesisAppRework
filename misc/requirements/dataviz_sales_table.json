@@ -4,17 +4,17 @@
   "category": "Data Visualization",
   "description": "View and visualize sales data",
   "backend_requirements": [
-    "Sale model: id, date, amount (decimal), category, description",
-    "GET /api/sales - return all sales, support date range filter",
-    "GET /api/sales/summary - return totals by category and month",
-    "Seed with sample data if database is empty"
+    "1. Sale model: id, date, amount (decimal), category, description",
+    "2. GET /api/sales - return all sales, support date range filter",
+    "3. GET /api/sales/summary - return totals by category and month",
+    "4. Seed with sample data if database is empty"
   ],
   "frontend_requirements": [
-    "Sales table with date, amount, category, description columns",
-    "Total sales displayed prominently at top",
-    "Simple bar chart showing sales by category (Chart.js or similar)",
-    "Date range filter (this month, last month, custom)",
-    "Export to CSV button"
+    "1. Sales table with date, amount, category, description columns",
+    "2. Total sales displayed prominently at top",
+    "3. Simple bar chart showing sales by category (Chart.js or similar)",
+    "4. Date range filter (this month, last month, custom)",
+    "5. Export to CSV button"
   ],
   "api_endpoints": [
     {

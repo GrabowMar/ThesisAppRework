@@ -1,105 +1,71 @@
-# Goal: Generate {{ name }} - Backend
+# Generate {{ name }} - Backend
 
-## Application Description
 {{ description }}
 
-## Backend Requirements
+## Requirements
 {% for req in backend_requirements %}
 - {{ req }}
 {% endfor %}
 
-## Scaffolding Code
+## What Scaffold Provides
+Flask app, CORS, health endpoint, error handlers, Flask 3.0, SQLAlchemy 2.0.25
 
-### app.py (Flask Backend)
-```python
-{{ scaffolding_app_py }}
-```
+**Your code merges into the scaffold.**
 
-### requirements.txt
-```
-{{ scaffolding_requirements_txt }}
-```
+## Generate These Components
 
-## Crucial Rules for Code Generation
+1. Imports (`from flask import request, jsonify`, `from flask_sqlalchemy import SQLAlchemy`)
+2. Database instance: `db = SQLAlchemy()`
+3. Models (inherit `db.Model`, include `to_dict()` methods)
+4. `setup_app(app)` function
+5. Routes (`@app.route(...)`)
 
-**CRITICAL FIRST STEP**: If you need database functionality, the VERY FIRST line of your generated code MUST be:
-```python
-db = SQLAlchemy()
-```
+## Critical Constraints
 
-**You are modifying an existing Flask application. Your task is to generate ONLY the Python code components (imports, database instance, models, routes, and helper functions) that need to be merged into the scaffold `app.py`.**
+**Database:**
+- Use `'sqlite:///app.db'` (relative path)
+- In `setup_app()`: call `db.init_app(app)`, then `db.create_all()` inside `with app.app_context():`
 
-### What You MUST Generate:
-1. **FIRST**: Import statements (e.g., `from flask import request, jsonify`, `from flask_sqlalchemy import SQLAlchemy`)
-2. **SECOND**: Database instance: `db = SQLAlchemy()` (REQUIRED if using models)
-3. **THIRD**: SQLAlchemy model classes that inherit from `db.Model` with `to_dict()` methods for serialization
-4. **FOURTH**: A `setup_app(app)` function that configures and initializes the database
-5. **FIFTH**: Flask route functions decorated with `@app.route(...)`
+**JSON responses:**
+- Lists: `{"items": [...], "total": N, "page": 1, "per_page": 20}`
+- Single: `{"id": 1, ...}` 
+- Errors: `{"error": "message"}` with status 400/404/500
 
-### What You MUST NOT Generate:
-1. **NEVER** create a new Flask app instance (`app = Flask(__name__)`) - scaffold provides it
-2. **NEVER** include the `if __name__ == '__main__':` block - scaffold provides it  
-3. **NEVER** duplicate routes, imports, or error handlers that exist in the scaffolding above
-4. **NEVER** return raw SQLAlchemy model objects - always use `to_dict()` for JSON serialization
+**Must have:**
+- Full CRUD operations
+- Input validation, error handling (try/except, rollback)
+- Pagination (page, per_page params)
+- Models use `.to_dict()` for JSON
 
-### Detailed Requirements:
-- **Database Instance**: Create `db = SQLAlchemy()` as a global variable before any model definitions
-- **Models**: Inherit from `db.Model`, include `to_dict()` methods that handle nested relationships
-- **Relationships**: Use `db.relationship()` with proper `backref` and `cascade` options  
-- **setup_app()**: Must configure URI, call `db.init_app(app)`, and `db.create_all()` in app context
-- **Routes**: Implement ALL endpoints from requirements, use proper HTTP methods and status codes
-- **Error Handling**: Use try/except for database operations, return appropriate JSON error responses
-12. **OUTPUT ONLY PYTHON CODE.** Do not wrap it in markdown blocks or add explanatory text.
+**Don't generate:**
+- `app = Flask(...)` (scaffold has it)
+- `if __name__` block (scaffold has it)
 
-**Example of a valid response with a relationship:**
+**Output only Python code.**
+
+## Pattern
 
 ```python
 from flask import request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 
-# Initialize database instance
 db = SQLAlchemy()
 
-# --- Models ---
-class Author(db.Model):
+class Item(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    books = db.relationship('Book', backref='author', lazy=True, cascade='all, delete-orphan')
-
     def to_dict(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'books': [book.to_dict() for book in self.books]
-        }
+        return {'id': self.id, 'name': self.name}
 
-class Book(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False)
-    author_id = db.Column(db.Integer, db.ForeignKey('author.id'), nullable=False)
-
-    def to_dict(self):
-        return {'id': self.id, 'title': self.title, 'author_id': self.author_id}
-
-# --- Setup Function ---
 def setup_app(app):
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/app.db'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     db.init_app(app)
     with app.app_context():
         db.create_all()
 
-# --- Routes ---
-@app.route('/api/authors', methods=['GET'])
-def get_authors():
-    authors = Author.query.all()
-    return jsonify([author.to_dict() for author in authors])
-
-@app.route('/api/authors', methods=['POST'])
-def create_author():
-    data = request.get_json()
-    author = Author(name=data['name'])
-    db.session.add(author)
-    db.session.commit()
-    return jsonify(author.to_dict()), 201
+@app.route('/api/items', methods=['GET'])
+def list_items():
+    items = Item.query.all()
+    return jsonify({'items': [i.to_dict() for i in items], 'total': len(items)}), 200
 ```

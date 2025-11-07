@@ -4,17 +4,17 @@
   "category": "Healthcare",
   "description": "Book and manage appointments",
   "backend_requirements": [
-    "Appointment model: id, patient_name (required), date (required), time (required), doctor, notes",
-    "CRUD endpoints: GET /api/appointments, POST, PUT, DELETE",
-    "Filter by date: ?date=YYYY-MM-DD",
-    "Validate: no double-booking same time slot"
+    "1. Appointment model: id, patient_name (required), date (required), time (required), doctor, notes",
+    "2. CRUD endpoints: GET /api/appointments, POST, PUT, DELETE",
+    "3. Filter by date: ?date=YYYY-MM-DD",
+    "4. Validate: no double-booking same time slot"
   ],
   "frontend_requirements": [
-    "Appointment list grouped by date, sorted by time",
-    "Book form with patient name, date picker, time picker, doctor dropdown, notes",
-    "Click appointment to view/edit details",
-    "Cancel button with confirmation",
-    "Today's appointments highlighted"
+    "1. Appointment list grouped by date, sorted by time",
+    "2. Book form with patient name, date picker, time picker, doctor dropdown, notes",
+    "3. Click appointment to view/edit details",
+    "4. Cancel button with confirmation",
+    "5. Today's appointments highlighted"
   ],
   "api_endpoints": [
     {

@@ -4,17 +4,17 @@
   "category": "Validation",
   "description": "Validate XML syntax",
   "backend_requirements": [
-    "POST /api/validate/xml - accept {xml: string}",
-    "Parse XML using Python's xml.etree or lxml",
-    "Return {valid: true} or {valid: false, error: message, line: number}",
-    "Handle syntax errors with helpful messages"
+    "1. POST /api/validate/xml - accept {xml: string}",
+    "2. Parse XML using Python's xml.etree or lxml",
+    "3. Return {valid: true} or {valid: false, error: message, line: number}",
+    "4. Handle syntax errors with helpful messages"
   ],
   "frontend_requirements": [
-    "Large textarea for XML input with monospace font",
-    "'Validate' button",
-    "Result display: green checkmark for valid, red X with error message for invalid",
-    "Show line number for errors",
-    "Sample XML button to load example"
+    "1. Large textarea for XML input with monospace font",
+    "2. 'Validate' button",
+    "3. Result display: green checkmark for valid, red X with error message for invalid",
+    "4. Show line number for errors",
+    "5. Sample XML button to load example"
   ],
   "api_endpoints": [
     {

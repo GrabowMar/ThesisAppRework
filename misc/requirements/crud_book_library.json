@@ -4,17 +4,17 @@
   "category": "CRUD",
   "description": "Track your book collection",
   "backend_requirements": [
-    "Book model: id, title (required), author (required), year (integer, optional), isbn (optional)",
-    "CRUD endpoints: GET /api/books, POST /api/books, PUT /api/books/:id, DELETE /api/books/:id",
-    "Search support: ?query=text searches title and author",
-    "Input validation: title and author required, year must be 4 digits"
+    "1. Book model: id, title (required), author (required), year (integer, optional), isbn (optional)",
+    "2. CRUD endpoints: GET /api/books, POST /api/books, PUT /api/books/:id, DELETE /api/books/:id",
+    "3. Search support: ?query=text searches title and author",
+    "4. Input validation: title and author required, year must be 4 digits"
   ],
   "frontend_requirements": [
-    "Book list table with columns: title, author, year",
-    "Add book form with title, author, year, isbn fields",
-    "Edit button opens form with pre-filled data",
-    "Delete button with confirmation dialog",
-    "Simple search box to filter books"
+    "1. Book list table with columns: title, author, year",
+    "2. Add book form with title, author, year, isbn fields",
+    "3. Edit button opens form with pre-filled data",
+    "4. Delete button with confirmation dialog",
+    "5. Simple search box to filter books"
   ],
   "api_endpoints": [
     {

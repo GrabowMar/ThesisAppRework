@@ -67,6 +67,56 @@ from app.utils.time import utc_now
 logger = logging.getLogger(__name__)
 
 
+# Model-specific token limits for output generation
+MODEL_TOKEN_LIMITS = {
+    # Anthropic models
+    'anthropic/claude-3.5-sonnet': 8192,
+    'anthropic/claude-3-5-sonnet-20240620': 8192,
+    'anthropic/claude-3-5-sonnet-20241022': 8192,
+    'anthropic/claude-3-opus': 4096,
+    'anthropic/claude-3-sonnet': 4096,
+    'anthropic/claude-3-haiku': 4096,
+    'anthropic/claude-4.5-haiku-20251001': 8192,
+    'anthropic/claude-4.5-sonnet-20250929': 8192,
+    # OpenAI models
+    'openai/gpt-4o': 16384,
+    'openai/gpt-4o-2024-11-20': 16384,
+    'openai/gpt-4o-2024-08-06': 16384,
+    'openai/gpt-4o-mini': 16384,
+    'openai/gpt-4-turbo': 4096,
+    'openai/gpt-4': 8192,
+    'openai/gpt-3.5-turbo': 4096,
+    # Google models
+    'google/gemini-2.0-flash-exp': 8192,
+    'google/gemini-pro': 2048,
+    'google/gemini-1.5-pro': 8192,
+    'google/gemini-1.5-flash': 8192,
+    # Meta models
+    'meta-llama/llama-3.1-405b-instruct': 4096,
+    'meta-llama/llama-3.1-70b-instruct': 4096,
+    'meta-llama/llama-3.2-90b-vision-instruct': 4096,
+    # Mistral models
+    'mistralai/mistral-large': 8192,
+    'mistralai/mistral-medium': 8192,
+    'mistralai/codestral': 8192,
+    # Default for unknown models
+    'default': 4096,
+}
+
+
+def get_model_token_limit(model_slug: str, default: int = 32000) -> int:
+    """Get the maximum output tokens for a given model.
+    
+    Args:
+        model_slug: The model identifier (e.g., 'anthropic/claude-3.5-sonnet')
+        default: Default limit if model not found
+        
+    Returns:
+        Maximum output tokens for the model
+    """
+    return MODEL_TOKEN_LIMITS.get(model_slug, MODEL_TOKEN_LIMITS.get('default', default))
+
+
 @dataclass
 class GenerationConfig:
     """Configuration for code generation."""
@@ -75,7 +125,7 @@ class GenerationConfig:
     template_slug: str
     component: str  # 'frontend' or 'backend'
     temperature: float = 0.3
-    max_tokens: int = 16000
+    max_tokens: int = 32000  # Increased from 16000 for longer, more robust apps
     requirements: Optional[Dict] = None  # Requirements from JSON file
 
 
@@ -249,6 +299,13 @@ class CodeGenerator:
         openrouter_model = model.hugging_face_id or model.model_id
         logger.info(f"Using OpenRouter model: {openrouter_model} (HF ID: {model.hugging_face_id}, model_id: {model.model_id}, slug: {config.model_slug})")
         
+        # Get model-specific token limit, capping at config.max_tokens
+        model_limit = get_model_token_limit(openrouter_model, default=config.max_tokens)
+        effective_max_tokens = min(config.max_tokens, model_limit)
+        
+        if effective_max_tokens < config.max_tokens:
+            logger.info(f"Capping max_tokens to {effective_max_tokens} (model limit) from {config.max_tokens} (config)")
+        
         messages = [
             {"role": "system", "content": self._get_system_prompt(config.component)},
             {"role": "user", "content": prompt}
@@ -264,11 +321,11 @@ class CodeGenerator:
                 model=openrouter_model,
                 messages=messages,
                 temperature=config.temperature,
-                max_tokens=config.max_tokens
+                max_tokens=effective_max_tokens
             )
 
             # Save request/response artifacts regardless of outcome
-            self._save_payload(run_id, safe_model, config.app_num, self.chat_service._build_payload(openrouter_model, messages, config.temperature, config.max_tokens), self.chat_service._get_headers())
+            self._save_payload(run_id, safe_model, config.app_num, self.chat_service._build_payload(openrouter_model, messages, config.temperature, effective_max_tokens), self.chat_service._get_headers())
             self._save_response(run_id, safe_model, config.app_num, response_data, {})
 
             if not success:
@@ -276,10 +333,17 @@ class CodeGenerator:
                 return False, "", f"API error {status_code}: {error_message}"
 
             content = response_data['choices'][0]['message']['content']
+            finish_reason = response_data['choices'][0].get('finish_reason', 'unknown')
+            
+            # Check for truncation
+            if finish_reason == 'length':
+                token_count = response_data.get('usage', {}).get('completion_tokens', 0)
+                logger.warning(f"Generation truncated at {token_count} tokens (hit model limit). Code may be incomplete!")
+                logger.warning(f"Consider: 1) Using a model with higher output limit, or 2) Simplifying requirements")
             
             # Save metadata on success
             await self._save_metadata(run_id, safe_model, config.app_num, config.component, 
-                                    self.chat_service._build_payload(openrouter_model, messages, config.temperature, config.max_tokens), 
+                                    self.chat_service._build_payload(openrouter_model, messages, config.temperature, effective_max_tokens), 
                                     response_data, status_code, {})
             
             return True, content, ""
@@ -782,6 +846,57 @@ class CodeMerger:
             'python_dotenv': 'python-dotenv==1.0.1',
         }
 
+    def validate_generated_code(self, code: str, component: str) -> Tuple[bool, List[str]]:
+        """Validate generated code for syntax errors before merging.
+        
+        Args:
+            code: The generated code to validate
+            component: 'backend' or 'frontend'
+            
+        Returns:
+            Tuple of (is_valid, list_of_errors)
+        """
+        errors = []
+        
+        if not code or not code.strip():
+            errors.append("Generated code is empty")
+            return False, errors
+        
+        if component == 'backend':
+            # Validate Python syntax
+            try:
+                ast.parse(code)
+                logger.info("Backend code validation passed: Python syntax is valid")
+            except SyntaxError as e:
+                error_msg = f"Python syntax error at line {e.lineno}: {e.msg}"
+                if e.text:
+                    error_msg += f"\n  Code: {e.text.strip()}"
+                errors.append(error_msg)
+                logger.error(f"Backend code validation failed: {error_msg}")
+            except Exception as e:
+                errors.append(f"Unexpected error during Python parsing: {str(e)}")
+                logger.error(f"Backend code validation failed with unexpected error: {e}")
+        
+        elif component == 'frontend':
+            # Basic JSX/JavaScript validation (check for common issues)
+            if 'import' not in code and 'function' not in code and 'const' not in code:
+                errors.append("Frontend code appears incomplete (missing imports, functions, or components)")
+                logger.warning("Frontend code validation: code appears incomplete")
+            
+            if 'export default' not in code:
+                errors.append("Frontend code missing 'export default' statement")
+                logger.warning("Frontend code validation: missing export default")
+            
+            # Check for common mistakes
+            if 'localhost' in code.lower() and 'backend:5000' not in code:
+                errors.append("Frontend code should use 'http://backend:5000' not localhost")
+                logger.warning("Frontend code validation: found localhost instead of backend:5000")
+            
+            logger.info(f"Frontend code validation completed with {len(errors)} warnings")
+        
+        is_valid = len(errors) == 0
+        return is_valid, errors
+
     def _parse_code(self, code: str, description: str) -> Optional[ast.Module]:
         """Safely parse code into an AST module."""
         try:
@@ -818,9 +933,19 @@ class CodeMerger:
             logger.error(f"Scaffolding app.py missing at {app_py_path}!")
             return False
 
+        # Extract code from markdown fences first
         generated_code = self._select_code_block(generated_content, {'python', 'py'})
         if not generated_code:
             logger.warning("No Python code block found in generation response. Aborting merge.")
+            return False
+
+        # Validate the extracted code (after fence stripping)
+        is_valid, errors = self.validate_generated_code(generated_code, 'backend')
+        if not is_valid:
+            logger.error(f"Backend code validation failed with {len(errors)} error(s):")
+            for i, error in enumerate(errors, 1):
+                logger.error(f"  {i}. {error}")
+            logger.error("Aborting merge due to validation errors")
             return False
 
         scaffold_code = app_py_path.read_text(encoding='utf-8')
@@ -838,9 +963,9 @@ class CodeMerger:
             if isinstance(node, ast.FunctionDef) and self._is_route(node)
         }
 
-        new_imports, module_level_assignments, new_models, new_routes, new_functions, setup_function = self._categorize_generated_nodes(generated_ast, scaffold_imports, scaffold_routes)
+        new_imports, module_level_assignments, helper_classes, new_models, new_routes, new_functions, setup_function = self._categorize_generated_nodes(generated_ast, scaffold_imports, scaffold_routes)
 
-        append_code = self._build_append_code(new_imports, module_level_assignments, new_models, new_routes, new_functions, setup_function)
+        append_code = self._build_append_code(new_imports, module_level_assignments, helper_classes, new_models, new_routes, new_functions, setup_function)
 
         if append_code.strip():
             final_code = scaffold_code + "\n" + append_code
@@ -857,8 +982,9 @@ class CodeMerger:
 
     def _categorize_generated_nodes(self, generated_ast, scaffold_imports, scaffold_routes):
         new_imports, new_models, new_routes, new_functions = [], [], [], []
+        helper_classes = []  # Track non-model classes (enums, dataclasses, etc.)
         setup_function = None
-        module_level_assignments = []  # NEW: Track module-level variable assignments
+        module_level_assignments = []  # Track module-level variable assignments
 
         for node in generated_ast.body:
             if isinstance(node, (ast.Import, ast.ImportFrom)):
@@ -867,10 +993,15 @@ class CodeMerger:
                     new_imports.append(node)
                     scaffold_imports.add(key)
             elif isinstance(node, ast.Assign):
-                # NEW: Capture module-level assignments like db = SQLAlchemy()
+                # Capture module-level assignments like db = SQLAlchemy()
                 module_level_assignments.append(node)
-            elif self._is_sqlalchemy_model(node):
-                new_models.append(node)
+            elif isinstance(node, ast.ClassDef):
+                # Categorize classes: SQLAlchemy models vs helper classes (enums, dataclasses)
+                if self._is_sqlalchemy_model(node):
+                    new_models.append(node)
+                else:
+                    # Enum, dataclass, or other helper class
+                    helper_classes.append(node)
             elif self._is_route(node):
                 path = self._get_route_path(node)
                 if path not in scaffold_routes:
@@ -881,11 +1012,11 @@ class CodeMerger:
             elif isinstance(node, ast.FunctionDef):
                 new_functions.append(node)
         
-        return new_imports, module_level_assignments, new_models, new_routes, new_functions, setup_function
+        return new_imports, module_level_assignments, helper_classes, new_models, new_routes, new_functions, setup_function
 
-    def _build_append_code(self, new_imports, module_level_assignments, new_models, new_routes, new_functions, setup_function):
+    def _build_append_code(self, new_imports, module_level_assignments, helper_classes, new_models, new_routes, new_functions, setup_function):
         code_parts = []
-        if new_imports or module_level_assignments or new_models or new_routes or new_functions or setup_function:
+        if new_imports or module_level_assignments or helper_classes or new_models or new_routes or new_functions or setup_function:
             code_parts.append("\n# === AI GENERATED AND MERGED CODE ===\n")
 
             def append_block(title, nodes):
@@ -896,7 +1027,8 @@ class CodeMerger:
                     code_parts.append("\n")
 
             append_block("Injected Imports", new_imports)
-            append_block("Module-Level Initialization", module_level_assignments)  # NEW: Add assignments after imports
+            append_block("Module-Level Initialization", module_level_assignments)
+            append_block("Helper Classes", helper_classes)  # Add enums, dataclasses before models
             append_block("Injected Models", new_models)
             append_block("Injected Functions", new_functions)
             if setup_function:
@@ -942,6 +1074,15 @@ class CodeMerger:
         if not selected_code:
             logger.warning("No frontend code detected in generation response")
             return False
+
+        # Validate frontend code before writing
+        is_valid, errors = self.validate_generated_code(selected_code, 'frontend')
+        if not is_valid:
+            logger.error(f"Frontend code validation failed with {len(errors)} error(s):")
+            for i, error in enumerate(errors, 1):
+                logger.error(f"  {i}. {error}")
+            # For frontend, we'll log errors but still proceed (validation is less strict)
+            logger.warning("Proceeding with merge despite validation warnings")
 
         if 'export default' not in selected_code:
             selected_code += "\n\nexport default App;"
