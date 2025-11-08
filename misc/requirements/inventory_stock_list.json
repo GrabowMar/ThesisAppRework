@@ -19,33 +19,89 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/items",
-      "description": "List all inventory items"
+      "path": "/api/inventory",
+      "description": "List all items (supports ?low_stock=true for items below threshold)",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "name": "string",
+            "sku": "string",
+            "quantity": 50,
+            "min_quantity": 10,
+            "low_stock": false,
+            "created_at": "ISO8601"
+          }
+        ],
+        "total": 1
+      }
     },
     {
       "method": "POST",
-      "path": "/api/items",
-      "description": "Create new inventory item"
+      "path": "/api/inventory",
+      "description": "Add new item",
+      "request": {
+        "name": "string",
+        "sku": "string",
+        "quantity": "integer",
+        "min_quantity": "integer (optional)"
+      },
+      "response": {
+        "id": 1,
+        "name": "string",
+        "sku": "string",
+        "quantity": 50,
+        "min_quantity": 10,
+        "low_stock": false,
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "PUT",
-      "path": "/api/items/:id",
-      "description": "Update inventory item"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/items/:id/adjust",
-      "description": "Adjust item quantity (accepts {adjustment: +N or -N})"
+      "path": "/api/inventory/:id",
+      "description": "Update item quantity",
+      "request": {
+        "quantity": "integer (optional)",
+        "min_quantity": "integer (optional)"
+      },
+      "response": {
+        "id": 1,
+        "name": "string",
+        "sku": "string",
+        "quantity": 75,
+        "min_quantity": 10,
+        "low_stock": false,
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "DELETE",
-      "path": "/api/items/:id",
-      "description": "Delete inventory item"
+      "path": "/api/inventory/:id",
+      "description": "Delete item",
+      "request": null,
+      "response": {}
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "InventoryItem",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "name": "string (required, max 100 chars)",
+      "sku": "string (unique, required, max 50 chars)",
+      "quantity": "integer (required, min 0)",
+      "min_quantity": "integer (default: 10, low stock threshold)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

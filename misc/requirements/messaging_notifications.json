@@ -20,27 +20,77 @@
     {
       "method": "GET",
       "path": "/api/notifications",
-      "description": "List all notifications (supports ?unread=true filter)"
+      "description": "List all notifications (supports ?read=true/false filter)",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "message": "string",
+            "type": "info",
+            "read": false,
+            "created_at": "ISO8601"
+          }
+        ],
+        "total": 1,
+        "unread_count": 5
+      }
     },
     {
       "method": "POST",
       "path": "/api/notifications",
-      "description": "Create new notification"
+      "description": "Create new notification",
+      "request": {
+        "message": "string",
+        "type": "string (info|warning|error)"
+      },
+      "response": {
+        "id": 1,
+        "message": "string",
+        "type": "info",
+        "read": false,
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "PUT",
       "path": "/api/notifications/:id/read",
-      "description": "Mark notification as read"
+      "description": "Mark notification as read",
+      "request": null,
+      "response": {
+        "id": 1,
+        "message": "string",
+        "type": "info",
+        "read": true,
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "DELETE",
       "path": "/api/notifications/:id",
-      "description": "Delete notification"
+      "description": "Delete notification",
+      "request": null,
+      "response": {}
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Notification",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "message": "text (required)",
+      "type": "string (info, warning, error)",
+      "read": "boolean (default: false)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

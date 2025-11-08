@@ -1,0 +1,66 @@
+Generate React frontend: {{ name }}
+{{ description }}
+
+Requirements:
+{% for req in frontend_requirements %}
+{{ req }}
+{% endfor %}
+
+Backend API (USE EXACT PATHS):
+{% if api_endpoints %}
+{% for endpoint in api_endpoints %}
+{{ endpoint.method }} {{ endpoint.path }}{% if endpoint.response %} -> {{ endpoint.response | tojson }}{% endif %}
+{% endfor %}
+MUST match backend exactly. No /api/items if backend has /api/todos.
+{% endif %}
+
+Rules:
+- Complete App.jsx, replaces scaffold
+- React 18.2, Axios, Bootstrap 5.3 provided
+- API_URL = '' (empty string for relative URLs, proxied to backend)
+- Imports: React, {useState,useEffect}, axios, bootstrap CSS, App.css
+- States: loading, error, data
+- Fetch with axios in useEffect
+- Bootstrap classes: container, row, btn, form-control, alert
+- try/catch error handling
+- No TODOs
+- export default App
+
+Example skeleton:
+```jsx
+import React, {useState, useEffect} from 'react';
+import axios from 'axios';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import './App.css';
+
+const API_URL = ''; // Relative URLs, proxied to backend
+
+function App() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const res = await axios.get(`${API_URL}/api/items`);
+        setItems(res.data.items || []);
+      } catch (err) {
+        setError(err.response?.data?.error || 'Failed');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetch();
+  }, []);
+
+  if (loading) return <div className="container mt-5">Loading...</div>;
+  if (error) return <div className="container mt-5 alert alert-danger">{error}</div>;
+  
+  return <div className="container mt-4">{/* UI */}</div>;
+}
+
+export default App;
+```
+
+Generate complete JSX code:

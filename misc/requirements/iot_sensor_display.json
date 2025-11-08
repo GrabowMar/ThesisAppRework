@@ -19,23 +19,89 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/sensors/current",
-      "description": "Get latest sensor reading"
+      "path": "/api/sensors",
+      "description": "List all sensors with current readings",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "name": "string",
+            "type": "temperature",
+            "value": 22.5,
+            "unit": "°C",
+            "updated_at": "ISO8601"
+          }
+        ],
+        "total": 1
+      }
     },
     {
       "method": "GET",
-      "path": "/api/sensors/history",
-      "description": "Get sensor history (supports ?hours=N, default 24)"
+      "path": "/api/sensors/:id",
+      "description": "Get sensor details",
+      "request": null,
+      "response": {
+        "id": 1,
+        "name": "string",
+        "type": "temperature",
+        "value": 22.5,
+        "unit": "°C",
+        "updated_at": "ISO8601"
+      }
     },
     {
       "method": "POST",
-      "path": "/api/sensors/reading",
-      "description": "Submit new sensor reading (for simulation)"
+      "path": "/api/sensors/:id/reading",
+      "description": "Submit new sensor reading",
+      "request": {
+        "value": "number"
+      },
+      "response": {
+        "id": 1,
+        "sensor_id": 1,
+        "value": 22.5,
+        "timestamp": "ISO8601"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sensors/:id/history",
+      "description": "Get sensor reading history",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "value": 22.5,
+            "timestamp": "ISO8601"
+          }
+        ],
+        "total": 100
+      }
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Sensor & Reading",
+    "fields": {
+      "Sensor.id": "integer (primary key)",
+      "Sensor.name": "string (required)",
+      "Sensor.type": "string (temperature, humidity, etc.)",
+      "Sensor.unit": "string (°C, %, etc.)",
+      "Reading.id": "integer (primary key)",
+      "Reading.sensor_id": "integer (foreign key)",
+      "Reading.value": "decimal",
+      "Reading.timestamp": "datetime (auto, ISO 8601)"
+    }
+  }
 }

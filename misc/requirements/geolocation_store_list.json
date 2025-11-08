@@ -20,32 +20,75 @@
     {
       "method": "GET",
       "path": "/api/stores",
-      "description": "List all stores"
-    },
-    {
-      "method": "GET",
-      "path": "/api/stores/nearby",
-      "description": "Find stores near location (supports ?lat=, ?lng=, ?radius= in km)"
+      "description": "List all stores (supports ?lat=, ?lng=, ?radius= for proximity search)",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "name": "string",
+            "address": "string",
+            "latitude": 40.7128,
+            "longitude": -74.006,
+            "distance": 2.5
+          }
+        ],
+        "total": 1
+      }
     },
     {
       "method": "POST",
       "path": "/api/stores",
-      "description": "Create new store"
+      "description": "Create new store",
+      "request": {
+        "name": "string",
+        "address": "string",
+        "latitude": "number",
+        "longitude": "number"
+      },
+      "response": {
+        "id": 1,
+        "name": "string",
+        "address": "string",
+        "latitude": 40.7128,
+        "longitude": -74.006,
+        "created_at": "ISO8601"
+      }
     },
     {
-      "method": "PUT",
+      "method": "GET",
       "path": "/api/stores/:id",
-      "description": "Update store"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/stores/:id",
-      "description": "Delete store"
+      "description": "Get store details",
+      "request": null,
+      "response": {
+        "id": 1,
+        "name": "string",
+        "address": "string",
+        "latitude": 40.7128,
+        "longitude": -74.006,
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Store",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "name": "string (required, max 100 chars)",
+      "address": "string (required, max 255 chars)",
+      "latitude": "decimal (required, -90 to 90)",
+      "longitude": "decimal (required, -180 to 180)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

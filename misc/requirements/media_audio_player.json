@@ -19,28 +19,78 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/episodes",
-      "description": "List all audio episodes"
+      "path": "/api/tracks",
+      "description": "List all audio tracks",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "title": "string",
+            "artist": "string",
+            "duration": 180,
+            "url": "/audio/track.mp3",
+            "created_at": "ISO8601"
+          }
+        ],
+        "total": 1
+      }
     },
     {
       "method": "POST",
-      "path": "/api/episodes",
-      "description": "Create new episode"
+      "path": "/api/tracks/upload",
+      "description": "Upload audio file",
+      "request": "multipart/form-data with 'audio' field",
+      "response": {
+        "id": 1,
+        "title": "string",
+        "artist": "string",
+        "duration": 180,
+        "url": "/audio/track.mp3",
+        "created_at": "ISO8601"
+      }
     },
     {
-      "method": "PUT",
-      "path": "/api/episodes/:id",
-      "description": "Update episode"
+      "method": "GET",
+      "path": "/api/tracks/:id",
+      "description": "Get track details",
+      "request": null,
+      "response": {
+        "id": 1,
+        "title": "string",
+        "artist": "string",
+        "duration": 180,
+        "url": "/audio/track.mp3",
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "DELETE",
-      "path": "/api/episodes/:id",
-      "description": "Delete episode"
+      "path": "/api/tracks/:id",
+      "description": "Delete track",
+      "request": null,
+      "response": {}
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Track",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "title": "string (required, max 255 chars)",
+      "artist": "string (optional, max 255 chars)",
+      "duration": "integer (seconds)",
+      "filepath": "string (server path)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

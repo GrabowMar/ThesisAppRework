@@ -1,0 +1,9 @@
+================================================================================
+GENERATION SYSTEM VERIFICATION
+================================================================================
+
+This will generate 3 apps and verify they have complete code.
+Each app should have:
+  - Complete Flask backend with app init and if __name__ block
+  - Complete React frontend with backend:5000 API_URL
+  - All required imports and dependencies

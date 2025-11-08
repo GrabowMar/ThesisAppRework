@@ -1,0 +1,1 @@
+Celery-backed WebSocket service init failed, falling back to mock: No module named 'app.services.celery_websocket_service'

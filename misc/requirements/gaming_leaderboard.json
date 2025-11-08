@@ -18,24 +18,74 @@
   ],
   "api_endpoints": [
     {
-      "method": "POST",
-      "path": "/api/scores",
-      "description": "Submit new score"
-    },
-    {
       "method": "GET",
       "path": "/api/leaderboard",
-      "description": "Get top scores (query params: limit, timeframe)"
+      "description": "Get top players sorted by score",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "player_name": "string",
+            "score": 9999,
+            "rank": 1,
+            "created_at": "ISO8601"
+          }
+        ],
+        "total": 1
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/leaderboard",
+      "description": "Submit new score",
+      "request": {
+        "player_name": "string",
+        "score": "integer"
+      },
+      "response": {
+        "id": 1,
+        "player_name": "string",
+        "score": 9999,
+        "rank": 5,
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "GET",
-      "path": "/api/scores/player/:name",
-      "description": "Get specific player's scores and rank"
+      "path": "/api/leaderboard/top/:limit",
+      "description": "Get top N players",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "player_name": "string",
+            "score": 9999,
+            "rank": 1
+          }
+        ],
+        "total": 10
+      }
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Score",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "player_name": "string (required, max 50 chars)",
+      "score": "integer (required, min 0)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

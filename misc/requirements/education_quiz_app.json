@@ -19,23 +19,81 @@
   "api_endpoints": [
     {
       "method": "GET",
-      "path": "/api/quiz/start",
-      "description": "Get random quiz questions (returns quiz session ID)"
+      "path": "/api/quiz/questions",
+      "description": "Get random quiz questions",
+      "request": null,
+      "response": {
+        "questions": [
+          {
+            "id": 1,
+            "question": "string",
+            "options": [
+              "A",
+              "B",
+              "C",
+              "D"
+            ]
+          }
+        ]
+      }
     },
     {
       "method": "POST",
       "path": "/api/quiz/submit",
-      "description": "Submit quiz answers and get score"
+      "description": "Submit quiz answers and get score",
+      "request": {
+        "answers": [
+          {
+            "question_id": 1,
+            "answer": "string"
+          }
+        ]
+      },
+      "response": {
+        "score": 75,
+        "total": 100,
+        "correct": 3,
+        "total_questions": 4,
+        "results": [
+          {
+            "question_id": 1,
+            "correct": true,
+            "your_answer": "A",
+            "correct_answer": "A"
+          }
+        ]
+      }
     },
     {
       "method": "GET",
-      "path": "/api/quiz/results/:sessionId",
-      "description": "Review quiz results with correct answers"
+      "path": "/api/quiz/review/:id",
+      "description": "Review quiz results",
+      "request": null,
+      "response": {
+        "score": 75,
+        "total": 100,
+        "submitted_at": "ISO8601",
+        "results": []
+      }
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Question",
+    "fields": {
+      "id": "integer (primary key)",
+      "question": "text (required)",
+      "options": "JSON array (4 options)",
+      "correct_answer": "string (A-D, not exposed to frontend until submitted)"
+    }
+  }
 }

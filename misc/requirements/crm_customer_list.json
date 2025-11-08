@@ -20,27 +20,87 @@
     {
       "method": "GET",
       "path": "/api/customers",
-      "description": "List all customers (supports ?query=text to search name, email, company)"
+      "description": "List all customers",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "name": "string",
+            "email": "string",
+            "phone": "string",
+            "company": "string",
+            "created_at": "ISO8601"
+          }
+        ],
+        "total": 1
+      }
     },
     {
       "method": "POST",
       "path": "/api/customers",
-      "description": "Create new customer"
+      "description": "Create new customer",
+      "request": {
+        "name": "string",
+        "email": "string",
+        "phone": "string (optional)",
+        "company": "string (optional)"
+      },
+      "response": {
+        "id": 1,
+        "name": "string",
+        "email": "string",
+        "phone": "string",
+        "company": "string",
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "PUT",
       "path": "/api/customers/:id",
-      "description": "Update customer"
+      "description": "Update customer",
+      "request": {
+        "name": "string (optional)",
+        "email": "string (optional)",
+        "phone": "string (optional)",
+        "company": "string (optional)"
+      },
+      "response": {
+        "id": 1,
+        "name": "string",
+        "email": "string",
+        "phone": "string",
+        "company": "string",
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "DELETE",
       "path": "/api/customers/:id",
-      "description": "Delete customer"
+      "description": "Delete customer",
+      "request": null,
+      "response": {}
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Customer",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "name": "string (required, max 100 chars)",
+      "email": "string (required, valid email)",
+      "phone": "string (optional, max 20 chars)",
+      "company": "string (optional, max 100 chars)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

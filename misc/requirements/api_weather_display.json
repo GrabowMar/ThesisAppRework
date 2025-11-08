@@ -21,12 +21,27 @@
     {
       "method": "GET",
       "path": "/api/weather",
-      "description": "Get weather for a city (query param: city)"
+      "description": "Get weather for a city (query param: city)",
+      "request": null,
+      "response": {
+        "city": "string",
+        "temperature": 20.5,
+        "condition": "string",
+        "humidity": 65,
+        "feels_like": 19.0,
+        "icon": "string"
+      }
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": null
 }

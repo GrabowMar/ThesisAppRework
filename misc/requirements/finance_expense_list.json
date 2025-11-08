@@ -20,37 +20,112 @@
     {
       "method": "GET",
       "path": "/api/expenses",
-      "description": "List all expenses (supports ?category= and ?start_date=, ?end_date= filters)"
-    },
-    {
-      "method": "GET",
-      "path": "/api/expenses/total",
-      "description": "Get sum of all expenses"
-    },
-    {
-      "method": "GET",
-      "path": "/api/expenses/by-category",
-      "description": "Get totals grouped by category"
+      "description": "List all expenses",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "amount": 50.75,
+            "category": "string",
+            "description": "string",
+            "date": "ISO8601",
+            "created_at": "ISO8601"
+          }
+        ],
+        "total": 1
+      }
     },
     {
       "method": "POST",
       "path": "/api/expenses",
-      "description": "Create new expense"
+      "description": "Create new expense",
+      "request": {
+        "amount": "number",
+        "category": "string",
+        "description": "string (optional)",
+        "date": "string (optional)"
+      },
+      "response": {
+        "id": 1,
+        "amount": 50.75,
+        "category": "string",
+        "description": "string",
+        "date": "ISO8601",
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "PUT",
       "path": "/api/expenses/:id",
-      "description": "Update expense"
+      "description": "Update expense",
+      "request": {
+        "amount": "number (optional)",
+        "category": "string (optional)",
+        "description": "string (optional)",
+        "date": "string (optional)"
+      },
+      "response": {
+        "id": 1,
+        "amount": 50.75,
+        "category": "string",
+        "description": "string",
+        "date": "ISO8601",
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "DELETE",
       "path": "/api/expenses/:id",
-      "description": "Delete expense"
+      "description": "Delete expense",
+      "request": null,
+      "response": {}
+    },
+    {
+      "method": "GET",
+      "path": "/api/expenses/total",
+      "description": "Get sum of all expenses",
+      "request": null,
+      "response": {
+        "total": 1250.5,
+        "count": 42
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/expenses/by-category",
+      "description": "Get totals grouped by category",
+      "request": null,
+      "response": {
+        "categories": [
+          {
+            "category": "Food",
+            "total": 450.25,
+            "count": 15
+          }
+        ]
+      }
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Expense",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "amount": "decimal (required, 2 decimal places)",
+      "category": "string (required, max 50 chars)",
+      "description": "string (optional, max 255 chars)",
+      "date": "date (default: today)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

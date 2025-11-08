@@ -20,27 +20,46 @@
     {
       "method": "GET",
       "path": "/api/todos",
-      "description": "List all todos (supports ?completed=true/false filter)"
+      "description": "List all todos (supports ?completed=true/false filter)",
+      "request": null,
+      "response": {"items": [{"id": 1, "title": "string", "completed": false, "created_at": "ISO8601"}], "total": 1}
     },
     {
       "method": "POST",
       "path": "/api/todos",
-      "description": "Create new todo"
+      "description": "Create new todo",
+      "request": {"title": "string"},
+      "response": {"id": 1, "title": "string", "completed": false, "created_at": "ISO8601"}
     },
     {
       "method": "PUT",
       "path": "/api/todos/:id",
-      "description": "Update todo"
+      "description": "Update todo",
+      "request": {"title": "string (optional)", "completed": "boolean (optional)"},
+      "response": {"id": 1, "title": "string", "completed": false, "created_at": "ISO8601"}
     },
     {
       "method": "DELETE",
       "path": "/api/todos/:id",
-      "description": "Delete todo"
+      "description": "Delete todo",
+      "request": null,
+      "response": {}
     },
     {
       "method": "GET",
-      "path": "/api/health",
-      "description": "Health check endpoint"
+      "path": "/health",
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {"status": "healthy", "service": "backend"}
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Todo",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "title": "string (required, max 255 chars)",
+      "completed": "boolean (default: false)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

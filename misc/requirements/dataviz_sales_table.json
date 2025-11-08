@@ -20,32 +20,73 @@
     {
       "method": "GET",
       "path": "/api/sales",
-      "description": "List all sales (supports ?start_date= and ?end_date= for date range filtering)"
-    },
-    {
-      "method": "GET",
-      "path": "/api/sales/summary",
-      "description": "Get totals by category and month"
+      "description": "List all sales (supports ?start_date= and ?end_date= filters)",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "product": "string",
+            "amount": 100.5,
+            "quantity": 5,
+            "date": "ISO8601",
+            "created_at": "ISO8601"
+          }
+        ],
+        "total": 1,
+        "sum": 100.5
+      }
     },
     {
       "method": "POST",
       "path": "/api/sales",
-      "description": "Create new sale"
+      "description": "Create new sale record",
+      "request": {
+        "product": "string",
+        "amount": "number",
+        "quantity": "integer",
+        "date": "string (optional)"
+      },
+      "response": {
+        "id": 1,
+        "product": "string",
+        "amount": 100.5,
+        "quantity": 5,
+        "date": "ISO8601",
+        "created_at": "ISO8601"
+      }
     },
     {
-      "method": "PUT",
-      "path": "/api/sales/:id",
-      "description": "Update sale"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/sales/:id",
-      "description": "Delete sale"
+      "method": "GET",
+      "path": "/api/sales/summary",
+      "description": "Get sales summary statistics",
+      "request": null,
+      "response": {
+        "total_sales": 1500.75,
+        "total_transactions": 25,
+        "average_sale": 60.03
+      }
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Sale",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "product": "string (required, max 100 chars)",
+      "amount": "decimal (required, 2 decimal places)",
+      "quantity": "integer (required, min 1)",
+      "date": "date (default: today)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

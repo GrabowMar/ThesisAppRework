@@ -20,32 +20,113 @@
     {
       "method": "GET",
       "path": "/api/posts",
-      "description": "List all posts (supports ?page=, ?limit=, ?search= parameters)"
-    },
-    {
-      "method": "GET",
-      "path": "/api/posts/:id",
-      "description": "Get single post by ID"
+      "description": "List all blog posts (supports ?tag= filter)",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "title": "string",
+            "content": "string",
+            "author": "string",
+            "tags": [
+              "tag1"
+            ],
+            "published_at": "ISO8601",
+            "created_at": "ISO8601"
+          }
+        ],
+        "total": 1
+      }
     },
     {
       "method": "POST",
       "path": "/api/posts",
-      "description": "Create new post"
+      "description": "Create new blog post",
+      "request": {
+        "title": "string",
+        "content": "string",
+        "author": "string",
+        "tags": "array (optional)"
+      },
+      "response": {
+        "id": 1,
+        "title": "string",
+        "content": "string",
+        "author": "string",
+        "tags": [
+          "tag1"
+        ],
+        "published_at": "ISO8601",
+        "created_at": "ISO8601"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/posts/:id",
+      "description": "Get post details",
+      "request": null,
+      "response": {
+        "id": 1,
+        "title": "string",
+        "content": "string",
+        "author": "string",
+        "tags": [
+          "tag1"
+        ],
+        "published_at": "ISO8601",
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "PUT",
       "path": "/api/posts/:id",
-      "description": "Update post"
+      "description": "Update blog post",
+      "request": {
+        "title": "string (optional)",
+        "content": "string (optional)",
+        "tags": "array (optional)"
+      },
+      "response": {
+        "id": 1,
+        "title": "string",
+        "content": "string",
+        "author": "string",
+        "tags": [
+          "tag1"
+        ],
+        "published_at": "ISO8601",
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "DELETE",
       "path": "/api/posts/:id",
-      "description": "Delete post"
+      "description": "Delete blog post",
+      "request": null,
+      "response": {}
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Post",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "title": "string (required, max 255 chars)",
+      "content": "text (required)",
+      "author": "string (required, max 100 chars)",
+      "tags": "JSON array of strings",
+      "published_at": "datetime (auto, ISO 8601 format)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

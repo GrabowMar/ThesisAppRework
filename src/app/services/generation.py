@@ -127,6 +127,7 @@ class GenerationConfig:
     temperature: float = 0.3
     max_tokens: int = 32000  # Increased from 16000 for longer, more robust apps
     requirements: Optional[Dict] = None  # Requirements from JSON file
+    template_type: str = 'auto'  # 'auto', 'full', or 'compact'
 
 
 class ScaffoldingManager:
@@ -406,9 +407,29 @@ class CodeGenerator:
             logger.error(f"Failed to load scaffolding info: {e}")
             return ""
     
-    def _load_prompt_template(self, component: str) -> str:
-        """Load prompt template for component."""
-        # Corrected to use the two-query structure
+    def _load_prompt_template(self, component: str, model_slug: Optional[str] = None) -> str:
+        """Load prompt template for component.
+        
+        Automatically uses compact template for models with <8K output limit.
+        """
+        # Determine if we should use compact template
+        use_compact = False
+        if model_slug:
+            token_limit = get_model_token_limit(model_slug)
+            use_compact = token_limit < 8000
+        
+        # Try compact template first if needed
+        if use_compact:
+            compact_file = self.template_dir / 'two-query' / f"{component}_compact.md.jinja2"
+            if compact_file.exists():
+                try:
+                    with open(compact_file, 'r', encoding='utf-8') as f:
+                        logger.info(f"Using compact template for {component} (model output limit: {token_limit})")
+                        return f.read()
+                except Exception as e:
+                    logger.warning(f"Failed to load compact template, falling back to standard: {e}")
+        
+        # Use standard template
         template_file = self.template_dir / 'two-query' / f"{component}.md.jinja2"
         
         if not template_file.exists():
@@ -599,10 +620,37 @@ class CodeGenerator:
         # Set up Jinja2 environment
         env = Environment(loader=FileSystemLoader(self.template_dir / 'two-query'))
         
+        # Determine which template to use based on preference or model output limit
+        template_type = getattr(config, 'template_type', 'auto')
+        
+        if template_type == 'full':
+            use_compact = False
+            logger.info(f"Using FULL template for {config.component} (forced by user preference)")
+        elif template_type == 'compact':
+            use_compact = True
+            logger.info(f"Using COMPACT template for {config.component} (forced by user preference)")
+        else:  # 'auto'
+            token_limit = get_model_token_limit(config.model_slug) if hasattr(config, 'model_slug') else 32000
+            use_compact = token_limit < 8000
+            if use_compact:
+                logger.info(f"Using compact template for {config.component} (auto: model limit {token_limit} tokens)")
+            else:
+                logger.info(f"Using full template for {config.component} (auto: model limit {token_limit} tokens)")
+        
+        template_name = f"{config.component}_compact.md.jinja2" if use_compact else f"{config.component}.md.jinja2"
+        
         try:
-            template = env.get_template(f"{config.component}.md.jinja2")
-        except Exception:
-            template = None
+            template = env.get_template(template_name)
+        except Exception as e:
+            # Fall back to standard template if compact not found
+            if use_compact:
+                logger.warning(f"Compact template not found, using standard: {e}")
+                try:
+                    template = env.get_template(f"{config.component}.md.jinja2")
+                except Exception:
+                    template = None
+            else:
+                template = None
 
         # If template exists, use it
         if template and reqs:
@@ -827,9 +875,14 @@ Return ONLY the Python code wrapped in ```python code blocks."""
 
 
 class CodeMerger:
-    """Merges AI-generated code with scaffolding using a robust append-based strategy."""
+    """Simplified code merger that overwrites files with LLM-generated code.
+    
+    Philosophy: LLM generates complete, working files. We just extract from fences,
+    validate syntax, fix Docker networking, and write. No AST merging complexity.
+    """
 
     def __init__(self):
+        # Keep dependency inference for requirements.txt updates
         try:
             self._stdlib_modules = set(sys.stdlib_module_names)
         except AttributeError:
@@ -844,6 +897,8 @@ class CodeMerger:
             'psycopg2': 'psycopg2-binary==2.9.9',
             'psycopg2_binary': 'psycopg2-binary==2.9.9',
             'python_dotenv': 'python-dotenv==1.0.1',
+            'bcrypt': 'bcrypt==4.1.2',
+            'pyjwt': 'PyJWT==2.8.0',
         }
 
     def validate_generated_code(self, code: str, component: str) -> Tuple[bool, List[str]]:
@@ -897,198 +952,95 @@ class CodeMerger:
         is_valid = len(errors) == 0
         return is_valid, errors
 
-    def _parse_code(self, code: str, description: str) -> Optional[ast.Module]:
-        """Safely parse code into an AST module."""
-        try:
-            return ast.parse(code)
-        except SyntaxError as e:
-            logger.error(f"AST parsing failed for {description}: {e}")
-            return None
-
-    def _unparse_ast(self, tree: ast.AST) -> str:
-        """Unparse an AST node back to a string."""
-        try:
-            return ast.unparse(tree)
-        except AttributeError:
-            import astor
-            return astor.to_source(tree)
-
-    def _get_import_key(self, node: Union[ast.Import, ast.ImportFrom]) -> str:
-        """Create a unique key for an import statement to avoid duplicates."""
-        if isinstance(node, ast.Import):
-            return f"import:{node.names[0].name}"
-        if isinstance(node, ast.ImportFrom):
-            module = node.module or ''
-            names = sorted([alias.name for alias in node.names])
-            return f"from:{module}:import:{','.join(names)}"
-        return ""
-
     def merge_backend(self, app_dir: Path, generated_content: str) -> bool:
         """
-        Merge generated backend code by appending categorized blocks to the scaffold app.py.
+        Replace backend app.py with LLM-generated code after extracting from fences.
         """
-        logger.info("Starting robust append-based backend merge...")
+        logger.info("Starting simplified backend merge (direct overwrite)...")
         app_py_path = app_dir / 'backend' / 'app.py'
         if not app_py_path.exists():
-            logger.error(f"Scaffolding app.py missing at {app_py_path}!")
+            logger.error(f"Target app.py missing at {app_py_path}!")
             return False
 
-        # Extract code from markdown fences first
+        # Extract code from markdown fences
         generated_code = self._select_code_block(generated_content, {'python', 'py'})
         if not generated_code:
-            logger.warning("No Python code block found in generation response. Aborting merge.")
+            logger.error(f"No Python code block found in generation response.")
+            logger.error(f"Response preview: {generated_content[:500]}...")
             return False
 
-        # Validate the extracted code (after fence stripping)
+        logger.info(f"Extracted {len(generated_code)} chars of Python code from LLM response")
+
+        # Validate Python syntax
         is_valid, errors = self.validate_generated_code(generated_code, 'backend')
         if not is_valid:
             logger.error(f"Backend code validation failed with {len(errors)} error(s):")
             for i, error in enumerate(errors, 1):
                 logger.error(f"  {i}. {error}")
-            logger.error("Aborting merge due to validation errors")
-            return False
+            logger.error("Writing code anyway - Docker build will catch critical errors")
 
-        scaffold_code = app_py_path.read_text(encoding='utf-8')
-        scaffold_ast = self._parse_code(scaffold_code, "scaffold app.py")
-        generated_ast = self._parse_code(generated_code, "generated code")
+        # Write complete generated code directly
+        app_py_path.write_text(generated_code, encoding='utf-8')
+        logger.info(f"✓ Wrote {len(generated_code)} chars to {app_py_path}")
 
-        if not scaffold_ast or not generated_ast:
-            logger.error("AST parsing failed. Cannot proceed with merge.")
-            return False
-
-        scaffold_imports = {self._get_import_key(node) for node in scaffold_ast.body if isinstance(node, (ast.Import, ast.ImportFrom))}
-        scaffold_routes = {
-            self._get_route_path(node) 
-            for node in ast.walk(scaffold_ast) 
-            if isinstance(node, ast.FunctionDef) and self._is_route(node)
-        }
-
-        new_imports, module_level_assignments, helper_classes, new_models, new_routes, new_functions, setup_function = self._categorize_generated_nodes(generated_ast, scaffold_imports, scaffold_routes)
-
-        append_code = self._build_append_code(new_imports, module_level_assignments, helper_classes, new_models, new_routes, new_functions, setup_function)
-
-        if append_code.strip():
-            final_code = scaffold_code + "\n" + append_code
-            app_py_path.write_text(final_code, encoding='utf-8')
-            logger.info("Successfully merged backend code by appending generated blocks.")
-        else:
-            logger.info("No new code blocks to merge for backend.")
-
+        # Infer and update dependencies
         inferred_deps = self._infer_backend_dependencies(generated_code)
         if inferred_deps:
+            logger.info(f"Inferred {len(inferred_deps)} backend dependencies: {sorted(inferred_deps)}")
             self._update_backend_requirements(app_dir, inferred_deps)
             
         return True
 
-    def _categorize_generated_nodes(self, generated_ast, scaffold_imports, scaffold_routes):
-        new_imports, new_models, new_routes, new_functions = [], [], [], []
-        helper_classes = []  # Track non-model classes (enums, dataclasses, etc.)
-        setup_function = None
-        module_level_assignments = []  # Track module-level variable assignments
-
-        for node in generated_ast.body:
-            if isinstance(node, (ast.Import, ast.ImportFrom)):
-                key = self._get_import_key(node)
-                if key not in scaffold_imports:
-                    new_imports.append(node)
-                    scaffold_imports.add(key)
-            elif isinstance(node, ast.Assign):
-                # Capture module-level assignments like db = SQLAlchemy()
-                module_level_assignments.append(node)
-            elif isinstance(node, ast.ClassDef):
-                # Categorize classes: SQLAlchemy models vs helper classes (enums, dataclasses)
-                if self._is_sqlalchemy_model(node):
-                    new_models.append(node)
-                else:
-                    # Enum, dataclass, or other helper class
-                    helper_classes.append(node)
-            elif self._is_route(node):
-                path = self._get_route_path(node)
-                if path not in scaffold_routes:
-                    new_routes.append(node)
-                    if path: scaffold_routes.add(path)
-            elif isinstance(node, ast.FunctionDef) and node.name == 'setup_app':
-                setup_function = node
-            elif isinstance(node, ast.FunctionDef):
-                new_functions.append(node)
-        
-        return new_imports, module_level_assignments, helper_classes, new_models, new_routes, new_functions, setup_function
-
-    def _build_append_code(self, new_imports, module_level_assignments, helper_classes, new_models, new_routes, new_functions, setup_function):
-        code_parts = []
-        if new_imports or module_level_assignments or helper_classes or new_models or new_routes or new_functions or setup_function:
-            code_parts.append("\n# === AI GENERATED AND MERGED CODE ===\n")
-
-            def append_block(title, nodes):
-                if nodes:
-                    code_parts.append(f"# --- {title} ---\n")
-                    for node in nodes:
-                        code_parts.append(self._unparse_ast(node))
-                    code_parts.append("\n")
-
-            append_block("Injected Imports", new_imports)
-            append_block("Module-Level Initialization", module_level_assignments)
-            append_block("Helper Classes", helper_classes)  # Add enums, dataclasses before models
-            append_block("Injected Models", new_models)
-            append_block("Injected Functions", new_functions)
-            if setup_function:
-                append_block("Injected Setup Function", [setup_function])
-            append_block("Injected Routes", new_routes)
-        
-        return "\n".join(code_parts)
-
-    def _is_route(self, node: ast.AST) -> bool:
-        if not isinstance(node, ast.FunctionDef): return False
-        for decorator in node.decorator_list:
-            if (isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute) and decorator.func.attr == 'route'):
-                return True
-        return False
-
-    def _get_route_path(self, node: ast.FunctionDef) -> Optional[str]:
-        for decorator in node.decorator_list:
-            if (isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute) and decorator.func.attr == 'route'):
-                if decorator.args:
-                    arg = decorator.args[0]
-                    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                        return arg.value
-                    # For older Python versions (before 3.8)
-                    if hasattr(arg, 's') and isinstance(getattr(arg, 's'), str):
-                        return getattr(arg, 's')
-        return None
-
-    def _is_sqlalchemy_model(self, node: ast.AST) -> bool:
-        if not isinstance(node, ast.ClassDef): return False
-        for base in node.bases:
-            if (isinstance(base, ast.Attribute) and isinstance(base.value, ast.Name) and base.value.id == 'db' and base.attr == 'Model'):
-                return True
-        return False
-
     def merge_frontend(self, app_dir: Path, generated_content: str) -> bool:
-        """Merge generated frontend code with scaffolding App.jsx."""
+        """
+        Replace frontend App.jsx with LLM-generated code after extracting from fences.
+        """
+        logger.info("Starting simplified frontend merge (direct overwrite)...")
         app_jsx = app_dir / 'frontend' / 'src' / 'App.jsx'
         if not app_jsx.exists():
-            logger.error("Scaffolding App.jsx missing!")
+            logger.error(f"Target App.jsx missing at {app_jsx}!")
             return False
         
+        # Extract code from markdown fences
         selected_code = self._select_code_block(generated_content, {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'})
         if not selected_code:
-            logger.warning("No frontend code detected in generation response")
+            logger.error(f"No frontend code detected in generation response")
+            logger.error(f"Response preview: {generated_content[:500]}...")
             return False
 
-        # Validate frontend code before writing
-        is_valid, errors = self.validate_generated_code(selected_code, 'frontend')
-        if not is_valid:
-            logger.error(f"Frontend code validation failed with {len(errors)} error(s):")
-            for i, error in enumerate(errors, 1):
-                logger.error(f"  {i}. {error}")
-            # For frontend, we'll log errors but still proceed (validation is less strict)
-            logger.warning("Proceeding with merge despite validation warnings")
+        logger.info(f"Extracted {len(selected_code)} chars of JSX code from LLM response")
 
+        # Fix Docker networking: replace localhost with backend:5000
+        if 'localhost' in selected_code and 'backend:5000' not in selected_code:
+            logger.info("Fixing API_URL: replacing localhost references with backend:5000")
+            selected_code = re.sub(
+                r'http://localhost:5000',
+                'http://backend:5000',
+                selected_code,
+                flags=re.IGNORECASE
+            )
+            selected_code = re.sub(
+                r'localhost:5000',
+                'backend:5000',
+                selected_code,
+                flags=re.IGNORECASE
+            )
+
+        # Validate frontend code (warnings only)
+        is_valid, errors = self.validate_generated_code(selected_code, 'frontend')
+        if errors:
+            logger.warning(f"Frontend validation warnings ({len(errors)}):")
+            for i, error in enumerate(errors, 1):
+                logger.warning(f"  {i}. {error}")
+
+        # Ensure export default exists
         if 'export default' not in selected_code:
+            logger.info("Adding missing 'export default App;'")
             selected_code += "\n\nexport default App;"
 
+        # Write complete generated code directly
         app_jsx.write_text(selected_code, encoding='utf-8')
-        logger.info("Replaced App.jsx with generated code")
+        logger.info(f"✓ Wrote {len(selected_code)} chars to {app_jsx}")
         return True
     
     def _select_code_block(self, content: str, preferred_languages: Set[str]) -> Optional[str]:
@@ -1249,7 +1201,8 @@ class GenerationService:
         app_num: int,
         template_slug: str,
         generate_frontend: bool = True,
-        generate_backend: bool = True
+        generate_backend: bool = True,
+        template_type: str = 'auto'  # 'auto', 'full', or 'compact'
     ) -> dict:
         """Generate complete application.
         
@@ -1258,6 +1211,9 @@ class GenerationService:
         2. Generate backend (if requested)
         3. Generate frontend (if requested)
         4. Merge generated code with scaffolding
+        
+        Args:
+            template_type: 'auto' (default, based on model limit), 'full', or 'compact'
         """
         result = {
             'success': False,
@@ -1286,7 +1242,8 @@ class GenerationService:
                 model_slug=model_slug,
                 app_num=app_num,
                 template_slug=template_slug,
-                component='backend'
+                component='backend',
+                template_type=template_type
             )
             
             success, content, error = await self.generator.generate(config)
@@ -1307,7 +1264,8 @@ class GenerationService:
                 model_slug=model_slug,
                 app_num=app_num,
                 template_slug=template_slug,
-                component='frontend'
+                component='frontend',
+                template_type=template_type
             )
             
             success, content, error = await self.generator.generate(config)

@@ -20,17 +20,35 @@
     {
       "method": "POST",
       "path": "/api/base64/encode",
-      "description": "Encode text to base64"
+      "description": "Encode text to base64",
+      "request": {
+        "text": "string"
+      },
+      "response": {
+        "encoded": "string (base64)"
+      }
     },
     {
       "method": "POST",
       "path": "/api/base64/decode",
-      "description": "Decode base64 to text"
+      "description": "Decode base64 to text",
+      "request": {
+        "encoded": "string (base64)"
+      },
+      "response": {
+        "text": "string"
+      }
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": null
 }

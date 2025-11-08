@@ -21,27 +21,60 @@
     {
       "method": "POST",
       "path": "/api/images/upload",
-      "description": "Upload image file (multipart/form-data)"
+      "description": "Upload image file",
+      "request": "multipart/form-data with 'image' field",
+      "response": {
+        "id": 1,
+        "filename": "string",
+        "url": "/uploads/image.jpg",
+        "size": 12345,
+        "uploaded_at": "ISO8601"
+      }
     },
     {
       "method": "GET",
       "path": "/api/images",
-      "description": "List all uploaded images"
+      "description": "List all images",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "filename": "string",
+            "url": "string",
+            "size": 12345,
+            "uploaded_at": "ISO8601"
+          }
+        ],
+        "total": 1
+      }
     },
     {
       "method": "DELETE",
       "path": "/api/images/:id",
-      "description": "Delete image and file"
-    },
-    {
-      "method": "GET",
-      "path": "/uploads/:filename",
-      "description": "Serve static image file"
+      "description": "Delete image",
+      "request": null,
+      "response": {}
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Image",
+    "fields": {
+      "id": "integer (primary key)",
+      "filename": "string (required, original name)",
+      "filepath": "string (server path)",
+      "size": "integer (bytes)",
+      "uploaded_at": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

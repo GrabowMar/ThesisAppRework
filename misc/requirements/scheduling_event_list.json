@@ -20,27 +20,93 @@
     {
       "method": "GET",
       "path": "/api/events",
-      "description": "List all events (supports ?start=YYYY-MM-DD&end=YYYY-MM-DD filters)"
+      "description": "List all events (supports ?start_date= and ?end_date= filters)",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "title": "string",
+            "description": "string",
+            "start_time": "ISO8601",
+            "end_time": "ISO8601",
+            "location": "string",
+            "created_at": "ISO8601"
+          }
+        ],
+        "total": 1
+      }
     },
     {
       "method": "POST",
       "path": "/api/events",
-      "description": "Create new event"
+      "description": "Create new event",
+      "request": {
+        "title": "string",
+        "description": "string (optional)",
+        "start_time": "string",
+        "end_time": "string",
+        "location": "string (optional)"
+      },
+      "response": {
+        "id": 1,
+        "title": "string",
+        "description": "string",
+        "start_time": "ISO8601",
+        "end_time": "ISO8601",
+        "location": "string",
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "PUT",
       "path": "/api/events/:id",
-      "description": "Update event"
+      "description": "Update event",
+      "request": {
+        "title": "string (optional)",
+        "description": "string (optional)",
+        "start_time": "string (optional)",
+        "end_time": "string (optional)",
+        "location": "string (optional)"
+      },
+      "response": {
+        "id": 1,
+        "title": "string",
+        "description": "string",
+        "start_time": "ISO8601",
+        "end_time": "ISO8601",
+        "location": "string",
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "DELETE",
       "path": "/api/events/:id",
-      "description": "Delete event"
+      "description": "Delete event",
+      "request": null,
+      "response": {}
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Event",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "title": "string (required, max 255 chars)",
+      "description": "text (optional)",
+      "start_time": "datetime (required, ISO 8601 format)",
+      "end_time": "datetime (required, ISO 8601 format)",
+      "location": "string (optional, max 255 chars)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

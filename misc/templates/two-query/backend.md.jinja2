@@ -7,18 +7,35 @@
 - {{ req }}
 {% endfor %}
 
-## What Scaffold Provides
-Flask app, CORS, health endpoint, error handlers, Flask 3.0, SQLAlchemy 2.0.25
+## API Endpoints (MUST IMPLEMENT EXACTLY)
+{% if api_endpoints %}
+{% for endpoint in api_endpoints %}
+**{{ endpoint.method }} {{ endpoint.path }}**: {{ endpoint.description }}
+{% if endpoint.response %}
+  - Response: `{{ endpoint.response | tojson }}`
+{% endif %}
+{% endfor %}
 
-**Your code merges into the scaffold.**
+**CRITICAL**: Frontend will call these EXACT paths. Do not use different endpoint names.
+{% endif %}
 
-## Generate These Components
+## Generate Complete Flask Application
 
-1. Imports (`from flask import request, jsonify`, `from flask_sqlalchemy import SQLAlchemy`)
-2. Database instance: `db = SQLAlchemy()`
-3. Models (inherit `db.Model`, include `to_dict()` methods)
-4. `setup_app(app)` function
-5. Routes (`@app.route(...)`)
+You must generate a **complete, standalone Flask application** that will replace the scaffold entirely.
+
+## Required Components
+
+1. **All imports** including Flask, CORS, logging, SQLAlchemy, etc.
+2. **Flask app initialization**: `app = Flask(__name__)` with CORS enabled
+3. **Logging configuration** using basicConfig
+4. **Database instance**: `db = SQLAlchemy()`
+5. **Models** (inherit `db.Model`, include `to_dict()` methods)
+6. **`setup_app(app)` function** for database initialization
+7. **All routes** including error handlers (404, 500)
+8. **`if __name__ == '__main__'` block** that:
+   - Calls `setup_app(app)` if it exists
+   - Reads port from `os.environ.get('FLASK_RUN_PORT')` or `os.environ.get('PORT', 5000)`
+   - Runs app with `app.run(host='0.0.0.0', port=port)`
 
 ## Critical Constraints
 
@@ -36,18 +53,25 @@ Flask app, CORS, health endpoint, error handlers, Flask 3.0, SQLAlchemy 2.0.25
 - Input validation, error handling (try/except, rollback)
 - Pagination (page, per_page params)
 - Models use `.to_dict()` for JSON
+- Health endpoint: `GET /health` returns `{"status": "healthy", "service": "backend"}`
 
-**Don't generate:**
-- `app = Flask(...)` (scaffold has it)
-- `if __name__` block (scaffold has it)
+**Output complete working Python code in a single code block.**
 
-**Output only Python code.**
-
-## Pattern
+## Complete File Pattern
 
 ```python
-from flask import request, jsonify
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+import os
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
+CORS(app)
 
 db = SQLAlchemy()
 
@@ -64,8 +88,31 @@ def setup_app(app):
     with app.app_context():
         db.create_all()
 
+@app.route('/health')
+def health():
+    return jsonify({'status': 'healthy', 'service': 'backend'}), 200
+
+# CRITICAL: Use EXACT endpoint paths from API Endpoints section above
+# Example: @app.route('/api/todos', methods=['GET']) for todo list apps
 @app.route('/api/items', methods=['GET'])
 def list_items():
     items = Item.query.all()
     return jsonify({'items': [i.to_dict() for i in items], 'total': len(items)}), 200
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'Not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    logger.error(f'Error: {error}')
+    return jsonify({'error': 'Internal server error'}), 500
+
+# Initialize app at module level for Docker/WSGI compatibility
+setup_app(app)
+
+if __name__ == '__main__':
+    port = int(os.environ.get('FLASK_RUN_PORT', os.environ.get('PORT', 5000)))
+    app.run(host='0.0.0.0', port=port)
 ```
+

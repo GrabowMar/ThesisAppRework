@@ -20,17 +20,53 @@
     {
       "method": "GET",
       "path": "/api/stats",
-      "description": "Get current server statistics"
+      "description": "Get current server stats",
+      "request": null,
+      "response": {
+        "cpu_percent": 45.2,
+        "memory_percent": 68.5,
+        "disk_percent": 55.0,
+        "uptime": 86400,
+        "timestamp": "ISO8601"
+      }
     },
     {
       "method": "GET",
       "path": "/api/stats/history",
-      "description": "Get last 10 statistics readings"
+      "description": "Get historical stats (supports ?hours=24 param)",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "cpu_percent": 45.2,
+            "memory_percent": 68.5,
+            "disk_percent": 55.0,
+            "timestamp": "ISO8601"
+          }
+        ],
+        "total": 100
+      }
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "ServerStat",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "cpu_percent": "decimal (0-100)",
+      "memory_percent": "decimal (0-100)",
+      "disk_percent": "decimal (0-100)",
+      "uptime": "integer (seconds)",
+      "timestamp": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

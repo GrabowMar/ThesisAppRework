@@ -20,32 +20,102 @@
     {
       "method": "GET",
       "path": "/api/tasks",
-      "description": "List all tasks (supports ?status= filter)"
+      "description": "List all tasks (supports ?status= filter)",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "title": "string",
+            "description": "string",
+            "status": "todo",
+            "priority": "medium",
+            "created_at": "ISO8601"
+          }
+        ],
+        "total": 1
+      }
     },
     {
       "method": "POST",
       "path": "/api/tasks",
-      "description": "Create new task"
+      "description": "Create new task",
+      "request": {
+        "title": "string",
+        "description": "string (optional)",
+        "priority": "string (optional)"
+      },
+      "response": {
+        "id": 1,
+        "title": "string",
+        "description": "string",
+        "status": "todo",
+        "priority": "medium",
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "PUT",
       "path": "/api/tasks/:id",
-      "description": "Update task"
+      "description": "Update task",
+      "request": {
+        "title": "string (optional)",
+        "description": "string (optional)",
+        "status": "string (optional)",
+        "priority": "string (optional)"
+      },
+      "response": {
+        "id": 1,
+        "title": "string",
+        "description": "string",
+        "status": "in_progress",
+        "priority": "high",
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "PUT",
       "path": "/api/tasks/:id/status",
-      "description": "Update task status (accepts {status: 'todo'|'in_progress'|'done'})"
+      "description": "Update task status (accepts {status: 'todo'|'in_progress'|'done'})",
+      "request": {
+        "status": "string (todo|in_progress|done)"
+      },
+      "response": {
+        "id": 1,
+        "title": "string",
+        "description": "string",
+        "status": "done",
+        "priority": "medium",
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "DELETE",
       "path": "/api/tasks/:id",
-      "description": "Delete task"
+      "description": "Delete task",
+      "request": null,
+      "response": {}
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Task",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "title": "string (required, max 255 chars)",
+      "description": "text (optional)",
+      "status": "string (todo, in_progress, done - default: todo)",
+      "priority": "string (low, medium, high - default: medium)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

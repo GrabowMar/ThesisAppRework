@@ -18,29 +18,98 @@
   ],
   "api_endpoints": [
     {
-      "method": "POST",
-      "path": "/api/polls",
-      "description": "Create new poll with question and options"
-    },
-    {
       "method": "GET",
       "path": "/api/polls",
-      "description": "List all polls"
+      "description": "List all polls",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "question": "string",
+            "options": [
+              "A",
+              "B"
+            ],
+            "created_at": "ISO8601"
+          }
+        ],
+        "total": 1
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/polls",
+      "description": "Create new poll",
+      "request": {
+        "question": "string",
+        "options": [
+          "string"
+        ]
+      },
+      "response": {
+        "id": 1,
+        "question": "string",
+        "options": [
+          {
+            "id": 1,
+            "text": "string",
+            "votes": 0
+          }
+        ],
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "GET",
       "path": "/api/polls/:id",
-      "description": "Get poll details with current vote counts"
+      "description": "Get poll details with vote counts",
+      "request": null,
+      "response": {
+        "id": 1,
+        "question": "string",
+        "options": [
+          {
+            "id": 1,
+            "text": "string",
+            "votes": 5
+          }
+        ],
+        "total_votes": 10,
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "POST",
       "path": "/api/polls/:id/vote",
-      "description": "Vote on a poll option"
+      "description": "Vote on a poll option",
+      "request": {
+        "option_id": "integer"
+      },
+      "response": {
+        "success": true,
+        "option_id": 1,
+        "new_vote_count": 6
+      }
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Poll",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "question": "string (required, max 500 chars)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+    },
+    "related": "PollOption (id, poll_id, text, votes)"
+  }
 }

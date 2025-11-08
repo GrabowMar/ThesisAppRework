@@ -20,32 +20,107 @@
     {
       "method": "GET",
       "path": "/api/notes",
-      "description": "List all notes (supports ?query=text to search title and content)"
+      "description": "List all notes (supports ?query= search)",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "title": "string",
+            "content": "string",
+            "tags": [
+              "tag1"
+            ],
+            "created_at": "ISO8601",
+            "updated_at": "ISO8601"
+          }
+        ],
+        "total": 1
+      }
     },
     {
       "method": "POST",
       "path": "/api/notes",
-      "description": "Create new note"
+      "description": "Create new note",
+      "request": {
+        "title": "string",
+        "content": "string",
+        "tags": "array (optional)"
+      },
+      "response": {
+        "id": 1,
+        "title": "string",
+        "content": "string",
+        "tags": [
+          "tag1"
+        ],
+        "created_at": "ISO8601",
+        "updated_at": "ISO8601"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/notes/:id",
+      "description": "Get note details",
+      "request": null,
+      "response": {
+        "id": 1,
+        "title": "string",
+        "content": "string",
+        "tags": [
+          "tag1"
+        ],
+        "created_at": "ISO8601",
+        "updated_at": "ISO8601"
+      }
     },
     {
       "method": "PUT",
       "path": "/api/notes/:id",
-      "description": "Update note"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/notes/:id/pin",
-      "description": "Pin or unpin note"
+      "description": "Update note",
+      "request": {
+        "title": "string (optional)",
+        "content": "string (optional)",
+        "tags": "array (optional)"
+      },
+      "response": {
+        "id": 1,
+        "title": "string",
+        "content": "string",
+        "tags": [
+          "tag1"
+        ],
+        "created_at": "ISO8601",
+        "updated_at": "ISO8601"
+      }
     },
     {
       "method": "DELETE",
       "path": "/api/notes/:id",
-      "description": "Delete note"
+      "description": "Delete note",
+      "request": null,
+      "response": {}
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Note",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "title": "string (required, max 255 chars)",
+      "content": "text (required)",
+      "tags": "JSON array of strings",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)",
+      "updated_at": "datetime (auto-update, ISO 8601 format)"
+    }
+  }
 }

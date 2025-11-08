@@ -160,10 +160,12 @@ def generate():
         # Optional flags
         gen_frontend = data.get('generate_frontend', True)
         gen_backend = data.get('generate_backend', True)
+        template_type = data.get('template_type', 'auto')  # 'auto', 'full', or 'compact'
         
         logger.info(f"Generation: {model_slug}/app{app_num}")
         logger.info(f"  OpenRouter model_id: {model.model_id}")
         logger.info(f"  Frontend: {gen_frontend}, Backend: {gen_backend}")
+        logger.info(f"  Template type: {template_type}")
         
         # Run generation
         service = get_generation_service()
@@ -172,7 +174,8 @@ def generate():
             app_num=app_num,
             template_slug=template_slug,
             generate_frontend=gen_frontend,
-            generate_backend=gen_backend
+            generate_backend=gen_backend,
+            template_type=template_type
         ))
         
         if result['success']:

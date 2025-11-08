@@ -20,22 +20,63 @@
     {
       "method": "GET",
       "path": "/api/urls",
-      "description": "List recently shortened URLs"
+      "description": "List recently shortened URLs",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "original_url": "string",
+            "short_code": "string",
+            "click_count": 0,
+            "created_at": "ISO8601"
+          }
+        ],
+        "total": 1
+      }
     },
     {
       "method": "POST",
       "path": "/api/shorten",
-      "description": "Create short URL from original URL"
+      "description": "Create short URL from original URL",
+      "request": {
+        "url": "string"
+      },
+      "response": {
+        "id": 1,
+        "original_url": "string",
+        "short_code": "string",
+        "short_url": "string",
+        "click_count": 0,
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "GET",
       "path": "/:code",
-      "description": "Redirect short code to original URL"
+      "description": "Redirect short code to original URL",
+      "request": null,
+      "response": "302 redirect"
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "URL",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "original_url": "string (required, max 2048 chars)",
+      "short_code": "string (unique, 6 chars)",
+      "click_count": "integer (default: 0)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

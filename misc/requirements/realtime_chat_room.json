@@ -20,17 +20,55 @@
     {
       "method": "GET",
       "path": "/api/messages",
-      "description": "Get recent chat messages"
+      "description": "Get recent chat messages",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "username": "string",
+            "text": "string",
+            "timestamp": "ISO8601"
+          }
+        ],
+        "total": 50
+      }
     },
     {
       "method": "WS",
       "path": "/ws/chat",
-      "description": "WebSocket endpoint for real-time messaging"
+      "description": "WebSocket endpoint for real-time messaging",
+      "request": {
+        "type": "message",
+        "username": "string",
+        "text": "string"
+      },
+      "response": {
+        "type": "message",
+        "id": 1,
+        "username": "string",
+        "text": "string",
+        "timestamp": "ISO8601"
+      }
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Message",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "username": "string (required, max 50 chars)",
+      "text": "text (required, max 1000 chars)",
+      "timestamp": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

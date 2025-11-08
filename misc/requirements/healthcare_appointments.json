@@ -20,27 +20,91 @@
     {
       "method": "GET",
       "path": "/api/appointments",
-      "description": "List all appointments (supports ?date=YYYY-MM-DD filter)"
+      "description": "List all appointments (supports ?date= filter)",
+      "request": null,
+      "response": {
+        "items": [
+          {
+            "id": 1,
+            "patient_name": "string",
+            "doctor": "string",
+            "date": "ISO8601",
+            "time": "string",
+            "reason": "string",
+            "created_at": "ISO8601"
+          }
+        ],
+        "total": 1
+      }
     },
     {
       "method": "POST",
       "path": "/api/appointments",
-      "description": "Create new appointment"
+      "description": "Schedule new appointment",
+      "request": {
+        "patient_name": "string",
+        "doctor": "string",
+        "date": "string",
+        "time": "string",
+        "reason": "string (optional)"
+      },
+      "response": {
+        "id": 1,
+        "patient_name": "string",
+        "doctor": "string",
+        "date": "ISO8601",
+        "time": "string",
+        "reason": "string",
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "PUT",
       "path": "/api/appointments/:id",
-      "description": "Update appointment"
+      "description": "Update appointment",
+      "request": {
+        "date": "string (optional)",
+        "time": "string (optional)",
+        "reason": "string (optional)"
+      },
+      "response": {
+        "id": 1,
+        "patient_name": "string",
+        "doctor": "string",
+        "date": "ISO8601",
+        "time": "string",
+        "reason": "string",
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "DELETE",
       "path": "/api/appointments/:id",
-      "description": "Delete appointment"
+      "description": "Cancel appointment",
+      "request": null,
+      "response": {}
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "Appointment",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "patient_name": "string (required, max 100 chars)",
+      "doctor": "string (required, max 100 chars)",
+      "date": "date (required)",
+      "time": "string (required, HH:MM format)",
+      "reason": "text (optional)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

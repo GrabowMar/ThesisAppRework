@@ -20,12 +20,25 @@
     {
       "method": "POST",
       "path": "/api/validate/xml",
-      "description": "Validate XML syntax (accepts {xml: string}, returns {valid: bool, error?: string, line?: number})"
+      "description": "Validate XML syntax",
+      "request": {
+        "xml": "string"
+      },
+      "response": {
+        "valid": true,
+        "errors": []
+      }
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": null
 }

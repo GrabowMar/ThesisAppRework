@@ -21,27 +21,76 @@
     {
       "method": "POST",
       "path": "/api/auth/register",
-      "description": "Register new user"
+      "description": "Register new user",
+      "request": {
+        "username": "string",
+        "password": "string",
+        "email": "string (optional)"
+      },
+      "response": {
+        "id": 1,
+        "username": "string",
+        "email": "string",
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "POST",
       "path": "/api/auth/login",
-      "description": "Login and get JWT token"
+      "description": "Login and get JWT token",
+      "request": {
+        "username": "string",
+        "password": "string"
+      },
+      "response": {
+        "token": "string (JWT)",
+        "user": {
+          "id": 1,
+          "username": "string",
+          "email": "string"
+        }
+      }
     },
     {
       "method": "GET",
       "path": "/api/auth/me",
-      "description": "Get current user info (requires auth)"
+      "description": "Get current user info (requires auth)",
+      "request": null,
+      "response": {
+        "id": 1,
+        "username": "string",
+        "email": "string",
+        "created_at": "ISO8601"
+      }
     },
     {
       "method": "POST",
       "path": "/api/auth/logout",
-      "description": "Logout user"
+      "description": "Logout user",
+      "request": null,
+      "response": {
+        "message": "Logged out successfully"
+      }
     },
     {
       "method": "GET",
       "path": "/api/health",
-      "description": "Health check endpoint"
+      "description": "Health check endpoint",
+      "request": null,
+      "response": {
+        "status": "healthy",
+        "service": "backend"
+      }
     }
-  ]
+  ],
+  "data_model": {
+    "name": "User",
+    "fields": {
+      "id": "integer (primary key, auto-increment)",
+      "username": "string (unique, required, 3-20 chars)",
+      "password_hash": "string (never exposed in responses)",
+      "email": "string (optional)",
+      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+    }
+  }
 }

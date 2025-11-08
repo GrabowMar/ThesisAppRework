@@ -530,14 +530,20 @@ function selectAllTemplates() {
     // Extract slug from each template
     selectedTemplates = templatesCache.map(t => t.slug).filter(slug => slug);
     console.log('[Wizard] Selected all templates:', selectedTemplates);
-    loadTemplates();
+    
+    // Update UI without reloading
+    updateTemplateSelectionUI();
+    updateSidebar();
     updateNavigationButtons();
   }
 }
 
 function clearAllTemplates() {
   selectedTemplates = [];
-  loadTemplates();
+  
+  // Update UI without reloading
+  updateTemplateSelectionUI();
+  updateSidebar();
   updateNavigationButtons();
 }
 
@@ -914,6 +920,10 @@ async function startGeneration() {
         console.log(`[Wizard] Generating: template ${templateSlug}, model ${modelSlug}`);
         
         try {
+          // Get template type preference
+          const templateTypeEl = document.getElementById('template-type-preference');
+          const templateType = templateTypeEl ? templateTypeEl.value : 'auto';
+          
           const response = await fetch('/api/gen/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -923,7 +933,8 @@ async function startGeneration() {
               app_num: Date.now() % 10000,  // Use random app number
               generate_frontend: true,
               generate_backend: true,
-              scaffold: true
+              scaffold: true,
+              template_type: templateType  // 'auto', 'full', or 'compact'
             })
           });
           
