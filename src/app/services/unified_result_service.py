@@ -451,7 +451,12 @@ class UnifiedResultService:
                 return None
             
             # Check expiration
-            age = datetime.now(timezone.utc) - cache_entry.created_at
+            now = datetime.now(timezone.utc)
+            created_at = cache_entry.created_at
+            # Ensure both datetimes are timezone-aware for comparison
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            age = now - created_at
             if age > self.cache_ttl:
                 logger.debug(f"Cache expired for {task_id} ({age.total_seconds()}s old)")
                 return None

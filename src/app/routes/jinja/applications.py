@@ -89,7 +89,8 @@ def build_applications_context():
         'provider': GeneratedApplication.provider,
         'app_number': GeneratedApplication.app_number,
         'app_type': GeneratedApplication.app_type,
-        'container_status': GeneratedApplication.container_status
+        'container_status': GeneratedApplication.container_status,
+        'created_at': GeneratedApplication.created_at
     }
     
     # Apply sorting if valid column specified

@@ -195,6 +195,7 @@
 					<th scope="col" class="sortable" data-column="model_slug">Model</th>
 					<th scope="col" class="sortable" data-column="provider">Provider</th>
 					<th scope="col" class="text-center sortable" data-column="app_number">App</th>
+					<th scope="col" class="text-center sortable" data-column="created_at">Generated</th>
 					<th scope="col" class="sortable" data-column="app_type">Type</th>
 					<th scope="col" class="text-center sortable" data-column="container_status">Status</th>
 					<th scope="col">Ports</th>
@@ -215,6 +216,13 @@
 					</td>
 					<td class="text-center">
 						<strong>{{ app.app_number }}</strong>
+					</td>
+					<td class="text-center text-muted small">
+						{% if app.created_at %}
+							{{ app.created_at.strftime('%d %b %H:%M') }} UTC
+						{% else %}
+							—
+						{% endif %}
 					</td>
 					<td>
 						<span class="text-muted small">{{ app.app_type|replace('_', ' ')|title }}</span>
