@@ -115,6 +115,9 @@ __pypackages__/
 # Celery stuff
 celerybeat-schedule
 celerybeat.pid
+
+# Process ID files
+run/
 *.pid
 
 # SageMath parsed files
@@ -229,6 +232,15 @@ secrets.txt
 *.temp
 temp/
 tmp/
+
+# Test output files
+*_output.txt
+*_log.txt
+verification_log.txt
+test_gen_output.txt
+
+# Archive directory
+archive/
 
 # Backup files
 *.bak
