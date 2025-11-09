@@ -228,7 +228,8 @@ def build_applications_context():
             'ports': derived_ports,
             'container_size': None,
             'analysis_status': 'none',
-            'status_details': status_details
+            'status_details': status_details,
+            'created_at': r.created_at
         })
 
     # Apply in-memory filters that depend on enriched fields

@@ -89,38 +89,39 @@ def _ensure_timezone_aware(dt: Optional[datetime]) -> Optional[datetime]:
 
 # Model-specific token limits for output generation
 MODEL_TOKEN_LIMITS = {
-    # Anthropic models
-    'anthropic/claude-3.5-sonnet': 8192,
-    'anthropic/claude-3-5-sonnet-20240620': 8192,
-    'anthropic/claude-3-5-sonnet-20241022': 8192,
-    'anthropic/claude-3-opus': 4096,
-    'anthropic/claude-3-sonnet': 4096,
-    'anthropic/claude-3-haiku': 4096,
-    'anthropic/claude-4.5-haiku-20251001': 8192,
-    'anthropic/claude-4.5-sonnet-20250929': 8192,
-    # OpenAI models
-    'openai/gpt-4o': 16384,
-    'openai/gpt-4o-2024-11-20': 16384,
-    'openai/gpt-4o-2024-08-06': 16384,
-    'openai/gpt-4o-mini': 16384,
-    'openai/gpt-4-turbo': 4096,
-    'openai/gpt-4': 8192,
-    'openai/gpt-3.5-turbo': 4096,
-    # Google models
-    'google/gemini-2.0-flash-exp': 8192,
-    'google/gemini-pro': 2048,
-    'google/gemini-1.5-pro': 8192,
-    'google/gemini-1.5-flash': 8192,
-    # Meta models
-    'meta-llama/llama-3.1-405b-instruct': 4096,
-    'meta-llama/llama-3.1-70b-instruct': 4096,
-    'meta-llama/llama-3.2-90b-vision-instruct': 4096,
-    # Mistral models
-    'mistralai/mistral-large': 8192,
-    'mistralai/mistral-medium': 8192,
-    'mistralai/codestral': 8192,
+    # Anthropic models (increased limits for longer code generation)
+    'anthropic/claude-3.5-sonnet': 16384,
+    'anthropic/claude-3-5-sonnet-20240620': 16384,
+    'anthropic/claude-3-5-sonnet-20241022': 16384,
+    'anthropic/claude-3-opus': 8192,
+    'anthropic/claude-3-sonnet': 8192,
+    'anthropic/claude-3-haiku': 8192,
+    'anthropic/claude-4.5-haiku-20251001': 16384,
+    'anthropic/claude-4.5-sonnet-20250929': 16384,
+    # OpenAI models (increased limits for longer code generation)
+    'openai/gpt-4o': 32768,
+    'openai/gpt-4o-2024-11-20': 32768,
+    'openai/gpt-4o-2024-08-06': 32768,
+    'openai/gpt-4o-mini': 32768,
+    'openai/gpt-4-turbo': 8192,
+    'openai/gpt-4': 16384,
+    'openai/gpt-3.5-turbo': 8192,
+    'openai/gpt-5-codex': 8192,  # Added gpt-5-codex with increased limit
+    # Google models (increased limits)
+    'google/gemini-2.0-flash-exp': 16384,
+    'google/gemini-pro': 4096,
+    'google/gemini-1.5-pro': 16384,
+    'google/gemini-1.5-flash': 16384,
+    # Meta models (increased limits)
+    'meta-llama/llama-3.1-405b-instruct': 8192,
+    'meta-llama/llama-3.1-70b-instruct': 8192,
+    'meta-llama/llama-3.2-90b-vision-instruct': 8192,
+    # Mistral models (increased limits)
+    'mistralai/mistral-large': 16384,
+    'mistralai/mistral-medium': 16384,
+    'mistralai/codestral': 16384,
     # Default for unknown models
-    'default': 4096,
+    'default': 8192,
 }
 
 
@@ -145,7 +146,7 @@ class GenerationConfig:
     template_slug: str
     component: str  # 'frontend' or 'backend'
     temperature: float = 0.3
-    max_tokens: int = 32000  # Increased from 16000 for longer, more robust apps
+    max_tokens: int = 64000  # Increased from 32000 for longer, more complete code generation
     requirements: Optional[Dict] = None  # Requirements from JSON file
     template_type: str = 'auto'  # 'auto', 'full', or 'compact'
 
@@ -436,7 +437,8 @@ class CodeGenerator:
         use_compact = False
         if model_slug:
             token_limit = get_model_token_limit(model_slug)
-            use_compact = token_limit < 8000
+            # Use compact for models with <=8192 output limit (raised from 4096 due to higher token limits)
+            use_compact = token_limit <= 8192
         
         # Try compact template first if needed
         if use_compact:
@@ -650,8 +652,9 @@ class CodeGenerator:
             use_compact = True
             logger.info(f"Using COMPACT template for {config.component} (forced by user preference)")
         else:  # 'auto'
-            token_limit = get_model_token_limit(config.model_slug) if hasattr(config, 'model_slug') else 32000
-            use_compact = token_limit < 8000
+            token_limit = get_model_token_limit(config.model_slug) if hasattr(config, 'model_slug') else 64000
+            # Use compact for models with <=8192 output limit (raised from 4096 due to higher token limits)
+            use_compact = token_limit <= 8192
             if use_compact:
                 logger.info(f"Using compact template for {config.component} (auto: model limit {token_limit} tokens)")
             else:
@@ -943,9 +946,30 @@ class CodeMerger:
                 ast.parse(code)
                 logger.info("Backend code validation passed: Python syntax is valid")
             except SyntaxError as e:
+                # Check if error is due to fence markers in the code
+                if '```' in code[:100]:  # Check first 100 chars for fence markers
+                    logger.warning("Syntax error may be due to markdown fences, attempting cleanup")
+                    cleaned_code = re.sub(r'^```[a-z]*\s*\n?', '', code, flags=re.MULTILINE)
+                    cleaned_code = re.sub(r'\n?```\s*$', '', cleaned_code, flags=re.MULTILINE)
+                    
+                    try:
+                        ast.parse(cleaned_code)
+                        logger.info("✓ Code is valid after fence cleanup - fence markers were the issue")
+                        # Note: We can't modify the original 'code' parameter here,
+                        # but caller should handle this via _select_code_block cleanup
+                        errors.append("Code contains markdown fence markers - extraction may have failed")
+                        return False, errors
+                    except SyntaxError:
+                        # Fall through to original error handling
+                        logger.warning("Code still invalid after fence cleanup - genuine syntax error")
+                
+                # Original error handling
                 error_msg = f"Python syntax error at line {e.lineno}: {e.msg}"
-                if e.text:
+                # Only include error text if it doesn't contain fence markers (avoids confusing output)
+                if e.text and '```' not in e.text:
                     error_msg += f"\n  Code: {e.text.strip()}"
+                elif e.text:
+                    error_msg += f"\n  (Error text contains fence markers - code extraction likely failed)"
                 errors.append(error_msg)
                 logger.error(f"Backend code validation failed: {error_msg}")
             except Exception as e:
@@ -985,7 +1009,11 @@ class CodeMerger:
         # Extract code from markdown fences
         generated_code = self._select_code_block(generated_content, {'python', 'py'})
         if not generated_code:
-            logger.error(f"No Python code block found in generation response.")
+            logger.error(f"Code extraction failed: No Python code found in LLM response")
+            if '```' in generated_content[:200]:
+                logger.error(f"  → Found fence markers but extraction failed (incomplete/malformed fences?)")
+            else:
+                logger.error(f"  → No markdown code fences detected (LLM may not have generated code)")
             logger.error(f"Response preview: {generated_content[:500]}...")
             return False
 
@@ -1024,7 +1052,13 @@ class CodeMerger:
         # Extract code from markdown fences
         selected_code = self._select_code_block(generated_content, {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'})
         if not selected_code:
-            logger.error(f"No frontend code detected in generation response")
+            logger.error(f"Code extraction failed: No frontend code found in LLM response")
+            if '```' in generated_content[:200]:
+                logger.error(f"  → Found fence markers but extraction failed (incomplete/malformed fences?)")
+            elif '```python' in generated_content[:200]:
+                logger.error(f"  → LLM used 'python' tag instead of 'jsx/javascript' (wrong language tag)")
+            else:
+                logger.error(f"  → No markdown code fences detected (LLM may not have generated code)")
             logger.error(f"Response preview: {generated_content[:500]}...")
             return False
 
@@ -1064,19 +1098,37 @@ class CodeMerger:
         return True
     
     def _select_code_block(self, content: str, preferred_languages: Set[str]) -> Optional[str]:
-        """Pick the first code block that matches preferred languages."""
+        """Pick the first code block that matches preferred languages.
+        
+        Enhanced with fence cleanup for incomplete/malformed markdown fences.
+        """
         pattern = re.compile(r"```(?P<lang>[^\n\r`]+)?\s*[\r\n]+(.*?)```", re.DOTALL)
         matches = list(pattern.finditer(content or ""))
         
-        if not matches:
-            return content.strip() if content else None
-
-        for match in matches:
-            lang = (match.group('lang') or '').strip().lower()
-            if lang in preferred_languages:
-                return (match.group(2) or '').strip()
-
-        return (matches[0].group(2) or '').strip()
+        if matches:
+            # Standard extraction: find matching language or use first fence
+            for match in matches:
+                lang = (match.group('lang') or '').strip().lower()
+                if lang in preferred_languages:
+                    return (match.group(2) or '').strip()
+            return (matches[0].group(2) or '').strip()
+        
+        # No complete fences found - check for incomplete/malformed fences
+        if '```' in (content or ''):
+            logger.warning("Found incomplete code fences, attempting to strip fence markers")
+            # Strip leading fence markers (e.g., ```python at start)
+            cleaned = re.sub(r'^```[a-z]*\s*\n?', '', content, flags=re.MULTILINE)
+            # Strip trailing fence markers (e.g., ``` at end)
+            cleaned = re.sub(r'\n?```\s*$', '', cleaned, flags=re.MULTILINE)
+            
+            if cleaned.strip() and cleaned.strip() != content.strip():
+                logger.info(f"Successfully stripped fence markers, extracted {len(cleaned.strip())} chars")
+                return cleaned.strip()
+            else:
+                logger.warning("Fence cleanup did not change content")
+        
+        # Fallback: return raw content if no fences at all
+        return content.strip() if content else None
 
     def _infer_backend_dependencies(self, code: str) -> Set[str]:
         """Infer third-party packages from generated backend code."""
