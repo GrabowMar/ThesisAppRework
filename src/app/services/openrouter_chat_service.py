@@ -8,6 +8,7 @@ and the research-mode provider override.
 """
 
 import aiohttp
+import asyncio
 import json
 import logging
 import os
@@ -65,16 +66,18 @@ class OpenRouterChatService:
         model: str, 
         messages: list, 
         temperature: float = 0.3, 
-        max_tokens: int = 16000
+        max_tokens: int = 16000,
+        max_retries: int = 2
     ) -> Tuple[bool, Dict[str, Any], int]:
         """
-        Makes a chat completion request to the OpenRouter API.
+        Makes a chat completion request to the OpenRouter API with retry logic.
 
         Args:
             model: The OpenRouter model ID.
             messages: A list of message objects for the chat history.
             temperature: The sampling temperature.
             max_tokens: The maximum number of tokens to generate.
+            max_retries: Number of retries for network errors (default: 2).
 
         Returns:
             A tuple containing:
@@ -93,29 +96,80 @@ class OpenRouterChatService:
         logger.debug(f"Payload model field: {payload.get('model')}")
         logger.debug(f"Full payload: {json.dumps(payload, indent=2)}")
 
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    self.api_url,
-                    json=payload,
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=300)
-                ) as response:
-                    response_data = await response.json()
-                    if response.status == 200:
-                        logger.info(f"Successfully received chat completion from {model}.")
-                        return True, response_data, response.status
-                    else:
-                        error_message = response_data.get("error", {}).get("message", "Unknown API error")
-                        logger.error(f"OpenRouter API error (Status: {response.status}, Model: {model}): {error_message}")
-                        return False, response_data, response.status
+        last_error = None
+        for attempt in range(max_retries + 1):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(
+                        self.api_url,
+                        json=payload,
+                        headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=300)
+                    ) as response:
+                        status_code = response.status
+                        
+                        # Check if response is JSON before parsing
+                        content_type = response.headers.get('Content-Type', '')
+                        if 'application/json' in content_type:
+                            try:
+                                response_data = await response.json()
+                            except Exception as e:
+                                logger.error(f"Failed to parse JSON response: {e}")
+                                response_text = await response.text()
+                                response_data = {"error": {"message": f"Invalid JSON: {response_text[:500]}"}}
+                        else:
+                            # Non-JSON response (HTML error page, etc.)
+                            response_text = await response.text()
+                            logger.warning(f"Non-JSON response (type: {content_type}): {response_text[:500]}")
+                            response_data = {"error": {"message": f"Non-JSON response: {response_text[:200]}"}}
+                        
+                        if status_code == 200:
+                            logger.info(f"Successfully received chat completion from {model}.")
+                            return True, response_data, status_code
+                        else:
+                            # Handle error responses - extract message safely
+                            if isinstance(response_data, dict):
+                                error_obj = response_data.get("error", {})
+                                if isinstance(error_obj, dict):
+                                    error_message = error_obj.get("message", "Unknown API error")
+                                elif isinstance(error_obj, str):
+                                    error_message = error_obj
+                                else:
+                                    error_message = str(response_data)
+                            elif isinstance(response_data, str):
+                                error_message = response_data
+                            else:
+                                error_message = "Unknown error format"
+                            
+                            logger.error(f"OpenRouter API error (Status: {status_code}, Model: {model}): {error_message}")
+                            return False, response_data if isinstance(response_data, dict) else {"error": error_message}, status_code
 
-        except aiohttp.ClientConnectorError as e:
-            logger.error(f"Network connection error to OpenRouter: {e}")
-            return False, {"error": f"Network error: {e}"}, 503
-        except Exception as e:
-            logger.error(f"An unexpected error occurred during chat completion: {e}")
-            return False, {"error": f"Unexpected error: {e}"}, 500
+            except aiohttp.ClientConnectorError as e:
+                last_error = e
+                logger.warning(f"Network error (attempt {attempt + 1}/{max_retries + 1}): {e}")
+                if attempt < max_retries:
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                    continue
+            except aiohttp.ServerTimeoutError as e:
+                last_error = e
+                logger.warning(f"Timeout (attempt {attempt + 1}/{max_retries + 1}): {e}")
+                if attempt < max_retries:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+            except Exception as e:
+                # Handle TransferEncodingError and other aiohttp errors
+                error_type = type(e).__name__
+                last_error = e
+                logger.error(f"Unexpected error (attempt {attempt + 1}/{max_retries + 1}): {error_type}: {e}")
+                if attempt < max_retries and 'Transfer' in error_type:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+                break
+        
+        # All retries exhausted
+        error_msg = f"Failed after {max_retries + 1} attempts: {last_error}"
+        logger.error(error_msg)
+        return False, {"error": error_msg}, 503
 
 # Singleton instance
 _chat_service = None

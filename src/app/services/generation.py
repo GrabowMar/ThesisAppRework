@@ -40,10 +40,12 @@ import shutil
 import textwrap
 import time
 import sys
+import threading
+from queue import Queue, Empty
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Tuple, Dict, List, Set, Any, Union, Union, Union, Union, Union, Union, Union, Union, Union, Union, Union, Union, Union, Union
+from typing import Optional, Tuple, Dict, List, Set, Any, Union
 
 import aiohttp
 from sqlalchemy.exc import SQLAlchemyError
@@ -65,6 +67,24 @@ from app.models import GeneratedApplication, ModelCapability, AnalysisStatus
 from app.utils.time import utc_now
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_timezone_aware(dt: Optional[datetime]) -> Optional[datetime]:
+    """Ensure a datetime is timezone-aware (UTC).
+    
+    Args:
+        dt: Datetime object that might be naive or aware
+        
+    Returns:
+        Timezone-aware datetime in UTC, or None if input was None
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        # Naive datetime - assume UTC and make aware
+        from datetime import timezone as tz
+        return dt.replace(tzinfo=tz.utc)
+    return dt
 
 
 # Model-specific token limits for output generation
@@ -1110,8 +1130,65 @@ class GenerationService:
     def __init__(self):
         self.scaffolding = ScaffoldingManager()
         self.generator = CodeGenerator()
-        self.merger = CodeMerger()
+        # Remove shared merger - create per-request instances instead
         self.max_concurrent = int(os.getenv('GENERATION_MAX_CONCURRENT', os.getenv('SIMPLE_GENERATION_MAX_CONCURRENT', '4')))
+        
+        # Queue-based generation control
+        self.use_queue = os.getenv('GENERATION_USE_QUEUE', 'true').lower() == 'true'
+        self.generation_queue: Optional[Queue] = Queue() if self.use_queue else None
+        self.active_generations: Dict[str, threading.Lock] = {}  # Track locks per app
+        self.active_lock = threading.Lock()  # Protects active_generations dict
+        
+        # Start queue worker thread if enabled
+        if self.use_queue:
+            self.queue_worker_thread = threading.Thread(
+                target=self._queue_worker,
+                daemon=True,
+                name="GenerationQueueWorker"
+            )
+            self.queue_worker_thread.start()
+            logger.info(f"Generation queue enabled with max_concurrent={self.max_concurrent}")
+        else:
+            logger.info(f"Generation queue disabled - direct execution with max_concurrent={self.max_concurrent}")
+
+    def _get_app_lock(self, model_slug: str, app_num: int) -> threading.Lock:
+        """Get or create a file-lock for a specific app to prevent concurrent writes."""
+        app_key = f"{model_slug}/app{app_num}"
+        with self.active_lock:
+            if app_key not in self.active_generations:
+                self.active_generations[app_key] = threading.Lock()
+            return self.active_generations[app_key]
+
+    def _queue_worker(self):
+        """Background worker that processes generation tasks from the queue."""
+        if self.generation_queue is None:
+            logger.error("Queue worker started but queue is None!")
+            return
+            
+        logger.info("Generation queue worker started")
+        while True:
+            try:
+                # Get task from queue with timeout
+                task = self.generation_queue.get(timeout=1.0)
+                if task is None:  # Poison pill to stop worker
+                    break
+                
+                # Execute the task
+                func, args, kwargs, result_callback = task
+                try:
+                    result = asyncio.run(func(*args, **kwargs))
+                    if result_callback:
+                        result_callback(result)
+                except Exception as e:
+                    logger.exception(f"Queue task failed: {e}")
+                    if result_callback:
+                        result_callback({'success': False, 'errors': [str(e)]})
+                finally:
+                    self.generation_queue.task_done()
+            except Empty:
+                continue
+            except Exception as e:
+                logger.exception(f"Queue worker error: {e}")
 
     def get_template_catalog(self) -> List[Dict[str, Any]]:
         """Return available generation templates with metadata.
@@ -1215,6 +1292,9 @@ class GenerationService:
         Args:
             template_type: 'auto' (default, based on model limit), 'full', or 'compact'
         """
+        # Acquire app-specific lock to prevent concurrent writes to same app
+        app_lock = self._get_app_lock(model_slug, app_num)
+        
         result = {
             'success': False,
             'scaffolded': False,
@@ -1223,60 +1303,77 @@ class GenerationService:
             'errors': []
         }
         
-        # Step 1: Scaffold
-        logger.info(f"=== Generating {model_slug}/app{app_num} ===")
-        logger.info("Step 1: Scaffolding...")
-        
-        if not self.scaffolding.scaffold(model_slug, app_num):
-            result['errors'].append("Scaffolding failed")
+        try:
+            # Try to acquire lock with timeout to detect deadlocks
+            if not app_lock.acquire(timeout=300):  # 5 minutes
+                result['errors'].append(f"Timeout acquiring lock for {model_slug}/app{app_num}")
+                return result
+            
+            try:
+                # Create per-request CodeMerger instance
+                merger = CodeMerger()
+                
+                # Step 1: Scaffold
+                logger.info(f"=== Generating {model_slug}/app{app_num} ===")
+                logger.info("Step 1: Scaffolding...")
+                
+                if not self.scaffolding.scaffold(model_slug, app_num):
+                    result['errors'].append("Scaffolding failed")
+                    return result
+                
+                result['scaffolded'] = True
+                app_dir = self.scaffolding.get_app_dir(model_slug, app_num)
+                
+                # Step 2: Generate Backend
+                if generate_backend:
+                    logger.info("Step 2: Generating backend...")
+                    
+                    config = GenerationConfig(
+                        model_slug=model_slug,
+                        app_num=app_num,
+                        template_slug=template_slug,
+                        component='backend',
+                        template_type=template_type
+                    )
+                    
+                    success, content, error = await self.generator.generate(config)
+                    
+                    if success:
+                        if merger.merge_backend(app_dir, content):
+                            result['backend_generated'] = True
+                        else:
+                            result['errors'].append("Backend merge failed")
+                    else:
+                        result['errors'].append(f"Backend generation failed: {error}")
+                
+                # Step 3: Generate Frontend
+                if generate_frontend:
+                    logger.info("Step 3: Generating frontend...")
+                    
+                    config = GenerationConfig(
+                        model_slug=model_slug,
+                        app_num=app_num,
+                        template_slug=template_slug,
+                        component='frontend',
+                        template_type=template_type
+                    )
+                    
+                    success, content, error = await self.generator.generate(config)
+                    
+                    if success:
+                        if merger.merge_frontend(app_dir, content):
+                            result['frontend_generated'] = True
+                        else:
+                            result['errors'].append("Frontend merge failed")
+                    else:
+                        result['errors'].append(f"Frontend generation failed: {error}")
+            finally:
+                # Always release the lock
+                app_lock.release()
+        except Exception as e:
+            logger.exception(f"Unexpected error during generation: {e}")
+            result['errors'].append(f"Unexpected error: {str(e)}")
             return result
-        
-        result['scaffolded'] = True
-        app_dir = self.scaffolding.get_app_dir(model_slug, app_num)
-        
-        # Step 2: Generate Backend
-        if generate_backend:
-            logger.info("Step 2: Generating backend...")
-            
-            config = GenerationConfig(
-                model_slug=model_slug,
-                app_num=app_num,
-                template_slug=template_slug,
-                component='backend',
-                template_type=template_type
-            )
-            
-            success, content, error = await self.generator.generate(config)
-            
-            if success:
-                if self.merger.merge_backend(app_dir, content):
-                    result['backend_generated'] = True
-                else:
-                    result['errors'].append("Backend merge failed")
-            else:
-                result['errors'].append(f"Backend generation failed: {error}")
-        
-        # Step 3: Generate Frontend
-        if generate_frontend:
-            logger.info("Step 3: Generating frontend...")
-            
-            config = GenerationConfig(
-                model_slug=model_slug,
-                app_num=app_num,
-                template_slug=template_slug,
-                component='frontend',
-                template_type=template_type
-            )
-            
-            success, content, error = await self.generator.generate(config)
-            
-            if success:
-                if self.merger.merge_frontend(app_dir, content):
-                    result['frontend_generated'] = True
-                else:
-                    result['errors'].append("Frontend merge failed")
-            else:
-                result['errors'].append(f"Frontend generation failed: {error}")
         
         # Overall success
         result['success'] = (
@@ -1476,9 +1573,11 @@ class GenerationService:
                     .limit(5)
                     .all()
                 )
+                # Ensure timezone-aware comparison to prevent errors
                 status['in_flight_keys'] = [
                     f"{app.model_slug}/app{app.app_number}"
                     for app in recent
+                    if _ensure_timezone_aware(app.updated_at) is not None
                 ]
 
             total_apps = GeneratedApplication.query.count()

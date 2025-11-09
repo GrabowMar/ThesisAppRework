@@ -372,6 +372,15 @@ def create_app(config_name: str = 'default') -> Flask:
             logger.warning(f"Task execution service not started: {_exec_err}")
             logger.warning("Web app analyses will NOT generate result files until service is started")
         
+        # Initialize maintenance service for automated cleanup (orphan apps/tasks, stuck tasks, old tasks)
+        try:  # pragma: no cover - wiring
+            from app.services.maintenance_service import init_maintenance_service
+            maintenance_svc = init_maintenance_service(app=app, interval_seconds=3600)
+            logger.info(f"Maintenance service initialized (interval={maintenance_svc.interval}s, runs on startup + hourly)")
+            logger.info("Periodic cleanup will keep database and filesystem in sync")
+        except Exception as _maint_err:  # pragma: no cover
+            logger.warning(f"Maintenance service not started: {_maint_err}")
+        
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
         # In strict mode, abort app creation when WS service selection fails

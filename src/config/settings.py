@@ -83,6 +83,13 @@ class Config:
     # Whether to retry failed analyzer services (default: no retry for faster feedback)
     ANALYZER_RETRY_FAILED_SERVICES = os.environ.get('ANALYZER_RETRY_FAILED_SERVICES', 'false').lower() == 'true'
     
+    # Maintenance Service Configuration
+    # Periodic cleanup service to keep database and filesystem in sync
+    MAINTENANCE_ENABLED = os.environ.get('MAINTENANCE_ENABLED', 'True').lower() == 'true'
+    MAINTENANCE_INTERVAL_SECONDS = int(os.environ.get('MAINTENANCE_INTERVAL_SECONDS', '3600'))  # 1 hour default
+    MAINTENANCE_TASK_RETENTION_DAYS = int(os.environ.get('MAINTENANCE_TASK_RETENTION_DAYS', '30'))  # Keep tasks for 30 days
+    MAINTENANCE_STUCK_TASK_TIMEOUT_MINUTES = int(os.environ.get('MAINTENANCE_STUCK_TASK_TIMEOUT_MINUTES', '60'))  # Mark stuck after 1 hour
+    
     # Security Analysis Tool Configurations
     SECURITY_ANALYZER_CONFIG = {
         'bandit': {
