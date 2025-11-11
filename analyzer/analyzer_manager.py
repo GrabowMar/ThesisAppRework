@@ -1868,7 +1868,9 @@ class AnalyzerManager:
         # Extract SARIF data to separate files before processing
         services_with_sarif_refs = self._extract_sarif_to_files(consolidated_results, sarif_dir)
         
-        filename = f"{safe_slug}_app{app_number}_task_{sanitized_task}_{timestamp}.json"
+        # Fix double-prefix bug: sanitized_task already starts with 'task_' so don't add it again
+        task_part = sanitized_task if sanitized_task.startswith('task_') else f"task_{sanitized_task}"
+        filename = f"{safe_slug}_app{app_number}_{task_part}_{timestamp}.json"
         filepath = task_dir / filename
 
         try:
@@ -1974,6 +1976,10 @@ class AnalyzerManager:
 
             # 5. Prune legacy directories
             self.prune_legacy_results(model_slug, app_number)
+            
+            # 6. Cleanup orphaned empty result files created by premature writes
+            self._cleanup_empty_result_files(task_dir, safe_slug, app_number, sanitized_task, preserve=filepath)
+            
             logger.info(f"[STATS] Aggregated {aggregated_findings.get('findings_total', 0)} findings from {len(tools_executed)} tools")
             
             return filepath
@@ -2011,6 +2017,68 @@ class AnalyzerManager:
                         candidate.unlink()
                     except Exception:
                         logger.debug("Failed to remove legacy task payload %s", candidate)
+
+    def _cleanup_empty_result_files(
+        self,
+        task_dir: Path,
+        safe_slug: str,
+        app_number: int,
+        sanitized_task: str,
+        preserve: Optional[Path] = None,
+    ) -> None:
+        """
+        Remove empty or incomplete result files created by premature writes.
+        
+        These files were created by the Flask app's write_task_result_files() before
+        analysis completed, resulting in empty or minimal JSON files. The canonical
+        result file written by save_task_results() should be preserved.
+        
+        Args:
+            task_dir: Directory containing task results
+            safe_slug: Sanitized model slug
+            app_number: Application number
+            sanitized_task: Sanitized task ID
+            preserve: Path to the canonical result file to keep
+        """
+        # Pattern matches files with the old naming scheme (without double-prefix)
+        # Example: amazon_nova-pro-v1_app1_task_c186bd84fe47_*.json
+        pattern = f"{safe_slug}_app{app_number}_{sanitized_task}_*.json"
+        
+        removed_count = 0
+        for candidate in task_dir.glob(pattern):
+            # Skip universal files and the canonical file we just wrote
+            if candidate.name.endswith('_universal.json'):
+                continue
+            if preserve and candidate.resolve() == preserve.resolve():
+                continue
+                
+            # Check if file is empty or has minimal content (likely premature write)
+            try:
+                if candidate.stat().st_size < 500:  # Very small file, likely empty structure
+                    candidate.unlink()
+                    removed_count += 1
+                    logger.debug(f"Removed empty result file: {candidate.name}")
+                    continue
+                    
+                # Check if file has actual analysis data
+                with open(candidate, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    results = data.get('results', {})
+                    
+                    # File is considered empty if it has no services data and no findings
+                    has_services = bool(results.get('services'))
+                    has_findings = len(results.get('findings', [])) > 0
+                    has_tools = len(results.get('tools', {})) > 0
+                    
+                    if not has_services and not has_findings and not has_tools:
+                        candidate.unlink()
+                        removed_count += 1
+                        logger.info(f"Removed incomplete result file: {candidate.name}")
+            except Exception as e:
+                logger.debug(f"Failed to check/remove result file {candidate.name}: {e}")
+        
+        if removed_count > 0:
+            logger.info(f"Cleaned up {removed_count} empty/incomplete result file(s) from {task_dir.name}")
 
     def _write_service_snapshots(
         self,

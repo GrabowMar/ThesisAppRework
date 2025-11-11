@@ -293,22 +293,9 @@ class TaskExecutionService:
                                 merged_metadata.update(result['payload'])
                                 task_db.set_metadata(merged_metadata)
                                 
-                                # Write result files to disk (standardized persistence)
-                                from app.services.result_file_writer import write_task_result_files
-                                try:
-                                    written_path = write_task_result_files(task_db, result['payload'])
-                                    if written_path:
-                                        self._log(f"Successfully wrote result files to disk for task {task_db.task_id}: {written_path}")
-                                        # Store file path in task metadata for reference
-                                        task_db.set_metadata({**task_db.get_metadata(), 'result_file_path': str(written_path)})
-                                    else:
-                                        self._log(f"Result file write returned None for task {task_db.task_id} - payload may be incomplete. Check earlier logs for details.", level='error')
-                                        # Add warning to task status
-                                        task_db.set_metadata({**task_db.get_metadata(), 'result_file_warning': 'File write returned None'})
-                                except Exception as write_err:
-                                    self._log(f"CRITICAL: Failed to write result files to disk for task {task_db.task_id}: {write_err}", level='error', exc_info=True)
-                                    # Store error in task metadata
-                                    task_db.set_metadata({**task_db.get_metadata(), 'result_file_error': str(write_err)})
+                                # Note: Result files are written by analyzer_manager.py after analysis completes.
+                                # Previously this called write_task_result_files here, which created empty files
+                                # before analysis finished. The canonical writer is save_task_results() in analyzer_manager.
                             except Exception as e:
                                 self._log("Failed to store analysis results for task %s: %s", task_db.task_id, e, level='warning')
                         
