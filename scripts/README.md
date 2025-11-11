@@ -2,6 +2,11 @@
 
 This directory contains utility, diagnostic, and testing scripts for the ThesisAppRework project.
 
+## Top-Level Scripts
+
+- `create_admin.py` - Initialize database and create default admin user (used by wipeout)
+- `test_admin_login.py` - Verify admin user credentials after creation
+
 ## Directory Structure
 
 ### diagnostics/

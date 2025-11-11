@@ -920,6 +920,11 @@ async function startGeneration() {
         console.log(`[Wizard] Generating: template ${templateSlug}, model ${modelSlug}`);
         
         try {
+          // Get next available app number for this model
+          const nextAppResponse = await fetch(`/api/models/${modelSlug}/next-app-number`);
+          const nextAppData = await nextAppResponse.json();
+          const appNum = nextAppData.next_app_number || 1;
+          
           // Get template type preference
           const templateTypeEl = document.getElementById('template-type-preference');
           const templateType = templateTypeEl ? templateTypeEl.value : 'auto';
@@ -930,11 +935,11 @@ async function startGeneration() {
             body: JSON.stringify({
               template_slug: templateSlug,
               model_slug: modelSlug,
-              app_num: Date.now() % 10000,  // Use random app number
+              app_num: appNum,
               generate_frontend: true,
               generate_backend: true,
               scaffold: true,
-              template_type: templateType  // 'auto', 'full', or 'compact'
+              template_type: templateType
             })
           });
           

@@ -317,9 +317,11 @@ class CodeGenerator:
             logger.error(f"Model not found in database: {config.model_slug}")
             return False, "", f"Model not found in database: {config.model_slug}"
         
-        # Use hugging_face_id if available (for case-sensitive providers), otherwise fall back to model_id
-        openrouter_model = model.hugging_face_id or model.model_id
-        logger.info(f"Using OpenRouter model: {openrouter_model} (HF ID: {model.hugging_face_id}, model_id: {model.model_id}, slug: {config.model_slug})")
+        # Priority: 1) hugging_face_id (case-sensitive, most accurate)
+        #          2) base_model_id (normalized, no variant suffix)
+        #          3) model_id (fallback)
+        openrouter_model = model.hugging_face_id or model.base_model_id or model.model_id
+        logger.info(f"Using OpenRouter model: {openrouter_model} (HF ID: {model.hugging_face_id}, base: {model.base_model_id}, model_id: {model.model_id}, slug: {config.model_slug})")
         
         # Get model-specific token limit, capping at config.max_tokens
         model_limit = get_model_token_limit(openrouter_model, default=config.max_tokens)
@@ -351,8 +353,16 @@ class CodeGenerator:
             self._save_response(run_id, safe_model, config.app_num, response_data, {})
 
             if not success:
-                error_message = response_data.get("error", {}).get("message", "Unknown API error")
-                return False, "", f"API error {status_code}: {error_message}"
+                error_obj = response_data.get("error", {})
+                error_message = error_obj.get("message", "Unknown API error")
+                error_code = error_obj.get("code", status_code)
+                
+                # Log detailed error for debugging
+                logger.error(f"OpenRouter API error for {openrouter_model}: {error_code} - {error_message}")
+                logger.error(f"Full error response: {response_data}")
+                
+                # Return user-friendly error with model ID info
+                return False, "", f"API error {error_code}: {error_message} (tried model ID: {openrouter_model})"
 
             content = response_data['choices'][0]['message']['content']
             finish_reason = response_data['choices'][0].get('finish_reason', 'unknown')

@@ -51,21 +51,30 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 {{ research_scroll_spy_script() }}
 <script>
-function generateApplication() {
-  const appNumber = Math.floor(Math.random() * 1000) + 1;
-  htmx.ajax('POST', '/models/applications/generate', {
-    target: '#section-applications',
-    swap: 'innerHTML',
-    values: {
-      model_slug: '{{ model_slug }}',
-      app_number: appNumber,
-      app_type: 'web_app'
-    }
-  }).then(() => {
-    showToast('Application generation started', 'success');
-  }).catch(() => {
-    showToast('Failed to start generation', 'error');
-  });
+async function generateApplication() {
+  try {
+    // Get next available app number for this model
+    const response = await fetch('/api/models/{{ model_slug }}/next-app-number');
+    const data = await response.json();
+    const appNumber = data.next_app_number || 1;
+    
+    htmx.ajax('POST', '/models/applications/generate', {
+      target: '#section-applications',
+      swap: 'innerHTML',
+      values: {
+        model_slug: '{{ model_slug }}',
+        app_number: appNumber,
+        app_type: 'web_app'
+      }
+    }).then(() => {
+      showToast(`Application ${appNumber} generation started`, 'success');
+    }).catch(() => {
+      showToast('Failed to start generation', 'error');
+    });
+  } catch (error) {
+    console.error('Error getting next app number:', error);
+    showToast('Failed to determine app number', 'error');
+  }
 }
 
 function openModelComparison() {

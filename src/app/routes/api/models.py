@@ -65,6 +65,29 @@ def api_model_apps(model_slug):
     return api_success(data, message="Applications fetched")
 
 
+@models_bp.route('/<model_slug>/next-app-number')
+def api_model_next_app_number(model_slug):
+    """Get the next available app number for a model (sequential numbering)."""
+    try:
+        # Get the highest app number for this model
+        max_app = GeneratedApplication.query.filter_by(
+            model_slug=model_slug
+        ).order_by(
+            GeneratedApplication.app_number.desc()
+        ).first()
+        
+        next_app_number = (max_app.app_number + 1) if max_app else 1
+        
+        return api_success({
+            'model_slug': model_slug,
+            'next_app_number': next_app_number,
+            'existing_apps': max_app.app_number if max_app else 0
+        }, message=f"Next app number: {next_app_number}")
+    except Exception as e:
+        current_app.logger.error(f"Error getting next app number for {model_slug}: {e}")
+        return api_error("Failed to get next app number", details={"reason": str(e)})
+
+
 @models_bp.route('/list')
 def api_models_list():
     """Get models list."""

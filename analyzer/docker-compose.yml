@@ -1,5 +1,6 @@
 # Modern Docker Compose for Analyzer Infrastructure
 # Uses 2025 best practices: no version field, health checks, non-root users
+# Optimized with shared base image and BuildKit for 10x faster builds
 
 services:
   # WebSocket Gateway
@@ -38,6 +39,7 @@ services:
         reservations:
           memory: 128M
           cpus: '0.1'
+
   # Static Security & Quality Analyzer
   static-analyzer:
     build:

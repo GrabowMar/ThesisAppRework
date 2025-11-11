@@ -14,25 +14,23 @@ WORKDIR /app
 
 # Copy requirements first for better caching (from repo root context)
 COPY services/static-analyzer/requirements.txt ./requirements.txt
-COPY services/static-analyzer/package.json ./package.json
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Node.js dependencies - now including SARIF formatter
-RUN npm install && npm install -g \
-    eslint \
-    @typescript-eslint/parser \
-    @typescript-eslint/eslint-plugin \
-    eslint-plugin-security \
-    eslint-plugin-react \
-    eslint-plugin-vue \
-    stylelint \
-    stylelint-config-standard \
-    snyk \
-    prettier \
-    csslint \
-    @microsoft/eslint-formatter-sarif
+# Install Node.js dependencies globally (consolidated single install)
+RUN npm install -g --no-audit --no-fund \
+    eslint@9.0.0 \
+    @typescript-eslint/parser@latest \
+    @typescript-eslint/eslint-plugin@latest \
+    eslint-plugin-security@latest \
+    eslint-plugin-react@latest \
+    eslint-plugin-vue@latest \
+    stylelint@latest \
+    stylelint-config-standard@latest \
+    prettier@latest \
+    @microsoft/eslint-formatter-sarif@3.1.0 && \
+    npm cache clean --force
 
 # Create non-root user
 RUN useradd -u 1000 -m analyzer

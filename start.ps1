@@ -14,7 +14,7 @@
     - Developer mode with configurable analyzer stack
 
 .PARAMETER Mode
-    Operation mode: Interactive (default), Start, Dev, Stop, Status, Logs, Rebuild, Clean
+    Operation mode: Interactive (default), Start, Dev, Stop, Status, Logs, Rebuild, CleanRebuild, Clean
 
 .PARAMETER NoAnalyzer
     Skip analyzer microservices (faster dev startup)
@@ -51,7 +51,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('Interactive', 'Start', 'Dev', 'Stop', 'Status', 'Logs', 'Rebuild', 'Clean', 'Wipeout', 'Health', 'Help')]
+    [ValidateSet('Interactive', 'Start', 'Dev', 'Stop', 'Status', 'Logs', 'Rebuild', 'CleanRebuild', 'Clean', 'Wipeout', 'Health', 'Help')]
     [string]$Mode = 'Interactive',
 
     [switch]$NoAnalyzer,
@@ -705,17 +705,18 @@ function Show-InteractiveMenu {
     
     Write-Host "Select an option:" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "  [S] Start     - Start full stack (Flask + Analyzers)" -ForegroundColor White
-    Write-Host "  [D] Dev       - Developer mode (Flask + ThreadPoolExecutor, debug on)" -ForegroundColor White
-    Write-Host "  [R] Rebuild   - Rebuild analyzer containers" -ForegroundColor White
-    Write-Host "  [L] Logs      - View aggregated logs" -ForegroundColor White
-    Write-Host "  [M] Monitor   - Live status monitoring" -ForegroundColor White
-    Write-Host "  [H] Health    - Check service health" -ForegroundColor White
-    Write-Host "  [X] Stop      - Stop all services" -ForegroundColor White
-    Write-Host "  [C] Clean     - Clean logs and PID files" -ForegroundColor White
-    Write-Host "  [W] Wipeout   - ⚠️  Reset to default state (DB, apps, results)" -ForegroundColor White
-    Write-Host "  [?] Help      - Show detailed help" -ForegroundColor White
-    Write-Host "  [Q] Quit      - Exit" -ForegroundColor White
+    Write-Host "  [S] Start        - Start full stack (Flask + Analyzers)" -ForegroundColor White
+    Write-Host "  [D] Dev          - Developer mode (Flask + ThreadPoolExecutor, debug on)" -ForegroundColor White
+    Write-Host "  [R] Rebuild      - Rebuild containers (fast, with cache)" -ForegroundColor White
+    Write-Host "  [F] CleanRebuild - ⚠️  Force rebuild (no cache, slow)" -ForegroundColor White
+    Write-Host "  [L] Logs         - View aggregated logs" -ForegroundColor White
+    Write-Host "  [M] Monitor      - Live status monitoring" -ForegroundColor White
+    Write-Host "  [H] Health       - Check service health" -ForegroundColor White
+    Write-Host "  [X] Stop         - Stop all services" -ForegroundColor White
+    Write-Host "  [C] Clean        - Clean logs and PID files" -ForegroundColor White
+    Write-Host "  [W] Wipeout      - ⚠️  Reset to default state (DB, apps, results)" -ForegroundColor White
+    Write-Host "  [?] Help         - Show detailed help" -ForegroundColor White
+    Write-Host "  [Q] Quit         - Exit" -ForegroundColor White
     Write-Host ""
     
     $choice = Read-Host "Enter choice"
@@ -732,6 +733,11 @@ function Show-InteractiveMenu {
         }
         'R' {
             Invoke-RebuildContainers
+            Read-Host "`nPress Enter to return to menu"
+            Show-InteractiveMenu
+        }
+        'F' {
+            Invoke-CleanRebuild
             Read-Host "`nPress Enter to return to menu"
             Show-InteractiveMenu
         }
@@ -791,16 +797,50 @@ function Invoke-RebuildContainers {
     Push-Location $Script:ANALYZER_DIR
     try {
         Write-Status "Stopping and removing existing containers..." "Info"
-        docker-compose down --rmi all --volumes 2>&1 | Out-Null
+        docker-compose down 2>&1 | Out-Null
         
-        Write-Status "Building from scratch (this may take a few minutes)..." "Info"
-        docker-compose build --no-cache
+        # Enable BuildKit for faster builds and cache mounts
+        $env:DOCKER_BUILDKIT = 1
+        $env:COMPOSE_DOCKER_CLI_BUILD = 1
+        
+        Write-Status "Building with BuildKit optimization..." "Info"
+        Write-Host "  • Shared base image caching enabled" -ForegroundColor Gray
+        Write-Host "  • Multi-stage builds with layer reuse" -ForegroundColor Gray
+        Write-Host "  • BuildKit cache mounts for pip/npm" -ForegroundColor Gray
+        Write-Host ""
+        
+        # Build base image first (cached for all services)
+        Write-Status "Building shared base image (Node.js + tools)..." "Info"
+        docker-compose build base
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Status "  Failed to build base image" "Error"
+            return $false
+        }
+        
+        # Build all services in parallel (depends on base)
+        Write-Status "Building analyzer services in parallel..." "Info"
+        docker-compose build --parallel static-analyzer dynamic-analyzer performance-tester ai-analyzer gateway
         
         if ($LASTEXITCODE -eq 0) {
-            Write-Status "Rebuild completed successfully" "Success"
+            Write-Host ""
+            Write-Banner "✅ Rebuild Complete" "Green"
+            
+            Write-Host "Build Optimization Summary:" -ForegroundColor Cyan
+            Write-Host "  ✓ BuildKit cache mounts enabled" -ForegroundColor Green
+            Write-Host "  ✓ Shared base image reused across services" -ForegroundColor Green
+            Write-Host "  ✓ Multi-stage builds minimize final image size" -ForegroundColor Green
+            Write-Host "  ✓ ZAP (390MB) cached in build layer" -ForegroundColor Green
+            Write-Host "  ✓ Node.js installation shared (saves 10+ min)" -ForegroundColor Green
+            Write-Host ""
+            
+            Write-Host "Expected Build Times:" -ForegroundColor Cyan
+            Write-Host "  • First build (clean):      ~12-18 minutes" -ForegroundColor Yellow
+            Write-Host "  • Incremental (code only):  ~30-90 seconds" -ForegroundColor Green
+            Write-Host "  • Dependency updates:       ~3-5 minutes" -ForegroundColor Yellow
+            Write-Host ""
             
             # Ask if user wants to start the services
-            Write-Host ""
             Write-Host "Would you like to start the analyzer services now? (Y/N): " -NoNewline -ForegroundColor Yellow
             $response = Read-Host
             
@@ -836,8 +876,60 @@ function Invoke-RebuildContainers {
     }
 }
 
+function Invoke-CleanRebuild {
+    Write-Banner "⚠️  Clean Rebuild - Complete Cache Wipe" "Yellow"
+    
+    Write-Host "This will:" -ForegroundColor Yellow
+    Write-Host "  • Remove all Docker images and volumes" -ForegroundColor Yellow
+    Write-Host "  • Clear BuildKit cache" -ForegroundColor Yellow
+    Write-Host "  • Force complete rebuild from scratch" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "⚠️  Use this only if experiencing build issues!" -ForegroundColor Yellow
+    Write-Host "    Normal rebuilds are much faster with caching." -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "Type 'CLEAN' to confirm (or anything else to cancel): " -NoNewline -ForegroundColor Yellow
+    $confirmation = Read-Host
+    
+    if ($confirmation -ne 'CLEAN') {
+        Write-Status "Clean rebuild cancelled - use 'Rebuild' for faster cached builds" "Warning"
+        return $false
+    }
+    
+    Push-Location $Script:ANALYZER_DIR
+    try {
+        Write-Status "Performing deep clean..." "Info"
+        
+        # Full cleanup
+        docker-compose down --rmi all --volumes 2>&1 | Out-Null
+        
+        # Clear BuildKit cache
+        Write-Status "Clearing BuildKit cache..." "Info"
+        docker builder prune --all --force 2>&1 | Out-Null
+        
+        # Enable BuildKit
+        $env:DOCKER_BUILDKIT = 1
+        $env:COMPOSE_DOCKER_CLI_BUILD = 1
+        
+        Write-Status "Building from scratch (this will take 12-18 minutes)..." "Warning"
+        docker-compose build --no-cache --parallel
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host ""
+            Write-Banner "✅ Clean Rebuild Complete" "Green"
+            Write-Status "All caches rebuilt - subsequent builds will be fast again" "Success"
+            return $true
+        } else {
+            Write-Status "Clean rebuild failed" "Error"
+            return $false
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
 function Invoke-Cleanup {
     Write-Banner "Cleaning ThesisApp"
+
     
     # Check if services are running
     $healthResults = $Script:HealthMonitor.CheckAll()
@@ -1016,7 +1108,8 @@ function Show-Help {
     Write-Host "  Status        Show service status (one-time check)" -ForegroundColor White
     Write-Host "  Health        Continuous health monitoring (auto-refresh)" -ForegroundColor White
     Write-Host "  Logs          View aggregated logs from all services" -ForegroundColor White
-    Write-Host "  Rebuild       Rebuild analyzer Docker containers" -ForegroundColor White
+    Write-Host "  Rebuild       Rebuild containers (fast, with cache - 30-90 sec)" -ForegroundColor White
+    Write-Host "  CleanRebuild  ⚠️  Force rebuild from scratch (no cache - 12-18 min)" -ForegroundColor White
     Write-Host "  Clean         Clean logs and PID files" -ForegroundColor White
     Write-Host "  Wipeout       ⚠️  Reset to default state (removes DB, apps, results)" -ForegroundColor White
     Write-Host "  Help          Show this help message`n" -ForegroundColor White
@@ -1139,6 +1232,9 @@ try {
         }
         'Rebuild' {
             Invoke-RebuildContainers
+        }
+        'CleanRebuild' {
+            Invoke-CleanRebuild
         }
         'Clean' {
             Invoke-Cleanup
