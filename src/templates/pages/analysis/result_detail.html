@@ -9,7 +9,7 @@
 
 <div class="research-detail-shell">
   {# Build view structure for unified header #}
-  {% set status_color = 'success' if descriptor.status in ['completed', 'success'] else ('danger' if descriptor.status in ['failed', 'error'] else 'secondary') %}
+  {% set status_color = 'success' if descriptor.status in ['completed', 'success'] else ('warning' if descriptor.status == 'partial_success' else ('danger' if descriptor.status in ['failed', 'error'] else 'secondary')) %}
   {% set view = {
     'pretitle': descriptor.task_name.replace('_', ' ').title() + ' Analysis',
     'icon': 'fa-solid fa-microscope',
@@ -65,7 +65,7 @@
     {
       'label': 'Status',
       'value': descriptor.status.replace('_', ' ').title(),
-      'tone': 'success' if descriptor.status in ['completed', 'success'] else ('danger' if descriptor.status in ['failed', 'error'] else 'muted'),
+      'tone': 'success' if descriptor.status in ['completed', 'success'] else ('warning' if descriptor.status == 'partial_success' else ('danger' if descriptor.status in ['failed', 'error'] else 'muted')),
       'icon': 'fa-solid fa-circle-check'
     }
   ] %}

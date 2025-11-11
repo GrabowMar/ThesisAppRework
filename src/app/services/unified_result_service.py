@@ -414,24 +414,43 @@ class UnifiedResultService:
         """Discover all result files for model/app."""
         model_dir = Path(RESULTS_DIR) / model_slug.replace('/', '_')
         app_dir = model_dir / f"app{app_number}"
-        analysis_dir = app_dir / "analysis"
         
-        if not analysis_dir.exists():
+        if not app_dir.exists():
             return []
         
         files = []
-        for task_dir in analysis_dir.iterdir():
-            if not task_dir.is_dir():
+        # Look for task_* directories directly under app_dir
+        for task_dir in app_dir.iterdir():
+            if not task_dir.is_dir() or not task_dir.name.startswith('task_'):
                 continue
             
-            consolidated = task_dir / "consolidated.json"
-            if consolidated.exists():
-                stat = consolidated.stat()
+            # Extract task_id from directory name (remove 'task_' prefix)
+            task_id_from_dir = task_dir.name.replace('task_', '', 1)
+            
+            # Look for JSON files in the task directory
+            json_files = list(task_dir.glob('*.json'))
+            # Filter out manifest.json, prefer the main result JSON
+            main_json = None
+            for jf in json_files:
+                if jf.name != 'manifest.json' and task_id_from_dir in jf.name:
+                    main_json = jf
+                    break
+            
+            if not main_json and json_files:
+                # Fallback to first non-manifest JSON
+                main_json = next((jf for jf in json_files if jf.name != 'manifest.json'), None)
+            
+            if main_json:
+                stat = main_json.stat()
                 files.append({
-                    'task_id': task_dir.name,
-                    'path': str(consolidated),
+                    'task_id': f"task_{task_id_from_dir}",  # Keep task_ prefix for consistency
+                    'identifier': f"task_{task_id_from_dir}",
+                    'path': str(main_json),
                     'size_bytes': stat.st_size,
-                    'modified_at': datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat()
+                    'modified_at': datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
+                    'task_name': task_dir.name,
+                    'model_slug': model_slug,
+                    'app_number': app_number
                 })
         
         return sorted(files, key=lambda x: x['modified_at'], reverse=True)

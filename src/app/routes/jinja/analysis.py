@@ -158,8 +158,8 @@ def analysis_tasks_table():
         task: AnalysisTask, result_files: List[dict]
     ) -> Optional[dict]:
         """Select the most relevant result file for a task, checking both filesystem and database."""
-        # First check if task has result_summary in database (check both COMPLETED and FAILED status)
-        if task.result_summary and task.status in [AnalysisStatus.COMPLETED, AnalysisStatus.FAILED]:
+        # First check if task has result_summary in database (check COMPLETED, PARTIAL_SUCCESS, and FAILED status)
+        if task.result_summary and task.status in [AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS, AnalysisStatus.FAILED]:
             try:
                 result_summary = task.get_result_summary()
                 if result_summary:
@@ -248,7 +248,7 @@ def analysis_tasks_table():
 
     # Count by status for display
     active_count = len([t for t in all_tasks if t.status in [AnalysisStatus.PENDING, AnalysisStatus.RUNNING]])
-    completed_count = len([t for t in all_tasks if t.status == AnalysisStatus.COMPLETED])
+    completed_count = len([t for t in all_tasks if t.status in [AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS]])
     pagination = {
         'page': page,
         'per_page': per_page,
@@ -736,9 +736,9 @@ def analysis_result_detail(result_id: str):
     if limit_param.isdigit():
         findings_limit = max(1, min(int(limit_param), 1000))
 
-    # First, try to load from database (check both COMPLETED and FAILED status)
+    # First, try to load from database (check COMPLETED, PARTIAL_SUCCESS, and FAILED status)
     task = AnalysisTask.query.filter_by(task_id=result_id).first()
-    if task and task.result_summary and task.status in [AnalysisStatus.COMPLETED, AnalysisStatus.FAILED]:
+    if task and task.result_summary and task.status in [AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS, AnalysisStatus.FAILED]:
         try:
             payload = task.get_result_summary()
             if payload:

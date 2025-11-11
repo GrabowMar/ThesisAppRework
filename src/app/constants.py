@@ -33,6 +33,7 @@ class AnalysisStatus(BaseEnum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
+    PARTIAL_SUCCESS = "partial_success"
     FAILED = "failed"
     CANCELLED = "cancelled"
 

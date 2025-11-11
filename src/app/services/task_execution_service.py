@@ -234,8 +234,11 @@ class TaskExecutionService:
                                 # Don't mark as completed yet - let polling handle it
                                 continue
                             
-                            # Engine returns 'completed' on success or 'failed'/'error' otherwise
-                            success = result.get('status') in ('success', 'completed')
+                            # Engine returns 'completed' on success, 'partial' for mixed results, or 'failed'/'error' otherwise
+                            # Partial success (some services succeeded) should be treated as success since results are generated
+                            status = str(result.get('status', '')).lower()
+                            success = status in ('success', 'completed', 'partial')
+                            is_partial = status == 'partial'
                             
                             # Save analysis results to database
                             if success and result.get('payload'):
@@ -280,7 +283,10 @@ class TaskExecutionService:
                             task_db.error_message = str(e)
 
                         # Set final status based on analysis result
-                        task_db.status = AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED
+                        if is_partial:
+                            task_db.status = AnalysisStatus.PARTIAL_SUCCESS
+                        else:
+                            task_db.status = AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED
                         task_db.progress_percentage = 100.0
                         task_db.completed_at = datetime.now(timezone.utc)
                         
@@ -768,9 +774,11 @@ class TaskExecutionService:
                     timeout=600
                 )
                 
-                # Store result and mark complete
-                success = result.get('status') in ('success', 'completed', 'ok')
-                subtask.status = AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED
+                # Store result and mark complete (partial is still a success - results were generated)
+                status = str(result.get('status', '')).lower()
+                success = status in ('success', 'completed', 'ok', 'partial')
+                is_partial = status == 'partial'
+                subtask.status = AnalysisStatus.PARTIAL_SUCCESS if is_partial else (AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED)
                 subtask.completed_at = datetime.now(timezone.utc)
                 subtask.progress_percentage = 100.0
                 
@@ -1993,14 +2001,20 @@ class TaskExecutionService:
                     # Execute real analysis instead of simulation
                     try:
                         result = self._execute_real_analysis(task_db)
-                        success = result.get('status') == 'success'
+                        status = str(result.get('status', '')).lower()
+                        success = status in ('success', 'completed', 'partial')
+                        is_partial = status == 'partial'
                     except Exception as e:
                         self._log("Analysis execution failed for task %s: %s", task_db.task_id, e, level='error')
                         success = False
+                        is_partial = False
                         result = {'status': 'error', 'error': str(e)}
 
                     # Set final status based on analysis result  
-                    task_db.status = AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED
+                    if is_partial:
+                        task_db.status = AnalysisStatus.PARTIAL_SUCCESS
+                    else:
+                        task_db.status = AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED
                     task_db.progress_percentage = 100.0
                     task_db.completed_at = datetime.now(timezone.utc)
                     
