@@ -1232,42 +1232,88 @@ class AnalyzerManager:
         # Python tools
         python_results = results.get('python', {})
         if isinstance(python_results, dict):
-            # Bandit
+            logger.debug(f"[STATIC] Found python tools: {list(python_results.keys())}")
+            
+            # Bandit - try issues first, then SARIF
             bandit = python_results.get('bandit', {})
-            if isinstance(bandit, dict) and bandit.get('issues'):
-                for issue in bandit['issues']:
-                    findings.append({
-                        'id': f"bandit_{issue.get('test_id', 'unknown')}_{issue.get('line_number', 0)}",
-                        'tool': 'bandit',
-                        'rule_id': issue.get('test_id'),
-                        'severity': self._normalize_severity(issue.get('issue_severity', 'UNKNOWN')),
-                        'confidence': issue.get('issue_confidence', 'UNKNOWN'),
-                        'category': 'security',
-                        'type': 'vulnerability',
-                        'file': {
-                            'path': issue.get('filename', '').replace('/app/sources/', ''),
-                            'line_start': issue.get('line_number'),
-                            'line_end': issue.get('line_number'),
-                            'column_start': issue.get('col_offset'),
-                            'column_end': issue.get('end_col_offset')
-                        },
-                        'message': {
-                            'title': issue.get('test_name', ''),
-                            'description': issue.get('issue_text', ''),
-                            'solution': f"See: {issue.get('more_info', '')}",
-                            'references': [issue.get('more_info')] if issue.get('more_info') else []
-                        },
-                        'evidence': {
-                            'code_snippet': issue.get('code', ''),
-                            'context_lines': 3
-                        },
-                        'metadata': {
-                            'cwe_id': f"CWE-{issue.get('issue_cwe', {}).get('id', '')}" if issue.get('issue_cwe') else None,
-                            'confidence': issue.get('issue_confidence', '').lower(),
-                            'tags': [issue.get('test_name', '')],
-                            'fix_available': False
-                        }
-                    })
+            if isinstance(bandit, dict):
+                issues = bandit.get('issues', [])
+                
+                # If issues array is empty but SARIF exists, extract from SARIF
+                if not issues and bandit.get('sarif'):
+                    logger.debug("[STATIC] Bandit: extracting from SARIF")
+                    sarif = bandit['sarif']
+                    if isinstance(sarif, dict) and 'runs' in sarif:
+                        for run in sarif['runs']:
+                            for result in run.get('results', []):
+                                findings.append({
+                                    'id': f"bandit_{result.get('ruleId', 'unknown')}_{result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('startLine', 0)}",
+                                    'tool': 'bandit',
+                                    'rule_id': result.get('ruleId'),
+                                    'severity': self._normalize_severity(result.get('level', 'warning')),
+                                    'confidence': 'unknown',
+                                    'category': 'security',
+                                    'type': 'vulnerability',
+                                    'file': {
+                                        'path': result.get('locations', [{}])[0].get('physicalLocation', {}).get('artifactLocation', {}).get('uri', '').replace('/app/sources/', ''),
+                                        'line_start': result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('startLine'),
+                                        'line_end': result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('endLine'),
+                                        'column_start': result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('startColumn'),
+                                        'column_end': result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('endColumn')
+                                    },
+                                    'message': {
+                                        'title': result.get('message', {}).get('text', ''),
+                                        'description': result.get('message', {}).get('text', ''),
+                                        'solution': '',
+                                        'references': []
+                                    },
+                                    'evidence': {
+                                        'code_snippet': result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('snippet', {}).get('text', ''),
+                                        'context_lines': 3
+                                    },
+                                    'metadata': {
+                                        'cwe_id': None,
+                                        'confidence': 'unknown',
+                                        'tags': [result.get('ruleId', '')],
+                                        'fix_available': False
+                                    }
+                                })
+                    logger.debug(f"[STATIC] Bandit: extracted {len([f for f in findings if f['tool'] == 'bandit'])} findings from SARIF")
+                elif issues:
+                    logger.debug(f"[STATIC] Bandit: found {len(issues)} issues")
+                    for issue in issues:
+                        findings.append({
+                            'id': f"bandit_{issue.get('test_id', 'unknown')}_{issue.get('line_number', 0)}",
+                            'tool': 'bandit',
+                            'rule_id': issue.get('test_id'),
+                            'severity': self._normalize_severity(issue.get('issue_severity', 'UNKNOWN')),
+                            'confidence': issue.get('issue_confidence', 'UNKNOWN'),
+                            'category': 'security',
+                            'type': 'vulnerability',
+                            'file': {
+                                'path': issue.get('filename', '').replace('/app/sources/', ''),
+                                'line_start': issue.get('line_number'),
+                                'line_end': issue.get('line_number'),
+                                'column_start': issue.get('col_offset'),
+                                'column_end': issue.get('end_col_offset')
+                            },
+                            'message': {
+                                'title': issue.get('test_name', ''),
+                                'description': issue.get('issue_text', ''),
+                                'solution': f"See: {issue.get('more_info', '')}",
+                                'references': [issue.get('more_info')] if issue.get('more_info') else []
+                            },
+                            'evidence': {
+                                'code_snippet': issue.get('code', ''),
+                                'context_lines': 3
+                            },
+                            'metadata': {
+                                'cwe_id': f"CWE-{issue.get('issue_cwe', {}).get('id', '')}" if issue.get('issue_cwe') else None,
+                                'confidence': issue.get('issue_confidence', '').lower(),
+                                'tags': [issue.get('test_name', '')],
+                                'fix_available': False
+                            }
+                        })
             
             # Pylint
             pylint = python_results.get('pylint', {})
@@ -1306,45 +1352,89 @@ class AnalyzerManager:
                         }
                     })
             
-            # Semgrep
+            # Semgrep - try results first, then SARIF
             semgrep = python_results.get('semgrep', {})
-            if isinstance(semgrep, dict) and semgrep.get('results'):
-                for result in semgrep['results']:
-                    extra = result.get('extra', {})
-                    metadata = extra.get('metadata', {})
-                    findings.append({
-                        'id': f"semgrep_{result.get('check_id', 'unknown')}_{result.get('start', {}).get('line', 0)}",
-                        'tool': 'semgrep',
-                        'rule_id': result.get('check_id'),
-                        'severity': self._normalize_severity(extra.get('severity', 'UNKNOWN')),
-                        'confidence': metadata.get('confidence', 'medium'),
-                        'category': metadata.get('category', 'security'),
-                        'type': 'vulnerability',
-                        'file': {
-                            'path': result.get('path', '').replace('/app/sources/', ''),
-                            'line_start': result.get('start', {}).get('line'),
-                            'line_end': result.get('end', {}).get('line'),
-                            'column_start': result.get('start', {}).get('col'),
-                            'column_end': result.get('end', {}).get('col')
-                        },
-                        'message': {
-                            'title': result.get('check_id', ''),
-                            'description': extra.get('message', ''),
-                            'solution': extra.get('fix', 'Apply security fix'),
-                            'references': metadata.get('references', [])
-                        },
-                        'evidence': {
-                            'code_snippet': '',
-                            'context_lines': 3
-                        },
-                        'metadata': {
-                            'cwe_id': metadata.get('cwe', [None])[0] if metadata.get('cwe') else None,
-                            'owasp_category': metadata.get('owasp', [None])[0] if metadata.get('owasp') else None,
+            if isinstance(semgrep, dict):
+                results_list = semgrep.get('results', [])
+                
+                # If results array is empty but SARIF exists, extract from SARIF
+                if not results_list and semgrep.get('sarif'):
+                    logger.debug("[STATIC] Semgrep: extracting from SARIF")
+                    sarif = semgrep['sarif']
+                    if isinstance(sarif, dict) and 'runs' in sarif:
+                        for run in sarif['runs']:
+                            for result in run.get('results', []):
+                                findings.append({
+                                    'id': f"semgrep_{result.get('ruleId', 'unknown')}_{result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('startLine', 0)}",
+                                    'tool': 'semgrep',
+                                    'rule_id': result.get('ruleId'),
+                                    'severity': self._normalize_severity(result.get('level', 'warning')),
+                                    'confidence': 'medium',
+                                    'category': 'security',
+                                    'type': 'vulnerability',
+                                    'file': {
+                                        'path': result.get('locations', [{}])[0].get('physicalLocation', {}).get('artifactLocation', {}).get('uri', '').replace('/app/sources/', ''),
+                                        'line_start': result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('startLine'),
+                                        'line_end': result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('endLine'),
+                                        'column_start': result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('startColumn'),
+                                        'column_end': result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('endColumn')
+                                    },
+                                    'message': {
+                                        'title': result.get('ruleId', ''),
+                                        'description': result.get('message', {}).get('text', ''),
+                                        'solution': '',
+                                        'references': []
+                                    },
+                                    'evidence': {
+                                        'code_snippet': result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('snippet', {}).get('text', ''),
+                                        'context_lines': 3
+                                    },
+                                    'metadata': {
+                                        'cwe_id': None,
+                                        'confidence': 'medium',
+                                        'tags': [result.get('ruleId', '')],
+                                        'fix_available': False
+                                    }
+                                })
+                    logger.debug(f"[STATIC] Semgrep: extracted {len([f for f in findings if f['tool'] == 'semgrep'])} findings from SARIF")
+                elif results_list:
+                    logger.debug(f"[STATIC] Semgrep: found {len(results_list)} results")
+                    for result in results_list:
+                        extra = result.get('extra', {})
+                        metadata = extra.get('metadata', {})
+                        findings.append({
+                            'id': f"semgrep_{result.get('check_id', 'unknown')}_{result.get('start', {}).get('line', 0)}",
+                            'tool': 'semgrep',
+                            'rule_id': result.get('check_id'),
+                            'severity': self._normalize_severity(extra.get('severity', 'UNKNOWN')),
                             'confidence': metadata.get('confidence', 'medium'),
-                            'tags': metadata.get('subcategory', []),
-                            'fix_available': bool(extra.get('fix'))
-                        }
-                    })
+                            'category': metadata.get('category', 'security'),
+                            'type': 'vulnerability',
+                            'file': {
+                                'path': result.get('path', '').replace('/app/sources/', ''),
+                                'line_start': result.get('start', {}).get('line'),
+                                'line_end': result.get('end', {}).get('line'),
+                                'column_start': result.get('start', {}).get('col'),
+                                'column_end': result.get('end', {}).get('col')
+                            },
+                            'message': {
+                                'title': result.get('check_id', ''),
+                                'description': extra.get('message', ''),
+                                'solution': extra.get('fix', 'Apply security fix'),
+                                'references': metadata.get('references', [])
+                            },
+                            'evidence': {
+                                'code_snippet': '',
+                                'context_lines': 3
+                            },
+                            'metadata': {
+                                'cwe_id': metadata.get('cwe', [None])[0] if metadata.get('cwe') else None,
+                                'owasp_category': metadata.get('owasp', [None])[0] if metadata.get('owasp') else None,
+                                'confidence': metadata.get('confidence', 'medium'),
+                                'tags': metadata.get('subcategory', []),
+                                'fix_available': bool(extra.get('fix'))
+                            }
+                        })
             
             # MyPy
             mypy = python_results.get('mypy', {})
@@ -1726,18 +1816,31 @@ class AnalyzerManager:
         findings_by_severity: Dict[str, int] = {'high': 0, 'medium': 0, 'low': 0}
         tools_used: List[str] = []
 
+        logger.debug(f"[AGGREGATE] Processing {len(consolidated_results)} services")
+
         for analyzer_name, analyzer_result in consolidated_results.items():
             if not isinstance(analyzer_result, dict):
+                logger.debug(f"[AGGREGATE] {analyzer_name}: not a dict, skipping")
                 continue
 
-            findings = self._extract_findings_from_analyzer_result(analyzer_name, analyzer_result)
+            # Service snapshots have structure: {metadata: {...}, results: {type, status, analysis: {...}}}
+            # We need to extract from the 'results' wrapper if present
+            service_results = analyzer_result.get('results', analyzer_result)
+            if not isinstance(service_results, dict):
+                logger.debug(f"[AGGREGATE] {analyzer_name}: no results dict")
+                continue
+
+            logger.debug(f"[AGGREGATE] {analyzer_name}: extracting findings from service_results")
+            findings = self._extract_findings_from_analyzer_result(analyzer_name, service_results)
+            logger.debug(f"[AGGREGATE] {analyzer_name}: extracted {len(findings)} findings")
             all_findings.extend(findings)
 
-            analysis_data = analyzer_result.get('analysis', {})
+            analysis_data = service_results.get('analysis', {})
             if isinstance(analysis_data, dict):
                 # Collect tools used from the analysis data if available
                 used_in_analysis = analysis_data.get('tools_used', [])
                 if isinstance(used_in_analysis, list):
+                    logger.debug(f"[AGGREGATE] {analyzer_name}: tools_used = {used_in_analysis}")
                     tools_used.extend(t for t in used_in_analysis if t not in tools_used)
 
             for finding in findings:
@@ -1746,6 +1849,10 @@ class AnalyzerManager:
                 findings_by_tool[tool] = findings_by_tool.get(tool, 0) + 1
                 if severity in findings_by_severity:
                     findings_by_severity[severity] += 1
+
+        logger.info(f"[AGGREGATE] Total: {len(all_findings)} findings from {len(tools_used)} tools")
+        logger.info(f"[AGGREGATE] By tool: {findings_by_tool}")
+        logger.info(f"[AGGREGATE] By severity: {findings_by_severity}")
 
         return {
             'findings_total': len(all_findings),

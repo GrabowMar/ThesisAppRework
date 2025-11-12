@@ -1,0 +1,239 @@
+{# Executive Summary Report Template #}
+{% extends 'layouts/base.html' %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/analysis-report.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/report-print.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="report-container py-4">
+  {# Report Header #}
+  <div class="report-header mb-4 pb-3 border-bottom">
+    <h1 class="mb-1">{{ report.title }}</h1>
+    <p class="text-muted">High-level overview of system analysis activities</p>
+    <div class="text-muted small">
+      <i class="fas fa-calendar me-2"></i>Generated: {{ data.timestamp or 'N/A' }}
+      {% if data.date_range.start or data.date_range.end %}
+      <br><i class="fas fa-filter me-2"></i>Period: 
+      {{ data.date_range.start[:10] if data.date_range.start else 'Beginning' }} to 
+      {{ data.date_range.end[:10] if data.date_range.end else 'Now' }}
+      {% endif %}
+    </div>
+  </div>
+
+  {# Key Performance Indicators #}
+  <div class="card mb-4 bg-primary text-white">
+    <div class="card-header border-light">
+      <h2 class="h5 mb-0 text-white">Key Performance Indicators</h2>
+    </div>
+    <div class="card-body">
+      <div class="row g-3 text-center">
+        <div class="col-md-3">
+          <div class="display-6 fw-bold">{{ data.summary.total_apps_generated or 0 }}</div>
+          <div class="small opacity-75">Apps Generated</div>
+        </div>
+        <div class="col-md-3">
+          <div class="display-6 fw-bold">{{ data.summary.total_analyses_completed or 0 }}</div>
+          <div class="small opacity-75">Analyses Completed</div>
+        </div>
+        <div class="col-md-3">
+          <div class="display-6 fw-bold">{{ data.summary.total_findings or 0 }}</div>
+          <div class="small opacity-75">Total Findings</div>
+        </div>
+        <div class="col-md-3">
+          <div class="display-6 fw-bold">{{ data.summary.total_models or 0 }}</div>
+          <div class="small opacity-75">AI Models Used</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Severity Overview #}
+  {% if data.summary.severity_breakdown %}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h2 class="h5 mb-0">Severity Distribution</h2>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        {% set severity_data = data.summary.severity_breakdown %}
+        <div class="col-md-{{ 12 // 5 if severity_data|length >= 5 else 12 // severity_data|length }}">
+          <div class="severity-box severity-critical">
+            <div class="severity-label">Critical</div>
+            <div class="severity-count">{{ severity_data.get('critical', 0) }}</div>
+          </div>
+        </div>
+        <div class="col-md-{{ 12 // 5 if severity_data|length >= 5 else 12 // severity_data|length }}">
+          <div class="severity-box severity-high">
+            <div class="severity-label">High</div>
+            <div class="severity-count">{{ severity_data.get('high', 0) }}</div>
+          </div>
+        </div>
+        <div class="col-md-{{ 12 // 5 if severity_data|length >= 5 else 12 // severity_data|length }}">
+          <div class="severity-box severity-medium">
+            <div class="severity-label">Medium</div>
+            <div class="severity-count">{{ severity_data.get('medium', 0) }}</div>
+          </div>
+        </div>
+        <div class="col-md-{{ 12 // 5 if severity_data|length >= 5 else 12 // severity_data|length }}">
+          <div class="severity-box severity-low">
+            <div class="severity-label">Low</div>
+            <div class="severity-count">{{ severity_data.get('low', 0) }}</div>
+          </div>
+        </div>
+        <div class="col-md-{{ 12 // 5 if severity_data|length >= 5 else 12 // severity_data|length }}">
+          <div class="severity-box severity-info">
+            <div class="severity-label">Info</div>
+            <div class="severity-count">{{ severity_data.get('info', 0) }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Generation Summary #}
+  {% if data.generation_summary %}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h2 class="h5 mb-0">Generation Summary</h2>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-6">
+          <h3 class="h6 text-muted">Application Generation</h3>
+          <table class="table table-sm">
+            <tbody>
+              <tr>
+                <td>Total Apps</td>
+                <td class="text-end"><strong>{{ data.generation_summary.total_apps or 0 }}</strong></td>
+              </tr>
+              <tr>
+                <td>Successful</td>
+                <td class="text-end"><span class="badge bg-success">{{ data.generation_summary.successful_apps or 0 }}</span></td>
+              </tr>
+              <tr>
+                <td>Failed</td>
+                <td class="text-end"><span class="badge bg-danger">{{ data.generation_summary.failed_apps or 0 }}</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="col-md-6">
+          <h3 class="h6 text-muted">Analysis Tasks</h3>
+          <table class="table table-sm">
+            <tbody>
+              <tr>
+                <td>Total Tasks</td>
+                <td class="text-end"><strong>{{ data.summary.total_analyses_run or 0 }}</strong></td>
+              </tr>
+              <tr>
+                <td>Completed</td>
+                <td class="text-end"><span class="badge bg-success">{{ data.summary.total_analyses_completed or 0 }}</span></td>
+              </tr>
+              <tr>
+                <td>Completion Rate</td>
+                <td class="text-end">
+                  {% if data.summary.total_analyses_run > 0 %}
+                  {{ "%.1f"|format((data.summary.total_analyses_completed / data.summary.total_analyses_run) * 100) }}%
+                  {% else %}
+                  N/A
+                  {% endif %}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Model Statistics #}
+  {% if data.model_stats %}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h2 class="h5 mb-0">Model Usage Statistics</h2>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-sm table-striped">
+          <thead>
+            <tr>
+              <th>Provider</th>
+              <th class="text-center">Models</th>
+              <th class="text-center">Apps Generated</th>
+              <th class="text-center">Success Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for provider, stats in data.model_stats.items() %}
+            <tr>
+              <td><strong>{{ provider }}</strong></td>
+              <td class="text-center">{{ stats.model_count or 0 }}</td>
+              <td class="text-center">{{ stats.apps_generated or 0 }}</td>
+              <td class="text-center">
+                {% if stats.success_rate %}
+                <span class="badge bg-{{ 'success' if stats.success_rate >= 80 else 'warning' if stats.success_rate >= 60 else 'danger' }}">
+                  {{ "%.1f"|format(stats.success_rate) }}%
+                </span>
+                {% else %}
+                N/A
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Recommendations Section #}
+  <div class="card mb-4 border-info">
+    <div class="card-header bg-info text-white">
+      <h2 class="h5 mb-0">Key Insights & Recommendations</h2>
+    </div>
+    <div class="card-body">
+      <ul class="mb-0">
+        {% if data.summary.severity_breakdown %}
+          {% set critical = data.summary.severity_breakdown.get('critical', 0) %}
+          {% set high = data.summary.severity_breakdown.get('high', 0) %}
+          {% if critical > 0 %}
+          <li><strong>Critical Priority:</strong> {{ critical }} critical findings require immediate attention.</li>
+          {% endif %}
+          {% if high > 0 %}
+          <li><strong>High Priority:</strong> {{ high }} high-severity issues should be addressed soon.</li>
+          {% endif %}
+          {% if critical == 0 and high == 0 %}
+          <li><strong>Good Status:</strong> No critical or high-severity issues detected.</li>
+          {% endif %}
+        {% endif %}
+        
+        {% if data.summary.total_analyses_completed %}
+        <li><strong>Analysis Coverage:</strong> {{ data.summary.total_analyses_completed }} analyses completed across {{ data.summary.total_models or 0 }} AI models.</li>
+        {% endif %}
+        
+        <li><strong>Continuous Monitoring:</strong> Regular analysis runs help maintain code quality and security standards.</li>
+      </ul>
+    </div>
+  </div>
+
+  {# Report Footer #}
+  <div class="report-footer mt-5 pt-3 border-top text-muted small">
+    <div class="row">
+      <div class="col-md-6">
+        <strong>Report ID:</strong> {{ report.report_id }}<br>
+        <strong>Report Type:</strong> Executive Summary
+      </div>
+      <div class="col-md-6 text-end">
+        <strong>Generated:</strong> {{ data.timestamp }}<br>
+        <strong>System:</strong> ThesisApp Analysis Platform
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

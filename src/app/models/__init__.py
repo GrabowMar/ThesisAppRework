@@ -37,6 +37,7 @@ from .process import ProcessTracking
 from .results_cache import AnalysisResultsCache
 from .simple_tool_results import ToolResult, ToolSummary
 from .user import User
+from .report import Report
 
 from ..utils.time import utc_now
 
@@ -60,6 +61,7 @@ __all__ = [
     'AnalysisResultsCache',
     'ToolResult', 'ToolSummary',
     'User',
+    'Report',
 
     # Utility function
     'utc_now'

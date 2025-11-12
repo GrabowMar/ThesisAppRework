@@ -1,0 +1,179 @@
+{# Model Comparison Report Template #}
+{% extends 'layouts/base.html' %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/analysis-report.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/report-print.css') }}">
+<style>
+  @media print {
+    .btn, .navbar, .sidebar, footer, .no-print { display: none !important; }
+    .report-container { max-width: 100% !important; margin: 0 !important; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="report-container py-4">
+  {# Report Header #}
+  <div class="report-header mb-4 pb-3 border-bottom">
+    <h1 class="mb-1">{{ report.title }}</h1>
+    <p class="text-muted">Comparing {{ data.models|length }} AI models for App #{{ data.app_number }}</p>
+    <div class="text-muted small">
+      <i class="fas fa-calendar me-2"></i>Generated: {{ data.timestamp or 'N/A' }}
+    </div>
+  </div>
+
+  {# Aggregated Statistics #}
+  {% if data.aggregated %}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h2 class="h5 mb-0">Comparison Summary</h2>
+    </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-3">
+          <div class="metric-box">
+            <div class="metric-label">Models Compared</div>
+            <div class="metric-value">{{ data.aggregated.total_models }}</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="metric-box">
+            <div class="metric-label">Avg Findings</div>
+            <div class="metric-value">{{ "%.1f"|format(data.aggregated.avg_findings) }}</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="metric-box">
+            <div class="metric-label">Best Model</div>
+            <div class="metric-value text-success small">{{ data.aggregated.best_model or 'N/A' }}</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="metric-box">
+            <div class="metric-label">Worst Model</div>
+            <div class="metric-value text-danger small">{{ data.aggregated.worst_model or 'N/A' }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Model Comparison Table #}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h2 class="h5 mb-0">Model Details</h2>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-sm table-striped">
+          <thead>
+            <tr>
+              <th>Model</th>
+              <th>Task ID</th>
+              <th class="text-center">Total Findings</th>
+              <th class="text-center">Critical</th>
+              <th class="text-center">High</th>
+              <th class="text-center">Medium</th>
+              <th class="text-center">Low</th>
+              <th>Completed At</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for model in data.models %}
+            {% set severity = model.summary.severity_breakdown if model.summary else {} %}
+            <tr>
+              <td><strong>{{ model.model_slug }}</strong></td>
+              <td class="text-muted small">{{ model.task_id[:12] }}...</td>
+              <td class="text-center">{{ model.findings_count }}</td>
+              <td class="text-center">
+                <span class="badge bg-danger">{{ severity.get('critical', 0) }}</span>
+              </td>
+              <td class="text-center">
+                <span class="badge bg-warning">{{ severity.get('high', 0) }}</span>
+              </td>
+              <td class="text-center">
+                <span class="badge bg-info">{{ severity.get('medium', 0) }}</span>
+              </td>
+              <td class="text-center">
+                <span class="badge bg-secondary">{{ severity.get('low', 0) }}</span>
+              </td>
+              <td class="text-muted small">{{ model.completed_at[:19] if model.completed_at else 'N/A' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# Tool Comparison Across Models #}
+  <div class="card mb-4">
+    <div class="card-header">
+      <h2 class="h5 mb-0">Tool Execution by Model</h2>
+    </div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-sm">
+          <thead>
+            <tr>
+              <th>Tool</th>
+              {% for model in data.models %}
+              <th class="text-center">{{ model.model_slug }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% set all_tools = [] %}
+            {% for model in data.models %}
+              {% if model.tools %}
+                {% for tool_name in model.tools.keys() %}
+                  {% if tool_name not in all_tools %}
+                    {% set _ = all_tools.append(tool_name) %}
+                  {% endif %}
+                {% endfor %}
+              {% endif %}
+            {% endfor %}
+            
+            {% for tool_name in all_tools %}
+            <tr>
+              <td><strong>{{ tool_name }}</strong></td>
+              {% for model in data.models %}
+              <td class="text-center">
+                {% if model.tools and tool_name in model.tools %}
+                  {% set tool_data = model.tools[tool_name] %}
+                  {% if tool_data.status == 'success' %}
+                  <span class="badge bg-success">{{ tool_data.total_issues or 0 }}</span>
+                  {% else %}
+                  <span class="badge bg-danger">Failed</span>
+                  {% endif %}
+                {% else %}
+                <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {# Report Footer #}
+  <div class="report-footer mt-5 pt-3 border-top text-muted small">
+    <div class="row">
+      <div class="col-md-6">
+        <strong>Report ID:</strong> {{ report.report_id }}<br>
+        <strong>App Number:</strong> {{ data.app_number }}
+      </div>
+      <div class="col-md-6 text-end">
+        <strong>Generated:</strong> {{ data.timestamp }}<br>
+        <strong>Models:</strong> {{ data.models|length }}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

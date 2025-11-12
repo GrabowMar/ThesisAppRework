@@ -66,6 +66,11 @@ class ServiceLocator:
         except ImportError:  # pragma: no cover
             UnifiedResultService = None  # type: ignore
 
+        try:
+            from .report_generation_service import ReportGenerationService
+        except ImportError:  # pragma: no cover
+            ReportGenerationService = None  # type: ignore
+
 
         # Register available services
         cls.register('model_service', ModelService(app))
@@ -83,6 +88,8 @@ class ServiceLocator:
             cls.register('analysis_inspection_service', AnalysisInspectionService())
         if UnifiedResultService:
             cls.register('unified_result_service', UnifiedResultService())
+        if ReportGenerationService:
+            cls.register('report_service', ReportGenerationService(app))
         if HealthService:
             cls.register('health_service', HealthService())
 
@@ -151,6 +158,11 @@ class ServiceLocator:
     def get_health_service(cls):
         """Get the health service."""
         return cls.get('health_service')
+    
+    @classmethod
+    def get_report_service(cls):
+        """Get the report generation service."""
+        return cls.get('report_service')
     
     @classmethod
     def clear(cls):

@@ -1,0 +1,305 @@
+{# New Report Generation Form #}
+{% extends 'layouts/base.html' %}
+{% set has_right_sidebar = true %}
+{% set page_title = 'Generate Report' %}
+{% set page_icon = 'fas fa-file-plus' %}
+{% set page_subtitle = 'Create a new analysis report' %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h2 class="h5 mb-0">Report Configuration</h2>
+  </div>
+  <div class="card-body">
+    <form id="report-form">
+      {# Report Type #}
+      <div class="mb-3">
+        <label for="report-type" class="form-label">Report Type</label>
+        <select class="form-select" id="report-type" name="report_type" required>
+          <option value="">Select report type...</option>
+          <option value="app_analysis">App Analysis (Single App)</option>
+          <option value="model_comparison">Model Comparison</option>
+          <option value="tool_effectiveness">Tool Effectiveness</option>
+          <option value="executive_summary">Executive Summary</option>
+          <option value="custom">Custom Report</option>
+        </select>
+        <div class="form-text">Choose the type of report to generate</div>
+      </div>
+
+      {# Output Format #}
+      <div class="mb-3">
+        <label for="format" class="form-label">Output Format</label>
+        <select class="form-select" id="format" name="format" required>
+          <option value="pdf">PDF (Print-Ready)</option>
+          <option value="html">HTML (Interactive)</option>
+          <option value="excel">Excel (Data Tables)</option>
+          <option value="json">JSON (Machine-Readable)</option>
+        </select>
+      </div>
+
+      {# Title and Description #}
+      <div class="mb-3">
+        <label for="title" class="form-label">Report Title (Optional)</label>
+        <input type="text" class="form-control" id="title" name="title" placeholder="Auto-generated if left blank">
+      </div>
+
+      <div class="mb-3">
+        <label for="description" class="form-label">Description (Optional)</label>
+        <textarea class="form-control" id="description" name="description" rows="2"></textarea>
+      </div>
+
+      {# Dynamic Configuration Fields #}
+      <div id="config-fields">
+        {# These will be populated dynamically based on report type #}
+      </div>
+
+      {# Expiration #}
+      <div class="mb-3">
+        <label for="expires-in-days" class="form-label">Expires After (Days)</label>
+        <input type="number" class="form-control" id="expires-in-days" name="expires_in_days" value="30" min="1" max="365">
+        <div class="form-text">Reports will be automatically deleted after this many days</div>
+      </div>
+
+      {# Submit Button #}
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary" id="submit-btn">
+          <i class="fas fa-magic me-2"></i>Generate Report
+        </button>
+        <a href="/reports" class="btn btn-outline-secondary">Cancel</a>
+      </div>
+    </form>
+
+    {# Progress Alert #}
+    <div id="progress-alert" class="alert alert-info mt-3" style="display: none;">
+      <i class="fas fa-spinner fa-spin me-2"></i>
+      <span id="progress-message">Generating report...</span>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block right_sidebar %}
+<div class="d-flex flex-column gap-3">
+  <div class="card">
+    <div class="card-body pb-2">
+      <div class="d-flex align-items-center mb-2">
+        <i class="fas fa-info-circle me-2 text-primary"></i>
+        <strong>Report Types</strong>
+      </div>
+      <div class="text-muted small">
+        <ul class="mb-0 ps-3">
+          <li><strong>App Analysis:</strong> Detailed report for a single app</li>
+          <li><strong>Model Comparison:</strong> Compare multiple AI models</li>
+          <li><strong>Tool Effectiveness:</strong> Analyze tool performance</li>
+          <li><strong>Executive Summary:</strong> High-level overview</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body pb-2">
+      <div class="d-flex align-items-center mb-2">
+        <i class="fas fa-file-export me-2 text-primary"></i>
+        <strong>Output Formats</strong>
+      </div>
+      <div class="text-muted small">
+        <ul class="mb-0 ps-3">
+          <li><strong>PDF:</strong> Best for printing and sharing</li>
+          <li><strong>HTML:</strong> Interactive viewing in browser</li>
+          <li><strong>Excel:</strong> Data analysis and charts</li>
+          <li><strong>JSON:</strong> Programmatic access</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+// Report generation form handling
+const form = document.getElementById('report-form');
+const reportTypeSelect = document.getElementById('report-type');
+const configFields = document.getElementById('config-fields');
+const progressAlert = document.getElementById('progress-alert');
+const progressMessage = document.getElementById('progress-message');
+const submitBtn = document.getElementById('submit-btn');
+
+// Configuration templates for each report type
+const configTemplates = {
+  app_analysis: `
+    <div class="mb-3">
+      <label for="model-slug" class="form-label">Model Slug</label>
+      <input type="text" class="form-control" id="model-slug" name="model_slug" required 
+             placeholder="e.g., openai_gpt-4">
+      <div class="form-text">Model identifier for the app to analyze</div>
+    </div>
+    <div class="mb-3">
+      <label for="app-number" class="form-label">App Number</label>
+      <input type="number" class="form-control" id="app-number" name="app_number" required 
+             value="1" min="1">
+    </div>
+    <div class="mb-3">
+      <label for="task-id" class="form-label">Task ID (Optional)</label>
+      <input type="text" class="form-control" id="task-id" name="task_id" 
+             placeholder="Leave blank for latest task">
+    </div>
+  `,
+  model_comparison: `
+    <div class="mb-3">
+      <label for="model-slugs" class="form-label">Model Slugs (comma-separated)</label>
+      <input type="text" class="form-control" id="model-slugs" name="model_slugs" required 
+             placeholder="e.g., openai_gpt-4, anthropic_claude-3-sonnet">
+      <div class="form-text">Enter model slugs separated by commas</div>
+    </div>
+    <div class="mb-3">
+      <label for="app-number" class="form-label">App Number</label>
+      <input type="number" class="form-control" id="app-number" name="app_number" value="1" min="1">
+    </div>
+  `,
+  tool_effectiveness: `
+    <div class="mb-3">
+      <label for="tools" class="form-label">Tools (Optional, comma-separated)</label>
+      <input type="text" class="form-control" id="tools" name="tools" 
+             placeholder="Leave blank for all tools">
+      <div class="form-text">Specific tools to analyze, or leave blank for all</div>
+    </div>
+  `,
+  executive_summary: `
+    <div class="alert alert-info">
+      <i class="fas fa-info-circle me-2"></i>
+      Executive summary will include overall system statistics.
+    </div>
+  `,
+  custom: `
+    <div class="mb-3">
+      <label for="query-type" class="form-label">Query Type</label>
+      <select class="form-select" id="query-type" name="query_type">
+        <option value="specific_tasks">Specific Tasks</option>
+      </select>
+    </div>
+    <div class="mb-3">
+      <label for="task-ids" class="form-label">Task IDs (comma-separated)</label>
+      <input type="text" class="form-control" id="task-ids" name="task_ids" 
+             placeholder="task_abc123, task_def456">
+    </div>
+  `
+};
+
+// Date range fields (common for several report types)
+const dateRangeFields = `
+  <div class="mb-3">
+    <label class="form-label">Date Range (Optional)</label>
+    <div class="row g-2">
+      <div class="col-md-6">
+        <input type="date" class="form-control" id="date-start" name="date_start" placeholder="Start date">
+      </div>
+      <div class="col-md-6">
+        <input type="date" class="form-control" id="date-end" name="date_end" placeholder="End date">
+      </div>
+    </div>
+  </div>
+`;
+
+// Update configuration fields when report type changes
+reportTypeSelect.addEventListener('change', function() {
+  const reportType = this.value;
+  
+  if (!reportType) {
+    configFields.innerHTML = '';
+    return;
+  }
+  
+  let html = configTemplates[reportType] || '';
+  
+  // Add date range for applicable types
+  if (['model_comparison', 'tool_effectiveness', 'executive_summary'].includes(reportType)) {
+    html += dateRangeFields;
+  }
+  
+  configFields.innerHTML = html;
+});
+
+// Form submission
+form.addEventListener('submit', async function(e) {
+  e.preventDefault();
+  
+  // Show progress
+  progressAlert.style.display = 'block';
+  progressMessage.textContent = 'Generating report...';
+  submitBtn.disabled = true;
+  
+  try {
+    // Build request payload
+    const formData = new FormData(form);
+    const reportType = formData.get('report_type');
+    
+    const payload = {
+      report_type: reportType,
+      format: formData.get('format'),
+      title: formData.get('title') || null,
+      description: formData.get('description') || null,
+      expires_in_days: parseInt(formData.get('expires_in_days') || '30'),
+      config: {}
+    };
+    
+    // Build config based on report type
+    if (reportType === 'app_analysis') {
+      payload.config.model_slug = formData.get('model_slug');
+      payload.config.app_number = parseInt(formData.get('app_number'));
+      if (formData.get('task_id')) {
+        payload.config.task_id = formData.get('task_id');
+      }
+    } else if (reportType === 'model_comparison') {
+      payload.config.model_slugs = formData.get('model_slugs').split(',').map(s => s.trim());
+      payload.config.app_number = parseInt(formData.get('app_number'));
+    } else if (reportType === 'tool_effectiveness') {
+      if (formData.get('tools')) {
+        payload.config.tools = formData.get('tools').split(',').map(s => s.trim());
+      }
+    } else if (reportType === 'custom') {
+      payload.config.query_type = formData.get('query_type');
+      if (formData.get('task_ids')) {
+        payload.config.task_ids = formData.get('task_ids').split(',').map(s => s.trim());
+      }
+    }
+    
+    // Add date range if provided
+    if (formData.get('date_start') || formData.get('date_end')) {
+      payload.config.date_range = {
+        start: formData.get('date_start') || null,
+        end: formData.get('date_end') || null
+      };
+    }
+    
+    // Submit to API
+    const response = await fetch('/api/reports/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      progressMessage.textContent = 'Report generated successfully! Redirecting...';
+      setTimeout(() => {
+        window.location.href = '/reports';
+      }, 1000);
+    } else {
+      throw new Error(result.error || 'Failed to generate report');
+    }
+    
+  } catch (error) {
+    progressAlert.classList.remove('alert-info');
+    progressAlert.classList.add('alert-danger');
+    progressMessage.innerHTML = `<i class="fas fa-exclamation-circle me-2"></i>Error: ${error.message}`;
+    submitBtn.disabled = false;
+  }
+});
+</script>
+{% endblock %}

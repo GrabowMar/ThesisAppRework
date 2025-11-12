@@ -5,11 +5,14 @@ Reports routes for the Flask application
 Reports-related web routes that render Jinja templates.
 """
 
-from flask import Blueprint, send_file, flash, redirect, url_for, request
+from flask import Blueprint, send_file, flash, redirect, url_for, request, jsonify
 from flask_login import current_user
 
 from app.utils.template_paths import render_template_compat as render_template
 from app.paths import REPORTS_DIR
+from ...services.service_locator import ServiceLocator
+from ...extensions import db
+from ...models import Report, ModelCapability, GeneratedApplication, AnalysisTask
 
 # Import shared utilities
 from ..shared_utils import _gather_file_reports, _get_recent_analyses
@@ -27,20 +30,66 @@ def require_authentication():
 
 @reports_bp.route('/')
 def reports_index():
-    """Show analysis results dashboard."""
-    analyses = _get_recent_analyses()
-    files = _gather_file_reports(10)
-
-    # Template name adjusted after header removal refactor: index_main.html now holds the content.
+    """Show reports list with generated reports from database."""
+    # Get generated reports from database
+    reports = db.session.query(Report).order_by(Report.created_at.desc()).limit(50).all()
+    
+    # Template renders the reports list
     return render_template(
         'pages/reports/index_main.html',
-        analyses=analyses,
-        files=files
+        reports=reports
+    )
+
+@reports_bp.route('/new')
+def new_report():
+    """Show report generation form."""
+    # Get available models for selection
+    models = db.session.query(ModelCapability).order_by(ModelCapability.provider, ModelCapability.model_name).all()
+    
+    # Get available apps for selection
+    apps = db.session.query(GeneratedApplication).order_by(
+        GeneratedApplication.model_slug, 
+        GeneratedApplication.app_number
+    ).limit(100).all()
+    
+    return render_template(
+        'pages/reports/new_report.html',
+        models=models,
+        apps=apps
+    )
+
+@reports_bp.route('/view/<report_id>')
+def view_report(report_id: str):
+    """View a generated report."""
+    service_locator = ServiceLocator()
+    report_service = service_locator.get_report_service()
+    
+    report = report_service.get_report(report_id)
+    
+    if not report:
+        flash('Report not found', 'error')
+        return redirect(url_for('reports.reports_index'))
+    
+    # If HTML report, render directly; otherwise show details and download link
+    if report.format == 'html' and report.status == 'completed':
+        # Load report data
+        file_path = report_service.reports_dir / report.file_path
+        if file_path.exists():
+            with open(file_path, 'r', encoding='utf-8') as f:
+                html_content = f.read()
+            # Serve the HTML content
+            from flask import Markup
+            return html_content
+    
+    # For other formats, show report details
+    return render_template(
+        'pages/reports/view_report.html',
+        report=report
     )
 
 @reports_bp.route('/download/<path:fname>')
 def download_report(fname: str):
-    """Download generated report files."""
+    """Download generated report files (legacy file-based reports)."""
     target = REPORTS_DIR / fname
     if not target.exists() or not target.is_file():
         from flask import abort
