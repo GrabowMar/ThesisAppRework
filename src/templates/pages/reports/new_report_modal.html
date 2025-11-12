@@ -1,0 +1,164 @@
+{# Modal fragment for HTMX-loaded report generation form #}
+<div class="modal modal-blur fade show" id="report-modal" tabindex="-1" style="display: block;" aria-modal="true" role="dialog">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Generate New Report</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="report-form" hx-post="/api/reports/generate" hx-swap="none">
+          {# Report Type #}
+          <div class="mb-3">
+            <label for="report-type" class="form-label">Report Type</label>
+            <select class="form-select" id="report-type" name="report_type" required>
+              <option value="">Select report type...</option>
+              <option value="app_analysis">App Analysis (Single App)</option>
+              <option value="model_comparison">Model Comparison</option>
+              <option value="tool_effectiveness">Tool Effectiveness</option>
+              <option value="executive_summary">Executive Summary</option>
+            </select>
+          </div>
+
+          {# Output Format #}
+          <div class="mb-3">
+            <label for="format" class="form-label">Output Format</label>
+            <select class="form-select" id="format" name="format" required>
+              <option value="html">HTML (Interactive)</option>
+              <option value="excel">Excel (Data Tables)</option>
+              <option value="json">JSON (Machine-Readable)</option>
+            </select>
+          </div>
+
+          {# Title #}
+          <div class="mb-3">
+            <label for="title" class="form-label">Report Title (Optional)</label>
+            <input type="text" class="form-control" id="title" name="title" placeholder="Auto-generated if left blank">
+          </div>
+
+          {# Dynamic Configuration Fields #}
+          <div id="config-fields"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="submit-report-btn">
+          <i class="fas fa-magic me-2"></i>Generate Report
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop fade show"></div>
+
+<script>
+(function() {
+  const modal = document.getElementById('report-modal');
+  const form = document.getElementById('report-form');
+  const reportTypeSelect = document.getElementById('report-type');
+  const configFields = document.getElementById('config-fields');
+  const submitBtn = document.getElementById('submit-report-btn');
+  
+  // Configuration templates
+  const configs = {
+    app_analysis: `
+      <div class="mb-3">
+        <label class="form-label">Model Slug</label>
+        <input type="text" class="form-control" name="model_slug" required placeholder="e.g., openai_gpt-4">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">App Number</label>
+        <input type="number" class="form-control" name="app_number" required value="1" min="1">
+      </div>
+    `,
+    model_comparison: `
+      <div class="mb-3">
+        <label class="form-label">Model Slugs (comma-separated)</label>
+        <input type="text" class="form-control" name="model_slugs" required placeholder="openai_gpt-4, anthropic_claude-3-sonnet">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">App Number</label>
+        <input type="number" class="form-control" name="app_number" value="1" min="1">
+      </div>
+    `,
+    tool_effectiveness: `
+      <div class="alert alert-info">Tool effectiveness analysis across all available data.</div>
+    `,
+    executive_summary: `
+      <div class="alert alert-info">Executive summary of recent analysis activities.</div>
+    `
+  };
+  
+  // Update config fields on type change
+  reportTypeSelect.addEventListener('change', function() {
+    configFields.innerHTML = configs[this.value] || '';
+  });
+  
+  // Handle modal close
+  modal.querySelectorAll('[data-bs-dismiss="modal"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      modal.remove();
+      document.querySelector('.modal-backdrop')?.remove();
+    });
+  });
+  
+  // Handle form submission
+  submitBtn.addEventListener('click', async function() {
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+    
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
+    
+    try {
+      const formData = new FormData(form);
+      const reportType = formData.get('report_type');
+      
+      const payload = {
+        report_type: reportType,
+        format: formData.get('format'),
+        title: formData.get('title') || null,
+        config: {}
+      };
+      
+      // Build config
+      if (reportType === 'app_analysis') {
+        payload.config.model_slug = formData.get('model_slug');
+        payload.config.app_number = parseInt(formData.get('app_number'));
+      } else if (reportType === 'model_comparison') {
+        payload.config.model_slugs = formData.get('model_slugs').split(',').map(s => s.trim());
+        payload.config.app_number = parseInt(formData.get('app_number') || '1');
+      }
+      
+      const response = await fetch('/api/reports/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        window.showToast('Report generated successfully!', 'success');
+        modal.remove();
+        document.querySelector('.modal-backdrop')?.remove();
+        // Reload page to show new report
+        setTimeout(() => window.location.reload(), 500);
+      } else {
+        throw new Error(result.error || 'Failed to generate report');
+      }
+      
+    } catch (error) {
+      window.showToast(error.message, 'error');
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="fas fa-magic me-2"></i>Generate Report';
+    }
+  });
+  
+  // Show modal
+  const bsModal = new bootstrap.Modal(modal);
+  bsModal.show();
+})();
+</script>

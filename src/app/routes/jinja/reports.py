@@ -42,7 +42,7 @@ def reports_index():
 
 @reports_bp.route('/new')
 def new_report():
-    """Show report generation form."""
+    """Show report generation form (modal fragment for HTMX)."""
     # Get available models for selection
     models = db.session.query(ModelCapability).order_by(ModelCapability.provider, ModelCapability.model_name).all()
     
@@ -52,8 +52,9 @@ def new_report():
         GeneratedApplication.app_number
     ).limit(100).all()
     
+    # Return modal fragment for HTMX
     return render_template(
-        'pages/reports/new_report.html',
+        'pages/reports/new_report_modal.html',
         models=models,
         apps=apps
     )
