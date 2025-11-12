@@ -1,137 +1,85 @@
-{# Static Analysis Tab #}
+{# Static Analysis Tab - Compact Report Layout #}
 {% set static_service = payload.results.services.static if payload.results.services and payload.results.services.static else none %}
 
 {% if static_service %}
-  {# Service Header #}
-  <div class="d-flex justify-content-between align-items-center mb-3">
+  {# Service Status Bar #}
+  <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
     <div>
-      <h4 class="mb-1">
-        <i class="fa-solid fa-code me-2"></i>Static Code Analysis
-      </h4>
-      <p class="text-muted small mb-0">{{ static_service.service|default('static-analyzer') }}</p>
+      <strong class="text-muted small text-uppercase">{{ static_service.service|default('static-analyzer') }}</strong>
     </div>
     <span class="badge {% if static_service.status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif static_service.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt text-secondary{% endif %}">
-      <i class="fa-solid fa-circle-dot me-1"></i>
       {{ static_service.status|default('unknown')|replace('_', ' ')|title }}
     </span>
   </div>
 
-  {# Tools Grid #}
+  {# Tools Results Table #}
   {% set tools_results = static_service.analysis.results if static_service.analysis and static_service.analysis.results else {} %}
   {% if tools_results %}
-    <div class="row row-cards">
-      {% for lang, lang_tools in tools_results.items() %}
-        {% for tool_name, tool_data in lang_tools.items() %}
-          <div class="col-12 col-md-6 col-xl-4">
-            <div class="card card-sm">
-              <div class="card-body">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                  <div>
-                    <h5 class="mb-0">{{ tool_name|capitalize }}</h5>
-                    <small class="text-muted">{{ lang }}</small>
-                  </div>
-                  {% if tool_data.executed %}
-                    <span class="badge {% if tool_data.status in ['success', 'ok', 'completed'] %}bg-success-lt text-success{% elif tool_data.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt text-secondary{% endif %}">
-                      {{ tool_data.status|default('unknown') }}
-                    </span>
-                  {% else %}
-                    <span class="badge bg-secondary-lt text-secondary">Not Executed</span>
-                  {% endif %}
-                </div>
-                
+    <div class="table-responsive">
+      <table class="table table-sm table-hover table-vcenter mb-0">
+        <thead>
+          <tr>
+            <th>Tool</th>
+            <th>Language</th>
+            <th class="text-center">Status</th>
+            <th class="text-center">Issues</th>
+            <th class="text-center">Severity</th>
+            <th width="40%">Top Issues</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lang, lang_tools in tools_results.items() %}
+            {% for tool_name, tool_data in lang_tools.items() %}
+            <tr>
+              <td><strong>{{ tool_name|capitalize }}</strong></td>
+              <td><span class="badge bg-secondary-lt">{{ lang }}</span></td>
+              <td class="text-center">
+                {% if tool_data.executed %}
+                  <span class="badge badge-sm {% if tool_data.status in ['success', 'ok', 'completed'] %}bg-success-lt text-success{% elif tool_data.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
+                    {{ tool_data.status|default('unknown') }}
+                  </span>
+                {% else %}
+                  <span class="badge badge-sm bg-secondary-lt">Skipped</span>
+                {% endif %}
+              </td>
+              <td class="text-center">
                 {% if tool_data.issues %}
-                  {# Issue Summary #}
-                  <div class="mb-2">
-                    <span class="text-muted small me-2">
-                      <i class="fa-solid fa-bug me-1"></i>{{ tool_data.issues|length }} issue{{ tool_data.issues|length == 1 and '' or 's' }}
-                    </span>
-                    {% if tool_data.issues %}
-                      {# Count severities #}
-                      {% set high_count = tool_data.issues|selectattr('issue_severity', 'equalto', 'HIGH')|list|length %}
-                      {% set medium_count = tool_data.issues|selectattr('issue_severity', 'equalto', 'MEDIUM')|list|length %}
-                      {% set low_count = tool_data.issues|selectattr('issue_severity', 'equalto', 'LOW')|list|length %}
-                      {% if high_count > 0 %}
-                        <span class="badge bg-danger-lt text-danger">H:{{ high_count }}</span>
-                      {% endif %}
-                      {% if medium_count > 0 %}
-                        <span class="badge bg-warning-lt text-warning">M:{{ medium_count }}</span>
-                      {% endif %}
-                      {% if low_count > 0 %}
-                        <span class="badge bg-info-lt text-info">L:{{ low_count }}</span>
-                      {% endif %}
-                    {% endif %}
-                  </div>
-
-                  {# Issues Table #}
-                  <div class="accordion" id="accordion-{{ tool_name }}-{{ lang }}">
-                    <div class="accordion-item">
-                      <h2 class="accordion-header">
-                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ tool_name }}-{{ lang }}">
-                          View Issues
-                        </button>
-                      </h2>
-                      <div id="collapse-{{ tool_name }}-{{ lang }}" class="accordion-collapse collapse" data-bs-parent="#accordion-{{ tool_name }}-{{ lang }}">
-                        <div class="accordion-body p-0">
-                          <div class="table-responsive">
-                            <table class="table table-sm table-vcenter mb-0">
-                              <thead>
-                                <tr>
-                                  <th class="w-1">Severity</th>
-                                  <th>Issue</th>
-                                  <th>Location</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {% for issue in tool_data.issues[:10] %}
-                                  <tr>
-                                    <td>
-                                      {% set severity = issue.issue_severity|default(issue.severity)|default('UNKNOWN') %}
-                                      <span class="badge {% if severity == 'HIGH' %}bg-danger-lt text-danger{% elif severity == 'MEDIUM' %}bg-warning-lt text-warning{% elif severity == 'LOW' %}bg-info-lt text-info{% else %}bg-secondary-lt{% endif %}">
-                                        {{ severity[0] }}
-                                      </span>
-                                    </td>
-                                    <td class="text-wrap small">
-                                      {{ issue.issue_text|default(issue.message)|default('No description') }}
-                                      {% if issue.test_id %}
-                                        <code class="text-muted small">({{ issue.test_id }})</code>
-                                      {% endif %}
-                                    </td>
-                                    <td class="text-nowrap small text-muted">
-                                      {% if issue.filename %}
-                                        <span class="font-monospace">{{ issue.filename|basename }}</span>
-                                        {% if issue.line_number %}
-                                          :{{ issue.line_number }}
-                                        {% endif %}
-                                      {% else %}
-                                        —
-                                      {% endif %}
-                                    </td>
-                                  </tr>
-                                {% endfor %}
-                                {% if tool_data.issues|length > 10 %}
-                                  <tr>
-                                    <td colspan="3" class="text-center text-muted small">
-                                      ...and {{ tool_data.issues|length - 10 }} more
-                                    </td>
-                                  </tr>
-                                {% endif %}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                  <span class="badge badge-sm bg-warning-lt text-warning">{{ tool_data.issues|length }}</span>
+                {% else %}
+                  <span class="text-success"><i class="fa-solid fa-check"></i></span>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                {% if tool_data.issues %}
+                  {% set high_count = tool_data.issues|selectattr('issue_severity', 'equalto', 'HIGH')|list|length %}
+                  {% set medium_count = tool_data.issues|selectattr('issue_severity', 'equalto', 'MEDIUM')|list|length %}
+                  {% set low_count = tool_data.issues|selectattr('issue_severity', 'equalto', 'LOW')|list|length %}
+                  <div>
+                    {% if high_count > 0 %}<span class="badge badge-sm bg-danger-lt text-danger">H:{{ high_count }}</span>{% endif %}
+                    {% if medium_count > 0 %}<span class="badge badge-sm bg-warning-lt text-warning">M:{{ medium_count }}</span>{% endif %}
+                    {% if low_count > 0 %}<span class="badge badge-sm bg-info-lt text-info">L:{{ low_count }}</span>{% endif %}
                   </div>
                 {% else %}
-                  <div class="text-muted small">
-                    <i class="fa-solid fa-check-circle text-success me-1"></i>No issues found
-                  </div>
+                  <span class="text-muted">—</span>
                 {% endif %}
-              </div>
-            </div>
-          </div>
-        {% endfor %}
-      {% endfor %}
+              </td>
+              <td class="small text-muted">
+                {% if tool_data.issues %}
+                  {% for issue in tool_data.issues[:2] %}
+                    <div class="text-truncate" style="max-width: 400px;">• {{ issue.issue_text|default(issue.message)|default('No description') }}</div>
+                  {% endfor %}
+                  {% if tool_data.issues|length > 2 %}
+                    <div class="text-muted">...and {{ tool_data.issues|length - 2 }} more</div>
+                  {% endif %}
+                {% else %}
+                  <span class="text-success">No issues found</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   {% else %}
     <div class="empty">

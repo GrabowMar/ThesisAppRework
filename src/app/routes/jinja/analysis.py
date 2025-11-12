@@ -841,7 +841,7 @@ def analysis_result_detail(result_id: str):
     services = results.tools
     summary_block = results.summary
     task_info = {'task_id': result_id, 'status': results.status}
-    metadata_block = {}
+    metadata_block = payload.get('metadata', {})
     
     # Build descriptor for filesystem results
     descriptor = DescriptorDict({

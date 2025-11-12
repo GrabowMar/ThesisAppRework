@@ -1,126 +1,97 @@
-{# Performance Analysis Tab #}
+{# Performance Analysis Tab - Compact Report Layout #}
 {% set performance_service = payload.results.services.performance if payload.results.services and payload.results.services.performance else none %}
 
 {% if performance_service %}
-  {# Service Header #}
-  <div class="d-flex justify-content-between align-items-center mb-3">
+  {# Service Status Bar #}
+  <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
     <div>
-      <h4 class="mb-1">
-        <i class="fa-solid fa-gauge-high me-2"></i>Performance Testing
-      </h4>
-      <p class="text-muted small mb-0">{{ performance_service.service|default('performance-tester') }}</p>
+      <strong class="text-muted small text-uppercase">{{ performance_service.service|default('performance-tester') }}</strong>
     </div>
     <span class="badge {% if performance_service.status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif performance_service.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt text-secondary{% endif %}">
-      <i class="fa-solid fa-circle-dot me-1"></i>
       {{ performance_service.status|default('unknown')|replace('_', ' ')|title }}
     </span>
   </div>
 
-  {# Performance Metrics #}
+  {# Performance Metrics Table #}
   {% set test_results = performance_service.analysis.results if performance_service.analysis and performance_service.analysis.results else {} %}
   {% if test_results %}
-    <div class="row row-cards">
-      {% for test_name, test_data in test_results.items() %}
-        <div class="col-12 col-md-6 col-xl-4">
-          <div class="card card-sm">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-start mb-2">
-                <h5 class="mb-0">{{ test_name|replace('_', ' ')|title }}</h5>
-                {% if test_data.executed %}
-                  <span class="badge {% if test_data.status in ['success', 'ok', 'completed'] %}bg-success-lt text-success{% elif test_data.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt text-secondary{% endif %}">
-                    {{ test_data.status|default('unknown') }}
-                  </span>
-                {% else %}
-                  <span class="badge bg-secondary-lt text-secondary">Not Executed</span>
-                {% endif %}
-              </div>
-
-              {% if test_data.metrics %}
-                <div class="row g-2 mb-2">
-                  {% if test_data.metrics.response_time %}
-                    <div class="col-6">
-                      <div class="text-muted small text-uppercase">Response Time</div>
-                      <div class="fw-medium">{{ test_data.metrics.response_time }}ms</div>
-                    </div>
-                  {% endif %}
-                  {% if test_data.metrics.throughput %}
-                    <div class="col-6">
-                      <div class="text-muted small text-uppercase">Throughput</div>
-                      <div class="fw-medium">{{ test_data.metrics.throughput }} req/s</div>
-                    </div>
-                  {% endif %}
-                  {% if test_data.metrics.success_rate is defined %}
-                    <div class="col-6">
-                      <div class="text-muted small text-uppercase">Success Rate</div>
-                      <div class="fw-medium">{{ test_data.metrics.success_rate }}%</div>
-                    </div>
-                  {% endif %}
-                  {% if test_data.metrics.error_rate is defined %}
-                    <div class="col-6">
-                      <div class="text-muted small text-uppercase">Error Rate</div>
-                      <div class="fw-medium">{{ test_data.metrics.error_rate }}%</div>
-                    </div>
-                  {% endif %}
-                  {% if test_data.metrics.total_requests %}
-                    <div class="col-6">
-                      <div class="text-muted small text-uppercase">Total Requests</div>
-                      <div class="fw-medium">{{ test_data.metrics.total_requests }}</div>
-                    </div>
-                  {% endif %}
-                  {% if test_data.metrics.failed_requests %}
-                    <div class="col-6">
-                      <div class="text-muted small text-uppercase">Failed Requests</div>
-                      <div class="fw-medium">{{ test_data.metrics.failed_requests }}</div>
-                    </div>
-                  {% endif %}
-                </div>
-
-                {# Additional Metrics Accordion #}
-                {% if test_data.metrics|length > 6 %}
-                  <div class="accordion" id="accordion-{{ test_name }}">
-                    <div class="accordion-item">
-                      <h2 class="accordion-header">
-                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ test_name }}">
-                          View All Metrics ({{ test_data.metrics|length }})
-                        </button>
-                      </h2>
-                      <div id="collapse-{{ test_name }}" class="accordion-collapse collapse" data-bs-parent="#accordion-{{ test_name }}">
-                        <div class="accordion-body">
-                          <dl class="row mb-0 g-2 small">
-                            {% for key, value in test_data.metrics.items() %}
-                              <dt class="col-6 text-muted">{{ key|replace('_', ' ')|title }}</dt>
-                              <dd class="col-6">{{ value }}</dd>
-                            {% endfor %}
-                          </dl>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover table-vcenter mb-0">
+        <thead>
+          <tr>
+            <th>Test</th>
+            <th class="text-center">Status</th>
+            <th class="text-end">Response Time</th>
+            <th class="text-end">Throughput</th>
+            <th class="text-end">Success Rate</th>
+            <th class="text-end">Requests</th>
+            <th>Issues</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for test_name, test_data in test_results.items() %}
+          <tr>
+            <td><strong>{{ test_name|replace('_', ' ')|title }}</strong></td>
+            <td class="text-center">
+              {% if test_data.executed %}
+                <span class="badge badge-sm {% if test_data.status in ['success', 'ok', 'completed'] %}bg-success-lt text-success{% elif test_data.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
+                  {{ test_data.status|default('unknown') }}
+                </span>
+              {% else %}
+                <span class="badge badge-sm bg-secondary-lt">Skipped</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              {% set rt = test_data.avg_response_time|default(test_data.metrics.response_time if test_data.metrics is defined else none) %}
+              {{ rt|default('—') }}{% if rt %}ms{% endif %}
+            </td>
+            <td class="text-end">
+              {% set tp = test_data.requests_per_second|default(test_data.metrics.throughput if test_data.metrics is defined else none) %}
+              {{ tp|default('—') }}{% if tp %} req/s{% endif %}
+            </td>
+            <td class="text-end">
+              {% set sr = test_data.success_rate|default(test_data.metrics.success_rate if test_data.metrics is defined else none) %}
+              {% if sr is defined and sr is not none %}
+                <span class="{% if sr >= 95 %}text-success{% elif sr >= 80 %}text-warning{% else %}text-danger{% endif %}">
+                  {{ sr }}%
+                </span>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td class="text-end">
+              {% set total = test_data.requests|default(test_data.completed_requests)|default(test_data.metrics.total_requests if test_data.metrics is defined else none) %}
+              {% set failed = test_data.failed_requests|default(test_data.metrics.failed_requests if test_data.metrics is defined else none) %}
+              {% if total %}
+                {{ total }}
+                {% if failed %}
+                  <span class="text-danger small">({{ failed }} failed)</span>
                 {% endif %}
               {% else %}
-                <div class="text-muted small">No metrics available</div>
+                —
               {% endif %}
-
-              {# Issues/Bottlenecks #}
+            </td>
+            <td class="small text-muted">
               {% if test_data.issues %}
-                <div class="mt-2">
-                  <div class="text-muted small mb-1">
-                    <i class="fa-solid fa-exclamation-triangle text-warning me-1"></i>{{ test_data.issues|length }} issue{{ test_data.issues|length == 1 and '' or 's' }}
-                  </div>
-                  <ul class="list-unstyled mb-0 small">
+                <details>
+                  <summary class="text-warning" style="cursor: pointer;">{{ test_data.issues|length }} issue{{ test_data.issues|length == 1 and '' or 's' }}</summary>
+                  <ul class="mb-0 mt-1">
                     {% for issue in test_data.issues[:3] %}
-                      <li class="text-wrap">• {{ issue }}</li>
+                      <li>{{ issue }}</li>
                     {% endfor %}
                     {% if test_data.issues|length > 3 %}
                       <li class="text-muted">...and {{ test_data.issues|length - 3 }} more</li>
                     {% endif %}
                   </ul>
-                </div>
+                </details>
+              {% else %}
+                <span class="text-success">None</span>
               {% endif %}
-            </div>
-          </div>
-        </div>
-      {% endfor %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   {% else %}
     <div class="empty">

@@ -1,0 +1,245 @@
+/**
+ * Analysis Report Styles
+ * Compact, print-friendly report layout for analysis results
+ */
+
+/* Report Container */
+.report-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* Report Header */
+.report-header {
+  border-bottom: 3px solid var(--tblr-primary);
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.report-header h1 {
+  font-weight: 600;
+  color: var(--tblr-dark);
+}
+
+/* Executive Summary */
+.card-header.bg-primary-lt {
+  background-color: #e7f1ff !important;
+  border-bottom: 2px solid var(--tblr-primary);
+}
+
+/* Dense Table Styles */
+.table-sm thead th {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.5px;
+  background-color: #f8f9fa;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.table-sm tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+.table-sm td {
+  vertical-align: middle;
+  font-size: 0.875rem;
+}
+
+.table-sm .text-truncate {
+  max-width: 400px;
+}
+
+/* Accordion Styles */
+.accordion-button {
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+}
+
+.accordion-button:not(.collapsed) {
+  background-color: #e7f1ff;
+  color: var(--tblr-primary);
+}
+
+.accordion-body {
+  padding: 1rem;
+  background-color: #fafbfc;
+}
+
+/* Badge Enhancements */
+.badge-sm {
+  font-size: 0.7rem;
+  padding: 0.25em 0.5em;
+}
+
+/* Alert Compaction */
+.alert {
+  border-left: 4px solid;
+}
+
+.alert-info {
+  border-left-color: var(--tblr-info);
+}
+
+.alert-warning {
+  border-left-color: var(--tblr-warning);
+}
+
+.alert-light {
+  background-color: #f8f9fa;
+  border-color: #dee2e6;
+}
+
+/* Details/Summary Styling */
+details {
+  cursor: pointer;
+}
+
+details summary {
+  user-select: none;
+  outline: none;
+}
+
+details[open] summary i.fa-chevron-right {
+  transform: rotate(90deg);
+  transition: transform 0.2s;
+}
+
+/* Print Styles */
+@media print {
+  /* Hide interactive elements */
+  .btn, .navbar, .sidebar, footer, .d-print-none {
+    display: none !important;
+  }
+
+  /* Optimize layout */
+  .report-container {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Page breaks */
+  .card, .accordion-item {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .accordion-item {
+    margin-bottom: 1rem;
+  }
+
+  /* Expand accordions for print */
+  .accordion-collapse {
+    display: block !important;
+    height: auto !important;
+  }
+
+  .accordion-button::after {
+    display: none;
+  }
+
+  /* Remove backgrounds */
+  .accordion-button:not(.collapsed) {
+    background-color: transparent !important;
+  }
+
+  .accordion-body {
+    background-color: transparent !important;
+  }
+
+  /* Table optimizations */
+  table {
+    font-size: 9pt;
+  }
+
+  .table-sm thead th {
+    background-color: #e9ecef !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Badge colors */
+  .badge {
+    border: 1px solid currentColor;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Alert borders */
+  .alert {
+    border: 1px solid #dee2e6;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Headers */
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+
+  /* Report header */
+  .report-header {
+    border-bottom: 2px solid #000;
+    margin-bottom: 1rem;
+  }
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .report-container {
+    padding: 0 0.5rem;
+  }
+
+  .table-responsive {
+    font-size: 0.8rem;
+  }
+
+  .badge-sm {
+    font-size: 0.65rem;
+  }
+}
+
+/* Utility Classes */
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.text-break {
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Code Blocks */
+pre code {
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+/* Border Utilities */
+.border-bottom {
+  border-bottom: 1px solid #dee2e6 !important;
+}
+
+/* Severity Color Coding */
+.severity-critical {
+  color: #d63939;
+  font-weight: 600;
+}
+
+.severity-high {
+  color: #d63939;
+}
+
+.severity-medium {
+  color: #f76707;
+}
+
+.severity-low {
+  color: #0ca678;
+}
+
+.severity-info {
+  color: #4299e1;
+}

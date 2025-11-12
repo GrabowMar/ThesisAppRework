@@ -58,6 +58,9 @@ class AnalysisResults:
     requirements: Dict[str, Any]
     tools: Dict[str, Any]
     raw_data: Dict[str, Any]
+    model_slug: str = 'unknown'
+    app_number: int = 0
+    modified_at: Optional[datetime] = None
 
 
 class UnifiedResultService:
@@ -389,20 +392,39 @@ class UnifiedResultService:
         if not results_root.exists():
             return None
         
-        # Search pattern: results/*/app*/analysis/{task_id}/consolidated.json
+        # Search pattern: results/*/app*/{task_id}/*.json (new structure)
+        # Also check legacy: results/*/app*/analysis/{task_id}/consolidated.json
         for model_dir in results_root.iterdir():
             if not model_dir.is_dir():
                 continue
             for app_dir in model_dir.iterdir():
                 if not app_dir.is_dir() or not app_dir.name.startswith('app'):
                     continue
-                task_file = app_dir / "analysis" / task_id / "consolidated.json"
-                if task_file.exists():
+                
+                # New structure: results/{model}/app{N}/task_{task_id}/*.json
+                task_dir = app_dir / task_id
+                if task_dir.exists() and task_dir.is_dir():
+                    # Find the main JSON file (not manifest.json)
+                    json_files = list(task_dir.glob('*.json'))
+                    main_json = next((jf for jf in json_files if jf.name != 'manifest.json' and task_id in jf.name), None)
+                    if not main_json and json_files:
+                        main_json = next((jf for jf in json_files if jf.name != 'manifest.json'), None)
+                    
+                    if main_json:
+                        try:
+                            with open(main_json, 'r', encoding='utf-8') as f:
+                                return json.load(f)
+                        except Exception as e:
+                            logger.error(f"Failed to load {main_json}: {e}")
+                
+                # Legacy structure: results/{model}/app{N}/analysis/{task_id}/consolidated.json
+                legacy_file = app_dir / "analysis" / task_id / "consolidated.json"
+                if legacy_file.exists():
                     try:
-                        with open(task_file, 'r', encoding='utf-8') as f:
+                        with open(legacy_file, 'r', encoding='utf-8') as f:
                             return json.load(f)
                     except Exception as e:
-                        logger.error(f"Failed to load {task_file}: {e}")
+                        logger.error(f"Failed to load {legacy_file}: {e}")
         
         return None
     
@@ -424,15 +446,15 @@ class UnifiedResultService:
             if not task_dir.is_dir() or not task_dir.name.startswith('task_'):
                 continue
             
-            # Extract task_id from directory name (remove 'task_' prefix)
-            task_id_from_dir = task_dir.name.replace('task_', '', 1)
+            # Use directory name directly as task_id (already has 'task_' prefix)
+            task_id = task_dir.name  # e.g., "task_73f4b252ff6d"
             
             # Look for JSON files in the task directory
             json_files = list(task_dir.glob('*.json'))
             # Filter out manifest.json, prefer the main result JSON
             main_json = None
             for jf in json_files:
-                if jf.name != 'manifest.json' and task_id_from_dir in jf.name:
+                if jf.name != 'manifest.json' and task_id in jf.name:
                     main_json = jf
                     break
             
@@ -443,12 +465,12 @@ class UnifiedResultService:
             if main_json:
                 stat = main_json.stat()
                 files.append({
-                    'task_id': f"task_{task_id_from_dir}",  # Keep task_ prefix for consistency
-                    'identifier': f"task_{task_id_from_dir}",
+                    'task_id': task_id,  # Use directory name as-is: "task_73f4b252ff6d"
+                    'identifier': task_id,  # Must match DB format exactly
                     'path': str(main_json),
                     'size_bytes': stat.st_size,
                     'modified_at': datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
-                    'task_name': task_dir.name,
+                    'task_name': task_id,
                     'model_slug': model_slug,
                     'app_number': app_number
                 })
@@ -532,24 +554,54 @@ class UnifiedResultService:
         payload: Dict[str, Any]
     ) -> AnalysisResults:
         """Transform raw payload into structured AnalysisResults."""
+        # Handle nested structure: if payload has 'results' key, unwrap it
+        if 'results' in payload and isinstance(payload['results'], dict):
+            results_data = payload['results']
+        else:
+            results_data = payload
+        
+        # Extract metadata
+        metadata = payload.get('metadata', {})
+        model_slug = metadata.get('model_slug', 'unknown')
+        app_number = metadata.get('app_number', 0)
+        
+        # Parse timestamp if available
+        modified_at = None
+        if 'timestamp' in metadata:
+            try:
+                from dateutil import parser
+                modified_at = parser.parse(metadata['timestamp'])
+            except Exception:
+                pass
+        
         # Extract data for each tab
-        summary = self._extract_summary(payload)
-        security = self._extract_security(payload)
-        performance = self._extract_performance(payload)
-        quality = self._extract_quality(payload)
-        requirements = self._extract_requirements(payload)
-        tools = self._extract_tools(payload)
+        summary = self._extract_summary(results_data)
+        security = self._extract_security(results_data)
+        performance = self._extract_performance(results_data)
+        quality = self._extract_quality(results_data)
+        requirements = self._extract_requirements(results_data)
+        
+        # Get full services data (not just tools) - template needs this
+        services = results_data.get('services', {})
+        
+        # Determine status from summary or top-level
+        status = (results_data.get('summary', {}).get('status') or 
+                  results_data.get('status') or 
+                  payload.get('status', 'unknown'))
         
         return AnalysisResults(
             task_id=task_id,
-            status=payload.get('status', 'unknown'),
+            status=status,
             summary=summary,
             security=security,
             performance=performance,
             quality=quality,
             requirements=requirements,
-            tools=tools,
-            raw_data=payload
+            tools=services,  # Use full services data instead of just tool results
+            raw_data=payload,
+            model_slug=model_slug,
+            app_number=app_number,
+            modified_at=modified_at
         )
     
     def _extract_summary(self, payload: Dict[str, Any]) -> Dict[str, Any]:
