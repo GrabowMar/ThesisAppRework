@@ -7,47 +7,46 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <form id="report-form" hx-post="/api/reports/generate" hx-swap="none">
+        <form id="report-form">
           {# Report Type #}
           <div class="mb-3">
-            <label for="report-type" class="form-label">Report Type</label>
+            <label for="report-type" class="form-label required">Report Type</label>
             <select class="form-select" id="report-type" name="report_type" required>
               <option value="">Select report type...</option>
-              <option value="app_analysis">App Analysis (Single App)</option>
-              <option value="model_comparison">Model Comparison</option>
-              <option value="tool_effectiveness">Tool Effectiveness</option>
-              <option value="executive_summary">Executive Summary</option>
+              <option value="model_analysis">Model Analysis - All analyses for one model</option>
+              <option value="app_analysis">App Comparison - Compare models for one app</option>
+              <option value="tool_analysis">Tool Analysis - Tool performance across all analyses</option>
             </select>
+            <div class="form-text">Choose what perspective you want to analyze</div>
           </div>
 
           {# Output Format #}
           <div class="mb-3">
-            <label for="format" class="form-label">Output Format</label>
+            <label for="format" class="form-label required">Output Format</label>
             <select class="form-select" id="format" name="format" required>
-              <option value="html">HTML (Interactive)</option>
-              <option value="excel">Excel (Data Tables)</option>
-              <option value="json">JSON (Machine-Readable)</option>
+              <option value="html">HTML (Interactive, best for viewing)</option>
+              <option value="json">JSON (Machine-readable, for automation)</option>
             </select>
-          </div>
-
-          {# Title #}
-          <div class="mb-3">
-            <label for="title" class="form-label">Report Title (Optional)</label>
-            <input type="text" class="form-control" id="title" name="title" placeholder="Auto-generated if left blank">
           </div>
 
           {# Dynamic Configuration Fields #}
           <div id="config-fields">
-            <div class="text-center text-muted py-3">
-              <i class="fas fa-arrow-up me-2"></i>Select a report type to see options
+            <div class="alert alert-info">
+              <i class="fas fa-arrow-up me-2"></i>Select a report type above to configure options
             </div>
+          </div>
+
+          {# Optional Title #}
+          <div class="mb-3">
+            <label for="title" class="form-label">Custom Title (Optional)</label>
+            <input type="text" class="form-control" id="title" name="title" placeholder="Leave blank for auto-generated title">
           </div>
         </form>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn" data-bs-dismiss="modal">Cancel</button>
         <button type="button" class="btn btn-primary" id="submit-report-btn">
-          <i class="fas fa-magic me-2"></i>Generate Report
+          <i class="fas fa-file-alt me-2"></i>Generate Report
         </button>
       </div>
     </div>
@@ -63,18 +62,18 @@
   const configFields = document.getElementById('config-fields');
   const submitBtn = document.getElementById('submit-report-btn');
   
-  // Use server-provided models data (already filtered to models with apps)
+  // Use server-provided data
   const modelsCache = {{ models | tojson | safe }};
   const appsCache = {{ apps_by_model | tojson | safe }};
   
-  // Build model select dropdown
+  // Build model dropdown
   function buildModelSelect(selectedValue = '') {
     if (!Array.isArray(modelsCache) || modelsCache.length === 0) {
       return '<option value="">No models available</option>';
     }
     
     const options = modelsCache.map(m => {
-      const slug = m.canonical_slug || m.model_slug || m.slug || m.id;
+      const slug = m.canonical_slug || m.model_slug || m.slug;
       const name = m.model_name || m.display_name || slug;
       const selected = slug === selectedValue ? 'selected' : '';
       return `<option value="${slug}" ${selected}>${name}</option>`;
@@ -82,86 +81,60 @@
     return `<option value="">Select model...</option>${options}`;
   }
   
-  // Build model multi-select
-  function buildModelMultiSelect() {
-    if (!Array.isArray(modelsCache) || modelsCache.length === 0) {
-      return '<div class="alert alert-info">No models available</div>';
-    }
-    
-    return modelsCache.map(m => {
-      const slug = m.canonical_slug || m.model_slug || m.slug || m.id;
-      const name = m.model_name || m.display_name || slug;
-      const safeSlug = slug.replace(/[^a-zA-Z0-9_-]/g, '_');
-      
-      // Get app count for this model
-      const apps = appsCache[slug] || [];
-      const appCountText = apps.length > 0 ? ` (${apps.length} app${apps.length > 1 ? 's' : ''})` : '';
-      
-      return `
-        <div class="form-check">
-          <input class="form-check-input model-checkbox" type="checkbox" value="${slug}" id="model-${safeSlug}" checked>
-          <label class="form-check-label" for="model-${safeSlug}">${name}${appCountText}</label>
-        </div>
-      `;
-    }).join('');
-  }
-  
-  // Configuration templates
+  // Configuration templates for each report type
   const configs = {
-    app_analysis: () => {
-      return `
-        <div class="mb-3">
-          <label class="form-label">Model</label>
-          <select class="form-select" name="model_slug" id="model-select" required>
-            ${buildModelSelect()}
-          </select>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">App Number</label>
-          <input type="number" class="form-control" name="app_number" required value="1" min="1" max="10">
-          <div class="form-text" id="app-count-hint">Select a model to see available apps</div>
-        </div>
-      `;
-    },
-    model_comparison: () => {
-      return `
-        <div class="mb-3">
-          <label class="form-label">Select Models to Compare</label>
-          <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
-            ${buildModelMultiSelect()}
-          </div>
-          <div class="form-text">All models selected by default. Uncheck to exclude from comparison.</div>
-        </div>
-        <div class="mb-3">
-          <label class="form-label">
-            <input type="checkbox" class="form-check-input me-2" id="compare-all-apps" checked>
-            Compare all available apps for each model
-          </label>
-          <div class="form-text">When checked, reports will compare all apps (1, 2, 3, etc.) for each model. Uncheck to specify a single app number.</div>
-        </div>
-        <div class="mb-3" id="single-app-field" style="display: none;">
-          <label class="form-label">App Number</label>
-          <input type="number" class="form-control" name="app_number" value="1" min="1" max="10">
-          <div class="form-text">Compare this specific app number across models</div>
-        </div>
-      `;
-    },
-    tool_effectiveness: () => {
-      return `
-        <div class="alert alert-info mb-0">
-          <i class="fas fa-info-circle me-2"></i>
-          Tool effectiveness analysis across all available data.
-        </div>
-      `;
-    },
-    executive_summary: () => {
-      return `
-        <div class="alert alert-info mb-0">
-          <i class="fas fa-info-circle me-2"></i>
-          Executive summary of recent analysis activities.
-        </div>
-      `;
-    }
+    model_analysis: () => `
+      <div class="mb-3">
+        <label class="form-label required">Model</label>
+        <select class="form-select" name="model_slug" required>
+          ${buildModelSelect()}
+        </select>
+        <div class="form-text">View all analyses for this model across all apps</div>
+      </div>
+    `,
+    
+    app_analysis: () => `
+      <div class="mb-3">
+        <label class="form-label required">App Number</label>
+        <input type="number" class="form-control" name="app_number" required value="1" min="1" max="10">
+        <div class="form-text">Compare all models' analyses for this app number</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Filter by Models (Optional)</label>
+        <select class="form-select" name="filter_models" multiple size="5">
+          ${modelsCache.map(m => {
+            const slug = m.canonical_slug || m.model_slug || m.slug;
+            const name = m.model_name || m.display_name || slug;
+            return `<option value="${slug}">${name}</option>`;
+          }).join('')}
+        </select>
+        <div class="form-text">Leave empty to compare all models, or select specific ones</div>
+      </div>
+    `,
+    
+    tool_analysis: () => `
+      <div class="mb-3">
+        <label class="form-label">Specific Tool (Optional)</label>
+        <input type="text" class="form-control" name="tool_name" placeholder="e.g., bandit, eslint, zap">
+        <div class="form-text">Leave blank to analyze all tools</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Filter by Model (Optional)</label>
+        <select class="form-select" name="filter_model">
+          <option value="">All models</option>
+          ${modelsCache.map(m => {
+            const slug = m.canonical_slug || m.model_slug || m.slug;
+            const name = m.model_name || m.display_name || slug;
+            return `<option value="${slug}">${name}</option>`;
+          }).join('')}
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Filter by App (Optional)</label>
+        <input type="number" class="form-control" name="filter_app" placeholder="e.g., 1" min="1" max="10">
+        <div class="form-text">Leave blank for global analysis</div>
+      </div>
+    `
   };
   
   // Update config fields on type change
@@ -169,52 +142,15 @@
     const reportType = this.value;
     
     if (!reportType) {
-      configFields.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-arrow-up me-2"></i>Select a report type to see options</div>';
+      configFields.innerHTML = '<div class="alert alert-info"><i class="fas fa-arrow-up me-2"></i>Select a report type above to configure options</div>';
       return;
     }
     
-    configFields.innerHTML = '<div class="text-center py-3"><span class="spinner-border spinner-border-sm me-2"></span>Loading...</div>';
-    
-    try {
-      const configFn = configs[reportType];
-      if (configFn) {
-        const html = configFn();
-        configFields.innerHTML = html;
-        
-        // Add event listeners after rendering
-        if (reportType === 'model_comparison') {
-          const compareAllCheckbox = document.getElementById('compare-all-apps');
-          const singleAppField = document.getElementById('single-app-field');
-          
-          if (compareAllCheckbox && singleAppField) {
-            compareAllCheckbox.addEventListener('change', function() {
-              singleAppField.style.display = this.checked ? 'none' : 'block';
-            });
-          }
-        }
-        
-        if (reportType === 'app_analysis') {
-          const modelSelect = document.getElementById('model-select');
-          const appCountHint = document.getElementById('app-count-hint');
-          
-          if (modelSelect && appCountHint && appsCache) {
-            modelSelect.addEventListener('change', function() {
-              const slug = this.value;
-              const apps = appsCache[slug] || [];
-              if (apps.length > 0) {
-                appCountHint.textContent = `Available apps: ${apps.join(', ')}`;
-              } else {
-                appCountHint.textContent = 'No apps found for this model';
-              }
-            });
-          }
-        }
-      } else {
-        configFields.innerHTML = '';
-      }
-    } catch (error) {
-      console.error('Failed to load config:', error);
-      configFields.innerHTML = '<div class="alert alert-danger mb-0">Failed to load configuration options</div>';
+    const configFn = configs[reportType];
+    if (configFn) {
+      configFields.innerHTML = configFn();
+    } else {
+      configFields.innerHTML = '';
     }
   });
   
@@ -242,36 +178,33 @@
       
       const payload = {
         report_type: reportType,
-        format: formData.get('format'),
+        format: formData.get('format') || 'html',
         title: formData.get('title') || null,
         config: {}
       };
       
       // Build config based on report type
-      if (reportType === 'app_analysis') {
+      if (reportType === 'model_analysis') {
         payload.config.model_slug = formData.get('model_slug');
+      } else if (reportType === 'app_analysis') {
         payload.config.app_number = parseInt(formData.get('app_number'));
-      } else if (reportType === 'model_comparison') {
-        // Collect checked models
-        const checkedModels = Array.from(document.querySelectorAll('.model-checkbox:checked'))
-          .map(cb => cb.value);
         
-        if (checkedModels.length < 2) {
-          throw new Error('Please select at least 2 models to compare');
+        // Get selected filter models if any
+        const filterModels = Array.from(form.querySelectorAll('[name="filter_models"] option:checked'))
+          .map(opt => opt.value)
+          .filter(v => v);
+        if (filterModels.length > 0) {
+          payload.config.filter_models = filterModels;
         }
+      } else if (reportType === 'tool_analysis') {
+        const toolName = formData.get('tool_name');
+        if (toolName) payload.config.tool_name = toolName;
         
-        payload.config.model_slugs = checkedModels;
+        const filterModel = formData.get('filter_model');
+        if (filterModel) payload.config.filter_model = filterModel;
         
-        // Check if comparing all apps or single app
-        const compareAllApps = document.getElementById('compare-all-apps');
-        if (compareAllApps && compareAllApps.checked) {
-          // Compare all available apps for each model
-          payload.config.compare_all_apps = true;
-        } else {
-          // Compare specific app number across models
-          payload.config.app_number = parseInt(formData.get('app_number') || '1');
-          payload.config.compare_all_apps = false;
-        }
+        const filterApp = formData.get('filter_app');
+        if (filterApp) payload.config.filter_app = parseInt(filterApp);
       }
       
       const response = await fetch('/api/reports/generate', {
@@ -283,7 +216,9 @@
       const result = await response.json();
       
       if (result.success) {
-        window.showToast('Report generated successfully!', 'success');
+        if (window.showToast) {
+          window.showToast('Report generated successfully!', 'success');
+        }
         modal.remove();
         document.querySelector('.modal-backdrop')?.remove();
         // Reload page to show new report
@@ -293,9 +228,14 @@
       }
       
     } catch (error) {
-      window.showToast(error.message, 'error');
+      console.error('Report generation error:', error);
+      if (window.showToast) {
+        window.showToast(error.message, 'error');
+      } else {
+        alert('Error: ' + error.message);
+      }
       submitBtn.disabled = false;
-      submitBtn.innerHTML = '<i class="fas fa-magic me-2"></i>Generate Report';
+      submitBtn.innerHTML = '<i class="fas fa-file-alt me-2"></i>Generate Report';
     }
   });
   

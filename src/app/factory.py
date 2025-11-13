@@ -273,6 +273,76 @@ def create_app(config_name: str = 'default') -> Flask:
                     db.session.rollback()
                 except Exception:
                     pass
+            
+            # Sync generated apps from filesystem to database
+            try:
+                from app.models import GeneratedApplication
+                from pathlib import Path
+                
+                # Get project root and generated apps directory
+                project_root = Path(app.root_path).parent.parent
+                generated_apps_dir = project_root / 'generated' / 'apps'
+                
+                if generated_apps_dir.exists():
+                    synced_count = 0
+                    
+                    # Scan filesystem for generated apps
+                    for model_dir in generated_apps_dir.iterdir():
+                        if not model_dir.is_dir():
+                            continue
+                        
+                        model_slug = model_dir.name
+                        
+                        # Try to get provider from model_slug (format: provider_model-name)
+                        provider = 'unknown'
+                        if '_' in model_slug:
+                            provider = model_slug.split('_')[0]
+                        
+                        for app_dir in model_dir.iterdir():
+                            if not app_dir.is_dir() or not app_dir.name.startswith('app'):
+                                continue
+                            
+                            # Extract app number from folder name (e.g., "app1" -> 1)
+                            try:
+                                app_number = int(app_dir.name.replace('app', ''))
+                            except ValueError:
+                                continue
+                            
+                            # Check if already exists in database
+                            existing = GeneratedApplication.query.filter_by(
+                                model_slug=model_slug,
+                                app_number=app_number
+                            ).first()
+                            
+                            if not existing:
+                                # Create new record
+                                from app.utils.time import utc_now
+                                new_app = GeneratedApplication(
+                                    model_slug=model_slug,
+                                    app_number=app_number,
+                                    app_type='webapp',
+                                    provider=provider,
+                                    container_status='stopped',
+                                    created_at=utc_now(),
+                                    updated_at=utc_now()
+                                )
+                                db.session.add(new_app)
+                                synced_count += 1
+                    
+                    if synced_count > 0:
+                        db.session.commit()
+                        logger.info(f"Auto-synced {synced_count} generated apps to database")
+                    else:
+                        logger.debug("All generated apps already synced to database")
+                else:
+                    logger.debug(f"Generated apps directory not found: {generated_apps_dir}")
+                    
+            except Exception as sync_err:
+                logger.warning(f"Failed to auto-sync generated apps: {sync_err}")
+                try:
+                    db.session.rollback()
+                except Exception:
+                    pass
                     
         except Exception as e:
             logger.error(f"Failed to initialize database: {e}")

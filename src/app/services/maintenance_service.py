@@ -23,6 +23,7 @@ from app.utils.logging_config import get_logger
 from app.extensions import db
 from app.models import GeneratedApplication, AnalysisTask
 from app.constants import AnalysisStatus
+from app.paths import GENERATED_APPS_DIR
 
 logger = get_logger("maintenance")
 
@@ -208,11 +209,10 @@ class MaintenanceService:
         """Remove database records for apps that don't exist on filesystem."""
         try:
             all_apps = GeneratedApplication.query.all()
-            base_path = Path('generated/apps')
             
             orphans = []
             for app_record in all_apps:
-                app_dir = base_path / app_record.model_slug / f'app{app_record.app_number}'
+                app_dir = GENERATED_APPS_DIR / app_record.model_slug / f'app{app_record.app_number}'
                 if not app_dir.exists():
                     orphans.append(app_record)
             

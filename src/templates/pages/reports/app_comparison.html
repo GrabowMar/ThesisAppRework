@@ -1,0 +1,291 @@
+{% extends 'layouts/base.html' %}
+{% set page_title = 'App Comparison: App #' + app_number|string %}
+{% set page_icon = 'fas fa-code-compare' %}
+
+{% block content %}
+<div class="container-xl">
+    <!-- Header -->
+    <div class="page-header d-print-none">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">
+                    <span class="text-muted">App Comparison:</span> App #{{ app_number }}
+                </h2>
+                <div class="text-muted">
+                    Generated {{ timestamp[:10] }} | {{ models_count }} models compared
+                </div>
+            </div>
+            <div class="col-auto">
+                <button onclick="window.print()" class="btn btn-primary">
+                    <i class="ti ti-printer me-2"></i>Print Report
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="row row-cards mb-3">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="subheader">Models Compared</div>
+                    <div class="h1 mb-3">{{ models_count }}</div>
+                    <div class="text-muted">Different AI models</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="subheader">Common Findings</div>
+                    <div class="h1 mb-3 text-warning">{{ comparison.common_findings_count }}</div>
+                    <div class="text-muted">Found by multiple models</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="subheader">Unique Findings</div>
+                    <div class="h1 mb-3 text-info">{{ comparison.unique_findings_count }}</div>
+                    <div class="text-muted">Model-specific issues</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card">
+                <div class="card-body">
+                    <div class="subheader">Best Performer</div>
+                    <div class="h3 mb-2">{{ comparison.best_performing_model }}</div>
+                    <div class="text-muted small">Fewest findings</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Model Comparison Table -->
+    <div class="card mb-3">
+        <div class="card-header">
+            <h3 class="card-title">Side-by-Side Model Comparison</h3>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Total Findings</th>
+                        <th>Critical</th>
+                        <th>High</th>
+                        <th>Medium</th>
+                        <th>Low</th>
+                        <th>Tools Success</th>
+                        <th>Duration</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for model in models %}
+                    <tr class="{% if model.model_slug == comparison.best_performing_model %}table-success{% elif model.model_slug == comparison.worst_performing_model %}table-warning{% endif %}">
+                        <td>
+                            <strong>{{ model.model_slug }}</strong>
+                            {% if model.model_slug == comparison.best_performing_model %}
+                            <span class="badge bg-success ms-2">Best</span>
+                            {% elif model.model_slug == comparison.worst_performing_model %}
+                            <span class="badge bg-warning ms-2">Worst</span>
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ model.findings_count }}</strong></td>
+                        <td><span class="badge bg-danger">{{ model.severity_counts.get('critical', 0) }}</span></td>
+                        <td><span class="badge bg-warning">{{ model.severity_counts.get('high', 0) }}</span></td>
+                        <td><span class="badge bg-info">{{ model.severity_counts.get('medium', 0) }}</span></td>
+                        <td><span class="badge bg-secondary">{{ model.severity_counts.get('low', 0) }}</span></td>
+                        <td>
+                            <span class="text-{% if model.tools_failed == 0 %}success{% else %}warning{% endif %}">
+                                {{ model.tools_successful }} / {{ model.tools_successful + model.tools_failed }}
+                            </span>
+                        </td>
+                        <td class="text-muted">{{ "%.1f"|format(model.duration_seconds) }}s</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Common Findings -->
+    <div class="card mb-3">
+        <div class="card-header">
+            <h3 class="card-title">Common Findings (Found by Multiple Models)</h3>
+            <div class="card-subtitle">These issues were detected by {{ comparison.common_findings_count }} different model combinations</div>
+        </div>
+        <div class="card-body">
+            {% if comparison.common_findings %}
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Severity</th>
+                        <th>Message</th>
+                        <th>Location</th>
+                        <th>Found By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for finding in comparison.common_findings[:30] %}
+                    <tr>
+                        <td>
+                            <span class="badge bg-{{ 'danger' if finding.severity == 'critical' else 'warning' if finding.severity == 'high' else 'info' if finding.severity == 'medium' else 'secondary' }}">
+                                {{ finding.severity }}
+                            </span>
+                        </td>
+                        <td>{{ finding.message }}</td>
+                        <td class="text-muted small">
+                            {{ finding.file }}{% if finding.line %}:{{ finding.line }}{% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-blue-lt">{{ finding.found_by_count }} models</span>
+                            <span class="text-muted small">{{ finding.found_by_models|join(', ') }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if comparison.common_findings|length > 30 %}
+                    <tr>
+                        <td colspan="4" class="text-center text-muted">
+                            ... and {{ comparison.common_findings|length - 30 }} more common findings
+                        </td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-muted">No common findings across models.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Tool Usage Consistency -->
+    <div class="card mb-3">
+        <div class="card-header">
+            <h3 class="card-title">Tool Usage Across Models</h3>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+                <thead>
+                    <tr>
+                        <th>Tool</th>
+                        <th>Used By Models</th>
+                        <th>Success Rate</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tool_name, usage in comparison.tool_usage.items() %}
+                    <tr>
+                        <td><code>{{ tool_name }}</code></td>
+                        <td>
+                            <span class="badge bg-blue">{{ usage.used_by_models|length }} models</span>
+                            <span class="text-muted small">{{ usage.used_by_models|join(', ') }}</span>
+                        </td>
+                        <td>
+                            {% set success_count = usage.success_rate_by_model.values()|select('eq', 1)|list|length %}
+                            {% set total_count = usage.success_rate_by_model|length %}
+                            <div class="progress" style="width: 100px;">
+                                <div class="progress-bar {% if success_count == total_count %}bg-success{% elif success_count > 0 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                     style="width: {{ (success_count / total_count * 100) if total_count > 0 else 0 }}%">
+                                    {{ success_count }} / {{ total_count }}
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Per-Model Details -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Detailed Model Results</h3>
+        </div>
+        <div class="card-body">
+            {% for model in models %}
+            <div class="mb-4">
+                <h4>
+                    {{ model.model_slug }}
+                    {% if model.model_slug == comparison.best_performing_model %}
+                    <span class="badge bg-success">Best</span>
+                    {% elif model.model_slug == comparison.worst_performing_model %}
+                    <span class="badge bg-warning">Worst</span>
+                    {% endif %}
+                </h4>
+                
+                <div class="row mb-3">
+                    <div class="col-auto">
+                        <span class="badge bg-{{ 'danger' if model.findings_count > 20 else 'warning' if model.findings_count > 10 else 'success' }}">
+                            {{ model.findings_count }} findings
+                        </span>
+                    </div>
+                    <div class="col-auto">
+                        <span class="text-muted">
+                            Critical: {{ model.severity_counts.get('critical', 0) }}, 
+                            High: {{ model.severity_counts.get('high', 0) }}, 
+                            Medium: {{ model.severity_counts.get('medium', 0) }}, 
+                            Low: {{ model.severity_counts.get('low', 0) }}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Findings Sample -->
+                <div class="accordion" id="accordion-{{ loop.index }}">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" 
+                                    data-bs-toggle="collapse" 
+                                    data-bs-target="#collapse-{{ loop.index }}">
+                                View Findings
+                            </button>
+                        </h2>
+                        <div id="collapse-{{ loop.index }}" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Severity</th>
+                                            <th>Tool</th>
+                                            <th>Message</th>
+                                            <th>Location</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for finding in model.findings[:30] %}
+                                        <tr>
+                                            <td>
+                                                <span class="badge bg-{{ 'danger' if finding.severity == 'critical' else 'warning' if finding.severity == 'high' else 'info' if finding.severity == 'medium' else 'secondary' }}">
+                                                    {{ finding.severity }}
+                                                </span>
+                                            </td>
+                                            <td><code>{{ finding.tool }}</code></td>
+                                            <td>{{ finding.message }}</td>
+                                            <td class="text-muted small">
+                                                {{ finding.file }}{% if finding.line %}:{{ finding.line }}{% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                        {% if model.findings|length > 30 %}
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted">
+                                                ... and {{ model.findings|length - 30 }} more findings
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% if not loop.last %}<hr class="my-4">{% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

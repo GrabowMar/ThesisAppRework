@@ -16,8 +16,8 @@ from ...services.service_base import NotFoundError, ValidationError, ServiceErro
 
 logger = logging.getLogger(__name__)
 
-# Create blueprint
-reports_bp = Blueprint('reports_api', __name__, url_prefix='/api/reports')
+# Create blueprint (prefix is just '/reports' since it's nested under api_bp which adds '/api')
+reports_bp = Blueprint('reports_api', __name__, url_prefix='/reports')
 
 
 # Require authentication for all report API routes
@@ -39,18 +39,23 @@ def generate_report():
     
     Request body:
     {
-        "report_type": "app_analysis|model_comparison|tool_effectiveness|executive_summary|custom",
-        "format": "pdf|html|excel|json",
+        "report_type": "model_analysis|app_analysis|tool_analysis",
+        "format": "html|json",
         "config": {
-            "model_slug": "openai_gpt-4",  // for app_analysis
-            "app_number": 1,                // for app_analysis, model_comparison
-            "task_id": "task_123",          // optional, for app_analysis
-            "model_slugs": ["model1", ...], // for model_comparison
-            "tools": ["bandit", ...],       // optional, for tool_effectiveness
-            "date_range": {                 // optional
-                "start": "2025-01-01",
-                "end": "2025-12-31"
-            }
+            // For model_analysis:
+            "model_slug": "openai_gpt-4",
+            "date_range": {"start": "2025-01-01", "end": "2025-12-31"}  // optional
+            
+            // For app_analysis:
+            "app_number": 1,
+            "filter_models": ["model1", "model2"],  // optional
+            "date_range": {"start": "2025-01-01", "end": "2025-12-31"}  // optional
+            
+            // For tool_analysis:
+            "tool_name": "bandit",  // optional (omit for all tools)
+            "filter_model": "openai_gpt-4",  // optional
+            "filter_app": 1,  // optional
+            "date_range": {"start": "2025-01-01", "end": "2025-12-31"}  // optional
         },
         "title": "Custom Report Title",     // optional
         "description": "Report description",// optional
@@ -65,19 +70,28 @@ def generate_report():
         
         # Validate required fields
         report_type = data.get('report_type')
-        format_type = data.get('format', 'pdf')
+        format_type = data.get('format', 'html')
         config = data.get('config', {})
         
         if not report_type:
             return jsonify({'success': False, 'error': 'report_type required'}), 400
         
-        valid_types = ['app_analysis', 'model_comparison', 'tool_effectiveness', 'executive_summary', 'custom']
+        valid_types = ['model_analysis', 'app_analysis', 'tool_analysis']
         if report_type not in valid_types:
             return jsonify({'success': False, 'error': f'report_type must be one of: {", ".join(valid_types)}'}), 400
         
-        valid_formats = ['pdf', 'html', 'excel', 'json']
+        valid_formats = ['html', 'json']
         if format_type not in valid_formats:
             return jsonify({'success': False, 'error': f'format must be one of: {", ".join(valid_formats)}'}), 400
+        
+        # Validate config based on report type
+        if report_type == 'model_analysis':
+            if not config.get('model_slug'):
+                return jsonify({'success': False, 'error': 'model_slug required for model_analysis'}), 400
+        elif report_type == 'app_analysis':
+            if config.get('app_number') is None:
+                return jsonify({'success': False, 'error': 'app_number required for app_analysis'}), 400
+        # tool_analysis is flexible - no required fields
         
         # Get service
         service_locator = ServiceLocator()
