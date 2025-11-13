@@ -4,6 +4,71 @@ Welcome to the comprehensive documentation for the ThesisAppRework analysis syst
 
 ## 📚 Documentation Index
 
+### 📁 Project Structure Overview
+
+The repository follows a clean, organized structure:
+
+```
+ThesisAppRework/
+├── src/                    # Flask web application
+│   ├── main.py            # Application entry point
+│   ├── app/               # Application package
+│   │   ├── factory.py     # App factory & ServiceLocator
+│   │   ├── models/        # Database models
+│   │   ├── routes/        # API & web routes
+│   │   ├── services/      # Business logic services
+│   │   └── templates/     # Jinja2 templates
+│   └── data/              # SQLite database (gitignored)
+│
+├── analyzer/               # Microservices architecture
+│   ├── analyzer_manager.py     # Orchestration & CLI
+│   ├── websocket_gateway.py    # Unified WS gateway
+│   ├── services/              # 4 analyzer services
+│   │   ├── static/           # Code quality (port 2001)
+│   │   ├── dynamic/          # Security testing (port 2002)
+│   │   ├── performance/      # Load testing (port 2003)
+│   │   └── ai/              # AI analysis (port 2004)
+│   └── shared/               # Shared protocol & utilities
+│
+├── tests/                  # Official test suite (pytest)
+│   ├── smoke/             # Fast health checks
+│   ├── integration/       # API, WS, analyzer, web UI tests
+│   ├── services/          # Unit tests for services
+│   └── routes/            # Route handler tests
+│
+├── generated/             # Generated apps (by model/app number)
+│   └── apps/{model_slug}/app{N}/
+│
+├── results/               # Analysis results (by task)
+│   └── {model_slug}/app{N}/task_{id}/
+│
+├── reports/               # Generated reports
+│   ├── app_analysis/
+│   ├── model_comparison/
+│   └── executive_summary/
+│
+├── docs/                  # This documentation
+│   ├── README.md          # Documentation index (you are here)
+│   ├── ANALYSIS_WORKFLOW.md   # Core workflow guide
+│   └── guides/           # Detailed guides
+│
+├── scripts/               # Utility scripts
+├── misc/                  # Configuration templates
+├── logs/                  # Runtime logs (gitignored)
+├── run/                   # PID files (gitignored)
+│
+├── start.ps1              # PowerShell orchestrator (Windows)
+├── docker-compose.yml     # Main stack definition
+├── pytest.ini             # Test configuration
+└── requirements.txt       # Python dependencies
+```
+
+**Key Points:**
+- **No junk in root**: Temporary test scripts and status markdown files have been cleaned up
+- **Tests in `tests/`**: All official tests use pytest with proper markers (smoke, integration, slow, analyzer)
+- **Docs in `docs/`**: No scattered markdown files - all documentation is organized
+- **Clean separation**: Web app (src/), analyzers (analyzer/), tests (tests/), outputs (generated/, results/, reports/)
+
 ### 🚀 Getting Started
 
 - **[Main README](../README.md)** - Project overview and quick start
@@ -298,6 +363,12 @@ Content with examples.
 **Questions or Suggestions?**  
 Open an issue or submit a pull request to improve this documentation.
 
-**Last Updated**: November 4, 2025  
-**Documentation Version**: 2.0.0  
+**Last Updated**: November 13, 2025  
+**Documentation Version**: 2.1.0  
 **Maintainers**: ThesisAppRework Team
+
+**Recent Changes (v2.1.0)**:
+- Repository cleanup: removed temporary status markdown files and debug scripts
+- Added comprehensive project structure overview
+- Clarified test organization (all official tests in `tests/` directory)
+- Updated references to reflect current codebase state

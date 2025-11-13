@@ -14,8 +14,16 @@ Use this as your working map for coding in this repo. Keep answers specific to t
 - Tool outputs are normalized into a `tools` map; linters like ESLint/JSHint treat exit code 1 with findings as success (see `analyzer/README.md`). Legacy `analysis/` subfolders are auto-pruned.
 
 ## Core developer workflows (Windows-friendly)
-- Start Flask (port 5000): run `src/main.py`. SocketIO is used if available.
-- Start analyzers (Docker required): `python analyzer/analyzer_manager.py start` then `... status` or `... health`.
+- **Quick start (recommended)**: Use `start.ps1` orchestrator for full stack management:
+  - Interactive menu: `./start.ps1` (or just run the script)
+  - Full stack: `./start.ps1 -Mode Start` (Flask + Analyzers)
+  - Dev mode (Flask only): `./start.ps1 -Mode Dev -NoAnalyzer`
+  - Status dashboard: `./start.ps1 -Mode Status`
+  - View logs: `./start.ps1 -Mode Logs`
+  - Stop all: `./start.ps1 -Mode Stop`
+- **Manual start**:
+  - Flask only (port 5000): run `src/main.py`. SocketIO is used if available.
+  - Analyzers (Docker required): `python analyzer/analyzer_manager.py start` then `... status` or `... health`.
 - Run an analysis directly (fastest for scripts):
   - `python analyzer/analyzer_manager.py analyze openai_gpt-4 1 security --tools bandit`
   - Comprehensive: `... analyze <model> <app> comprehensive`
@@ -86,6 +94,14 @@ Use this as your working map for coding in this repo. Keep answers specific to t
   ```
 
 Keep contributions aligned with these patterns and prefer citing concrete files from above in your outputs.
+
+## Repository organization (clean state)
+- **Root directory**: Only essential files (README.md, requirements.txt, pytest.ini, docker-compose.yml, start.ps1)
+- **No temporary files**: Status markdown files and debug scripts have been cleaned up (Nov 2025)
+- **All tests in `tests/`**: No root-level test scripts - use `pytest` from the official test suite
+- **Documentation in `docs/`**: Comprehensive guides in `docs/`, reference materials in `docs/guides/`
+- **Clean outputs**: `generated/` for apps, `results/` for analysis data, `reports/` for generated reports
+- **Scripts organized**: Utility/maintenance scripts in `scripts/`, not scattered in root
 
 ## Orientation hacks (fast path)
 - Find latest consolidated result for a model/app: look under `results/{model}/app{N}/task_*/` and open the most recent `{model}_app{N}_task_*.json`; the flat `tools` map shows per-tool status quickly.
