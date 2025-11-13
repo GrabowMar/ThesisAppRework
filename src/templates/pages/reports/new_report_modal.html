@@ -37,7 +37,11 @@
           </div>
 
           {# Dynamic Configuration Fields #}
-          <div id="config-fields"></div>
+          <div id="config-fields">
+            <div class="text-center text-muted py-3">
+              <i class="fas fa-arrow-up me-2"></i>Select a report type to see options
+            </div>
+          </div>
         </form>
       </div>
       <div class="modal-footer">
@@ -59,39 +63,159 @@
   const configFields = document.getElementById('config-fields');
   const submitBtn = document.getElementById('submit-report-btn');
   
+  // Use server-provided models data (already filtered to models with apps)
+  const modelsCache = {{ models | tojson | safe }};
+  const appsCache = {{ apps_by_model | tojson | safe }};
+  
+  // Build model select dropdown
+  function buildModelSelect(selectedValue = '') {
+    if (!Array.isArray(modelsCache) || modelsCache.length === 0) {
+      return '<option value="">No models available</option>';
+    }
+    
+    const options = modelsCache.map(m => {
+      const slug = m.canonical_slug || m.model_slug || m.slug || m.id;
+      const name = m.model_name || m.display_name || slug;
+      const selected = slug === selectedValue ? 'selected' : '';
+      return `<option value="${slug}" ${selected}>${name}</option>`;
+    }).join('');
+    return `<option value="">Select model...</option>${options}`;
+  }
+  
+  // Build model multi-select
+  function buildModelMultiSelect() {
+    if (!Array.isArray(modelsCache) || modelsCache.length === 0) {
+      return '<div class="alert alert-info">No models available</div>';
+    }
+    
+    return modelsCache.map(m => {
+      const slug = m.canonical_slug || m.model_slug || m.slug || m.id;
+      const name = m.model_name || m.display_name || slug;
+      const safeSlug = slug.replace(/[^a-zA-Z0-9_-]/g, '_');
+      
+      // Get app count for this model
+      const apps = appsCache[slug] || [];
+      const appCountText = apps.length > 0 ? ` (${apps.length} app${apps.length > 1 ? 's' : ''})` : '';
+      
+      return `
+        <div class="form-check">
+          <input class="form-check-input model-checkbox" type="checkbox" value="${slug}" id="model-${safeSlug}" checked>
+          <label class="form-check-label" for="model-${safeSlug}">${name}${appCountText}</label>
+        </div>
+      `;
+    }).join('');
+  }
+  
   // Configuration templates
   const configs = {
-    app_analysis: `
-      <div class="mb-3">
-        <label class="form-label">Model Slug</label>
-        <input type="text" class="form-control" name="model_slug" required placeholder="e.g., openai_gpt-4">
-      </div>
-      <div class="mb-3">
-        <label class="form-label">App Number</label>
-        <input type="number" class="form-control" name="app_number" required value="1" min="1">
-      </div>
-    `,
-    model_comparison: `
-      <div class="mb-3">
-        <label class="form-label">Model Slugs (comma-separated)</label>
-        <input type="text" class="form-control" name="model_slugs" required placeholder="openai_gpt-4, anthropic_claude-3-sonnet">
-      </div>
-      <div class="mb-3">
-        <label class="form-label">App Number</label>
-        <input type="number" class="form-control" name="app_number" value="1" min="1">
-      </div>
-    `,
-    tool_effectiveness: `
-      <div class="alert alert-info">Tool effectiveness analysis across all available data.</div>
-    `,
-    executive_summary: `
-      <div class="alert alert-info">Executive summary of recent analysis activities.</div>
-    `
+    app_analysis: () => {
+      return `
+        <div class="mb-3">
+          <label class="form-label">Model</label>
+          <select class="form-select" name="model_slug" id="model-select" required>
+            ${buildModelSelect()}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">App Number</label>
+          <input type="number" class="form-control" name="app_number" required value="1" min="1" max="10">
+          <div class="form-text" id="app-count-hint">Select a model to see available apps</div>
+        </div>
+      `;
+    },
+    model_comparison: () => {
+      return `
+        <div class="mb-3">
+          <label class="form-label">Select Models to Compare</label>
+          <div class="border rounded p-3" style="max-height: 200px; overflow-y: auto;">
+            ${buildModelMultiSelect()}
+          </div>
+          <div class="form-text">All models selected by default. Uncheck to exclude from comparison.</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">
+            <input type="checkbox" class="form-check-input me-2" id="compare-all-apps" checked>
+            Compare all available apps for each model
+          </label>
+          <div class="form-text">When checked, reports will compare all apps (1, 2, 3, etc.) for each model. Uncheck to specify a single app number.</div>
+        </div>
+        <div class="mb-3" id="single-app-field" style="display: none;">
+          <label class="form-label">App Number</label>
+          <input type="number" class="form-control" name="app_number" value="1" min="1" max="10">
+          <div class="form-text">Compare this specific app number across models</div>
+        </div>
+      `;
+    },
+    tool_effectiveness: () => {
+      return `
+        <div class="alert alert-info mb-0">
+          <i class="fas fa-info-circle me-2"></i>
+          Tool effectiveness analysis across all available data.
+        </div>
+      `;
+    },
+    executive_summary: () => {
+      return `
+        <div class="alert alert-info mb-0">
+          <i class="fas fa-info-circle me-2"></i>
+          Executive summary of recent analysis activities.
+        </div>
+      `;
+    }
   };
   
   // Update config fields on type change
   reportTypeSelect.addEventListener('change', function() {
-    configFields.innerHTML = configs[this.value] || '';
+    const reportType = this.value;
+    
+    if (!reportType) {
+      configFields.innerHTML = '<div class="text-center text-muted py-3"><i class="fas fa-arrow-up me-2"></i>Select a report type to see options</div>';
+      return;
+    }
+    
+    configFields.innerHTML = '<div class="text-center py-3"><span class="spinner-border spinner-border-sm me-2"></span>Loading...</div>';
+    
+    try {
+      const configFn = configs[reportType];
+      if (configFn) {
+        const html = configFn();
+        configFields.innerHTML = html;
+        
+        // Add event listeners after rendering
+        if (reportType === 'model_comparison') {
+          const compareAllCheckbox = document.getElementById('compare-all-apps');
+          const singleAppField = document.getElementById('single-app-field');
+          
+          if (compareAllCheckbox && singleAppField) {
+            compareAllCheckbox.addEventListener('change', function() {
+              singleAppField.style.display = this.checked ? 'none' : 'block';
+            });
+          }
+        }
+        
+        if (reportType === 'app_analysis') {
+          const modelSelect = document.getElementById('model-select');
+          const appCountHint = document.getElementById('app-count-hint');
+          
+          if (modelSelect && appCountHint && appsCache) {
+            modelSelect.addEventListener('change', function() {
+              const slug = this.value;
+              const apps = appsCache[slug] || [];
+              if (apps.length > 0) {
+                appCountHint.textContent = `Available apps: ${apps.join(', ')}`;
+              } else {
+                appCountHint.textContent = 'No apps found for this model';
+              }
+            });
+          }
+        }
+      } else {
+        configFields.innerHTML = '';
+      }
+    } catch (error) {
+      console.error('Failed to load config:', error);
+      configFields.innerHTML = '<div class="alert alert-danger mb-0">Failed to load configuration options</div>';
+    }
   });
   
   // Handle modal close
@@ -123,13 +247,31 @@
         config: {}
       };
       
-      // Build config
+      // Build config based on report type
       if (reportType === 'app_analysis') {
         payload.config.model_slug = formData.get('model_slug');
         payload.config.app_number = parseInt(formData.get('app_number'));
       } else if (reportType === 'model_comparison') {
-        payload.config.model_slugs = formData.get('model_slugs').split(',').map(s => s.trim());
-        payload.config.app_number = parseInt(formData.get('app_number') || '1');
+        // Collect checked models
+        const checkedModels = Array.from(document.querySelectorAll('.model-checkbox:checked'))
+          .map(cb => cb.value);
+        
+        if (checkedModels.length < 2) {
+          throw new Error('Please select at least 2 models to compare');
+        }
+        
+        payload.config.model_slugs = checkedModels;
+        
+        // Check if comparing all apps or single app
+        const compareAllApps = document.getElementById('compare-all-apps');
+        if (compareAllApps && compareAllApps.checked) {
+          // Compare all available apps for each model
+          payload.config.compare_all_apps = true;
+        } else {
+          // Compare specific app number across models
+          payload.config.app_number = parseInt(formData.get('app_number') || '1');
+          payload.config.compare_all_apps = false;
+        }
       }
       
       const response = await fetch('/api/reports/generate', {

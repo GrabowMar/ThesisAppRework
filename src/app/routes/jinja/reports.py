@@ -43,20 +43,44 @@ def reports_index():
 @reports_bp.route('/new')
 def new_report():
     """Show report generation form (modal fragment for HTMX)."""
-    # Get available models for selection
-    models = db.session.query(ModelCapability).order_by(ModelCapability.provider, ModelCapability.model_name).all()
+    # Get models that have generated applications
+    models_with_apps = db.session.query(ModelCapability).join(
+        GeneratedApplication,
+        ModelCapability.canonical_slug == GeneratedApplication.model_slug
+    ).distinct().order_by(ModelCapability.provider, ModelCapability.model_name).all()
     
-    # Get available apps for selection
+    # Get available apps for selection (grouped by model)
     apps = db.session.query(GeneratedApplication).order_by(
         GeneratedApplication.model_slug, 
         GeneratedApplication.app_number
-    ).limit(100).all()
+    ).all()
+    
+    # Build a map of model_slug -> [app_numbers] for easy lookup in template
+    apps_by_model = {}
+    for app in apps:
+        if app.model_slug not in apps_by_model:
+            apps_by_model[app.model_slug] = []
+        apps_by_model[app.model_slug].append(app.app_number)
+    
+    # Convert models to dicts for JSON serialization in template
+    models_data = []
+    for model in models_with_apps:
+        models_data.append({
+            'id': model.model_id,
+            'model_id': model.model_id,
+            'canonical_slug': model.canonical_slug,
+            'model_slug': model.canonical_slug,
+            'slug': model.canonical_slug,
+            'model_name': model.model_name,
+            'display_name': model.model_name,
+            'provider': model.provider
+        })
     
     # Return modal fragment for HTMX
     return render_template(
         'pages/reports/new_report_modal.html',
-        models=models,
-        apps=apps
+        models=models_data,
+        apps_by_model=apps_by_model
     )
 
 @reports_bp.route('/view/<report_id>')
