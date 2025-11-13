@@ -32,7 +32,9 @@
                         <div class="subheader">Total Findings</div>
                     </div>
                     <div class="h1 mb-3">{{ aggregated_stats.total_findings }}</div>
-                    <div class="text-muted">Across all apps</div>
+                    <div class="text-muted">
+                        Across {{ apps_count }} app{{ 's' if apps_count != 1 else '' }}
+                    </div>
                 </div>
             </div>
         </div>
@@ -57,18 +59,157 @@
         <div class="col-sm-6 col-lg-3">
             <div class="card">
                 <div class="card-body">
-                    <div class="subheader">Avg Findings/App</div>
-                    <div class="h1 mb-3">{{ "%.1f"|format(aggregated_stats.average_findings_per_app) }}</div>
-                    <div class="text-muted">Consistency metric</div>
+                    <div class="subheader">Avg ± Std Dev</div>
+                    <div class="h1 mb-3">
+                        {{ "%.1f"|format(scientific_metrics.get('findings_distribution', {}).get('mean', 0)) }}
+                        {% if scientific_metrics.get('findings_distribution', {}).get('std_dev') %}
+                        <span class="fs-4 text-muted">± {{ "%.1f"|format(scientific_metrics.findings_distribution.std_dev) }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-muted">Findings per app</div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Scientific Statistics -->
+    {% if scientific_metrics.get('findings_distribution') %}
+    <div class="card mb-3">
+        <div class="card-header">
+            <h3 class="card-title">Statistical Analysis</h3>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h4 class="mb-3">Findings Distribution</h4>
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td class="text-muted">Mean (μ)</td>
+                                <td class="text-end"><strong>{{ "%.2f"|format(scientific_metrics.findings_distribution.mean) }}</strong> findings/app</td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Median</td>
+                                <td class="text-end"><strong>{{ scientific_metrics.findings_distribution.median }}</strong> findings/app</td>
+                            </tr>
+                            {% if scientific_metrics.findings_distribution.get('std_dev') %}
+                            <tr>
+                                <td class="text-muted">Std Deviation (σ)</td>
+                                <td class="text-end"><strong>{{ "%.2f"|format(scientific_metrics.findings_distribution.std_dev) }}</strong></td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Coefficient of Variation</td>
+                                <td class="text-end"><strong>{{ "%.1f"|format(scientific_metrics.findings_distribution.get('cv_percent', 0)) }}%</strong></td>
+                            </tr>
+                            {% endif %}
+                            <tr>
+                                <td class="text-muted">Range</td>
+                                <td class="text-end">
+                                    <strong>{{ scientific_metrics.findings_distribution.min }}</strong> - 
+                                    <strong>{{ scientific_metrics.findings_distribution.max }}</strong>
+                                    <span class="text-muted">(Δ{{ scientific_metrics.findings_distribution.range }})</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="col-md-6">
+                    <h4 class="mb-3">Severity Breakdown</h4>
+                    {% if scientific_metrics.get('severity_distribution', {}).get('percentages') %}
+                    <table class="table table-sm">
+                        <tbody>
+                            {% for severity in ['critical', 'high', 'medium', 'low'] %}
+                            {% set count = scientific_metrics.severity_distribution.counts.get(severity, 0) %}
+                            {% set pct = scientific_metrics.severity_distribution.percentages.get(severity, 0) %}
+                            <tr>
+                                <td>
+                                    <span class="badge bg-{{ 'danger' if severity == 'critical' else 'warning' if severity == 'high' else 'info' if severity == 'medium' else 'secondary' }}">
+                                        {{ severity|title }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="progress flex-fill me-2" style="height: 20px;">
+                                            <div class="progress-bar bg-{{ 'danger' if severity == 'critical' else 'warning' if severity == 'high' else 'info' if severity == 'medium' else 'secondary' }}"
+                                                 style="width: {{ pct }}%">
+                                            </div>
+                                        </div>
+                                        <span class="text-muted small" style="min-width: 80px;">
+                                            {{ count }} ({{ "%.1f"|format(pct) }}%)
+                                        </span>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% endif %}
+                </div>
+            </div>
+            
+            {% if scientific_metrics.get('duration_statistics') %}
+            <hr class="my-3">
+            <div class="row">
+                <div class="col-md-6">
+                    <h4 class="mb-3">Analysis Performance</h4>
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td class="text-muted">Average Duration</td>
+                                <td class="text-end"><strong>{{ "%.1f"|format(scientific_metrics.duration_statistics.mean) }}s</strong></td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Median Duration</td>
+                                <td class="text-end"><strong>{{ "%.1f"|format(scientific_metrics.duration_statistics.median) }}s</strong></td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Total Analysis Time</td>
+                                <td class="text-end"><strong>{{ "%.1f"|format(scientific_metrics.duration_statistics.total) }}s</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="col-md-6">
+                    <h4 class="mb-3">Tool Coverage</h4>
+                    {% if scientific_metrics.get('tool_coverage') %}
+                    <table class="table table-sm">
+                        <tbody>
+                            <tr>
+                                <td class="text-muted">Unique Tools Used</td>
+                                <td class="text-end"><strong>{{ scientific_metrics.tool_coverage.total_unique_tools }}</strong></td>
+                            </tr>
+                            <tr>
+                                <td class="text-muted">Tools List</td>
+                                <td class="text-end">
+                                    <div class="d-flex flex-wrap gap-1 justify-content-end">
+                                        {% for tool in scientific_metrics.tool_coverage.tools_used[:8] %}
+                                        <span class="badge bg-secondary-lt">{{ tool }}</span>
+                                        {% endfor %}
+                                        {% if scientific_metrics.tool_coverage.tools_used|length > 8 %}
+                                        <span class="badge bg-secondary">+{{ scientific_metrics.tool_coverage.tools_used|length - 8 }}</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Tool Statistics -->
     <div class="card mb-3">
         <div class="card-header">
-            <h3 class="card-title">Tool Performance</h3>
+            <h3 class="card-title">
+                Tool Performance & Effectiveness
+                <span class="badge bg-secondary-lt ms-2">{{ tools_statistics|length }} tools</span>
+            </h3>
         </div>
         <div class="table-responsive">
             <table class="table table-vcenter card-table">
@@ -78,6 +219,7 @@
                         <th>Executions</th>
                         <th>Success Rate</th>
                         <th>Total Findings</th>
+                        <th>Findings/Exec</th>
                         <th>Avg Duration</th>
                     </tr>
                 </thead>
@@ -85,17 +227,28 @@
                     {% for tool_name, stats in tools_statistics.items() %}
                     <tr>
                         <td><strong>{{ tool_name }}</strong></td>
-                        <td>{{ stats.total_executions }}</td>
                         <td>
-                            <div class="progress" style="width: 100px;">
-                                <div class="progress-bar {% if stats.success_rate >= 80 %}bg-success{% elif stats.success_rate >= 50 %}bg-warning{% else %}bg-danger{% endif %}" 
-                                     style="width: {{ stats.success_rate }}%">
-                                    {{ "%.0f"|format(stats.success_rate) }}%
+                            <span class="badge bg-blue-lt">{{ stats.total_executions }}</span>
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress" style="width: 100px; height: 20px;">
+                                    <div class="progress-bar {% if stats.success_rate >= 80 %}bg-success{% elif stats.success_rate >= 50 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                         style="width: {{ stats.success_rate }}%">
+                                    </div>
                                 </div>
+                                <span class="text-muted small">{{ "%.0f"|format(stats.success_rate) }}%</span>
                             </div>
                         </td>
-                        <td>{{ stats.total_findings }}</td>
-                        <td>{{ "%.2f"|format(stats.average_duration) }}s</td>
+                        <td>
+                            <strong>{{ stats.total_findings }}</strong>
+                        </td>
+                        <td class="text-muted">
+                            {{ "%.1f"|format(stats.get('findings_per_execution', 0)) }}
+                        </td>
+                        <td class="text-muted">
+                            {{ "%.2f"|format(stats.average_duration) }}s
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

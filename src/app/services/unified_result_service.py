@@ -515,12 +515,8 @@ class UnifiedResultService:
             # Delete existing cache entry
             db.session.query(AnalysisResultsCache).filter_by(task_id=task_id).delete()
             
-            # Create new cache entry
-            cache_entry = AnalysisResultsCache(
-                task_id=task_id,
-                results_json=results.raw_data,
-                created_at=datetime.now(timezone.utc)
-            )
+            # Create new cache entry from AnalysisResults object
+            cache_entry = AnalysisResultsCache.from_analysis_results(results)
             db.session.add(cache_entry)
             db.session.commit()
             logger.debug(f"Cached results for {task_id}")

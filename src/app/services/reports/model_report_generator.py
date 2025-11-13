@@ -98,20 +98,26 @@ class ModelReportGenerator(BaseReportGenerator):
                 continue
             
             raw_data = result.raw_data
-            summary = raw_data.get('summary', {})
+            
+            # Handle nested structure: raw_data.results.summary vs raw_data.summary
+            results_wrapper = raw_data.get('results', {})
+            summary = results_wrapper.get('summary', {}) if results_wrapper else raw_data.get('summary', {})
             
             # Aggregate statistics
             findings_count = summary.get('total_findings', 0)
             total_findings += findings_count
             
-            severity_counts = summary.get('findings_by_severity', {})
+            # Handle both field names: 'findings_by_severity' (old) and 'severity_breakdown' (new)
+            severity_counts = summary.get('findings_by_severity') or summary.get('severity_breakdown', {})
             total_critical += severity_counts.get('critical', 0)
             total_high += severity_counts.get('high', 0)
             total_medium += severity_counts.get('medium', 0)
             total_low += severity_counts.get('low', 0)
             
+            # Extract tools from nested services structure
+            tools = self._extract_tools_from_services(results_wrapper.get('services', {}))
+            
             # Aggregate tool statistics
-            tools = raw_data.get('tools', {})
             for tool_name, tool_data in tools.items():
                 if tool_name not in tools_stats:
                     tools_stats[tool_name] = {
@@ -139,27 +145,43 @@ class ModelReportGenerator(BaseReportGenerator):
                 GeneratedApplication.app_number == app_number
             ).first()
             
+            # Extract findings from nested services structure
+            findings = self._extract_findings_from_services(results_wrapper.get('services', {}))
+            
+            # Calculate duration from task timestamps if not in metadata
+            duration_seconds = raw_data.get('metadata', {}).get('duration_seconds', 0)
+            if not duration_seconds and latest_task.completed_at and latest_task.created_at:
+                duration_seconds = (latest_task.completed_at - latest_task.created_at).total_seconds()
+            
             apps_data.append({
                 'app_number': app_number,
                 'task_id': latest_task.task_id,
                 'task_status': latest_task.status,
                 'completed_at': latest_task.completed_at.isoformat() if latest_task.completed_at else None,
-                'duration_seconds': raw_data.get('metadata', {}).get('duration_seconds', 0),
+                'duration_seconds': duration_seconds,
                 'app_name': f"{model_slug} / App {app_number}",  # Constructed from slug and number
                 'app_type': app.app_type if app else None,
+                'app_description': getattr(app, 'description', None) if app else None,
                 'findings_count': findings_count,
                 'severity_counts': severity_counts,
                 'tools': tools,
-                'findings': raw_data.get('findings', []),
+                'findings': findings,
                 'summary': summary,
                 'all_tasks_count': len(app_tasks)  # Historical task count
             })
         
-        # Calculate tool success rates
+        # Calculate tool success rates and effectiveness metrics
         for tool_name, stats in tools_stats.items():
             total = stats['total_executions']
             stats['success_rate'] = (stats['successful'] / total * 100) if total > 0 else 0
             stats['average_duration'] = (stats['total_duration'] / stats['successful']) if stats['successful'] > 0 else 0
+            stats['findings_per_execution'] = (stats['total_findings'] / stats['successful']) if stats['successful'] > 0 else 0
+        
+        # Calculate scientific/statistical metrics
+        findings_per_app = [app['findings_count'] for app in apps_data]
+        durations = [app['duration_seconds'] for app in apps_data if app['duration_seconds'] > 0]
+        
+        scientific_stats = self._calculate_scientific_metrics(findings_per_app, durations, apps_data)
         
         # Compile final data structure
         data = {
@@ -180,6 +202,7 @@ class ModelReportGenerator(BaseReportGenerator):
                 },
                 'average_findings_per_app': total_findings / len(apps_data) if apps_data else 0
             },
+            'scientific_metrics': scientific_stats,
             'tools_statistics': tools_stats
         }
         
@@ -195,3 +218,190 @@ class ModelReportGenerator(BaseReportGenerator):
             'critical_findings': data.get('aggregated_stats', {}).get('findings_by_severity', {}).get('critical', 0),
             'generated_at': data.get('timestamp')
         }
+    
+    # ==========================================================================
+    # HELPER METHODS - Data Extraction from Nested Structures
+    # ==========================================================================
+    
+    def _extract_tools_from_services(self, services: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract tool execution data from nested services structure.
+        
+        Flattens the nested structure:
+        services -> {service_type} -> analysis -> results -> {language} -> {tool}
+        
+        Returns a flat dict: {tool_name: {status, total_issues, duration_seconds}}
+        """
+        tools = {}
+        
+        for service_type, service_data in services.items():
+            if not isinstance(service_data, dict):
+                continue
+            
+            analysis = service_data.get('analysis', {})
+            if not isinstance(analysis, dict):
+                continue
+            
+            results = analysis.get('results', {})
+            if not isinstance(results, dict):
+                continue
+            
+            # Handle language-specific nesting (python, javascript, etc.)
+            for lang_or_tool, lang_data in results.items():
+                if isinstance(lang_data, dict):
+                    # Check if it's a language wrapper (contains tool results)
+                    for tool_name, tool_data in lang_data.items():
+                        if isinstance(tool_data, dict) and 'status' in tool_data:
+                            tools[tool_name] = {
+                                'status': tool_data.get('status', 'unknown'),
+                                'total_issues': tool_data.get('total_issues', 0),
+                                'duration_seconds': tool_data.get('duration_seconds', 0.0),
+                                'service': service_type,
+                                'language': lang_or_tool
+                            }
+                elif isinstance(lang_or_tool, str):
+                    # Direct tool entry (no language wrapper)
+                    if isinstance(results.get(lang_or_tool), dict):
+                        tool_data = results[lang_or_tool]
+                        if 'status' in tool_data:
+                            tools[lang_or_tool] = {
+                                'status': tool_data.get('status', 'unknown'),
+                                'total_issues': tool_data.get('total_issues', 0),
+                                'duration_seconds': tool_data.get('duration_seconds', 0.0),
+                                'service': service_type
+                            }
+        
+        return tools
+    
+    def _extract_findings_from_services(self, services: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Extract all findings from nested services structure.
+        
+        Flattens findings from all services into a unified list with standardized format.
+        """
+        findings = []
+        
+        for service_type, service_data in services.items():
+            if not isinstance(service_data, dict):
+                continue
+            
+            analysis = service_data.get('analysis', {})
+            if not isinstance(analysis, dict):
+                continue
+            
+            results = analysis.get('results', {})
+            if not isinstance(results, dict):
+                continue
+            
+            # Extract findings from language-specific results
+            for lang_or_tool, lang_data in results.items():
+                if isinstance(lang_data, dict):
+                    # Language wrapper case
+                    for tool_name, tool_data in lang_data.items():
+                        if isinstance(tool_data, dict):
+                            tool_findings = tool_data.get('findings', []) or tool_data.get('issues', [])
+                            for finding in tool_findings:
+                                if isinstance(finding, dict):
+                                    # Normalize finding structure
+                                    findings.append({
+                                        'tool': tool_name,
+                                        'service': service_type,
+                                        'severity': finding.get('severity', 'medium').lower(),
+                                        'message': finding.get('message', '') or finding.get('description', ''),
+                                        'file': finding.get('file', '') or finding.get('location', {}).get('file', ''),
+                                        'line': finding.get('line') or finding.get('location', {}).get('line'),
+                                        'column': finding.get('column') or finding.get('location', {}).get('column'),
+                                        'code': finding.get('code', '') or finding.get('rule_id', ''),
+                                        'category': finding.get('category', '')
+                                    })
+        
+        return findings
+    
+    def _calculate_scientific_metrics(
+        self,
+        findings_per_app: List[int],
+        durations: List[float],
+        apps_data: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Calculate scientific/statistical metrics for the analysis results.
+        
+        Returns comprehensive statistical measures for academic rigor.
+        """
+        import statistics
+        
+        metrics = {
+            'findings_distribution': {},
+            'duration_statistics': {},
+            'severity_distribution': {},
+            'tool_coverage': {}
+        }
+        
+        if not findings_per_app:
+            return metrics
+        
+        # Findings distribution statistics
+        metrics['findings_distribution'] = {
+            'mean': statistics.mean(findings_per_app),
+            'median': statistics.median(findings_per_app),
+            'min': min(findings_per_app),
+            'max': max(findings_per_app),
+            'range': max(findings_per_app) - min(findings_per_app),
+            'total': sum(findings_per_app)
+        }
+        
+        # Add standard deviation and variance if we have enough data points
+        if len(findings_per_app) > 1:
+            metrics['findings_distribution']['std_dev'] = statistics.stdev(findings_per_app)
+            metrics['findings_distribution']['variance'] = statistics.variance(findings_per_app)
+            
+            # Coefficient of variation (normalized measure of dispersion)
+            mean_val = metrics['findings_distribution']['mean']
+            if mean_val > 0:
+                metrics['findings_distribution']['cv_percent'] = (
+                    metrics['findings_distribution']['std_dev'] / mean_val * 100
+                )
+        
+        # Duration statistics
+        if durations:
+            metrics['duration_statistics'] = {
+                'mean': statistics.mean(durations),
+                'median': statistics.median(durations),
+                'min': min(durations),
+                'max': max(durations),
+                'total': sum(durations)
+            }
+            
+            if len(durations) > 1:
+                metrics['duration_statistics']['std_dev'] = statistics.stdev(durations)
+        
+        # Severity distribution across all apps
+        severity_totals = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
+        for app in apps_data:
+            sev_counts = app.get('severity_counts', {})
+            for severity in severity_totals.keys():
+                severity_totals[severity] += sev_counts.get(severity, 0)
+        
+        total_findings = sum(severity_totals.values())
+        if total_findings > 0:
+            metrics['severity_distribution'] = {
+                'counts': severity_totals,
+                'percentages': {
+                    severity: (count / total_findings * 100)
+                    for severity, count in severity_totals.items()
+                }
+            }
+        
+        # Tool coverage analysis
+        all_tools = set()
+        for app in apps_data:
+            app_tools = app.get('tools', {})
+            all_tools.update(app_tools.keys())
+        
+        metrics['tool_coverage'] = {
+            'total_unique_tools': len(all_tools),
+            'tools_used': sorted(list(all_tools)),
+            'avg_tools_per_app': len(all_tools) / len(apps_data) if apps_data else 0
+        }
+        
+        return metrics
