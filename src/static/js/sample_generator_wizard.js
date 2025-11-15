@@ -14,6 +14,9 @@ let selectedModels = [];
 let templatesCache = null;
 let modelsCache = null;
 
+// Execution guard to prevent concurrent generation runs
+let isGenerating = false;
+
 // ============================================================================
 // Initialization
 // ============================================================================
@@ -241,7 +244,16 @@ function updateNavigationButtons() {
     hide(nextBtn);
     show(startBtn);
     startBtn.disabled = !stepValid;
-    console.log('[Wizard] Step 3: Start button disabled:', !stepValid);
+    
+    // Setup click handler for start button (remove old listeners by cloning)
+    const newStartBtn = startBtn.cloneNode(true);
+    startBtn.parentNode.replaceChild(newStartBtn, startBtn);
+    newStartBtn.addEventListener('click', () => {
+      console.log('[Wizard] Start button clicked');
+      startGeneration();
+    });
+    
+    console.log('[Wizard] Step 3: Start button disabled:', !stepValid, 'Event listener attached');
   } else {
     show(nextBtn);
     hide(startBtn);
@@ -278,7 +290,8 @@ function isStepValid(step) {
       console.log('[Wizard] Step 1 valid:', valid, 'Scaffolding:', selectedScaffolding);
       return valid;
     case 2:
-      valid = selectedTemplates.length > 0 && selectedModels.length > 0;
+      // Require exactly ONE model for batch generation (prevents nested loop bug)
+      valid = selectedTemplates.length > 0 && selectedModels.length === 1;
       console.log('[Wizard] Step 2 valid:', valid, 'Templates:', selectedTemplates.length, 'Models:', selectedModels.length);
       return valid;
     case 3:
@@ -889,46 +902,86 @@ function updateGenerationSummary() {
 // ============================================================================
 
 async function startGeneration() {
+  // Guard: Prevent concurrent executions
+  if (isGenerating) {
+    console.warn('[Wizard] Generation already in progress, ignoring duplicate call');
+    return;
+  }
+  
   if (!validateCurrentStep()) {
     showNotification('Please complete all previous steps', 'warning');
     return;
   }
   
+  // CRITICAL: Validate exactly one model selected (prevent nested loop bug)
+  if (selectedModels.length !== 1) {
+    showNotification('Please select exactly ONE model for batch generation', 'error');
+    return;
+  }
+  
+  // CRITICAL: Validate at least one template selected
+  if (selectedTemplates.length === 0) {
+    showNotification('Please select at least one template', 'error');
+    return;
+  }
+  
+  // CRITICAL: Log exactly what will be generated to prevent surprises
+  console.log('[Wizard] GENERATION VALIDATION:');
+  console.log('  - Templates to generate:', selectedTemplates);
+  console.log('  - Model to use:', selectedModels);
+  console.log('  - Total apps to create:', selectedTemplates.length);
+  console.log('  - Expected pattern: 1 app per template = ' + selectedTemplates.length + ' apps total');
+  
+  // Set flag immediately to block concurrent calls
+  isGenerating = true;
+  
   console.log('[Wizard] Starting batch generation');
   
-  // Show loading state
+  // Show loading state and disable button immediately
   const startBtn = document.getElementById('start-btn');
   const loadingBtn = document.getElementById('start-btn-loading');
-  if (startBtn) startBtn.classList.add('d-none');
+  if (startBtn) {
+    startBtn.disabled = true;
+    startBtn.classList.add('d-none');
+  }
   if (loadingBtn) loadingBtn.classList.remove('d-none');
   
-  // Calculate total and prepare tracking
-  const totalGenerations = selectedTemplates.length * selectedModels.length;
-  const totalEl = document.getElementById('progress-total');
-  const statusTotalEl = document.getElementById('status-total');
-  if (totalEl) totalEl.textContent = totalGenerations;
-  if (statusTotalEl) statusTotalEl.textContent = totalGenerations;
-  
-  const results = [];
-  let completed = 0;
-  let failed = 0;
-  
-  // Generate unique batch ID for this batch generation
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const randomSuffix = Math.random().toString(36).substring(2, 10);
-  const batchId = `batch_${timestamp}_${randomSuffix}`;
-  console.log(`[Wizard] Batch ID: ${batchId}`);
-  
   try {
-    // Generate each combination
-    for (const templateSlug of selectedTemplates) {
-      for (const modelSlug of selectedModels) {
-        console.log(`[Wizard] Generating: template ${templateSlug}, model ${modelSlug}`);
-        
-        try {
-          // Get template type preference
-          const templateTypeEl = document.getElementById('template-type-preference');
-          const templateType = templateTypeEl ? templateTypeEl.value : 'auto';
+    // Calculate total and prepare tracking
+    // FIX: Use single model with multiple templates (not templates × models)
+    const totalGenerations = selectedTemplates.length;
+    const totalEl = document.getElementById('progress-total');
+    const statusTotalEl = document.getElementById('status-total');
+    if (totalEl) totalEl.textContent = totalGenerations;
+    if (statusTotalEl) statusTotalEl.textContent = totalGenerations;
+    
+    const results = [];
+    let completed = 0;
+    let failed = 0;
+    
+    // Generate unique batch ID ONCE for this entire batch generation
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const randomSuffix = Math.random().toString(36).substring(2, 10);
+    const batchId = `batch_${timestamp}_${randomSuffix}`;
+    console.log(`[Wizard] Batch ID: ${batchId}`);
+    
+    // CRITICAL: Freeze selections to prevent mid-generation changes
+    const templatesToGenerate = [...selectedTemplates];
+    const modelSlug = selectedModels[0];
+    
+    console.log(`[Wizard] LOCKED GENERATION PLAN:`);
+    console.log(`  - Batch ID: ${batchId}`);
+    console.log(`  - Model: ${modelSlug}`);
+    console.log(`  - Templates: ${templatesToGenerate.join(', ')}`);
+    console.log(`  - Total apps: ${templatesToGenerate.length}`);
+    
+    for (const templateSlug of templatesToGenerate) {
+      console.log(`[Wizard] Generating: template ${templateSlug}, model ${modelSlug}`);
+      
+      try {
+        // Get template type preference
+        const templateTypeEl = document.getElementById('template-type-preference');
+        const templateType = templateTypeEl ? templateTypeEl.value : 'auto';
           
           // No need to pre-fetch app number - generation service handles atomic reservation
           const response = await fetch('/api/gen/generate', {
@@ -978,11 +1031,10 @@ async function startGeneration() {
           });
         }
         
-        // Update progress
-        const progressCompleted = completed + failed;
-        const progressPercent = (progressCompleted / totalGenerations) * 100;
-        updateProgress(progressPercent, progressCompleted, totalGenerations, completed, failed);
-      }
+      // Update progress
+      const progressCompleted = completed + failed;
+      const progressPercent = (progressCompleted / totalGenerations) * 100;
+      updateProgress(progressPercent, progressCompleted, totalGenerations, completed, failed);
     }
     
     showNotification(`Generation completed: ${completed} succeeded, ${failed} failed`, completed === totalGenerations ? 'success' : 'warning');
@@ -1001,8 +1053,14 @@ async function startGeneration() {
     console.error('Error during generation:', error);
     showNotification('Generation failed: ' + error.message, 'danger');
   } finally {
+    // Reset execution flag
+    isGenerating = false;
+    
     // Restore button state
-    if (startBtn) startBtn.classList.remove('d-none');
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.classList.remove('d-none');
+    }
     if (loadingBtn) loadingBtn.classList.add('d-none');
   }
 }

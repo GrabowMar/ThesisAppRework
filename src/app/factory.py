@@ -429,8 +429,19 @@ def create_app(config_name: str = 'default') -> Flask:
                 else:
                     logger.warning("Failed to auto-start analyzer services")
 
+        # Initialize maintenance service FIRST to clean up stuck/old tasks before execution service starts
+        # This ensures old PENDING tasks from previous sessions are cancelled/failed before they can be picked up
+        try:  # pragma: no cover - wiring
+            from app.services.maintenance_service import init_maintenance_service
+            maintenance_svc = init_maintenance_service(app=app, interval_seconds=3600)
+            logger.info(f"Maintenance service initialized (interval={maintenance_svc.interval}s, runs on startup + hourly)")
+            logger.info("Startup cleanup completed: stuck/old PENDING tasks cancelled before task execution begins")
+        except Exception as _maint_err:  # pragma: no cover
+            logger.warning(f"Maintenance service not started: {_maint_err}")
+
         # Initialize lightweight in-process task execution to advance AnalysisTask
         # objects from pending -> running -> completed for development and tests.
+        # NOTE: This runs AFTER maintenance service to avoid picking up stale PENDING tasks from previous sessions
         try:  # pragma: no cover - wiring
             from app.services.task_execution_service import init_task_execution_service
             svc = init_task_execution_service(app=app)
@@ -439,15 +450,6 @@ def create_app(config_name: str = 'default') -> Flask:
         except Exception as _exec_err:  # pragma: no cover
             logger.warning(f"Task execution service not started: {_exec_err}")
             logger.warning("Web app analyses will NOT generate result files until service is started")
-        
-        # Initialize maintenance service for automated cleanup (orphan apps/tasks, stuck tasks, old tasks)
-        try:  # pragma: no cover - wiring
-            from app.services.maintenance_service import init_maintenance_service
-            maintenance_svc = init_maintenance_service(app=app, interval_seconds=3600)
-            logger.info(f"Maintenance service initialized (interval={maintenance_svc.interval}s, runs on startup + hourly)")
-            logger.info("Periodic cleanup will keep database and filesystem in sync")
-        except Exception as _maint_err:  # pragma: no cover
-            logger.warning(f"Maintenance service not started: {_maint_err}")
         
         # Validate and fix model IDs on startup (provider namespace normalization, case fixes)
         try:  # pragma: no cover - maintenance task

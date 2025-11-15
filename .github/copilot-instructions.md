@@ -121,6 +121,15 @@ Use this as your working map for coding in this repo. Keep answers specific to t
 
 ## Background services (auto-started)
 
+### Startup Sequence (CRITICAL ORDER)
+
+The Flask app initialization follows a **specific sequence** to prevent old tasks from auto-executing on reboot:
+
+1. **MaintenanceService starts FIRST** → Cancels old PENDING tasks (>30min old)
+2. **TaskExecutionService starts SECOND** → Only picks up fresh PENDING tasks
+
+This ensures that analysis tasks left over from previous sessions (e.g., before a crash or reboot) are **cancelled** before the task executor can pick them up.
+
 ### TaskExecutionService (`src/app/services/task_execution_service.py`)
 **Purpose**: Asynchronous task execution daemon that processes pending analysis tasks.
 
@@ -165,13 +174,13 @@ python scripts/fix_task_statuses.py
 **Purpose**: Automated cleanup and recovery of orphaned resources.
 
 **Lifecycle**:
-- Initialized in `src/app/factory.py` but **not auto-started** (manual trigger only)
-- When enabled, runs hourly via background thread
-- Startup cleanup runs **once** on app initialization (critical)
+- **CRITICAL**: Initialized in `src/app/factory.py` **BEFORE** TaskExecutionService (prevents old tasks from auto-executing)
+- Runs **once immediately** on app initialization (startup cleanup)
+- Then runs hourly via background thread
 
-**Startup Cleanup** (runs automatically every app start):
+**Startup Cleanup** (runs automatically every app start, **BEFORE** TaskExecutionService):
 1. **Stuck task recovery**: Tasks in RUNNING state for >30 minutes → FAILED
-2. **Stale pending tasks**: Tasks in PENDING state for >30 minutes → CANCELLED
+2. **Stale pending tasks**: Tasks in PENDING state for >30 minutes → CANCELLED ⚠️ **This prevents old generation/analysis tasks from running after reboot**
 3. **Filesystem sync**: Scans `generated/apps/` and creates missing `GeneratedApp` DB records
 4. **Legacy migration**: Moves old `results/.../analysis/` folders to task-based structure
 
