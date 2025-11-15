@@ -253,10 +253,11 @@ def get_app_directory(model_slug: str, app_number: int, base_path: Optional[Path
 
     Resolution order (non‑destructive, backwards compatible):
       1. New unified path: generated/apps/<model_slug>/appN
-      2. Legacy misc/models path (older layout)
-      3. Fallback to resolved model directory heuristic (for unusual cases)
+      2. Template-based structure: generated/apps/<model_slug>/<template>/appN
+      3. Legacy misc/models path (older layout)
+      4. Fallback to resolved model directory heuristic (for unusual cases)
     """
-    # 1) Prefer new generated/apps structure
+    # 1) Prefer new generated/apps structure (flat layout)
     try:
         gen_model_dir = GENERATED_APPS_DIR / model_slug
         if gen_model_dir.exists():
@@ -267,6 +268,18 @@ def get_app_directory(model_slug: str, app_number: int, base_path: Optional[Path
             alt = gen_model_dir / f"app_{app_number}"
             if alt.exists():
                 return alt
+            
+            # 2) Search template subdirectories (template-based layout)
+            for template_dir in gen_model_dir.iterdir():
+                if template_dir.is_dir() and not template_dir.name.startswith('.'):
+                    template_candidate = template_dir / f"app{app_number}"
+                    if template_candidate.exists():
+                        return template_candidate
+                    # Check app_# pattern in template dirs too
+                    template_alt = template_dir / f"app_{app_number}"
+                    if template_alt.exists():
+                        return template_alt
+            
             # Even if not present, return canonical expected path for creation
             return candidate
     except Exception:

@@ -404,24 +404,16 @@ class DockerManager:
     def _get_compose_path(self, model: str, app_num: int) -> Path:
         """Resolve docker-compose.yml path for a model/app.
 
-        Tries multiple layout variants (migration-friendly):
-          1) <root>/generated/{model}/appN/docker-compose.yml (preferred project-root layout)
-          2) <root>/generated/apps/{model}/appN/docker-compose.yml (explicit apps folder)
-          3) Legacy/transitional src/ locations removed from lookup — project-root generated/ is now authoritative
+        Uses the centralized get_app_directory() helper to support both flat
+        and template-based directory structures automatically.
 
-        Returns the first existing path; if none exist, returns the first candidate
-        so callers have a deterministic expected location.
+        Returns the path to docker-compose.yml within the resolved app directory.
         """
-        # Prefer project-root generated/apps layout first, then transitional src/ locations, then legacy root
-        candidates: List[Path] = [
-            self.project_root / 'generated' / 'apps' / model / f'app{app_num}' / 'docker-compose.yml',
-            self.project_root / 'generated' / model / f'app{app_num}' / 'docker-compose.yml',
-        ]
-        for c in candidates:
-            if c.exists():
-                return c
-        # Return last candidate (current layout) even if missing for error messaging
-        return candidates[-1]
+        from app.utils.helpers import get_app_directory
+        
+        app_dir = get_app_directory(model, app_num)
+        compose_path = app_dir / 'docker-compose.yml'
+        return compose_path
 
     def debug_compose_resolution(self, model: str, app_num: int) -> Dict[str, Any]:
         """Provide detailed diagnostics for compose path resolution.
