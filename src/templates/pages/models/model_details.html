@@ -77,6 +77,43 @@ async function generateApplication() {
   }
 }
 
+async function regenerateApplication(modelSlug, appNumber) {
+  if (!confirm(`Are you sure you want to regenerate application #${appNumber}? This will create a new version.`)) {
+    return;
+  }
+
+  try {
+    showToast('Starting regeneration...', 'info');
+    
+    const response = await fetch(`/api/models/${modelSlug}/apps/${appNumber}/regenerate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Regeneration failed');
+    }
+    
+    const result = await response.json();
+    showToast(`Application #${appNumber} v${result.version} regeneration started`, 'success');
+    
+    // Refresh the applications section after a short delay
+    setTimeout(() => {
+      htmx.ajax('GET', `/models/detail/${modelSlug}/section/applications`, {
+        target: '#section-applications',
+        swap: 'innerHTML'
+      });
+    }, 1500);
+    
+  } catch (error) {
+    console.error('Error regenerating application:', error);
+    showToast(error.message || 'Failed to regenerate application', 'error');
+  }
+}
+
 function openModelComparison() {
   window.open('/models/comparison?models={{ model_slug }}', '_blank');
 }

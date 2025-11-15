@@ -39,13 +39,14 @@ def create_app(config_name: str = 'default') -> Flask:
     """
     
     # Load .env early (if python-dotenv installed) so OPENROUTER_API_KEY & LOG_LEVEL present
+    # Calculate paths once outside try blocks
+    project_root = Path(__file__).parent.parent.parent
+    env_path = project_root / '.env'
+    
     try:  # pragma: no cover - lightweight
         from dotenv import load_dotenv  # type: ignore
-        # Look for .env in project root (parent of src directory)
-        project_root = Path(__file__).parent.parent.parent
-        env_path = project_root / '.env'
         if env_path.exists():
-            load_dotenv(env_path)
+            load_dotenv(env_path, override=True)
             logger.info(f"Loaded .env from {env_path}")
         else:
             logger.warning(f".env not found at {env_path}")
@@ -53,8 +54,6 @@ def create_app(config_name: str = 'default') -> Flask:
         logger.warning(f"Failed to load .env with dotenv: {e}")
         # Fallback: very small .env loader (KEY=VALUE per line, ignores comments)
         try:
-            project_root = Path(__file__).parent.parent.parent
-            env_path = project_root / '.env'
             if env_path.exists():
                 for line in env_path.read_text(encoding='utf-8').splitlines():
                     line = line.strip()
@@ -277,7 +276,6 @@ def create_app(config_name: str = 'default') -> Flask:
             # Sync generated apps from filesystem to database
             try:
                 from app.models import GeneratedApplication
-                from pathlib import Path
                 
                 # Get project root and generated apps directory
                 project_root = Path(app.root_path).parent.parent
@@ -450,6 +448,23 @@ def create_app(config_name: str = 'default') -> Flask:
             logger.info("Periodic cleanup will keep database and filesystem in sync")
         except Exception as _maint_err:  # pragma: no cover
             logger.warning(f"Maintenance service not started: {_maint_err}")
+        
+        # Validate and fix model IDs on startup (provider namespace normalization, case fixes)
+        try:  # pragma: no cover - maintenance task
+            with app.app_context():
+                from app.services.model_migration import get_migration_service
+                migration_svc = get_migration_service()
+                logger.info("Running model ID validation and fixes...")
+                result = migration_svc.validate_and_fix_all_models(dry_run=False, auto_fix=True)
+                summary = result.get('summary', {})
+                if summary.get('fixed', 0) > 0:
+                    logger.info(f"✅ Fixed {summary['fixed']} model IDs on startup")
+                if summary.get('valid', 0) > 0:
+                    logger.info(f"✅ {summary['valid']}/{summary['total']} models validated successfully")
+                if summary.get('unfixable', 0) > 0:
+                    logger.warning(f"⚠️  {summary['unfixable']} models could not be auto-fixed")
+        except Exception as _model_fix_err:  # pragma: no cover
+            logger.warning(f"Model ID validation skipped: {_model_fix_err}")
         
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")

@@ -51,7 +51,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('Interactive', 'Start', 'Dev', 'Stop', 'Status', 'Logs', 'Rebuild', 'CleanRebuild', 'Clean', 'Wipeout', 'Health', 'Help')]
+    [ValidateSet('Interactive', 'Start', 'Dev', 'Stop', 'Status', 'Logs', 'Rebuild', 'CleanRebuild', 'Clean', 'Wipeout', 'Health', 'Help', 'Password')]
     [string]$Mode = 'Interactive',
 
     [switch]$NoAnalyzer,
@@ -715,6 +715,7 @@ function Show-InteractiveMenu {
     Write-Host "  [X] Stop         - Stop all services" -ForegroundColor White
     Write-Host "  [C] Clean        - Clean logs and PID files" -ForegroundColor White
     Write-Host "  [W] Wipeout      - ⚠️  Reset to default state (DB, apps, results)" -ForegroundColor White
+    Write-Host "  [P] Password     - Reset admin password to random value" -ForegroundColor White
     Write-Host "  [?] Help         - Show detailed help" -ForegroundColor White
     Write-Host "  [Q] Quit         - Exit" -ForegroundColor White
     Write-Host ""
@@ -774,6 +775,11 @@ function Show-InteractiveMenu {
             Read-Host "`nPress Enter to return to menu"
             Show-InteractiveMenu
         }
+        'P' {
+            Invoke-ResetPassword
+            Read-Host "`nPress Enter to return to menu"
+            Show-InteractiveMenu
+        }
         '?' {
             Show-Help
             Read-Host "`nPress Enter to return to menu"
@@ -809,17 +815,12 @@ function Invoke-RebuildContainers {
         Write-Host "  • BuildKit cache mounts for pip/npm" -ForegroundColor Gray
         Write-Host ""
         
-        # Build base image first (cached for all services)
-        Write-Status "Building shared base image (Node.js + tools)..." "Info"
-        docker-compose build base
+        # Build all services in parallel with BuildKit optimizations
+        Write-Status "Building analyzer services..." "Info"
+        Write-Host "  • Services will share Python base image layers" -ForegroundColor Gray
+        Write-Host "  • Node.js installation cached per service" -ForegroundColor Gray
+        Write-Host ""
         
-        if ($LASTEXITCODE -ne 0) {
-            Write-Status "  Failed to build base image" "Error"
-            return $false
-        }
-        
-        # Build all services in parallel (depends on base)
-        Write-Status "Building analyzer services in parallel..." "Info"
         docker-compose build --parallel static-analyzer dynamic-analyzer performance-tester ai-analyzer gateway
         
         if ($LASTEXITCODE -eq 0) {
@@ -828,10 +829,10 @@ function Invoke-RebuildContainers {
             
             Write-Host "Build Optimization Summary:" -ForegroundColor Cyan
             Write-Host "  ✓ BuildKit cache mounts enabled" -ForegroundColor Green
-            Write-Host "  ✓ Shared base image reused across services" -ForegroundColor Green
+            Write-Host "  ✓ Python base image layers shared across services" -ForegroundColor Green
             Write-Host "  ✓ Multi-stage builds minimize final image size" -ForegroundColor Green
             Write-Host "  ✓ ZAP (390MB) cached in build layer" -ForegroundColor Green
-            Write-Host "  ✓ Node.js installation shared (saves 10+ min)" -ForegroundColor Green
+            Write-Host "  ✓ Node.js installation cached per service" -ForegroundColor Green
             Write-Host ""
             
             Write-Host "Expected Build Times:" -ForegroundColor Cyan
@@ -924,6 +925,106 @@ function Invoke-CleanRebuild {
         }
     } finally {
         Pop-Location
+    }
+}
+
+function Invoke-ResetPassword {
+    Write-Banner "Reset Admin Password"
+    
+    Write-Host ""
+    Write-Host "This will reset the admin user password to a new random value." -ForegroundColor Yellow
+    Write-Host "The new password will be displayed on screen." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Continue? (Y/N): " -NoNewline -ForegroundColor Yellow
+    $response = Read-Host
+    
+    if ($response -ne 'Y' -and $response -ne 'y') {
+        Write-Status "Password reset cancelled" "Info"
+        return
+    }
+    
+    # Generate random password (16 characters, mixed case + numbers + symbols)
+    $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
+    $newPassword = -join ((1..16) | ForEach-Object { $chars[(Get-Random -Maximum $chars.Length)] })
+    
+    # Create Python script to reset password
+    $resetScript = @"
+import sys
+from pathlib import Path
+
+# Add src directory to path
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR
+SRC_DIR = PROJECT_ROOT / 'src'
+sys.path.insert(0, str(SRC_DIR))
+
+from app.factory import create_app
+from app.models import User
+from app.extensions import db
+
+def main():
+    app = create_app()
+    
+    with app.app_context():
+        # Check if admin user exists
+        admin = User.query.filter_by(username='admin').first()
+        
+        if not admin:
+            # Create admin user if it doesn't exist
+            admin = User(
+                username='admin',
+                email='admin@thesis.local',
+                full_name='System Administrator'
+            )
+            admin.set_password('$newPassword')
+            admin.is_admin = True
+            admin.is_active = True
+            db.session.add(admin)
+            db.session.commit()
+            print('CREATED')
+        else:
+            # Update existing admin password
+            admin.set_password('$newPassword')
+            db.session.commit()
+            print('SUCCESS')
+
+if __name__ == '__main__':
+    main()
+"@
+    
+    # Write temporary script
+    $tempScript = Join-Path $Script:ROOT_DIR "temp_reset_password.py"
+    $resetScript | Out-File -FilePath $tempScript -Encoding UTF8
+    
+    try {
+        Write-Status "Resetting admin password..." "Info"
+        
+        $output = & $Script:PYTHON_CMD $tempScript 2>&1
+        
+        if ($LASTEXITCODE -eq 0 -and ($output -match 'SUCCESS' -or $output -match 'CREATED')) {
+            $action = if ($output -match 'CREATED') { "Created and Set" } else { "Reset" }
+            Write-Host ""
+            Write-Banner "✅ Password $action Successfully" "Green"
+            Write-Host ""
+            Write-Host "New Admin Credentials:" -ForegroundColor Cyan
+            Write-Host "  Username: " -NoNewline -ForegroundColor White
+            Write-Host "admin" -ForegroundColor Green
+            Write-Host "  Password: " -NoNewline -ForegroundColor White
+            Write-Host "$newPassword" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "⚠️  IMPORTANT: Save this password now! It will not be shown again." -ForegroundColor Yellow
+            Write-Host ""
+        } else {
+            Write-Status "Failed to reset password" "Error"
+            Write-Host "Output: $output" -ForegroundColor Red
+        }
+    } catch {
+        Write-Status "Error resetting password: $($_.Exception.Message)" "Error"
+    } finally {
+        # Clean up temporary script
+        if (Test-Path $tempScript) {
+            Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
+        }
     }
 }
 
@@ -1112,6 +1213,7 @@ function Show-Help {
     Write-Host "  CleanRebuild  ⚠️  Force rebuild from scratch (no cache - 12-18 min)" -ForegroundColor White
     Write-Host "  Clean         Clean logs and PID files" -ForegroundColor White
     Write-Host "  Wipeout       ⚠️  Reset to default state (removes DB, apps, results)" -ForegroundColor White
+    Write-Host "  Password      Reset admin password to random value" -ForegroundColor White
     Write-Host "  Help          Show this help message`n" -ForegroundColor White
     
     Write-Host "OPTIONS:" -ForegroundColor Cyan
@@ -1155,6 +1257,9 @@ function Show-Help {
     
     Write-Host "  .\start.ps1 -Mode Wipeout" -ForegroundColor Yellow
     Write-Host "    → Reset system to default state (removes all data)`n" -ForegroundColor DarkGray
+    
+    Write-Host "  .\start.ps1 -Mode Password" -ForegroundColor Yellow
+    Write-Host "    → Reset admin password to a new random value`n" -ForegroundColor DarkGray
     
     Write-Host "SERVICE URLS:" -ForegroundColor Cyan
     Write-Host "  Flask App:           http://127.0.0.1:5000" -ForegroundColor Gray
@@ -1241,6 +1346,9 @@ try {
         }
         'Wipeout' {
             Invoke-Wipeout
+        }
+        'Password' {
+            Invoke-ResetPassword
         }
         'Help' {
             Show-Help

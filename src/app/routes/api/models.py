@@ -67,9 +67,14 @@ def api_model_apps(model_slug):
 
 @models_bp.route('/<model_slug>/next-app-number')
 def api_model_next_app_number(model_slug):
-    """Get the next available app number for a model (sequential numbering)."""
+    """Get the next available app number for a model (sequential numbering).
+    
+    NOTE: This endpoint is kept for backward compatibility but atomic reservation
+    happens in GenerationService._reserve_app_number during generation.
+    Use /api/gen/generate directly which handles atomic reservation internally.
+    """
     try:
-        # Get the highest app number for this model
+        # Get the highest app number for this model (any version)
         max_app = GeneratedApplication.query.filter_by(
             model_slug=model_slug
         ).order_by(
@@ -81,7 +86,8 @@ def api_model_next_app_number(model_slug):
         return api_success({
             'model_slug': model_slug,
             'next_app_number': next_app_number,
-            'existing_apps': max_app.app_number if max_app else 0
+            'existing_apps': max_app.app_number if max_app else 0,
+            'note': 'Use /api/gen/generate directly for atomic reservation'
         }, message=f"Next app number: {next_app_number}")
     except Exception as e:
         current_app.logger.error(f"Error getting next app number for {model_slug}: {e}")
@@ -1055,3 +1061,90 @@ def models_comparison_refresh():
     except Exception as e:
         current_app.logger.error(f"Model comparison refresh failed: {e}")
         return jsonify({'models': [], 'baseline': 'avg', 'metrics': {}, 'error': str(e)}), 500
+
+
+@models_bp.route('/<model_slug>/apps/<int:app_number>/regenerate', methods=['POST'])
+def api_model_app_regenerate(model_slug, app_number):
+    """Regenerate an existing app, creating a new version.
+    
+    This creates a new version of the app (e.g., v1 -> v2) while keeping the original.
+    Useful for testing improvements or different templates with the same model.
+    
+    Request body (optional):
+        - template_slug: Template to use (default: same as original)
+        - template_type: 'auto', 'full', or 'compact' (default: 'auto')
+        - generate_frontend: bool (default: true)
+        - generate_backend: bool (default: true)
+    """
+    try:
+        import asyncio
+        from app.routes.api.generation import get_generation_service
+        
+        # Find the latest version of this app
+        latest_app = GeneratedApplication.query.filter_by(
+            model_slug=model_slug,
+            app_number=app_number
+        ).order_by(
+            GeneratedApplication.version.desc()
+        ).first()
+        
+        if not latest_app:
+            return api_error(
+                f"App {model_slug}/app{app_number} not found",
+                status=404
+            )
+        
+        # Parse request body for options
+        data = request.get_json() or {}
+        template_slug = data.get('template_slug', latest_app.template_slug or 'crud_todo_list')
+        template_type = data.get('template_type', 'auto')
+        gen_frontend = data.get('generate_frontend', True)
+        gen_backend = data.get('generate_backend', True)
+        
+        # Generate unique batch ID for this regeneration
+        import uuid
+        from datetime import datetime
+        batch_id = f"regen_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+        
+        # Calculate new version number
+        new_version = latest_app.version + 1
+        
+        current_app.logger.info(
+            f"Regenerating {model_slug}/app{app_number}: v{latest_app.version} -> v{new_version}"
+        )
+        
+        # Run generation with new version
+        service = get_generation_service()
+        result = asyncio.run(service.generate_full_app(
+            model_slug=model_slug,
+            app_num=app_number,
+            template_slug=template_slug,
+            generate_frontend=gen_frontend,
+            generate_backend=gen_backend,
+            template_type=template_type,
+            batch_id=batch_id,
+            parent_app_id=latest_app.id,
+            version=new_version
+        ))
+        
+        if result['success']:
+            return api_success({
+                'model_slug': model_slug,
+                'app_number': app_number,
+                'old_version': latest_app.version,
+                'new_version': new_version,
+                'parent_app_id': latest_app.id,
+                'batch_id': batch_id,
+                'template_slug': template_slug,
+                'result': result
+            }, message=f"Regenerated as v{new_version}")
+        else:
+            return api_error(
+                f"Regeneration failed: {', '.join(result.get('errors', []))}",
+                status=500,
+                details=result
+            )
+            
+    except Exception as e:
+        current_app.logger.error(f"Regeneration failed: {e}", exc_info=True)
+        return api_error(f"Regeneration failed: {str(e)}", status=500)

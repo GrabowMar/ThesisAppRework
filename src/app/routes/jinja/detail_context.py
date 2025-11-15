@@ -1101,6 +1101,22 @@ def build_model_detail_context(
     applications = GeneratedApplication.query.filter_by(model_slug=model.canonical_slug).order_by(GeneratedApplication.created_at.desc()).all()
     app_count = len(applications)
     recent_apps = applications[:5]
+    
+    # Calculate version counts per app_number
+    from sqlalchemy import func
+    app_version_counts = {}
+    version_count_query = db.session.query(
+        GeneratedApplication.app_number,
+        func.count(GeneratedApplication.id).label('version_count')
+    ).filter_by(
+        model_slug=model.canonical_slug
+    ).group_by(
+        GeneratedApplication.app_number
+    ).all()
+    
+    for app_num, count in version_count_query:
+        app_version_counts[app_num] = count
+    
     security_count = db.session.query(SecurityAnalysis).join(GeneratedApplication).filter(GeneratedApplication.model_slug == model.canonical_slug).count()
     performance_count = db.session.query(PerformanceTest).join(GeneratedApplication).filter(GeneratedApplication.model_slug == model.canonical_slug).count()
     
@@ -1176,6 +1192,7 @@ def build_model_detail_context(
         'model_slug': model_slug,
         'enriched_data': enriched_data,
         'applications': applications,
+        'app_version_counts': app_version_counts,
         'recent_apps': recent_apps,
         'stats': stats,
         'sections_map': sections_map,

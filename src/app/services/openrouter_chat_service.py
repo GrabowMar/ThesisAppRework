@@ -124,6 +124,19 @@ class OpenRouterChatService:
                             response_data = {"error": {"message": f"Non-JSON response: {response_text[:200]}"}}
                         
                         if status_code == 200:
+                            # Validate response has expected OpenAI schema structure
+                            if not isinstance(response_data, dict) or 'choices' not in response_data:
+                                error_msg = "API returned 200 but response missing 'choices' field"
+                                if isinstance(response_data, dict) and 'error' in response_data:
+                                    error_obj = response_data.get('error', {})
+                                    if isinstance(error_obj, dict):
+                                        error_msg = error_obj.get('message', error_msg)
+                                    elif isinstance(error_obj, str):
+                                        error_msg = error_obj
+                                logger.error(f"{error_msg} (Model: {model})")
+                                logger.error(f"Malformed 200 response: {response_data}")
+                                return False, {"error": {"message": error_msg}}, status_code
+                            
                             logger.info(f"Successfully received chat completion from {model}.")
                             return True, response_data, status_code
                         else:

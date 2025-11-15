@@ -124,29 +124,30 @@ def scaffold():
 
 @gen_bp.route('/generate', methods=['POST'])
 def generate():
-    """Generate application using scaffolding-first approach.
+    """Generate application using scaffolding-first approach with atomic app number reservation.
     
-    This is the CORRECT way to generate apps.
+    This is the CORRECT way to generate apps. App number is atomically reserved
+    before generation starts to prevent race conditions.
     """
     try:
         data = request.get_json() or {}
         
         # Required parameters
         model_slug_raw = data.get('model_slug')
-        app_num = data.get('app_num')
+        app_num_provided = data.get('app_num')  # Optional now - can auto-allocate
         template_slug = data.get('template_slug', 'crud_todo_list')  # Default to first template
         
         # Normalize model slug to match database format (replace / with _)
         model_slug = model_slug_raw.replace('/', '_') if model_slug_raw else None
         
-        if not model_slug or app_num is None:
+        if not model_slug:
             return create_error_response(
-                "model_slug and app_num are required",
+                "model_slug is required",
                 code=400
             )
         
         # Validate model exists in database
-        from app.models import ModelCapability
+        from app.models import ModelCapability, GeneratedApplication
         model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
         if not model:
             logger.error(f"Model not found in database: {model_slug} (raw: {model_slug_raw})")
@@ -157,17 +158,42 @@ def generate():
         
         logger.info(f"Found model: {model.model_name} (ID: {model.model_id})")
         
+        # Auto-allocate app number if not provided (atomic reservation happens in service)
+        if app_num_provided is None:
+            # Query for next available app number
+            max_app = GeneratedApplication.query.filter_by(
+                model_slug=model_slug
+            ).order_by(
+                GeneratedApplication.app_number.desc()
+            ).first()
+            app_num = (max_app.app_number + 1) if max_app else 1
+            logger.info(f"Auto-allocated app number: {app_num}")
+        else:
+            app_num = app_num_provided
+        
         # Optional flags
         gen_frontend = data.get('generate_frontend', True)
         gen_backend = data.get('generate_backend', True)
         template_type = data.get('template_type', 'auto')  # 'auto', 'full', or 'compact'
         
-        logger.info(f"Generation: {model_slug}/app{app_num}")
+        # Versioning and batch tracking
+        batch_id = data.get('batch_id')  # Optional batch ID from wizard
+        if not batch_id:
+            # Generate unique batch ID for this single generation
+            import uuid
+            from datetime import datetime
+            batch_id = f"single_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+        
+        version = data.get('version', 1)  # Default to version 1
+        parent_app_id = data.get('parent_app_id')  # For regenerations
+        
+        logger.info(f"Generation: {model_slug}/app{app_num} v{version}")
         logger.info(f"  OpenRouter model_id: {model.model_id}")
         logger.info(f"  Frontend: {gen_frontend}, Backend: {gen_backend}")
-        logger.info(f"  Template type: {template_type}")
+        logger.info(f"  Template: {template_slug}, type: {template_type}")
+        logger.info(f"  Batch ID: {batch_id}")
         
-        # Run generation
+        # Run generation with atomic reservation
         service = get_generation_service()
         result = asyncio.run(service.generate_full_app(
             model_slug=model_slug,
@@ -175,7 +201,10 @@ def generate():
             template_slug=template_slug,
             generate_frontend=gen_frontend,
             generate_backend=gen_backend,
-            template_type=template_type
+            template_type=template_type,
+            batch_id=batch_id,
+            parent_app_id=parent_app_id,
+            version=version
         ))
         
         if result['success']:

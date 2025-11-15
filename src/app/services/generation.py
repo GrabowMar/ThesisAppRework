@@ -65,6 +65,7 @@ from app.services.openrouter_chat_service import get_openrouter_chat_service
 from app.extensions import db
 from app.models import GeneratedApplication, ModelCapability, AnalysisStatus
 from app.utils.time import utc_now
+from app.utils.slug_utils import auto_correct_model_id
 
 logger = logging.getLogger(__name__)
 
@@ -196,17 +197,42 @@ class ScaffoldingManager:
                 f"Ensure PortAllocationService is properly initialized. Error: {exc}"
             )
     
-    def get_app_dir(self, model_slug: str, app_num: int) -> Path:
-        """Get app directory path."""
+    def get_app_dir(self, model_slug: str, app_num: int, template_slug: Optional[str] = None) -> Path:
+        """Get app directory path with optional template-based organization.
+        
+        Args:
+            model_slug: Normalized model slug (e.g., 'openai_gpt-4')
+            app_num: App number (1, 2, 3...)
+            template_slug: Optional template slug for organization (e.g., 'url-shortener')
+        
+        Returns:
+            Path to app directory. If template_slug provided, uses:
+                generated/apps/{model}/{template}/app{N}/
+            Otherwise uses flat structure:
+                generated/apps/{model}/app{N}/
+        """
         safe_model = re.sub(r'[^\w\-.]', '_', model_slug)
-        return GENERATED_APPS_DIR / safe_model / f"app{app_num}"
+        base_path = GENERATED_APPS_DIR / safe_model
+        
+        if template_slug:
+            # Template-based path: {model}/{template}/app{N}
+            safe_template = re.sub(r'[^\w\-.]', '_', template_slug)
+            return base_path / safe_template / f"app{app_num}"
+        else:
+            # Flat path: {model}/app{N} (backward compatible)
+            return base_path / f"app{app_num}"
     
-    def scaffold(self, model_slug: str, app_num: int) -> bool:
+    def scaffold(self, model_slug: str, app_num: int, template_slug: Optional[str] = None) -> bool:
         """Copy scaffolding to app directory.
         
         This creates the IMMUTABLE base structure that AI never touches.
+        
+        Args:
+            model_slug: Normalized model slug
+            app_num: App number
+            template_slug: Optional template slug for path organization
         """
-        app_dir = self.get_app_dir(model_slug, app_num)
+        app_dir = self.get_app_dir(model_slug, app_num, template_slug)
         backend_port, frontend_port = self.get_ports(model_slug, app_num)
         
         logger.info(f"Scaffolding {model_slug}/app{app_num} → {app_dir}")
@@ -321,6 +347,25 @@ class CodeGenerator:
         #          2) base_model_id (normalized, no variant suffix)
         #          3) model_id (fallback)
         openrouter_model = model.hugging_face_id or model.base_model_id or model.model_id
+        
+        # Optional runtime validation (fails open if catalog unavailable)
+        # The OpenRouter API will be the final authority on model validity
+        try:
+            from app.services.model_validator import get_validator
+            validator = get_validator()
+            
+            if not validator.is_valid_model_id(openrouter_model):
+                # Try to find correction
+                suggestion = validator.suggest_correction(openrouter_model)
+                if suggestion:
+                    corrected_id, reason = suggestion
+                    logger.info(f"Auto-correcting model ID: {openrouter_model} → {corrected_id} ({reason})")
+                    openrouter_model = corrected_id
+                # If no suggestion, continue anyway - let OpenRouter API validate
+        except Exception as e:
+            # Validation is optional - continue with generation if it fails
+            logger.debug(f"Model validation skipped: {e}")
+        
         logger.info(f"Using OpenRouter model: {openrouter_model} (HF ID: {model.hugging_face_id}, base: {model.base_model_id}, model_id: {model.model_id}, slug: {config.model_slug})")
         
         # Get model-specific token limit, capping at config.max_tokens
@@ -363,6 +408,30 @@ class CodeGenerator:
                 
                 # Return user-friendly error with model ID info
                 return False, "", f"API error {error_code}: {error_message} (tried model ID: {openrouter_model})"
+
+            # Validate response structure before accessing
+            if not isinstance(response_data, dict) or 'choices' not in response_data:
+                error_msg = f"Invalid API response structure: {type(response_data).__name__}"
+                if isinstance(response_data, dict) and 'error' in response_data:
+                    error_obj = response_data.get('error', {})
+                    if isinstance(error_obj, dict):
+                        error_msg += f" - {error_obj.get('message', str(error_obj))}"
+                    else:
+                        error_msg += f" - {error_obj}"
+                logger.error(error_msg)
+                logger.error(f"Response data: {response_data}")
+                return False, "", f"Backend generation failed: {error_msg}"
+            
+            # Validate choices array structure
+            if not response_data.get('choices') or not isinstance(response_data['choices'], list):
+                error_msg = "API response missing valid 'choices' array"
+                logger.error(f"{error_msg}: {response_data}")
+                return False, "", f"Backend generation failed: {error_msg}"
+            
+            if len(response_data['choices']) == 0:
+                error_msg = "API response has empty 'choices' array"
+                logger.error(f"{error_msg}: {response_data}")
+                return False, "", f"Backend generation failed: {error_msg}"
 
             content = response_data['choices'][0]['message']['content']
             finish_reason = response_data['choices'][0].get('finish_reason', 'unknown')
@@ -1334,6 +1403,100 @@ class GenerationService:
         logger.info(f"Loaded {len(catalog)} valid templates from {REQUIREMENTS_DIR}")
         return catalog
     
+    async def _reserve_app_number(
+        self,
+        model_slug: str,
+        app_num: Optional[int],  # Now optional - None means auto-allocate
+        template_slug: str,
+        batch_id: Optional[str] = None,
+        parent_app_id: Optional[int] = None,
+        version: int = 1
+    ) -> GeneratedApplication:
+        """Atomically reserve an app number by creating DB record immediately.
+        
+        This prevents race conditions where multiple concurrent generations
+        would get the same app number. The record is created in PENDING status
+        and updated to COMPLETED/FAILED after generation finishes.
+        
+        Args:
+            model_slug: Normalized model slug
+            app_num: App number to reserve (None to auto-allocate next available)
+            template_slug: Template being used
+            batch_id: Optional batch ID for grouping
+            parent_app_id: Optional parent app ID for regenerations
+            version: Version number (default 1)
+            
+        Returns:
+            GeneratedApplication record in PENDING status
+            
+        Raises:
+            RuntimeError: If app number already reserved (race condition detected)
+        """
+        from ..models.core import GeneratedApplication, ModelCapability
+        from ..constants import AnalysisStatus
+        
+        # Auto-allocate app number if not provided
+        if app_num is None:
+            # Get next available app number for this model
+            max_app = db.session.query(
+                db.func.max(GeneratedApplication.app_number)
+            ).filter_by(model_slug=model_slug).scalar()
+            
+            app_num = (max_app or 0) + 1
+            logger.info(f"Auto-allocated app number {app_num} for {model_slug}")
+        
+        # Get provider from model capability if available
+        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+        provider = model.provider if model else 'unknown'
+        
+        # Check if this exact app already exists
+        existing = GeneratedApplication.query.filter_by(
+            model_slug=model_slug,
+            app_number=app_num,
+            version=version
+        ).first()
+        
+        if existing:
+            # App already reserved/exists - this is a race condition
+            raise RuntimeError(
+                f"App {model_slug}/app{app_num} v{version} already exists (ID={existing.id}). "
+                f"This indicates a race condition in app number allocation."
+            )
+        
+        # Create new record in PENDING status
+        app_record = GeneratedApplication(
+            model_slug=model_slug,
+            app_number=app_num,
+            version=version,
+            parent_app_id=parent_app_id,
+            batch_id=batch_id,
+            app_type='web_application',
+            provider=provider,
+            template_slug=template_slug,
+            generation_status=AnalysisStatus.PENDING,
+            container_status='unknown',
+            has_backend=False,
+            has_frontend=False,
+            has_docker_compose=False
+        )
+        
+        db.session.add(app_record)
+        
+        try:
+            db.session.commit()
+            logger.info(
+                f"Reserved app number: {model_slug}/app{app_num} v{version} "
+                f"(ID={app_record.id}, template={template_slug}, batch={batch_id})"
+            )
+            return app_record
+        except SQLAlchemyError as exc:
+            db.session.rollback()
+            # Likely a unique constraint violation (race condition)
+            raise RuntimeError(
+                f"Failed to reserve app {model_slug}/app{app_num} v{version}: {exc}. "
+                f"This may indicate a race condition or database error."
+            )
+    
     async def generate_full_app(
         self,
         model_slug: str,
@@ -1341,19 +1504,42 @@ class GenerationService:
         template_slug: str,
         generate_frontend: bool = True,
         generate_backend: bool = True,
-        template_type: str = 'auto'  # 'auto', 'full', or 'compact'
+        template_type: str = 'auto',  # 'auto', 'full', or 'compact'
+        batch_id: Optional[str] = None,  # For tracking batch operations
+        parent_app_id: Optional[int] = None,  # For regenerations
+        version: int = 1  # Version number (1 for new, incremented for regenerations)
     ) -> dict:
-        """Generate complete application.
+        """Generate complete application with atomic app number reservation.
         
         Process:
+        0. Reserve app number in DB (atomic)
         1. Scaffold (Docker infrastructure)
         2. Generate backend (if requested)
         3. Generate frontend (if requested)
         4. Merge generated code with scaffolding
+        5. Update DB record with final status
         
         Args:
+            model_slug: Normalized model slug
+            app_num: App number to generate
+            template_slug: Template slug (e.g., 'url-shortener')
+            generate_frontend: Whether to generate frontend code
+            generate_backend: Whether to generate backend code
             template_type: 'auto' (default, based on model limit), 'full', or 'compact'
+            batch_id: Optional batch ID for grouping related generations
+            parent_app_id: Optional parent app ID if this is a regeneration
+            version: Version number (1 for new, incremented for regenerations)
         """
+        # Step 0: Atomic app reservation - create DB record immediately
+        app_record = await self._reserve_app_number(
+            model_slug=model_slug,
+            app_num=app_num,
+            template_slug=template_slug,
+            batch_id=batch_id,
+            parent_app_id=parent_app_id,
+            version=version
+        )
+        
         # Acquire app-specific lock to prevent concurrent writes to same app
         app_lock = self._get_app_lock(model_slug, app_num)
         
@@ -1376,15 +1562,18 @@ class GenerationService:
                 merger = CodeMerger()
                 
                 # Step 1: Scaffold
-                logger.info(f"=== Generating {model_slug}/app{app_num} ===")
+                logger.info(f"=== Generating {model_slug}/app{app_num} (v{version}) ===")
                 logger.info("Step 1: Scaffolding...")
                 
-                if not self.scaffolding.scaffold(model_slug, app_num):
+                if not self.scaffolding.scaffold(model_slug, app_num, template_slug):
                     result['errors'].append("Scaffolding failed")
+                    # Update DB record to FAILED status
+                    app_record.generation_status = AnalysisStatus.FAILED
+                    db.session.commit()
                     return result
                 
                 result['scaffolded'] = True
-                app_dir = self.scaffolding.get_app_dir(model_slug, app_num)
+                app_dir = self.scaffolding.get_app_dir(model_slug, app_num, template_slug)
                 
                 # Step 2: Generate Backend
                 if generate_backend:
@@ -1459,7 +1648,8 @@ class GenerationService:
                 frontend_port=frontend_port,
                 generate_backend=generate_backend,
                 generate_frontend=generate_frontend,
-                result_snapshot=result
+                result_snapshot=result,
+                app_record=app_record  # Pass existing record
             )
             result.update(persist_summary)
         except Exception as exc:  # noqa: BLE001
@@ -1486,50 +1676,26 @@ class GenerationService:
         frontend_port: int,
         generate_backend: bool,
         generate_frontend: bool,
-        result_snapshot: Dict[str, Any]
+        result_snapshot: Dict[str, Any],
+        app_record: GeneratedApplication  # Pre-created record from _reserve_app_number
     ) -> Dict[str, Any]:
-        """Create or update GeneratedApplication rows after generation."""
+        """Update GeneratedApplication record after generation completes.
+        
+        The record was already created by _reserve_app_number in PENDING status.
+        This method updates it with final status and metadata.
+        """
 
         app_features = self._inspect_generated_app(app_dir)
-        model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
-        provider = 'unknown'
-        if model and model.provider:
-            provider = model.provider
-
-        app_record = GeneratedApplication.query.filter_by(
-            model_slug=model_slug,
-            app_number=app_num
-        ).first()
-
-        created = False
-        if not app_record:
-            app_record = GeneratedApplication()
-            app_record.model_slug = model_slug
-            app_record.app_number = app_num
-            app_record.app_type = 'web_application'
-            app_record.provider = provider
-            app_record.container_status = 'unknown'
-            created = True
-            db.session.add(app_record)
-        else:
-            if provider != 'unknown' and app_record.provider != provider:
-                app_record.provider = provider
-            if not app_record.app_type:
-                app_record.app_type = 'web_application'
-            if not app_record.provider:
-                app_record.provider = 'unknown'
-
+        
+        # Update existing record (no need to query, we have it from reservation)
         app_record.has_backend = app_features['has_backend']
         app_record.has_frontend = app_features['has_frontend']
         app_record.has_docker_compose = app_features['has_docker_compose']
         app_record.backend_framework = app_features['backend_framework']
         app_record.frontend_framework = app_features['frontend_framework']
-        app_record.template_slug = template_slug
         app_record.generation_status = (
             AnalysisStatus.COMPLETED if result_snapshot.get('success') else AnalysisStatus.FAILED
         )
-        if not app_record.container_status:
-            app_record.container_status = 'unknown'
 
         metadata = app_record.get_metadata() or {}
         metadata_updates = {
@@ -1549,10 +1715,7 @@ class GenerationService:
         metadata.update({key: value for key, value in metadata_updates.items() if value is not None})
         app_record.set_metadata(metadata)
 
-        now = utc_now()
-        if created and not app_record.created_at:
-            app_record.created_at = now
-        app_record.updated_at = now
+        app_record.updated_at = utc_now()
 
         try:
             db.session.commit()
@@ -1562,7 +1725,7 @@ class GenerationService:
 
         return {
             'database_updated': True,
-            'database_record_created': created,
+            'database_record_created': False,  # Record was created by _reserve_app_number
             'database_application_id': app_record.id,
         }
 

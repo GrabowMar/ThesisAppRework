@@ -913,6 +913,12 @@ async function startGeneration() {
   let completed = 0;
   let failed = 0;
   
+  // Generate unique batch ID for this batch generation
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const randomSuffix = Math.random().toString(36).substring(2, 10);
+  const batchId = `batch_${timestamp}_${randomSuffix}`;
+  console.log(`[Wizard] Batch ID: ${batchId}`);
+  
   try {
     // Generate each combination
     for (const templateSlug of selectedTemplates) {
@@ -920,26 +926,24 @@ async function startGeneration() {
         console.log(`[Wizard] Generating: template ${templateSlug}, model ${modelSlug}`);
         
         try {
-          // Get next available app number for this model
-          const nextAppResponse = await fetch(`/api/models/${modelSlug}/next-app-number`);
-          const nextAppData = await nextAppResponse.json();
-          const appNum = nextAppData.next_app_number || 1;
-          
           // Get template type preference
           const templateTypeEl = document.getElementById('template-type-preference');
           const templateType = templateTypeEl ? templateTypeEl.value : 'auto';
           
+          // No need to pre-fetch app number - generation service handles atomic reservation
           const response = await fetch('/api/gen/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               template_slug: templateSlug,
               model_slug: modelSlug,
-              app_num: appNum,
+              app_num: null,  // Auto-allocate in generation service
               generate_frontend: true,
               generate_backend: true,
               scaffold: true,
-              template_type: templateType
+              template_type: templateType,
+              batch_id: batchId,  // Track batch operations together
+              version: 1  // New generation, version 1
             })
           });
           
@@ -952,7 +956,8 @@ async function startGeneration() {
               template_slug: templateSlug,
               model: modelSlug,
               result_id: `${templateSlug}_${modelSlug.replace(/\//g, '_')}`,
-              message: 'Generated successfully'
+              message: 'Generated successfully',
+              batch_id: batchId
             });
           } else {
             failed++;
@@ -985,6 +990,7 @@ async function startGeneration() {
     // Display results
     displayBatchResults({
       results: results,
+      batch_id: batchId,  // Include batch ID in results
       progress: {
         completed_tasks: completed,
         failed_tasks: failed,

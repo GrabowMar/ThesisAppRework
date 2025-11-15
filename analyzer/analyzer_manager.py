@@ -374,6 +374,10 @@ class AnalyzerManager:
     def _normalize_and_validate_app(self, model_slug: str, app_number: int) -> Optional[Tuple[str, Path]]:
         """Normalize model slug and validate app exists.
         
+        Searches for apps in both flat and template-based directory structures:
+        - generated/apps/{model}/app{N}/  (flat, backward compatible)
+        - generated/apps/{model}/{template}/app{N}/  (template-based)
+        
         Returns:
             Tuple of (normalized_slug, app_path) if app exists, None otherwise
         """
@@ -382,27 +386,52 @@ class AnalyzerManager:
         
         # Check if app exists in filesystem
         root = Path(__file__).parent.parent  # project root
-        app_path = root / 'generated' / 'apps' / normalized_slug / f'app{app_number}'
+        base_path = root / 'generated' / 'apps' / normalized_slug
         
-        if not app_path.exists() or not app_path.is_dir():
-            # Try slug variants for backward compatibility
-            for variant in generate_slug_variants(model_slug):
-                variant_path = root / 'generated' / 'apps' / variant / f'app{app_number}'
-                if variant_path.exists() and variant_path.is_dir():
-                    logger.info(f"Found app using variant slug: {variant} (requested: {model_slug})")
-                    return variant, variant_path
+        # Try flat structure first (backward compatible)
+        app_path = base_path / f'app{app_number}'
+        
+        if app_path.exists() and app_path.is_dir():
+            return normalized_slug, app_path
+        
+        # Try searching in template subdirectories
+        if base_path.exists():
+            for template_dir in base_path.iterdir():
+                if template_dir.is_dir() and not template_dir.name.startswith('.'):
+                    template_app_path = template_dir / f'app{app_number}'
+                    if template_app_path.exists() and template_app_path.is_dir():
+                        logger.info(f"Found app in template directory: {template_dir.name}/app{app_number}")
+                        return normalized_slug, template_app_path
+        
+        # Try slug variants for backward compatibility
+        for variant in generate_slug_variants(model_slug):
+            variant_base = root / 'generated' / 'apps' / variant
             
-            logger.error(f"App does not exist: {app_path}")
-            logger.error(f"Cannot analyze non-existent app. Generate it first or check model slug.")
-            return None
+            # Try flat structure
+            variant_path = variant_base / f'app{app_number}'
+            if variant_path.exists() and variant_path.is_dir():
+                logger.info(f"Found app using variant slug: {variant} (requested: {model_slug})")
+                return variant, variant_path
+            
+            # Try template subdirectories
+            if variant_base.exists():
+                for template_dir in variant_base.iterdir():
+                    if template_dir.is_dir() and not template_dir.name.startswith('.'):
+                        variant_template_path = template_dir / f'app{app_number}'
+                        if variant_template_path.exists() and variant_template_path.is_dir():
+                            logger.info(f"Found app using variant slug: {variant}/{template_dir.name}/app{app_number}")
+                            return variant, variant_template_path
         
-        return normalized_slug, app_path
+        logger.error(f"App does not exist: {base_path}/app{app_number} (tried flat and template structures)")
+        logger.error(f"Cannot analyze non-existent app. Generate it first or check model slug.")
+        return None
 
     def _resolve_app_ports(self, model_slug: str, app_number: int) -> Optional[Tuple[int, int]]:
         """Resolve backend & frontend ports for a model/app.
 
         PRIORITY ORDER (highest to lowest):
         1. .env file in generated app directory (source of truth for running apps)
+           - Searches both flat and template-based directory structures
         2. Database/JSON configuration (fallback for apps without .env)
 
         Returns None if no configuration found (caller MUST handle this error).
@@ -411,7 +440,21 @@ class AnalyzerManager:
             # PRIORITY 1: Try reading from generated app's .env file FIRST (source of truth)
             try:
                 root = Path(__file__).parent.parent  # project root
-                app_env_path = root / 'generated' / 'apps' / model_slug / f'app{app_number}' / '.env'
+                base_path = root / 'generated' / 'apps' / model_slug
+                
+                # Try flat structure first
+                app_env_path = base_path / f'app{app_number}' / '.env'
+                
+                # If not found in flat structure, search template directories
+                if not app_env_path.exists():
+                    if base_path.exists():
+                        for template_dir in base_path.iterdir():
+                            if template_dir.is_dir() and not template_dir.name.startswith('.'):
+                                template_env_path = template_dir / f'app{app_number}' / '.env'
+                                if template_env_path.exists():
+                                    app_env_path = template_env_path
+                                    break
+                
                 if app_env_path.exists():
                     backend_port = None
                     frontend_port = None

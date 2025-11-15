@@ -12,8 +12,12 @@ CONVENTION: All model slugs in filesystems and databases use underscore format:
   - Lowercase preferred for consistency
 """
 
+import logging
+import os
 import re
-from typing import List
+from typing import List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_model_slug(raw_slug: str) -> str:
@@ -163,3 +167,96 @@ def validate_model_slug_format(model_slug: str) -> bool:
         return False
     
     return True
+
+
+# Model ID auto-correction patterns (provider → known valid model patterns)
+MODEL_CORRECTIONS = {
+    'anthropic': [
+        # Pattern: (invalid_regex, correct_replacement, description)
+        (r'claude-haiku-4\.5', 'claude-3-haiku-20240307', 'Claude 4.5 does not exist; corrected to Claude 3 Haiku'),
+        (r'claude-4\.5-haiku', 'claude-3-haiku-20240307', 'Claude 4.5 does not exist; corrected to Claude 3 Haiku'),
+        (r'claude-haiku-4', 'claude-3-haiku-20240307', 'Claude 4 Haiku does not exist; corrected to Claude 3 Haiku'),
+        (r'claude-sonnet-4\.5', 'claude-3-5-sonnet-20241022', 'Claude 4.5 does not exist; corrected to Claude 3.5 Sonnet'),
+        (r'claude-4\.5-sonnet', 'claude-3-5-sonnet-20241022', 'Claude 4.5 does not exist; corrected to Claude 3.5 Sonnet'),
+        (r'claude-opus-4\.5', 'claude-3-opus-20240229', 'Claude 4.5 does not exist; corrected to Claude 3 Opus'),
+        (r'claude-4\.5-opus', 'claude-3-opus-20240229', 'Claude 4.5 does not exist; corrected to Claude 3 Opus'),
+    ],
+    'openai': [
+        (r'gpt-5', 'gpt-4-turbo-preview', 'GPT-5 does not exist; corrected to GPT-4 Turbo'),
+        (r'gpt-4\.5', 'gpt-4-turbo-preview', 'GPT-4.5 does not exist; corrected to GPT-4 Turbo'),
+    ],
+    'google': [
+        (r'gemini-3', 'gemini-2.0-flash-exp', 'Gemini 3 does not exist; corrected to Gemini 2.0 Flash'),
+    ],
+}
+
+
+def suggest_model_correction(model_id: str) -> Optional[Tuple[str, str]]:
+    """Suggest a corrected model ID if the provided one appears invalid.
+    
+    Args:
+        model_id: OpenRouter model ID (e.g., "anthropic/claude-haiku-4.5")
+    
+    Returns:
+        Tuple of (corrected_model_id, reason) if correction found, else None
+    
+    Examples:
+        >>> suggest_model_correction("anthropic/claude-haiku-4.5")
+        ('anthropic/claude-3-haiku-20240307', 'Claude 4.5 does not exist; corrected to Claude 3 Haiku')
+        >>> suggest_model_correction("openai/gpt-4")
+        None
+    """
+    if not model_id or '/' not in model_id:
+        return None
+    
+    provider, model_name = model_id.split('/', 1)
+    
+    if provider not in MODEL_CORRECTIONS:
+        return None
+    
+    for pattern, replacement, reason in MODEL_CORRECTIONS[provider]:
+        if re.search(pattern, model_name, re.IGNORECASE):
+            corrected_name = re.sub(pattern, replacement, model_name, flags=re.IGNORECASE)
+            corrected_id = f"{provider}/{corrected_name}"
+            return corrected_id, reason
+    
+    return None
+
+
+def auto_correct_model_id(model_id: str, auto_correct: Optional[bool] = None) -> Tuple[str, Optional[str]]:
+    """Auto-correct invalid model IDs with optional logging.
+    
+    Args:
+        model_id: OpenRouter model ID to validate/correct
+        auto_correct: Enable auto-correction (default: from env OPENROUTER_AUTO_CORRECT_MODEL_IDS)
+    
+    Returns:
+        Tuple of (final_model_id, warning_message)
+        - If auto_correct is True and correction found: returns (corrected_id, warning)
+        - If auto_correct is False and correction found: returns (original_id, warning)
+        - If no correction needed: returns (original_id, None)
+    
+    Examples:
+        >>> auto_correct_model_id("anthropic/claude-haiku-4.5", auto_correct=True)
+        ('anthropic/claude-3-haiku-20240307', 'Auto-corrected invalid model ID...')
+        >>> auto_correct_model_id("anthropic/claude-haiku-4.5", auto_correct=False)
+        ('anthropic/claude-haiku-4.5', 'Invalid model ID detected...')
+    """
+    if auto_correct is None:
+        auto_correct = os.getenv('OPENROUTER_AUTO_CORRECT_MODEL_IDS', 'false').lower() == 'true'
+    
+    correction = suggest_model_correction(model_id)
+    
+    if not correction:
+        return model_id, None
+    
+    corrected_id, reason = correction
+    
+    if auto_correct:
+        warning = f"Auto-corrected invalid model ID '{model_id}' → '{corrected_id}': {reason}"
+        logger.warning(warning)
+        return corrected_id, warning
+    else:
+        warning = f"Invalid model ID detected '{model_id}'. Suggestion: use '{corrected_id}' ({reason}). Enable auto-correction with OPENROUTER_AUTO_CORRECT_MODEL_IDS=true"
+        logger.warning(warning)
+        return model_id, warning
