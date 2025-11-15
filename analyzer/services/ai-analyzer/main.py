@@ -80,12 +80,7 @@ class AIAnalyzer(BaseWSService):
             self.last_check_time = 0
             self.gpt4all_is_available = False
             
-            print("[ai-analyzer] Loading application requirements...")
-            # Load application requirements
-            self.requirements_cache = {}
-            self._load_app_requirements()
-            
-            self.log.info("AI Analyzer initialized")
+            self.log.info("AI Analyzer initialized (template-based requirements system)")
             print("[ai-analyzer] AIAnalyzer initialization complete")
             if not self.openrouter_api_key:
                 self.log.warning("OPENROUTER_API_KEY not set - OpenRouter analysis will be unavailable")
@@ -96,72 +91,11 @@ class AIAnalyzer(BaseWSService):
             traceback.print_exc()
             raise
     
-    def _load_app_requirements(self):
-        """Load application requirements from all_app_requirements.json."""
-        print("[ai-analyzer] Looking for application requirements...")
-        try:
-            # Look for requirements file in various locations
-            possible_paths = [
-                Path("/app/all_app_requirements.json"),
-                Path("/app/misc/all_app_requirements.json"),
-                Path(__file__).parent / "all_app_requirements.json"
-            ]
-            
-            print(f"[ai-analyzer] Checking paths: {[str(p) for p in possible_paths]}")
-            
-            requirements_data = None
-            found_path = None
-            for path in possible_paths:
-                print(f"[ai-analyzer] Checking {path}: exists={path.exists()}")
-                if path.exists():
-                    print(f"[ai-analyzer] Loading requirements from: {path}")
-                    found_path = path
-                    with open(path, 'r', encoding='utf-8') as f:
-                        requirements_data = json.load(f)
-                    break
-            
-            if requirements_data:
-                print(f"[ai-analyzer] Successfully loaded requirements data from {found_path}")
-                self.log.info(f"Requirements file loaded: {found_path} ({len(requirements_data)} app entries)")
-                
-                # Parse and cache requirements by app number
-                for app_key, app_data in requirements_data.items():
-                    if app_key.startswith('APP_'):
-                        try:
-                            app_num = int(app_key.split('_')[1])
-                            backend_reqs = app_data.get('BACKEND', [])
-                            frontend_reqs = app_data.get('FRONTEND', [])
-                            all_reqs = backend_reqs + frontend_reqs
-                            self.requirements_cache[app_num] = (all_reqs, f"App {app_num}")
-                            print(f"[ai-analyzer] Loaded {len(all_reqs)} requirements for App {app_num}")
-                            self.log.debug(f"App {app_num}: {len(backend_reqs)} backend + {len(frontend_reqs)} frontend requirements")
-                        except (ValueError, IndexError) as e:
-                            print(f"[ai-analyzer] Could not parse app key {app_key}: {e}")
-                            self.log.error(f"Failed to parse app key {app_key}: {e}")
-                
-                print(f"[ai-analyzer] Loaded requirements for {len(self.requirements_cache)} applications")
-                self.log.info(f"Requirements cache populated: {len(self.requirements_cache)} applications total")
-                if hasattr(self, 'log'):
-                    self.log.info(f"Loaded requirements for {len(self.requirements_cache)} applications")
-            else:
-                print("[ai-analyzer] WARNING: Could not find all_app_requirements.json file")
-                if hasattr(self, 'log'):
-                    self.log.warning("Could not find all_app_requirements.json file")
-                
-        except Exception as e:
-            print(f"[ai-analyzer] ERROR: Failed to load application requirements: {e}")
-            import traceback
-            traceback.print_exc()
-            if hasattr(self, 'log'):
-                self.log.error(f"Failed to load application requirements: {e}")
-    
     def _detect_available_tools(self) -> List[str]:
-        """Detect available AI analysis tools."""
+        """Detect available AI analysis tools (template-based only)."""
         tools = [
-            "requirements-scanner",      # Legacy: Full requirements analysis
-            "requirements-analyzer",     # Legacy: Alternative requirements analysis
-            "requirements-checker",      # NEW: Functional requirements + curl endpoint tests
-            "code-quality-analyzer"      # NEW: Stylistic requirements + code patterns
+            "requirements-checker",      # Functional requirements + curl endpoint tests
+            "code-quality-analyzer"      # Stylistic requirements + code patterns
         ]
         
         # Check GPT4All availability
@@ -178,126 +112,6 @@ class AIAnalyzer(BaseWSService):
         
         print(f"[ai-analyzer] Available tools: {tools}")
         return tools
-    
-    async def analyze_app_requirements(self, model_slug: str, app_number: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None, selected_tools: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Analyze application against requirements using AI."""
-        try:
-            # Find application path
-            app_path = self._resolve_app_path(model_slug, app_number)
-            if not app_path or not app_path.exists():
-                return {
-                    'status': 'error',
-                    'error': f'Application path not found: {model_slug} app {app_number}',
-                    'model_slug': model_slug,
-                    'app_number': app_number
-                }
-            
-            self.log.info(f"AI analysis of {model_slug} app {app_number}")
-            await self.send_progress('starting', f"Starting AI analysis for {model_slug} app {app_number}", analysis_id=analysis_id,
-                                 model_slug=model_slug, app_number=app_number)
-            
-            # Get requirements for this app
-            requirements, app_name = self.requirements_cache.get(app_number, ([], f"App {app_number}"))
-            if not requirements:
-                return {
-                    'status': 'error',
-                    'error': f'No requirements found for app {app_number}',
-                    'model_slug': model_slug,
-                    'app_number': app_number
-                }
-            
-            await self.send_progress('loading_requirements', f"Loaded {len(requirements)} requirements", analysis_id=analysis_id)
-            
-            # Read application code
-            code_content = await self._read_app_code(app_path)
-            if not code_content:
-                return {
-                    'status': 'error',
-                    'error': f'Could not read application code from {app_path}',
-                    'model_slug': model_slug,
-                    'app_number': app_number
-                }
-            
-            await self.send_progress('analyzing_code', f"Analyzing {len(code_content)} characters of code", analysis_id=analysis_id)
-            
-            # Analyze each requirement
-            results = {
-                'model_slug': model_slug,
-                'app_number': app_number,
-                'app_name': app_name,
-                'analysis_time': datetime.now().isoformat(),
-                'tools_used': selected_tools or ['ai-requirements'],
-                'configuration_applied': config is not None,
-                'results': {
-                    'requirement_checks': [],
-                    'summary': {}
-                }
-            }
-            
-            requirement_checks = []
-            total_met = 0
-            total_requirements = len(requirements)
-            
-            for i, requirement in enumerate(requirements, 1):
-                await self.send_progress('checking_requirement', f"Checking requirement {i}/{total_requirements}", analysis_id=analysis_id)
-                self.log.info(f"[REQUIREMENT {i}/{total_requirements}] Analyzing: {requirement[:100]}...")
-                print(f"[ai-analyzer] Checking requirement {i}/{total_requirements}: {requirement[:80]}...")
-                
-                check = RequirementCheck(requirement=requirement)
-                try:
-                    # Analyze requirement using AI
-                    check.result = await self._analyze_requirement(code_content, requirement, config)
-                    if check.result.met:
-                        total_met += 1
-                        self.log.info(f"[REQUIREMENT {i}] ✓ MET (confidence={check.result.confidence}): {check.result.explanation[:100]}...")
-                        print(f"[ai-analyzer] Requirement {i} MET: {requirement[:50]}...")
-                    else:
-                        self.log.info(f"[REQUIREMENT {i}] ✗ NOT MET (confidence={check.result.confidence}): {check.result.explanation[:100]}...")
-                        print(f"[ai-analyzer] Requirement {i} NOT MET: {requirement[:50]}...")
-                except Exception as e:
-                    check.result.error = str(e)
-                    self.log.error(f"[REQUIREMENT {i}] ERROR: {e}")
-                    print(f"[ai-analyzer] Requirement {i} ERROR: {e}")
-                    import traceback
-                    traceback.print_exc()
-                
-                requirement_checks.append(check.to_dict())
-            
-            results['results']['requirement_checks'] = requirement_checks
-            compliance_pct = (total_met / total_requirements * 100) if total_requirements > 0 else 0
-            results['results']['summary'] = {
-                'total_requirements': total_requirements,
-                'requirements_met': total_met,
-                'requirements_not_met': total_requirements - total_met,
-                'compliance_percentage': compliance_pct,
-                'analysis_status': 'completed'
-            }
-            
-            self.log.info(f"[ANALYSIS-COMPLETE] {model_slug} app{app_number}: {total_met}/{total_requirements} requirements met ({compliance_pct:.1f}% compliance)")
-            print(f"[ai-analyzer] Analysis complete: {total_met}/{total_requirements} met ({compliance_pct:.1f}%)")
-            
-            # Log distribution of confidence levels
-            confidence_counts = {'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}
-            for check in requirement_checks:
-                conf = check.get('result', {}).get('confidence', 'LOW')
-                confidence_counts[conf] = confidence_counts.get(conf, 0) + 1
-            self.log.info(f"[ANALYSIS-COMPLETE] Confidence distribution: HIGH={confidence_counts['HIGH']}, MEDIUM={confidence_counts['MEDIUM']}, LOW={confidence_counts['LOW']}")
-            print(f"[ai-analyzer] Confidence: HIGH={confidence_counts['HIGH']}, MEDIUM={confidence_counts['MEDIUM']}, LOW={confidence_counts['LOW']}")
-            
-            await self.send_progress('completed', f"Analysis completed: {total_met}/{total_requirements} requirements met", 
-                                 analysis_id=analysis_id, total_issues=total_requirements - total_met)
-            
-            return results
-            
-        except Exception as e:
-            self.log.error(f"AI analysis failed: {e}")
-            await self.send_progress('failed', f"AI analysis failed: {e}", analysis_id=analysis_id)
-            return {
-                'status': 'error',
-                'error': str(e),
-                'model_slug': model_slug,
-                'app_number': app_number
-            }
     
     def _resolve_app_path(self, model_slug: str, app_number: int) -> Optional[Path]:
         """Resolve application path for analysis."""
@@ -555,7 +369,8 @@ Focus on whether the functionality described in the requirement is actually impl
             with open(requirements_file, 'r', encoding='utf-8') as f:
                 template_data = json.load(f)
             
-            functional_requirements = template_data.get('functional_requirements', [])
+            # Support both new and legacy field names with fallback
+            functional_requirements = template_data.get('functional_requirements') or template_data.get('backend_requirements', [])
             control_endpoints = template_data.get('control_endpoints', [])
             
             if not functional_requirements and not control_endpoints:
@@ -706,7 +521,8 @@ Focus on whether the functionality described in the requirement is actually impl
             with open(requirements_file, 'r', encoding='utf-8') as f:
                 template_data = json.load(f)
             
-            stylistic_requirements = template_data.get('stylistic_requirements', [])
+            # Support both new and legacy field names with fallback
+            stylistic_requirements = template_data.get('stylistic_requirements') or template_data.get('frontend_requirements', [])
             
             if not stylistic_requirements:
                 return {
@@ -932,13 +748,24 @@ Provide concrete evidence from the code to support your assessment."""
                 config = message_data.get("config", None)
                 analysis_id = message_data.get("id")
                 # Tool selection normalized
-                tools = list(self.extract_selected_tools(message_data) or ["requirements-scanner"])
+                tools = list(self.extract_selected_tools(message_data) or ["requirements-checker"])
+                
+                # Validate template_slug is provided in config
+                if not config or not config.get('template_slug'):
+                    error_msg = "template_slug is required in config for AI analysis"
+                    self.log.error(f"[TOOL-EXEC] {error_msg}")
+                    await websocket.send(json.dumps({
+                        "type": "error",
+                        "message": error_msg,
+                        "service": self.info.name
+                    }))
+                    return
                 
                 self.log.info(f"[TOOL-EXEC] Starting AI analysis for {model_slug} app {app_number} with tools: {tools}")
                 print(f"[ai-analyzer] Tool execution started: model={model_slug}, app={app_number}, tools={tools}")
                 if config:
-                    self.log.info(f"[TOOL-EXEC] Using custom configuration: {list(config.keys())}")
-                    print(f"[ai-analyzer] Config keys: {list(config.keys())}")
+                    self.log.info(f"[TOOL-EXEC] Using template: {config.get('template_slug')}, config keys: {list(config.keys())}")
+                    print(f"[ai-analyzer] Template: {config.get('template_slug')}, config keys: {list(config.keys())}")
                 
                 # Route to appropriate analysis method based on selected tools
                 self.log.debug(f"[TOOL-ROUTING] Routing analysis based on tools: {tools}")
@@ -955,10 +782,13 @@ Provide concrete evidence from the code to support your assessment."""
                         model_slug, app_number, config, analysis_id=analysis_id
                     )
                 else:
-                    # Legacy: use original requirements analysis
-                    analysis_results = await self.analyze_app_requirements(
-                        model_slug, app_number, config, analysis_id=analysis_id, selected_tools=tools
-                    )
+                    # No valid tool specified
+                    error_msg = f"No valid analysis tool selected. Available: {self._detect_available_tools()}"
+                    self.log.error(f"[TOOL-ROUTING] {error_msg}")
+                    analysis_results = {
+                        'status': 'error',
+                        'error': error_msg
+                    }
                 
                 response = {
                     "type": "ai_analysis_result",
@@ -978,7 +808,7 @@ Provide concrete evidence from the code to support your assessment."""
                     "version": self.info.version,
                     "status": "healthy",
                     "available_tools": self._detect_available_tools(),
-                    "requirements_loaded": len(self.requirements_cache),
+                    "requirements_system": "template-based",
                     "timestamp": datetime.now().isoformat()
                 }
                 print(f"[ai-analyzer] Sending server_status response: {response}")

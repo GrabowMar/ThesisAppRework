@@ -1019,9 +1019,64 @@ class AnalyzerManager:
         return raw_result
     
     async def run_ai_analysis(self, model_slug: str, app_number: int,
-                            ai_model: Optional[str] = None, tools: Optional[List[str]] = None) -> Dict[str, Any]:
-        """Run AI-powered code analysis."""
+                            ai_model: Optional[str] = None, tools: Optional[List[str]] = None,
+                            template_slug: Optional[str] = None) -> Dict[str, Any]:
+        """Run AI-powered code analysis with template-based requirements.
+        
+        Args:
+            model_slug: Model identifier
+            app_number: Application number
+            ai_model: AI model to use (default: anthropic/claude-3-5-haiku)
+            tools: List of tools to run (default: ['requirements-checker'])
+            template_slug: Template slug (optional, will query DB if not provided)
+        
+        Returns:
+            Analysis results from ai-analyzer service
+        """
         logger.info(f"🤖 Running AI analysis on {model_slug} app {app_number}")
+        
+        # Determine template_slug: from parameter, DB, or fallback
+        if not template_slug:
+            # Try to get template_slug from database
+            try:
+                # Import here to avoid circular dependencies
+                import sys
+                from pathlib import Path
+                
+                # Add src to path if not already there
+                src_path = Path(__file__).parent.parent / 'src'
+                if str(src_path) not in sys.path:
+                    sys.path.insert(0, str(src_path))
+                
+                from app.models import GeneratedApplication
+                from app import create_app
+                
+                # Get Flask app and database session
+                flask_app = create_app()
+                with flask_app.app_context():
+                    app_record = GeneratedApplication.query.filter_by(
+                        model_slug=model_slug,
+                        app_number=app_number
+                    ).order_by(GeneratedApplication.version.desc()).first()
+                    
+                    if app_record and app_record.template_slug:
+                        template_slug = app_record.template_slug
+                        logger.info(f"Found template_slug from database: {template_slug}")
+                    else:
+                        logger.warning(f"No template_slug in database for {model_slug}/app{app_number}, using default")
+                        template_slug = 'crud_todo_list'  # Fallback default
+            except Exception as e:
+                logger.warning(f"Could not query database for template_slug: {e}")
+                template_slug = 'crud_todo_list'  # Fallback default
+        
+        # Resolve port configuration
+        ports_tuple = self._resolve_app_ports(model_slug, app_number)
+        if ports_tuple:
+            backend_port, frontend_port = ports_tuple
+        else:
+            logger.warning(f"Could not resolve ports for {model_slug}/app{app_number}, using defaults")
+            backend_port = 5000
+            frontend_port = 8000
         
         request = AnalysisRequest(
             model_slug=model_slug,
@@ -1029,16 +1084,27 @@ class AnalyzerManager:
             analysis_type='ai_analysis'
         )
         
+        # Default tools for template-based analysis
+        if tools is None:
+            tools = ['requirements-checker']  # New default: template-based requirements checker
+        
         message = {
             "type": "ai_analyze",
             "model_slug": model_slug,
             "app_number": app_number,
             "source_path": request.source_path,
-            "tools": tools or [],
-            "ai_model": ai_model or "anthropic/claude-3-haiku",
+            "tools": tools,
+            "config": {
+                "template_slug": template_slug,
+                "backend_port": backend_port,
+                "frontend_port": frontend_port,
+                "gemini_model": ai_model or "anthropic/claude-3-5-haiku"
+            },
             "timestamp": datetime.now().isoformat(),
             "id": str(uuid.uuid4())
         }
+        
+        logger.info(f"AI analysis config: template={template_slug}, tools={tools}, ports={backend_port}/{frontend_port}")
         
         return await self.send_websocket_message('ai-analyzer', message, timeout=180)
     
