@@ -21,6 +21,7 @@ from typing import Dict, List, Any, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from analyzer.shared.service_base import BaseWSService
+from analyzer.shared.path_utils import resolve_app_source_path
 import aiohttp
 
 
@@ -300,16 +301,20 @@ class AIAnalyzer(BaseWSService):
     
     def _resolve_app_path(self, model_slug: str, app_number: int) -> Optional[Path]:
         """Resolve application path for analysis."""
-        # Try multiple possible locations
-        possible_paths = [
-            Path('/app/sources') / model_slug / f'app{app_number}',
+        # Use shared path resolution supporting template-based structures
+        path = resolve_app_source_path(model_slug, app_number)
+        if path:
+            return path
+        
+        # Fallback to legacy locations if not found in main sources
+        legacy_paths = [
             Path('/app/generated/apps') / model_slug / f'app{app_number}',
             Path('/app/misc/models') / model_slug / f'app{app_number}',
         ]
         
-        for path in possible_paths:
-            if path.exists():
-                return path
+        for legacy_path in legacy_paths:
+            if legacy_path.exists():
+                return legacy_path
         
         return None
     

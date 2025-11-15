@@ -15,6 +15,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Set
 
+# Import shared path resolution utility
+from analyzer.shared.path_utils import resolve_app_source_path
+
 from analyzer.shared.service_base import BaseWSService
 from parsers import parse_tool_output
 from sarif_parsers import parse_tool_output_to_sarif, build_sarif_document, get_available_sarif_parsers
@@ -734,12 +737,13 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
     async def analyze_model_code(self, model_slug: str, app_number: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None, selected_tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Perform comprehensive static analysis on AI model code with custom configuration."""
         try:
-            model_path = Path('/app/sources') / model_slug / f'app{app_number}'
+            # Resolve path supporting both flat and template-based structures
+            model_path = resolve_app_source_path(model_slug, app_number)
             
-            if not model_path.exists():
+            if model_path is None or not model_path.exists():
                 return {
                     'status': 'error',
-                    'error': f'Model path not found: {model_path}'
+                    'error': f'Model path not found for {model_slug} app{app_number} (checked flat and template structures)'
                 }
             
             self.log.info(f"Static analysis of {model_slug} app {app_number}")
