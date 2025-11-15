@@ -16,6 +16,7 @@ Key SARIF Concepts:
 """
 
 from typing import Dict, Any, Optional, List
+import json
 import logging
 from datetime import datetime, timezone
 
@@ -596,30 +597,40 @@ class MypySARIFParser:
         """
         Convert Mypy output to SARIF 2.1.0 format.
         
-        Mypy can output JSON with --output=json or text format.
+        Mypy can output JSON with --output=json (newline-delimited) or text format.
         
         Text format:
         path/to/file.py:10:5: error: Incompatible types
         
-        JSON format:
-        [{
-            "file": "path/to/file.py",
-            "line": 10,
-            "column": 5,
-            "severity": "error",
-            "message": "Incompatible types",
-            "error_code": "assignment"
-        }]
+        JSON format (newline-delimited or single dict):
+        Single finding: {"file": "...", "line": 10, "column": 5, ...}
+        Multiple findings (newline-delimited):
+        {"file": "path/to/file.py", "line": 10, "column": 5, "severity": "error", "message": "Incompatible types", "error_code": "assignment"}
+        {"file": "path/to/other.py", "line": 20, "column": 10, "severity": "warning", "message": "...", "error_code": "..."}
         """
         run = SARIFBuilder.create_run("mypy")
         
-        # Handle text format
+        # Handle single JSON object (one finding)
+        if isinstance(raw_output, dict):
+            raw_output = [raw_output]  # Convert to list for uniform processing
+        
+        # Handle text or newline-delimited JSON format
         if isinstance(raw_output, str):
+            findings = []
             for line in raw_output.strip().split('\n'):
                 if not line.strip():
                     continue
                 
-                # Parse format: file:line:column: severity: message
+                # Try to parse as JSON first
+                try:
+                    finding = json.loads(line)
+                    if isinstance(finding, dict):
+                        findings.append(finding)
+                        continue
+                except (json.JSONDecodeError, ValueError):
+                    pass
+                
+                # Fallback: Parse text format: file:line:column: severity: message
                 parts = line.split(':', 4)
                 if len(parts) >= 4:
                     severity_str = 'high' if ' error:' in line else 'medium'
@@ -645,11 +656,18 @@ class MypySARIFParser:
                     
                     run["results"].append(result)
             
-            return run
+            # If we parsed JSON findings from newline-delimited format, process them
+            if findings:
+                raw_output = findings
+                # Continue to process JSON findings below
+            else:
+                # No JSON findings, return run with any text-format results we found
+                return run
         
-        # Handle JSON format
+        # At this point, raw_output should be a list of JSON findings
+        # Handle JSON array format (legacy or pre-parsed newline-delimited)
         if not isinstance(raw_output, list):
-            logger.error("Invalid Mypy output format")
+            logger.error("Invalid Mypy output format: expected list but got %s", type(raw_output))
             return run
         
         for finding in raw_output:

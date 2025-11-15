@@ -528,46 +528,55 @@ class MyPyParser:
         Parse MyPy JSON output.
         
         MyPy JSON structure (mypy --output json):
-        [
-            {
-                "file": "app.py",
-                "line": 10,
-                "column": 5,
-                "severity": "error",
-                "message": "Incompatible types in assignment",
-                "error_code": "assignment"
-            }
-        ]
+        Newline-delimited JSON where each line is an object like:
+        {
+            "file": "app.py",
+            "line": 10,
+            "column": 5,
+            "severity": "error",
+            "message": "Incompatible types in assignment",
+            "error_code": "assignment"
+        }
         """
+        # Handle newline-delimited JSON (mypy --output json default format)
         if isinstance(raw_output, str):
-            # Handle plain text output (fallback for older mypy versions)
-            issues = []
-            severity_breakdown = {'high': 0, 'medium': 0, 'low': 0}
-            
+            # Try to parse as newline-delimited JSON first
+            findings = []
             for line in raw_output.splitlines():
-                if ':' in line and (' error:' in line or ' warning:' in line or ' note:' in line):
-                    parts = line.strip().split(':', 3)
-                    if len(parts) >= 4:
-                        severity = 'high' if ' error:' in line else ('medium' if ' warning:' in line else 'low')
-                        severity_breakdown[severity] += 1
-                        issues.append({
-                            'file': parts[0],
-                            'line': int(parts[1]) if parts[1].isdigit() else 0,
-                            'column': int(parts[2]) if parts[2].isdigit() else 0,
-                            'message': parts[3].strip(),
-                            'severity': severity,
-                            'rule': 'type-check'
-                        })
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    finding = json.loads(line)
+                    if isinstance(finding, dict):
+                        findings.append(finding)
+                except json.JSONDecodeError:
+                    # Fallback: handle plain text output (older mypy versions)
+                    if ':' in line and (' error:' in line or ' warning:' in line or ' note:' in line):
+                        parts = line.strip().split(':', 3)
+                        if len(parts) >= 4:
+                            severity = 'error' if ' error:' in line else ('warning' if ' warning:' in line else 'note')
+                            findings.append({
+                                'file': parts[0],
+                                'line': int(parts[1]) if parts[1].isdigit() else 0,
+                                'column': int(parts[2]) if parts[2].isdigit() else 0,
+                                'message': parts[3].strip(),
+                                'severity': severity,
+                                'error_code': 'type-check'
+                            })
             
-            return {
-                'tool': 'mypy',
-                'executed': True,
-                'status': 'success' if issues else 'no_issues',
-                'issues': issues,
-                'total_issues': len(issues),
-                'severity_breakdown': severity_breakdown,
-                'config_used': config or {}
-            }
+            # If we found JSON findings, process them
+            if findings:
+                raw_output = findings
+            else:
+                # No valid output found
+                return {
+                    'tool': 'mypy',
+                    'executed': True,
+                    'status': 'no_issues',
+                    'issues': [],
+                    'total_issues': 0
+                }
         
         if not isinstance(raw_output, list):
             return {

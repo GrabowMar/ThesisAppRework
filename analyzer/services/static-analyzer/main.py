@@ -341,75 +341,23 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     self.log.warning(f"Could not parse semgrep SARIF output: {e}")
             results['semgrep'] = result
 
-        # Mypy type checking with SARIF conversion
+        # Mypy type checking
         if (
             'mypy' in self.available_tools
             and (selected_tools is None or 'mypy' in selected_tools)
             and mypy_config.get('enabled', True)
             and python_files
         ):
-            # Use mypy with JSON output to stdout
-            cmd = ['mypy', '--output', 'json', '--show-error-codes', '--no-error-summary', '--ignore-missing-imports']
+            # Use mypy with JSON output to stdout (newline-delimited JSON)
+            cmd = ['mypy', '--output', 'json', '--show-error-codes', '--no-error-summary', 
+                   '--ignore-missing-imports', '--no-incremental', '--cache-dir', '/tmp/mypy_cache']
             max_files = mypy_config.get('max_files', 10)
             files_to_check = python_files[:max_files]
             cmd.extend([str(f) for f in files_to_check])
 
-            # MyPy with JSON format
-            mypy_result = await self._run_tool(cmd, 'mypy', success_exit_codes=[0, 1])
-
-            if mypy_result.get('status') != 'error' and 'output' in mypy_result:
-                # Parse JSON output and convert to SARIF manually
-                try:
-                    # MyPy outputs newline-delimited JSON
-                    findings = []
-                    for line in mypy_result['output'].splitlines():
-                        line = line.strip()
-                        if line:
-                            try:
-                                finding = json.loads(line)
-                                findings.append(finding)
-                            except:
-                                pass
-                    
-                    # Create SARIF structure
-                    sarif_data = {
-                        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
-                        "version": "2.1.0",
-                        "runs": [{
-                            "tool": {
-                                "driver": {
-                                    "name": "mypy",
-                                    "informationUri": "https://mypy.readthedocs.io/",
-                                    "version": "latest"
-                                }
-                            },
-                            "results": [
-                                {
-                                    "ruleId": f.get('error_code', 'type-error'),
-                                    "level": "error" if f.get('severity') == 'error' else "warning",
-                                    "message": {"text": f.get('message', '')},
-                                    "locations": [{
-                                        "physicalLocation": {
-                                            "artifactLocation": {"uri": f.get('file', '')},
-                                            "region": {
-                                                "startLine": f.get('line', 0),
-                                                "startColumn": f.get('column', 0)
-                                            }
-                                        }
-                                    }]
-                                }
-                                for f in findings
-                            ]
-                        }]
-                    }
-                    
-                    mypy_result['sarif'] = sarif_data
-                    mypy_result['format'] = 'sarif'
-                    mypy_result['total_issues'] = len(findings)
-                except Exception as e:
-                    self.log.warning(f"Could not convert mypy output to SARIF: {e}")
-            
-            results['mypy'] = mypy_result
+            # MyPy with JSON format (exit codes: 0=no issues, 1=issues found, 2=fatal error)
+            # Parser now handles newline-delimited JSON natively
+            results['mypy'] = await self._run_tool(cmd, 'mypy', config=mypy_config, success_exit_codes=[0, 1])
 
         # Safety dependency vulnerability scanning
         if (
@@ -417,9 +365,23 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             and (selected_tools is None or 'safety' in selected_tools)
             and safety_config.get('enabled', True)
         ):
-            requirements_file = source_path / 'requirements.txt'
-            if not requirements_file.exists():
-                self.log.info("Skipping Safety - no requirements.txt found")
+            # Check multiple common locations for requirements files
+            requirements_locations = [
+                source_path / 'requirements.txt',
+                source_path / 'backend' / 'requirements.txt',
+                source_path / 'api' / 'requirements.txt',
+                source_path / 'server' / 'requirements.txt',
+            ]
+            
+            requirements_file = None
+            for location in requirements_locations:
+                if location.exists() and location.is_file():
+                    requirements_file = location
+                    self.log.info(f"Found requirements file at: {location.relative_to(source_path)}")
+                    break
+            
+            if not requirements_file:
+                self.log.info("Skipping Safety - no requirements.txt found in common locations")
                 results['safety'] = {
                     'tool': 'safety',
                     'executed': False,
@@ -428,9 +390,19 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     'total_issues': 0
                 }
             else:
-                cmd = ['safety', 'scan', '--output', 'json', '--file', str(requirements_file)]
-                # Parser handles all output formatting
-                results['safety'] = await self._run_tool(cmd, 'safety', config=safety_config, success_exit_codes=[0, 1])
+                try:
+                    cmd = ['safety', 'scan', '--output', 'json', '--file', str(requirements_file)]
+                    # Parser handles all output formatting
+                    results['safety'] = await self._run_tool(cmd, 'safety', config=safety_config, success_exit_codes=[0, 1, 64])
+                except Exception as e:
+                    self.log.warning(f"Safety scan failed: {e}")
+                    results['safety'] = {
+                        'tool': 'safety',
+                        'executed': True,
+                        'status': 'error',
+                        'error': f'Safety execution error: {str(e)}',
+                        'total_issues': 0
+                    }
 
         # Vulture dead code detection
         if (
@@ -503,7 +475,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         
 
         
-        # Summarize per-tool status for Python analyzers
+        # Summarize per-tool status for Python analyzers (always generate)
         try:
             summary = {}
             for name in ['bandit', 'pylint', 'semgrep', 'mypy', 'safety', 'vulture', 'ruff', 'flake8']:
@@ -511,8 +483,8 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 if isinstance(t, dict):
                     try:
                         summary[name] = {
-                            'executed': bool(t.get('executed')),
-                            'status': t.get('status'),
+                            'executed': bool(t.get('executed', False)),
+                            'status': t.get('status', 'unknown'),
                             'total_issues': int(t.get('total_issues', 0)),
                             'error': t.get('error') if 'error' in t else None,
                             'format': t.get('format', 'json')  # Track output format (sarif/json)
@@ -526,11 +498,21 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                             'error': f'Failed to create status: {str(e)}',
                             'format': 'unknown'
                         }
-            if summary:
-                results['tool_status'] = summary
+                else:
+                    # Tool not in results - mark as not executed
+                    summary[name] = {
+                        'executed': False,
+                        'status': 'not_run',
+                        'total_issues': 0,
+                        'error': None,
+                        'format': None
+                    }
+            # Always add tool_status to results
+            results['tool_status'] = summary
         except Exception as e:
             self.log.error(f"Error creating tool_status summary: {e}")
-            pass
+            # Fallback minimal status
+            results['tool_status'] = {'error': str(e)}
 
         return results
     
