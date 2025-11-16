@@ -90,36 +90,56 @@ class AnalyzerManagerWrapper:
                 # Auto-generated timestamp-based ID (same pattern as analyzer_manager)
                 task_id = f"analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
             
+            # CRITICAL FIX: Wait for filesystem sync before reading files
+            # analyzer_manager writes files asynchronously, we need to ensure they're flushed
+            import time
+            time.sleep(0.5)  # Give OS time to flush writes
+            
             # Read back the consolidated result file that was just saved
             # This ensures 1:1 parity with CLI output structure
             safe_slug = model_slug.replace('/', '_').replace('\\', '_')
-            # Use task_id directly as the directory name (it already has task_ prefix)
-            task_dir = Path(f"results/{safe_slug}/app{app_number}/{task_id}")
+            
+            # Normalize task_id to match analyzer_manager's _build_task_output_dir logic
+            # Strip non-alphanumeric chars except - and _
+            sanitized_task = ''.join(c if c.isalnum() or c in ('-', '_') else '_' for c in str(task_id))
+            # Don't add task_ prefix if it already has it
+            task_folder_name = sanitized_task if sanitized_task.startswith('task_') else f"task_{sanitized_task}"
+            
+            task_dir = Path(f"results/{safe_slug}/app{app_number}/{task_folder_name}")
             
             # Find the most recent JSON file in the task directory
-            if task_dir.exists():
-                # Pattern: {model}_app{num}_{task_id}_{timestamp}.json
-                # task_id already includes "task_" prefix
-                json_files = sorted(
-                    task_dir.glob(f"{safe_slug}_app{app_number}_{task_id}_*.json"),
-                    key=lambda p: p.stat().st_mtime,
-                    reverse=True
-                )
+            # CRITICAL FIX: Add retry logic with polling to wait for file to appear
+            max_retries = 10
+            retry_delay = 0.2  # 200ms between retries
+            json_files = []
+            
+            for attempt in range(max_retries):
+                if task_dir.exists():
+                    # Pattern: {model}_app{num}_{task_folder_name}_{timestamp}.json
+                    json_files = sorted(
+                        task_dir.glob(f"{safe_slug}_app{app_number}_{task_folder_name}_*.json"),
+                        key=lambda p: p.stat().st_mtime,
+                        reverse=True
+                    )
+                    
+                    if json_files:
+                        break
                 
-                if json_files:
-                    result_file = json_files[0]
-                    logger.info(f"Reading consolidated result from: {result_file}")
-                    
-                    with open(result_file, 'r', encoding='utf-8') as f:
-                        consolidated_result = json.load(f)
-                    
-                    logger.info(f"Comprehensive analysis completed: {model_slug} app {app_number}")
-                    logger.info(f"Results saved to: {task_dir}")
-                    return consolidated_result
-                else:
-                    logger.warning(f"No result JSON found in {task_dir}, returning service results")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+            
+            if json_files and task_dir.exists():
+                result_file = json_files[0]
+                logger.info(f"Reading consolidated result from: {result_file}")
+                
+                with open(result_file, 'r', encoding='utf-8') as f:
+                    consolidated_result = json.load(f)
+                
+                logger.info(f"Comprehensive analysis completed: {model_slug} app {app_number}")
+                logger.info(f"Results saved to: {task_dir}")
+                return consolidated_result
             else:
-                logger.warning(f"Task directory not found: {task_dir}, returning service results")
+                logger.warning(f"Task directory or result file not found after {max_retries} retries: {task_dir}, returning service results")
             
             # Fallback: if file reading fails, return service results with metadata wrapper
             # This maintains compatibility but doesn't match CLI structure

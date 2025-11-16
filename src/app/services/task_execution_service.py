@@ -460,6 +460,17 @@ class TaskExecutionService:
             else:
                 raise ValueError(f"Unknown analysis type: {analysis_method}")
             
+            # CRITICAL FIX: Validate analyzer_result structure before processing
+            if not isinstance(analyzer_result, dict):
+                raise ValueError(f"Analyzer returned invalid type: {type(analyzer_result).__name__}")
+            
+            # Check for required top-level keys
+            if 'metadata' not in analyzer_result and 'results' not in analyzer_result:
+                # If neither key exists, this might be raw service results - check for service keys
+                has_service_keys = any(k in analyzer_result for k in ['static', 'dynamic', 'performance', 'ai', 'security'])
+                if not has_service_keys:
+                    logger.warning(f"Analyzer result missing expected structure. Keys: {list(analyzer_result.keys())}")
+            
             self._log(
                 "[EXEC] Task %s: analyzer_manager completed with results for services: %s",
                 task.task_id, list(analyzer_result.keys())
@@ -473,17 +484,30 @@ class TaskExecutionService:
             task.progress_percentage = 80.0
             db.session.commit()
             
-            # analyzer_result is already the correct format from analyzer_manager
-            # It has: {security: {...}, static: {...}, performance: {...}, dynamic: {...}, _meta: {...}}
-            # This matches the CLI output structure exactly
+            # analyzer_result can have TWO formats:
+            # 1. Direct service response: {static: {...}, dynamic: {...}, _meta: {...}}
+            # 2. Fallback wrapper: {metadata: {...}, results: {services: {static: {...}, dynamic: {...}}}}
+            
+            # CRITICAL FIX: Extract services from either format
+            services_to_process = {}
+            
+            # Check if this is the fallback wrapper format
+            if 'results' in analyzer_result and isinstance(analyzer_result['results'], dict):
+                # Nested format from fallback path
+                services_to_process = analyzer_result['results'].get('services', {})
+                self._log("[DEBUG] Using nested services structure from fallback format")
+            else:
+                # Direct format from successful file read
+                services_to_process = {k: v for k, v in analyzer_result.items() if k not in ('_meta', 'metadata', 'results')}
+                self._log("[DEBUG] Using direct services structure from file read")
             
             # Count statistics for summary
             total_findings = 0
             all_services_status = []
             
-            for service_name, service_result in analyzer_result.items():
-                if service_name == '_meta':
-                    continue  # Skip metadata
+            for service_name, service_result in services_to_process.items():
+                if not isinstance(service_result, dict):
+                    continue
                 
                 status = service_result.get('status', 'unknown')
                 all_services_status.append(status)
@@ -500,7 +524,13 @@ class TaskExecutionService:
             self._log(f"[DEBUG] Total findings across all services: {total_findings}")
             
             # Determine overall status
-            if all(s == 'success' for s in all_services_status):
+            # CRITICAL FIX: Default to 'partial' when status list is empty but findings exist
+            if not all_services_status:
+                # Empty status list - this happens with fallback format
+                # If we have findings, assume partial success; otherwise failed
+                overall_status = 'partial' if total_findings > 0 else 'failed'
+                self._log(f"[DEBUG] Empty status list, defaulting to '{overall_status}' (findings={total_findings})")
+            elif all(s == 'success' for s in all_services_status):
                 overall_status = 'completed'
             elif any(s == 'success' for s in all_services_status):
                 overall_status = 'partial'
@@ -514,10 +544,10 @@ class TaskExecutionService:
                 'analysis_type': analysis_method,
                 'task_name': task_name,
                 'results_path': results_path,
-                'services': {k: v for k, v in analyzer_result.items() if k != '_meta'},
+                'services': services_to_process,  # Use normalized services
                 'summary': {
                     'total_findings': total_findings,
-                    'services_completed': list(analyzer_result.keys() - {'_meta'}),
+                    'services_completed': list(services_to_process.keys()),
                     'overall_status': overall_status
                 }
             }

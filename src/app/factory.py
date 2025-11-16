@@ -222,49 +222,82 @@ def create_app(config_name: str = 'default') -> Flask:
             db.create_all()
             logger.info("Database initialized successfully")
             
-            # Clean up old/stuck tasks from previous runs
+            # Clean up old/stuck tasks from previous runs (conservative approach)
             try:
                 from datetime import datetime, timezone, timedelta
                 from app.models import AnalysisTask, AnalysisStatus
                 
-                # Define cutoff time (tasks older than 30 minutes)
-                # Use naive datetime since DB stores naive timestamps
-                cutoff = datetime.now() - timedelta(minutes=30)
+                # Check if startup cleanup is enabled (default: True)
+                cleanup_enabled = os.getenv('STARTUP_CLEANUP_ENABLED', 'true').lower() in ('true', '1', 'yes')
                 
-                # Find all stuck RUNNING or old PENDING tasks
-                stuck_running = AnalysisTask.query.filter(
-                    AnalysisTask.status == AnalysisStatus.RUNNING,
-                    AnalysisTask.started_at < cutoff
-                ).all()
-                
-                old_pending = AnalysisTask.query.filter(
-                    AnalysisTask.status == AnalysisStatus.PENDING,
-                    AnalysisTask.created_at < cutoff
-                ).all()
-                
-                cleanup_count = 0
-                
-                # Mark stuck RUNNING tasks as FAILED
-                for task in stuck_running:
-                    task.status = AnalysisStatus.FAILED
-                    task.error_message = "Task stuck in RUNNING state - cleaned up on app startup"
-                    task.completed_at = datetime.now()
-                    cleanup_count += 1
-                    logger.info(f"Cleaned up stuck RUNNING task: {task.task_id}")
-                
-                # Mark old PENDING tasks as CANCELLED
-                for task in old_pending:
-                    task.status = AnalysisStatus.CANCELLED
-                    task.error_message = "Old pending task - cleaned up on app startup"
-                    task.completed_at = datetime.now()
-                    cleanup_count += 1
-                    logger.info(f"Cleaned up old PENDING task: {task.task_id}")
-                
-                if cleanup_count > 0:
-                    db.session.commit()
-                    logger.info(f"Cleaned up {cleanup_count} old/stuck tasks on startup")
+                if not cleanup_enabled:
+                    logger.info("Startup task cleanup disabled via STARTUP_CLEANUP_ENABLED env var")
                 else:
-                    logger.debug("No old/stuck tasks to clean up")
+                    # Conservative timeouts to minimize false positives:
+                    # - RUNNING tasks: 2 hours (very likely stuck if still running after restart)
+                    # - PENDING tasks: 4 hours (allows for long queues and slow startup)
+                    running_timeout_minutes = int(os.getenv('STARTUP_CLEANUP_RUNNING_TIMEOUT', '120'))  # 2 hours
+                    pending_timeout_minutes = int(os.getenv('STARTUP_CLEANUP_PENDING_TIMEOUT', '240'))  # 4 hours
+                    grace_period_minutes = int(os.getenv('STARTUP_CLEANUP_GRACE_PERIOD', '5'))  # 5 minutes
+                    
+                    # Use naive datetime since DB stores naive timestamps
+                    now = datetime.now()
+                    running_cutoff = now - timedelta(minutes=running_timeout_minutes)
+                    pending_cutoff = now - timedelta(minutes=pending_timeout_minutes)
+                    grace_cutoff = now - timedelta(minutes=grace_period_minutes)
+                    
+                    # Find stuck RUNNING tasks (started >2 hours ago, excluding very recent)
+                    stuck_running = AnalysisTask.query.filter(
+                        AnalysisTask.status == AnalysisStatus.RUNNING,
+                        AnalysisTask.started_at < running_cutoff,
+                        AnalysisTask.started_at < grace_cutoff  # Extra safety: exclude recent tasks
+                    ).all()
+                    
+                    # Find old PENDING tasks (created >4 hours ago, excluding very recent)
+                    old_pending = AnalysisTask.query.filter(
+                        AnalysisTask.status == AnalysisStatus.PENDING,
+                        AnalysisTask.created_at < pending_cutoff,
+                        AnalysisTask.created_at < grace_cutoff  # Extra safety: exclude recent tasks
+                    ).all()
+                    
+                    cleanup_count = 0
+                    
+                    # Mark stuck RUNNING tasks as FAILED
+                    for task in stuck_running:
+                        age_minutes = (now - task.started_at).total_seconds() / 60
+                        task.status = AnalysisStatus.FAILED
+                        task.error_message = f"Task stuck in RUNNING state for {age_minutes:.0f} minutes - cleaned up on app startup"
+                        task.completed_at = now
+                        cleanup_count += 1
+                        logger.info(
+                            f"Cleaned up stuck RUNNING task: {task.task_id} "
+                            f"(started: {task.started_at}, age: {age_minutes:.0f}m)"
+                        )
+                    
+                    # Mark old PENDING tasks as CANCELLED
+                    for task in old_pending:
+                        age_minutes = (now - task.created_at).total_seconds() / 60
+                        task.status = AnalysisStatus.CANCELLED
+                        task.error_message = f"Old pending task ({age_minutes:.0f} minutes old) - cleaned up on app startup"
+                        task.completed_at = now
+                        cleanup_count += 1
+                        logger.info(
+                            f"Cleaned up old PENDING task: {task.task_id} "
+                            f"(created: {task.created_at}, age: {age_minutes:.0f}m)"
+                        )
+                    
+                    if cleanup_count > 0:
+                        db.session.commit()
+                        logger.info(
+                            f"Startup cleanup: processed {cleanup_count} tasks "
+                            f"({len(stuck_running)} RUNNING, {len(old_pending)} PENDING) "
+                            f"[timeouts: RUNNING>{running_timeout_minutes}m, PENDING>{pending_timeout_minutes}m]"
+                        )
+                    else:
+                        logger.debug(
+                            f"Startup cleanup: no stuck tasks found "
+                            f"[timeouts: RUNNING>{running_timeout_minutes}m, PENDING>{pending_timeout_minutes}m]"
+                        )
                     
             except Exception as cleanup_err:
                 logger.warning(f"Failed to clean up old tasks: {cleanup_err}")

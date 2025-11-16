@@ -50,14 +50,16 @@ class MaintenanceService:
         self._thread: Optional[threading.Thread] = None
         self._thread_logger: Optional[logging.Logger] = None
         
-        # Configuration
+        # Configuration (aligned with factory.py conservative approach)
         self.config = {
             'cleanup_orphan_apps': True,
             'cleanup_orphan_tasks': True,
             'cleanup_stuck_tasks': True,
             'cleanup_old_tasks': True,
             'task_retention_days': 30,
-            'stuck_task_timeout_minutes': 60,
+            'stuck_task_timeout_minutes': 120,  # 2 hours (aligned with factory.py)
+            'pending_task_timeout_minutes': 240,  # 4 hours (aligned with factory.py)
+            'grace_period_minutes': 5,  # Skip tasks created in last 5 minutes
         }
         
         # Statistics tracking
@@ -292,21 +294,29 @@ class MaintenanceService:
             return 0
     
     def _cleanup_stuck_tasks(self) -> int:
-        """Clean up tasks stuck in RUNNING or old PENDING state."""
+        """Clean up tasks stuck in RUNNING or old PENDING state (conservative approach)."""
         try:
-            timeout_minutes = self.config['stuck_task_timeout_minutes']
-            cutoff = datetime.now(timezone.utc) - timedelta(minutes=timeout_minutes)
+            running_timeout = self.config['stuck_task_timeout_minutes']
+            pending_timeout = self.config['pending_task_timeout_minutes']
+            grace_period = self.config['grace_period_minutes']
             
-            # Find stuck RUNNING tasks
+            now = datetime.now(timezone.utc)
+            running_cutoff = now - timedelta(minutes=running_timeout)
+            pending_cutoff = now - timedelta(minutes=pending_timeout)
+            grace_cutoff = now - timedelta(minutes=grace_period)
+            
+            # Find stuck RUNNING tasks (started >2 hours ago, excluding very recent)
             stuck_running = AnalysisTask.query.filter(
                 AnalysisTask.status == AnalysisStatus.RUNNING,
-                AnalysisTask.started_at < cutoff
+                AnalysisTask.started_at < running_cutoff,
+                AnalysisTask.started_at < grace_cutoff  # Extra safety
             ).all()
             
-            # Find old PENDING tasks
+            # Find old PENDING tasks (created >4 hours ago, excluding very recent)
             stuck_pending = AnalysisTask.query.filter(
                 AnalysisTask.status == AnalysisStatus.PENDING,
-                AnalysisTask.created_at < cutoff
+                AnalysisTask.created_at < pending_cutoff,
+                AnalysisTask.created_at < grace_cutoff  # Extra safety
             ).all()
             
             stuck_tasks = stuck_running + stuck_pending
@@ -315,29 +325,42 @@ class MaintenanceService:
                 self._log(
                     f"Found {len(stuck_tasks)} stuck tasks "
                     f"({len(stuck_running)} RUNNING, {len(stuck_pending)} PENDING) "
-                    f"older than {timeout_minutes} minutes"
+                    f"[timeouts: RUNNING>{running_timeout}m, PENDING>{pending_timeout}m]"
                 )
                 
                 for task in stuck_running:
+                    age_minutes = (now - task.started_at).total_seconds() / 60
                     self._log(
-                        f"  Marking stuck RUNNING task as FAILED: {task.task_id}",
+                        f"  Marking stuck RUNNING task as FAILED: {task.task_id} "
+                        f"(started: {task.started_at}, age: {age_minutes:.0f}m)",
                         level='debug'
                     )
                     task.status = AnalysisStatus.FAILED
-                    task.error_message = f"Task stuck in RUNNING state for >{timeout_minutes}m - cleaned by maintenance"
-                    task.completed_at = datetime.now(timezone.utc)
+                    task.error_message = (
+                        f"Task stuck in RUNNING state for {age_minutes:.0f} minutes "
+                        f"(timeout: {running_timeout}m) - cleaned by maintenance"
+                    )
+                    task.completed_at = now
                 
                 for task in stuck_pending:
+                    age_minutes = (now - task.created_at).total_seconds() / 60
                     self._log(
-                        f"  Marking stuck PENDING task as CANCELLED: {task.task_id}",
+                        f"  Marking stuck PENDING task as CANCELLED: {task.task_id} "
+                        f"(created: {task.created_at}, age: {age_minutes:.0f}m)",
                         level='debug'
                     )
                     task.status = AnalysisStatus.CANCELLED
-                    task.error_message = f"Task stuck in PENDING state for >{timeout_minutes}m - cleaned by maintenance"
-                    task.completed_at = datetime.now(timezone.utc)
+                    task.error_message = (
+                        f"Task stuck in PENDING state for {age_minutes:.0f} minutes "
+                        f"(timeout: {pending_timeout}m) - cleaned by maintenance"
+                    )
+                    task.completed_at = now
                 
                 db.session.commit()
-                self._log(f"Cleaned up {len(stuck_tasks)} stuck tasks")
+                self._log(
+                    f"Cleaned up {len(stuck_tasks)} stuck tasks "
+                    f"({len(stuck_running)} RUNNING, {len(stuck_pending)} PENDING)"
+                )
             
             return len(stuck_tasks)
             
