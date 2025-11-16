@@ -12,6 +12,10 @@ import logging
 import subprocess
 from typing import Dict, List, Any, Optional
 from zapv2 import ZAPv2
+import urllib3
+
+# Suppress SSL warnings when testing local apps without valid certificates
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +23,7 @@ logger = logging.getLogger(__name__)
 class ZAPScanner:
     """OWASP ZAP security scanner wrapper."""
     
-    def __init__(self, zap_path: str = '/zap/ZAP_2.15.0', api_key: Optional[str] = None):
+    def __init__(self, zap_path: str = '/zap/ZAP_2.16.1', api_key: Optional[str] = None):
         """
         Initialize ZAP scanner.
         
@@ -351,6 +355,22 @@ class ZAPScanner:
         try:
             logger.info(f"Starting {scan_type} scan on {url}")
             
+            # PRE-SCAN: Validate target is reachable before proceeding
+            try:
+                import requests
+                response = requests.get(url, timeout=10, verify=False)
+                logger.info(f"Target {url} is reachable (status: {response.status_code})")
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Target {url} is unreachable: {e}")
+                return {
+                    'status': 'error',
+                    'error': f'Target unreachable: {str(e)}',
+                    'url': url,
+                    'scan_type': scan_type,
+                    'total_alerts': 0,
+                    'alerts': []
+                }
+            
             # Access the URL to initialize
             self.zap.urlopen(url)
             time.sleep(2)
@@ -365,8 +385,30 @@ class ZAPScanner:
                     max_children=0     # Unlimited (ZAP default)
                 )
                 
+                # Validate spider found URLs (indicates target was reachable and scannable)
+                urls_found = spider_result.get('urls_found', 0)
                 if spider_result.get('status') == 'success':
-                    logger.info(f"Spider discovered {spider_result.get('urls_found', 0)} URLs")
+                    logger.info(f"Spider discovered {urls_found} URLs")
+                    if urls_found == 0:
+                        logger.warning(f"Spider scan found 0 URLs for {url} - target may be unreachable or have no discoverable content")
+                        return {
+                            'status': 'error',
+                            'error': 'Spider found no URLs - target appears unreachable or returned no content',
+                            'url': url,
+                            'scan_type': scan_type,
+                            'total_alerts': 0,
+                            'alerts': []
+                        }
+                else:
+                    logger.error(f"Spider scan failed: {spider_result.get('error', 'Unknown error')}")
+                    return {
+                        'status': 'error',
+                        'error': f"Spider scan failed: {spider_result.get('error', 'Unknown error')}",
+                        'url': url,
+                        'scan_type': scan_type,
+                        'total_alerts': 0,
+                        'alerts': []
+                    }
                 
                 # Wait for passive scanner to analyze all spidered URLs
                 logger.info("Waiting for passive scan analysis...")

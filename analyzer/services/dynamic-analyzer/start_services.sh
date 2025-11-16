@@ -8,8 +8,12 @@ echo "Starting OWASP ZAP daemon in background..."
 # Create ZAP home directory
 mkdir -p /tmp/zap_home
 
+# Get ZAP path from environment or auto-detect
+ZAP_VERSION="${ZAP_VERSION:-2.16.1}"
+ZAP_PATH="${ZAP_PATH:-/zap/ZAP_${ZAP_VERSION}}"
+
 # Start ZAP in daemon mode with xvfb
-xvfb-run -a /zap/ZAP_2.15.0/zap.sh \
+xvfb-run -a ${ZAP_PATH}/zap.sh \
     -daemon \
     -port 8090 \
     -dir /tmp/zap_home \

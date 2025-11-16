@@ -41,6 +41,52 @@ This normalization reduces false negatives and produces more reliable consolidat
 
 Legacy per-service result folders (`static-analyzer/`, `dynamic-analyzer/`, `performance-tester/`, `ai-analyzer/`, `security-analyzer/`) are now automatically pruned after each analysis. Only the consolidated `analysis/` directory is retained under `results/<model>/appN/`. Any stray legacy JSON artifacts will be removed to keep the structure consistent.
 
+### SARIF Extraction (File Size Optimization)
+
+SARIF data from static analysis tools (bandit, semgrep, pylint, ruff, flake8) is now **extracted to separate files** instead of being embedded in JSON results. This reduces file sizes by **60-80%**:
+
+**Structure:**
+- `results/{model}/app{N}/task_{id}/sarif/` - Directory containing extracted SARIF files
+  - `static_bandit.sarif.json` - Bandit SARIF output
+  - `static_semgrep.sarif.json` - Semgrep SARIF output  
+  - `static_ruff.sarif.json` - Ruff SARIF output
+  - `static_flake8.sarif.json` - Flake8 SARIF output
+  - `static_consolidated.sarif.json` - Combined SARIF from all tools
+  - `dynamic_consolidated.sarif.json` - Dynamic analysis SARIF (if applicable)
+
+**JSON Result Format:**
+```json
+{
+  "results": {
+    "analysis": {
+      "results": {
+        "python": {
+          "bandit": {
+            "sarif_file": "sarif/static_bandit.sarif.json"  // Reference instead of embedded data
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**Benefits:**
+- Consolidated results: ~30KB instead of ~8MB (73% reduction)
+- Service snapshots: ~2MB instead of ~8MB (72% reduction)
+- Faster file I/O and JSON parsing
+- Easier to navigate result files
+- SARIF files can be imported into security dashboards separately
+
+**Migration:**
+Existing bloated service snapshots can be migrated using:
+```bash
+python scripts/migrate_service_snapshots.py --dry-run  # Preview
+python scripts/migrate_service_snapshots.py            # Execute
+```
+
+This applies to **both** consolidated task results and per-service snapshots.
+
 ## Quick Start
 
 ### 1. Install Dependencies

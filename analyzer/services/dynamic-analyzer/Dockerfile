@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
 
 # Download and install OWASP ZAP
 # Using the cross-platform package
-ENV ZAP_VERSION=2.15.0
+ENV ZAP_VERSION=2.16.1
 ENV ZAP_PATH=/zap/ZAP_${ZAP_VERSION}
 RUN mkdir -p /zap && \
     curl -sSL "https://github.com/zaproxy/zaproxy/releases/download/v${ZAP_VERSION}/ZAP_${ZAP_VERSION}_Crossplatform.zip" \

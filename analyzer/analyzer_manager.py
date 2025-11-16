@@ -444,18 +444,23 @@ class AnalyzerManager:
                 
                 # Try flat structure first
                 app_env_path = base_path / f'app{app_number}' / '.env'
+                logger.debug(f"Checking flat structure: {app_env_path}")
                 
                 # If not found in flat structure, search template directories
                 if not app_env_path.exists():
+                    logger.debug(f"Flat structure not found, searching template directories in {base_path}")
                     if base_path.exists():
                         for template_dir in base_path.iterdir():
                             if template_dir.is_dir() and not template_dir.name.startswith('.'):
                                 template_env_path = template_dir / f'app{app_number}' / '.env'
+                                logger.debug(f"Checking template path: {template_env_path}")
                                 if template_env_path.exists():
                                     app_env_path = template_env_path
+                                    logger.info(f"Found .env in template directory: {app_env_path}")
                                     break
                 
                 if app_env_path.exists():
+                    logger.info(f"Reading port configuration from: {app_env_path}")
                     backend_port = None
                     frontend_port = None
                     with open(app_env_path, 'r', encoding='utf-8') as f:
@@ -467,8 +472,12 @@ class AnalyzerManager:
                                 frontend_port = int(line.split('=', 1)[1].strip())
                     
                     if backend_port and frontend_port:
-                        logger.info(f"Resolved ports from .env file for {model_slug} app {app_number}: backend={backend_port}, frontend={frontend_port}")
+                        logger.info(f"✓ Resolved ports from .env file for {model_slug} app {app_number}: backend={backend_port}, frontend={frontend_port}")
                         return backend_port, frontend_port
+                    else:
+                        logger.warning(f"Found .env file at {app_env_path} but missing BACKEND_PORT or FRONTEND_PORT")
+                else:
+                    logger.debug(f"No .env file found for {model_slug} app {app_number} in filesystem")
             except Exception as env_err:
                 logger.debug(f"Could not read .env file for {model_slug} app {app_number}: {env_err}")
             
@@ -2159,7 +2168,7 @@ class AnalyzerManager:
             logger.info(f"[SAVE] Consolidated task results saved to: {filepath}")
             logger.info(f"[SAVE] SARIF files extracted to: {sarif_dir}")
 
-            self._write_service_snapshots(task_dir, safe_slug, model_slug, app_number, task_id, consolidated_results)
+            self._write_service_snapshots(task_dir, safe_slug, model_slug, app_number, task_id, services_with_sarif_refs)
             self._write_task_manifest(task_dir, filename, model_slug, app_number, task_id, consolidated_results)
             self._remove_existing_task_payloads(
                 task_dir,
