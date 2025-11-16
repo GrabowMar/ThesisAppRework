@@ -462,15 +462,21 @@ def create_app(config_name: str = 'default') -> Flask:
                 else:
                     logger.warning("Failed to auto-start analyzer services")
 
-        # Initialize maintenance service FIRST to clean up stuck/old tasks before execution service starts
-        # This ensures old PENDING tasks from previous sessions are cancelled/failed before they can be picked up
+        # Initialize maintenance service FIRST (manual mode - no auto-start)
+        # Maintenance is now triggered manually via start.ps1 to give users control
+        # This prevents aggressive auto-cleanup and allows users to preserve data during development
         try:  # pragma: no cover - wiring
             from app.services.maintenance_service import init_maintenance_service
-            maintenance_svc = init_maintenance_service(app=app, interval_seconds=3600)
-            logger.info(f"Maintenance service initialized (interval={maintenance_svc.interval}s, runs on startup + hourly)")
-            logger.info("Startup cleanup completed: stuck/old PENDING tasks cancelled before task execution begins")
+            auto_start = os.environ.get('MAINTENANCE_AUTO_START', 'false').lower() == 'true'
+            maintenance_svc = init_maintenance_service(app=app, interval_seconds=3600, auto_start=auto_start)
+            if auto_start:
+                logger.info(f"Maintenance service initialized and auto-started (interval={maintenance_svc.interval}s)")
+                logger.info("Automatic cleanup enabled: stuck tasks + orphan apps (7-day grace period)")
+            else:
+                logger.info("Maintenance service initialized (manual mode - use start.ps1 -Mode Maintenance)")
+                logger.info("Orphan apps protected by 7-day grace period before deletion")
         except Exception as _maint_err:  # pragma: no cover
-            logger.warning(f"Maintenance service not started: {_maint_err}")
+            logger.warning(f"Maintenance service not initialized: {_maint_err}")
 
         # Initialize lightweight in-process task execution to advance AnalysisTask
         # objects from pending -> running -> completed for development and tests.

@@ -1,7 +1,19 @@
 #!/usr/bin/env python3
 """
-Cleanup script to wipe generated apps from database and filesystem.
-Use this to reset after the nested loop bug created duplicate apps.
+⚠️  DEPRECATED - Use start.ps1 -Mode Maintenance instead
+================================================
+
+Legacy cleanup script to wipe generated apps from database and filesystem.
+This script is now DEPRECATED in favor of the new maintenance system with:
+  - 7-day grace period before deletion (safer)
+  - Manual control via start.ps1 -Mode Maintenance
+  - Automatic tracking of missing apps (missing_since timestamp)
+
+If you need to perform immediate cleanup without the grace period,
+this script can still be used, but be aware it bypasses safety mechanisms.
+
+Use this ONLY for emergency cleanup after bugs create duplicate apps.
+For normal maintenance, use: ./start.ps1 -Mode Maintenance
 """
 
 import sys

@@ -35,7 +35,7 @@ class MaintenanceService:
         self,
         interval_seconds: int = 3600,  # 1 hour default
         app=None,
-        auto_start: bool = True
+        auto_start: bool = False  # Manual by default - call via start.ps1
     ):
         """Initialize maintenance service.
         
@@ -60,6 +60,7 @@ class MaintenanceService:
             'stuck_task_timeout_minutes': 120,  # 2 hours (aligned with factory.py)
             'pending_task_timeout_minutes': 240,  # 4 hours (aligned with factory.py)
             'grace_period_minutes': 5,  # Skip tasks created in last 5 minutes
+            'orphan_app_retention_days': 7,  # Keep missing apps for 7 days before deletion
         }
         
         # Statistics tracking
@@ -208,32 +209,79 @@ class MaintenanceService:
             self.stats['errors'] += 1
     
     def _cleanup_orphan_apps(self) -> int:
-        """Remove database records for apps that don't exist on filesystem."""
+        """Remove database records for apps missing from filesystem for >7 days."""
         try:
             all_apps = GeneratedApplication.query.all()
+            retention_days = self.config['orphan_app_retention_days']
+            now = datetime.now(timezone.utc)
+            cutoff = now - timedelta(days=retention_days)
             
-            orphans = []
+            newly_missing = []
+            returned_apps = []
+            ready_to_delete = []
+            
             for app_record in all_apps:
                 app_dir = GENERATED_APPS_DIR / app_record.model_slug / f'app{app_record.app_number}'
-                if not app_dir.exists():
-                    orphans.append(app_record)
-            
-            if orphans:
-                self._log(
-                    f"Found {len(orphans)} orphan app records (database records without filesystem directories)"
-                )
                 
-                for orphan in orphans:
+                if not app_dir.exists():
+                    # App filesystem directory is missing
+                    if app_record.missing_since is None:
+                        # First time we noticed it's missing - mark timestamp
+                        app_record.missing_since = now
+                        newly_missing.append(app_record)
+                        self._log(
+                            f"  Marking as missing: {app_record.model_slug}/app{app_record.app_number} "
+                            f"(will delete after {retention_days} days)",
+                            level='debug'
+                        )
+                    elif app_record.missing_since < cutoff:
+                        # Been missing for more than retention period - delete
+                        days_missing = (now - app_record.missing_since).days
+                        ready_to_delete.append((app_record, days_missing))
+                    # else: missing but within grace period - do nothing
+                else:
+                    # App filesystem directory exists
+                    if app_record.missing_since is not None:
+                        # It was missing but has returned - clear timestamp
+                        app_record.missing_since = None
+                        returned_apps.append(app_record)
+                        self._log(
+                            f"  Clearing missing flag: {app_record.model_slug}/app{app_record.app_number} "
+                            f"(filesystem directory restored)",
+                            level='debug'
+                        )
+            
+            # Log summary of changes
+            if newly_missing:
+                self._log(
+                    f"Marked {len(newly_missing)} apps as missing (grace period: {retention_days} days)"
+                )
+            
+            if returned_apps:
+                self._log(
+                    f"Restored {len(returned_apps)} apps (filesystem directories reappeared)"
+                )
+            
+            if ready_to_delete:
+                self._log(
+                    f"Found {len(ready_to_delete)} orphan apps ready for deletion "
+                    f"(missing for >{retention_days} days)"
+                )
+                for orphan, days_missing in ready_to_delete:
                     self._log(
-                        f"  Deleting orphan app: {orphan.model_slug}/app{orphan.app_number}",
+                        f"  Deleting orphan app: {orphan.model_slug}/app{orphan.app_number} "
+                        f"(missing for {days_missing} days)",
                         level='debug'
                     )
                     db.session.delete(orphan)
-                
-                db.session.commit()
-                self._log(f"Cleaned up {len(orphans)} orphan app records")
             
-            return len(orphans)
+            # Commit all changes (timestamp updates + deletions)
+            db.session.commit()
+            
+            if ready_to_delete:
+                self._log(f"Cleaned up {len(ready_to_delete)} orphan app records")
+            
+            return len(ready_to_delete)
             
         except Exception as e:
             self._log(f"Error cleaning up orphan apps: {e}", level='error', exc_info=True)

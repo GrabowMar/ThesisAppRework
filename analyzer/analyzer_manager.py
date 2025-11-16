@@ -2490,6 +2490,14 @@ class AnalyzerManager:
         if not isinstance(consolidated_results, dict):
             return tools
 
+        # Metadata keys to skip (case-insensitive) - these are service/structure metadata, not tools
+        METADATA_KEYS = {
+            'tool_status', '_metadata', 'status', 'file_counts', 'security_files', 
+            'total_files', 'message', 'error', 'analysis_time', 'model_slug', 
+            'app_number', 'tools_used', 'configuration_applied', 'results',
+            '_project_metadata'
+        }
+
         # Prefer per-service analysis.tool_results when available
         for service_name, service_result in consolidated_results.items():
             if not isinstance(service_result, dict):
@@ -2503,6 +2511,9 @@ class AnalyzerManager:
             if isinstance(tool_results, dict):
                 for tname, tdata in tool_results.items():
                     if tname in tools or not isinstance(tdata, dict):
+                        continue
+                    # Skip metadata keys (case-insensitive)
+                    if tname.lower() in METADATA_KEYS:
                         continue
                     tools[tname] = {
                         'status': tdata.get('status', 'unknown'),
@@ -2522,7 +2533,11 @@ class AnalyzerManager:
                         for tname, tdata in lang_tools.items():
                             if tname in tools or not isinstance(tdata, dict):
                                 continue
-                            if tname == 'tool_status':  # Skip metadata keys
+                            # Skip metadata keys (case-insensitive)
+                            if tname.lower() in METADATA_KEYS:
+                                continue
+                            # Verify this looks like a tool result (has expected tool fields)
+                            if not ('tool' in tdata or 'executed' in tdata or 'status' in tdata):
                                 continue
                             tools[tname] = {
                                 'status': tdata.get('status', 'unknown'),
@@ -2544,12 +2559,14 @@ class AnalyzerManager:
                     for tname, tdata in tmap.items():
                         if tname in tools or not isinstance(tdata, dict):
                             continue
+                        # Skip metadata keys in fallback path too
+                        if tname.lower() in METADATA_KEYS:
+                            continue
                         tools[tname] = {
                             'status': tdata.get('status', 'unknown'),
                             'duration_seconds': tdata.get('duration') or tdata.get('duration_seconds') if isinstance(tdata, dict) else None,
                             'total_issues': tdata.get('total_issues', 0),
                             'executed': tdata.get('executed', False),
-
                             'error': tdata.get('error')
                         }
 

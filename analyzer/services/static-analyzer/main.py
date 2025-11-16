@@ -476,6 +476,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
 
         
         # Summarize per-tool status for Python analyzers (always generate)
+        # Use underscore prefix to signal this is internal metadata, not a tool result
         try:
             summary = {}
             for name in ['bandit', 'pylint', 'semgrep', 'mypy', 'safety', 'vulture', 'ruff', 'flake8']:
@@ -490,7 +491,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                             'format': t.get('format', 'json')  # Track output format (sarif/json)
                         }
                     except Exception as e:
-                        self.log.error(f"Error creating tool_status for {name}: {e}")
+                        self.log.error(f"Error creating _metadata for {name}: {e}")
                         summary[name] = {
                             'executed': False,
                             'status': 'error',
@@ -507,12 +508,12 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                         'error': None,
                         'format': None
                     }
-            # Always add tool_status to results
-            results['tool_status'] = summary
+            # Store as _metadata (underscore prefix signals internal use)
+            results['_metadata'] = summary
         except Exception as e:
-            self.log.error(f"Error creating tool_status summary: {e}")
+            self.log.error(f"Error creating _metadata summary: {e}")
             # Fallback minimal status
-            results['tool_status'] = {'error': str(e)}
+            results['_metadata'] = {'error': str(e)}
 
         return results
     
@@ -683,7 +684,11 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         return results
     
     async def analyze_project_structure(self, source_path: Path) -> Dict[str, Any]:
-        """Analyze overall project structure and files."""
+        """Analyze overall project structure and files.
+        
+        Returns metadata about the project, not tool results.
+        This is wrapped under 'project_metadata' to avoid confusion with tools.
+        """
         try:
             file_counts = {
                 'python': len(list(source_path.rglob('*.py'))),
@@ -704,11 +709,14 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 'gitignore': (source_path / '.gitignore').exists()
             }
             
+            # Wrap in _project_metadata to prevent parsing as tools
             return {
                 'status': 'success',
-                'file_counts': file_counts,
-                'security_files': security_files,
-                'total_files': sum(file_counts.values())
+                '_project_metadata': {
+                    'file_counts': file_counts,
+                    'security_files': security_files,
+                    'total_files': sum(file_counts.values())
+                }
             }
             
         except Exception as e:

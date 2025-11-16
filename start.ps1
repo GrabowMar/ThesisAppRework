@@ -51,7 +51,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('Interactive', 'Start', 'Dev', 'Stop', 'Status', 'Logs', 'Rebuild', 'CleanRebuild', 'Clean', 'Wipeout', 'Health', 'Help', 'Password')]
+    [ValidateSet('Interactive', 'Start', 'Dev', 'Stop', 'Status', 'Logs', 'Rebuild', 'CleanRebuild', 'Clean', 'Wipeout', 'Health', 'Help', 'Password', 'Maintenance')]
     [string]$Mode = 'Interactive',
 
     [switch]$NoAnalyzer,
@@ -1090,6 +1090,78 @@ function Invoke-Cleanup {
     Write-Status "Cleanup completed" "Success"
 }
 
+function Invoke-Maintenance {
+    Write-Banner "🔧 Manual Maintenance Cleanup" "Yellow"
+    
+    Write-Host "This will run the maintenance service to clean up:" -ForegroundColor Cyan
+    Write-Host "  • Orphan app records (apps missing from filesystem for >7 days)" -ForegroundColor White
+    Write-Host "  • Orphan tasks (tasks targeting non-existent apps)" -ForegroundColor White
+    Write-Host "  • Stuck tasks (RUNNING for >2 hours, PENDING for >4 hours)" -ForegroundColor White
+    Write-Host "  • Old completed/failed tasks (>30 days old)" -ForegroundColor White
+    Write-Host ""
+    Write-Host "NOTE: Apps missing for <7 days will be marked but NOT deleted." -ForegroundColor Yellow
+    Write-Host "      This gives you time to restore backup/recover files." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Press Enter to continue or Ctrl+C to cancel..." -ForegroundColor Gray
+    Read-Host
+    
+    Write-Status "Running maintenance cleanup..." "Info"
+    
+    $maintenanceScript = @'
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent / 'src'))
+
+from app.factory import create_app
+from app.services.maintenance_service import get_maintenance_service
+
+app = create_app()
+
+with app.app_context():
+    service = get_maintenance_service()
+    if service is None:
+        print("ERROR: Maintenance service not initialized")
+        sys.exit(1)
+    
+    print("\n=== Running Manual Maintenance Cleanup ===\n")
+    service._run_maintenance()
+    
+    print("\n=== Maintenance Statistics ===")
+    stats = service.stats
+    print(f"Total runs: {stats['runs']}")
+    print(f"Orphan apps cleaned: {stats['orphan_apps_cleaned']}")
+    print(f"Orphan tasks cleaned: {stats['orphan_tasks_cleaned']}")
+    print(f"Stuck tasks cleaned: {stats['stuck_tasks_cleaned']}")
+    print(f"Old tasks cleaned: {stats['old_tasks_cleaned']}")
+    print(f"Errors: {stats['errors']}")
+    print()
+'@
+    
+    $tempScript = Join-Path $Script:ROOT_DIR "temp_maintenance.py"
+    try {
+        $maintenanceScript | Out-File -FilePath $tempScript -Encoding UTF8 -Force
+        
+        & $Script:PYTHON_CMD $tempScript
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host ""
+            Write-Status "Maintenance cleanup completed successfully" "Success"
+        } else {
+            Write-Status "Maintenance cleanup failed with exit code $LASTEXITCODE" "Error"
+        }
+    } finally {
+        if (Test-Path $tempScript) {
+            Remove-Item -Path $tempScript -Force -ErrorAction SilentlyContinue
+        }
+    }
+    
+    Write-Host ""
+    Write-Host "View detailed logs at: $($Script:CONFIG.Flask.LogFile)" -ForegroundColor Gray
+    Write-Host ""
+    
+    return $true
+}
+
 function Invoke-Wipeout {
     Write-Banner "⚠️  WIPEOUT - Reset to Default State" "Red"
     
@@ -1211,6 +1283,7 @@ function Show-Help {
     Write-Host "  Logs          View aggregated logs from all services" -ForegroundColor White
     Write-Host "  Rebuild       Rebuild containers (fast, with cache - 30-90 sec)" -ForegroundColor White
     Write-Host "  CleanRebuild  ⚠️  Force rebuild from scratch (no cache - 12-18 min)" -ForegroundColor White
+    Write-Host "  Maintenance   Run manual database cleanup (7-day grace period)" -ForegroundColor White
     Write-Host "  Clean         Clean logs and PID files" -ForegroundColor White
     Write-Host "  Wipeout       ⚠️  Reset to default state (removes DB, apps, results)" -ForegroundColor White
     Write-Host "  Password      Reset admin password to random value" -ForegroundColor White
@@ -1346,6 +1419,9 @@ try {
         }
         'Wipeout' {
             Invoke-Wipeout
+        }
+        'Maintenance' {
+            Invoke-Maintenance
         }
         'Password' {
             Invoke-ResetPassword

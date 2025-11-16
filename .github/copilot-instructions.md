@@ -123,12 +123,16 @@ Use this as your working map for coding in this repo. Keep answers specific to t
 
 ### Startup Sequence (CRITICAL ORDER)
 
-The Flask app initialization follows a **specific sequence** to prevent old tasks from auto-executing on reboot:
+The Flask app initialization follows a **specific sequence**:
 
-1. **MaintenanceService starts FIRST** → Cancels old PENDING tasks (>30min old)
-2. **TaskExecutionService starts SECOND** → Only picks up fresh PENDING tasks
+1. **MaintenanceService initializes FIRST** (manual mode by default - no auto-start)
+2. **TaskExecutionService starts SECOND** → Picks up PENDING tasks
 
-This ensures that analysis tasks left over from previous sessions (e.g., before a crash or reboot) are **cancelled** before the task executor can pick them up.
+**New maintenance behavior (as of Nov 2025)**:
+- Maintenance is now **manual by default** (controlled via `start.ps1 -Mode Maintenance`)
+- Apps get a **7-day grace period** before deletion (tracked via `missing_since` timestamp)
+- Auto-start only if `MAINTENANCE_AUTO_START=true` environment variable is set
+- This prevents aggressive auto-cleanup during development
 
 ### TaskExecutionService (`src/app/services/task_execution_service.py`)
 **Purpose**: Asynchronous task execution daemon that processes pending analysis tasks.
@@ -171,47 +175,79 @@ python scripts/fix_task_statuses.py
 - Timeout: inherits from `TASK_TIMEOUT` (default 1800s = 30min)
 
 ### MaintenanceService (`src/app/services/maintenance_service.py`)
-**Purpose**: Automated cleanup and recovery of orphaned resources.
+**Purpose**: Manual cleanup and recovery of orphaned resources (now manual by default).
+
+**NEW BEHAVIOR (Nov 2025)**:
+- **Manual operation by default** - run via `./start.ps1 -Mode Maintenance`
+- **7-day grace period** for missing apps before deletion
+- **missing_since timestamp tracking** - apps marked when filesystem directory disappears
+- **Auto-restore** - if directory reappears, `missing_since` is cleared (no deletion)
 
 **Lifecycle**:
-- **CRITICAL**: Initialized in `src/app/factory.py` **BEFORE** TaskExecutionService (prevents old tasks from auto-executing)
-- Runs **once immediately** on app initialization (startup cleanup)
-- Then runs hourly via background thread
+- Initialized in `src/app/factory.py` with `auto_start=False` (manual mode)
+- Auto-start only if `MAINTENANCE_AUTO_START=true` env var is set
+- When auto-started, runs once on initialization then hourly
 
-**Startup Cleanup** (runs automatically every app start, **BEFORE** TaskExecutionService):
-1. **Stuck task recovery**: Tasks in RUNNING state for >30 minutes → FAILED
-2. **Stale pending tasks**: Tasks in PENDING state for >30 minutes → CANCELLED ⚠️ **This prevents old generation/analysis tasks from running after reboot**
-3. **Filesystem sync**: Scans `generated/apps/` and creates missing `GeneratedApp` DB records
-4. **Legacy migration**: Moves old `results/.../analysis/` folders to task-based structure
+**Manual Cleanup** (recommended - via `./start.ps1 -Mode Maintenance`):
+1. **Orphan app tracking**: Apps missing from filesystem get `missing_since` timestamp
+2. **7-day grace period**: Only deletes apps missing for >7 days
+3. **Auto-restore**: Clears `missing_since` if filesystem directory reappears
+4. **Orphan tasks**: Cancels tasks targeting non-existent apps
+5. **Stuck tasks**: RUNNING >2 hours → FAILED, PENDING >4 hours → CANCELLED
+6. **Old tasks**: Deletes completed/failed/cancelled tasks >30 days old
 
-**Hourly Cleanup** (if enabled):
-1. **Orphaned apps**: Filesystem apps in `generated/apps/` not in database → delete if >7 days old
-2. **Empty result dirs**: Result folders with no JSON files → delete
-3. **Old log rotation**: Rotate logs in `logs/` if >100MB
+**Configuration**:
+```python
+# Default config in MaintenanceService.__init__
+config = {
+    'cleanup_orphan_apps': True,
+    'cleanup_orphan_tasks': True,
+    'cleanup_stuck_tasks': True,
+    'cleanup_old_tasks': True,
+    'task_retention_days': 30,
+    'stuck_task_timeout_minutes': 120,  # 2 hours for RUNNING
+    'pending_task_timeout_minutes': 240,  # 4 hours for PENDING
+    'grace_period_minutes': 5,  # Skip very recent tasks
+    'orphan_app_retention_days': 7,  # NEW: 7-day grace period for missing apps
+}
+```
+
+**Environment Variables**:
+- `MAINTENANCE_AUTO_START=true` - Enable automatic background cleanup (default: false)
+- `MAINTENANCE_INTERVAL_SECONDS=3600` - Cleanup interval when auto-started (default: 1 hour)
 
 **Usage**:
-```python
-# Manual trigger (Python shell)
-from app.services.maintenance_service import MaintenanceService
-service = MaintenanceService(app)
-service.run_startup_cleanup()  # Safe to run anytime
-service.cleanup_orphaned_apps()  # Manual orphan cleanup
+```bash
+# Recommended: Manual cleanup via orchestrator
+./start.ps1 -Mode Maintenance
 
-# Check what would be cleaned (dry run)
-orphans = service._find_orphaned_apps()
-for app_path in orphans:
-    print(f"Would delete: {app_path}")
+# Or run Python directly
+python -c "from app.factory import create_app; from app.services.maintenance_service import get_maintenance_service; \
+app = create_app(); \
+with app.app_context(): get_maintenance_service()._run_maintenance()"
 ```
+
+**Database Schema Change**:
+- Run `python scripts/add_missing_since_column.py` once to add `missing_since` column
+- Column: `missing_since` (DATETIME, nullable, default NULL)
+- Tracks when app filesystem directory first went missing
 
 **Logs**: All cleanup operations logged to `logs/app.log` with INFO level:
 ```
-[MaintenanceService] Recovered 3 stuck tasks (RUNNING > 30min)
-[MaintenanceService] Cancelled 1 stale pending task
-[MaintenanceService] Synced 12 filesystem apps to database
-[MaintenanceService] Deleted 2 orphaned apps (older than 7 days)
+[MaintenanceService] Marked 2 apps as missing (grace period: 7 days)
+[MaintenanceService] Restored 1 apps (filesystem directories reappeared)
+[MaintenanceService] Found 1 orphan apps ready for deletion (missing for >7 days)
+[MaintenanceService] Cleaned up 1 orphan app records
 ```
 
 ## Gotchas and non-obvious behaviors
+
+### Maintenance Service Changes (Nov 2025)
+- **Apps no longer auto-deleted on startup** - maintenance is manual by default
+- **7-day safety buffer** - apps must be missing for a week before deletion
+- **Reversible marking** - restoring filesystem directory clears `missing_since` flag
+- **Legacy script deprecated** - `scripts/cleanup_generated_apps.py` bypasses safety mechanisms; use `start.ps1 -Mode Maintenance` instead
+- **Migration required** - run `scripts/add_missing_since_column.py` once to add new column
 
 ### Result Storage Evolution
 - **Don't assume `results/analysis/` exists**: New runs organize by `task_{id}` at app root level (`results/{model}/app{N}/task_{id}/`)
