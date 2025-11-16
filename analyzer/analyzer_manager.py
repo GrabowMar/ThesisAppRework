@@ -1114,9 +1114,10 @@ class AnalyzerManager:
         # Only apply defaults when tools is explicitly None. Respect provided selections.
         if tools is None:
             # Include ALL available static analysis tools (including security tools)
-            tools = ['bandit', 'safety', 'semgrep',  # Security tools
+            tools = ['bandit', 'safety', 'pip-audit', 'semgrep',  # Security/CVE tools
                     'pylint', 'flake8', 'mypy', 'vulture', 'ruff',  # Python static analysis
-                    'eslint', 'jshint', 'snyk', 'stylelint']  # JavaScript/CSS tools        logger.info(f"[SEARCH] Running static analysis on {model_slug} app {app_number}")
+                    'eslint', 'jshint', 'npm-audit', 'snyk', 'stylelint']  # JavaScript/CSS tools
+        logger.info(f"[SEARCH] Running static analysis on {model_slug} app {app_number}")
         
         request = AnalysisRequest(
             model_slug=model_slug,
@@ -1355,11 +1356,15 @@ class AnalyzerManager:
                     if isinstance(sarif, dict) and 'runs' in sarif:
                         for run in sarif['runs']:
                             for result in run.get('results', []):
+                                # Extract Bandit's original severity from properties (HIGH/MEDIUM/LOW)
+                                # instead of generic SARIF level (error/warning/note)
+                                bandit_props = result.get('properties', {})
+                                original_severity = bandit_props.get('issue_severity', result.get('level', 'warning'))
                                 findings.append({
                                     'id': f"bandit_{result.get('ruleId', 'unknown')}_{result.get('locations', [{}])[0].get('physicalLocation', {}).get('region', {}).get('startLine', 0)}",
                                     'tool': 'bandit',
                                     'rule_id': result.get('ruleId'),
-                                    'severity': self._normalize_severity(result.get('level', 'warning')),
+                                    'severity': self._normalize_severity(original_severity),
                                     'confidence': 'unknown',
                                     'category': 'security',
                                     'type': 'vulnerability',

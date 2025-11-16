@@ -111,7 +111,7 @@ class StaticAnalyzer(BaseWSService):
     def _detect_available_tools(self) -> List[str]:
         tools: List[str] = []
         # Check Python tools
-        for tool in ['bandit', 'pylint', 'mypy', 'semgrep', 'snyk', 'safety', 'vulture', 'ruff']:
+        for tool in ['bandit', 'pylint', 'mypy', 'semgrep', 'snyk', 'safety', 'pip-audit', 'vulture', 'ruff']:
             try:
                 result = subprocess.run([tool, '--version'], capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
@@ -121,9 +121,11 @@ class StaticAnalyzer(BaseWSService):
                 self.log.debug(f"{tool} not available: {e}")
         
         # Check Node.js tools
-        for tool in ['eslint', 'stylelint']:
+        for tool in ['eslint', 'npm-audit', 'stylelint']:
             try:
-                result = subprocess.run([tool, '--version'], capture_output=True, text=True, timeout=10)
+                # npm-audit is a subcommand, check npm itself
+                check_cmd = ['npm', '--version'] if tool == 'npm-audit' else [tool, '--version']
+                result = subprocess.run(check_cmd, capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
                     tools.append(tool)
                     self.log.debug(f"{tool} available")
@@ -412,6 +414,50 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                         'error': f'Safety execution error: {str(e)}',
                         'total_issues': 0
                     }
+        
+        # pip-audit as fallback CVE scanner (doesn't require authentication)
+        if requirements_file and requirements_file.exists():
+            pip_audit_config = config.get('pip-audit', {}) if config else {}
+            if (
+                'pip-audit' in self.available_tools
+                and (selected_tools is None or 'pip-audit' in selected_tools)
+                and pip_audit_config.get('enabled', True)
+            ):
+                try:
+                    self.log.info(f"Running pip-audit on: {requirements_file}")
+                    cmd = ['pip-audit', '--format', 'json', '--requirement', str(requirements_file)]
+                    
+                    pip_audit_result = await self._run_tool(cmd, 'pip-audit', config=pip_audit_config, success_exit_codes=[0, 1], skip_parser=True)
+                    
+                    if pip_audit_result.get('status') != 'error' and 'output' in pip_audit_result:
+                        try:
+                            audit_data = json.loads(pip_audit_result['output'])
+                            vulnerabilities = audit_data.get('vulnerabilities', [])
+                            
+                            results['pip-audit'] = {
+                                'tool': 'pip-audit',
+                                'executed': True,
+                                'status': 'success' if vulnerabilities else 'no_issues',
+                                'vulnerabilities': vulnerabilities,
+                                'total_issues': len(vulnerabilities),
+                                'format': 'json'
+                            }
+                            self.log.info(f"pip-audit found {len(vulnerabilities)} CVEs")
+                        except Exception as e:
+                            self.log.warning(f"Could not parse pip-audit output: {e}")
+                            results['pip-audit'] = pip_audit_result
+                    else:
+                        results['pip-audit'] = pip_audit_result
+                        
+                except Exception as e:
+                    self.log.warning(f"pip-audit scan failed: {e}")
+                    results['pip-audit'] = {
+                        'tool': 'pip-audit',
+                        'executed': True,
+                        'status': 'error',
+                        'error': f'pip-audit execution error: {str(e)}',
+                        'total_issues': 0
+                    }
 
         # Vulture dead code detection
         if (
@@ -566,8 +612,8 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         ):
             try:
                 # Use ESLint with Microsoft SARIF formatter
-                # ESLint will use default recommended rules
-                cmd = ['eslint', '--format', '@microsoft/eslint-formatter-sarif', '--no-config-lookup']
+                # ESLint will use .eslintrc.json config file if present
+                cmd = ['eslint', '--format', '@microsoft/eslint-formatter-sarif']
                 
                 if len(js_files) <= 20:
                     cmd.extend([str(f) for f in js_files])
@@ -592,6 +638,63 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             except Exception as e:
                 self.log.error(f"ESLint analysis failed: {e}")
                 results['eslint'] = {'tool': 'eslint', 'executed': True, 'status': 'error', 'error': str(e)}
+
+        # npm audit for JavaScript dependency vulnerabilities
+        package_json = source_path / 'package.json'
+        if package_json.exists():
+            npm_audit_config = config.get('npm-audit', {}) if config else {}
+            if (
+                'npm-audit' in self.available_tools
+                and (selected_tools is None or 'npm-audit' in selected_tools)
+                and npm_audit_config.get('enabled', True)
+            ):
+                try:
+                    self.log.info(f"Running npm audit on: {package_json.parent}")
+                    # npm audit must be run in the directory containing package.json
+                    cmd = ['npm', 'audit', '--json']
+                    
+                    # Change to package.json directory for npm audit
+                    original_cwd = Path.cwd()
+                    try:
+                        import os
+                        os.chdir(package_json.parent)
+                        
+                        npm_audit_result = await self._run_tool(cmd, 'npm-audit', config=npm_audit_config, success_exit_codes=[0, 1], skip_parser=True)
+                        
+                        if npm_audit_result.get('status') != 'error' and 'output' in npm_audit_result:
+                            try:
+                                audit_data = json.loads(npm_audit_result['output'])
+                                vulnerabilities = audit_data.get('vulnerabilities', {})
+                                
+                                # Count total CVEs
+                                total_cves = sum(1 for v in vulnerabilities.values() if isinstance(v, dict))
+                                
+                                results['npm-audit'] = {
+                                    'tool': 'npm-audit',
+                                    'executed': True,
+                                    'status': 'success' if total_cves > 0 else 'no_issues',
+                                    'vulnerabilities': vulnerabilities,
+                                    'total_issues': total_cves,
+                                    'format': 'json'
+                                }
+                                self.log.info(f"npm audit found {total_cves} CVEs")
+                            except Exception as e:
+                                self.log.warning(f"Could not parse npm audit output: {e}")
+                                results['npm-audit'] = npm_audit_result
+                        else:
+                            results['npm-audit'] = npm_audit_result
+                    finally:
+                        os.chdir(original_cwd)
+                        
+                except Exception as e:
+                    self.log.warning(f"npm audit scan failed: {e}")
+                    results['npm-audit'] = {
+                        'tool': 'npm-audit',
+                        'executed': True,
+                        'status': 'error',
+                        'error': f'npm audit execution error: {str(e)}',
+                        'total_issues': 0
+                    }
 
         # Snyk Code vulnerability analysis
         if (
