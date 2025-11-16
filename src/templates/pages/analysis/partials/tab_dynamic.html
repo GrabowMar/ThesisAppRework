@@ -13,7 +13,16 @@
   </div>
 
   {# Tools Results Table #}
-  {% set tools_results = dynamic_service.analysis.results if dynamic_service.analysis and dynamic_service.analysis.results else {} %}
+  {# Use tool_results from analysis (normalized tool map) instead of iterating over results keys #}
+  {% set tools_results = dynamic_service.analysis.tool_results if dynamic_service.analysis and dynamic_service.analysis.tool_results else {} %}
+  {% if not tools_results %}
+    {# Fallback to tool_runs inside results.results if tool_results not at top level #}
+    {% set tools_results = dynamic_service.analysis.results.tool_runs if dynamic_service.analysis and dynamic_service.analysis.results and dynamic_service.analysis.results.tool_runs else {} %}
+  {% endif %}
+  
+  {# Metadata keys that should NOT appear as tools #}
+  {% set metadata_keys = ['connectivity', 'vulnerability_scan', 'port_scan', 'zap_security_scan', 'tool_runs', 'summary', 'status', 'error', 'analysis_time', 'model_slug', 'app_number', 'tools_used', 'target_urls'] %}
+  
   {% if tools_results %}
     <div class="table-responsive">
       <table class="table table-sm table-hover table-vcenter mb-0">
@@ -21,18 +30,19 @@
           <tr>
             <th>Tool</th>
             <th class="text-center">Status</th>
-            <th class="text-center">Alerts</th>
-            <th class="text-center">Risk Summary</th>
-            <th width="50%">Top Alerts</th>
+            <th class="text-center">Issues Found</th>
+            <th width="50%">Summary</th>
           </tr>
         </thead>
         <tbody>
           {% for tool_name, tool_data in tools_results.items() %}
+          {# Skip metadata keys that aren't actual tools #}
+          {% if tool_name.lower() not in metadata_keys %}
           <tr>
             <td><strong>{{ tool_name|upper }}</strong></td>
             <td class="text-center">
               {% if tool_data.executed %}
-                <span class="badge badge-sm {% if tool_data.status in ['success', 'ok', 'completed'] %}bg-success-lt text-success{% elif tool_data.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
+                <span class="badge badge-sm {% if tool_data.status in ['success', 'ok', 'completed', 'no_issues'] %}bg-success-lt text-success{% elif tool_data.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
                   {{ tool_data.status|default('unknown') }}
                 </span>
               {% else %}
@@ -40,40 +50,21 @@
               {% endif %}
             </td>
             <td class="text-center">
-              {% if tool_data.results and tool_data.results.alerts %}
-                <span class="badge badge-sm bg-warning-lt text-warning">{{ tool_data.results.alerts|length }}</span>
+              {% if tool_data.total_issues is defined and tool_data.total_issues > 0 %}
+                <span class="badge badge-sm bg-warning-lt text-warning">{{ tool_data.total_issues }}</span>
               {% else %}
                 <span class="text-success"><i class="fa-solid fa-check"></i></span>
               {% endif %}
             </td>
-            <td class="text-center">
-              {% if tool_data.results and tool_data.results.risk_summary %}
-                <div>
-                  {% for risk, count in tool_data.results.risk_summary.items() %}
-                    {% if count > 0 %}
-                      <span class="badge badge-sm {% if risk == 'high' %}bg-danger-lt text-danger{% elif risk == 'medium' %}bg-warning-lt text-warning{% elif risk == 'low' %}bg-info-lt text-info{% else %}bg-secondary-lt{% endif %}">
-                        {{ risk[0]|upper }}:{{ count }}
-                      </span>
-                    {% endif %}
-                  {% endfor %}
-                </div>
-              {% else %}
-                <span class="text-muted">—</span>
-              {% endif %}
-            </td>
             <td class="small text-muted">
-              {% if tool_data.results and tool_data.results.alerts %}
-                {% for alert in tool_data.results.alerts[:2] %}
-                  <div class="text-truncate">• {{ alert.alert|default(alert.name)|default('Unknown') }}</div>
-                {% endfor %}
-                {% if tool_data.results.alerts|length > 2 %}
-                  <div class="text-muted">...and {{ tool_data.results.alerts|length - 2 }} more</div>
-                {% endif %}
+              {% if tool_data.total_issues is defined and tool_data.total_issues > 0 %}
+                {{ tool_data.total_issues }} issue(s) found
               {% else %}
-                <span class="text-success">No alerts found</span>
+                <span class="text-success">No issues detected</span>
               {% endif %}
             </td>
           </tr>
+          {% endif %}
           {% endfor %}
         </tbody>
       </table>

@@ -1,5 +1,5 @@
 {# AI Requirements Analysis Tab #}
-{% set ai_service = payload.results.services['ai-requirements'] if payload.results.services and payload.results.services['ai-requirements'] else none %}
+{% set ai_service = payload.results.services.ai if payload.results.services and payload.results.services.ai else none %}
 
 {% if ai_service %}
   {# Service Header #}
@@ -17,137 +17,135 @@
   </div>
 
   {# AI Analysis Results #}
-  {% set analysis_results = ai_service.analysis if ai_service.analysis else {} %}
-  {% if analysis_results %}
-    {# Overall Assessment #}
-    {% if analysis_results.overall_assessment %}
+  {% set analysis_results = ai_service.analysis.results if ai_service.analysis and ai_service.analysis.results else {} %}
+  {% set summary = analysis_results.summary if analysis_results and analysis_results.summary else {} %}
+  {% set functional_reqs = analysis_results.functional_requirements if analysis_results and analysis_results.functional_requirements else [] %}
+  
+  {% if analysis_results and (functional_reqs or summary) %}
+    {# Summary Card #}
+    {% if summary %}
       <div class="card card-sm mb-3">
         <div class="card-header">
           <h5 class="card-title mb-0">
-            <i class="fa-solid fa-clipboard-check me-2"></i>Overall Assessment
+            <i class="fa-solid fa-clipboard-check me-2"></i>Requirements Compliance Summary
           </h5>
         </div>
         <div class="card-body">
-          <p class="mb-0">{{ analysis_results.overall_assessment }}</p>
-        </div>
-      </div>
-    {% endif %}
-
-    {# Requirements Categories #}
-    {% set categories = analysis_results.categories if analysis_results.categories else {} %}
-    {% if categories %}
-      <div class="row row-cards">
-        {% for category_name, category_data in categories.items() %}
-          <div class="col-12 col-md-6">
-            <div class="card card-sm">
-              <div class="card-header">
-                <h5 class="card-title mb-0">{{ category_name|replace('_', ' ')|title }}</h5>
+          <div class="row">
+            <div class="col-md-3">
+              <div class="text-muted small text-uppercase mb-1">Compliance Rate</div>
+              <div class="h3 mb-0 {% if summary.compliance_percentage >= 80 %}text-success{% elif summary.compliance_percentage >= 60 %}text-warning{% else %}text-danger{% endif %}">
+                {{ summary.compliance_percentage|default(0)|round(1) }}%
               </div>
-              <div class="card-body">
-                {% if category_data.score is defined %}
-                  <div class="mb-2">
-                    <div class="text-muted small text-uppercase mb-1">Compliance Score</div>
-                    <div class="progress" style="height: 10px;">
-                      <div class="progress-bar {% if category_data.score >= 80 %}bg-success{% elif category_data.score >= 60 %}bg-warning{% else %}bg-danger{% endif %}" 
-                           style="width: {{ category_data.score }}%">
-                        {{ category_data.score }}%
-                      </div>
-                    </div>
-                  </div>
-                {% endif %}
-
-                {% if category_data.findings %}
-                  <div class="accordion" id="accordion-{{ category_name }}">
-                    <div class="accordion-item">
-                      <h2 class="accordion-header">
-                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ category_name }}">
-                          <i class="fa-solid fa-list-check me-2"></i>{{ category_data.findings|length }} Finding{{ category_data.findings|length == 1 and '' or 's' }}
-                        </button>
-                      </h2>
-                      <div id="collapse-{{ category_name }}" class="accordion-collapse collapse" data-bs-parent="#accordion-{{ category_name }}">
-                        <div class="accordion-body">
-                          <ul class="list-unstyled mb-0">
-                            {% for finding in category_data.findings %}
-                              <li class="mb-2">
-                                <div class="d-flex">
-                                  {% if finding.status == 'pass' %}
-                                    <i class="fa-solid fa-check-circle text-success me-2 mt-1"></i>
-                                  {% elif finding.status == 'fail' %}
-                                    <i class="fa-solid fa-times-circle text-danger me-2 mt-1"></i>
-                                  {% else %}
-                                    <i class="fa-solid fa-exclamation-circle text-warning me-2 mt-1"></i>
-                                  {% endif %}
-                                  <div>
-                                    <div class="fw-medium">{{ finding.requirement|default('Requirement') }}</div>
-                                    {% if finding.description %}
-                                      <div class="text-muted small">{{ finding.description }}</div>
-                                    {% endif %}
-                                  </div>
-                                </div>
-                              </li>
-                            {% endfor %}
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                {% endif %}
-
-                {% if category_data.recommendations %}
-                  <div class="mt-2">
-                    <div class="text-muted small mb-1">
-                      <i class="fa-solid fa-lightbulb me-1"></i>Recommendations
-                    </div>
-                    <ul class="list-unstyled mb-0 small">
-                      {% for rec in category_data.recommendations[:3] %}
-                        <li class="text-wrap">• {{ rec }}</li>
-                      {% endfor %}
-                      {% if category_data.recommendations|length > 3 %}
-                        <li class="text-muted">...and {{ category_data.recommendations|length - 3 }} more</li>
-                      {% endif %}
-                    </ul>
-                  </div>
-                {% endif %}
+            </div>
+            <div class="col-md-3">
+              <div class="text-muted small text-uppercase mb-1">Requirements Met</div>
+              <div class="h3 mb-0 text-success">
+                {{ summary.functional_requirements_met|default(0) }}/{{ summary.total_functional_requirements|default(0) }}
+              </div>
+            </div>
+            {% if summary.total_control_endpoints is defined and summary.total_control_endpoints > 0 %}
+            <div class="col-md-3">
+              <div class="text-muted small text-uppercase mb-1">Control Endpoints</div>
+              <div class="h3 mb-0">
+                {{ summary.control_endpoints_passed|default(0) }}/{{ summary.total_control_endpoints }}
+              </div>
+            </div>
+            {% endif %}
+            <div class="col-md-3">
+              <div class="text-muted small text-uppercase mb-1">AI Model Used</div>
+              <div class="small">
+                {{ ai_service.analysis.metadata.ai_model_used|default('Unknown') }}
               </div>
             </div>
           </div>
-        {% endfor %}
+        </div>
       </div>
     {% endif %}
 
-    {# Recommendations Summary #}
-    {% if analysis_results.recommendations %}
+    {# Functional Requirements #}
+    {% if functional_reqs %}
+      <div class="card card-sm">
+        <div class="card-header">
+          <h5 class="card-title mb-0">
+            <i class="fa-solid fa-list-check me-2"></i>Functional Requirements ({{ functional_reqs|length }})
+          </h5>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm table-vcenter mb-0">
+              <thead>
+                <tr>
+                  <th width="5%">Status</th>
+                  <th width="40%">Requirement</th>
+                  <th width="10%" class="text-center">Confidence</th>
+                  <th width="45%">Explanation</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for req in functional_reqs %}
+                <tr>
+                  <td class="text-center">
+                    {% if req.met %}
+                      <i class="fa-solid fa-check-circle text-success" title="Requirement Met"></i>
+                    {% else %}
+                      <i class="fa-solid fa-times-circle text-danger" title="Requirement Not Met"></i>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="small">{{ req.requirement }}</div>
+                  </td>
+                  <td class="text-center">
+                    <span class="badge badge-sm {% if req.confidence == 'HIGH' %}bg-success-lt text-success{% elif req.confidence == 'MEDIUM' %}bg-warning-lt text-warning{% else %}bg-secondary-lt{% endif %}">
+                      {{ req.confidence|default('N/A') }}
+                    </span>
+                  </td>
+                  <td>
+                    <details>
+                      <summary class="text-muted small" style="cursor: pointer;">
+                        <i class="fa-solid fa-chevron-right me-1"></i>View explanation
+                      </summary>
+                      <div class="mt-2 small text-wrap">{{ req.explanation|default('No explanation provided') }}</div>
+                    </details>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {# Control Endpoints Tests #}
+    {% set control_tests = analysis_results.control_endpoint_tests if analysis_results and analysis_results.control_endpoint_tests else [] %}
+    {% if control_tests %}
       <div class="card card-sm mt-3">
         <div class="card-header">
           <h5 class="card-title mb-0">
-            <i class="fa-solid fa-lightbulb me-2"></i>Key Recommendations
+            <i class="fa-solid fa-flask me-2"></i>Control Endpoint Tests ({{ control_tests|length }})
           </h5>
         </div>
         <div class="card-body">
-          <ul class="mb-0">
-            {% for rec in analysis_results.recommendations %}
-              <li class="mb-1">{{ rec }}</li>
+          <ul class="list-unstyled mb-0">
+            {% for test in control_tests %}
+              <li class="mb-2">
+                <div class="d-flex">
+                  {% if test.passed %}
+                    <i class="fa-solid fa-check-circle text-success me-2 mt-1"></i>
+                  {% else %}
+                    <i class="fa-solid fa-times-circle text-danger me-2 mt-1"></i>
+                  {% endif %}
+                  <div>
+                    <div class="fw-medium">{{ test.endpoint|default('Unknown endpoint') }}</div>
+                    {% if test.description %}
+                      <div class="text-muted small">{{ test.description }}</div>
+                    {% endif %}
+                  </div>
+                </div>
+              </li>
             {% endfor %}
           </ul>
-        </div>
-      </div>
-    {% endif %}
-
-    {# Raw Analysis Data #}
-    {% if analysis_results.raw_response %}
-      <div class="card card-sm mt-3">
-        <div class="card-header">
-          <h5 class="card-title mb-0">
-            <i class="fa-solid fa-file-lines me-2"></i>Raw Analysis
-          </h5>
-        </div>
-        <div class="card-body">
-          <details>
-            <summary class="text-muted small" style="cursor: pointer;">
-              <i class="fa-solid fa-chevron-right me-1"></i>View Raw Response
-            </summary>
-            <pre class="bg-dark text-white rounded p-3 mt-2 small" style="max-height: 400px; overflow-y: auto;"><code>{{ analysis_results.raw_response }}</code></pre>
-          </details>
         </div>
       </div>
     {% endif %}

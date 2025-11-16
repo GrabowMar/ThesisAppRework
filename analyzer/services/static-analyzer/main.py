@@ -79,9 +79,18 @@ class StaticAnalyzer(BaseWSService):
                 
                 return parsed_result
             except json.JSONDecodeError as e:
-                self.log.warning(f"{tool_name} produced invalid JSON: {e}")
-                # Fallback for tools that don't produce JSON (e.g., flake8, mypy text, vulture)
-                # Try SARIF parser with text output
+                # Handle tools that output text or newline-delimited JSON (mypy, vulture)
+                # Pass raw text to parser which handles format detection
+                try:
+                    parsed_result = parse_tool_output(tool_name, result.stdout, config)
+                    if parsed_result.get('status') in ('success', 'no_issues', 'completed'):
+                        # Parser successfully handled the output
+                        return parsed_result
+                except Exception as parse_err:
+                    self.log.warning(f"{tool_name} parser failed: {parse_err}")
+                
+                # Final fallback: treat as text output
+                self.log.warning(f"{tool_name} produced non-JSON output: {e}")
                 sarif_run = parse_tool_output_to_sarif(tool_name, result.stdout, config)
                 fallback_result = {'tool': tool_name, 'executed': True, 'status': 'completed', 'output': result.stdout[:1000]}
                 if sarif_run:
@@ -417,11 +426,13 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
 
             # Vulture returns: 0=no issues, 1=dead code found, 3=syntax errors in checked files
             # All are valid outcomes for analysis purposes
+            # Note: Vulture outputs text, not JSON, so we parse it manually
             vulture_result = await self._run_tool(cmd, 'vulture', success_exit_codes=[0, 1, 3])
 
             if vulture_result.get('status') == 'error':
                 results['vulture'] = vulture_result
-            else:
+            elif vulture_result.get('status') == 'completed':
+                # Vulture returned text output (expected behavior)
                 dead_code_findings = []
                 if 'output' in vulture_result:
                     for line in vulture_result['output'].splitlines():
@@ -440,6 +451,16 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     'status': 'success' if dead_code_findings else 'no_issues',
                     'results': dead_code_findings,
                     'total_issues': len(dead_code_findings),
+                    'config_used': vulture_config
+                }
+            else:
+                # No output case
+                results['vulture'] = {
+                    'tool': 'vulture',
+                    'executed': True,
+                    'status': 'no_issues',
+                    'results': [],
+                    'total_issues': 0,
                     'config_used': vulture_config
                 }
         
@@ -607,6 +628,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 }
 
         # Summarize per-tool status for JS analyzers
+        # Use underscore prefix to signal this is internal metadata, not a tool result
         try:
             summary = {}
             for name in ['eslint', 'jshint', 'snyk']:
@@ -614,13 +636,12 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 if isinstance(t, dict):
                     summary[name] = {
                         'executed': bool(t.get('executed')),
-
                         'status': t.get('status'),
                         'total_issues': int(t.get('total_issues', 0)),
                         'error': t.get('error') if 'error' in t else None,
                     }
             if summary:
-                results['tool_status'] = summary
+                results['_metadata'] = summary
         except Exception:
             pass
 
@@ -807,7 +828,11 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             
             self.log.info("Analyzing project structure...")
             await self.send_progress('analyzing_structure', 'Analyzing project structure', analysis_id=analysis_id)
-            results['results']['structure'] = await self.analyze_project_structure(model_path)
+            structure_result = await self.analyze_project_structure(model_path)
+            # Extract _project_metadata to top level to avoid treating it as a tool
+            if structure_result.get('_project_metadata'):
+                results['_project_metadata'] = structure_result['_project_metadata']
+            results['results']['structure'] = {'status': structure_result.get('status', 'unknown')}
             
             # Calculate enhanced summary and derive tools_used strictly from executed tools
             total_issues = 0

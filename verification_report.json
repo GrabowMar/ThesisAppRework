@@ -1,0 +1,38 @@
+{
+  "success": true,
+  "task_id": "task_5b458fafaac2",
+  "validation": {
+    "database": {
+      "has_result_summary": true,
+      "tools_count": 0,
+      "metadata_in_tools": [],
+      "missing_fields": [],
+      "status": "info"
+    },
+    "filesystem": {
+      "has_results": true,
+      "has_tools": true,
+      "tools_count": 15,
+      "metadata_in_tools": [],
+      "tools_skipped": [],
+      "tools_failed": [
+        "locust"
+      ],
+      "missing_fields": [],
+      "status": "pass"
+    },
+    "consistency": {
+      "filesystem_clean": true,
+      "status": "pass"
+    }
+  },
+  "issues": [],
+  "warnings": [
+    "Filesystem: 1 tools failed"
+  ],
+  "successes": [
+    "Filesystem: Clean tools map (no metadata)",
+    "Filesystem: Empty tools_skipped array",
+    "Consistency: Filesystem tools map clean"
+  ]
+}

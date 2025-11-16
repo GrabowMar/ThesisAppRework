@@ -30,6 +30,9 @@
         <tbody>
           {% for lang, lang_tools in tools_results.items() %}
             {% for tool_name, tool_data in lang_tools.items() %}
+              {# Skip metadata keys that are not actual tools #}
+              {% set metadata_keys = ['tool_status', '_metadata', 'status', 'message', 'error', '_project_metadata', 'file_counts', 'security_files', 'total_files'] %}
+              {% if tool_name.lower() not in metadata_keys and lang.lower() != 'structure' and tool_data is mapping and ('tool' in tool_data or 'executed' in tool_data or 'status' in tool_data) %}
             <tr>
               <td><strong>{{ tool_name|capitalize }}</strong></td>
               <td><span class="badge bg-secondary-lt">{{ lang }}</span></td>
@@ -76,6 +79,7 @@
                 {% endif %}
               </td>
             </tr>
+              {% endif %}
             {% endfor %}
           {% endfor %}
         </tbody>

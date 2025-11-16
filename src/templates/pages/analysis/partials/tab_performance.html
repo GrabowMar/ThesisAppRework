@@ -13,7 +13,16 @@
   </div>
 
   {# Performance Metrics Table #}
-  {% set test_results = performance_service.analysis.results if performance_service.analysis and performance_service.analysis.results else {} %}
+  {# Use tool_results from analysis (normalized tool map) instead of iterating over results keys #}
+  {% set test_results = performance_service.analysis.tool_results if performance_service.analysis and performance_service.analysis.tool_results else {} %}
+  {% if not test_results %}
+    {# Fallback to tool_runs inside results.results if tool_results not at top level #}
+    {% set test_results = performance_service.analysis.results.tool_runs if performance_service.analysis and performance_service.analysis.results and performance_service.analysis.results.tool_runs else {} %}
+  {% endif %}
+  
+  {# Metadata keys that should NOT appear as tools (URLs, summary keys, etc.) #}
+  {% set metadata_keys = ['tool_runs', 'summary', 'status', 'error', 'analysis_time', 'model_slug', 'app_number', 'tools_used', 'target_urls', 'connectivity'] %}
+  
   {% if test_results %}
     <div class="table-responsive">
       <table class="table table-sm table-hover table-vcenter mb-0">
@@ -30,6 +39,8 @@
         </thead>
         <tbody>
           {% for test_name, test_data in test_results.items() %}
+          {# Skip metadata keys and URL-based results (which start with http://) #}
+          {% if test_name.lower() not in metadata_keys and not test_name.startswith('http://') and not test_name.startswith('https://') %}
           <tr>
             <td><strong>{{ test_name|replace('_', ' ')|title }}</strong></td>
             <td class="text-center">
@@ -89,6 +100,7 @@
               {% endif %}
             </td>
           </tr>
+          {% endif %}
           {% endfor %}
         </tbody>
       </table>
