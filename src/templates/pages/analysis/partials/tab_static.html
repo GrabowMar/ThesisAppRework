@@ -38,18 +38,30 @@
               <td><span class="badge bg-secondary-lt">{{ lang }}</span></td>
               <td class="text-center">
                 {% if tool_data.executed %}
-                  <span class="badge badge-sm {% if tool_data.status in ['success', 'ok', 'completed'] %}bg-success-lt text-success{% elif tool_data.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
-                    {{ tool_data.status|default('unknown') }}
-                  </span>
+                  {% set issue_count = tool_data.issue_count|default(tool_data.total_issues)|default(tool_data.issues|length if tool_data.issues else 0) %}
+                  {% if tool_data.status in ['success', 'ok', 'completed', 'no_issues'] %}
+                    <span class="badge badge-sm bg-success-lt text-success" title="Tool executed successfully">
+                      <i class="fa-solid fa-check"></i> Success
+                    </span>
+                  {% elif tool_data.status in ['failed', 'error'] %}
+                    <span class="badge badge-sm bg-danger-lt text-danger" title="Tool execution failed">
+                      <i class="fa-solid fa-xmark"></i> Error
+                    </span>
+                  {% else %}
+                    <span class="badge badge-sm bg-secondary-lt" title="Unknown status">
+                      {{ tool_data.status|default('unknown') }}
+                    </span>
+                  {% endif %}
                 {% else %}
                   <span class="badge badge-sm bg-secondary-lt">Skipped</span>
                 {% endif %}
               </td>
               <td class="text-center">
-                {% if tool_data.issues %}
-                  <span class="badge badge-sm bg-warning-lt text-warning">{{ tool_data.issues|length }}</span>
+                {% set issue_count = tool_data.issue_count|default(tool_data.total_issues)|default(tool_data.issues|length if tool_data.issues else 0) %}
+                {% if issue_count > 0 %}
+                  <span class="badge badge-sm bg-warning-lt text-warning" title="{{ issue_count }} issue(s) found">{{ issue_count }}</span>
                 {% else %}
-                  <span class="text-success"><i class="fa-solid fa-check"></i></span>
+                  <span class="text-success" title="No issues found"><i class="fa-solid fa-check"></i></span>
                 {% endif %}
               </td>
               <td class="text-center">

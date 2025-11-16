@@ -117,13 +117,26 @@
             <tr>
               <td><strong>{{ tool_name }}</strong></td>
               <td>
-                {% if tool_data.status == 'success' %}
-                <span class="badge bg-success">{{ tool_data.status|capitalize }}</span>
+                {% if tool_data.status in ['success', 'ok', 'completed', 'no_issues'] %}
+                <span class="badge bg-success" title="Tool executed successfully">
+                  <i class="fa-solid fa-check"></i> Success
+                </span>
+                {% elif tool_data.status in ['failed', 'error'] %}
+                <span class="badge bg-danger" title="Tool execution failed">
+                  <i class="fa-solid fa-xmark"></i> Error
+                </span>
                 {% else %}
-                <span class="badge bg-danger">{{ tool_data.status|capitalize }}</span>
+                <span class="badge bg-secondary">{{ tool_data.status|capitalize }}</span>
                 {% endif %}
               </td>
-              <td>{{ tool_data.total_issues or 0 }}</td>
+              <td>
+                {% set issue_count = tool_data.issue_count|default(tool_data.total_issues)|default(0) %}
+                {% if issue_count > 0 %}
+                  <span class="badge bg-warning">{{ issue_count }}</span>
+                {% else %}
+                  <span class="text-success"><i class="fa-solid fa-check"></i> 0</span>
+                {% endif %}
+              </td>
               <td>{{ "%.2f"|format(tool_data.duration_seconds or 0) }}s</td>
             </tr>
             {% endfor %}

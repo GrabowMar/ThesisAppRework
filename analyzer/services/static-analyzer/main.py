@@ -60,11 +60,11 @@ class StaticAnalyzer(BaseWSService):
                 return {'tool': tool_name, 'executed': True, 'status': 'error', 'error': error_message, 'exit_code': result.returncode}
 
             if not result.stdout:
-                return {'tool': tool_name, 'executed': True, 'status': 'no_issues', 'issues': [], 'total_issues': 0}
+                return {'tool': tool_name, 'executed': True, 'status': 'success', 'issues': [], 'total_issues': 0, 'issue_count': 0}
 
             # Skip parser for SARIF tools - they handle output themselves
             if skip_parser:
-                return {'tool': tool_name, 'executed': True, 'status': 'success', 'output': result.stdout}
+                return {'tool': tool_name, 'executed': True, 'status': 'success', 'output': result.stdout, 'issue_count': 0}
 
             try:
                 raw_output = json.loads(result.stdout)
@@ -85,6 +85,9 @@ class StaticAnalyzer(BaseWSService):
                     parsed_result = parse_tool_output(tool_name, result.stdout, config)
                     if parsed_result.get('status') in ('success', 'no_issues', 'completed'):
                         # Parser successfully handled the output
+                        # Ensure issue_count is present for uniform status display
+                        if 'issue_count' not in parsed_result:
+                            parsed_result['issue_count'] = parsed_result.get('total_issues', len(parsed_result.get('issues', [])))
                         return parsed_result
                 except Exception as parse_err:
                     self.log.warning(f"{tool_name} parser failed: {parse_err}")
@@ -92,7 +95,7 @@ class StaticAnalyzer(BaseWSService):
                 # Final fallback: treat as text output
                 self.log.warning(f"{tool_name} produced non-JSON output: {e}")
                 sarif_run = parse_tool_output_to_sarif(tool_name, result.stdout, config)
-                fallback_result = {'tool': tool_name, 'executed': True, 'status': 'completed', 'output': result.stdout[:1000]}
+                fallback_result = {'tool': tool_name, 'executed': True, 'status': 'success', 'output': result.stdout[:1000], 'issue_count': 0}
                 if sarif_run:
                     fallback_result['sarif'] = sarif_run
                     self.log.debug(f"Generated SARIF output for text-based {tool_name}")
@@ -437,9 +440,10 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                             results['pip-audit'] = {
                                 'tool': 'pip-audit',
                                 'executed': True,
-                                'status': 'success' if vulnerabilities else 'no_issues',
+                                'status': 'success',
                                 'vulnerabilities': vulnerabilities,
                                 'total_issues': len(vulnerabilities),
+                                'issue_count': len(vulnerabilities),
                                 'format': 'json'
                             }
                             self.log.info(f"pip-audit found {len(vulnerabilities)} CVEs")
@@ -494,9 +498,10 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 results['vulture'] = {
                     'tool': 'vulture',
                     'executed': True,
-                    'status': 'success' if dead_code_findings else 'no_issues',
+                    'status': 'success',
                     'results': dead_code_findings,
                     'total_issues': len(dead_code_findings),
+                    'issue_count': len(dead_code_findings),
                     'config_used': vulture_config
                 }
             else:
@@ -504,9 +509,10 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 results['vulture'] = {
                     'tool': 'vulture',
                     'executed': True,
-                    'status': 'no_issues',
+                    'status': 'success',
                     'results': [],
                     'total_issues': 0,
+                    'issue_count': 0,
                     'config_used': vulture_config
                 }
         
@@ -640,8 +646,12 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 results['eslint'] = {'tool': 'eslint', 'executed': True, 'status': 'error', 'error': str(e)}
 
         # npm audit for JavaScript dependency vulnerabilities
-        package_json = source_path / 'package.json'
-        if package_json.exists():
+        # Search for package.json in the source directory and subdirectories (e.g., frontend/)
+        package_json_files = list(source_path.rglob('package.json'))
+        # Filter out node_modules
+        package_json_files = [pj for pj in package_json_files if 'node_modules' not in pj.parts]
+        
+        for package_json in package_json_files:
             npm_audit_config = config.get('npm-audit', {}) if config else {}
             if (
                 'npm-audit' in self.available_tools
@@ -672,9 +682,10 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                                 results['npm-audit'] = {
                                     'tool': 'npm-audit',
                                     'executed': True,
-                                    'status': 'success' if total_cves > 0 else 'no_issues',
+                                    'status': 'success',
                                     'vulnerabilities': vulnerabilities,
                                     'total_issues': total_cves,
+                                    'issue_count': total_cves,
                                     'format': 'json'
                                 }
                                 self.log.info(f"npm audit found {total_cves} CVEs")
@@ -724,9 +735,10 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 results['snyk'] = {
                     'tool': 'snyk',
                     'executed': True,
-                    'status': 'success' if total_issues > 0 else 'no_issues',
+                    'status': 'success',
                     'results': snyk_result,
                     'total_issues': total_issues,
+                    'issue_count': total_issues,
                     'config_used': snyk_config
                 }
 
@@ -800,9 +812,10 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 results['stylelint'] = {
                     'tool': 'stylelint',
                     'executed': True,
-                    'status': 'success' if total_issues > 0 else 'no_issues',
+                    'status': 'success',
                     'results': stylelint_data,
-                    'total_issues': total_issues
+                    'total_issues': total_issues,
+                    'issue_count': total_issues
                 }
         
         return results

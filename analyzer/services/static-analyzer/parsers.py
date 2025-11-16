@@ -5,13 +5,18 @@ Each parser standardizes tool output into a common format:
 {
     'tool': str,
     'executed': bool,
-    'status': 'success' | 'error' | 'no_issues',
+    'status': 'success' | 'error',  # Always 'success' for successful execution
+    'issue_count': int,  # Number of issues found (0 = no issues)
     'issues': list[dict],
     'total_issues': int,
+    'issue_count': int,
     'severity_breakdown': dict,
     'metrics': dict (optional),
     'config_used': dict (optional)
 }
+
+Note: Status 'success' means tool executed successfully, regardless of findings.
+      Use 'issue_count' to determine if issues were found (0 = clean code).
 """
 
 from typing import Dict, Any, Optional
@@ -65,7 +70,8 @@ class BanditParser:
                 'status': 'error',
                 'error': 'Invalid output format',
                 'issues': [],
-                'total_issues': 0
+                'total_issues': 0,
+                'issue_count': 0
             }
         
         results = raw_output.get('results', [])
@@ -98,9 +104,10 @@ class BanditParser:
         return {
             'tool': 'bandit',
             'executed': True,
-            'status': 'success' if issues else 'no_issues',
+            'status': 'success',
             'issues': issues,
             'total_issues': len(issues),
+            'issue_count': len(issues),
             'severity_breakdown': severity_breakdown,
             'metrics': metrics,
             'config_used': config or {}
@@ -152,7 +159,8 @@ class SafetyParser:
                 'status': 'error',
                 'error': 'Invalid output format',
                 'issues': [],
-                'total_issues': 0
+                'total_issues': 0,
+                'issue_count': 0,
             }
         
         vulnerabilities = raw_output.get('vulnerabilities', [])
@@ -193,9 +201,10 @@ class SafetyParser:
         return {
             'tool': 'safety',
             'executed': True,
-            'status': 'success' if issues else 'no_issues',
+            'status': 'success',
             'issues': issues,
             'total_issues': len(issues),
+            'issue_count': len(issues),
             'severity_breakdown': severity_breakdown,
             'scanned_packages': raw_output.get('scanned_packages', []),
             'config_used': config or {}
@@ -267,9 +276,10 @@ class PylintParser:
         return {
             'tool': 'pylint',
             'executed': True,
-            'status': 'success' if issues else 'no_issues',
+            'status': 'success',
             'issues': issues,
             'total_issues': len(issues),
+            'issue_count': len(issues),
             'severity_breakdown': severity_breakdown,
             'config_used': config or {}
         }
@@ -305,7 +315,8 @@ class Flake8Parser:
                 'status': 'error',
                 'error': 'Invalid output format',
                 'issues': [],
-                'total_issues': 0
+                'total_issues': 0,
+                'issue_count': 0,
             }
         
         # Map error codes to severity
@@ -344,9 +355,10 @@ class Flake8Parser:
         return {
             'tool': 'flake8',
             'executed': True,
-            'status': 'success' if issues else 'no_issues',
+            'status': 'success',
             'issues': issues,
             'total_issues': len(issues),
+            'issue_count': len(issues),
             'severity_breakdown': severity_breakdown,
             'config_used': config or {}
         }
@@ -394,7 +406,8 @@ class ESLintParser:
                 'status': 'error',
                 'error': 'Invalid output format',
                 'issues': [],
-                'total_issues': 0
+                'total_issues': 0,
+                'issue_count': 0,
             }
         
         issues = []
@@ -427,9 +440,10 @@ class ESLintParser:
         return {
             'tool': 'eslint',
             'executed': True,
-            'status': 'success' if issues else 'no_issues',
+            'status': 'success',
             'issues': issues,
             'total_issues': len(issues),
+            'issue_count': len(issues),
             'severity_breakdown': severity_breakdown,
             'config_used': config or {}
         }
@@ -469,7 +483,8 @@ class SemgrepParser:
                 'status': 'error',
                 'error': 'Invalid output format',
                 'issues': [],
-                'total_issues': 0
+                'total_issues': 0,
+                'issue_count': 0,
             }
         
         results = raw_output.get('results', [])
@@ -510,9 +525,10 @@ class SemgrepParser:
         return {
             'tool': 'semgrep',
             'executed': True,
-            'status': 'success' if issues else 'no_issues',
+            'status': 'success',
             'issues': issues,
             'total_issues': len(issues),
+            'issue_count': len(issues),
             'severity_breakdown': severity_breakdown,
             'errors': raw_output.get('errors', []),
             'config_used': config or {}
@@ -573,9 +589,10 @@ class MyPyParser:
                 return {
                     'tool': 'mypy',
                     'executed': True,
-                    'status': 'no_issues',
+                    'status': 'success',
                     'issues': [],
-                    'total_issues': 0
+                    'total_issues': 0,
+                    'issue_count': 0,
                 }
         
         if not isinstance(raw_output, list):
@@ -585,7 +602,8 @@ class MyPyParser:
                 'status': 'error',
                 'error': 'Invalid JSON output format',
                 'issues': [],
-                'total_issues': 0
+                'total_issues': 0,
+                'issue_count': 0,
             }
         
         issues = []
@@ -608,9 +626,10 @@ class MyPyParser:
         return {
             'tool': 'mypy',
             'executed': True,
-            'status': 'success' if issues else 'no_issues',
+            'status': 'success',
             'issues': issues,
             'total_issues': len(issues),
+            'issue_count': len(issues),
             'severity_breakdown': severity_breakdown,
             'config_used': config or {}
         }
@@ -635,7 +654,8 @@ class VultureParser:
                 'status': 'error',
                 'error': 'Invalid output format',
                 'issues': [],
-                'total_issues': 0
+                'total_issues': 0,
+                'issue_count': 0,
             }
         
         issues = []
@@ -677,9 +697,10 @@ class VultureParser:
         return {
             'tool': 'vulture',
             'executed': True,
-            'status': 'success' if issues else 'no_issues',
+            'status': 'success',
             'issues': issues,
             'total_issues': len(issues),
+            'issue_count': len(issues),
             'severity_breakdown': severity_breakdown,
             'config_used': config or {}
         }
@@ -719,7 +740,8 @@ class RuffParser:
                 'status': 'error',
                 'error': 'Invalid JSON output format',
                 'issues': [],
-                'total_issues': 0
+                'total_issues': 0,
+                'issue_count': 0,
             }
         
         issues = []
@@ -767,9 +789,10 @@ class RuffParser:
         return {
             'tool': 'ruff',
             'executed': True,
-            'status': 'success' if issues else 'no_issues',
+            'status': 'success',
             'issues': issues,
             'total_issues': len(issues),
+            'issue_count': len(issues),
             'severity_breakdown': severity_breakdown,
             'config_used': config or {}
         }
@@ -811,7 +834,8 @@ def parse_tool_output(tool_name: str, raw_output: Any, config: Optional[Dict] = 
             'status': 'error',
             'error': f'No parser available for {tool_name}',
             'issues': [],
-            'total_issues': 0
+            'total_issues': 0,
+            'issue_count': 0,
         }
     
     try:
@@ -824,5 +848,6 @@ def parse_tool_output(tool_name: str, raw_output: Any, config: Optional[Dict] = 
             'status': 'error',
             'error': f'Parser error: {str(e)}',
             'issues': [],
-            'total_issues': 0
+            'total_issues': 0,
+            'issue_count': 0,
         }

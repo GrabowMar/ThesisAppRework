@@ -356,6 +356,208 @@ class ContainerToolRegistry:
             available=True,
             config_schema=ruff_schema
         )
+        
+        # pip-audit - Python dependency vulnerability scanner
+        pip_audit_schema = ToolConfigSchema(
+            parameters=[
+                ToolParameter("format", "string", "Output format", "json",
+                            options=["json", "text", "cyclonedx-json", "cyclonedx-xml"]),
+                ToolParameter("vulnerability_service", "string", "Vulnerability service to use", "pypi",
+                            options=["pypi", "osv"]),
+                ToolParameter("ignore_vulns", "array", "Vulnerability IDs to ignore", []),
+                ToolParameter("require_hashes", "boolean", "Require package hashes", False),
+                ToolParameter("no_deps", "boolean", "Skip dependency resolution", False),
+                ToolParameter("cache_dir", "string", "Custom cache directory", "")
+            ],
+            examples={
+                "comprehensive": {
+                    "format": "json",
+                    "vulnerability_service": "osv",
+                    "require_hashes": False
+                },
+                "quick_scan": {
+                    "format": "json",
+                    "no_deps": True
+                }
+            },
+            documentation_url="https://pypi.org/project/pip-audit/"
+        )
+        
+        self._tools["pip-audit"] = ContainerTool(
+            name="pip-audit",
+            display_name="pip-audit CVE Scanner",
+            description="Python dependency CVE and vulnerability scanner",
+            container=AnalyzerContainer.STATIC,
+            tags={"security", "python", "dependencies", "cve"},
+            supported_languages={"python"},
+            available=True,
+            config_schema=pip_audit_schema,
+            cli_flags=["-f", "--format", "-s", "--vulnerability-service", "--ignore-vuln"],
+            output_formats=["json", "text", "cyclonedx-json", "cyclonedx-xml"]
+        )
+        
+        # npm-audit - JavaScript/Node.js dependency vulnerability scanner
+        npm_audit_schema = ToolConfigSchema(
+            parameters=[
+                ToolParameter("audit_level", "string", "Minimum severity level", "low",
+                            options=["info", "low", "moderate", "high", "critical"]),
+                ToolParameter("production_only", "boolean", "Audit production dependencies only", False),
+                ToolParameter("omit", "array", "Dependency types to omit",
+                            options=["dev", "optional", "peer"]),
+                ToolParameter("registry", "string", "Custom npm registry URL", ""),
+                ToolParameter("format", "string", "Output format", "json",
+                            options=["json"])
+            ],
+            examples={
+                "production_only": {
+                    "production_only": True,
+                    "audit_level": "moderate"
+                },
+                "comprehensive": {
+                    "audit_level": "low",
+                    "production_only": False
+                }
+            },
+            documentation_url="https://docs.npmjs.com/cli/v9/commands/npm-audit"
+        )
+        
+        self._tools["npm-audit"] = ContainerTool(
+            name="npm-audit",
+            display_name="npm-audit CVE Scanner",
+            description="JavaScript/Node.js dependency CVE and vulnerability scanner",
+            container=AnalyzerContainer.STATIC,
+            tags={"security", "javascript", "dependencies", "cve"},
+            supported_languages={"javascript", "typescript"},
+            available=True,
+            config_schema=npm_audit_schema,
+            cli_flags=["--audit-level", "--production", "--omit", "--registry", "--json"],
+            output_formats=["json"]
+        )
+        
+        # flake8 - Python style guide enforcer
+        flake8_schema = ToolConfigSchema(
+            parameters=[
+                ToolParameter("max_line_length", "integer", "Maximum line length", 79,
+                            min_value=50, max_value=200),
+                ToolParameter("max_complexity", "integer", "Maximum McCabe complexity", 10,
+                            min_value=1, max_value=50),
+                ToolParameter("ignore", "array", "Error codes to ignore", ["E501", "W503"]),
+                ToolParameter("select", "array", "Error codes to select", []),
+                ToolParameter("format", "string", "Output format", "default",
+                            options=["default", "pylint", "json"]),
+                ToolParameter("show_source", "boolean", "Show source code", False),
+                ToolParameter("statistics", "boolean", "Show statistics", False),
+                ToolParameter("count", "boolean", "Print total number of errors", False)
+            ],
+            examples={
+                "strict": {
+                    "max_line_length": 88,
+                    "max_complexity": 10,
+                    "ignore": []
+                },
+                "relaxed": {
+                    "max_line_length": 120,
+                    "ignore": ["E501", "W503", "E203"]
+                }
+            },
+            documentation_url="https://flake8.pycqa.org/"
+        )
+        
+        self._tools["flake8"] = ContainerTool(
+            name="flake8",
+            display_name="Flake8 Style Checker",
+            description="Python style guide enforcement tool combining PyFlakes, pycodestyle, and McCabe",
+            container=AnalyzerContainer.STATIC,
+            tags={"quality", "python", "style", "linting"},
+            supported_languages={"python"},
+            available=True,
+            config_schema=flake8_schema,
+            cli_flags=["--max-line-length", "--max-complexity", "--ignore", "--select", "--format"],
+            output_formats=["default", "pylint", "json"]
+        )
+        
+        # stylelint - CSS/SCSS linter
+        stylelint_schema = ToolConfigSchema(
+            parameters=[
+                ToolParameter("config", "string", "Configuration preset", "stylelint-config-standard",
+                            options=["stylelint-config-standard", "stylelint-config-recommended"]),
+                ToolParameter("fix", "boolean", "Auto-fix issues", False),
+                ToolParameter("formatter", "string", "Output format", "json",
+                            options=["json", "string", "verbose", "compact"]),
+                ToolParameter("ignore_disables", "boolean", "Ignore inline disable comments", False),
+                ToolParameter("max_warnings", "integer", "Maximum warnings allowed", None,
+                            min_value=0),
+                ToolParameter("quiet", "boolean", "Only report errors", False),
+                ToolParameter("allow_empty_input", "boolean", "Allow empty input", False)
+            ],
+            examples={
+                "standard": {
+                    "config": "stylelint-config-standard",
+                    "fix": False
+                },
+                "auto_fix": {
+                    "config": "stylelint-config-standard",
+                    "fix": True
+                }
+            },
+            documentation_url="https://stylelint.io/"
+        )
+        
+        self._tools["stylelint"] = ContainerTool(
+            name="stylelint",
+            display_name="Stylelint CSS Linter",
+            description="Modern CSS/SCSS linter for style guide enforcement",
+            container=AnalyzerContainer.STATIC,
+            tags={"quality", "css", "scss", "style", "linting"},
+            supported_languages={"css", "scss", "sass", "less"},
+            available=True,
+            config_schema=stylelint_schema,
+            cli_flags=["--config", "--fix", "--formatter", "--max-warnings", "--quiet"],
+            output_formats=["json", "string", "verbose", "compact"]
+        )
+        
+        # JSHint - JavaScript code quality tool
+        jshint_schema = ToolConfigSchema(
+            parameters=[
+                ToolParameter("esversion", "integer", "ECMAScript version", 6,
+                            options=[3, 5, 6, 7, 8, 9, 10, 11]),
+                ToolParameter("node", "boolean", "Enable Node.js environment", False),
+                ToolParameter("browser", "boolean", "Enable browser environment", True),
+                ToolParameter("globals", "object", "Predefined globals", {}),
+                ToolParameter("strict", "string", "Strict mode", "implied",
+                            options=["global", "implied", "false"]),
+                ToolParameter("undef", "boolean", "Prohibit undefined variables", True),
+                ToolParameter("unused", "boolean", "Warn about unused variables", True),
+                ToolParameter("reporter", "string", "Output format", "jslint",
+                            options=["jslint", "checkstyle", "unix"])
+            ],
+            examples={
+                "modern": {
+                    "esversion": 11,
+                    "browser": True,
+                    "node": False
+                },
+                "node_app": {
+                    "esversion": 9,
+                    "node": True,
+                    "browser": False
+                }
+            },
+            documentation_url="https://jshint.com/docs/"
+        )
+        
+        self._tools["jshint"] = ContainerTool(
+            name="jshint",
+            display_name="JSHint Code Quality",
+            description="JavaScript code quality tool for detecting errors and potential problems",
+            container=AnalyzerContainer.STATIC,
+            tags={"quality", "javascript", "linting"},
+            supported_languages={"javascript"},
+            available=True,
+            config_schema=jshint_schema,
+            cli_flags=["--config", "--reporter", "--extract", "--verbose"],
+            output_formats=["jslint", "checkstyle", "unix"]
+        )
     
     def _register_dynamic_analyzer_tools(self) -> None:
         """Register tools from the dynamic-analyzer container."""
@@ -537,6 +739,57 @@ class ContainerToolRegistry:
             supported_languages={"web"},
             available=True,
             config_schema=aiohttp_schema
+        )
+        
+        # Artillery - Modern load testing toolkit
+        artillery_schema = ToolConfigSchema(
+            parameters=[
+                ToolParameter("duration", "integer", "Test duration in seconds", 60,
+                            min_value=10, max_value=600),
+                ToolParameter("arrival_rate", "integer", "New virtual users per second", 10,
+                            min_value=1, max_value=100),
+                ToolParameter("ramp_to", "integer", "Ramp up to this many users", None,
+                            min_value=1, max_value=1000),
+                ToolParameter("phases", "array", "Test phases configuration", []),
+                ToolParameter("target", "string", "Target URL", "",
+                            pattern=r"^https?://.*"),
+                ToolParameter("timeout", "integer", "Request timeout in seconds", 10,
+                            min_value=1, max_value=120),
+                ToolParameter("output_format", "string", "Output format", "json",
+                            options=["json", "text"]),
+                ToolParameter("scenarios", "array", "Test scenarios", [])
+            ],
+            examples={
+                "warm_up": {
+                    "duration": 60,
+                    "arrival_rate": 5,
+                    "timeout": 10
+                },
+                "load_test": {
+                    "duration": 120,
+                    "arrival_rate": 10,
+                    "ramp_to": 50
+                },
+                "stress_test": {
+                    "duration": 300,
+                    "arrival_rate": 20,
+                    "ramp_to": 100
+                }
+            },
+            documentation_url="https://www.artillery.io/docs"
+        )
+        
+        self._tools["artillery"] = ContainerTool(
+            name="artillery",
+            display_name="Artillery Load Testing",
+            description="Modern, powerful, and easy-to-use load testing toolkit",
+            container=AnalyzerContainer.PERFORMANCE,
+            tags={"performance", "load_testing", "modern", "scenarios"},
+            supported_languages={"web"},
+            available=True,
+            config_schema=artillery_schema,
+            cli_flags=["--target", "--output", "--overrides", "--config"],
+            output_formats=["json", "text"]
         )
     
     def _register_ai_analyzer_tools(self) -> None:
