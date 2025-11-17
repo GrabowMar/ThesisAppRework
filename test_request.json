@@ -1,0 +1,6 @@
+{
+  "model_slug": "anthropic_claude-4.5-haiku-20251001",
+  "app_number": 1,
+  "analysis_type": "static",
+  "tools": ["bandit", "semgrep", "ruff", "eslint"]
+}

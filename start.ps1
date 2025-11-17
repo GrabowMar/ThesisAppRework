@@ -51,7 +51,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('Interactive', 'Start', 'Dev', 'Stop', 'Status', 'Logs', 'Rebuild', 'CleanRebuild', 'Clean', 'Wipeout', 'Health', 'Help', 'Password', 'Maintenance')]
+    [ValidateSet('Interactive', 'Start', 'Dev', 'Stop', 'Status', 'Logs', 'Rebuild', 'CleanRebuild', 'Clean', 'Wipeout', 'Health', 'Help', 'Password', 'Maintenance', 'Reload')]
     [string]$Mode = 'Interactive',
 
     [switch]$NoAnalyzer,
@@ -707,6 +707,7 @@ function Show-InteractiveMenu {
     Write-Host ""
     Write-Host "  [S] Start        - Start full stack (Flask + Analyzers)" -ForegroundColor White
     Write-Host "  [D] Dev          - Developer mode (Flask + ThreadPoolExecutor, debug on)" -ForegroundColor White
+    Write-Host "  [O] Reload       - 🔄 Quick reload (Stop → Start for live code changes)" -ForegroundColor White
     Write-Host "  [R] Rebuild      - Rebuild containers (fast, with cache)" -ForegroundColor White
     Write-Host "  [F] CleanRebuild - ⚠️  Force rebuild (no cache, slow)" -ForegroundColor White
     Write-Host "  [L] Logs         - View aggregated logs" -ForegroundColor White
@@ -731,6 +732,11 @@ function Show-InteractiveMenu {
         }
         'D' {
             Start-DevMode
+        }
+        'O' {
+            Invoke-Reload
+            Read-Host "`nPress Enter to return to menu"
+            Show-InteractiveMenu
         }
         'R' {
             Invoke-RebuildContainers
@@ -1028,6 +1034,38 @@ if __name__ == '__main__':
     }
 }
 
+function Invoke-Reload {
+    Write-Banner "🔄 Reloading ThesisApp" "Yellow"
+    
+    Write-Status "Quick reload for live code changes..." "Info"
+    Write-Host "  This will stop and restart all services" -ForegroundColor Gray
+    Write-Host ""
+    
+    # Stop all services
+    Write-Status "Stopping services..." "Info"
+    Stop-AllServices
+    
+    # Brief pause to ensure clean shutdown
+    Start-Sleep -Seconds 2
+    
+    # Start services again
+    Write-Status "Restarting services..." "Info"
+    $Script:Background = $true
+    
+    if (Start-FullStack) {
+        Write-Host ""
+        Write-Banner "✅ Reload Complete" "Green"
+        Write-Host "🌐 Application URL: " -NoNewline -ForegroundColor Cyan
+        Write-Host "http://127.0.0.1:$Port" -ForegroundColor White
+        Write-Host "⚡ All services restarted with latest code" -ForegroundColor Gray
+        Write-Host ""
+        return $true
+    } else {
+        Write-Status "Reload failed - check logs for details" "Error"
+        return $false
+    }
+}
+
 function Invoke-Cleanup {
     Write-Banner "Cleaning ThesisApp"
 
@@ -1277,6 +1315,7 @@ function Show-Help {
     Write-Host "  Interactive   Launch interactive menu (default)" -ForegroundColor White
     Write-Host "  Start         Start full stack (Flask + Analyzers)" -ForegroundColor White
     Write-Host "  Dev           Developer mode (Flask with ThreadPoolExecutor, debug enabled)" -ForegroundColor White
+    Write-Host "  Reload        Quick reload - stop and restart all services (for live code changes)" -ForegroundColor White
     Write-Host "  Stop          Stop all services gracefully" -ForegroundColor White
     Write-Host "  Status        Show service status (one-time check)" -ForegroundColor White
     Write-Host "  Health        Continuous health monitoring (auto-refresh)" -ForegroundColor White
@@ -1309,6 +1348,9 @@ function Show-Help {
     
     Write-Host "  .\start.ps1 -Mode Dev -NoAnalyzer" -ForegroundColor Yellow
     Write-Host "    → Quick dev mode without analyzer containers`n" -ForegroundColor DarkGray
+    
+    Write-Host "  .\start.ps1 -Mode Reload" -ForegroundColor Yellow
+    Write-Host "    → Quick reload for live code changes (Stop → Start)`n" -ForegroundColor DarkGray
     
     Write-Host "  .\start.ps1 -Mode Logs" -ForegroundColor Yellow
     Write-Host "    → View live logs with auto-follow (Ctrl+C to stop)`n" -ForegroundColor DarkGray
@@ -1390,6 +1432,9 @@ try {
         }
         'Dev' {
             Start-DevMode
+        }
+        'Reload' {
+            Invoke-Reload
         }
         'Stop' {
             Stop-AllServices

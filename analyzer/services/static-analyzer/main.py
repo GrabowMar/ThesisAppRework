@@ -253,6 +253,11 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                             for run in sarif_data['runs']:
                                 total_issues += len(run.get('results', []))
                         result['total_issues'] = total_issues
+                        result['issue_count'] = total_issues  # Match total_issues for consistent display
+                        # NOTE: issues[] array intentionally left empty for SARIF-native tools
+                        # Full issue details are in the SARIF file (extracted to sarif/ subdirectory)
+                        # This saves 60-80% space by avoiding duplication
+                        result['issues'] = []  # Explicit - data is in SARIF file
                 except Exception as e:
                     self.log.warning(f"Could not read bandit SARIF output: {e}")
             results['bandit'] = result
@@ -351,6 +356,9 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                         for run in sarif_data['runs']:
                             total_issues += len(run.get('results', []))
                     result['total_issues'] = total_issues
+                    result['issue_count'] = total_issues  # Match total_issues for consistent display
+                    # NOTE: issues[] array intentionally empty - data is in SARIF file
+                    result['issues'] = []  # Explicit - full details in SARIF
                 except Exception as e:
                     self.log.warning(f"Could not parse semgrep SARIF output: {e}")
             results['semgrep'] = result
@@ -373,26 +381,27 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             # Parser now handles newline-delimited JSON natively
             results['mypy'] = await self._run_tool(cmd, 'mypy', config=mypy_config, success_exit_codes=[0, 1])
 
+        # Find requirements file (used by both safety and pip-audit)
+        requirements_locations = [
+            source_path / 'requirements.txt',
+            source_path / 'backend' / 'requirements.txt',
+            source_path / 'api' / 'requirements.txt',
+            source_path / 'server' / 'requirements.txt',
+        ]
+        
+        requirements_file = None
+        for location in requirements_locations:
+            if location.exists() and location.is_file():
+                requirements_file = location
+                self.log.info(f"Found requirements file at: {location.relative_to(source_path)}")
+                break
+
         # Safety dependency vulnerability scanning
         if (
             'safety' in self.available_tools
             and (selected_tools is None or 'safety' in selected_tools)
             and safety_config.get('enabled', True)
         ):
-            # Check multiple common locations for requirements files
-            requirements_locations = [
-                source_path / 'requirements.txt',
-                source_path / 'backend' / 'requirements.txt',
-                source_path / 'api' / 'requirements.txt',
-                source_path / 'server' / 'requirements.txt',
-            ]
-            
-            requirements_file = None
-            for location in requirements_locations:
-                if location.exists() and location.is_file():
-                    requirements_file = location
-                    self.log.info(f"Found requirements file at: {location.relative_to(source_path)}")
-                    break
             
             if not requirements_file:
                 self.log.info("Skipping Safety - no requirements.txt found in common locations")
@@ -539,6 +548,9 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                         for run in sarif_data['runs']:
                             total_issues += len(run.get('results', []))
                     result['total_issues'] = total_issues
+                    result['issue_count'] = total_issues  # Match total_issues for consistent display
+                    # NOTE: issues[] array intentionally empty - data is in SARIF file
+                    result['issues'] = []  # Explicit - full details in SARIF
                 except Exception as e:
                     self.log.warning(f"Could not parse ruff SARIF output: {e}")
             results['ruff'] = result
@@ -638,6 +650,9 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                             for run in sarif_data['runs']:
                                 total_issues += len(run.get('results', []))
                         result['total_issues'] = total_issues
+                        result['issue_count'] = total_issues  # Match total_issues for consistent display
+                        # NOTE: issues[] array intentionally empty - data is in SARIF file
+                        result['issues'] = []  # Explicit - full details in SARIF
                     except Exception as e:
                         self.log.warning(f"Could not parse eslint SARIF output: {e}")
                 results['eslint'] = result
