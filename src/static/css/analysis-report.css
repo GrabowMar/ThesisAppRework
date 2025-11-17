@@ -243,3 +243,169 @@ pre code {
 .severity-info {
   color: #4299e1;
 }
+
+/* Tool Detail Modal Styles */
+.modal-xl {
+  max-width: 1200px;
+}
+
+#toolDetailModal .modal-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-bottom: none;
+}
+
+#toolDetailModal .modal-header .btn-close {
+  filter: brightness(0) invert(1);
+}
+
+#toolDetailModal .modal-title {
+  font-weight: 600;
+}
+
+#toolDetailModal .card-header {
+  font-weight: 600;
+  border-bottom: 2px solid #e9ecef;
+}
+
+/* Tool Detail Button */
+.tool-detail-btn {
+  transition: all 0.2s ease;
+}
+
+.tool-detail-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Issues Table in Modal */
+#issues-table {
+  font-size: 0.875rem;
+}
+
+#issues-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+#issues-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+#issues-table code {
+  font-size: 0.8rem;
+  background-color: #f1f3f5;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+}
+
+/* Pagination Controls */
+#pagination-controls {
+  margin-bottom: 0;
+}
+
+#pagination-controls .page-link {
+  font-size: 0.875rem;
+  padding: 0.25rem 0.5rem;
+}
+
+/* SARIF Preview */
+#sarif-preview pre {
+  background-color: #282c34;
+  color: #abb2bf;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+#sarif-preview code {
+  color: #abb2bf;
+}
+
+/* Configuration Display */
+#config-content {
+  font-family: 'Courier New', monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #495057;
+}
+
+/* Metadata Grid */
+#meta-additional .col-md-3 {
+  border-left: 3px solid #e9ecef;
+  padding-left: 1rem;
+}
+
+/* Severity Breakdown Cards */
+#severity-breakdown .badge {
+  font-size: 1.25rem;
+  padding: 0.5em 0.75em;
+}
+
+/* Performance Metrics Grid */
+#performance-metrics .col-md-3 {
+  text-align: center;
+  border-right: 1px solid #e9ecef;
+}
+
+#performance-metrics .col-md-3:last-child {
+  border-right: none;
+}
+
+/* Loading State */
+#modal-loading .spinner-border {
+  width: 3rem;
+  height: 3rem;
+}
+
+/* Empty States */
+.empty-icon {
+  font-size: 2rem;
+  color: #adb5bd;
+  margin-bottom: 1rem;
+}
+
+.empty-title {
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 0.5rem;
+}
+
+.empty-subtitle {
+  color: #868e96;
+}
+
+/* Responsive Modal */
+@media (max-width: 992px) {
+  .modal-xl {
+    max-width: 95%;
+    margin: 0.5rem;
+  }
+  
+  #issues-table {
+    font-size: 0.75rem;
+  }
+  
+  #issues-table td,
+  #issues-table th {
+    padding: 0.5rem 0.25rem;
+  }
+}
+
+@media (max-width: 768px) {
+  #toolDetailModal .modal-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  #meta-additional .col-md-3,
+  #severity-breakdown .col-md-2,
+  #performance-metrics .col-md-3 {
+    margin-bottom: 1rem;
+    border-left: none;
+    border-right: none;
+    border-bottom: 1px solid #e9ecef;
+    padding-bottom: 1rem;
+  }
+}

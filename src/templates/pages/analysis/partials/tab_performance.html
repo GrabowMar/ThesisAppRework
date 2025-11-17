@@ -35,6 +35,7 @@
             <th class="text-end">Success Rate</th>
             <th class="text-end">Requests</th>
             <th>Issues</th>
+            <th width="8%" class="text-center">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -98,6 +99,16 @@
               {% else %}
                 <span class="text-success">None</span>
               {% endif %}
+            </td>
+            <td class="text-center">
+              <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
+                      data-tool-name="{{ test_name }}" 
+                      data-service="performance"
+                      data-result-id="{{ descriptor.identifier }}"
+                      data-tool-data='{{ test_data|tojson }}'
+                      title="View detailed metrics">
+                <i class="fa-solid fa-magnifying-glass"></i>
+              </button>
             </td>
           </tr>
           {% endif %}

@@ -24,7 +24,8 @@
             <th class="text-center">Status</th>
             <th class="text-center">Issues</th>
             <th class="text-center">Severity</th>
-            <th width="40%">Top Issues</th>
+            <th width="35%">Top Issues</th>
+            <th width="10%" class="text-center">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -81,7 +82,7 @@
               <td class="small text-muted">
                 {% if tool_data.issues %}
                   {% for issue in tool_data.issues[:2] %}
-                    <div class="text-truncate" style="max-width: 400px;">• {{ issue.issue_text|default(issue.message)|default('No description') }}</div>
+                    <div class="text-truncate" style="max-width: 350px;">• {{ issue.issue_text|default(issue.message)|default('No description') }}</div>
                   {% endfor %}
                   {% if tool_data.issues|length > 2 %}
                     <div class="text-muted">...and {{ tool_data.issues|length - 2 }} more</div>
@@ -89,6 +90,17 @@
                 {% else %}
                   <span class="text-success">No issues found</span>
                 {% endif %}
+              </td>
+              <td class="text-center">
+                <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
+                        data-tool-name="{{ tool_name }}" 
+                        data-service="static" 
+                        data-language="{{ lang }}"
+                        data-result-id="{{ descriptor.identifier }}"
+                        data-tool-data='{{ tool_data|tojson }}'
+                        title="View detailed analysis">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
               </td>
             </tr>
               {% endif %}

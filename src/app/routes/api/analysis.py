@@ -4,10 +4,11 @@ Handles security analysis, performance testing, and analysis summaries.
 All tool operations are now delegated to the container-based tool registry.
 """
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from app.routes.api.common import api_error
 from app.engines.container_tool_registry import get_container_tool_registry
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -254,4 +255,193 @@ def run_analysis():
     except Exception as e:
         logger.exception(f"Error running analysis: {str(e)}")
         return api_error(f"Failed to run analysis: {str(e)}", 500)
+
+
+@analysis_bp.route('/results/<result_id>/tools/<tool_name>', methods=['GET'])
+def get_tool_details(result_id: str, tool_name: str):
+    """
+    Get detailed information for a specific tool from an analysis result.
+    
+    Endpoint: GET /api/analysis/results/<result_id>/tools/<tool_name>?service=<service_type>
+    
+    Query parameters:
+        - service: Service type (static, dynamic, performance, ai) - optional
+        - page: Page number for pagination (default: 1)
+        - per_page: Items per page (default: 25)
+        - severity: Filter by severity (CRITICAL, HIGH, MEDIUM, LOW, INFO)
+    
+    Returns:
+    {
+        "success": true,
+        "data": {
+            "tool_name": "bandit",
+            "language": "python",
+            "status": "success",
+            "executed": true,
+            "execution_time": 2.3,
+            "total_issues": 5,
+            "issues": [...],
+            "sarif_file": "sarif/static_python_bandit.sarif.json",
+            ...
+        }
+    }
+    """
+    try:
+        from app.services.unified_result_service import UnifiedResultService
+        
+        # Get query parameters
+        service_type = request.args.get('service', '').lower()
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 25))
+        severity_filter = request.args.get('severity', '').upper()
+        
+        # Load result data
+        result_service = UnifiedResultService()
+        result = result_service.load_analysis_results(result_id)
+        
+        if not result:
+            return api_error(f"Result not found: {result_id}", 404)
+        
+        result_data = result.raw_data
+        
+        # Extract tool data from result
+        tool_data = None
+        detected_service = None
+        
+        # Try to find tool in services
+        services = result_data.get('results', {}).get('services', {})
+        
+        # Search through all services if not specified
+        search_services = [service_type] if service_type else ['static', 'dynamic', 'performance', 'ai']
+        
+        for svc in search_services:
+            if svc not in services:
+                continue
+            
+            svc_data = services[svc]
+            analysis = svc_data.get('analysis', {})
+            
+            # Check different result structures
+            if svc == 'static':
+                # Static has language-based grouping
+                results = analysis.get('results', {})
+                for lang, lang_tools in results.items():
+                    if isinstance(lang_tools, dict) and tool_name.lower() in [k.lower() for k in lang_tools.keys()]:
+                        # Find exact match (case-insensitive)
+                        for k, v in lang_tools.items():
+                            if k.lower() == tool_name.lower():
+                                tool_data = v.copy()
+                                tool_data['language'] = lang
+                                detected_service = svc
+                                break
+                    if tool_data:
+                        break
+            else:
+                # Dynamic, performance, AI have flat tool_results
+                tool_results = analysis.get('tool_results', analysis.get('results', {}))
+                if isinstance(tool_results, dict):
+                    for k, v in tool_results.items():
+                        if k.lower() == tool_name.lower():
+                            tool_data = v.copy()
+                            detected_service = svc
+                            break
+            
+            if tool_data:
+                break
+        
+        if not tool_data:
+            return api_error(f"Tool '{tool_name}' not found in result", 404)
+        
+        # Add tool name to response
+        tool_data['tool_name'] = tool_name
+        tool_data['service_type'] = detected_service
+        
+        # Filter issues by severity if requested
+        if severity_filter and 'issues' in tool_data and tool_data['issues']:
+            original_issues = tool_data['issues']
+            filtered_issues = [
+                issue for issue in original_issues
+                if (issue.get('issue_severity') or issue.get('severity', '')).upper() == severity_filter
+            ]
+            tool_data['issues'] = filtered_issues
+            tool_data['filtered_count'] = len(filtered_issues)
+            tool_data['original_count'] = len(original_issues)
+        
+        # Apply pagination to issues
+        if 'issues' in tool_data and tool_data['issues']:
+            total_issues = len(tool_data['issues'])
+            start = (page - 1) * per_page
+            end = start + per_page
+            
+            tool_data['pagination'] = {
+                'page': page,
+                'per_page': per_page,
+                'total': total_issues,
+                'pages': (total_issues + per_page - 1) // per_page,
+                'has_prev': page > 1,
+                'has_next': end < total_issues
+            }
+            
+            # Slice issues for current page
+            tool_data['issues'] = tool_data['issues'][start:end]
+        
+        return jsonify({
+            'success': True,
+            'data': tool_data
+        })
+        
+    except Exception as e:
+        logger.exception(f"Error fetching tool details: {str(e)}")
+        return api_error(f"Failed to fetch tool details: {str(e)}", 500)
+
+
+@analysis_bp.route('/results/<result_id>/sarif/<path:sarif_path>', methods=['GET'])
+def get_sarif_file(result_id: str, sarif_path: str):
+    """
+    Get SARIF file content from an analysis result.
+    
+    Endpoint: GET /api/analysis/results/<result_id>/sarif/<sarif_path>
+    
+    Returns: SARIF JSON file or 404 if not found
+    """
+    try:
+        import os
+        from pathlib import Path
+        
+        # Construct full path to SARIF file
+        # SARIF files are stored in results/{model}/app{N}/task_{id}/sarif/
+        # We need to resolve the actual filesystem path
+        
+        # Extract model slug and app number from result_id or metadata
+        from app.services.unified_result_service import UnifiedResultService
+        result_service = UnifiedResultService()
+        result = result_service.load_analysis_results(result_id)
+        
+        if not result:
+            return api_error(f"Result not found: {result_id}", 404)
+        
+        result_data = result.raw_data
+        metadata = result_data.get('metadata', {})
+        model_slug = metadata.get('model_slug', '')
+        app_number = metadata.get('app_number', '')
+        
+        if not model_slug or not app_number:
+            return api_error("Invalid result metadata", 400)
+        
+        # Build path to SARIF file
+        results_base = Path(current_app.root_path).parent / 'results'
+        sarif_full_path = results_base / model_slug / f'app{app_number}' / f'task_{result_id}' / sarif_path
+        
+        if not sarif_full_path.exists():
+            return api_error(f"SARIF file not found: {sarif_path}", 404)
+        
+        # Read and return SARIF file
+        with open(sarif_full_path, 'r', encoding='utf-8') as f:
+            sarif_data = json.load(f)
+        
+        return jsonify(sarif_data)
+        
+    except Exception as e:
+        logger.exception(f"Error fetching SARIF file: {str(e)}")
+        return api_error(f"Failed to fetch SARIF file: {str(e)}", 500)
 

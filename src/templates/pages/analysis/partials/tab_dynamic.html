@@ -31,7 +31,8 @@
             <th>Tool</th>
             <th class="text-center">Status</th>
             <th class="text-center">Issues Found</th>
-            <th width="50%">Summary</th>
+            <th width="45%">Summary</th>
+            <th width="10%" class="text-center">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -62,6 +63,16 @@
               {% else %}
                 <span class="text-success">No issues detected</span>
               {% endif %}
+            </td>
+            <td class="text-center">
+              <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
+                      data-tool-name="{{ tool_name }}" 
+                      data-service="dynamic"
+                      data-result-id="{{ descriptor.identifier }}"
+                      data-tool-data='{{ tool_data|tojson }}'
+                      title="View detailed analysis">
+                <i class="fa-solid fa-magnifying-glass"></i>
+              </button>
             </td>
           </tr>
           {% endif %}
