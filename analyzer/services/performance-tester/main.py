@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from analyzer.shared.service_base import BaseWSService
+from analyzer.shared.tool_logger import ToolExecutionLogger
 
 class PerformanceTester(BaseWSService):
     """Simplified, robust performance testing service."""
@@ -27,6 +28,8 @@ class PerformanceTester(BaseWSService):
         super().__init__(service_name="performance-tester", default_port=2003, version="2.0.0")
         self.test_output_dir = Path("/tmp/performance_tests")
         self.test_output_dir.mkdir(exist_ok=True)
+        # Initialize tool execution logger for comprehensive output logging
+        self.tool_logger = ToolExecutionLogger(self.log)
     
     def _detect_available_tools(self) -> List[str]:
         """Detect which performance testing tools are available."""
@@ -151,10 +154,16 @@ class PerformanceTester(BaseWSService):
             # Build command
             cmd = ['ab', '-n', str(requests), '-c', str(concurrency), '-g', 'ab_results.tsv', ab_url]
             
+            # Log command start
+            self.tool_logger.log_command_start('ab', cmd, context={'requests': requests, 'concurrency': concurrency})
+            
             # Run test with shorter timeout for faster tests (was 600s)
             start_ts = time.time()
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=45, cwd=str(self.test_output_dir))
             duration = time.time() - start_ts
+            
+            # Log command completion
+            exec_record = self.tool_logger.log_command_complete('ab', cmd, result, duration)
             
             if result.returncode == 0:
                 # Parse results from stdout
@@ -556,7 +565,11 @@ scenarios:
                                          selected_tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Perform comprehensive performance testing on application."""
         try:
-            self.log.info(f"Performance testing {model_slug} app {app_number} with tools: {selected_tools}")
+            self.log.info("═" * 80)
+            self.log.info(f"⚡ PERFORMANCE TESTING: {model_slug} app {app_number}")
+            self.log.info(f"   🎯 Targets: {', '.join(target_urls)}")
+            self.log.info(f"   🔧 Selected Tools: {', '.join(selected_tools) if selected_tools else 'all available'}")
+            self.log.info("═" * 80)
             
             results = {
                 'model_slug': model_slug,
@@ -583,12 +596,15 @@ scenarios:
             else:
                 tools_to_run = available_tools
             
-            self.log.info(f"Running tools: {list(tools_to_run)}")
+            self.log.info("═" * 80)
+            self.log.info("🔌 CONNECTIVITY & LOAD TESTING PHASE")
+            self.log.info("═" * 80)
+            self.log.info(f"   🔧 Available Tools: {list(tools_to_run)}")
             
             # Test each URL
             tool_summary: Dict[str, Dict[str, Any]] = {}
             for url in target_urls:
-                self.log.info(f"Testing URL: {url}")
+                self.log.info(f"\n━━━ Testing URL: {url} ━━━")
                 url_results = {}
                 
                 # 1. Quick connectivity check
@@ -603,7 +619,6 @@ scenarios:
                 
                 # Use the working URL from connectivity check
                 working_url = connectivity.get('working_url') or url
-                self.log.info(f"Using working URL: {working_url}")
                 
                 # 2. Run selected tools
                 if 'aiohttp' in tools_to_run and (connectivity['status'] == 'success' or force_run):

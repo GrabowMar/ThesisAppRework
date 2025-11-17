@@ -19,6 +19,7 @@ from typing import Dict, List, Any, Optional, Set
 from analyzer.shared.path_utils import resolve_app_source_path
 
 from analyzer.shared.service_base import BaseWSService
+from analyzer.shared.tool_logger import ToolExecutionLogger
 from parsers import parse_tool_output
 from sarif_parsers import parse_tool_output_to_sarif, build_sarif_document, get_available_sarif_parsers
 
@@ -34,6 +35,8 @@ class StaticAnalyzer(BaseWSService):
             '.venv', 'venv', '__pycache__', '.git', '.tox', '.mypy_cache',
             'coverage', 'site-packages'
         ]
+        # Initialize tool execution logger for comprehensive output logging
+        self.tool_logger = ToolExecutionLogger(self.log)
 
     async def _run_tool(self, cmd: List[str], tool_name: str, config: Optional[Dict] = None, timeout: int = 120, success_exit_codes: List[int] = [0], skip_parser: bool = False) -> Dict[str, Any]:
         """
@@ -50,26 +53,48 @@ class StaticAnalyzer(BaseWSService):
         Returns:
             Standardized result dictionary with parsed issues
         """
-        self.log.info(f"Running {tool_name}: {' '.join(cmd)}")
+        import time
+        
+        # Log command start
+        self.tool_logger.log_command_start(tool_name, cmd)
+        
+        start_time = time.time()
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            duration = time.time() - start_time
+            
+            # Check if this is a successful exit code
+            is_success = result.returncode in success_exit_codes
+            
+            # Log command completion with outputs
+            exec_record = self.tool_logger.log_command_complete(
+                tool_name, cmd, result, duration, is_success=is_success
+            )
             
             if result.returncode not in success_exit_codes:
                 error_message = f"{tool_name} exited with {result.returncode}. Stderr: {result.stderr[:500]}"
                 self.log.error(error_message)
-                return {'tool': tool_name, 'executed': True, 'status': 'error', 'error': error_message, 'exit_code': result.returncode}
+                return {'tool': tool_name, 'executed': True, 'status': 'error', 'error': error_message, 'exit_code': result.returncode, 'execution_record': exec_record}
 
             if not result.stdout:
-                return {'tool': tool_name, 'executed': True, 'status': 'success', 'issues': [], 'total_issues': 0, 'issue_count': 0}
+                return {'tool': tool_name, 'executed': True, 'status': 'success', 'issues': [], 'total_issues': 0, 'issue_count': 0, 'execution_record': exec_record}
 
             # Skip parser for SARIF tools - they handle output themselves
             if skip_parser:
-                return {'tool': tool_name, 'executed': True, 'status': 'success', 'output': result.stdout, 'issue_count': 0}
+                return {'tool': tool_name, 'executed': True, 'status': 'success', 'output': result.stdout, 'issue_count': 0, 'execution_record': exec_record}
 
             try:
+                # Log parser start
+                self.tool_logger.log_parser_start(tool_name, len(result.stdout), 'json')
+                
                 raw_output = json.loads(result.stdout)
                 # Use tool-specific parser to standardize output
                 parsed_result = parse_tool_output(tool_name, raw_output, config)
+                
+                # Log parser completion
+                severity_breakdown = parsed_result.get('severity_breakdown')
+                issue_count = parsed_result.get('total_issues', parsed_result.get('issue_count', 0))
+                self.tool_logger.log_parser_complete(tool_name, issue_count, severity_breakdown)
                 
                 # Generate SARIF representation if supported
                 sarif_run = parse_tool_output_to_sarif(tool_name, raw_output, config)
@@ -77,25 +102,36 @@ class StaticAnalyzer(BaseWSService):
                     parsed_result['sarif'] = sarif_run
                     self.log.debug(f"Generated SARIF output for {tool_name}")
                 
+                # Attach execution record for debugging
+                parsed_result['execution_record'] = exec_record
                 return parsed_result
             except json.JSONDecodeError as e:
+                # Log JSON parse error with context
+                self.tool_logger.log_parser_error(tool_name, e, result.stdout[:200])
+                
                 # Handle tools that output text or newline-delimited JSON (mypy, vulture)
                 # Pass raw text to parser which handles format detection
                 try:
+                    self.tool_logger.log_parser_start(tool_name, len(result.stdout), 'text')
                     parsed_result = parse_tool_output(tool_name, result.stdout, config)
                     if parsed_result.get('status') in ('success', 'no_issues', 'completed'):
                         # Parser successfully handled the output
                         # Ensure issue_count is present for uniform status display
                         if 'issue_count' not in parsed_result:
                             parsed_result['issue_count'] = parsed_result.get('total_issues', len(parsed_result.get('issues', [])))
+                        # Log successful text parsing
+                        issue_count = parsed_result.get('issue_count', 0)
+                        self.tool_logger.log_parser_complete(tool_name, issue_count)
+                        parsed_result['execution_record'] = exec_record
                         return parsed_result
                 except Exception as parse_err:
+                    self.tool_logger.log_parser_error(tool_name, parse_err)
                     self.log.warning(f"{tool_name} parser failed: {parse_err}")
                 
                 # Final fallback: treat as text output
                 self.log.warning(f"{tool_name} produced non-JSON output: {e}")
                 sarif_run = parse_tool_output_to_sarif(tool_name, result.stdout, config)
-                fallback_result = {'tool': tool_name, 'executed': True, 'status': 'success', 'output': result.stdout[:1000], 'issue_count': 0}
+                fallback_result = {'tool': tool_name, 'executed': True, 'status': 'success', 'output': result.stdout[:1000], 'issue_count': 0, 'execution_record': exec_record}
                 if sarif_run:
                     fallback_result['sarif'] = sarif_run
                     self.log.debug(f"Generated SARIF output for text-based {tool_name}")
@@ -105,8 +141,10 @@ class StaticAnalyzer(BaseWSService):
             self.log.error(f"{tool_name} not found. Is it installed and in PATH?")
             return {'tool': tool_name, 'executed': False, 'status': 'error', 'error': f'{tool_name} not found'}
         except subprocess.TimeoutExpired:
+            duration = time.time() - start_time
             self.log.error(f"{tool_name} timed out after {timeout} seconds.")
-            return {'tool': tool_name, 'executed': True, 'status': 'error', 'error': 'Timeout expired'}
+            self.log.info(f"[TOOL-EXEC] {tool_name}: ✗ TIMEOUT | duration={duration:.2f}s")
+            return {'tool': tool_name, 'executed': True, 'status': 'error', 'error': 'Timeout expired', 'duration': duration}
         except Exception as e:
             self.log.error(f"An unexpected error occurred with {tool_name}: {e}")
             return {'tool': tool_name, 'executed': True, 'status': 'error', 'error': str(e)}
@@ -910,7 +948,9 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             }
             
             # Run analysis for different file types with configuration
-            self.log.info("Analyzing Python files...")
+            self.log.info("═" * 80)
+            self.log.info("🐍 PYTHON ANALYSIS PHASE")
+            self.log.info("═" * 80)
             await self.send_progress('scanning_python', 'Scanning Python files', analysis_id=analysis_id)
             py_res = await self.analyze_python_files(model_path, config, selected_set)
             results['results']['python'] = py_res
@@ -934,7 +974,9 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             except Exception:
                 pass
             
-            self.log.info("Analyzing JavaScript files...")
+            self.log.info("═" * 80)
+            self.log.info("📜 JAVASCRIPT/TYPESCRIPT ANALYSIS PHASE")
+            self.log.info("═" * 80)
             await self.send_progress('scanning_js', 'Scanning JavaScript/TypeScript files', analysis_id=analysis_id)
             js_res = await self.analyze_javascript_files(model_path, config, selected_set)
             results['results']['javascript'] = js_res
@@ -952,12 +994,16 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             except Exception:
                 pass
             
-            self.log.info("Analyzing CSS files...")
+            self.log.info("═" * 80)
+            self.log.info("🎨 CSS ANALYSIS PHASE")
+            self.log.info("═" * 80)
             await self.send_progress('scanning_css', 'Scanning CSS files', analysis_id=analysis_id)
             css_res = await self.analyze_css_files(model_path, config, selected_set)
             results['results']['css'] = css_res
             
-            self.log.info("Analyzing project structure...")
+            self.log.info("═" * 80)
+            self.log.info("📁 PROJECT STRUCTURE ANALYSIS")
+            self.log.info("═" * 80)
             await self.send_progress('analyzing_structure', 'Analyzing project structure', analysis_id=analysis_id)
             structure_result = await self.analyze_project_structure(model_path)
             # Extract _project_metadata to top level to avoid treating it as a tool
@@ -1013,6 +1059,14 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                                  total_issues=total_issues, tools_run=tools_run)
             await self.send_progress('completed', 'Static analysis completed', analysis_id=analysis_id,
                                  total_issues=total_issues)
+            
+            # Log completion summary
+            self.log.info("═" * 80)
+            self.log.info(f"✅ STATIC ANALYSIS COMPLETE")
+            self.log.info(f"   📊 Total Issues: {total_issues}")
+            self.log.info(f"   🔧 Tools Run: {tools_run}")
+            self.log.info(f"   📝 Tools Used: {', '.join(used_tools) if used_tools else 'none'}")
+            self.log.info("═" * 80)
             
             return results
             

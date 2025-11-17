@@ -61,10 +61,8 @@ class AIAnalyzer(BaseWSService):
     """AI-powered requirement analyzer for web applications."""
     
     def __init__(self):
-        print("[ai-analyzer] Initializing AIAnalyzer...")
+        super().__init__(service_name="ai-analyzer", default_port=2004, version="1.0.0")
         try:
-            super().__init__(service_name="ai-analyzer", default_port=2004, version="1.0.0")
-            print("[ai-analyzer] BaseWSService initialized")
             
             # API configuration
             self.openrouter_api_key = os.getenv('OPENROUTER_API_KEY')
@@ -81,12 +79,12 @@ class AIAnalyzer(BaseWSService):
             self.gpt4all_is_available = False
             
             self.log.info("AI Analyzer initialized (template-based requirements system)")
-            print("[ai-analyzer] AIAnalyzer initialization complete")
+            self.log.info("AIAnalyzer initialization complete")
             if not self.openrouter_api_key:
                 self.log.warning("OPENROUTER_API_KEY not set - OpenRouter analysis will be unavailable")
                 
         except Exception as e:
-            print(f"[ai-analyzer] ERROR during initialization: {e}")
+            self.log.error(f"ERROR during initialization: {e}")
             import traceback
             traceback.print_exc()
             raise
@@ -110,7 +108,7 @@ class AIAnalyzer(BaseWSService):
         if self.openrouter_api_key:
             tools.append("openrouter-requirements")
         
-        print(f"[ai-analyzer] Available tools: {tools}")
+        self.log.info(f"Available tools: {tools}")
         return tools
     
     def _resolve_app_path(self, model_slug: str, app_number: int) -> Optional[Path]:
@@ -739,7 +737,7 @@ Provide concrete evidence from the code to support your assessment."""
     async def handle_message(self, websocket, message_data):
         """Handle incoming WebSocket messages."""
         try:
-            print(f"[ai-analyzer] Received message: {message_data}")
+            self.log.debug(f"Received message type: {message_data.get('type', 'unknown')}")
             msg_type = message_data.get("type", "unknown")
             
             if msg_type == "ai_analyze":

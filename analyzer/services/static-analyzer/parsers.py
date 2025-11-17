@@ -19,6 +19,7 @@ Note: Status 'success' means tool executed successfully, regardless of findings.
       Use 'issue_count' to determine if issues were found (0 = clean code).
 """
 
+import json
 from typing import Dict, Any, Optional
 import logging
 

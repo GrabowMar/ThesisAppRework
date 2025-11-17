@@ -15,6 +15,7 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 
 from analyzer.shared.service_base import BaseWSService
+from analyzer.shared.tool_logger import ToolExecutionLogger
 from sarif_parsers import parse_tool_output_to_sarif, build_sarif_document
 from zap_scanner import ZAPScanner
 
@@ -27,9 +28,17 @@ class DynamicAnalyzer(BaseWSService):
         self._tool_runs: Dict[str, Dict[str, Any]] = {}
         self.zap_scanner: Optional[ZAPScanner] = None
         self._zap_started = False
+        # Initialize tool execution logger for comprehensive output logging
+        self.tool_logger = ToolExecutionLogger(self.log)
 
     def _record(self, tool: str, cmd: List[str], proc: subprocess.CompletedProcess, start: float):
         duration = time.time() - start
+        
+        # Use ToolExecutionLogger for comprehensive logging
+        exec_record = self.tool_logger.log_command_complete(
+            tool, cmd, proc, duration
+        )
+        
         entry = self._tool_runs.setdefault(tool, {
             'tool': tool,
             'status': 'success',
@@ -50,6 +59,9 @@ class DynamicAnalyzer(BaseWSService):
         entry['duration_seconds'] += duration
 
     def _exec(self, tool: str, cmd: List[str], timeout: int = 30) -> subprocess.CompletedProcess:
+        # Log command start
+        self.tool_logger.log_command_start(tool, cmd)
+        
         start = time.time()
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         self._record(tool, cmd, proc, start)
@@ -498,7 +510,10 @@ class DynamicAnalyzer(BaseWSService):
     async def analyze_running_app(self, model_slug: str, app_number: int, target_urls: List[str], selected_tools: Optional[List[str]] = None) -> Dict[str, Any]:
         """Perform comprehensive dynamic analysis on running application."""
         try:
-            self.log.info(f"Dynamic analysis of {model_slug} app {app_number}")
+            self.log.info("═" * 80)
+            self.log.info(f"🌐 DYNAMIC ANALYSIS: {model_slug} app {app_number}")
+            self.log.info(f"   🎯 Targets: {', '.join(target_urls)}")
+            self.log.info("═" * 80)
             
             # Normalize tool selection to lowercase set
             selected_set = {t.lower() for t in selected_tools} if selected_tools else None
@@ -543,6 +558,11 @@ class DynamicAnalyzer(BaseWSService):
             # Test connectivity for all URLs
             connectivity_results = []
             tool_summary: Dict[str, Dict[str, Any]] = {}
+            
+            self.log.info("═" * 80)
+            self.log.info("🔌 CONNECTIVITY TEST PHASE")
+            self.log.info("═" * 80)
+            
             if selected_set is None or 'curl' in selected_set:
                 for url in target_urls:
                     # Wrap connectivity curl usage capturing raw output
@@ -631,6 +651,10 @@ class DynamicAnalyzer(BaseWSService):
 
             # OWASP ZAP security scanning - real implementation
             if (selected_set is None or 'zap' in selected_set):
+                self.log.info("═" * 80)
+                self.log.info("🔒 OWASP ZAP SECURITY SCAN PHASE")
+                self.log.info("═" * 80)
+                
                 # Use reachable URLs if available, otherwise use all target URLs for ZAP
                 zap_target_urls = reachable_urls if reachable_urls else target_urls
                 if zap_target_urls:
@@ -713,6 +737,14 @@ class DynamicAnalyzer(BaseWSService):
                 'vulnerabilities_found': total_vulnerabilities,
                 'analysis_status': 'completed'
             }
+            
+            # Log completion summary
+            self.log.info("═" * 80)
+            self.log.info(f"✅ DYNAMIC ANALYSIS COMPLETE")
+            self.log.info(f"   🎯 URLs Tested: {len(target_urls)}")
+            self.log.info(f"   ✅ Reachable: {reachable_count}")
+            self.log.info(f"   ⚠️  Vulnerabilities: {total_vulnerabilities}")
+            self.log.info("═" * 80)
             
             return results
             
