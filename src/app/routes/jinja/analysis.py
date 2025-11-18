@@ -30,6 +30,7 @@ from app.models import AnalysisTask, GeneratedApplication
 from app.constants import AnalysisStatus
 from app.extensions import db
 from sqlalchemy import or_
+from sqlalchemy.orm import joinedload, defer
 
 
 # Helper class for descriptor objects
@@ -86,8 +87,6 @@ def analysis_list():
 @analysis_bp.route('/api/tasks/list')
 def analysis_tasks_table():
     """HTMX endpoint: Return table content with unified tasks + results, with pagination."""
-    service = UnifiedResultService()
-
     # Parse filters
     model_filter = (request.args.get('model') or '').strip() or None
     app_filter_raw = (request.args.get('app') or '').strip() or None
@@ -101,22 +100,29 @@ def analysis_tasks_table():
     page = max(1, int(request.args.get('page', 1)))
     per_page = min(100, max(10, int(request.args.get('per_page', 25))))
 
-    # Get ALL tasks from database (including completed ones to preserve hierarchy)
     try:
-        # Only show main tasks or tasks without parents (filter out subtasks)
-        all_tasks_query = AnalysisTask.query.filter(
+        # Base query with optimizations
+        # 1. Eager load subtasks to prevent N+1 queries
+        # 2. Defer large text fields to reduce memory/bandwidth
+        query = AnalysisTask.query.options(
+            joinedload(AnalysisTask.subtasks),
+            defer(AnalysisTask.result_summary),
+            defer(AnalysisTask.execution_context),
+            defer(AnalysisTask.task_metadata),
+            defer(AnalysisTask.error_message)
+        ).filter(
             or_(
                 AnalysisTask.is_main_task == True,
                 AnalysisTask.parent_task_id == None
             )
         )
 
+        # Apply filters
         if model_filter:
-            all_tasks_query = all_tasks_query.filter(AnalysisTask.target_model.ilike(f'%{model_filter}%'))
+            query = query.filter(AnalysisTask.target_model.ilike(f'%{model_filter}%'))
         if app_filter is not None:
-            all_tasks_query = all_tasks_query.filter(AnalysisTask.target_app_number == app_filter)
+            query = query.filter(AnalysisTask.target_app_number == app_filter)
         if status_filter:
-            # Map status filter to enum
             status_map = {
                 'pending': AnalysisStatus.PENDING,
                 'running': AnalysisStatus.RUNNING,
@@ -124,84 +130,48 @@ def analysis_tasks_table():
                 'failed': AnalysisStatus.FAILED
             }
             if status_filter in status_map:
-                all_tasks_query = all_tasks_query.filter(AnalysisTask.status == status_map[status_filter])
-        all_tasks = all_tasks_query.order_by(AnalysisTask.created_at.desc()).all()
+                query = query.filter(AnalysisTask.status == status_map[status_filter])
+        
+        # Order by creation date
+        query = query.order_by(AnalysisTask.created_at.desc())
+
+        # Use database pagination
+        pagination_obj = query.paginate(page=page, per_page=per_page, error_out=False)
+        paginated_tasks = pagination_obj.items
+        total_tasks = pagination_obj.total
+
     except Exception as exc:  # pragma: no cover
         current_app.logger.exception("Failed to query tasks: %s", exc)
-        all_tasks = []
+        paginated_tasks = []
+        total_tasks = 0
+        pagination_obj = None
 
-    # Pagination for all tasks
-    total_tasks = len(all_tasks)
-
-    # Calculate pagination
-    start = (page - 1) * per_page
-    end = start + per_page
-    paginated_tasks = all_tasks[start:end]
-
-    # Preload available result files for tasks shown on this page
-    # Also check database for result_summary data
-    result_lookup: dict[tuple[str, int], List[dict]] = {}
-    if paginated_tasks:
-        task_pairs = {(task.target_model, task.target_app_number) for task in paginated_tasks}
-        for model_slug, app_number in task_pairs:
-            try:
-                result_files = service.list_result_files(model_slug=model_slug, app_number=app_number)
-            except Exception as exc:  # pragma: no cover - defensive logging
-                current_app.logger.warning(
-                    "Failed to load results for %s app%s: %s", model_slug, app_number, exc
-                )
-                result_files = []
-            if result_files:
-                result_lookup[(model_slug, app_number)] = result_files
-
-    def _select_result_file(
-        task: AnalysisTask, result_files: List[dict]
-    ) -> Optional[dict]:
-        """Select the most relevant result file for a task, checking both filesystem and database."""
-        # First check if task has result_summary in database (check COMPLETED, PARTIAL_SUCCESS, and FAILED status)
-        if task.result_summary and task.status in [AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS, AnalysisStatus.FAILED]:
-            try:
-                result_summary = task.get_result_summary()
-                if result_summary:
-                    summary_data = result_summary.get('summary', {})
-                    # Return DescriptorDict indicating database-stored results exist
-                    return DescriptorDict({
-                        'identifier': task.task_id,
-                        'task_id': task.task_id,
-                        'source': 'database',
-                        'task_name': task.task_name or task.task_id[:16],
-                        'model_slug': task.target_model,
-                        'app_number': task.target_app_number,
-                        'status': task.status.value if task.status else 'unknown',
-                        'total_findings': summary_data.get('total_findings', 0),
-                        'severity_breakdown': summary_data.get('severity_breakdown', {}),
-                        'tools_executed': summary_data.get('tools_executed', 0) if isinstance(summary_data.get('tools_executed'), int) else 0,
-                        'tools_failed': 0,
-                        'tools_used': [],
-                        'modified_at': task.completed_at,
-                        'has_data': True
-                    })
-            except Exception as exc:
-                current_app.logger.warning(f"Failed to parse result_summary for task {task.task_id}: {exc}")
-        
-        # Fallback to filesystem-based results
-        if not result_files:
-            return None
-
-        # Find result file matching task_id
-        for rf in result_files:
-            if rf.get('task_id') == task.task_id:
-                return rf
-
-        # Fallback: return most recent
-        return result_files[0] if result_files else None
+    def _select_result_descriptor(task: AnalysisTask) -> Optional[DescriptorDict]:
+        """Create result descriptor from task DB columns (fast)."""
+        if task.status in [AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS, AnalysisStatus.FAILED]:
+            return DescriptorDict({
+                'identifier': task.task_id,
+                'task_id': task.task_id,
+                'source': 'database',
+                'task_name': task.task_name or task.task_id[:16],
+                'model_slug': task.target_model,
+                'app_number': task.target_app_number,
+                'status': task.status.value if task.status else 'unknown',
+                'total_findings': task.issues_found or 0,
+                'severity_breakdown': task.get_severity_breakdown(),
+                'tools_executed': 0, 
+                'tools_failed': 0,
+                'tools_used': [],
+                'modified_at': task.completed_at,
+                'has_data': True
+            })
+        return None
 
     # Build unified list from paginated tasks
     unified_items = []
 
-    # Add tasks with hierarchy preserved
     for task in paginated_tasks:
-        # Get subtasks if this is a main task
+        # Get subtasks data (already eager loaded)
         subtasks_data = []
         if task.is_main_task and task.subtasks:
             try:
@@ -214,10 +184,10 @@ def analysis_tasks_table():
                         'task_name': subtask.task_name or subtask.task_id[:16]
                     })
             except Exception as exc:
-                current_app.logger.warning(f"Failed to load subtasks for {task.task_id}: {exc}")
-        result_files = result_lookup.get((task.target_model, task.target_app_number), [])
-        # Always call _select_result_file - it checks database first, then falls back to files
-        selected_result = _select_result_file(task, result_files)
+                current_app.logger.warning(f"Failed to process subtasks for {task.task_id}: {exc}")
+
+        selected_result = _select_result_descriptor(task)
+        
         unified_items.append({
             'type': 'task',
             'id': task.task_id,
@@ -241,25 +211,26 @@ def analysis_tasks_table():
             'has_result': selected_result is not None,
         })
 
-    # Pagination info
-    total_pages = (total_tasks + per_page - 1) // per_page if total_tasks > 0 else 1
-    has_prev = page > 1
-    has_next = page < total_pages
+    # Efficient counts
+    active_count = AnalysisTask.query.filter(
+        AnalysisTask.status.in_([AnalysisStatus.PENDING, AnalysisStatus.RUNNING])
+    ).count()
+    
+    completed_count = AnalysisTask.query.filter(
+        AnalysisTask.status.in_([AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS])
+    ).count()
 
-    # Count by status for display
-    active_count = len([t for t in all_tasks if t.status in [AnalysisStatus.PENDING, AnalysisStatus.RUNNING]])
-    completed_count = len([t for t in all_tasks if t.status in [AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS]])
     pagination = {
         'page': page,
         'per_page': per_page,
         'total': total_tasks,
         'total_completed': completed_count,
         'active_count': active_count,
-        'has_prev': has_prev,
-        'has_next': has_next,
-        'prev_num': page - 1 if has_prev else None,
-        'next_num': page + 1 if has_next else None,
-        'pages': total_pages
+        'has_prev': pagination_obj.has_prev if pagination_obj else False,
+        'has_next': pagination_obj.has_next if pagination_obj else False,
+        'prev_num': pagination_obj.prev_num if pagination_obj else None,
+        'next_num': pagination_obj.next_num if pagination_obj else None,
+        'pages': pagination_obj.pages if pagination_obj else 1
     }
 
     html = render_template(
@@ -530,7 +501,7 @@ def analysis_create():
 
                 if not canonical_profile:
                     flash(f"Unknown or empty analysis profile: {analysis_profile}", 'danger')
-                    return render_template('pages/analysis/create.html'), 400
+                    return render_template('pages/analysis/create.html', 400)
 
                 tool_ids, tool_names, tool_display_names, tools_by_service = build_tool_payload(canonical_profile)
                 if not tool_names:

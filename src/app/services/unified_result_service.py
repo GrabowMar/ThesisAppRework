@@ -686,3 +686,51 @@ class UnifiedResultService:
             return float(value) if value is not None else None
         except (TypeError, ValueError):
             return None
+    
+    def find_path_by_identifier(self, identifier: str) -> Optional[Path]:
+        """Find result file path by identifier (task_id)."""
+        # Try to look up the task in DB to get model/app first
+        task = db.session.get(AnalysisTask, identifier)
+        if task:
+            # If we have task, we know where to look
+            model_dir = Path(RESULTS_DIR) / task.target_model.replace('/', '_')
+            app_dir = model_dir / f"app{task.target_app_number}"
+            
+            # New structure
+            task_dir = app_dir / identifier
+            if task_dir.exists():
+                json_files = list(task_dir.glob('*.json'))
+                main_json = next((jf for jf in json_files if jf.name != 'manifest.json' and identifier in jf.name), None)
+                if not main_json and json_files:
+                    main_json = next((jf for jf in json_files if jf.name != 'manifest.json'), None)
+                if main_json:
+                    return main_json
+            
+            # Legacy structure
+            legacy_file = app_dir / "analysis" / identifier / "consolidated.json"
+            if legacy_file.exists():
+                return legacy_file
+
+        # Fallback: scan everything (slow)
+        results_root = Path(RESULTS_DIR)
+        if not results_root.exists():
+            return None
+            
+        for model_dir in results_root.iterdir():
+            if not model_dir.is_dir(): continue
+            for app_dir in model_dir.iterdir():
+                if not app_dir.is_dir() or not app_dir.name.startswith('app'): continue
+                
+                # Check new structure
+                task_dir = app_dir / identifier
+                if task_dir.exists():
+                     json_files = list(task_dir.glob('*.json'))
+                     main_json = next((jf for jf in json_files if jf.name != 'manifest.json' and identifier in jf.name), None)
+                     if main_json: return main_json
+
+                # Check legacy
+                legacy_file = app_dir / "analysis" / identifier / "consolidated.json"
+                if legacy_file.exists():
+                    return legacy_file
+        
+        return None
