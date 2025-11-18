@@ -32,78 +32,59 @@
 
         {# Content Container #}
         <div id="modal-content" class="d-none">
-          {# Tool Metadata Section #}
-          <div class="card mb-3">
-            <div class="card-header bg-light">
-              <h6 class="card-title mb-0">
-                <i class="fa-solid fa-info-circle me-2"></i>Execution Metadata
-              </h6>
-            </div>
-            <div class="card-body">
-              <div class="row g-3">
-                <div class="col-md-3">
-                  <div class="text-muted small text-uppercase mb-1">Status</div>
-                  <div id="meta-status">—</div>
-                </div>
-                <div class="col-md-3">
-                  <div class="text-muted small text-uppercase mb-1">Execution Time</div>
-                  <div id="meta-exec-time">—</div>
-                </div>
-                <div class="col-md-3">
-                  <div class="text-muted small text-uppercase mb-1">Total Issues</div>
-                  <div id="meta-total-issues">—</div>
-                </div>
-                <div class="col-md-3">
-                  <div class="text-muted small text-uppercase mb-1">Exit Code</div>
-                  <div id="meta-exit-code">—</div>
-                </div>
+          {# Compact Metadata Bar #}
+          <div class="bg-light border-bottom px-3 py-2 mb-2">
+            <div class="row g-2 align-items-center small">
+              <div class="col-auto">
+                <strong class="text-muted">Status:</strong> <span id="meta-status">—</span>
               </div>
-              <div class="row g-3 mt-2" id="meta-additional">
+              <div class="col-auto border-start ps-2">
+                <strong class="text-muted">Time:</strong> <span id="meta-exec-time">—</span>
+              </div>
+              <div class="col-auto border-start ps-2">
+                <strong class="text-muted">Issues:</strong> <span id="meta-total-issues" class="fw-bold">—</span>
+              </div>
+              <div class="col-auto border-start ps-2" id="meta-exit-container">
+                <strong class="text-muted">Exit Code:</strong> <span id="meta-exit-code">—</span>
+              </div>
+              <div class="col-auto" id="meta-additional">
                 {# Additional metadata populated dynamically #}
               </div>
             </div>
           </div>
 
           {# Severity Summary (for static/security tools) #}
-          <div class="card mb-3 d-none" id="severity-summary-card">
-            <div class="card-header bg-light">
-              <h6 class="card-title mb-0">
-                <i class="fa-solid fa-chart-bar me-2"></i>Severity Distribution
-              </h6>
-            </div>
-            <div class="card-body">
-              <div class="row g-3" id="severity-breakdown">
+          <div class="border-bottom pb-2 mb-2 d-none" id="severity-summary-card">
+            <div class="px-3">
+              <small class="text-muted text-uppercase fw-bold"><i class="fa-solid fa-chart-bar me-1"></i>Severity:</small>
+              <span id="severity-breakdown" class="ms-2">
                 {# Populated dynamically #}
-              </div>
+              </span>
             </div>
           </div>
 
           {# Performance Metrics (for performance tools) #}
-          <div class="card mb-3 d-none" id="performance-metrics-card">
-            <div class="card-header bg-light">
-              <h6 class="card-title mb-0">
-                <i class="fa-solid fa-gauge-high me-2"></i>Performance Metrics
-              </h6>
-            </div>
-            <div class="card-body">
-              <div class="row g-3" id="performance-metrics">
+          <div class="bg-light border-bottom px-3 py-2 mb-2 d-none" id="performance-metrics-card">
+            <div class="row g-2 align-items-center small">
+              <div class="col-auto">
+                <strong class="text-muted"><i class="fa-solid fa-gauge-high me-1"></i>Metrics:</strong>
+              </div>
+              <div id="performance-metrics" class="col-auto">
                 {# Populated dynamically #}
               </div>
             </div>
           </div>
 
           {# Issues Table Section #}
-          <div class="card mb-3" id="issues-card">
-            <div class="card-header bg-light d-flex justify-content-between align-items-center">
-              <h6 class="card-title mb-0">
-                <i class="fa-solid fa-list me-2"></i>
-                <span id="issues-title">Issues Found</span>
-                <span class="badge bg-secondary-lt ms-2" id="issues-count-badge">0</span>
-              </h6>
-              <div class="d-flex gap-2">
-                {# Filters #}
-                <select class="form-select form-select-sm" id="severity-filter" style="width: auto;">
-                  <option value="">All Severities</option>
+          <div class="border rounded mb-2" id="issues-card">
+            <div class="bg-light border-bottom px-3 py-2 d-flex justify-content-between align-items-center">
+              <div class="small fw-bold">
+                <i class="fa-solid fa-list me-1"></i><span id="issues-title">Issues</span>
+                <span class="badge bg-secondary-lt ms-1" id="issues-count-badge">0</span>
+              </div>
+              <div class="d-flex gap-1">
+                <select class="form-select form-select-sm" id="severity-filter" style="width: 120px; font-size: 0.75rem;">
+                  <option value="">All</option>
                   <option value="CRITICAL">Critical</option>
                   <option value="HIGH">High</option>
                   <option value="MEDIUM">Medium</option>
@@ -111,21 +92,21 @@
                   <option value="INFO">Info</option>
                 </select>
                 <button class="btn btn-sm btn-ghost-primary" id="export-issues-btn" title="Export to CSV">
-                  <i class="fa-solid fa-download"></i> Export
+                  <i class="fa-solid fa-download"></i>
                 </button>
               </div>
             </div>
-            <div class="card-body p-0">
-              <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
-                <table class="table table-sm table-hover mb-0" id="issues-table">
-                  <thead class="sticky-top bg-white">
+            <div class="p-0">
+              <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                <table class="table table-sm table-hover mb-0" id="issues-table" style="font-size: 0.813rem;">
+                  <thead class="sticky-top bg-white" style="top: 0; z-index: 10;">
                     <tr>
-                      <th width="8%">Severity</th>
-                      <th width="12%">Rule/Type</th>
-                      <th width="20%">File</th>
-                      <th width="5%">Line</th>
-                      <th width="50%">Description</th>
-                      <th width="5%">CWE</th>
+                      <th width="7%" class="py-1">Severity</th>
+                      <th width="10%" class="py-1">Rule</th>
+                      <th width="18%" class="py-1">File</th>
+                      <th width="4%" class="py-1 text-center">Line</th>
+                      <th width="55%" class="py-1">Description</th>
+                      <th width="6%" class="py-1 text-center">CWE</th>
                     </tr>
                   </thead>
                   <tbody id="issues-table-body">
@@ -135,12 +116,12 @@
               </div>
               
               {# Pagination #}
-              <div class="card-footer d-flex justify-content-between align-items-center">
-                <div class="text-muted small" id="pagination-info">
-                  Showing <span id="items-start">0</span>-<span id="items-end">0</span> of <span id="items-total">0</span>
-                </div>
+              <div class="bg-light border-top px-3 py-2 d-flex justify-content-between align-items-center">
+                <small class="text-muted" id="pagination-info">
+                  <span id="items-start">0</span>-<span id="items-end">0</span> of <span id="items-total">0</span>
+                </small>
                 <nav>
-                  <ul class="pagination pagination-sm mb-0" id="pagination-controls">
+                  <ul class="pagination pagination-sm mb-0" id="pagination-controls" style="font-size: 0.75rem;">
                     {# Populated dynamically #}
                   </ul>
                 </nav>
@@ -149,46 +130,33 @@
           </div>
 
           {# SARIF Section #}
-          <div class="card mb-3 d-none" id="sarif-card">
-            <div class="card-header bg-light d-flex justify-content-between align-items-center">
-              <h6 class="card-title mb-0">
-                <i class="fa-solid fa-file-shield me-2"></i>SARIF Data
-              </h6>
-              <a href="#" class="btn btn-sm btn-ghost-success" id="sarif-download-btn" target="_blank">
-                <i class="fa-solid fa-download"></i> Download SARIF
-              </a>
-            </div>
-            <div class="card-body">
-              <div class="d-flex gap-3 align-items-center">
-                <div>
-                  <div class="text-muted small text-uppercase mb-1">SARIF File</div>
-                  <code class="text-primary" id="sarif-file-path">—</code>
-                </div>
-                <div>
-                  <div class="text-muted small text-uppercase mb-1">Format Version</div>
-                  <span id="sarif-version">SARIF 2.1.0</span>
+          <div class="border-top pt-2 mt-2 d-none" id="sarif-card">
+            <div class="px-3 pb-2">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <small class="text-muted fw-bold"><i class="fa-solid fa-file-shield me-1"></i>SARIF</small>
+                <div class="d-flex gap-1">
+                  <button class="btn btn-sm btn-ghost-info" id="sarif-preview-toggle" style="font-size: 0.75rem;">
+                    <i class="fa-solid fa-eye"></i> Preview
+                  </button>
+                  <a href="#" class="btn btn-sm btn-ghost-success" id="sarif-download-btn" target="_blank" style="font-size: 0.75rem;">
+                    <i class="fa-solid fa-download"></i>
+                  </a>
                 </div>
               </div>
-              <div class="mt-3">
-                <button class="btn btn-sm btn-ghost-info" id="sarif-preview-toggle">
-                  <i class="fa-solid fa-eye"></i> Show Preview
-                </button>
+              <div class="small">
+                <code class="text-primary" id="sarif-file-path" style="font-size: 0.75rem;">—</code>
               </div>
-              <div id="sarif-preview" class="d-none mt-3">
-                <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto;"><code id="sarif-preview-content"></code></pre>
+              <div id="sarif-preview" class="d-none mt-2">
+                <pre class="bg-light p-2 rounded" style="max-height: 200px; overflow-y: auto; font-size: 0.7rem;"><code id="sarif-preview-content"></code></pre>
               </div>
             </div>
           </div>
 
           {# Configuration Section #}
-          <div class="card d-none" id="config-card">
-            <div class="card-header bg-light">
-              <h6 class="card-title mb-0">
-                <i class="fa-solid fa-cog me-2"></i>Tool Configuration
-              </h6>
-            </div>
-            <div class="card-body">
-              <pre class="bg-light p-3 rounded mb-0" style="max-height: 200px; overflow-y: auto;"><code id="config-content"></code></pre>
+          <div class="border-top pt-2 mt-2 d-none" id="config-card">
+            <div class="px-3 pb-2">
+              <small class="text-muted fw-bold"><i class="fa-solid fa-cog me-1"></i>Configuration</small>
+              <pre class="bg-light p-2 rounded mb-0 mt-2" style="max-height: 150px; overflow-y: auto; font-size: 0.7rem;"><code id="config-content"></code></pre>
             </div>
           </div>
         </div>

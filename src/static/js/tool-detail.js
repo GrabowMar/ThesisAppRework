@@ -86,13 +86,16 @@ class ToolDetailModal {
             this.bsModal.show();
         }
         
-        // Load tool data (either from embedded data or AJAX)
-        if (options.toolData) {
-            // Data already provided (embedded in page)
+        const hasEmbeddedData = options.toolData && typeof options.toolData === 'object';
+
+        if (hasEmbeddedData) {
             this.currentToolData = options.toolData;
-            this.renderToolDetails();
+            if (this.shouldHydrateFromApi()) {
+                await this.fetchToolDetails();
+            } else {
+                this.renderToolDetails();
+            }
         } else {
-            // Fetch from API
             await this.fetchToolDetails();
         }
         
@@ -143,6 +146,22 @@ class ToolDetailModal {
             this.showError(`Failed to load tool details: ${error.message}`);
         }
     }
+
+    shouldHydrateFromApi() {
+        const data = this.currentToolData;
+        if (!data) {
+            return true;
+        }
+        const arrays = ['issues', 'findings', 'vulnerabilities', 'results', 'problems'];
+        const hasIssueArray = arrays.some(key => Array.isArray(data[key]) && data[key].length > 0);
+        if (hasIssueArray) {
+            return false;
+        }
+        const declaredCount = data.total_issues || data.issue_count || data.findings_count ||
+                             data.vulnerabilities_count || data.results_count || 0;
+        const hasSarif = Boolean(data.sarif || data.sarif_file);
+        return declaredCount > 0 && hasSarif;
+    }
     
     renderToolDetails() {
         if (!this.currentToolData) {
@@ -180,48 +199,77 @@ class ToolDetailModal {
     renderMetadata() {
         const data = this.currentToolData;
         
-        // Status
-        const statusHtml = this.getStatusBadge(data.status);
+        // Status with proper parsing
+        let status = data.status;
+        if (!status) {
+            if (data.executed === false) {
+                status = 'skipped';
+            } else if (data.executed) {
+                status = 'success';
+            } else {
+                status = 'unknown';
+            }
+        }
+        const statusHtml = this.getStatusBadge(status);
         document.getElementById('meta-status').innerHTML = statusHtml;
         
-        // Execution time
-        const execTime = data.execution_time || data.exec_time || '—';
-        document.getElementById('meta-exec-time').textContent = 
-            typeof execTime === 'number' ? `${execTime.toFixed(2)}s` : execTime;
+        // Execution time - handle various formats
+        let execTime = data.execution_time || data.exec_time || data.elapsed_time || data.duration;
+        if (execTime !== undefined && execTime !== null) {
+            if (typeof execTime === 'number') {
+                execTime = execTime < 1 ? `${(execTime * 1000).toFixed(0)}ms` : `${execTime.toFixed(2)}s`;
+            }
+        } else {
+            execTime = '—';
+        }
+        document.getElementById('meta-exec-time').textContent = execTime;
         
-        // Total issues
-        const totalIssues = data.total_issues || data.issue_count || 
-                           (data.issues ? data.issues.length : 0);
+        // Total issues - check multiple possible fields
+        const totalIssues = data.total_issues || data.issue_count || data.findings_count ||
+                           (data.issues && Array.isArray(data.issues) ? data.issues.length : 0) ||
+                           (data.findings && Array.isArray(data.findings) ? data.findings.length : 0) || 0;
         document.getElementById('meta-total-issues').textContent = totalIssues;
         
-        // Exit code
-        const exitCode = data.exit_code !== undefined ? data.exit_code : '—';
-        document.getElementById('meta-exit-code').textContent = exitCode;
+        // Exit code - only show if meaningful
+        const exitCodeContainer = document.getElementById('meta-exit-container');
+        if (data.exit_code !== undefined && data.exit_code !== null) {
+            const exitCode = data.exit_code;
+            const exitCodeEl = document.getElementById('meta-exit-code');
+            exitCodeEl.textContent = exitCode;
+            exitCodeEl.className = exitCode === 0 ? 'text-success' : 'text-danger';
+            exitCodeContainer.classList.remove('d-none');
+        } else {
+            exitCodeContainer.classList.add('d-none');
+        }
         
-        // Additional metadata
+        // Additional metadata - only show relevant items
         const additionalContainer = document.getElementById('meta-additional');
         additionalContainer.innerHTML = '';
         
-        // Add tool-specific metadata
-        if (data.files_scanned) {
-            this.addMetadataItem(additionalContainer, 'Files Scanned', data.files_scanned);
+        const fileCount = data.files_scanned || data.files_analyzed || data.file_count;
+        const lineCount = data.lines_analyzed || data.lines_of_code || data.loc;
+        const version = data.version || data.tool_version;
+        
+        if (fileCount) {
+            this.addCompactMetadataItem(additionalContainer, 'Files', fileCount);
         }
-        if (data.lines_analyzed) {
-            this.addMetadataItem(additionalContainer, 'Lines Analyzed', data.lines_analyzed.toLocaleString());
+        if (lineCount) {
+            this.addCompactMetadataItem(additionalContainer, 'Lines', lineCount.toLocaleString());
         }
-        if (data.version) {
-            this.addMetadataItem(additionalContainer, 'Tool Version', data.version);
+        if (version) {
+            this.addCompactMetadataItem(additionalContainer, 'v' + version, null, true);
         }
     }
     
-    addMetadataItem(container, label, value) {
-        const col = document.createElement('div');
-        col.className = 'col-md-3';
-        col.innerHTML = `
-            <div class="text-muted small text-uppercase mb-1">${label}</div>
-            <div>${value}</div>
-        `;
-        container.appendChild(col);
+    addCompactMetadataItem(container, label, value, isVersionBadge = false) {
+        const span = document.createElement('span');
+        span.className = 'border-start ps-2 small';
+        if (isVersionBadge) {
+            span.innerHTML = `<span class="badge bg-secondary-lt">${this.escapeHtml(label)}</span>`;
+        } else {
+            span.innerHTML = `<strong class="text-muted">${this.escapeHtml(label)}:</strong> ${this.escapeHtml(value)}`;
+        }
+        container.appendChild(span);
     }
     
     renderSeveritySummary() {
@@ -229,15 +277,27 @@ class ToolDetailModal {
         const card = document.getElementById('severity-summary-card');
         const container = document.getElementById('severity-breakdown');
         
-        if (!data.issues || data.issues.length === 0) {
+        // Get issues from various possible fields
+        const issues = data.issues || data.findings || data.vulnerabilities || [];
+        
+        if (!Array.isArray(issues) || issues.length === 0) {
             card.classList.add('d-none');
             return;
         }
         
-        // Count issues by severity
+        // Count issues by severity with better parsing
         const severityCounts = {};
-        data.issues.forEach(issue => {
-            const severity = (issue.issue_severity || issue.severity || 'UNKNOWN').toUpperCase();
+        issues.forEach(issue => {
+            let severity = issue.issue_severity || issue.severity || issue.level || 
+                          issue.priority || issue.risk || 'UNKNOWN';
+            severity = String(severity).toUpperCase();
+            
+            // Normalize severity names
+            if (severity.includes('CRIT')) severity = 'CRITICAL';
+            else if (severity.includes('ERROR')) severity = 'HIGH';
+            else if (severity.includes('WARN')) severity = 'MEDIUM';
+            else if (severity.includes('NOTE') || severity.includes('MINOR')) severity = 'LOW';
+            
             severityCounts[severity] = (severityCounts[severity] || 0) + 1;
         });
         
@@ -246,22 +306,17 @@ class ToolDetailModal {
             return;
         }
         
-        // Render severity breakdown
+        // Render compact severity badges
         container.innerHTML = '';
         const severityOrder = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'];
         
         severityOrder.forEach(severity => {
             if (severityCounts[severity]) {
-                const col = document.createElement('div');
-                col.className = 'col-md-2';
                 const badgeClass = this.getSeverityBadgeClass(severity);
-                col.innerHTML = `
-                    <div class="text-muted small text-uppercase mb-1">${severity}</div>
-                    <div class="h4 mb-0">
-                        <span class="badge ${badgeClass} fs-5">${severityCounts[severity]}</span>
-                    </div>
-                `;
-                container.appendChild(col);
+                const badge = document.createElement('span');
+                badge.className = `badge ${badgeClass} me-1`;
+                badge.textContent = `${severity}: ${severityCounts[severity]}`;
+                container.appendChild(badge);
             }
         });
         
@@ -273,9 +328,17 @@ class ToolDetailModal {
         const card = document.getElementById('performance-metrics-card');
         const container = document.getElementById('performance-metrics');
         
-        // Check if this is a performance tool
-        const hasMetrics = data.avg_response_time || data.requests_per_second || 
-                          data.throughput || data.success_rate;
+        // Check if this is a performance tool - look for metrics in multiple places
+        const metrics = data.metrics || data.performance || data.stats || {};
+        const avgResponseTime = metrics.avg_response_time || metrics.response_time || 
+                               data.avg_response_time || data.response_time;
+        const throughput = metrics.requests_per_second || metrics.throughput || metrics.rps ||
+                          data.requests_per_second || data.throughput || data.rps;
+        const successRate = metrics.success_rate || data.success_rate;
+        const totalRequests = metrics.total_requests || metrics.requests || 
+                            data.requests || data.completed_requests;
+        
+        const hasMetrics = avgResponseTime || throughput || successRate !== undefined || totalRequests;
         
         if (!hasMetrics) {
             card.classList.add('d-none');
@@ -283,23 +346,25 @@ class ToolDetailModal {
         }
         
         container.innerHTML = '';
+        const items = [];
         
-        if (data.avg_response_time) {
-            this.addMetadataItem(container, 'Avg Response Time', `${data.avg_response_time.toFixed(2)} ms`);
+        if (avgResponseTime) {
+            items.push(`<span class="border-start ps-2"><strong class="text-muted">Response:</strong> ${avgResponseTime.toFixed(1)}ms</span>`);
         }
-        if (data.requests_per_second || data.throughput) {
-            const rps = data.requests_per_second || data.throughput;
-            this.addMetadataItem(container, 'Throughput', `${rps.toFixed(2)} req/s`);
+        if (throughput) {
+            items.push(`<span class="border-start ps-2"><strong class="text-muted">Throughput:</strong> ${throughput.toFixed(1)} req/s</span>`);
         }
-        if (data.success_rate !== undefined) {
-            this.addMetadataItem(container, 'Success Rate', `${data.success_rate.toFixed(1)}%`);
+        if (successRate !== undefined) {
+            const rateClass = successRate >= 95 ? 'text-success' : (successRate >= 80 ? 'text-warning' : 'text-danger');
+            items.push(`<span class="border-start ps-2"><strong class="text-muted">Success:</strong> <span class="${rateClass}">${successRate.toFixed(1)}%</span></span>`);
         }
-        if (data.requests || data.completed_requests) {
-            const total = data.requests || data.completed_requests;
-            const failed = data.failed_requests || 0;
-            this.addMetadataItem(container, 'Total Requests', `${total} (${failed} failed)`);
+        if (totalRequests) {
+            const failed = metrics.failed_requests || data.failed_requests || 0;
+            const failedText = failed > 0 ? ` <span class="text-danger">(${failed} failed)</span>` : '';
+            items.push(`<span class="border-start ps-2"><strong class="text-muted">Requests:</strong> ${totalRequests}${failedText}</span>`);
         }
         
+        container.innerHTML = items.join('');
         card.classList.remove('d-none');
     }
     
@@ -308,18 +373,32 @@ class ToolDetailModal {
         const tbody = document.getElementById('issues-table-body');
         const issuesCard = document.getElementById('issues-card');
         
-        if (!data.issues || data.issues.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No issues found</td></tr>';
+        // Get issues from various possible fields
+        const allIssues = data.issues || data.findings || data.vulnerabilities || 
+                         data.results || data.problems || [];
+        
+        if (!Array.isArray(allIssues) || allIssues.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3 small">No issues found</td></tr>';
             document.getElementById('issues-count-badge').textContent = '0';
             this.updatePaginationInfo(0, 0, 0);
+            document.getElementById('pagination-controls').innerHTML = '';
             return;
         }
         
-        // Filter issues
-        let filteredIssues = data.issues;
+        // Filter issues by severity
+        let filteredIssues = allIssues;
         if (this.currentFilter) {
-            filteredIssues = data.issues.filter(issue => {
-                const severity = (issue.issue_severity || issue.severity || '').toUpperCase();
+            filteredIssues = allIssues.filter(issue => {
+                let severity = issue.issue_severity || issue.severity || issue.level || 
+                              issue.priority || issue.risk || '';
+                severity = String(severity).toUpperCase();
+                
+                // Normalize for comparison
+                if (severity.includes('CRIT')) severity = 'CRITICAL';
+                else if (severity.includes('ERROR')) severity = 'HIGH';
+                else if (severity.includes('WARN')) severity = 'MEDIUM';
+                else if (severity.includes('NOTE') || severity.includes('MINOR')) severity = 'LOW';
+                
                 return severity === this.currentFilter;
             });
         }
@@ -346,34 +425,58 @@ class ToolDetailModal {
     
     createIssueRow(issue) {
         const tr = document.createElement('tr');
+        tr.className = 'align-middle';
         
-        // Severity
-        const severity = (issue.issue_severity || issue.severity || 'INFO').toUpperCase();
-        const severityBadge = `<span class="badge ${this.getSeverityBadgeClass(severity)}">${severity}</span>`;
+        // Severity - check multiple fields and normalize
+        let severity = issue.issue_severity || issue.severity || issue.level || 
+                      issue.priority || issue.risk || 'INFO';
+        severity = String(severity).toUpperCase();
         
-        // Rule/Type
-        const rule = issue.test_id || issue.rule_id || issue.type || '—';
+        // Normalize severity names
+        if (severity.includes('CRIT')) severity = 'CRITICAL';
+        else if (severity.includes('ERROR')) severity = 'HIGH';
+        else if (severity.includes('WARN')) severity = 'MEDIUM';
+        else if (severity.includes('NOTE') || severity.includes('MINOR')) severity = 'LOW';
         
-        // File path (truncate if too long)
-        const file = issue.filename || issue.file || issue.location || '—';
-        const fileShort = file.length > 30 ? '...' + file.slice(-27) : file;
+        const severityBadge = `<span class="badge ${this.getSeverityBadgeClass(severity)} badge-sm">${severity}</span>`;
         
-        // Line number
-        const line = issue.line_number || issue.line || '—';
+        // Rule/Type - check multiple fields
+        const rule = issue.test_id || issue.rule_id || issue.check_id || issue.rule || 
+                    issue.type || issue.code || issue.id || '—';
+        const ruleShort = String(rule).length > 15 ? String(rule).substring(0, 12) + '...' : rule;
         
-        // Description
-        const description = issue.issue_text || issue.message || issue.description || 'No description';
+        // File path - check multiple fields and truncate intelligently
+        const file = issue.filename || issue.file || issue.path || issue.location || 
+                    issue.filepath || issue.file_path || '—';
+        let fileDisplay = String(file);
+        if (fileDisplay.length > 25) {
+            const parts = fileDisplay.split('/');
+            fileDisplay = parts.length > 1 ? '.../' + parts.slice(-2).join('/') : '...' + fileDisplay.slice(-22);
+        }
         
-        // CWE
-        const cwe = issue.issue_cwe || issue.cwe || '—';
+        // Line number - check multiple fields
+        const line = issue.line_number || issue.line || issue.start_line || 
+                    issue.lineNumber || (issue.location && issue.location.line) || '—';
+        
+        // Description - check multiple fields and clean up
+        let description = issue.issue_text || issue.message || issue.description || 
+                         issue.text || issue.msg || issue.details || 'No description';
+        description = String(description).replace(/\\n/g, ' ').replace(/\s+/g, ' ').trim();
+        if (description.length > 100) {
+            description = description.substring(0, 97) + '...';
+        }
+        
+        // CWE - check multiple fields
+        const cwe = issue.issue_cwe || issue.cwe || issue.cwe_id || 
+                   (issue.tags && issue.tags.find(t => String(t).startsWith('CWE'))) || '—';
         
         tr.innerHTML = `
-            <td>${severityBadge}</td>
-            <td><code class="small">${this.escapeHtml(rule)}</code></td>
-            <td><span class="small text-muted" title="${this.escapeHtml(file)}">${this.escapeHtml(fileShort)}</span></td>
-            <td class="text-center">${line}</td>
-            <td class="small">${this.escapeHtml(description)}</td>
-            <td class="text-center"><small>${cwe}</small></td>
+            <td class="py-1">${severityBadge}</td>
+            <td class="py-1"><code class="small" title="${this.escapeHtml(rule)}">${this.escapeHtml(ruleShort)}</code></td>
+            <td class="py-1"><span class="small text-muted" title="${this.escapeHtml(file)}">${this.escapeHtml(fileDisplay)}</span></td>
+            <td class="py-1 text-center small">${line}</td>
+            <td class="py-1 small" title="${this.escapeHtml(description)}">${this.escapeHtml(description)}</td>
+            <td class="py-1 text-center"><small class="text-muted">${cwe}</small></td>
         `;
         
         return tr;

@@ -7,13 +7,333 @@ All tool operations are now delegated to the container-based tool registry.
 from flask import Blueprint, jsonify, request, current_app
 from app.routes.api.common import api_error
 from app.engines.container_tool_registry import get_container_tool_registry
+from app.paths import RESULTS_DIR, PROJECT_ROOT
 import logging
 import json
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple, List
 
 logger = logging.getLogger(__name__)
 
 # Create analysis blueprint
 analysis_bp = Blueprint('api_analysis', __name__)
+
+
+def _normalize_task_folder_name(result_id: str) -> str:
+    """Ensure task folders always start with 'task_' prefix."""
+    if not result_id:
+        return 'task_unknown'
+    return result_id if result_id.startswith('task_') else f'task_{result_id}'
+
+
+def _extract_model_app_from_result(result_data: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
+    """Best-effort extraction of model slug and app number from result payload."""
+    model_slug = None
+    app_number = None
+
+    metadata = result_data.get('metadata') or {}
+    model_slug = metadata.get('model_slug') or metadata.get('model')
+    app_number = metadata.get('app_number') or metadata.get('app')
+
+    if not model_slug or not app_number:
+        summary = result_data.get('summary') or {}
+        model_slug = model_slug or summary.get('model_slug')
+        app_number = app_number or summary.get('app_number')
+
+    if not model_slug or not app_number:
+        static_analysis = (result_data.get('results') or {}).get('static', {}).get('analysis', {})
+        model_slug = model_slug or static_analysis.get('model_slug') or static_analysis.get('target_model')
+        app_number = app_number or static_analysis.get('app_number') or static_analysis.get('target_app_number')
+
+    return model_slug, app_number
+
+
+def _resolve_task_directory(result_data: Dict[str, Any], result_id: str) -> Optional[Path]:
+    """Resolve the filesystem path for a task's result directory."""
+    model_slug, app_number = _extract_model_app_from_result(result_data)
+    task_folder = _normalize_task_folder_name(str(result_id))
+
+    if model_slug and app_number:
+        safe_slug = str(model_slug).replace('/', '_')
+        return RESULTS_DIR / safe_slug / f'app{app_number}' / task_folder
+
+    results_path = result_data.get('results_path')
+    if isinstance(results_path, str) and results_path:
+        candidate = Path(results_path)
+        if not candidate.is_absolute():
+            candidate = (PROJECT_ROOT / candidate).resolve()
+        return candidate
+
+    return None
+
+
+def _extract_issues_from_sarif(sarif_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Normalize SARIF run data into the issue format expected by the UI."""
+    extracted_issues = []
+    if not isinstance(sarif_data, dict):
+        return extracted_issues
+
+    level_map = {
+        'error': 'HIGH',
+        'warning': 'MEDIUM',
+        'note': 'LOW',
+        'none': 'INFO'
+    }
+
+    for run in sarif_data.get('runs', []):
+        rules_index = {}
+        driver = (run.get('tool') or {}).get('driver') or {}
+        for rule in driver.get('rules', []) or []:
+            if isinstance(rule, dict) and rule.get('id'):
+                rules_index[rule['id']] = rule
+
+        for result_item in run.get('results', []) or []:
+            if not isinstance(result_item, dict):
+                continue
+
+            rule_id = result_item.get('ruleId') or result_item.get('rule', {}).get('id')
+            message = (result_item.get('message') or {}).get('text') or ''
+            level = (result_item.get('level') or 'warning').lower()
+            severity = level_map.get(level, 'MEDIUM')
+
+            issue: Dict[str, Any] = {
+                'rule': rule_id,
+                'rule_id': rule_id,
+                'level': level,
+                'severity': severity,
+                'issue_severity': (result_item.get('properties', {}).get('issue_severity') or severity).upper(),
+                'message': message,
+                'tool': driver.get('name') or 'SARIF tool'
+            }
+
+            locations = result_item.get('locations') or []
+            if locations:
+                physical_loc = (locations[0] or {}).get('physicalLocation') or {}
+                artifact_loc = physical_loc.get('artifactLocation') or {}
+                region = physical_loc.get('region') or {}
+
+                uri = artifact_loc.get('uri') or ''
+                issue['file'] = uri.replace('file://', '')
+                issue['line'] = region.get('startLine')
+                issue['column'] = region.get('startColumn')
+
+            properties = result_item.get('properties') or {}
+            if 'issue_confidence' in properties:
+                issue['confidence'] = properties['issue_confidence']
+            if 'issue_severity' in properties:
+                issue['issue_severity'] = properties['issue_severity'].upper()
+            if 'cwe' in properties:
+                issue['cwe'] = properties['cwe']
+
+            if rule_id and rule_id in rules_index:
+                rule_meta = rules_index[rule_id]
+                if rule_meta.get('helpUri'):
+                    issue['help_url'] = rule_meta['helpUri']
+                if rule_meta.get('name'):
+                    issue['rule_name'] = rule_meta['name']
+
+            extracted_issues.append(issue)
+
+    return extracted_issues
+
+
+def _normalize_issue_severity(value: Optional[str], default: str = 'MEDIUM') -> str:
+    """Normalize severity/risk labels coming from various services."""
+    if not value:
+        return default
+
+    normalized = str(value).strip().upper()
+    mapping = {
+        'CRIT': 'CRITICAL',
+        'CRITICAL': 'CRITICAL',
+        'HIGH': 'HIGH',
+        'WARN': 'MEDIUM',
+        'WARNING': 'MEDIUM',
+        'MEDIUM': 'MEDIUM',
+        'LOW': 'LOW',
+        'INFO': 'INFO',
+        'INFORMATIONAL': 'INFO',
+        'NOTE': 'LOW',
+        'MINOR': 'LOW',
+        'ERROR': 'HIGH'
+    }
+
+    for key, mapped in mapping.items():
+        if normalized == key or key in normalized:
+            return mapped
+
+    return default
+
+
+def _extract_zap_security_issues(zap_results: Any) -> List[Dict[str, Any]]:
+    """Flatten ZAP alert payloads into the standard issue shape."""
+    issues: List[Dict[str, Any]] = []
+    if not isinstance(zap_results, list):
+        return issues
+
+    for scan in zap_results:
+        if not isinstance(scan, dict):
+            continue
+
+        base_url = scan.get('url')
+        scan_type = scan.get('scan_type') or scan.get('type')
+        alerts_by_risk = scan.get('alerts_by_risk') or {}
+
+        for risk_bucket, alerts in alerts_by_risk.items():
+            if not isinstance(alerts, list):
+                continue
+
+            for alert in alerts:
+                if not isinstance(alert, dict):
+                    continue
+
+                severity = _normalize_issue_severity(alert.get('risk') or risk_bucket)
+                issue = {
+                    'issue_severity': severity,
+                    'severity': severity,
+                    'risk': alert.get('risk') or risk_bucket,
+                    'name': alert.get('name') or alert.get('alert') or 'ZAP Alert',
+                    'message': alert.get('description') or alert.get('name'),
+                    'description': alert.get('description'),
+                    'solution': alert.get('solution'),
+                    'reference': alert.get('reference'),
+                    'url': alert.get('url') or base_url,
+                    'param': alert.get('param') or alert.get('parameter'),
+                    'evidence': alert.get('evidence'),
+                    'confidence': alert.get('confidence'),
+                    'plugin_id': alert.get('pluginId'),
+                    'alert_id': alert.get('id'),
+                    'alert_ref': alert.get('alertRef'),
+                    'tags': alert.get('tags'),
+                    'tool': 'zap',
+                    'category': 'zap_security_scan',
+                    'scan_type': scan_type,
+                    'target_url': base_url,
+                }
+
+                cwe_id = alert.get('cweid') or alert.get('cwe')
+                if cwe_id and str(cwe_id) not in ('-1', '0'):
+                    issue['cwe'] = f"CWE-{cwe_id}" if not str(cwe_id).startswith('CWE-') else str(cwe_id)
+
+                other_notes = alert.get('other')
+                if other_notes:
+                    issue['notes'] = other_notes
+
+                issues.append(issue)
+
+    return issues
+
+
+def _extract_vulnerability_scan_issues(vulnerability_results: Any) -> List[Dict[str, Any]]:
+    """Derive issues from vulnerability scan summaries emitted by the dynamic analyzer."""
+    issues: List[Dict[str, Any]] = []
+    if not isinstance(vulnerability_results, list):
+        return issues
+
+    for scan in vulnerability_results:
+        if not isinstance(scan, dict):
+            continue
+
+        target_url = scan.get('url')
+        for vuln in scan.get('vulnerabilities') or []:
+            if not isinstance(vuln, dict):
+                continue
+
+            severity = _normalize_issue_severity(vuln.get('severity') or 'LOW')
+            issue = {
+                'issue_severity': severity,
+                'severity': severity,
+                'vulnerability_type': vuln.get('type'),
+                'message': vuln.get('description') or vuln.get('type') or 'Potential vulnerability',
+                'description': vuln.get('description'),
+                'url': target_url,
+                'paths': vuln.get('paths'),
+                'tool': 'vulnerability_scan',
+                'category': 'vulnerability_scan',
+            }
+            issues.append(issue)
+
+    return issues
+
+
+def _extract_connectivity_issues(connectivity_results: Any) -> List[Dict[str, Any]]:
+    """Create issue entries for missing security headers detected during connectivity checks."""
+    issues: List[Dict[str, Any]] = []
+    if not isinstance(connectivity_results, list):
+        return issues
+
+    for entry in connectivity_results:
+        analysis = entry.get('analysis') if isinstance(entry, dict) else None
+        if not isinstance(analysis, dict):
+            continue
+
+        headers = analysis.get('security_headers') or {}
+        if not isinstance(headers, dict):
+            continue
+
+        missing_headers = [name for name, present in headers.items() if not present]
+        if not missing_headers:
+            continue
+
+        severity = 'LOW'
+        issues.append({
+            'issue_severity': severity,
+            'severity': severity,
+            'message': 'Missing security headers',
+            'description': f"The following headers are not configured: {', '.join(sorted(missing_headers))}",
+            'url': analysis.get('url'),
+            'status_code': analysis.get('status_code'),
+            'security_score': analysis.get('security_score'),
+            'tool': 'curl',
+            'category': 'connectivity',
+        })
+
+    return issues
+
+
+def _extract_port_scan_issues(port_scan_result: Any) -> List[Dict[str, Any]]:
+    """Represent open ports discovered by nmap as informational issues."""
+    issues: List[Dict[str, Any]] = []
+    if not isinstance(port_scan_result, dict):
+        return issues
+
+    host = port_scan_result.get('host')
+    for port in port_scan_result.get('open_ports') or []:
+        issue = {
+            'issue_severity': 'INFO',
+            'severity': 'INFO',
+            'message': f'Port {port} is open',
+            'description': 'The port responded during scanning and should be verified if exposure is intentional.',
+            'host': host,
+            'tool': 'nmap',
+            'category': 'port_scan',
+            'port': port,
+        }
+        issues.append(issue)
+
+    return issues
+
+
+def _derive_tool_issues_from_service(service_type: Optional[str], tool_name: str, analysis_block: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Attempt to build issue arrays for tools that don't emit SARIF/issue payloads."""
+    if not service_type or not isinstance(analysis_block, dict):
+        return []
+
+    results = analysis_block.get('results') or {}
+    tool_key = tool_name.lower()
+
+    if service_type == 'dynamic':
+        if tool_key == 'zap':
+            return _extract_zap_security_issues(results.get('zap_security_scan'))
+        if tool_key in ('curl', 'connectivity'):
+            return _extract_connectivity_issues(results.get('connectivity'))
+        if tool_key in ('nmap', 'portscan', 'port-scan'):
+            return _extract_port_scan_issues(results.get('port_scan'))
+        if tool_key in ('vulnerability_scan', 'vulnscan', 'dirsearch'):
+            return _extract_vulnerability_scan_issues(results.get('vulnerability_scan'))
+
+    # Future services (performance, ai) can be added here as needed
+    return []
 
 
 def _resolve_tools_from_names(tool_names, all_tools):
@@ -307,6 +627,7 @@ def get_tool_details(result_id: str, tool_name: str):
         # Extract tool data from result
         tool_data = None
         detected_service = None
+        matched_analysis_block: Optional[Dict[str, Any]] = None
         
         # Try to find tool in services
         services = result_data.get('results', {}).get('services', {})
@@ -333,6 +654,7 @@ def get_tool_details(result_id: str, tool_name: str):
                                 tool_data = v.copy()
                                 tool_data['language'] = lang
                                 detected_service = svc
+                                matched_analysis_block = analysis
                                 break
                     if tool_data:
                         break
@@ -344,6 +666,7 @@ def get_tool_details(result_id: str, tool_name: str):
                         if k.lower() == tool_name.lower():
                             tool_data = v.copy()
                             detected_service = svc
+                            matched_analysis_block = analysis
                             break
             
             if tool_data:
@@ -355,6 +678,57 @@ def get_tool_details(result_id: str, tool_name: str):
         # Add tool name to response
         tool_data['tool_name'] = tool_name
         tool_data['service_type'] = detected_service
+
+        if (not tool_data.get('issues')) and matched_analysis_block:
+            derived_issues = _derive_tool_issues_from_service(
+                detected_service,
+                tool_name,
+                matched_analysis_block
+            )
+            if derived_issues:
+                tool_data['issues'] = derived_issues
+                tool_data['total_issues'] = len(derived_issues)
+        
+        # If tool has SARIF data but empty issues array, derive issues from SARIF payload
+        if (not tool_data.get('issues') or len(tool_data.get('issues', [])) == 0) and tool_data.get('sarif'):
+            sarif_ref = tool_data.get('sarif')
+            sarif_data = None
+            sarif_file = None
+
+            if isinstance(sarif_ref, dict):
+                if sarif_ref.get('runs'):
+                    sarif_data = sarif_ref
+                else:
+                    sarif_file = sarif_ref.get('sarif_file') or sarif_ref.get('path') or sarif_ref.get('file')
+            elif isinstance(sarif_ref, str):
+                sarif_file = sarif_ref
+
+            if not sarif_data and sarif_file:
+                try:
+                    task_dir = _resolve_task_directory(result_data, result_id)
+                    if task_dir:
+                        task_root = task_dir.resolve()
+                        sarif_path_obj = Path(sarif_file)
+                        sarif_full_path = sarif_path_obj if sarif_path_obj.is_absolute() else (task_root / sarif_path_obj).resolve()
+
+                        try:
+                            sarif_full_path.relative_to(task_root)
+                        except ValueError:
+                            raise ValueError('SARIF path escapes task directory')
+
+                        if sarif_full_path.exists():
+                            with open(sarif_full_path, 'r', encoding='utf-8') as f:
+                                sarif_data = json.load(f)
+                        else:
+                            logger.warning(f"SARIF file missing for {tool_name}: {sarif_full_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to load SARIF file for {tool_name}: {e}")
+
+            if sarif_data:
+                extracted_issues = _extract_issues_from_sarif(sarif_data)
+                tool_data['issues'] = extracted_issues
+                tool_data['total_issues'] = len(extracted_issues)
+                logger.info(f"Loaded {len(extracted_issues)} issues from SARIF data for {tool_name}")
         
         # Filter issues by severity if requested
         if severity_filter and 'issues' in tool_data and tool_data['issues']:
@@ -421,17 +795,18 @@ def get_sarif_file(result_id: str, sarif_path: str):
             return api_error(f"Result not found: {result_id}", 404)
         
         result_data = result.raw_data
-        metadata = result_data.get('metadata', {})
-        model_slug = metadata.get('model_slug', '')
-        app_number = metadata.get('app_number', '')
-        
-        if not model_slug or not app_number:
+        task_dir = _resolve_task_directory(result_data, result_id)
+        if not task_dir:
             return api_error("Invalid result metadata", 400)
-        
-        # Build path to SARIF file
-        results_base = Path(current_app.root_path).parent / 'results'
-        sarif_full_path = results_base / model_slug / f'app{app_number}' / f'task_{result_id}' / sarif_path
-        
+
+        task_root = task_dir.resolve()
+        sarif_full_path = (task_root / sarif_path).resolve()
+
+        try:
+            sarif_full_path.relative_to(task_root)
+        except ValueError:
+            return api_error("Invalid SARIF path", 400)
+
         if not sarif_full_path.exists():
             return api_error(f"SARIF file not found: {sarif_path}", 404)
         
