@@ -1,5 +1,0 @@
-"""Failcase template purposely raises an error when executed in tests.
-Used to verify failure persistence logic.
-"""
-
-raise RuntimeError("Intentional failcase execution for test")

@@ -414,12 +414,6 @@ class AnalysisTaskService:
             setattr(task, 'progress_percentage', 100.0)
         db.session.commit()
         
-        # Auto-cache tool results in database for performance (best effort)
-        try:
-            AnalysisTaskService._cache_tool_results_on_completion(task_id)
-        except Exception as e:
-            logger.warning(f"Failed to cache tool results for task {task_id}: {e}")
-        
         logger.info(f"Completed task {task_id}")
         return task
     
@@ -531,30 +525,6 @@ class AnalysisTaskService:
             'active_tasks': len(AnalysisTaskService.get_active_tasks()),
             'last_updated': datetime.now(timezone.utc).isoformat()
         }
-
-    @staticmethod
-    def _cache_tool_results_on_completion(task_id: str) -> None:
-        """Cache tool results in database when a task completes."""
-        try:
-            from .simple_tool_results_service import SimpleToolResultsService
-            from .results_api_service import ResultsAPIService
-
-            api_service = ResultsAPIService()
-            raw_results = api_service._fetch_raw_results(task_id)
-
-            if not raw_results:
-                logger.info(f"No results found to cache for task {task_id}")
-                return
-
-            tool_service = SimpleToolResultsService()
-            success = tool_service.store_tool_results_from_json(task_id, raw_results)
-
-            if success:
-                logger.info(f"Successfully cached tool results in database for task {task_id}")
-            else:
-                logger.warning(f"Failed to cache tool results for task {task_id}")
-        except Exception as e:
-            logger.error(f"Error caching tool results for task {task_id}: {e}")
 
 
 class TaskQueueService:
