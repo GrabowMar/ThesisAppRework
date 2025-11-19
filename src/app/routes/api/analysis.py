@@ -8,6 +8,7 @@ from flask import Blueprint, jsonify, request, current_app
 from app.routes.api.common import api_error
 from app.engines.container_tool_registry import get_container_tool_registry
 from app.paths import RESULTS_DIR, PROJECT_ROOT
+from app.utils.tool_parsers import extract_tool_findings
 import logging
 import json
 from pathlib import Path
@@ -137,203 +138,12 @@ def _extract_issues_from_sarif(sarif_data: Dict[str, Any]) -> List[Dict[str, Any
     return extracted_issues
 
 
-def _normalize_issue_severity(value: Optional[str], default: str = 'MEDIUM') -> str:
-    """Normalize severity/risk labels coming from various services."""
-    if not value:
-        return default
-
-    normalized = str(value).strip().upper()
-    mapping = {
-        'CRIT': 'CRITICAL',
-        'CRITICAL': 'CRITICAL',
-        'HIGH': 'HIGH',
-        'WARN': 'MEDIUM',
-        'WARNING': 'MEDIUM',
-        'MEDIUM': 'MEDIUM',
-        'LOW': 'LOW',
-        'INFO': 'INFO',
-        'INFORMATIONAL': 'INFO',
-        'NOTE': 'LOW',
-        'MINOR': 'LOW',
-        'ERROR': 'HIGH'
-    }
-
-    for key, mapped in mapping.items():
-        if normalized == key or key in normalized:
-            return mapped
-
-    return default
-
-
-def _extract_zap_security_issues(zap_results: Any) -> List[Dict[str, Any]]:
-    """Flatten ZAP alert payloads into the standard issue shape."""
-    issues: List[Dict[str, Any]] = []
-    if not isinstance(zap_results, list):
-        return issues
-
-    for scan in zap_results:
-        if not isinstance(scan, dict):
-            continue
-
-        base_url = scan.get('url')
-        scan_type = scan.get('scan_type') or scan.get('type')
-        alerts_by_risk = scan.get('alerts_by_risk') or {}
-
-        for risk_bucket, alerts in alerts_by_risk.items():
-            if not isinstance(alerts, list):
-                continue
-
-            for alert in alerts:
-                if not isinstance(alert, dict):
-                    continue
-
-                severity = _normalize_issue_severity(alert.get('risk') or risk_bucket)
-                issue = {
-                    'issue_severity': severity,
-                    'severity': severity,
-                    'risk': alert.get('risk') or risk_bucket,
-                    'name': alert.get('name') or alert.get('alert') or 'ZAP Alert',
-                    'message': alert.get('description') or alert.get('name'),
-                    'description': alert.get('description'),
-                    'solution': alert.get('solution'),
-                    'reference': alert.get('reference'),
-                    'url': alert.get('url') or base_url,
-                    'param': alert.get('param') or alert.get('parameter'),
-                    'evidence': alert.get('evidence'),
-                    'confidence': alert.get('confidence'),
-                    'plugin_id': alert.get('pluginId'),
-                    'alert_id': alert.get('id'),
-                    'alert_ref': alert.get('alertRef'),
-                    'tags': alert.get('tags'),
-                    'tool': 'zap',
-                    'category': 'zap_security_scan',
-                    'scan_type': scan_type,
-                    'target_url': base_url,
-                }
-
-                cwe_id = alert.get('cweid') or alert.get('cwe')
-                if cwe_id and str(cwe_id) not in ('-1', '0'):
-                    issue['cwe'] = f"CWE-{cwe_id}" if not str(cwe_id).startswith('CWE-') else str(cwe_id)
-
-                other_notes = alert.get('other')
-                if other_notes:
-                    issue['notes'] = other_notes
-
-                issues.append(issue)
-
-    return issues
-
-
-def _extract_vulnerability_scan_issues(vulnerability_results: Any) -> List[Dict[str, Any]]:
-    """Derive issues from vulnerability scan summaries emitted by the dynamic analyzer."""
-    issues: List[Dict[str, Any]] = []
-    if not isinstance(vulnerability_results, list):
-        return issues
-
-    for scan in vulnerability_results:
-        if not isinstance(scan, dict):
-            continue
-
-        target_url = scan.get('url')
-        for vuln in scan.get('vulnerabilities') or []:
-            if not isinstance(vuln, dict):
-                continue
-
-            severity = _normalize_issue_severity(vuln.get('severity') or 'LOW')
-            issue = {
-                'issue_severity': severity,
-                'severity': severity,
-                'vulnerability_type': vuln.get('type'),
-                'message': vuln.get('description') or vuln.get('type') or 'Potential vulnerability',
-                'description': vuln.get('description'),
-                'url': target_url,
-                'paths': vuln.get('paths'),
-                'tool': 'vulnerability_scan',
-                'category': 'vulnerability_scan',
-            }
-            issues.append(issue)
-
-    return issues
-
-
-def _extract_connectivity_issues(connectivity_results: Any) -> List[Dict[str, Any]]:
-    """Create issue entries for missing security headers detected during connectivity checks."""
-    issues: List[Dict[str, Any]] = []
-    if not isinstance(connectivity_results, list):
-        return issues
-
-    for entry in connectivity_results:
-        analysis = entry.get('analysis') if isinstance(entry, dict) else None
-        if not isinstance(analysis, dict):
-            continue
-
-        headers = analysis.get('security_headers') or {}
-        if not isinstance(headers, dict):
-            continue
-
-        missing_headers = [name for name, present in headers.items() if not present]
-        if not missing_headers:
-            continue
-
-        severity = 'LOW'
-        issues.append({
-            'issue_severity': severity,
-            'severity': severity,
-            'message': 'Missing security headers',
-            'description': f"The following headers are not configured: {', '.join(sorted(missing_headers))}",
-            'url': analysis.get('url'),
-            'status_code': analysis.get('status_code'),
-            'security_score': analysis.get('security_score'),
-            'tool': 'curl',
-            'category': 'connectivity',
-        })
-
-    return issues
-
-
-def _extract_port_scan_issues(port_scan_result: Any) -> List[Dict[str, Any]]:
-    """Represent open ports discovered by nmap as informational issues."""
-    issues: List[Dict[str, Any]] = []
-    if not isinstance(port_scan_result, dict):
-        return issues
-
-    host = port_scan_result.get('host')
-    for port in port_scan_result.get('open_ports') or []:
-        issue = {
-            'issue_severity': 'INFO',
-            'severity': 'INFO',
-            'message': f'Port {port} is open',
-            'description': 'The port responded during scanning and should be verified if exposure is intentional.',
-            'host': host,
-            'tool': 'nmap',
-            'category': 'port_scan',
-            'port': port,
-        }
-        issues.append(issue)
-
-    return issues
-
-
 def _derive_tool_issues_from_service(service_type: Optional[str], tool_name: str, analysis_block: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Attempt to build issue arrays for tools that don't emit SARIF/issue payloads."""
     if not service_type or not isinstance(analysis_block, dict):
         return []
 
-    results = analysis_block.get('results') or {}
-    tool_key = tool_name.lower()
-
-    if service_type == 'dynamic':
-        if tool_key == 'zap':
-            return _extract_zap_security_issues(results.get('zap_security_scan'))
-        if tool_key in ('curl', 'connectivity'):
-            return _extract_connectivity_issues(results.get('connectivity'))
-        if tool_key in ('nmap', 'portscan', 'port-scan'):
-            return _extract_port_scan_issues(results.get('port_scan'))
-        if tool_key in ('vulnerability_scan', 'vulnscan', 'dirsearch'):
-            return _extract_vulnerability_scan_issues(results.get('vulnerability_scan'))
-
-    # Future services (performance, ai) can be added here as needed
-    return []
+    return extract_tool_findings(service_type, tool_name, analysis_block)
 
 
 def _resolve_tools_from_names(tool_names, all_tools):
@@ -523,7 +333,7 @@ def run_analysis():
         # Resolve tool names to IDs and group by service
         tool_ids, tool_names, tools_by_service = _resolve_tools_from_names(tools, all_tools)
         
-        if not tools_by_service:
+        if not tools_by_service or not tool_names:
             return api_error("No valid tools found", 400)
         
         # Build custom options for task

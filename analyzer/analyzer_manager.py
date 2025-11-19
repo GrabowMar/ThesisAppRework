@@ -1123,8 +1123,8 @@ class AnalyzerManager:
         # Only apply defaults when tools is explicitly None. Respect provided selections.
         if tools is None:
             # Include ALL available static analysis tools (including security tools)
-            tools = ['bandit', 'safety', 'pip-audit', 'semgrep',  # Security/CVE tools
-                    'pylint', 'flake8', 'mypy', 'vulture', 'ruff',  # Python static analysis
+            tools = ['bandit', 'safety', 'pip-audit', 'semgrep', 'detect-secrets',  # Security/CVE tools
+                    'pylint', 'flake8', 'mypy', 'vulture', 'ruff', 'radon',  # Python static analysis
                     'eslint', 'jshint', 'npm-audit', 'snyk', 'stylelint']  # JavaScript/CSS tools
         logger.info(f"[SEARCH] Running static analysis on {model_slug} app {app_number}")
         
@@ -1633,6 +1633,83 @@ class AnalyzerManager:
                         }
                     })
 
+            # Radon
+            radon = python_results.get('radon', {})
+            if isinstance(radon, dict) and radon.get('issues'):
+                for issue in radon['issues']:
+                    findings.append({
+                        'id': f"radon_{issue.get('line', 0)}_{issue.get('column', 0)}",
+                        'tool': 'radon',
+                        'rule_id': 'cyclomatic-complexity',
+                        'severity': self._normalize_severity(issue.get('severity', 'low')),
+                        'confidence': 'high',
+                        'category': 'quality',
+                        'type': 'complexity',
+                        'file': {
+                            'path': issue.get('file', '').replace('/app/sources/', ''),
+                            'line_start': issue.get('line'),
+                            'line_end': issue.get('end_line', issue.get('line')),
+                            'column_start': issue.get('column'),
+                            'column_end': None
+                        },
+                        'message': {
+                            'title': 'High Complexity',
+                            'description': issue.get('message', ''),
+                            'solution': 'Refactor code to reduce complexity',
+                            'references': []
+                        },
+                        'evidence': {
+                            'code_snippet': '',
+                            'context_lines': 3
+                        },
+                        'metadata': {
+                            'cwe_id': None,
+                            'confidence': 'high',
+                            'tags': ['complexity'],
+                            'fix_available': False,
+                            'complexity': issue.get('complexity'),
+                            'rank': issue.get('rank')
+                        }
+                    })
+
+            # Detect Secrets
+            secrets = python_results.get('detect-secrets', {})
+            if isinstance(secrets, dict) and secrets.get('issues'):
+                for issue in secrets['issues']:
+                    findings.append({
+                        'id': f"detect_secrets_{issue.get('line', 0)}",
+                        'tool': 'detect-secrets',
+                        'rule_id': 'secret-detection',
+                        'severity': 'high',
+                        'confidence': 'medium',
+                        'category': 'security',
+                        'type': 'secret',
+                        'file': {
+                            'path': issue.get('file', '').replace('/app/sources/', ''),
+                            'line_start': issue.get('line'),
+                            'line_end': issue.get('line'),
+                            'column_start': None,
+                            'column_end': None
+                        },
+                        'message': {
+                            'title': 'Potential Secret Detected',
+                            'description': issue.get('message', ''),
+                            'solution': 'Revoke the secret and use environment variables',
+                            'references': []
+                        },
+                        'evidence': {
+                            'code_snippet': '',
+                            'context_lines': 3
+                        },
+                        'metadata': {
+                            'cwe_id': 'CWE-798',
+                            'confidence': 'medium',
+                            'tags': ['secret'],
+                            'fix_available': False,
+                            'secret_type': issue.get('secret_type')
+                        }
+                    })
+
         # JavaScript/TypeScript tools
         js_results = results.get('javascript', {})
         if isinstance(js_results, dict):
@@ -1685,7 +1762,7 @@ class AnalyzerManager:
                             'category': 'quality',
                             'type': 'code_style',
                             'file': {
-                                'path': file_result.get('source', '').replace('/app/sources/', ''),
+                                'path': warning.get('source', '').replace('/app/sources/', ''),
                                 'line_start': warning.get('line'),
                                 'line_end': warning.get('endLine', warning.get('line')),
                                 'column_start': warning.get('column'),
@@ -1710,79 +1787,136 @@ class AnalyzerManager:
         zap_scan_results = results.get('zap_security_scan', [])
         if isinstance(zap_scan_results, list):
             for scan_result in zap_scan_results:
-                if isinstance(scan_result, dict) and scan_result.get('status') == 'success':
+                if isinstance(scan_result, dict):
+                    status = scan_result.get('status')
                     url = scan_result.get('url', 'unknown_url')
-                    vulnerabilities = scan_result.get('vulnerabilities', [])
-                    if isinstance(vulnerabilities, list):
-                        for vuln in vulnerabilities:
-                            if isinstance(vuln, dict):
-                                findings.append({
-                                    'id': f"zap_{vuln.get('type', 'unknown').replace(' ', '_')}_{url}",
-                                    'tool': 'zap',
-                                    'rule_id': vuln.get('type'),
-                                    'severity': self._normalize_severity(vuln.get('severity', 'medium')),
-                                    'category': 'security',
-                                    'type': 'vulnerability',
-                                    'file': {'path': url},
-                                    'message': {
-                                        'title': vuln.get('type'),
-                                        'description': vuln.get('description'),
-                                        'solution': vuln.get('recommendation')
-                                    },
-                                    'metadata': {}
-                                })
+                    
+                    if status == 'success':
+                        vulnerabilities = scan_result.get('vulnerabilities', [])
+                        if isinstance(vulnerabilities, list):
+                            for vuln in vulnerabilities:
+                                if isinstance(vuln, dict):
+                                    findings.append({
+                                        'id': f"zap_{vuln.get('type', 'unknown').replace(' ', '_')}_{url}",
+                                        'tool': 'zap',
+                                        'rule_id': vuln.get('type'),
+                                        'severity': self._normalize_severity(vuln.get('severity', 'medium')),
+                                        'category': 'security',
+                                        'type': 'vulnerability',
+                                        'file': {'path': url},
+                                        'message': {
+                                            'title': vuln.get('type'),
+                                            'description': vuln.get('description'),
+                                            'solution': vuln.get('recommendation')
+                                        },
+                                        'metadata': {}
+                                    })
+                    elif status == 'error':
+                        findings.append({
+                            'id': f"zap_execution_failed_{url}",
+                            'tool': 'zap',
+                            'rule_id': 'execution-failed',
+                            'severity': 'high',
+                            'category': 'security',
+                            'type': 'tool_failure',
+                            'file': {'path': url},
+                            'message': {
+                                'title': 'ZAP Scan Failed',
+                                'description': f"ZAP failed to scan {url}: {scan_result.get('error', 'Unknown error')}",
+                                'solution': 'Ensure the application is running and accessible.'
+                            },
+                            'metadata': {'error': scan_result.get('error')}
+                        })
 
         # Extract from common vulnerability scan
         vuln_scan_results = results.get('vulnerability_scan', [])
         if isinstance(vuln_scan_results, list):
             for scan_result in vuln_scan_results:
-                if isinstance(scan_result, dict) and scan_result.get('status') == 'success':
+                if isinstance(scan_result, dict):
+                    status = scan_result.get('status')
                     url = scan_result.get('url', 'unknown_url')
-                    vulnerabilities = scan_result.get('vulnerabilities', [])
-                    if isinstance(vulnerabilities, list):
-                        for vuln in vulnerabilities:
-                             if isinstance(vuln, dict) and vuln.get('type') == 'exposed_paths':
-                                for path_info in vuln.get('paths', []):
-                                    findings.append({
-                                        'id': f"curl_exposed_path_{path_info.get('path', '').replace('/', '')}_{url}",
-                                        'tool': 'curl',
-                                        'rule_id': 'exposed-path',
-                                        'severity': self._normalize_severity(vuln.get('severity', 'low')),
-                                        'category': 'security',
-                                        'type': 'information_disclosure',
-                                        'file': {'path': path_info.get('url')},
-                                        'message': {
-                                            'title': 'Exposed Sensitive Path',
-                                            'description': f"The path {path_info.get('path')} was found to be accessible.",
-                                            'solution': 'Restrict access to sensitive paths.'
-                                        },
-                                        'metadata': {'status': path_info.get('status')}
-                                    })
+                    
+                    if status == 'success':
+                        vulnerabilities = scan_result.get('vulnerabilities', [])
+                        if isinstance(vulnerabilities, list):
+                            for vuln in vulnerabilities:
+                                 if isinstance(vuln, dict) and vuln.get('type') == 'exposed_paths':
+                                    for path_info in vuln.get('paths', []):
+                                        findings.append({
+                                            'id': f"curl_exposed_path_{path_info.get('path', '').replace('/', '')}_{url}",
+                                            'tool': 'curl',
+                                            'rule_id': 'exposed-path',
+                                            'severity': self._normalize_severity(vuln.get('severity', 'low')),
+                                            'category': 'security',
+                                            'type': 'information_disclosure',
+                                            'file': {'path': path_info.get('url')},
+                                            'message': {
+                                                'title': 'Exposed Sensitive Path',
+                                                'description': f"The path {path_info.get('path')} was found to be accessible.",
+                                                'solution': 'Restrict access to sensitive paths.'
+                                            },
+                                            'metadata': {'status': path_info.get('status')}
+                                        })
+                    elif status == 'error':
+                        findings.append({
+                            'id': f"curl_execution_failed_{url}",
+                            'tool': 'curl',
+                            'rule_id': 'execution-failed',
+                            'severity': 'high',
+                            'category': 'security',
+                            'type': 'tool_failure',
+                            'file': {'path': url},
+                            'message': {
+                                'title': 'Vulnerability Scan Failed',
+                                'description': f"Vulnerability scan failed for {url}: {scan_result.get('error', 'Unknown error')}",
+                                'solution': 'Ensure the application is running and accessible.'
+                            },
+                            'metadata': {'error': scan_result.get('error')}
+                        })
 
         # Extract from port scan
         port_scan_result = results.get('port_scan', {})
-        if isinstance(port_scan_result, dict) and port_scan_result.get('status') == 'success':
+        if isinstance(port_scan_result, dict):
+            status = port_scan_result.get('status')
             host = port_scan_result.get('host', 'unknown_host')
-            open_ports = port_scan_result.get('open_ports', [])
-            if isinstance(open_ports, list):
-                for port in open_ports:
-                    # Example: create a finding for common unencrypted ports like FTP, Telnet
-                    if port in [21, 23]:
-                         findings.append({
-                            'id': f"nmap_insecure_port_{port}_{host}",
-                            'tool': 'nmap',
-                            'rule_id': 'insecure-port-open',
-                            'severity': 'medium',
-                            'category': 'security',
-                            'type': 'configuration_issue',
-                            'file': {'path': f"{host}:{port}"},
-                            'message': {
-                                'title': 'Insecure Port Open',
-                                'description': f"Port {port} is open, which may be used for unencrypted communication.",
-                                'solution': f"Ensure that port {port} is firewalled or that communication over it is encrypted."
-                            },
-                            'metadata': {'port': port}
-                        })
+            
+            if status == 'success':
+                open_ports = port_scan_result.get('open_ports', [])
+                if isinstance(open_ports, list):
+                    for port in open_ports:
+                        # Example: create a finding for common unencrypted ports like FTP, Telnet
+                        if port in [21, 23]:
+                             findings.append({
+                                'id': f"nmap_insecure_port_{port}_{host}",
+                                'tool': 'nmap',
+                                'rule_id': 'insecure-port-open',
+                                'severity': 'medium',
+                                'category': 'security',
+                                'type': 'configuration_issue',
+                                'file': {'path': f"{host}:{port}"},
+                                'message': {
+                                    'title': 'Insecure Port Open',
+                                    'description': f"Port {port} is open, which may be used for unencrypted communication.",
+                                    'solution': f"Ensure that port {port} is firewalled or that communication over it is encrypted."
+                                },
+                                'metadata': {'port': port}
+                            })
+            elif status == 'error':
+                findings.append({
+                    'id': f"nmap_execution_failed_{host}",
+                    'tool': 'nmap',
+                    'rule_id': 'execution-failed',
+                    'severity': 'high',
+                    'category': 'security',
+                    'type': 'tool_failure',
+                    'file': {'path': host},
+                    'message': {
+                        'title': 'Port Scan Failed',
+                        'description': f"Port scan failed for {host}: {port_scan_result.get('error', 'Unknown error')}",
+                        'solution': 'Ensure the host is reachable.'
+                    },
+                    'metadata': {'error': port_scan_result.get('error')}
+                })
 
         return findings
     
@@ -2086,7 +2220,7 @@ class AnalyzerManager:
         safe_slug = str(model_slug).replace('/', '_').replace('\\', '_')
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        # Group consolidated artifacts under task_<task_id>/ (legacy analysis/* migrated)
+        # Group consolidated artefacts under task_<task_id>/ (legacy analysis/* migrated)
         sanitized_task = self._sanitize_task_id(task_id)
         task_dir = self._build_task_output_dir(model_slug, app_number, sanitized_task)
         task_dir.mkdir(parents=True, exist_ok=True)

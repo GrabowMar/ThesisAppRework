@@ -1,6 +1,6 @@
 websockets>=12.0
 bandit>=1.7.5
-safety>=3.0.0
+safety<3.0.0
 pip-audit>=2.7.3
 pylint>=3.0.0
 mypy>=1.6.0
@@ -13,3 +13,7 @@ black>=23.0.0
 isort>=5.12.0
 sarif-om>=1.0.4
 jschema-to-python>=1.2.3
+flask
+flask-sqlalchemy
+radon
+detect-secrets

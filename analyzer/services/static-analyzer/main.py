@@ -152,14 +152,14 @@ class StaticAnalyzer(BaseWSService):
     def _detect_available_tools(self) -> List[str]:
         tools: List[str] = []
         # Check Python tools
-        for tool in ['bandit', 'pylint', 'mypy', 'semgrep', 'snyk', 'safety', 'pip-audit', 'vulture', 'ruff']:
+        for tool in ['bandit', 'pylint', 'mypy', 'semgrep', 'snyk', 'safety', 'pip-audit', 'vulture', 'ruff', 'radon', 'detect-secrets']:
             try:
                 result = subprocess.run([tool, '--version'], capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
                     tools.append(tool)
-                    self.log.debug(f"{tool} available")
+                    self.log.info(f"{tool} available")
             except Exception as e:
-                self.log.debug(f"{tool} not available: {e}")
+                self.log.info(f"{tool} not available: {e}")
         
         # Check Node.js tools
         for tool in ['eslint', 'npm-audit', 'stylelint']:
@@ -596,13 +596,36 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             if 'flake8' in (selected_tools or set()):
                 results['flake8'] = result
         
+        # Radon complexity analysis
+        radon_config = config.get('radon', {}) if config else {}
+        if (
+            'radon' in self.available_tools
+            and (selected_tools is None or 'radon' in selected_tools)
+            and radon_config.get('enabled', True)
+            and python_files
+        ):
+            # Run Cyclomatic Complexity (cc) analysis
+            cmd = ['radon', 'cc', str(source_path), '--json', '--average']
+            results['radon'] = await self._run_tool(cmd, 'radon', config=radon_config, success_exit_codes=[0])
+
+        # Detect-Secrets scan
+        secrets_config = config.get('detect-secrets', {}) if config else {}
+        if (
+            'detect-secrets' in self.available_tools
+            and (selected_tools is None or 'detect-secrets' in selected_tools)
+            and secrets_config.get('enabled', True)
+        ):
+            # Scan recursively
+            cmd = ['detect-secrets', 'scan', str(source_path)]
+            # detect-secrets outputs JSON to stdout
+            results['detect-secrets'] = await self._run_tool(cmd, 'detect-secrets', config=secrets_config, success_exit_codes=[0])
 
         
         # Summarize per-tool status for Python analyzers (always generate)
         # Use underscore prefix to signal this is internal metadata, not a tool result
         try:
             summary = {}
-            for name in ['bandit', 'pylint', 'semgrep', 'mypy', 'safety', 'vulture', 'ruff', 'flake8']:
+            for name in ['bandit', 'pylint', 'semgrep', 'mypy', 'safety', 'vulture', 'ruff', 'flake8', 'radon', 'detect-secrets']:
                 t = results.get(name)
                 if isinstance(t, dict):
                     try:

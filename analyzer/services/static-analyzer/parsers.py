@@ -799,6 +799,158 @@ class RuffParser:
         }
 
 
+class RadonParser:
+    """Parser for Radon JSON output."""
+    
+    @staticmethod
+    def parse(raw_output: Any, config: Optional[Dict] = None) -> Dict:
+        """
+        Parse Radon JSON output (cc command).
+        
+        Radon JSON structure:
+        {
+            "file.py": [
+                {
+                    "type": "function",
+                    "rank": "A",
+                    "name": "func_name",
+                    "complexity": 2,
+                    "lineno": 10,
+                    "col_offset": 0,
+                    "endline": 15
+                }
+            ]
+        }
+        """
+        if not isinstance(raw_output, dict):
+            return {
+                'tool': 'radon',
+                'executed': True,
+                'status': 'error',
+                'error': 'Invalid output format',
+                'issues': [],
+                'total_issues': 0,
+                'issue_count': 0,
+            }
+        
+        issues = []
+        severity_breakdown = {'high': 0, 'medium': 0, 'low': 0}
+        
+        # Map Radon rank to severity
+        # A (1-5) = low, B (6-10) = low, C (11-20) = medium, D (21-30) = medium, E (31-40) = high, F (41+) = high
+        rank_map = {
+            'A': 'low', 'B': 'low',
+            'C': 'medium', 'D': 'medium',
+            'E': 'high', 'F': 'high'
+        }
+        
+        for file_path, blocks in raw_output.items():
+            if not isinstance(blocks, list):
+                continue
+                
+            for block in blocks:
+                rank = block.get('rank', 'A')
+                complexity = block.get('complexity', 0)
+                
+                # Only report if complexity is high enough (C or worse by default)
+                # or if configured otherwise
+                if rank in ['A', 'B'] and not config.get('report_all', False):
+                    continue
+                    
+                severity = rank_map.get(rank, 'low')
+                severity_breakdown[severity] += 1
+                
+                issues.append({
+                    'file': file_path,
+                    'line': block.get('lineno', 0),
+                    'column': block.get('col_offset', 0),
+                    'end_line': block.get('endline'),
+                    'severity': severity,
+                    'message': f"High complexity block '{block.get('name')}' (CC: {complexity}, Rank: {rank})",
+                    'rule': 'cyclomatic-complexity',
+                    'complexity': complexity,
+                    'rank': rank,
+                    'type': block.get('type', 'unknown')
+                })
+        
+        return {
+            'tool': 'radon',
+            'executed': True,
+            'status': 'success',
+            'issues': issues,
+            'total_issues': len(issues),
+            'issue_count': len(issues),
+            'severity_breakdown': severity_breakdown,
+            'config_used': config or {}
+        }
+
+
+class DetectSecretsParser:
+    """Parser for detect-secrets JSON output."""
+    
+    @staticmethod
+    def parse(raw_output: Any, config: Optional[Dict] = None) -> Dict:
+        """
+        Parse detect-secrets JSON output.
+        
+        detect-secrets JSON structure:
+        {
+            "results": {
+                "file.py": [
+                    {
+                        "type": "Secret Keyword",
+                        "filename": "file.py",
+                        "hashed_secret": "...",
+                        "is_verified": false,
+                        "line_number": 123
+                    }
+                ]
+            }
+        }
+        """
+        if not isinstance(raw_output, dict):
+            return {
+                'tool': 'detect-secrets',
+                'executed': True,
+                'status': 'error',
+                'error': 'Invalid output format',
+                'issues': [],
+                'total_issues': 0,
+                'issue_count': 0,
+            }
+        
+        results = raw_output.get('results', {})
+        issues = []
+        severity_breakdown = {'high': 0, 'medium': 0, 'low': 0}
+        
+        for file_path, secrets in results.items():
+            for secret in secrets:
+                # Secrets are always high severity
+                severity = 'high'
+                severity_breakdown[severity] += 1
+                
+                issues.append({
+                    'file': file_path,
+                    'line': secret.get('line_number', 0),
+                    'severity': severity,
+                    'message': f"Potential secret detected: {secret.get('type')}",
+                    'rule': 'secret-detection',
+                    'secret_type': secret.get('type'),
+                    'is_verified': secret.get('is_verified', False)
+                })
+        
+        return {
+            'tool': 'detect-secrets',
+            'executed': True,
+            'status': 'success',
+            'issues': issues,
+            'total_issues': len(issues),
+            'issue_count': len(issues),
+            'severity_breakdown': severity_breakdown,
+            'config_used': config or {}
+        }
+
+
 # Parser registry
 PARSERS = {
     'bandit': BanditParser,
@@ -809,7 +961,9 @@ PARSERS = {
     'semgrep': SemgrepParser,
     'mypy': MyPyParser,
     'vulture': VultureParser,
-    'ruff': RuffParser
+    'ruff': RuffParser,
+    'radon': RadonParser,
+    'detect-secrets': DetectSecretsParser
 }
 
 

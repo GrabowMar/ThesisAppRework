@@ -571,11 +571,20 @@ class DynamicAnalyzer(BaseWSService):
                 # Mark curl as used if we executed connectivity checks
                 if connectivity_results:
                     results['tools_used'].append('curl')
+                
+                # Determine status and error
+                curl_status = 'success' if any(r.get('status') == 'success' for r in connectivity_results) else 'error'
+                curl_error = None
+                if curl_status == 'error' and connectivity_results:
+                     # Pick the first error
+                     curl_error = connectivity_results[0].get('error') or connectivity_results[0].get('analysis', {}).get('error')
+
                 tool_summary['curl'] = {
                     'tool': 'curl',
-                    'status': 'success' if any(r.get('status') == 'success' for r in connectivity_results) else 'error',
+                    'status': curl_status,
                     'executed': True if connectivity_results else False,
-                    'total_issues': 0
+                    'total_issues': 1 if curl_status == 'error' else 0,
+                    'error': curl_error
                 }
             else:
                 self.log.info("Skipping connectivity tests due to tool selection gating (curl not selected)")
@@ -635,11 +644,14 @@ class DynamicAnalyzer(BaseWSService):
                         port_scan_result = await self.port_scan(host, list(ports_to_scan))
                         results['results']['port_scan'] = port_scan_result
                         results['tools_used'] = list(set(results['tools_used'] + ['nmap']))
+                        
+                        nmap_status = port_scan_result.get('status','error')
                         tool_summary['nmap'] = {
                             'tool': 'nmap',
-                            'status': port_scan_result.get('status','error'),
+                            'status': nmap_status,
                             'executed': True,
-                            'total_issues': 0
+                            'total_issues': 1 if nmap_status == 'error' else 0,
+                            'error': port_scan_result.get('error')
                         }
                     elif 'curl' in (selected_set or set()):
                         # Fallback to basic check
@@ -666,11 +678,18 @@ class DynamicAnalyzer(BaseWSService):
                     
                     results['results']['zap_security_scan'] = zap_results
                     results['tools_used'] = list(set(results['tools_used'] + ['zap']))
+                    
+                    zap_status = 'success' if any(r.get('status') == 'success' for r in zap_results) else 'error'
+                    zap_error = None
+                    if zap_status == 'error' and zap_results:
+                        zap_error = zap_results[0].get('error')
+
                     tool_summary['zap'] = {
                         'tool': 'zap',
-                        'status': 'success' if any(r.get('status') == 'success' for r in zap_results) else 'error',
+                        'status': zap_status,
                         'executed': True,
-                        'total_issues': sum(z.get('total_alerts', 0) for z in zap_results)
+                        'total_issues': sum(z.get('total_alerts', 0) for z in zap_results) + (1 if zap_status == 'error' else 0),
+                        'error': zap_error
                     }
                     
                     # Generate SARIF output for ZAP results
@@ -713,6 +732,8 @@ class DynamicAnalyzer(BaseWSService):
                 if tr.get('status') == 'success' and summary.get('status') != 'success':
                     tr['status'] = summary.get('status')
                 tr['total_issues'] = summary.get('total_issues', tr.get('total_issues', 0))
+                if summary.get('error'):
+                    tr['error'] = summary.get('error')
 
             # Attach detailed tool runs inside results for aggregator discovery
             if tool_runs:

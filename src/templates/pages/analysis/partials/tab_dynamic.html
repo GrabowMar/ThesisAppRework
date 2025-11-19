@@ -58,7 +58,9 @@
               {% endif %}
             </td>
             <td class="small text-muted">
-              {% if tool_data.total_issues is defined and tool_data.total_issues > 0 %}
+              {% if tool_data.status in ['failed', 'error'] and tool_data.error %}
+                <span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i> {{ tool_data.error }}</span>
+              {% elif tool_data.total_issues is defined and tool_data.total_issues > 0 %}
                 {{ tool_data.total_issues }} issue(s) found
               {% else %}
                 <span class="text-success">No issues detected</span>

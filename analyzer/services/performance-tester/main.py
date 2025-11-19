@@ -289,7 +289,7 @@ class SimpleUser(HttpUser):
             
             # Run test with shorter timeout for faster tests (was 900s)
             start_ts = time.time()
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=str(self.test_output_dir))
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=str(self.test_output_dir))
             duration = time.time() - start_ts
             
             if result.returncode == 0:
