@@ -22,6 +22,10 @@ docker==7.0.0
 requests==2.31.0
 urllib3==2.1.0
 
+# Task Queue
+celery==5.3.6
+redis==5.0.1
+
 # WebSocket Support
 websockets==12.0
 aiohttp==3.9.1

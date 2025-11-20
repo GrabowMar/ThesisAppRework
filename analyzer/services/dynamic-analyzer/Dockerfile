@@ -31,7 +31,7 @@ ENV PATH="${ZAP_PATH}:${PATH}"
 WORKDIR /app
 
 # Copy requirements first for better caching (from repo root context)
-COPY services/dynamic-analyzer/requirements.txt ./requirements.txt
+COPY analyzer/services/dynamic-analyzer/requirements.txt ./requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
@@ -40,9 +40,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN useradd -u 1000 -m analyzer
 
 # Copy shared analyzer package and service code
-COPY --chown=analyzer:analyzer __init__.py ./analyzer/__init__.py
-COPY --chown=analyzer:analyzer shared ./analyzer/shared
-COPY --chown=analyzer:analyzer services/dynamic-analyzer/ .
+COPY --chown=analyzer:analyzer analyzer/__init__.py ./analyzer/__init__.py
+COPY --chown=analyzer:analyzer analyzer/shared ./analyzer/shared
+COPY --chown=analyzer:analyzer analyzer/services/dynamic-analyzer/main.py .
+COPY --chown=analyzer:analyzer analyzer/services/dynamic-analyzer/health_check.py .
+COPY --chown=analyzer:analyzer analyzer/services/dynamic-analyzer/zap_scanner.py .
+COPY --chown=analyzer:analyzer analyzer/services/dynamic-analyzer/sarif_parsers.py .
+COPY --chown=analyzer:analyzer analyzer/services/dynamic-analyzer/start_services.sh .
 
 # Make startup script executable
 RUN chmod +x start_services.sh

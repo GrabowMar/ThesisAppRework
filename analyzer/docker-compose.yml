@@ -5,7 +5,9 @@
 services:
   # WebSocket Gateway
   gateway:
-    build: .
+    build:
+      context: ..
+      dockerfile: analyzer/Dockerfile
     ports:
       - "8765:8765"
     environment:
@@ -43,8 +45,8 @@ services:
   # Static Security & Quality Analyzer
   static-analyzer:
     build:
-      context: .
-      dockerfile: ./services/static-analyzer/Dockerfile
+      context: ..
+      dockerfile: analyzer/services/static-analyzer/Dockerfile
     ports:
       - "2001:2001"
     environment:
@@ -77,8 +79,8 @@ services:
   # Dynamic Security Analyzer (network tools)
   dynamic-analyzer:
     build:
-      context: .
-      dockerfile: ./services/dynamic-analyzer/Dockerfile
+      context: ..
+      dockerfile: analyzer/services/dynamic-analyzer/Dockerfile
     ports:
       - "2002:2002"
     environment:
@@ -110,8 +112,8 @@ services:
   # Performance Tester (Locust)
   performance-tester:
     build:
-      context: .
-      dockerfile: ./services/performance-tester/Dockerfile
+      context: ..
+      dockerfile: analyzer/services/performance-tester/Dockerfile
     ports:
       - "2003:2003"
     environment:
@@ -144,7 +146,7 @@ services:
   ai-analyzer:
     build:
       context: ..
-      dockerfile: ./analyzer/services/ai-analyzer/Dockerfile
+      dockerfile: analyzer/services/ai-analyzer/Dockerfile
     ports:
       - "2004:2004"
     env_file:
@@ -175,6 +177,52 @@ services:
         reservations:
           memory: 1G
           cpus: '0.5'
+
+  # Redis for Celery Task Queue
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+
+  # Celery Worker
+  celery-worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: celery -A app.celery_worker.celery worker --loglevel=info
+    env_file:
+      - ../.env
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - DATABASE_URL=sqlite:////app/src/data/thesis_app.db
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app/src
+    volumes:
+      - ../generated/apps:/app/generated/apps
+      - ../results:/app/results
+      - ../logs:/app/logs
+      - ../src/data:/app/src/data
+      - ../.env:/app/.env:ro
+    depends_on:
+      - redis
+    user: "1000:1000"
+    restart: unless-stopped
+    networks:
+      - analyzer-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
 
 networks:
   analyzer-network:

@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY requirements.txt .
+COPY analyzer/requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Production stage
@@ -22,8 +22,8 @@ RUN useradd -m -u 1000 analyzer && \
 COPY --from=build /root/.local /home/analyzer/.local
 
 # Copy application code
-COPY --chown=analyzer:analyzer shared/ /app/shared/
-COPY --chown=analyzer:analyzer websocket_gateway.py /app/
+COPY --chown=analyzer:analyzer analyzer/shared/ /app/shared/
+COPY --chown=analyzer:analyzer analyzer/websocket_gateway.py /app/
 
 # Set environment
 ENV PATH=/home/analyzer/.local/bin:$PATH

@@ -344,6 +344,20 @@ class TaskExecutionService:
     def _execute_real_analysis(self, task: AnalysisTask) -> dict:
         """Execute real analysis using analyzer_manager directly."""
         try:
+            # Try to dispatch to Celery first if available
+            try:
+                # Check if we should use Celery (env var or config)
+                use_celery = os.environ.get('USE_CELERY_ANALYSIS', 'true').lower() == 'true'
+                
+                if use_celery:
+                    from app.tasks import execute_analysis
+                    self._log(f"[EXEC] Dispatching task {task.task_id} to Celery worker")
+                    # Dispatch task
+                    execute_analysis.delay(task.id)
+                    return {'status': 'running', 'payload': {'message': 'Dispatched to Celery'}}
+            except (ImportError, Exception) as e:
+                self._log(f"[EXEC] Celery dispatch failed: {e}, falling back to local execution", level='warning')
+
             # Get the analysis type (string)
             analysis_type = task.task_name
             
@@ -672,9 +686,9 @@ class TaskExecutionService:
         main_task_id: str,
         subtask_ids: List[str]
     ) -> dict:
-        """Submit multiple subtasks for parallel execution using ThreadPoolExecutor.
+        """Submit multiple subtasks for parallel execution using Celery (with ThreadPool fallback).
         
-        Replaces Celery group/chord pattern with ThreadPoolExecutor.
+        Uses Celery 'chord' primitive: group(subtasks) | aggregate_callback
         
         Args:
             main_task_id: Main task ID
@@ -696,79 +710,138 @@ class TaskExecutionService:
             error_msg = f"No subtasks found for main task {main_task_id}"
             self._log(error_msg, level='error')
             raise RuntimeError(error_msg)
-        
-        futures = []
-        subtask_info = []
-        
-        for subtask in subtasks:
-            service_name = subtask.service_name
             
-            # Get tool names from subtask metadata
-            metadata = subtask.get_metadata() if hasattr(subtask, 'get_metadata') else {}
-            custom_options = metadata.get('custom_options', {})
-            tool_names = custom_options.get('tool_names', [])
+        # Try to use Celery first
+        try:
+            from celery import chord
+            from app.tasks import execute_subtask, aggregate_results
             
-            if not tool_names:
-                self._log(f"No tools found for subtask {subtask.task_id} ({service_name}), skipping", level='warning')
-                continue
+            header = []
+            subtask_info = []
             
-            self._log(f"Queuing parallel subtask for {service_name} with tools: {tool_names}")
+            for subtask in subtasks:
+                service_name = subtask.service_name
+                metadata = subtask.get_metadata() if hasattr(subtask, 'get_metadata') else {}
+                custom_options = metadata.get('custom_options', {})
+                tool_names = custom_options.get('tool_names', [])
+                
+                if not tool_names:
+                    self._log(f"No tools found for subtask {subtask.task_id} ({service_name}), skipping", level='warning')
+                    continue
+                
+                # Create Celery signature for subtask
+                sig = execute_subtask.s(
+                    subtask.id,
+                    main_task.target_model,
+                    main_task.target_app_number,
+                    tool_names,
+                    service_name
+                )
+                header.append(sig)
+                subtask_info.append(service_name)
             
-            # Submit subtask to thread pool
-            future = self.executor.submit(
-                self._execute_subtask_in_thread,
-                subtask.id,
-                main_task.target_model,
-                main_task.target_app_number,
-                tool_names,
-                service_name
-            )
-            futures.append(future)
-            subtask_info.append({
-                'service': service_name,
-                'subtask_id': subtask.id,
-                'subtask_task_id': subtask.task_id,
-                'tools': tool_names
-            })
-        
-        if not futures:
-            error_msg = f"No parallel subtasks created for unified analysis of task {main_task_id}"
-            self._log(error_msg, level='error')
-            raise RuntimeError(error_msg)
-        
-        self._log(
-            f"✅ Submitted {len(futures)} subtasks to ThreadPoolExecutor for task {main_task_id}. "
-            f"Services: {', '.join([info['service'] for info in subtask_info])}"
-        )
-        
-        # Mark main task as RUNNING and spawn aggregation thread
-        main_task.status = AnalysisStatus.RUNNING
-        main_task.progress_percentage = 30.0  # Subtasks started
-        db.session.commit()
-        
-        # Submit aggregation task that waits for all subtasks
-        aggregation_future = self.executor.submit(
-            self._aggregate_subtask_results_in_thread,
-            main_task_id,
-            futures,
-            subtask_info
-        )
-        
-        # Track the aggregation future
-        with self._futures_lock:
-            self._active_futures[main_task_id] = aggregation_future
-        
-        return {
-            'status': 'running',
-            'engine': 'unified',
-            'model_slug': main_task.target_model,
-            'app_number': main_task.target_app_number,
-            'payload': {
-                'message': 'Subtasks executing in parallel via ThreadPoolExecutor',
-                'services': [info['service'] for info in subtask_info],
-                'subtask_count': len(futures)
+            if not header:
+                raise RuntimeError("No valid subtasks to submit")
+                
+            # Create callback signature
+            callback = aggregate_results.s(main_task_id)
+            
+            # Execute chord
+            self._log(f"Dispatching Celery chord for task {main_task_id} with {len(header)} subtasks")
+            chord(header)(callback)
+            
+            # Mark main task as RUNNING
+            main_task.status = AnalysisStatus.RUNNING
+            main_task.progress_percentage = 30.0
+            db.session.commit()
+            
+            return {
+                'status': 'running',
+                'engine': 'celery',
+                'model_slug': main_task.target_model,
+                'app_number': main_task.target_app_number,
+                'payload': {
+                    'message': 'Subtasks executing in parallel via Celery',
+                    'services': subtask_info,
+                    'subtask_count': len(header)
+                }
             }
-        }
+            
+        except (ImportError, OSError) as e:
+            self._log(f"Celery dispatch failed ({e}), falling back to ThreadPoolExecutor", level='warning')
+            
+            # Fallback to ThreadPoolExecutor implementation
+            futures = []
+            subtask_info = []
+            
+            for subtask in subtasks:
+                service_name = subtask.service_name
+                
+                # Get tool names from subtask metadata
+                metadata = subtask.get_metadata() if hasattr(subtask, 'get_metadata') else {}
+                custom_options = metadata.get('custom_options', {})
+                tool_names = custom_options.get('tool_names', [])
+                
+                if not tool_names:
+                    continue
+                
+                self._log(f"Queuing parallel subtask for {service_name} with tools: {tool_names}")
+                
+                # Submit subtask to thread pool
+                future = self.executor.submit(
+                    self._execute_subtask_in_thread,
+                    subtask.id,
+                    main_task.target_model,
+                    main_task.target_app_number,
+                    tool_names,
+                    service_name
+                )
+                futures.append(future)
+                subtask_info.append({
+                    'service': service_name,
+                    'subtask_id': subtask.id,
+                    'subtask_task_id': subtask.task_id,
+                    'tools': tool_names
+                })
+            
+            if not futures:
+                error_msg = f"No parallel subtasks created for unified analysis of task {main_task_id}"
+                self._log(error_msg, level='error')
+                raise RuntimeError(error_msg)
+            
+            self._log(
+                f"✅ Submitted {len(futures)} subtasks to ThreadPoolExecutor for task {main_task_id}. "
+                f"Services: {', '.join([info['service'] for info in subtask_info])}"
+            )
+            
+            # Mark main task as RUNNING and spawn aggregation thread
+            main_task.status = AnalysisStatus.RUNNING
+            main_task.progress_percentage = 30.0  # Subtasks started
+            db.session.commit()
+            
+            # Submit aggregation task that waits for all subtasks
+            aggregation_future = self.executor.submit(
+                self._aggregate_subtask_results_in_thread,
+                main_task_id,
+                futures,
+                subtask_info
+            )
+            
+            # Track the aggregation future
+            with self._futures_lock:
+                self._active_futures[main_task_id] = aggregation_future
+            
+            return {
+                'status': 'running',
+                'engine': 'unified',
+                'model_slug': main_task.target_model,
+                'app_number': main_task.target_app_number,
+                'payload': {
+                    'message': 'Subtasks executing in parallel via ThreadPoolExecutor',
+                    'services': [info['service'] for info in subtask_info],
+                    'subtask_count': len(futures)
+                }
+            }
     
     def _execute_subtask_in_thread(
         self,

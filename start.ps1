@@ -541,7 +541,7 @@ function Stop-Service {
         # Docker services
         Push-Location $Script:ANALYZER_DIR
         try {
-            docker-compose stop static-analyzer dynamic-analyzer performance-tester ai-analyzer gateway 2>$null | Out-Null
+            docker-compose stop 2>$null | Out-Null
             Write-Status "  $ServiceName stopped" "Success"
         } finally {
             Pop-Location
@@ -613,7 +613,7 @@ function Show-StatusDashboard {
             # Additional info
             if ($key -eq 'Flask' -and $isHealthy) {
                 Write-Host "     URL: http://127.0.0.1:$($Script:CONFIG.Flask.Port)" -ForegroundColor DarkGray
-                Write-Host "     Task Execution: ThreadPoolExecutor (4 workers)" -ForegroundColor DarkGray
+                Write-Host "     Task Execution: Celery Distributed Task Queue" -ForegroundColor DarkGray
             }
             if ($key -eq 'Analyzers' -and $state.Metadata['ServiceCount']) {
                 Write-Host "     Services: $($state.Metadata['ServiceCount'])/4" -ForegroundColor DarkGray
@@ -667,7 +667,7 @@ function Start-FullStack {
         Write-Banner "ThesisApp Started Successfully"
         Write-Host "🌐 Application URL: " -NoNewline -ForegroundColor Cyan
         Write-Host "http://127.0.0.1:$Port" -ForegroundColor White
-        Write-Host "⚡ Task Execution: ThreadPoolExecutor (4 workers)" -ForegroundColor Gray
+        Write-Host "⚡ Task Execution: Celery Distributed Task Queue" -ForegroundColor Gray
         Write-Host ""
         Write-Host "💡 Quick Commands:" -ForegroundColor Cyan
         Write-Host "   .\start.ps1 -Mode Status    - Check service status" -ForegroundColor Gray
@@ -827,7 +827,7 @@ function Invoke-RebuildContainers {
         Write-Host "  • Node.js installation cached per service" -ForegroundColor Gray
         Write-Host ""
         
-        docker-compose build --parallel static-analyzer dynamic-analyzer performance-tester ai-analyzer gateway
+        docker-compose build --parallel static-analyzer dynamic-analyzer performance-tester ai-analyzer gateway celery-worker
         
         if ($LASTEXITCODE -eq 0) {
             Write-Host ""

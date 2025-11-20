@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy requirements first for better caching (from repo root context)
-COPY services/static-analyzer/requirements.txt ./requirements.txt
+COPY analyzer/services/static-analyzer/requirements.txt ./requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
@@ -37,9 +37,14 @@ RUN useradd -u 1000 -m analyzer
 USER analyzer
 
 # Copy shared analyzer package and service code
-COPY --chown=analyzer:analyzer __init__.py ./analyzer/__init__.py
-COPY --chown=analyzer:analyzer shared ./analyzer/shared
-COPY --chown=analyzer:analyzer services/static-analyzer/ .
+COPY --chown=analyzer:analyzer analyzer/__init__.py ./analyzer/__init__.py
+COPY --chown=analyzer:analyzer analyzer/shared ./analyzer/shared
+COPY --chown=analyzer:analyzer analyzer/services/static-analyzer/main.py .
+COPY --chown=analyzer:analyzer analyzer/services/static-analyzer/health_check.py .
+COPY --chown=analyzer:analyzer analyzer/services/static-analyzer/parsers.py .
+COPY --chown=analyzer:analyzer analyzer/services/static-analyzer/sarif_parsers.py .
+COPY --chown=analyzer:analyzer analyzer/services/static-analyzer/package.json .
+COPY --chown=analyzer:analyzer analyzer/services/static-analyzer/.eslintrc.json .
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

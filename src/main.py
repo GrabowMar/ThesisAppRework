@@ -74,6 +74,10 @@ def main():
         logger.error(f"Failed to create Flask application: {e}")
         return 1
     
+    # Determine execution mode for banner
+    use_celery = os.environ.get('USE_CELERY_ANALYSIS', 'true').lower() == 'true'
+    execution_mode = "Celery Distributed Task Queue" if use_celery else "ThreadPoolExecutor (4 workers)"
+
     # Print startup information with a Unicode banner; fall back to ASCII if needed
     try:
         print(f"""
@@ -84,7 +88,7 @@ def main():
 ║ Host: {host:<25} │ Port: {port:<10}                       ║
 ║                                                                              ║
 ║ Features:                                                                    ║
-║  • ThreadPoolExecutor Task Execution (4 workers)                             ║
+║  • {execution_mode:<58}                            ║
 ║  • Containerized Analyzer Services                                           ║
 ║  • Real-time Analysis Results                                                ║
 ║  • Batch Processing Capabilities                                             ║
@@ -108,7 +112,7 @@ def main():
             "Thesis App - AI Model Analyzer\n"
             f"Environment: {config_name} | Debug: {debug}\n"
             f"Host: {host} | Port: {port}\n"
-            "Features: ThreadPoolExecutor (4 workers), Analyzer services, Real-time results, Batch processing\n"
+            f"Features: {execution_mode}, Analyzer services, Real-time results, Batch processing\n"
             "Endpoints: /health, /api/tasks/status, /api/tasks/history, /api/analyzer/*\n"
             f"Analyzer Auto-start: {app.config.get('ANALYZER_AUTO_START', False)} | Location: ../analyzer/analyzer_manager.py\n"
         )

@@ -23,7 +23,8 @@ USER analyzer
 # Copy shared analyzer package and service code
 COPY --chown=analyzer:analyzer analyzer/__init__.py ./analyzer/__init__.py
 COPY --chown=analyzer:analyzer analyzer/shared ./analyzer/shared
-COPY --chown=analyzer:analyzer analyzer/services/ai-analyzer/ .
+COPY --chown=analyzer:analyzer analyzer/services/ai-analyzer/main.py .
+COPY --chown=analyzer:analyzer analyzer/services/ai-analyzer/health_check.py .
 
 # Copy requirements templates from canonical source (misc/requirements)
 # Build context is project root, so misc/requirements is directly accessible

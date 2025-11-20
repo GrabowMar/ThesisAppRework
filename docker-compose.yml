@@ -46,11 +46,55 @@ services:
           memory: 512M
           cpus: '0.5'
 
+  # Redis for Celery
+  redis:
+    image: redis:7.2-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - thesis-network
+
+  # Celery Worker
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A app.celery_worker.celery worker --loglevel=info
+    environment:
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:////app/src/data/thesis_app.db}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./generated/apps:/app/generated/apps
+      - ./results:/app/results
+      - ./logs:/app/logs
+      - ./src/data:/app/src/data
+    depends_on:
+      - redis
+      - web
+    restart: unless-stopped
+    networks:
+      - thesis-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+
   # Analyzer services (WebSocket Gateway)
   analyzer-gateway:
     build:
-      context: ./analyzer
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: analyzer/Dockerfile
     ports:
       - "8765:8765"
     environment:
@@ -85,8 +129,8 @@ services:
   # Static Security & Quality Analyzer
   static-analyzer:
     build:
-      context: ./analyzer
-      dockerfile: ./services/static-analyzer/Dockerfile
+      context: .
+      dockerfile: analyzer/services/static-analyzer/Dockerfile
     ports:
       - "2001:2001"
     environment:
@@ -116,8 +160,8 @@ services:
   # Dynamic Security Analyzer
   dynamic-analyzer:
     build:
-      context: ./analyzer
-      dockerfile: ./services/dynamic-analyzer/Dockerfile
+      context: .
+      dockerfile: analyzer/services/dynamic-analyzer/Dockerfile
     ports:
       - "2002:2002"
     environment:
@@ -146,8 +190,8 @@ services:
   # Performance Tester
   performance-tester:
     build:
-      context: ./analyzer
-      dockerfile: ./services/performance-tester/Dockerfile
+      context: .
+      dockerfile: analyzer/services/performance-tester/Dockerfile
     ports:
       - "2003:2003"
     environment:
@@ -176,8 +220,8 @@ services:
   # AI-Powered Analyzer
   ai-analyzer:
     build:
-      context: ./analyzer
-      dockerfile: ./services/ai-analyzer/Dockerfile
+      context: .
+      dockerfile: analyzer/services/ai-analyzer/Dockerfile
     ports:
       - "2004:2004"
     environment:

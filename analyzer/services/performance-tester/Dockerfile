@@ -18,7 +18,7 @@ RUN npm install -g artillery
 WORKDIR /app
 
 # Copy requirements first for better caching (from repo root context)
-COPY services/performance-tester/requirements.txt ./requirements.txt
+COPY analyzer/services/performance-tester/requirements.txt ./requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
@@ -28,9 +28,11 @@ RUN useradd -u 1000 -m analyzer
 USER analyzer
 
 # Copy shared analyzer package and service code
-COPY --chown=analyzer:analyzer __init__.py ./analyzer/__init__.py
-COPY --chown=analyzer:analyzer shared ./analyzer/shared
-COPY --chown=analyzer:analyzer services/performance-tester/ .
+COPY --chown=analyzer:analyzer analyzer/__init__.py ./analyzer/__init__.py
+COPY --chown=analyzer:analyzer analyzer/shared ./analyzer/shared
+COPY --chown=analyzer:analyzer analyzer/services/performance-tester/requirements.txt .
+COPY --chown=analyzer:analyzer analyzer/services/performance-tester/main.py .
+COPY --chown=analyzer:analyzer analyzer/services/performance-tester/health_check.py .
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
