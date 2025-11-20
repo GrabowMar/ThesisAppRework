@@ -20,10 +20,15 @@
     {% set tools_results = dynamic_service.analysis.results.tool_runs if dynamic_service.analysis and dynamic_service.analysis.results and dynamic_service.analysis.results.tool_runs else {} %}
   {% endif %}
   
-  {# Metadata keys that should NOT appear as tools #}
-  {% set metadata_keys = ['connectivity', 'vulnerability_scan', 'port_scan', 'zap_security_scan', 'tool_runs', 'summary', 'status', 'error', 'analysis_time', 'model_slug', 'app_number', 'tools_used', 'target_urls'] %}
+  {# Metadata keys that should NOT appear as tools in the generic loop #}
+  {% set metadata_keys = ['connectivity', 'vulnerability_scan', 'port_scan', 'zap_security_scan', 'tool_runs', 'summary', 'status', 'error', 'analysis_time', 'model_slug', 'app_number', 'tools_used', 'target_urls', 'zap', 'nmap', 'vulnscan'] %}
   
-  {% if tools_results %}
+  {# Check for specific dynamic tools #}
+  {% set zap_results = dynamic_service.analysis.results.zap_security_scan if dynamic_service.analysis and dynamic_service.analysis.results and dynamic_service.analysis.results.zap_security_scan else none %}
+  {% set vuln_results = dynamic_service.analysis.results.vulnerability_scan if dynamic_service.analysis and dynamic_service.analysis.results and dynamic_service.analysis.results.vulnerability_scan else none %}
+  {% set port_results = dynamic_service.analysis.results.port_scan if dynamic_service.analysis and dynamic_service.analysis.results and dynamic_service.analysis.results.port_scan else none %}
+  
+  {% if tools_results or zap_results or vuln_results or port_results %}
     <div class="table-responsive">
       <table class="table table-sm table-hover table-vcenter mb-0">
         <thead>
@@ -36,6 +41,120 @@
           </tr>
         </thead>
         <tbody>
+          {# ZAP Security Scan #}
+          {% if zap_results %}
+            {% set zap_issues = 0 %}
+            {% for scan in zap_results %}
+               {% if scan.alerts_by_risk %}
+                 {% for risk, alerts in scan.alerts_by_risk.items() %}
+                   {% set zap_issues = zap_issues + alerts|length %}
+                 {% endfor %}
+               {% endif %}
+               {% if scan.vulnerabilities %}
+                 {% set zap_issues = zap_issues + scan.vulnerabilities|length %}
+               {% endif %}
+            {% endfor %}
+            <tr>
+              <td><strong>ZAP</strong></td>
+              <td class="text-center">
+                <span class="badge badge-sm bg-success-lt text-success">Success</span>
+              </td>
+              <td class="text-center">
+                {% if zap_issues > 0 %}
+                  <span class="badge badge-sm bg-warning-lt text-warning">{{ zap_issues }}</span>
+                {% else %}
+                  <span class="text-success"><i class="fa-solid fa-check"></i></span>
+                {% endif %}
+              </td>
+              <td class="small text-muted">
+                {% if zap_issues > 0 %}
+                  {{ zap_issues }} issue(s) found
+                {% else %}
+                  <span class="text-success">No issues detected</span>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
+                        data-tool-name="zap" 
+                        data-service-type="dynamic"
+                        title="View detailed analysis">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+              </td>
+            </tr>
+          {% endif %}
+
+          {# Vulnerability Scan #}
+          {% if vuln_results %}
+            {% set vuln_issues = 0 %}
+            {% for scan in vuln_results %}
+               {% if scan.vulnerabilities %}
+                 {% set vuln_issues = vuln_issues + scan.vulnerabilities|length %}
+               {% endif %}
+            {% endfor %}
+            <tr>
+              <td><strong>VULNSCAN</strong></td>
+              <td class="text-center">
+                <span class="badge badge-sm bg-success-lt text-success">Success</span>
+              </td>
+              <td class="text-center">
+                {% if vuln_issues > 0 %}
+                  <span class="badge badge-sm bg-warning-lt text-warning">{{ vuln_issues }}</span>
+                {% else %}
+                  <span class="text-success"><i class="fa-solid fa-check"></i></span>
+                {% endif %}
+              </td>
+              <td class="small text-muted">
+                {% if vuln_issues > 0 %}
+                  {{ vuln_issues }} issue(s) found
+                {% else %}
+                  <span class="text-success">No issues detected</span>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
+                        data-tool-name="vulnerability_scan" 
+                        data-service-type="dynamic"
+                        title="View detailed analysis">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+              </td>
+            </tr>
+          {% endif %}
+
+          {# Port Scan #}
+          {% if port_results %}
+            {% set open_ports = port_results.open_ports|length if port_results.open_ports else 0 %}
+            <tr>
+              <td><strong>NMAP</strong></td>
+              <td class="text-center">
+                <span class="badge badge-sm bg-success-lt text-success">Success</span>
+              </td>
+              <td class="text-center">
+                {% if open_ports > 0 %}
+                  <span class="badge badge-sm bg-info-lt text-info">{{ open_ports }}</span>
+                {% else %}
+                  <span class="text-success"><i class="fa-solid fa-check"></i></span>
+                {% endif %}
+              </td>
+              <td class="small text-muted">
+                {% if open_ports > 0 %}
+                  {{ open_ports }} open port(s) found
+                {% else %}
+                  <span class="text-success">No open ports detected</span>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
+                        data-tool-name="nmap" 
+                        data-service-type="dynamic"
+                        title="View detailed analysis">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+              </td>
+            </tr>
+          {% endif %}
+
           {% for tool_name, tool_data in tools_results.items() %}
           {# Skip metadata keys that aren't actual tools #}
           {% if tool_name.lower() not in metadata_keys %}
@@ -69,9 +188,7 @@
             <td class="text-center">
               <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
                       data-tool-name="{{ tool_name }}" 
-                      data-service="dynamic"
-                      data-result-id="{{ descriptor.identifier }}"
-                      data-tool-data='{{ tool_data|tojson }}'
+                      data-service-type="dynamic"
                       title="View detailed analysis">
                 <i class="fa-solid fa-magnifying-glass"></i>
               </button>

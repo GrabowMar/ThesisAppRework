@@ -1792,6 +1792,44 @@ class AnalyzerManager:
                     url = scan_result.get('url', 'unknown_url')
                     
                     if status == 'success':
+                        # Handle ZAP alerts (alerts_by_risk) nested in scan_results
+                        inner_scan_results = scan_result.get('scan_results', {})
+                        
+                        # If scan_results is empty, check if alerts_by_risk is at top level (legacy/fallback)
+                        if not inner_scan_results:
+                             alerts_by_risk = scan_result.get('alerts_by_risk', {})
+                             if alerts_by_risk:
+                                 inner_scan_results = {url: scan_result}
+
+                        for target_url, inner_res in inner_scan_results.items():
+                            if not isinstance(inner_res, dict):
+                                continue
+                                
+                            alerts_by_risk = inner_res.get('alerts_by_risk', {})
+                            if isinstance(alerts_by_risk, dict):
+                                for risk, alerts in alerts_by_risk.items():
+                                    for alert in alerts:
+                                        findings.append({
+                                            'id': f"zap_{alert.get('alert', 'unknown').replace(' ', '_')}_{target_url}",
+                                            'tool': 'zap',
+                                            'rule_id': alert.get('alert'),
+                                            'severity': self._normalize_severity(risk),
+                                            'category': 'security',
+                                            'type': 'vulnerability',
+                                            'file': {'path': target_url},
+                                            'message': {
+                                                'title': alert.get('alert'),
+                                                'description': alert.get('description'),
+                                                'solution': alert.get('solution')
+                                            },
+                                            'metadata': {
+                                                'cweid': alert.get('cweid'),
+                                                'wascid': alert.get('wascid'),
+                                                'evidence': alert.get('evidence')
+                                            }
+                                        })
+
+                        # Handle legacy vulnerabilities list (if any)
                         vulnerabilities = scan_result.get('vulnerabilities', [])
                         if isinstance(vulnerabilities, list):
                             for vuln in vulnerabilities:
@@ -1938,8 +1976,15 @@ class AnalyzerManager:
 
             url = tool_result.get('url', 'unknown_url')
 
-            # Check for failed requests
-            failed_requests = tool_result.get('failed_requests', 0)
+            # Normalize metrics across different tools
+            failed_requests = 0
+            if 'failed_requests' in tool_result:
+                failed_requests = tool_result['failed_requests']
+            elif 'failures' in tool_result:  # Locust
+                failed_requests = tool_result['failures']
+            elif 'errors' in tool_result:    # Artillery
+                failed_requests = tool_result['errors']
+
             if failed_requests > thresholds['failed_requests']:
                 findings.append({
                     'id': f"perf_{tool_name}_failed_requests_{url}",
@@ -1978,6 +2023,15 @@ class AnalyzerManager:
 
             # Check for low throughput
             rps = tool_result.get('requests_per_second')
+            
+            # Try to calculate RPS for aiohttp if missing
+            if rps is None and tool_name == 'aiohttp':
+                requests = tool_result.get('requests')
+                raw = tool_result.get('raw', {})
+                duration = raw.get('duration')
+                if requests and duration and duration > 0:
+                    rps = requests / duration
+
             if rps and rps < thresholds['requests_per_second']:
                 findings.append({
                     'id': f"perf_{tool_name}_low_throughput_{url}",
@@ -2000,48 +2054,85 @@ class AnalyzerManager:
     def _extract_ai_findings(self, results: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract findings from AI analysis results."""
         findings = []
-        logger.debug("--- AI FINDING EXTRACTION ---")
-
+        
         # The AI analyzer service returns its primary data directly, not nested
         # under 'tool_results' like other services. The main content is in 'analysis'.
         analysis_data = results.get('analysis')
         if not analysis_data:
-            logger.warning("No 'analysis' key found in AI results. This is the primary data block.")
-            logger.debug(f"Available keys: {list(results.keys())}")
-            return []
-
+            # Fallback if 'analysis' is not present (maybe it's already the analysis dict?)
+            analysis_data = results
+        
         results_data = analysis_data.get('results', {})
-        requirement_checks = results_data.get('requirement_checks', [])
+        
+        # Collect all checks from different categories
+        all_checks = []
+        
+        # 1. Functional Requirements
+        functional = results_data.get('functional_requirements', [])
+        if functional:
+            for item in functional:
+                item['_category'] = 'functional'
+            all_checks.extend(functional)
+            
+        # 2. Stylistic Requirements
+        stylistic = results_data.get('stylistic_requirements', [])
+        if stylistic:
+            for item in stylistic:
+                item['_category'] = 'stylistic'
+            all_checks.extend(stylistic)
+            
+        # 3. Control Endpoint Tests
+        control = results_data.get('control_endpoint_tests', [])
+        if control:
+            for item in control:
+                item['_category'] = 'control'
+            all_checks.extend(control)
+            
+        # Legacy fallback
+        legacy = results_data.get('requirement_checks', [])
+        if legacy:
+            for item in legacy:
+                item['_category'] = 'legacy'
+            all_checks.extend(legacy)
 
-        if not requirement_checks:
-            logger.warning("Could not find 'requirement_checks' within the 'analysis' block.")
+        if not all_checks:
+            logger.warning("Could not find any requirement checks (functional, stylistic, or control) within the results.")
             return []
 
-        tool_name = analysis_data.get('tools_used', ['requirements-scanner'])[0]
-        logger.debug(f"Found {len(requirement_checks)} requirement checks from tool '{tool_name}'.")
+        tool_name = 'ai-requirements-checker'
+        tools_used = analysis_data.get('tools_used', [])
+        if tools_used:
+            tool_name = tools_used[0]
+            
+        logger.debug(f"Found {len(all_checks)} total checks from tool '{tool_name}'.")
 
-        for check in requirement_checks:
+        for check in all_checks:
             result = check.get('result', {})
-            if not result.get('met', True):  # A finding is generated if the requirement is not met.
+            # A finding is generated if the requirement is not met
+            if not result.get('met', True):
                 requirement_text = check.get('requirement', 'Unknown requirement')
                 confidence = result.get('confidence', 'LOW').upper()
                 severity = self._normalize_severity(confidence)
+                category = check.get('_category', 'general')
 
-                finding = {
-                    'analyzer': 'ai-analyzer',
+                findings.append({
+                    'id': f"ai_{category}_{uuid.uuid4().hex[:8]}",
                     'tool': tool_name,
-                    'type': 'ai_requirement_failure',
+                    'rule_id': f'ai_{category}_requirement_failure',
                     'severity': severity,
-                    'description': f"AI detected that a requirement was not met: {requirement_text.split('::')[0]}",
-                    'long_description': requirement_text,
-                    'details': {
-                        'explanation': result.get('explanation', 'No explanation provided.'),
-                        'confidence': confidence,
+                    'category': 'requirements',
+                    'type': 'requirement_failure',
+                    'file': {'path': 'ai_analysis_report'},
+                    'message': {
+                        'title': f"Unmet {category.title()} Requirement",
+                        'description': f"AI detected that a {category} requirement was not met: {requirement_text.split('::')[0]}",
+                        'solution': result.get('explanation', 'No explanation provided.')
                     },
-                    'file_path': None,
-                    'line_number': None,
-                }
-                findings.append(finding)
+                    'metadata': {
+                        'confidence': confidence,
+                        'full_requirement': requirement_text
+                    }
+                })
         
         logger.info(f"Extracted {len(findings)} findings from AI analysis.")
         return findings

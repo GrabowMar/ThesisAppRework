@@ -179,6 +179,16 @@ def _resolve_tools_from_names(tool_names, all_tools):
     
     return tool_ids, valid_tool_names, tools_by_service
 
+# Mapping of tool names to their keys in the result JSON
+TOOL_KEY_MAPPINGS = {
+    'zap': 'zap_security_scan',
+    'nmap': 'port_scan',
+    'curl': 'connectivity',
+    'connectivity': 'connectivity',
+    'vulnscan': 'vulnerability_scan',
+    'vulnerability_scan': 'vulnerability_scan'
+}
+
 @analysis_bp.route('/tool-registry/custom-analysis', methods=['POST'])
 def create_custom_analysis():
     """Create a custom analysis request using container tools."""
@@ -470,14 +480,50 @@ def get_tool_details(result_id: str, tool_name: str):
                         break
             else:
                 # Dynamic, performance, AI have flat tool_results
-                tool_results = analysis.get('tool_results', analysis.get('results', {}))
-                if isinstance(tool_results, dict):
-                    for k, v in tool_results.items():
-                        if k.lower() == tool_name.lower():
-                            tool_data = v.copy()
-                            detected_service = svc
-                            matched_analysis_block = analysis
-                            break
+                # PRIORITIZE 'results' (full data) over 'tool_results' (metadata summary)
+                full_results = analysis.get('results', {})
+                tool_results = analysis.get('tool_results', {})
+                
+                # Determine the key to look for
+                search_key = TOOL_KEY_MAPPINGS.get(tool_name.lower(), tool_name.lower())
+                
+                # Helper to search in a dictionary
+                def find_tool_in_dict(source_dict, keys):
+                    if not isinstance(source_dict, dict):
+                        return None
+                    
+                    for key in keys:
+                        for k, v in source_dict.items():
+                            if k.lower() == key:
+                                return v
+                    return None
+
+                # Try both mapped key and original tool name
+                keys_to_try = [search_key, tool_name.lower()]
+                # Remove duplicates
+                keys_to_try = list(dict.fromkeys(keys_to_try))
+
+                # 1. Try full results first (preferred source)
+                found_data = find_tool_in_dict(full_results, keys_to_try)
+                
+                # 2. Fallback to tool_results (metadata summary)
+                if found_data is None:
+                    found_data = find_tool_in_dict(tool_results, keys_to_try)
+                
+                if found_data is not None:
+                    if isinstance(found_data, list):
+                        tool_data = {'items': found_data, 'status': 'success'}
+                        # Try to extract status from first item if available
+                        if found_data and isinstance(found_data[0], dict) and 'status' in found_data[0]:
+                            tool_data['status'] = found_data[0]['status']
+                    elif isinstance(found_data, dict):
+                        tool_data = found_data.copy()
+                    else:
+                        tool_data = {'value': found_data}
+                        
+                    detected_service = svc
+                    matched_analysis_block = analysis
+                    break
             
             if tool_data:
                 break

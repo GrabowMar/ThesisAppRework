@@ -97,7 +97,36 @@ def _extract_dynamic_findings(tool_name: str, results: Dict[str, Any]) -> List[D
                     
                 base_url = scan.get('url', 'unknown')
                 
-                # Format 1: vulnerabilities list
+                # Handle ZAP alerts (alerts_by_risk) nested in scan_results
+                inner_scan_results = scan.get('scan_results', {})
+                
+                # If scan_results is empty, check if alerts_by_risk is at top level (legacy/fallback)
+                if not inner_scan_results:
+                        alerts_by_risk = scan.get('alerts_by_risk', {})
+                        if alerts_by_risk:
+                            inner_scan_results = {base_url: scan}
+
+                for target_url, inner_res in inner_scan_results.items():
+                    if not isinstance(inner_res, dict):
+                        continue
+                        
+                    alerts_by_risk = inner_res.get('alerts_by_risk', {})
+                    if isinstance(alerts_by_risk, dict):
+                        for risk, alerts in alerts_by_risk.items():
+                            for alert in alerts:
+                                findings.append({
+                                    'severity': normalize_severity(risk),
+                                    'rule_id': alert.get('alert', 'ZAP Alert'),
+                                    'file': target_url,
+                                    'line': '-',
+                                    'description': alert.get('description', ''),
+                                    'message': alert.get('name', alert.get('alert', '')),
+                                    'solution': alert.get('solution', ''),
+                                    'cwe': f"CWE-{alert.get('cweid')}" if alert.get('cweid') else '',
+                                    'evidence': alert.get('evidence', '')
+                                })
+
+                # Format 1: vulnerabilities list (legacy)
                 vulnerabilities = scan.get('vulnerabilities', [])
                 if isinstance(vulnerabilities, list):
                     for vuln in vulnerabilities:
@@ -112,23 +141,6 @@ def _extract_dynamic_findings(tool_name: str, results: Dict[str, Any]) -> List[D
                             'cwe': f"CWE-{vuln.get('cweid')}" if vuln.get('cweid') else ''
                         })
                 
-                # Format 2: alerts_by_risk dictionary (raw ZAP output)
-                alerts_by_risk = scan.get('alerts_by_risk', {})
-                if isinstance(alerts_by_risk, dict):
-                    for risk, alerts in alerts_by_risk.items():
-                        for alert in alerts:
-                            findings.append({
-                                'severity': normalize_severity(risk),
-                                'rule_id': alert.get('alert', 'ZAP Alert'),
-                                'file': alert.get('url', base_url),
-                                'line': '-',
-                                'description': alert.get('description', ''),
-                                'message': alert.get('name', alert.get('alert', '')),
-                                'solution': alert.get('solution', ''),
-                                'cwe': f"CWE-{alert.get('cweid')}" if alert.get('cweid') else '',
-                                'evidence': alert.get('evidence', '')
-                            })
-
     # Curl / Connectivity / Vulnerability Scan
     elif tool_name in ('curl', 'connectivity', 'vulnerability_scan', 'vulnscan', 'dirsearch'):
         # Connectivity checks
@@ -223,9 +235,17 @@ def _extract_performance_findings(tool_name: str, results: Dict[str, Any]) -> Li
     # Look for tool_runs
     tool_runs = results.get('tool_runs', {})
     
-    # If tool_runs is empty, maybe the results are directly in the dict (legacy format)
-    if not tool_runs and 'avg_response_time' in results:
-        tool_runs = {tool_name: results}
+    # If tool_runs is empty, check other formats
+    if not tool_runs:
+        # Check if results contains the tool directly (flat structure)
+        if tool_name and tool_name in results:
+             tool_runs = {tool_name: results[tool_name]}
+        # Check if results has keys that look like tools (if tool_name not found or generic)
+        elif any(k in results for k in ['locust', 'ab', 'wrk', 'aiohttp', 'artillery']):
+             tool_runs = results
+        # Legacy single-result format
+        elif 'avg_response_time' in results:
+            tool_runs = {tool_name: results}
 
     for t_name, t_result in tool_runs.items():
         # Filter by tool name if provided and matches
@@ -238,7 +258,14 @@ def _extract_performance_findings(tool_name: str, results: Dict[str, Any]) -> Li
         url = t_result.get('url', 'unknown')
         
         # 1. Failed Requests
-        failed = t_result.get('failed_requests', 0)
+        failed = 0
+        if 'failed_requests' in t_result:
+            failed = t_result['failed_requests']
+        elif 'failures' in t_result:  # Locust
+            failed = t_result['failures']
+        elif 'errors' in t_result:    # Artillery
+            failed = t_result['errors']
+
         if failed > THRESHOLDS['failed_requests']:
             findings.append({
                 'severity': 'HIGH',
@@ -267,6 +294,15 @@ def _extract_performance_findings(tool_name: str, results: Dict[str, Any]) -> Li
             
         # 3. Low Throughput
         rps = t_result.get('requests_per_second')
+        
+        # Try to calculate RPS for aiohttp if missing
+        if rps is None and t_name == 'aiohttp':
+            requests = t_result.get('requests')
+            raw = t_result.get('raw', {})
+            duration = raw.get('duration')
+            if requests and duration and duration > 0:
+                rps = requests / duration
+
         if rps is not None and rps < THRESHOLDS['requests_per_second']:
             findings.append({
                 'severity': 'MEDIUM',
@@ -409,18 +445,48 @@ def _extract_ai_findings(tool_name: str, results: Dict[str, Any]) -> List[Dict[s
     analysis_data = results.get('analysis', results)
     inner_results = analysis_data.get('results', analysis_data)
     
-    checks = inner_results.get('requirement_checks', [])
+    # Collect all checks from different categories
+    all_checks = []
     
-    for check in checks:
+    # 1. Functional Requirements
+    functional = inner_results.get('functional_requirements', [])
+    if functional:
+        for item in functional:
+            item['_category'] = 'functional'
+        all_checks.extend(functional)
+        
+    # 2. Stylistic Requirements
+    stylistic = inner_results.get('stylistic_requirements', [])
+    if stylistic:
+        for item in stylistic:
+            item['_category'] = 'stylistic'
+        all_checks.extend(stylistic)
+        
+    # 3. Control Endpoint Tests
+    control = inner_results.get('control_endpoint_tests', [])
+    if control:
+        for item in control:
+            item['_category'] = 'control'
+        all_checks.extend(control)
+        
+    # Legacy fallback
+    legacy = inner_results.get('requirement_checks', [])
+    if legacy:
+        for item in legacy:
+            item['_category'] = 'legacy'
+        all_checks.extend(legacy)
+    
+    for check in all_checks:
         result = check.get('result', {})
         if not result.get('met', True):
+            category = check.get('_category', 'general')
             findings.append({
                 'severity': normalize_severity(result.get('confidence', 'MEDIUM')),
-                'rule_id': 'requirement-not-met',
+                'rule_id': f'ai-{category}-requirement-not-met',
                 'file': 'requirements.txt', # Virtual file
                 'line': '-',
                 'description': check.get('requirement', ''),
-                'message': 'Requirement Not Met',
+                'message': f'Unmet {category.title()} Requirement',
                 'solution': result.get('explanation', ''),
                 'confidence': result.get('confidence')
             })

@@ -66,10 +66,16 @@
     {# Functional Requirements #}
     {% if functional_reqs %}
       <div class="card card-sm">
-        <div class="card-header">
+        <div class="card-header d-flex justify-content-between align-items-center">
           <h5 class="card-title mb-0">
             <i class="fa-solid fa-list-check me-2"></i>Functional Requirements ({{ functional_reqs|length }})
           </h5>
+          <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
+                  data-tool-name="requirements-checker" 
+                  data-service-type="ai"
+                  title="View detailed analysis">
+            <i class="fa-solid fa-magnifying-glass"></i> Details
+          </button>
         </div>
         <div class="card-body p-0">
           <div class="table-responsive">

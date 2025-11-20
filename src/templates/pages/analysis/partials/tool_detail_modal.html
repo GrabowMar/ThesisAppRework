@@ -6,9 +6,7 @@
         <div class="d-flex align-items-center gap-3">
           <i class="fa-solid fa-wrench fa-lg text-primary"></i>
           <div>
-            <h5 class="modal-title mb-0" id="toolDetailModalLabel">
-              <span id="modal-tool-name">Tool Details</span>
-            </h5>
+            <h5 class="modal-title mb-0" id="modal-tool-name">Tool Details</h5>
             <small class="text-muted" id="modal-tool-subtitle"></small>
           </div>
         </div>
@@ -17,7 +15,7 @@
       
       <div class="modal-body">
         {# Loading State #}
-        <div id="modal-loading" class="text-center py-5">
+        <div id="modal-loading" class="text-center py-5 d-none">
           <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading...</span>
           </div>
@@ -31,134 +29,116 @@
         </div>
 
         {# Content Container #}
-        <div id="modal-content" class="d-none">
-          {# Compact Metadata Bar #}
-          <div class="bg-light border-bottom px-3 py-2 mb-2">
-            <div class="row g-2 align-items-center small">
+        <div id="modal-content">
+          {# Summary Bar #}
+          <div class="bg-light border-bottom px-3 py-2 mb-3 rounded">
+            <div class="row g-3 align-items-center small">
               <div class="col-auto">
-                <strong class="text-muted">Status:</strong> <span id="meta-status">—</span>
+                <strong class="text-muted">Status:</strong> <span id="meta-status" class="badge bg-secondary-lt">Unknown</span>
               </div>
-              <div class="col-auto border-start ps-2">
-                <strong class="text-muted">Time:</strong> <span id="meta-exec-time">—</span>
+              <div class="col-auto border-start ps-3">
+                <strong class="text-muted">Total Issues:</strong> <span id="meta-total-issues" class="fw-bold">0</span>
               </div>
-              <div class="col-auto border-start ps-2">
-                <strong class="text-muted">Issues:</strong> <span id="meta-total-issues" class="fw-bold">—</span>
+              <div class="col-auto border-start ps-3" id="meta-exec-time-container">
+                <strong class="text-muted">Duration:</strong> <span id="meta-exec-time">—</span>
               </div>
-              <div class="col-auto border-start ps-2" id="meta-exit-container">
-                <strong class="text-muted">Exit Code:</strong> <span id="meta-exit-code">—</span>
-              </div>
-              <div class="col-auto" id="meta-additional">
-                {# Additional metadata populated dynamically #}
+              <div class="col-auto border-start ps-3 d-none" id="severity-summary-container">
+                <div id="severity-badges"></div>
               </div>
             </div>
           </div>
 
-          {# Severity Summary (for static/security tools) #}
-          <div class="border-bottom pb-2 mb-2 d-none" id="severity-summary-card">
-            <div class="px-3">
-              <small class="text-muted text-uppercase fw-bold"><i class="fa-solid fa-chart-bar me-1"></i>Severity:</small>
-              <span id="severity-breakdown" class="ms-2">
-                {# Populated dynamically #}
-              </span>
-            </div>
-          </div>
-
-          {# Performance Metrics (for performance tools) #}
-          <div class="bg-light border-bottom px-3 py-2 mb-2 d-none" id="performance-metrics-card">
-            <div class="row g-2 align-items-center small">
-              <div class="col-auto">
-                <strong class="text-muted"><i class="fa-solid fa-gauge-high me-1"></i>Metrics:</strong>
-              </div>
-              <div id="performance-metrics" class="col-auto">
-                {# Populated dynamically #}
-              </div>
+          {# Metrics Section (Performance) #}
+          <div id="metrics-section" class="mb-4 d-none">
+            <h6 class="text-uppercase text-muted small fw-bold mb-2">Key Metrics</h6>
+            <div class="row g-3" id="metrics-container">
+              {# Populated dynamically #}
             </div>
           </div>
 
           {# Issues Table Section #}
-          <div class="border rounded mb-2" id="issues-card">
-            <div class="bg-light border-bottom px-3 py-2 d-flex justify-content-between align-items-center">
-              <div class="small fw-bold">
-                <i class="fa-solid fa-list me-1"></i><span id="issues-title">Issues</span>
-                <span class="badge bg-secondary-lt ms-1" id="issues-count-badge">0</span>
-              </div>
-              <div class="d-flex gap-1">
-                <select class="form-select form-select-sm" id="severity-filter" style="width: 120px; font-size: 0.75rem;">
-                  <option value="">All</option>
-                  <option value="CRITICAL">Critical</option>
-                  <option value="HIGH">High</option>
-                  <option value="MEDIUM">Medium</option>
-                  <option value="LOW">Low</option>
-                  <option value="INFO">Info</option>
+          <div id="issues-section">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h6 class="text-uppercase text-muted small fw-bold mb-0">Findings</h6>
+              <div class="d-flex gap-2">
+                <input type="text" class="form-control form-control-sm" id="issue-search" placeholder="Search findings..." style="width: 200px;">
+                <select class="form-select form-select-sm" id="severity-filter" style="width: 120px;">
+                  <option value="all">All Severities</option>
+                  <option value="critical">Critical</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                  <option value="info">Info</option>
                 </select>
-                <button class="btn btn-sm btn-ghost-primary" id="export-issues-btn" title="Export to CSV">
-                  <i class="fa-solid fa-download"></i>
-                </button>
               </div>
             </div>
-            <div class="p-0">
-              <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
-                <table class="table table-sm table-hover mb-0" id="issues-table" style="font-size: 0.813rem;">
-                  <thead class="sticky-top bg-white" style="top: 0; z-index: 10;">
-                    <tr>
-                      <th width="7%" class="py-1">Severity</th>
-                      <th width="10%" class="py-1">Rule</th>
-                      <th width="18%" class="py-1">File</th>
-                      <th width="4%" class="py-1 text-center">Line</th>
-                      <th width="55%" class="py-1">Description</th>
-                      <th width="6%" class="py-1 text-center">CWE</th>
-                    </tr>
-                  </thead>
-                  <tbody id="issues-table-body">
-                    {# Populated dynamically via JavaScript #}
-                  </tbody>
-                </table>
-              </div>
-              
-              {# Pagination #}
-              <div class="bg-light border-top px-3 py-2 d-flex justify-content-between align-items-center">
-                <small class="text-muted" id="pagination-info">
-                  <span id="items-start">0</span>-<span id="items-end">0</span> of <span id="items-total">0</span>
-                </small>
-                <nav>
-                  <ul class="pagination pagination-sm mb-0" id="pagination-controls" style="font-size: 0.75rem;">
-                    {# Populated dynamically #}
-                  </ul>
-                </nav>
-              </div>
+            
+            <div class="table-responsive border rounded">
+              <table class="table table-sm table-hover mb-0" id="issues-table">
+                <thead class="bg-light">
+                  <tr>
+                    <th style="width: 100px;">Severity</th>
+                    <th>Message</th>
+                    <th>Location</th>
+                    <th style="width: 80px;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="issues-table-body">
+                  {# Populated dynamically #}
+                </tbody>
+              </table>
+            </div>
+            <div id="no-issues-message" class="text-center py-4 text-muted d-none">
+              <i class="fa-solid fa-check-circle fa-2x mb-2 text-success"></i>
+              <p class="mb-0">No issues found.</p>
             </div>
           </div>
 
-          {# SARIF Section #}
-          <div class="border-top pt-2 mt-2 d-none" id="sarif-card">
-            <div class="px-3 pb-2">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <small class="text-muted fw-bold"><i class="fa-solid fa-file-shield me-1"></i>SARIF</small>
-                <div class="d-flex gap-1">
-                  <button class="btn btn-sm btn-ghost-info" id="sarif-preview-toggle" style="font-size: 0.75rem;">
-                    <i class="fa-solid fa-eye"></i> Preview
+          {# Detail View (Hidden by default, shown when clicking an issue) #}
+          <div id="detail-view" class="d-none mt-3 border-top pt-3">
+            <button class="btn btn-sm btn-ghost-secondary mb-3" id="back-to-list-btn">
+              <i class="fa-solid fa-arrow-left me-1"></i> Back to List
+            </button>
+            
+            <h4 id="detail-title" class="mb-2"></h4>
+            <div class="mb-3">
+              <span id="detail-severity" class="badge bg-secondary"></span>
+              <span id="detail-location" class="text-muted ms-2 font-monospace small"></span>
+            </div>
+
+            <div class="card bg-light mb-3">
+              <div class="card-body">
+                <h6 class="card-title text-uppercase text-muted small fw-bold">Description</h6>
+                <p class="card-text" id="detail-description"></p>
+              </div>
+            </div>
+
+            <div id="detail-code-section" class="mb-3 d-none">
+              <h6 class="text-uppercase text-muted small fw-bold">Code / Context</h6>
+              <pre class="bg-dark text-light p-3 rounded"><code id="detail-code"></code></pre>
+            </div>
+
+            <div id="detail-remediation-section" class="mb-3 d-none">
+              <h6 class="text-uppercase text-muted small fw-bold text-success">Remediation</h6>
+              <div class="alert alert-success bg-success-lt text-dark border-success" id="detail-remediation"></div>
+            </div>
+
+            <div class="accordion" id="evidenceAccordion">
+              <div class="accordion-item">
+                <h2 class="accordion-header">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#evidenceCollapse">
+                    Raw Evidence
                   </button>
-                  <a href="#" class="btn btn-sm btn-ghost-success" id="sarif-download-btn" target="_blank" style="font-size: 0.75rem;">
-                    <i class="fa-solid fa-download"></i>
-                  </a>
+                </h2>
+                <div id="evidenceCollapse" class="accordion-collapse collapse" data-bs-parent="#evidenceAccordion">
+                  <div class="accordion-body">
+                    <pre class="small mb-0" style="max-height: 300px;"><code id="detail-evidence"></code></pre>
+                  </div>
                 </div>
               </div>
-              <div class="small">
-                <code class="text-primary" id="sarif-file-path" style="font-size: 0.75rem;">—</code>
-              </div>
-              <div id="sarif-preview" class="d-none mt-2">
-                <pre class="bg-light p-2 rounded" style="max-height: 200px; overflow-y: auto; font-size: 0.7rem;"><code id="sarif-preview-content"></code></pre>
-              </div>
             </div>
           </div>
 
-          {# Configuration Section #}
-          <div class="border-top pt-2 mt-2 d-none" id="config-card">
-            <div class="px-3 pb-2">
-              <small class="text-muted fw-bold"><i class="fa-solid fa-cog me-1"></i>Configuration</small>
-              <pre class="bg-light p-2 rounded mb-0 mt-2" style="max-height: 150px; overflow-y: auto; font-size: 0.7rem;"><code id="config-content"></code></pre>
-            </div>
-          </div>
         </div>
       </div>
       

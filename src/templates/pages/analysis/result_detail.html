@@ -247,42 +247,10 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/tool-detail.js') }}"></script>
 <script>
-  // Attach click handlers to all tool detail buttons
-  document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.tool-detail-btn').forEach(button => {
-      button.addEventListener('click', function(e) {
-        e.preventDefault();
-        
-        const toolName = this.dataset.toolName;
-        const serviceType = this.dataset.service;
-        const resultId = this.dataset.resultId;
-        const language = this.dataset.language || '';
-        
-        // Parse embedded tool data if available
-        let toolData = null;
-        try {
-          toolData = JSON.parse(this.dataset.toolData || '{}');
-          // Add language if static analysis
-          if (language) {
-            toolData.language = language;
-          }
-        } catch (err) {
-          console.warn('Failed to parse tool data:', err);
-        }
-        
-        // Open modal
-        if (window.toolDetailModal) {
-          window.toolDetailModal.openModal({
-            resultId: resultId,
-            toolName: toolName,
-            serviceType: serviceType,
-            toolData: toolData
-          });
-        }
-      });
-    });
-  });
+  // Inject full analysis payload for client-side parsing
+  window.ANALYSIS_DATA = {{ payload|tojson|safe }};
 </script>
+<script src="{{ url_for('static', filename='js/analysis-parsers.js') }}"></script>
+<script src="{{ url_for('static', filename='js/tool-detail.js') }}"></script>
 {% endblock %}
