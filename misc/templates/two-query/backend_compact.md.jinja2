@@ -3,61 +3,13 @@ Generate Flask backend: {{ name }}
 
 Requirements:
 {% for req in backend_requirements %}
-{{ req }}
+- {{ req }}
 {% endfor %}
 
-API Endpoints (USE EXACT PATHS):
-{% if api_endpoints %}
-{% for endpoint in api_endpoints %}
-{{ endpoint.method }} {{ endpoint.path }}{% if endpoint.response %} -> {{ endpoint.response | tojson }}{% endif %}
-{% endfor %}
-DO NOT use different paths like /api/items if spec says /api/todos.
-{% endif %}
+API Endpoints:
+{{ api_endpoints }}
 
-Rules:
-- Standalone file, replaces scaffold
-- DB: 'sqlite:///app.db', init in setup_app() with app.app_context()
-- Imports: Flask, CORS, SQLAlchemy, os, logging
-- Pattern: app=Flask(__name__); CORS(app); db=SQLAlchemy()
-- Models: db.Model + to_dict()
-- Routes: CRUD + /health + @errorhandler(404,500)
-- JSON: {"items":[...], "total":N} / {"error":"msg"}
-- Main: Call setup_app(app) at module level (for Docker), then if __name__=='__main__': app.run
-- Error handling: try/except + db.session.rollback()
+Context:
+{{ scaffolding_backend_context }}
 
-Example skeleton:
-```python
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
-import os, logging
-
-app = Flask(__name__)
-CORS(app)
-db = SQLAlchemy()
-
-class Model(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    def to_dict(self): return {...}
-
-def setup_app(app):
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    db.init_app(app)
-    with app.app_context(): db.create_all()
-
-@app.route('/health')
-def health(): return jsonify({'status':'healthy','service':'backend'}), 200
-
-@app.errorhandler(404)
-def not_found(e): return jsonify({'error':'Not found'}), 404
-
-@app.errorhandler(500)
-def internal_error(e): return jsonify({'error':'Internal server error'}), 500
-
-if __name__ == '__main__':
-    setup_app(app)
-    app.run(host='0.0.0.0', port=int(os.environ.get('FLASK_RUN_PORT',5000)))
-```
-
-Generate complete Python code:
+Generate complete Python code for app.py:

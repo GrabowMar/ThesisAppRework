@@ -290,8 +290,8 @@ function isStepValid(step) {
       console.log('[Wizard] Step 1 valid:', valid, 'Scaffolding:', selectedScaffolding);
       return valid;
     case 2:
-      // Require exactly ONE model for batch generation (prevents nested loop bug)
-      valid = selectedTemplates.length > 0 && selectedModels.length === 1;
+      // Allow multiple models for batch generation
+      valid = selectedTemplates.length > 0 && selectedModels.length > 0;
       console.log('[Wizard] Step 2 valid:', valid, 'Templates:', selectedTemplates.length, 'Models:', selectedModels.length);
       return valid;
     case 3:
@@ -913,9 +913,9 @@ async function startGeneration() {
     return;
   }
   
-  // CRITICAL: Validate exactly one model selected (prevent nested loop bug)
-  if (selectedModels.length !== 1) {
-    showNotification('Please select exactly ONE model for batch generation', 'error');
+  // CRITICAL: Validate at least one model selected
+  if (selectedModels.length === 0) {
+    showNotification('Please select at least one model', 'error');
     return;
   }
   
@@ -928,9 +928,8 @@ async function startGeneration() {
   // CRITICAL: Log exactly what will be generated to prevent surprises
   console.log('[Wizard] GENERATION VALIDATION:');
   console.log('  - Templates to generate:', selectedTemplates);
-  console.log('  - Model to use:', selectedModels);
-  console.log('  - Total apps to create:', selectedTemplates.length);
-  console.log('  - Expected pattern: 1 app per template = ' + selectedTemplates.length + ' apps total');
+  console.log('  - Models to use:', selectedModels);
+  console.log('  - Total apps to create:', selectedTemplates.length * selectedModels.length);
   
   // Set flag immediately to block concurrent calls
   isGenerating = true;
@@ -948,8 +947,7 @@ async function startGeneration() {
   
   try {
     // Calculate total and prepare tracking
-    // FIX: Use single model with multiple templates (not templates × models)
-    const totalGenerations = selectedTemplates.length;
+    const totalGenerations = selectedTemplates.length * selectedModels.length;
     const totalEl = document.getElementById('progress-total');
     const statusTotalEl = document.getElementById('status-total');
     if (totalEl) totalEl.textContent = totalGenerations;
@@ -967,74 +965,76 @@ async function startGeneration() {
     
     // CRITICAL: Freeze selections to prevent mid-generation changes
     const templatesToGenerate = [...selectedTemplates];
-    const modelSlug = selectedModels[0];
+    const modelsToUse = [...selectedModels];
     
     console.log(`[Wizard] LOCKED GENERATION PLAN:`);
     console.log(`  - Batch ID: ${batchId}`);
-    console.log(`  - Model: ${modelSlug}`);
+    console.log(`  - Models: ${modelsToUse.join(', ')}`);
     console.log(`  - Templates: ${templatesToGenerate.join(', ')}`);
-    console.log(`  - Total apps: ${templatesToGenerate.length}`);
+    console.log(`  - Total apps: ${totalGenerations}`);
     
-    for (const templateSlug of templatesToGenerate) {
-      console.log(`[Wizard] Generating: template ${templateSlug}, model ${modelSlug}`);
-      
-      try {
-        // Get template type preference
-        const templateTypeEl = document.getElementById('template-type-preference');
-        const templateType = templateTypeEl ? templateTypeEl.value : 'auto';
-          
-          // No need to pre-fetch app number - generation service handles atomic reservation
-          const response = await fetch('/api/gen/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              template_slug: templateSlug,
-              model_slug: modelSlug,
-              app_num: null,  // Auto-allocate in generation service
-              generate_frontend: true,
-              generate_backend: true,
-              scaffold: true,
-              template_type: templateType,
-              batch_id: batchId,  // Track batch operations together
-              version: 1  // New generation, version 1
-            })
-          });
-          
-          const result = await response.json();
-          
-          if (response.ok && result.success) {
-            completed++;
-            results.push({
-              success: true,
-              template_slug: templateSlug,
-              model: modelSlug,
-              result_id: `${templateSlug}_${modelSlug.replace(/\//g, '_')}`,
-              message: 'Generated successfully',
-              batch_id: batchId
+    for (const modelSlug of modelsToUse) {
+      for (const templateSlug of templatesToGenerate) {
+        console.log(`[Wizard] Generating: template ${templateSlug}, model ${modelSlug}`);
+        
+        try {
+          // Get template type preference
+          const templateTypeEl = document.getElementById('template-type-preference');
+          const templateType = templateTypeEl ? templateTypeEl.value : 'auto';
+            
+            // No need to pre-fetch app number - generation service handles atomic reservation
+            const response = await fetch('/api/gen/generate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                template_slug: templateSlug,
+                model_slug: modelSlug,
+                app_num: null,  // Auto-allocate in generation service
+                generate_frontend: true,
+                generate_backend: true,
+                scaffold: true,
+                template_type: templateType,
+                batch_id: batchId,  // Track batch operations together
+                version: 1  // New generation, version 1
+              })
             });
-          } else {
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+              completed++;
+              results.push({
+                success: true,
+                template_slug: templateSlug,
+                model: modelSlug,
+                result_id: `${templateSlug}_${modelSlug.replace(/\//g, '_')}`,
+                message: 'Generated successfully',
+                batch_id: batchId
+              });
+            } else {
+              failed++;
+              results.push({
+                success: false,
+                template_slug: templateSlug,
+                model: modelSlug,
+                error: result.message || result.error || 'Generation failed'
+              });
+            }
+          } catch (error) {
             failed++;
             results.push({
               success: false,
               template_slug: templateSlug,
               model: modelSlug,
-              error: result.message || result.error || 'Generation failed'
+              error: error.message
             });
           }
-        } catch (error) {
-          failed++;
-          results.push({
-            success: false,
-            template_slug: templateSlug,
-            model: modelSlug,
-            error: error.message
-          });
-        }
-        
-      // Update progress
-      const progressCompleted = completed + failed;
-      const progressPercent = (progressCompleted / totalGenerations) * 100;
-      updateProgress(progressPercent, progressCompleted, totalGenerations, completed, failed);
+          
+        // Update progress
+        const progressCompleted = completed + failed;
+        const progressPercent = (progressCompleted / totalGenerations) * 100;
+        updateProgress(progressPercent, progressCompleted, totalGenerations, completed, failed);
+      }
     }
     
     showNotification(`Generation completed: ${completed} succeeded, ${failed} failed`, completed === totalGenerations ? 'success' : 'warning');

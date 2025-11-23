@@ -7,106 +7,39 @@
 - {{ req }}
 {% endfor %}
 
-## Generate Complete React Component
-
-You must generate a **complete App.jsx component** that will replace the scaffold entirely.
-
-**IMPORTANT:** The scaffold provides React 18.2, Axios 1.6, Bootstrap 5.3.2, Vite 5.0.
-Your code only needs to generate the `App.jsx` component file.
-
 ## Backend API
 Backend API is available at `/api/*` paths (proxied by Nginx/Vite to backend container)
 
 **CRITICAL: Use EXACT endpoint paths below. Frontend and backend MUST match.**
 
 {% if api_endpoints %}
-{% for endpoint in api_endpoints %}
-**{{ endpoint.method }} {{ endpoint.path }}**
-{% if endpoint.request %}
-  - Request: `{{ endpoint.request | tojson }}`
-{% endif %}
-{% if endpoint.response %}
-  - Response: `{{ endpoint.response | tojson }}`
-{% endif %}
-{% endfor %}
+{{ api_endpoints }}
 
 **Do not use different endpoint paths (like /api/items instead of /api/todos).**
 {% else %}
-- `GET /health` - Health check
 - Additional endpoints per requirements
 {% endif %}
 
-## Critical Constraints
+## Scaffolding & Technical Constraints
+{{ scaffolding_frontend_context }}
 
-**API URL:** Must use `const API_URL = '';` (empty string for relative URLs, proxied to backend)
+## Quality Standards
 
-**No mock data:** Fetch all dynamic content from backend API using Axios
+- **UI/UX**:
+   - Use Bootstrap 5 components (Cards, Modals, Alerts, Badges).
+   - Implement **Loading States** (spinners) for all async operations.
+   - Implement **Error Handling** (dismissible alerts) for failed requests.
+   - Ensure **Responsive Design** (mobile-friendly).
+- **Functionality**:
+   - Implement full CRUD if the API supports it.
+   - Add form validation (client-side) before submitting.
+   - Auto-refresh lists after updates.
+- **Code Quality**:
+   - Clean, readable code.
+   - meaningful variable names.
+   - Handle edge cases (empty lists, 404s).
 
-**UI states:** Show loading, error, and success states visually
+## Output
 
-**Use Axios:** For all HTTP requests (already installed, import it)
-
-**Modern React:** Functional components, hooks (`useState`, `useEffect`, `useCallback`)
-
-**Bootstrap:** Use Bootstrap 5 classes for styling (already included via CSS import)
-
-**Must implement:**
-- All required imports (React, useState, useEffect, axios, bootstrap CSS, App.css)
-- Error handling (try/catch, user-friendly messages)
-- Form validation (clear errors, disable during submit)
-- Loading indicators, success/error feedback
-- Responsive design (Bootstrap classes: container, row, col, etc.)
-- Complete functionality (no TODOs/placeholders)
-- Export default App at the end
-
-**Output complete App.jsx code in a single code block.**
-
-## Complete Pattern
-
-```jsx
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import './App.css';
-
-const API_URL = ''; // Empty string - use relative URLs (proxied to backend)
-
-function App() {
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await axios.get(`${API_URL}/api/items`);
-        setItems(response.data.items || []);
-      } catch (err) {
-        setError(err.response?.data?.error || 'Failed to load');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
-
-  if (loading) return <div className="container mt-5">Loading...</div>;
-  if (error) return <div className="container mt-5 alert alert-danger">{error}</div>;
-
-  return (
-    <div className="container mt-4">
-      <h1>Items</h1>
-      <div className="list-group">
-        {items.map(item => (
-          <div key={item.id} className="list-group-item">
-            {item.name}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export default App;
-```
+Output the **complete JSX code** for `App.jsx` in a single code block. Do not include markdown outside the code block.
 

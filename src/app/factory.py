@@ -101,12 +101,13 @@ def create_app(config_name: str = 'default') -> Flask:
     # Configuration
     # Create data directory if it doesn't exist
     # Use the same path structure as settings.py: src/data/
-    src_dir = os.path.dirname(os.path.dirname(__file__))
-    data_dir = os.path.join(src_dir, 'data')
-    os.makedirs(data_dir, exist_ok=True)
+    # Use resolve() to ensure we get absolute path and avoid creating data/ in wrong places
+    src_dir = Path(__file__).resolve().parent.parent
+    data_dir = src_dir / 'data'
+    data_dir.mkdir(exist_ok=True)
     
     # Database path in data folder (consistent with settings.py)
-    default_db_path = f'sqlite:///{os.path.join(data_dir, "thesis_app.db")}'
+    default_db_path = f'sqlite:///{data_dir / "thesis_app.db"}'
     
     app.config.update(
         SECRET_KEY=os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production'),
@@ -604,12 +605,12 @@ def create_cli_app() -> Flask:
     
     # Create data directory if it doesn't exist
     # Use the same path structure as settings.py: src/data/
-    src_dir = os.path.dirname(os.path.dirname(__file__))
-    data_dir = os.path.join(src_dir, 'data')
-    os.makedirs(data_dir, exist_ok=True)
+    src_dir = Path(__file__).resolve().parent.parent
+    data_dir = src_dir / 'data'
+    data_dir.mkdir(exist_ok=True)
     
     # Database path in data folder (consistent with settings.py)
-    default_db_path = f'sqlite:///{os.path.join(data_dir, "thesis_app.db")}'
+    default_db_path = f'sqlite:///{data_dir / "thesis_app.db"}'
     
     # Minimal configuration for CLI
     app.config.update(

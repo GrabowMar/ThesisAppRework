@@ -922,6 +922,8 @@ Generate the React component code:"""
             'scaffolding_app_jsx': app_dir / 'frontend' / 'src' / 'App.jsx',
             'scaffolding_package_json': app_dir / 'frontend' / 'package.json',
             'scaffolding_requirements_txt': app_dir / 'backend' / 'requirements.txt',
+            'scaffolding_backend_context': app_dir / 'backend' / 'SCAFFOLDING_CONTEXT.md',
+            'scaffolding_frontend_context': app_dir / 'frontend' / 'SCAFFOLDING_CONTEXT.md',
         }
         
         content = {}
@@ -1143,18 +1145,12 @@ class CodeMerger:
 
         logger.info(f"Extracted {len(selected_code)} chars of JSX code from LLM response")
 
-        # Fix Docker networking: replace localhost with backend:5000
-        if 'localhost' in selected_code and 'backend:5000' not in selected_code:
-            logger.info("Fixing API_URL: replacing localhost references with backend:5000")
+        # Fix Docker networking: replace localhost with relative path for Nginx proxy
+        if 'localhost:5000' in selected_code:
+            logger.info("Fixing API_URL: replacing localhost:5000 with relative path")
             selected_code = re.sub(
                 r'http://localhost:5000',
-                'http://backend:5000',
-                selected_code,
-                flags=re.IGNORECASE
-            )
-            selected_code = re.sub(
-                r'localhost:5000',
-                'backend:5000',
+                '',
                 selected_code,
                 flags=re.IGNORECASE
             )
