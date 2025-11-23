@@ -174,7 +174,6 @@ def generate():
         # Optional flags
         gen_frontend = data.get('generate_frontend', True)
         gen_backend = data.get('generate_backend', True)
-        template_type = data.get('template_type', 'auto')  # 'auto', 'full', or 'compact'
         
         # Versioning and batch tracking
         batch_id = data.get('batch_id')  # Optional batch ID from wizard
@@ -190,7 +189,7 @@ def generate():
         logger.info(f"Generation: {model_slug}/app{app_num} v{version}")
         logger.info(f"  OpenRouter model_id: {model.model_id}")
         logger.info(f"  Frontend: {gen_frontend}, Backend: {gen_backend}")
-        logger.info(f"  Template: {template_slug}, type: {template_type}")
+        logger.info(f"  Template: {template_slug}")
         logger.info(f"  Batch ID: {batch_id}")
         
         # Run generation with atomic reservation
@@ -201,7 +200,6 @@ def generate():
             template_slug=template_slug,
             generate_frontend=gen_frontend,
             generate_backend=gen_backend,
-            template_type=template_type,
             batch_id=batch_id,
             parent_app_id=parent_app_id,
             version=version

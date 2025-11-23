@@ -966,17 +966,12 @@ async function startGeneration() {
     // CRITICAL: Freeze selections to prevent mid-generation changes
     const templatesToGenerate = [...selectedTemplates];
     const modelsToUse = [...selectedModels];
-
-    // Capture template type preference once for the entire batch
-    const templateTypeEl = document.getElementById('template-type-preference');
-    const templateType = templateTypeEl ? templateTypeEl.value : 'auto';
     
     console.log(`[Wizard] LOCKED GENERATION PLAN:`);
     console.log(`  - Batch ID: ${batchId}`);
     console.log(`  - Models: ${modelsToUse.join(', ')}`);
     console.log(`  - Templates: ${templatesToGenerate.join(', ')}`);
     console.log(`  - Total apps: ${totalGenerations}`);
-    console.log(`  - Template Type: ${templateType}`);
     
     for (const modelSlug of modelsToUse) {
       for (const templateSlug of templatesToGenerate) {
@@ -994,7 +989,6 @@ async function startGeneration() {
                 generate_frontend: true,
                 generate_backend: true,
                 scaffold: true,
-                template_type: templateType,
                 batch_id: batchId,  // Track batch operations together
                 version: 1  // New generation, version 1
               })

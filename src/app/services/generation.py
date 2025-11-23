@@ -149,7 +149,6 @@ class GenerationConfig:
     temperature: float = 0.3
     max_tokens: int = 64000  # Increased from 32000 for longer, more complete code generation
     requirements: Optional[Dict] = None  # Requirements from JSON file
-    template_type: str = 'auto'  # 'auto', 'full', or 'compact'
 
 
 class ScaffoldingManager:
@@ -508,28 +507,7 @@ class CodeGenerator:
             return ""
     
     def _load_prompt_template(self, component: str, model_slug: Optional[str] = None) -> str:
-        """Load prompt template for component.
-        
-        Automatically uses compact template for models with <8K output limit.
-        """
-        # Determine if we should use compact template
-        use_compact = False
-        if model_slug:
-            token_limit = get_model_token_limit(model_slug)
-            # Use compact for models with <=8192 output limit (raised from 4096 due to higher token limits)
-            use_compact = token_limit <= 8192
-        
-        # Try compact template first if needed
-        if use_compact:
-            compact_file = self.template_dir / 'two-query' / f"{component}_compact.md.jinja2"
-            if compact_file.exists():
-                try:
-                    with open(compact_file, 'r', encoding='utf-8') as f:
-                        logger.info(f"Using compact template for {component} (model output limit: {token_limit})")
-                        return f.read()
-                except Exception as e:
-                    logger.warning(f"Failed to load compact template, falling back to standard: {e}")
-        
+        """Load prompt template for component."""
         # Use standard template
         template_file = self.template_dir / 'two-query' / f"{component}.md.jinja2"
         
@@ -721,38 +699,14 @@ class CodeGenerator:
         # Set up Jinja2 environment
         env = Environment(loader=FileSystemLoader(self.template_dir / 'two-query'))
         
-        # Determine which template to use based on preference or model output limit
-        template_type = getattr(config, 'template_type', 'auto')
-        
-        if template_type == 'full':
-            use_compact = False
-            logger.info(f"Using FULL template for {config.component} (forced by user preference)")
-        elif template_type == 'compact':
-            use_compact = True
-            logger.info(f"Using COMPACT template for {config.component} (forced by user preference)")
-        else:  # 'auto'
-            token_limit = get_model_token_limit(config.model_slug) if hasattr(config, 'model_slug') else 64000
-            # Use compact for models with <=8192 output limit (raised from 4096 due to higher token limits)
-            use_compact = token_limit <= 8192
-            if use_compact:
-                logger.info(f"Using compact template for {config.component} (auto: model limit {token_limit} tokens)")
-            else:
-                logger.info(f"Using full template for {config.component} (auto: model limit {token_limit} tokens)")
-        
-        template_name = f"{config.component}_compact.md.jinja2" if use_compact else f"{config.component}.md.jinja2"
+        # Always use standard template
+        template_name = f"{config.component}.md.jinja2"
         
         try:
             template = env.get_template(template_name)
         except Exception as e:
-            # Fall back to standard template if compact not found
-            if use_compact:
-                logger.warning(f"Compact template not found, using standard: {e}")
-                try:
-                    template = env.get_template(f"{config.component}.md.jinja2")
-                except Exception:
-                    template = None
-            else:
-                template = None
+            logger.error(f"Template not found: {e}")
+            template = None
 
         # If template exists, use it
         if template and reqs:
@@ -1503,7 +1457,6 @@ class GenerationService:
         template_slug: str,
         generate_frontend: bool = True,
         generate_backend: bool = True,
-        template_type: str = 'auto',  # 'auto', 'full', or 'compact'
         batch_id: Optional[str] = None,  # For tracking batch operations
         parent_app_id: Optional[int] = None,  # For regenerations
         version: int = 1  # Version number (1 for new, incremented for regenerations)
@@ -1524,7 +1477,6 @@ class GenerationService:
             template_slug: Template slug (e.g., 'url-shortener')
             generate_frontend: Whether to generate frontend code
             generate_backend: Whether to generate backend code
-            template_type: 'auto' (default, based on model limit), 'full', or 'compact'
             batch_id: Optional batch ID for grouping related generations
             parent_app_id: Optional parent app ID if this is a regeneration
             version: Version number (1 for new, incremented for regenerations)
@@ -1582,8 +1534,7 @@ class GenerationService:
                         model_slug=model_slug,
                         app_num=app_num,
                         template_slug=template_slug,
-                        component='backend',
-                        template_type=template_type
+                        component='backend'
                     )
                     
                     success, content, error = await self.generator.generate(config)
@@ -1604,8 +1555,7 @@ class GenerationService:
                         model_slug=model_slug,
                         app_num=app_num,
                         template_slug=template_slug,
-                        component='frontend',
-                        template_type=template_type
+                        component='frontend'
                     )
                     
                     success, content, error = await self.generator.generate(config)

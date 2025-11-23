@@ -1072,7 +1072,6 @@ def api_model_app_regenerate(model_slug, app_number):
     
     Request body (optional):
         - template_slug: Template to use (default: same as original)
-        - template_type: 'auto', 'full', or 'compact' (default: 'auto')
         - generate_frontend: bool (default: true)
         - generate_backend: bool (default: true)
     """
@@ -1097,7 +1096,6 @@ def api_model_app_regenerate(model_slug, app_number):
         # Parse request body for options
         data = request.get_json() or {}
         template_slug = data.get('template_slug', latest_app.template_slug or 'crud_todo_list')
-        template_type = data.get('template_type', 'auto')
         gen_frontend = data.get('generate_frontend', True)
         gen_backend = data.get('generate_backend', True)
         
@@ -1121,7 +1119,6 @@ def api_model_app_regenerate(model_slug, app_number):
             template_slug=template_slug,
             generate_frontend=gen_frontend,
             generate_backend=gen_backend,
-            template_type=template_type,
             batch_id=batch_id,
             parent_app_id=latest_app.id,
             version=new_version

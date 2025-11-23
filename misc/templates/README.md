@@ -7,10 +7,8 @@ This directory contains Jinja2 templates for generating AI prompts.
 ```
 templates/
 └── two-query/
-    ├── backend.md.jinja2           # Full backend template (for models with >8K output limit)
-    ├── backend_compact.md.jinja2   # Compact backend template (for models with <8K output limit)
-    ├── frontend.md.jinja2          # Full frontend template (for models with >8K output limit)
-    └── frontend_compact.md.jinja2  # Compact frontend template (for models with <8K output limit)
+    ├── backend.md.jinja2           # Full backend template
+    └── frontend.md.jinja2          # Full frontend template
 ```
 
 ## Template Types
@@ -21,11 +19,7 @@ A two-step generation approach:
 2. **Frontend Second**: Generate frontend that consumes the backend API
 
 ### Template Selection
-The generation service automatically selects the appropriate template based on model output limits:
-- **Full templates**: Used for models with ≥8000 token output limit (GPT-4o, Claude 4.5, Gemini 1.5, etc.)
-- **Compact templates**: Used for models with <8000 token output limit (GPT-3.5, Claude 3, GPT-4 Turbo, etc.)
-
-Compact templates provide the same functionality with more concise instructions and less verbose examples.
+The generation service uses the standard full templates for all models to ensure consistent quality and detailed instructions.
 
 ## Template Variables
 
