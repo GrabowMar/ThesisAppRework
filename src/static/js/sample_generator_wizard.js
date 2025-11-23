@@ -966,22 +966,23 @@ async function startGeneration() {
     // CRITICAL: Freeze selections to prevent mid-generation changes
     const templatesToGenerate = [...selectedTemplates];
     const modelsToUse = [...selectedModels];
+
+    // Capture template type preference once for the entire batch
+    const templateTypeEl = document.getElementById('template-type-preference');
+    const templateType = templateTypeEl ? templateTypeEl.value : 'auto';
     
     console.log(`[Wizard] LOCKED GENERATION PLAN:`);
     console.log(`  - Batch ID: ${batchId}`);
     console.log(`  - Models: ${modelsToUse.join(', ')}`);
     console.log(`  - Templates: ${templatesToGenerate.join(', ')}`);
     console.log(`  - Total apps: ${totalGenerations}`);
+    console.log(`  - Template Type: ${templateType}`);
     
     for (const modelSlug of modelsToUse) {
       for (const templateSlug of templatesToGenerate) {
         console.log(`[Wizard] Generating: template ${templateSlug}, model ${modelSlug}`);
         
         try {
-          // Get template type preference
-          const templateTypeEl = document.getElementById('template-type-preference');
-          const templateType = templateTypeEl ? templateTypeEl.value : 'auto';
-            
             // No need to pre-fetch app number - generation service handles atomic reservation
             const response = await fetch('/api/gen/generate', {
               method: 'POST',

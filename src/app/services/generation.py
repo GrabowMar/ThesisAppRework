@@ -767,7 +767,7 @@ class CodeGenerator:
             endpoint_text = self._format_api_endpoints(reqs)
             
             # Load scaffolding content
-            scaffolding_content = self._load_scaffolding_files(config.model_slug, config.app_num)
+            scaffolding_content = self._load_scaffolding_files(config.model_slug, config.app_num, config.template_slug)
 
             # Create context for Jinja2
             context = {
@@ -912,10 +912,10 @@ IMPORTANT:
 Generate the React component code:"""
                 )
 
-    def _load_scaffolding_files(self, model_slug: str, app_num: int) -> Dict[str, str]:
+    def _load_scaffolding_files(self, model_slug: str, app_num: int, template_slug: Optional[str] = None) -> Dict[str, str]:
         """Load content of key scaffolding files to inject into prompts."""
         scaffold_manager = ScaffoldingManager()
-        app_dir = scaffold_manager.get_app_dir(model_slug, app_num)
+        app_dir = scaffold_manager.get_app_dir(model_slug, app_num, template_slug)
         
         files_to_load = {
             'scaffolding_app_py': app_dir / 'backend' / 'app.py',
@@ -932,6 +932,9 @@ Generate the React component code:"""
                 if path.exists():
                     content[key] = path.read_text(encoding='utf-8')
                 else:
+                    # Only log warning for missing context files, as they are optional
+                    if 'CONTEXT' not in key:
+                        logger.warning(f"Scaffolding file missing: {path}")
                     content[key] = f"<!-- File not found: {path.name} -->"
             except Exception as e:
                 logger.warning(f"Could not read scaffolding file {path}: {e}")
