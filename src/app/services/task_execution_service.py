@@ -1467,6 +1467,64 @@ class TaskExecutionService:
             results = analysis.get('results', {})
             if isinstance(results, dict):
                 for category, category_data in results.items():
+                    # Handle list-based results (e.g. zap_security_scan, vulnerability_scan)
+                    if isinstance(category_data, list):
+                        for item in category_data:
+                            if not isinstance(item, dict):
+                                continue
+                            
+                            # Handle ZAP alerts
+                            if 'alerts' in item:
+                                tool_name = 'zap'
+                                tools_executed.add(tool_name)
+                                alerts = item.get('alerts', [])
+                                findings_by_tool[tool_name] = findings_by_tool.get(tool_name, 0) + len(alerts)
+                                
+                                for alert in alerts:
+                                    severity = str(alert.get('risk', 'info')).lower()
+                                    # Map ZAP risk to severity
+                                    if severity == 'informational': severity = 'info'
+                                    
+                                    finding = {
+                                        'severity': severity,
+                                        'message': alert.get('alert', ''),
+                                        'file': alert.get('url', ''),
+                                        'line': 0,
+                                        'tool': tool_name,
+                                        'service': service_name,
+                                        'category': category,
+                                        'rule_id': alert.get('pluginId', '')
+                                    }
+                                    if severity in aggregated:
+                                        aggregated[severity].append(finding)
+                                    else:
+                                        aggregated['info'].append(finding)
+
+                            # Handle Vulnerability Scan
+                            if 'vulnerabilities' in item:
+                                tool_name = 'curl'
+                                tools_executed.add(tool_name)
+                                vulns = item.get('vulnerabilities', [])
+                                findings_by_tool[tool_name] = findings_by_tool.get(tool_name, 0) + len(vulns)
+                                
+                                for vuln in vulns:
+                                    severity = str(vuln.get('severity', 'info')).lower()
+                                    finding = {
+                                        'severity': severity,
+                                        'message': vuln.get('type', '') + ': ' + vuln.get('description', ''),
+                                        'file': item.get('url', ''),
+                                        'line': 0,
+                                        'tool': tool_name,
+                                        'service': service_name,
+                                        'category': category,
+                                        'rule_id': vuln.get('type', '')
+                                    }
+                                    if severity in aggregated:
+                                        aggregated[severity].append(finding)
+                                    else:
+                                        aggregated['info'].append(finding)
+                        continue
+
                     if not isinstance(category_data, dict):
                         continue
                     
@@ -1536,10 +1594,16 @@ class TaskExecutionService:
                         continue
                     
                     issues = tool_data.get('issues', [])
+                    
+                    # Use total_issues if available (e.g. from DynamicAnalyzer), otherwise count issues list
+                    findings_count = tool_data.get('total_issues')
+                    if findings_count is None:
+                        findings_count = len(issues) if isinstance(issues, list) else 0
+
                     normalized_tools[tool_name] = {
                         'status': tool_data.get('status', 'unknown'),
                         'exit_code': tool_data.get('exit_code', 0),
-                        'findings_count': len(issues) if isinstance(issues, list) else 0,
+                        'findings_count': findings_count,
                         'service': service_name
                     }
                     

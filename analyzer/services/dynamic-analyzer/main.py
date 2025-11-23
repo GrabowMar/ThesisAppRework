@@ -752,10 +752,17 @@ class DynamicAnalyzer(BaseWSService):
                     if vuln_result.get('status') == 'success':
                         total_vulnerabilities += vuln_result.get('total_vulnerabilities', 0)
             
+            # Add ZAP findings to total
+            if 'zap_security_scan' in results['results']:
+                for zap_result in results['results']['zap_security_scan']:
+                    if zap_result.get('status') == 'success':
+                        total_vulnerabilities += zap_result.get('total_alerts', 0)
+            
             results['summary'] = {
                 'total_urls_tested': len(target_urls),
                 'reachable_urls': reachable_count,
                 'vulnerabilities_found': total_vulnerabilities,
+                'total_findings': total_vulnerabilities,
                 'analysis_status': 'completed'
             }
             
