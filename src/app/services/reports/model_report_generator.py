@@ -101,7 +101,7 @@ class ModelReportGenerator(BaseReportGenerator):
             
             # Handle nested structure: raw_data.results.summary vs raw_data.summary
             results_wrapper = raw_data.get('results', {})
-            summary = results_wrapper.get('summary', {}) if results_wrapper else raw_data.get('summary', {})
+            summary = raw_data.get('summary') or results_wrapper.get('summary') or {}
             
             # Aggregate statistics
             findings_count = summary.get('total_findings', 0)
@@ -114,8 +114,10 @@ class ModelReportGenerator(BaseReportGenerator):
             total_medium += severity_counts.get('medium', 0)
             total_low += severity_counts.get('low', 0)
             
-            # Extract tools from nested services structure
-            tools = self._extract_tools_from_services(results_wrapper.get('services', {}))
+            # Extract tools - prefer top-level 'tools', fallback to extraction from services
+            tools = raw_data.get('tools')
+            if not tools:
+                tools = self._extract_tools_from_services(results_wrapper.get('services', {}))
             
             # Aggregate tool statistics
             for tool_name, tool_data in tools.items():
@@ -145,8 +147,10 @@ class ModelReportGenerator(BaseReportGenerator):
                 GeneratedApplication.app_number == app_number
             ).first()
             
-            # Extract findings from nested services structure
-            findings = self._extract_findings_from_services(results_wrapper.get('services', {}))
+            # Extract findings - prefer top-level 'findings', fallback to extraction from services
+            findings = raw_data.get('findings')
+            if findings is None:
+                findings = self._extract_findings_from_services(results_wrapper.get('services', {}))
             
             # Calculate duration from task timestamps if not in metadata
             duration_seconds = raw_data.get('metadata', {}).get('duration_seconds', 0)
