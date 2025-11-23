@@ -16,7 +16,7 @@
    - Models must inherit from `db.Model`.
    - Models must have a `to_dict()` method for JSON serialization.
 4. **Configuration**:
-   - `SQLALCHEMY_DATABASE_URI` is set to `sqlite:///app.db`.
+   - `SQLALCHEMY_DATABASE_URI` MUST be set to `sqlite:////app/data/app.db` (absolute path) to ensure persistence in the Docker volume.
    - Port is read from `FLASK_RUN_PORT` environment variable (default 5000).
    - Host must be `0.0.0.0` to be accessible from Nginx.
 
@@ -32,7 +32,8 @@ CORS(app)
 db = SQLAlchemy()
 
 def setup_app(app):
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+    # Use absolute path to data volume for persistence
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////app/data/app.db'
     db.init_app(app)
     with app.app_context():
         db.create_all()

@@ -17,6 +17,8 @@
 ## Scaffolding & Technical Constraints
 {{ scaffolding_backend_context }}
 
+- **Persistence**: If using SQLite, use absolute path `/app/data/app.db` (e.g. `sqlite:////app/data/app.db`) to ensure data persists across container restarts.
+
 ## Quality Standards
 
 - **Validation**: Validate all input data. Return 400 for invalid inputs.

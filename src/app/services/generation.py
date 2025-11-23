@@ -912,7 +912,7 @@ RULES:
 - Add proper error handling, loading states, and user feedback
 - Use clean, semantic JSX structure
 - Include inline styles or use className for CSS (App.css will exist)
-- Generate complete, working code - no placeholders or TODOs
+- Generate complete, working code - no placeholders or TODOs. Do not return a simple "Loading..." screen without logic.
 
 Return ONLY the JSX/JavaScript code wrapped in ```jsx code blocks."""
         
@@ -926,6 +926,7 @@ RULES:
 - DO NOT generate infrastructure files (Dockerfile, requirements.txt, docker-compose.yml, etc)
 - Use Flask best practices and proper project structure
 - Use SQLAlchemy for database models when needed
+- If using SQLite, store the database file in the `/app/data` directory (e.g., `sqlite:////app/data/app.db`) to ensure persistence.
 - Include CORS configuration for frontend integration
 - Implement ALL specified backend requirements completely
 - Add proper error handling, validation, and logging

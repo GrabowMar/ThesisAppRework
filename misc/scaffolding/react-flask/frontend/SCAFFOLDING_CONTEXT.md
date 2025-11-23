@@ -15,6 +15,9 @@
    - Define `const API_URL = '';` at the top of the file.
 3. **State Management**: Use React Hooks (`useState`, `useEffect`).
 4. **UI Components**: Use Bootstrap 5 classes (e.g., `card`, `btn`, `alert`).
+5. **Completeness**:
+   - Generate the FULL application logic.
+   - Do NOT use placeholders like "TODO" or "Loading..." without implementation.
 
 ## Code Pattern
 ```jsx
