@@ -43,6 +43,7 @@ from app.extensions import db, get_components
 from app.models import AnalysisTask
 from app.constants import AnalysisStatus
 from app.services.result_summary_utils import summarise_findings
+from app.services.service_locator import ServiceLocator
 
 # Module-level logger (will be used by main thread)
 logger = get_logger("task_executor")
@@ -240,25 +241,21 @@ class TaskExecutionService:
                             success = status in ('success', 'completed', 'partial')
                             is_partial = status == 'partial'
                             
-                            # Save analysis results to database
+                            # Save analysis results to database via UnifiedResultService
                             if success and result.get('payload'):
-                                # Store the full analysis payload as result summary
-                                task_db.set_result_summary(result['payload'])
-                                
-                                # Extract summary metrics for the task
-                                payload = result['payload']
-                                if isinstance(payload, dict):
-                                    # Support both legacy shape (metadata['analysis']['summary']) and
-                                    # new orchestrator shape (payload['summary']).
-                                    summary = payload.get('summary') or payload.get('analysis', {}).get('summary', {})
-                                    # Update task summary fields
-                                    task_db.issues_found = summary.get('total_issues_found', summary.get('total_findings', 0))
-                                    # Store severity breakdown if available
-                                    severity_breakdown = summary.get('severity_breakdown', {})
-                                    if severity_breakdown:
-                                        task_db.severity_breakdown = json.dumps(severity_breakdown)
-                                
-                                self._log("Saved analysis results for task %s with %d issues", task_db.task_id, task_db.issues_found or 0)
+                                try:
+                                    unified_service = ServiceLocator.get_unified_result_service()
+                                    unified_service.store_analysis_results(
+                                        task_id=task_db.task_id,
+                                        payload=result['payload'],
+                                        model_slug=task_db.target_model,
+                                        app_number=task_db.target_app_number
+                                    )
+                                    self._log("Saved analysis results via UnifiedResultService for task %s", task_db.task_id)
+                                except Exception as e:
+                                    self._log("Failed to store results via UnifiedResultService: %s", e, level='error')
+                                    # Fallback to basic DB update if service fails
+                                    task_db.set_result_summary(result['payload'])
                             elif result.get('error'):
                                 # Save error details
                                 error_payload = {
@@ -291,19 +288,8 @@ class TaskExecutionService:
                         task_db.completed_at = datetime.now(timezone.utc)
                         
                         # Store analysis results if available (merge with existing metadata)
-                        if result and result.get('payload'):
-                            try:
-                                # Preserve existing metadata (like custom_options) and merge execution results
-                                existing_metadata = task_db.get_metadata()
-                                merged_metadata = existing_metadata.copy()
-                                merged_metadata.update(result['payload'])
-                                task_db.set_metadata(merged_metadata)
-                                
-                                # Note: Result files are written by analyzer_manager.py after analysis completes.
-                                # Previously this called write_task_result_files here, which created empty files
-                                # before analysis finished. The canonical writer is save_task_results() in analyzer_manager.
-                            except Exception as e:
-                                self._log("Failed to store analysis results for task %s: %s", task_db.task_id, e, level='warning')
+                        # Note: UnifiedResultService now handles result storage.
+                        # Legacy metadata merging removed to prevent duplication.
                         
                         try:
                             if task_db.started_at and task_db.completed_at:
@@ -1008,7 +994,7 @@ class TaskExecutionService:
                     }
                 }
                 
-                # Update main task
+                # Update main task status and duration
                 main_task.status = AnalysisStatus.COMPLETED if not any_failed else AnalysisStatus.FAILED
                 main_task.completed_at = datetime.now(timezone.utc)
                 main_task.progress_percentage = 100.0
@@ -1021,22 +1007,22 @@ class TaskExecutionService:
                         started_at = started_at.replace(tzinfo=timezone.utc)
                     duration = (main_task.completed_at - started_at).total_seconds()
                     main_task.actual_duration = duration
-                main_task.set_result_summary(unified_payload)
-                db.session.commit()
                 
-                # Persist results to filesystem (matching analyzer_manager structure)
+                # Store results via UnifiedResultService (handles DB and Filesystem)
                 try:
-                    self._write_task_results_to_filesystem(
-                        main_task.target_model,
-                        main_task.target_app_number,
-                        main_task_id,
-                        unified_payload
+                    unified_service = ServiceLocator.get_unified_result_service()
+                    unified_service.store_analysis_results(
+                        task_id=main_task_id,
+                        payload=unified_payload,
+                        model_slug=main_task.target_model,
+                        app_number=main_task.target_app_number
                     )
-                except Exception as fs_error:
-                    self._log(
-                        f"[AGGREGATE] Failed to write results to filesystem: {fs_error}",
-                        level='warning'
-                    )
+                    self._log(f"[AGGREGATE] Stored unified results for {main_task_id}")
+                except Exception as e:
+                    self._log(f"[AGGREGATE] Failed to store unified results: {e}", level='error')
+                    # Fallback DB update
+                    main_task.set_result_summary(unified_payload)
+                    db.session.commit()
                 
                 self._log(f"[AGGREGATE] Main task {main_task_id} marked as completed")
                 
@@ -2121,29 +2107,20 @@ class TaskExecutionService:
                     task_db.progress_percentage = 100.0
                     task_db.completed_at = datetime.now(timezone.utc)
                     
-                    # Store analysis results if available (merge with existing metadata)
+                    # Store analysis results via UnifiedResultService
                     if result and result.get('payload'):
                         try:
-                            # Preserve existing metadata (like custom_options) and merge execution results
-                            existing_metadata = task_db.get_metadata()
-                            merged_metadata = existing_metadata.copy()
-                            merged_metadata.update(result['payload'])
-                            task_db.set_metadata(merged_metadata)
-                            # Extract summary information and update task fields (supports both payload shapes)
-                            payload = result['payload']
-                            if isinstance(payload, dict):
-                                summary = payload.get('summary') or payload.get('analysis', {}).get('summary', {})
-                                # Update issues count
-                                task_db.issues_found = summary.get('total_issues_found', summary.get('total_findings', 0))
-                                # Store result summary if present
-                                if summary:
-                                    task_db.set_result_summary(summary)
-                                # Store severity breakdown if present
-                                sev = summary.get('severity_breakdown') or {}
-                                if sev:
-                                    task_db.severity_breakdown = json.dumps(sev)
+                            unified_service = ServiceLocator.get_unified_result_service()
+                            unified_service.store_analysis_results(
+                                task_id=task_db.task_id,
+                                payload=result['payload'],
+                                model_slug=task_db.target_model,
+                                app_number=task_db.target_app_number
+                            )
                         except Exception as e:
                             self._log("Failed to store analysis results for task %s: %s", task_db.task_id, e, level='warning')
+                            # Fallback
+                            task_db.set_result_summary(result['payload'])
                     
                     try:
                         if task_db.started_at and task_db.completed_at:

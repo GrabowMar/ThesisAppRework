@@ -112,19 +112,16 @@ class ToolDetailController {
 
                     if (detailedData.issues && detailedData.issues.length > 0) {
                         // If backend hydrated the issues, use them
-                        // We might need to normalize them if they aren't already
-                        // But usually backend returns raw issues. 
-                        // We can try to pass them through the parser's normalization if possible, 
-                        // but StaticParser.parse() works on the whole object.
-                        // Let's assume backend returns them in a format we can use or map.
-                        
-                        // If the backend returns raw issues (like Pylint format), we might need to normalize them.
-                        // Since we don't have a standalone "normalizeIssue" method exposed easily for raw arrays,
-                        // we might need to rely on the backend returning standard format OR 
-                        // we can try to use the parser if we reconstruct a dummy data object.
-                        
-                        // However, for SARIF, the backend might return the SARIF content.
-                        this.currentToolData.issues = detailedData.issues;
+                        // Normalize them to match the format expected by renderIssuesTable
+                        this.currentToolData.issues = detailedData.issues.map((issue, idx) => ({
+                            id: `fetched-${toolName}-${idx}`,
+                            tool: toolName,
+                            severity: (issue.severity || issue.issue_severity || issue.level || 'info').toLowerCase(),
+                            message: issue.message || issue.issue_text || 'No description',
+                            file: issue.file || issue.path || issue.filename || issue.location?.file || 'unknown',
+                            line: issue.line || issue.line_number || issue.location?.line || 0,
+                            raw: issue
+                        }));
                     } else if (detailedData.sarif_content) {
                         // If backend returned SARIF content
                         const sarifIssues = window.AnalysisParserFactory.SarifParser.parse(detailedData.sarif_content);
@@ -271,7 +268,27 @@ class ToolDetailController {
     }
 
     showIssueDetail(issueId) {
-        const detail = this.currentParser.getDetail(issueId);
+        // Try to find it in currentToolData first (for fetched issues)
+        const issue = this.currentToolData.issues.find(i => i.id === issueId);
+        
+        let detail = null;
+        if (issue) {
+            // Construct detail from the normalized issue we created
+            detail = {
+                title: issue.message,
+                subtitle: `${issue.tool} (Fetched)`,
+                severity: issue.severity,
+                description: issue.raw.description || issue.message,
+                location: `${issue.file}:${issue.line}`,
+                code: issue.raw.code || issue.raw.context || null,
+                remediation: issue.raw.remediation || issue.raw.solution || null,
+                evidence: issue.raw
+            };
+        } else {
+            // Fallback to parser (for pre-loaded issues)
+            detail = this.currentParser.getDetail(issueId);
+        }
+
         if (!detail) return;
 
         // Populate Detail View

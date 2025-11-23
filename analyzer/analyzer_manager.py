@@ -137,25 +137,25 @@ class AnalyzerManager:
                 name='static-analyzer',
                 port=2001,
                 container_name='analyzer-static-analyzer-1',
-                websocket_url='ws://localhost:2001'
+                websocket_url='ws://127.0.0.1:2001'
             ),
             'dynamic-analyzer': ServiceInfo(
                 name='dynamic-analyzer', 
                 port=2002,
                 container_name='analyzer-dynamic-analyzer-1',
-                websocket_url='ws://localhost:2002'
+                websocket_url='ws://127.0.0.1:2002'
             ),
             'performance-tester': ServiceInfo(
                 name='performance-tester',
                 port=2003, 
                 container_name='analyzer-performance-tester-1',
-                websocket_url='ws://localhost:2003'
+                websocket_url='ws://127.0.0.1:2003'
             ),
             'ai-analyzer': ServiceInfo(
                 name='ai-analyzer',
                 port=2004,
                 container_name='analyzer-ai-analyzer-1', 
-                websocket_url='ws://localhost:2004'
+                websocket_url='ws://127.0.0.1:2004'
             )
         }
         

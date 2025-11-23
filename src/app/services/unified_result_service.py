@@ -27,6 +27,7 @@ from app.models.analysis_models import AnalysisResult, AnalysisTask
 from app.models.simple_tool_results import ToolResult, ToolSummary
 from app.models.results_cache import AnalysisResultsCache
 from app.paths import RESULTS_DIR
+from app.utils.analysis_utils import resolve_task_directory, extract_issues_from_sarif
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,37 @@ class AnalysisResults:
     model_slug: str = 'unknown'
     app_number: int = 0
     modified_at: Optional[datetime] = None
+    
+    # Cache compatibility properties
+    @property
+    def analysis_type(self) -> str:
+        return self.raw_data.get('analysis_type', 'unified')
+        
+    @property
+    def timestamp(self) -> Optional[datetime]:
+        return self.modified_at
+        
+    @property
+    def duration(self) -> float:
+        return float(self.summary.get('duration', 0.0))
+        
+    @property
+    def total_findings(self) -> int:
+        return int(self.summary.get('total_findings', 0))
+        
+    @property
+    def tools_executed(self) -> List[str]:
+        # Extract tool names from tools dict
+        return list(self.tools.keys())
+        
+    @property
+    def tools_failed(self) -> List[str]:
+        # Identify failed tools
+        failed = []
+        for name, data in self.tools.items():
+            if isinstance(data, dict) and data.get('status') == 'failed':
+                failed.append(name)
+        return failed
 
 
 class UnifiedResultService:
@@ -106,6 +138,9 @@ class UnifiedResultService:
             # Sanitize payload for JSON serialization
             clean_payload = _sanitize_payload(payload)
             
+            # Hydrate findings from SARIF if needed (before DB store)
+            self._hydrate_tools_with_sarif(clean_payload, task_id)
+            
             # Get task record
             task = db.session.get(AnalysisTask, task_id)
             if not task:
@@ -114,11 +149,8 @@ class UnifiedResultService:
             
             # Extract model/app from task if not provided
             if not model_slug or not app_number:
-                from app.models.core import GeneratedApplication
-                app = db.session.get(GeneratedApplication, task.application_id)
-                if app:
-                    model_slug = model_slug or app.model_slug
-                    app_number = app_number or app.app_number
+                model_slug = model_slug or task.target_model
+                app_number = app_number or task.target_app_number
             
             # Phase 1: Write to database (atomic transaction)
             self._db_store_results(task_id, task, clean_payload)
@@ -303,8 +335,13 @@ class UnifiedResultService:
     ) -> None:
         """Store results in database (within active transaction)."""
         # Update task record
-        task.result_json = payload
+        task.set_result_summary(payload)
         task.completed_at = datetime.now(timezone.utc)
+        
+        # Update summary fields for list view performance
+        summary = payload.get('summary', {})
+        task.issues_found = summary.get('total_findings', len(payload.get('findings', [])))
+        task.set_severity_breakdown(summary.get('severity_breakdown', {}))
         
         # Extract and store individual findings as AnalysisResult records
         findings = payload.get('findings', [])
@@ -314,14 +351,35 @@ class UnifiedResultService:
             
             result = AnalysisResult(
                 task_id=task_id,
-                service_name=finding.get('service', 'unknown'),
                 tool_name=finding.get('tool', 'unknown'),
+                title=finding.get('message', 'No title')[:500],
+                description=finding.get('message', ''),
                 severity=self._parse_severity(finding.get('severity')),
-                message=finding.get('message', '')[:500],
                 file_path=finding.get('file'),
                 line_number=self._parse_int(finding.get('line')),
-                metadata_json=finding
+                result_type='finding'
             )
+            
+            # Enhanced mapping
+            result.tool_version = finding.get('tool_version')
+            result.confidence = finding.get('confidence')
+            result.code_snippet = finding.get('code_snippet')
+            result.category = finding.get('category')
+            result.rule_id = finding.get('rule_id')
+            
+            # Optional scoring
+            if finding.get('impact_score'):
+                result.impact_score = self._parse_float(finding.get('impact_score'))
+            result.business_impact = finding.get('business_impact')
+            result.remediation_effort = finding.get('remediation_effort')
+            
+            # JSON helpers
+            if finding.get('tags'):
+                result.set_tags(finding.get('tags'))
+            if finding.get('recommendations'):
+                result.set_recommendations(finding.get('recommendations'))
+            
+            result.set_structured_data(finding)
             db.session.add(result)
         
         # Store tool summaries
@@ -334,11 +392,10 @@ class UnifiedResultService:
                 task_id=task_id,
                 tool_name=tool_name,
                 status=tool_data.get('status', 'unknown'),
-                issues_found=self._parse_int(tool_data.get('issues_found', 0)),
-                execution_time=self._parse_float(tool_data.get('execution_time')),
-                raw_output=tool_data.get('raw_output', '')[:5000],
-                metadata_json=tool_data
+                total_issues=self._parse_int(tool_data.get('issues_found', 0)),
+                duration_seconds=self._parse_float(tool_data.get('execution_time')),
             )
+            tool_result.set_raw_data(tool_data)
             db.session.add(tool_result)
         
         db.session.commit()
@@ -347,8 +404,8 @@ class UnifiedResultService:
     def _db_load_results(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Load results from database."""
         task = db.session.get(AnalysisTask, task_id)
-        if task and task.result_json:
-            return task.result_json
+        if task:
+            return task.get_result_summary()
         return None
     
     # ==========================================================================
@@ -363,16 +420,37 @@ class UnifiedResultService:
         app_number: int
     ) -> Path:
         """Write results to JSON file (atomic operation)."""
-        # Build path: results/{model}/app{N}/analysis/{task_id}/consolidated.json
+        # Build path: results/{model}/app{N}/task_{task_id}/
         model_dir = Path(RESULTS_DIR) / model_slug.replace('/', '_')
         app_dir = model_dir / f"app{app_number}"
-        task_dir = app_dir / "analysis" / task_id
+        task_dir = app_dir / f"task_{task_id}"
         
         # Create directories
         task_dir.mkdir(parents=True, exist_ok=True)
         
-        # Write file atomically (write to temp, then rename)
-        file_path = task_dir / "consolidated.json"
+        # 1. Extract SARIF files to reduce main JSON size
+        # This modifies the payload in-place to reference the extracted files
+        self._extract_sarif_to_files(payload, task_dir)
+        
+        # 2. Write per-service snapshots
+        self._write_service_snapshots(payload, task_dir)
+        
+        # 3. Write manifest
+        try:
+            manifest = {
+                "task_id": task_id,
+                "model_slug": model_slug,
+                "app_number": app_number,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "files": [f.name for f in task_dir.glob("*") if f.is_file()]
+            }
+            with open(task_dir / "manifest.json", "w") as f:
+                json.dump(manifest, f, indent=2)
+        except Exception as e:
+            logger.warning(f"Failed to write manifest for {task_id}: {e}")
+
+        # 4. Write main consolidated file
+        file_path = task_dir / f"{model_slug}_app{app_number}_task_{task_id}.json"
         temp_path = task_dir / f".{file_path.name}.tmp"
         
         try:
@@ -385,6 +463,85 @@ class UnifiedResultService:
             if temp_path.exists():
                 temp_path.unlink()
             raise Exception(f"File write failed: {e}") from e
+
+    def _extract_sarif_to_files(self, payload: Dict[str, Any], task_dir: Path) -> None:
+        """
+        Extract SARIF data from payload to separate files to reduce JSON size.
+        Modifies payload in-place to replace SARIF data with file references.
+        """
+        sarif_dir = task_dir / "sarif"
+        sarif_dir.mkdir(exist_ok=True)
+        
+        services = payload.get('services', {})
+        for service_name, service_data in services.items():
+            if not isinstance(service_data, dict):
+                continue
+                
+            # Check for tools with SARIF
+            analysis = service_data.get('analysis', {})
+            
+            # Handle static analyzer structure (grouped by language)
+            if service_name in ['static-analyzer', 'static']:
+                results = analysis.get('results', {})
+                for lang, lang_tools in results.items():
+                    if isinstance(lang_tools, dict):
+                        for tool_name, tool_data in lang_tools.items():
+                            self._process_sarif_extraction(tool_name, tool_data, sarif_dir)
+            
+            # Handle flat structure (other analyzers)
+            else:
+                # Check 'results'
+                results = analysis.get('results', {})
+                if isinstance(results, dict):
+                    for tool_name, tool_data in results.items():
+                        self._process_sarif_extraction(tool_name, tool_data, sarif_dir)
+                
+                # Check 'tool_results'
+                tool_results = analysis.get('tool_results', {})
+                if isinstance(tool_results, dict):
+                    for tool_name, tool_data in tool_results.items():
+                        self._process_sarif_extraction(tool_name, tool_data, sarif_dir)
+
+    def _process_sarif_extraction(self, tool_name: str, tool_data: Dict[str, Any], sarif_dir: Path) -> None:
+        """Helper to extract SARIF from a single tool entry."""
+        if not isinstance(tool_data, dict):
+            return
+            
+        sarif_data = tool_data.get('sarif')
+        if sarif_data and isinstance(sarif_data, dict):
+            # Generate filename
+            safe_tool = tool_name.replace('/', '_').replace('\\', '_')
+            filename = f"{safe_tool}.sarif.json"
+            file_path = sarif_dir / filename
+            
+            try:
+                # Write SARIF to file
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(sarif_data, f, indent=2)
+                
+                # Replace in payload with reference
+                tool_data['sarif'] = {
+                    "sarif_file": f"sarif/{filename}",
+                    "extracted_at": datetime.now(timezone.utc).isoformat()
+                }
+                logger.debug(f"Extracted SARIF for {tool_name} to {filename}")
+            except Exception as e:
+                logger.warning(f"Failed to extract SARIF for {tool_name}: {e}")
+
+    def _write_service_snapshots(self, payload: Dict[str, Any], task_dir: Path) -> None:
+        """Write individual service results to separate files for debugging."""
+        services_dir = task_dir / "services"
+        services_dir.mkdir(exist_ok=True)
+        
+        services = payload.get('services', {})
+        for service_name, service_data in services.items():
+            try:
+                safe_name = service_name.replace('/', '_')
+                file_path = services_dir / f"{safe_name}.json"
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(service_data, f, indent=2, default=_json_default)
+            except Exception as e:
+                logger.warning(f"Failed to write snapshot for {service_name}: {e}")
     
     def _file_load_results(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Load results from filesystem (scan for task_id in results/)."""
@@ -503,7 +660,10 @@ class UnifiedResultService:
                 return None
             
             # Reconstruct AnalysisResults from cached JSON
-            return self._transform_to_analysis_results(task_id, cache_entry.results_json)
+            raw_data = cache_entry.get_raw_data()
+            if not raw_data:
+                return None
+            return self._transform_to_analysis_results(task_id, raw_data)
             
         except Exception as e:
             logger.error(f"Cache get failed for {task_id}: {e}")
@@ -571,6 +731,9 @@ class UnifiedResultService:
                 pass
         
         # Extract data for each tab
+        # Hydrate tools with SARIF data if needed
+        self._hydrate_tools_with_sarif(results_data, task_id)
+
         summary = self._extract_summary(results_data)
         security = self._extract_security(results_data)
         performance = self._extract_performance(results_data)
@@ -734,3 +897,196 @@ class UnifiedResultService:
                     return legacy_file
         
         return None
+
+    def get_sarif_files(self, task_id: str) -> List[Path]:
+        """
+        Discover all SARIF files for a task.
+        
+        Args:
+            task_id: Unique task identifier
+            
+        Returns:
+            List of Path objects for found SARIF files
+        """
+        try:
+            # Load main result to resolve directory
+            result = self.load_analysis_results(task_id)
+            if not result:
+                logger.warning(f"Cannot list SARIF: Task {task_id} not found")
+                return []
+            
+            result_data = result.raw_data
+            task_dir = resolve_task_directory(result_data, task_id)
+            
+            if not task_dir or not task_dir.exists():
+                logger.warning(f"Cannot list SARIF: Result directory not found for task {task_id}")
+                return []
+            
+            sarif_files = []
+            
+            # Look for SARIF files in sarif/ subdirectory
+            sarif_dir = task_dir / "sarif"
+            if sarif_dir.exists():
+                sarif_files.extend(list(sarif_dir.glob("*.sarif.json")))
+            
+            # Also check for legacy consolidated file
+            legacy_file = task_dir / "consolidated.sarif.json"
+            if legacy_file.exists():
+                sarif_files.append(legacy_file)
+                
+            return sarif_files
+            
+        except Exception as e:
+            logger.error(f"Error listing SARIF files for task {task_id}: {e}")
+            return []
+
+    def load_sarif_file(self, task_id: str, sarif_path: str) -> Optional[Dict[str, Any]]:
+        """
+        Load a SARIF file associated with a task.
+        
+        Args:
+            task_id: Unique task identifier
+            sarif_path: Relative path to the SARIF file (e.g., "sarif/tool.sarif.json")
+            
+        Returns:
+            Dict containing SARIF data or None if not found
+        """
+        try:
+            # Load main result to resolve directory
+            result = self.load_analysis_results(task_id)
+            if not result:
+                logger.warning(f"Cannot load SARIF: Task {task_id} not found")
+                return None
+            
+            result_data = result.raw_data
+            task_dir = resolve_task_directory(result_data, task_id)
+            
+            if not task_dir:
+                logger.warning(f"Cannot load SARIF: Could not resolve directory for task {task_id}")
+                return None
+            
+            task_root = task_dir.resolve()
+            sarif_path_obj = Path(sarif_path)
+            
+            # Handle both absolute (if inside task dir) and relative paths
+            if sarif_path_obj.is_absolute():
+                sarif_full_path = sarif_path_obj.resolve()
+            else:
+                sarif_full_path = (task_root / sarif_path_obj).resolve()
+            
+            # Security check: ensure path is within task directory
+            try:
+                sarif_full_path.relative_to(task_root)
+            except ValueError:
+                logger.warning(f"Security violation: SARIF path {sarif_path} escapes task directory {task_root}")
+                return None
+            
+            if not sarif_full_path.exists():
+                logger.warning(f"SARIF file not found: {sarif_full_path}")
+                return None
+            
+            with open(sarif_full_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+                
+        except Exception as e:
+            logger.error(f"Error loading SARIF file {sarif_path} for task {task_id}: {e}")
+            return None
+    
+    def _hydrate_tools_with_sarif(self, results_data: Dict[str, Any], task_id: str) -> None:
+        """
+        Hydrate tool results with issues from SARIF files if issues are missing.
+        Modifies results_data in-place.
+        """
+        services = results_data.get('services', {})
+        if not services:
+            return
+
+        # Iterate through services and tools
+        for service_name, service_data in services.items():
+            if not isinstance(service_data, dict):
+                continue
+            
+            analysis = service_data.get('analysis', {})
+            # Handle different structures (static vs others)
+            tools_to_check = []
+            
+            if service_name == 'static-analyzer' or service_name == 'static':
+                # Static analysis usually has language grouping
+                results = analysis.get('results', {})
+                for lang, lang_tools in results.items():
+                    if isinstance(lang_tools, dict):
+                        for tool_name, tool_data in lang_tools.items():
+                            tools_to_check.append((tool_name, tool_data))
+            else:
+                # Others usually have flat results or tool_results
+                # Check 'results' first
+                results = analysis.get('results', {})
+                if isinstance(results, dict):
+                    for tool_name, tool_data in results.items():
+                        tools_to_check.append((tool_name, tool_data))
+                
+                # Check 'tool_results'
+                tool_results = analysis.get('tool_results', {})
+                if isinstance(tool_results, dict):
+                    for tool_name, tool_data in tool_results.items():
+                        tools_to_check.append((tool_name, tool_data))
+
+            for tool_name, tool_data in tools_to_check:
+                if not isinstance(tool_data, dict):
+                    continue
+                
+                # Check if issues are missing but SARIF is present
+                issues = tool_data.get('issues', [])
+                sarif_ref = tool_data.get('sarif')
+                
+                if (not issues or len(issues) == 0) and sarif_ref:
+                    try:
+                        sarif_file = None
+                        if isinstance(sarif_ref, dict):
+                            sarif_file = sarif_ref.get('sarif_file') or sarif_ref.get('path') or sarif_ref.get('file')
+                        elif isinstance(sarif_ref, str):
+                            sarif_file = sarif_ref
+                        
+                        if sarif_file:
+                            # Resolve SARIF path
+                            task_dir = resolve_task_directory(results_data, task_id)
+                            if task_dir:
+                                task_root = task_dir.resolve()
+                                sarif_path_obj = Path(sarif_file)
+                                sarif_full_path = sarif_path_obj if sarif_path_obj.is_absolute() else (task_root / sarif_path_obj).resolve()
+                                
+                                if sarif_full_path.exists():
+                                    with open(sarif_full_path, 'r', encoding='utf-8') as f:
+                                        sarif_data = json.load(f)
+                                    
+                                    extracted_issues = extract_issues_from_sarif(sarif_data)
+                                    if extracted_issues:
+                                        tool_data['issues'] = extracted_issues
+                                        tool_data['total_issues'] = len(extracted_issues)
+                                        # Also update top-level findings if this is a security tool
+                                        # This is tricky because 'findings' is a separate list.
+                                        # We might need to append to it.
+                                        if service_name in ['static-analyzer', 'static', 'dynamic-analyzer', 'dynamic']:
+                                            current_findings = results_data.get('findings', [])
+                                            # Add tool info to findings
+                                            for issue in extracted_issues:
+                                                issue['service'] = service_name
+                                                issue['tool'] = tool_name
+                                                issue['category'] = 'security' # Assumption
+                                                current_findings.append(issue)
+                                            results_data['findings'] = current_findings
+                                            
+                                            # Update summary counts
+                                            summary = results_data.get('summary', {})
+                                            summary['total_findings'] = len(current_findings)
+                                            
+                                            # Update severity breakdown
+                                            breakdown = summary.get('severity_breakdown', {})
+                                            for issue in extracted_issues:
+                                                sev = issue.get('severity', 'info').lower()
+                                                breakdown[sev] = breakdown.get(sev, 0) + 1
+                                            summary['severity_breakdown'] = breakdown
+                                            
+                                            logger.info(f"Hydrated {len(extracted_issues)} issues for {tool_name} from SARIF")
+                    except Exception as e:
+                        logger.warning(f"Failed to hydrate SARIF for {tool_name}: {e}")

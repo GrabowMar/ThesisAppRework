@@ -8,6 +8,7 @@ Handles WebSocket connections, task execution, and result processing.
 
 from app.utils.logging_config import get_logger
 from app.config.config_manager import get_config
+from app.services.service_locator import ServiceLocator
 import asyncio
 from copy import deepcopy
 import json
@@ -479,46 +480,36 @@ class AnalysisExecutor:
                     analysis_data = {}
                 analysis_data['raw_outputs'] = raw_outputs
             
-            # Update task with results: persist analysis summary and computed fields
-            task.mark_completed(analysis_data)
-
-            # Populate task fields for list views / inspection
-            try:
-                # Summary and counts
-                summary = analysis_data.get('summary', {}) if isinstance(analysis_data, dict) else {}
-                sev = summary.get('severity_breakdown', {}) if isinstance(summary, dict) else {}
-                issues_total = int(summary.get('total_issues_found', 0)) if isinstance(summary, dict) else 0
-                task.set_severity_breakdown(sev if isinstance(sev, dict) else {})
-                task.issues_found = issues_total
-                # Also store a small normalized summary into result_summary
-                if isinstance(summary, dict) and summary:
-                    # Merge a thin wrapper containing summary + tools_used into result_summary
-                    thin = {
-                        'summary': summary,
-                        'tools_used': (analysis_data.get('tools_used') if isinstance(analysis_data, dict) else []) or [],
-                    }
-                    task.set_result_summary(thin)
-            except Exception:
-                pass
+            # Construct unified payload
+            payload = analysis_data or {}
             
-            # Handle SARIF export if present
-            sarif_document = analysis_data.get('sarif_export') if isinstance(analysis_data, dict) else None
-            if sarif_document and isinstance(sarif_document, dict):
-                # Extract findings from SARIF and merge with existing findings
-                sarif_findings = self._extract_sarif_findings(sarif_document)
-                if sarif_findings:
-                    findings = list(findings) if findings else []
-                    findings.extend(sarif_findings)
-                    logger.info(f"Added {len(sarif_findings)} findings from SARIF document")
+            # Ensure critical sections exist
+            if 'findings' not in payload and findings:
+                payload['findings'] = findings
+            if 'summary' not in payload and 'summary' in result:
+                payload['summary'] = result['summary']
+            if 'services' not in payload and 'services' in result:
+                payload['services'] = result['services']
                 
-                # Store SARIF document to file
-                await self._store_sarif_export(task, sarif_document)
+            # Store via UnifiedResultService
+            try:
+                unified_service = ServiceLocator.get_unified_result_service()
+                unified_service.store_analysis_results(
+                    task_id=task.task_id,
+                    payload=payload,
+                    model_slug=task.target_model,
+                    app_number=task.target_app_number
+                )
+                logger.info(f"Stored results via UnifiedResultService for task {task.task_id}")
+            except Exception as e:
+                logger.error(f"Failed to store results via UnifiedResultService: {e}")
+                raise
+
+            # Update task status (UnifiedResultService doesn't set COMPLETED status)
+            from app.constants import AnalysisStatus
+            task.status = AnalysisStatus.COMPLETED
             
-            # Store detailed findings
-            if findings:
-                await self._store_findings(task, findings)
-            
-            # Store metrics
+            # Store metrics if present (UnifiedResultService might not handle this specific metadata field)
             if metrics:
                 metadata = task.get_metadata()
                 metadata['metrics'] = metrics
@@ -573,271 +564,11 @@ class AnalysisExecutor:
         except Exception as e:
             logger.error(f"Error processing failed result for task {task.task_id}: {e}")
     
-    def _extract_sarif_findings(self, sarif_document: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Extract findings from SARIF 2.1.0 document and convert to internal format.
-        
-        Args:
-            sarif_document: Complete SARIF document with runs[]
-            
-        Returns:
-            List of findings in internal format
-        """
-        findings = []
-        
-        try:
-            runs = sarif_document.get('runs', [])
-            if not isinstance(runs, list):
-                return findings
-            
-            for run in runs:
-                if not isinstance(run, dict):
-                    continue
-                
-                # Extract tool information
-                tool_info = run.get('tool', {}).get('driver', {})
-                tool_name = tool_info.get('name', 'unknown')
-                tool_version = tool_info.get('version')
-                
-                results = run.get('results', [])
-                if not isinstance(results, list):
-                    continue
-                
-                for result in results:
-                    if not isinstance(result, dict):
-                        continue
-                    
-                    # Map SARIF level to internal severity
-                    sarif_level = result.get('level', 'warning')
-                    severity_map = {
-                        'error': 'high',
-                        'warning': 'medium',
-                        'note': 'low'
-                    }
-                    severity = severity_map.get(sarif_level, 'medium')
-                    
-                    # Extract message
-                    message_obj = result.get('message', {})
-                    if isinstance(message_obj, dict):
-                        message = message_obj.get('text', 'No description')
-                    else:
-                        message = str(message_obj)
-                    
-                    # Extract location information
-                    file_path = None
-                    line_number = None
-                    column_number = None
-                    code_snippet = None
-                    
-                    locations = result.get('locations', [])
-                    if isinstance(locations, list) and locations:
-                        location = locations[0]  # Use first location
-                        if isinstance(location, dict):
-                            phys_loc = location.get('physicalLocation', {})
-                            if isinstance(phys_loc, dict):
-                                artifact = phys_loc.get('artifactLocation', {})
-                                if isinstance(artifact, dict):
-                                    file_path = artifact.get('uri')
-                                
-                                region = phys_loc.get('region', {})
-                                if isinstance(region, dict):
-                                    line_number = region.get('startLine')
-                                    column_number = region.get('startColumn')
-                                    snippet = region.get('snippet', {})
-                                    if isinstance(snippet, dict):
-                                        code_snippet = snippet.get('text')
-                            
-                            # Fallback: check for logical location (web vulnerabilities)
-                            if not file_path:
-                                logical_locs = location.get('logicalLocations', [])
-                                if isinstance(logical_locs, list) and logical_locs:
-                                    logical_loc = logical_locs[0]
-                                    if isinstance(logical_loc, dict):
-                                        file_path = logical_loc.get('fullyQualifiedName')
-                    
-                    # Extract properties
-                    properties = result.get('properties', {})
-                    confidence = None
-                    cwe_ids = None
-                    tool_severity = None
-                    
-                    if isinstance(properties, dict):
-                        confidence = properties.get('confidence')
-                        cwe_ids = properties.get('cwe')
-                        tool_severity = properties.get('severity')  # Tool-specific severity
-                    
-                    # Build finding dict
-                    finding = {
-                        'tool_name': tool_name,
-                        'tool_version': tool_version,
-                        'type': 'sarif_finding',
-                        'title': f"{tool_name}: {result.get('ruleId', 'unknown')}",
-                        'description': message,
-                        'severity': severity,
-                        'confidence': confidence,
-                        'file_path': file_path,
-                        'line_number': line_number,
-                        'column_number': column_number,
-                        'code_snippet': code_snippet,
-                        'rule_id': result.get('ruleId'),
-                        'category': 'security' if tool_name in ['bandit', 'safety', 'zap', 'semgrep'] else 'quality'
-                    }
-                    
-                    # Add SARIF-specific metadata
-                    sarif_metadata = {
-                        'sarif_level': sarif_level,
-                        'sarif_rule_id': result.get('ruleId'),
-                        'tool_severity': tool_severity,
-                        'cwe_ids': cwe_ids
-                    }
-                    finding['structured_data'] = sarif_metadata
-                    
-                    findings.append(finding)
-            
-            logger.info(f"Extracted {len(findings)} findings from SARIF document with {len(runs)} runs")
-            
-        except Exception as e:
-            logger.error(f"Error extracting SARIF findings: {e}", exc_info=True)
-        
-        return findings
+    # _extract_sarif_findings removed - functionality moved to UnifiedResultService
     
-    async def _store_sarif_export(self, task: Any, sarif_document: Dict[str, Any]):
-        """Store SARIF document to file system.
-        
-        Args:
-            task: AnalysisTask instance
-            sarif_document: Complete SARIF 2.1.0 document
-        """
-        try:
-            from app.paths import RESULTS_DIR
-            from pathlib import Path
-            import json
-            
-            # Build path: results/{model_slug}/app{N}/analysis/{task_id}/consolidated.sarif.json
-            model_slug = task.target_model
-            app_number = task.target_app_number
-            task_id = task.task_id
-            
-            if not model_slug or not app_number:
-                logger.warning(f"Cannot store SARIF: missing model_slug or app_number for task {task_id}")
-                return
-            
-            result_dir = RESULTS_DIR / model_slug / f"app{app_number}" / "analysis" / task_id
-            result_dir.mkdir(parents=True, exist_ok=True)
-            
-            sarif_path = result_dir / "consolidated.sarif.json"
-            
-            # Write SARIF document
-            with open(sarif_path, 'w', encoding='utf-8') as f:
-                json.dump(sarif_document, f, indent=2, ensure_ascii=False)
-            
-            logger.info(f"Stored SARIF document at {sarif_path}")
-            
-            # Store path in task metadata
-            metadata = task.get_metadata()
-            metadata['sarif_export_path'] = str(sarif_path)
-            task.set_metadata(metadata)
-            
-        except Exception as e:
-            logger.error(f"Error storing SARIF export for task {task.task_id}: {e}", exc_info=True)
+    # _store_sarif_export removed - functionality moved to UnifiedResultService
     
-    async def _store_findings(self, task: Any, findings: List[Dict[str, Any]]):
-        """Store detailed analysis findings."""
-        try:
-            from app.constants import SeverityLevel as SevEnum
-            sev_values = {s.value for s in SevEnum}
-            from app.realtime.task_events import emit_task_event  # local import to avoid circulars
-            tool_counts: Dict[str, int] = {}
-            tool_severity: Dict[str, Dict[str, int]] = {}
-            for finding_data in findings:
-                severity_raw = (finding_data.get('severity') or 'low').lower()
-                if severity_raw not in sev_values:
-                    severity_raw = 'low'
-
-                result = AnalysisResult()
-                # Core identifiers / associations
-                result.result_id = str(uuid.uuid4())
-                result.task_id = task.task_id
-                # Descriptive metadata
-                result.tool_name = finding_data.get('tool_name', 'unknown_tool')
-                result.tool_version = finding_data.get('tool_version')
-                result.result_type = finding_data.get('type', 'finding')
-                result.title = finding_data.get('title', 'Untitled Finding')
-                result.description = finding_data.get('description')
-                result.severity = SevEnum(severity_raw)
-                result.confidence = finding_data.get('confidence')
-                # Location
-                result.file_path = finding_data.get('file_path')
-                result.line_number = finding_data.get('line_number')
-                result.column_number = finding_data.get('column_number')
-                result.code_snippet = finding_data.get('code_snippet')
-                # Classification
-                result.category = finding_data.get('category')
-                result.rule_id = finding_data.get('rule_id')
-                # SARIF metadata (if from SARIF source)
-                struct_data = finding_data.get('structured_data')
-                if isinstance(struct_data, dict):
-                    result.sarif_level = struct_data.get('sarif_level')
-                    result.sarif_rule_id = struct_data.get('sarif_rule_id')
-                    # Store full SARIF metadata
-                    sarif_meta = {
-                        'sarif_level': struct_data.get('sarif_level'),
-                        'sarif_rule_id': struct_data.get('sarif_rule_id'),
-                        'tool_severity': struct_data.get('tool_severity'),
-                        'cwe_ids': struct_data.get('cwe_ids')
-                    }
-                    # Remove None values
-                    sarif_meta = {k: v for k, v in sarif_meta.items() if v is not None}
-                    if sarif_meta:
-                        result.set_sarif_metadata(sarif_meta)
-                # Raw output
-                result.raw_output = finding_data.get('raw_output')
-
-                # Optional scoring
-                impact_score = finding_data.get('impact_score') or finding_data.get('score')
-                if impact_score is not None:
-                    try:
-                        result.impact_score = float(impact_score)
-                    except Exception:
-                        pass
-                result.business_impact = finding_data.get('business_impact') or finding_data.get('impact')
-                result.remediation_effort = finding_data.get('remediation_effort')
-
-                # JSON style helpers
-                tags = finding_data.get('tags')
-                if isinstance(tags, list):
-                    result.set_tags(tags)
-                recs = finding_data.get('recommendations') or finding_data.get('recommendation')
-                if isinstance(recs, list):
-                    result.set_recommendations(recs)
-                elif isinstance(recs, str):
-                    result.set_recommendations([recs])
-                structured = finding_data.get('structured_data') or finding_data.get('details')
-                if isinstance(structured, dict):
-                    result.set_structured_data(structured)
-
-                db.session.add(result)
-                tool_counts[result.tool_name] = tool_counts.get(result.tool_name, 0) + 1
-                sev_bucket = tool_severity.setdefault(result.tool_name, {})
-                sev_bucket[severity_raw] = sev_bucket.get(severity_raw, 0) + 1
-
-            logger.debug(f"Stored {len(findings)} findings for task {task.task_id}")
-
-            # Emit per-tool completion summary events (lightweight – no DB commit dependency)
-            for tool, count in tool_counts.items():
-                emit_task_event(
-                    "task.tool.completed",
-                    {
-                        "task_id": task.task_id,
-                        "tool": tool,
-                        "findings_count": count,
-                        "total_findings_for_task": len(findings),
-                        "severity_breakdown": tool_severity.get(tool, {}),
-                    },
-                )
-            
-        except Exception as e:
-            logger.error(f"Error storing findings for task {task.task_id}: {e}")
-            raise
+    # _store_findings removed - functionality moved to UnifiedResultService
     
     async def cancel_analysis(self, task_id: str) -> bool:
         """Cancel running analysis."""

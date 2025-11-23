@@ -250,6 +250,10 @@
 <script>
   // Inject full analysis payload for client-side parsing
   window.ANALYSIS_DATA = {{ payload|tojson|safe }};
+  // Ensure task_id is available even if not in payload
+  if (!window.ANALYSIS_DATA.task_id) {
+      window.ANALYSIS_DATA.task_id = "{{ descriptor.identifier }}";
+  }
 </script>
 <script src="{{ url_for('static', filename='js/analysis-parsers.js') }}"></script>
 <script src="{{ url_for('static', filename='js/tool-detail.js') }}"></script>

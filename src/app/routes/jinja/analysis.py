@@ -707,101 +707,24 @@ def analysis_result_detail(result_id: str):
     if limit_param.isdigit():
         findings_limit = max(1, min(int(limit_param), 1000))
 
-    # First, try to load from database (check COMPLETED, PARTIAL_SUCCESS, and FAILED status)
-    task = AnalysisTask.query.filter_by(task_id=result_id).first()
-    if task and task.result_summary and task.status in [AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS, AnalysisStatus.FAILED]:
-        try:
-            payload = task.get_result_summary()
-            if payload:
-                # Extract data from database-stored results
-                summary_block = payload.get('summary', {})
-                services_data = payload.get('services', {})
-                
-                # Extract findings from all services
-                findings = []
-                for service_name, service_data in services_data.items():
-                    if isinstance(service_data, dict):
-                        raw_details = service_data.get('raw_details', {})
-                        if 'issues' in raw_details:
-                            for issue in raw_details['issues']:
-                                findings.append({
-                                    'service': service_name,
-                                    'severity': issue.get('severity', 'unknown'),
-                                    'message': issue.get('message', ''),
-                                    'file': issue.get('file', ''),
-                                    'line': issue.get('line', ''),
-                                    'rule': issue.get('rule', ''),
-                                    **issue
-                                })
-                
-                if findings_limit:
-                    findings = findings[:findings_limit]
-                
-                task_info = {
-                    'task_id': result_id,
-                    'status': task.status.value if task.status else 'unknown',
-                    'model': task.target_model,
-                    'app': task.target_app_number,
-                    'created_at': task.created_at,
-                    'completed_at': task.completed_at,
-                    'duration': task.actual_duration
-                }
-                
-                metadata_block = task.get_metadata() or {}
-                
-                # Build a complete descriptor object with all required fields
-                descriptor = DescriptorDict({
-                    'identifier': result_id,
-                    'task_id': result_id,
-                    'source': 'database',
-                    'model_slug': task.target_model,
-                    'app_number': task.target_app_number,
-                    'task_name': task.task_name or result_id[:16],
-                    'status': task.status.value if task.status else 'unknown',
-                    'tools_used': summary_block.get('tools_executed', []) if isinstance(summary_block.get('tools_executed'), list) else [],
-                    'total_findings': summary_block.get('total_findings', 0),
-                    'severity_breakdown': summary_block.get('severity_breakdown', {}),
-                    'tools_executed': summary_block.get('tools_executed', 0) if isinstance(summary_block.get('tools_executed'), int) else 0,
-                    'tools_failed': 0,  # TODO: extract from services
-                    'modified_at': task.completed_at,
-                })
-                
-                # Wrap payload in expected structure for template compatibility
-                # Template expects payload.results.services, but DB stores services at top level
-                wrapped_payload = DescriptorDict({
-                    'results': DescriptorDict({
-                        'services': services_data,
-                        'summary': summary_block
-                    }),
-                    'task': payload.get('task', {}),
-                    'metadata': metadata_block
-                })
-                
-                return render_template(
-                    'pages/analysis/result_detail.html',
-                    descriptor=descriptor,
-                    payload=wrapped_payload,
-                    findings=findings,
-                    services=services_data,
-                    summary=summary_block,
-                    task_info=task_info,
-                    metadata=metadata_block,
-                    findings_limit=findings_limit,
-                )
-        except Exception as exc:
-            import traceback
-            current_app.logger.error(f"Exception while rendering database results for {result_id}: {exc}")
-            current_app.logger.error(f"Traceback: {traceback.format_exc()}")
-            # Re-raise if it's an abort or other HTTP exception
-            if hasattr(exc, 'code'):
-                raise
-            # Otherwise, try filesystem fallback
-    
-    # Fallback to filesystem-based results
+    # Load results using UnifiedResultService (handles DB, Cache, Filesystem and Hydration)
     try:
         results = service.load_analysis_results(result_id)
         if not results:
+            # Try to find task to give better error
+            task = AnalysisTask.query.filter_by(task_id=result_id).first()
+            if task:
+                if task.status in [AnalysisStatus.PENDING, AnalysisStatus.RUNNING]:
+                    return render_template('pages/errors/errors_main.html', 
+                        error_code=202, 
+                        error_message=f"Analysis is still in progress ({task.status.value}). Please wait."), 202
+                elif task.status == AnalysisStatus.FAILED and not task.result_summary:
+                     return render_template('pages/errors/errors_main.html', 
+                        error_code=500, 
+                        error_message=f"Analysis failed: {task.error_message or 'Unknown error'}"), 500
+            
             abort(404, description=f"Result {result_id} not found")
+            
         payload = results.raw_data
     except Exception as exc:  # pragma: no cover - defensive logging
         current_app.logger.exception("Failed to load analysis result %s: %s", result_id, exc)
@@ -953,33 +876,39 @@ def export_task_sarif(task_id: str):
     """Export analysis results in SARIF 2.1.0 format.
 
     Attempts to load pre-generated SARIF document from file system.
-    If not found, returns 404 with suggestion to check if analysis was SARIF-enabled.
+    If multiple SARIF files exist, returns a ZIP archive.
     """
-    from app.paths import RESULTS_DIR
-    from pathlib import Path
+    from app.services.unified_result_service import UnifiedResultService
+    import zipfile
+    import io
 
-    # Get task to extract model_slug and app_number
-    task = AnalysisTask.query.filter_by(task_id=task_id).first()
-    if not task:
-        abort(404, description=f"Task {task_id} not found")
+    service = _get_result_service()
+    sarif_files = service.get_sarif_files(task_id)
+        
+    if not sarif_files:
+        abort(404, description=f"No SARIF files found for task {task_id}")
 
-    model_slug = task.target_model
-    app_number = task.target_app_number
+    current_app.logger.info(f"Found {len(sarif_files)} SARIF files for task {task_id}")
 
-    if not model_slug or not app_number:
-        abort(400, description="Task missing model_slug or app_number - cannot locate SARIF file")
-
-    # Look for SARIF file: results/{model}/app{N}/analysis/{task_id}/consolidated.sarif.json
-    sarif_path = RESULTS_DIR / model_slug / f"app{app_number}" / "analysis" / task_id / "consolidated.sarif.json"
-
-    if not sarif_path.exists():
-        abort(404, description=f"SARIF file not found for task {task_id}. Analysis may not have generated SARIF output.")
-
-    current_app.logger.info(f"Serving SARIF export for task {task_id} from {sarif_path}")
-
+    # If single file, return it directly
+    if len(sarif_files) == 1:
+        return send_file(
+            sarif_files[0],
+            mimetype='application/json',
+            as_attachment=True,
+            download_name=sarif_files[0].name,
+        )
+        
+    # If multiple files, zip them
+    memory_file = io.BytesIO()
+    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for sarif_file in sarif_files:
+            zf.write(sarif_file, arcname=sarif_file.name)
+            
+    memory_file.seek(0)
     return send_file(
-        sarif_path,
-        mimetype='application/json',
+        memory_file,
+        mimetype='application/zip',
         as_attachment=True,
-        download_name=f"{task_id}.sarif.json",
+        download_name=f"{task_id}_sarif.zip"
     )

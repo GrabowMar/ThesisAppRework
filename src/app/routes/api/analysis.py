@@ -7,7 +7,7 @@ All tool operations are now delegated to the container-based tool registry.
 from flask import Blueprint, jsonify, request, current_app
 from app.routes.api.common import api_error
 from app.engines.container_tool_registry import get_container_tool_registry
-from app.paths import RESULTS_DIR, PROJECT_ROOT
+from app.paths import PROJECT_ROOT
 from app.utils.tool_parsers import extract_tool_findings
 import logging
 import json
@@ -18,54 +18,6 @@ logger = logging.getLogger(__name__)
 
 # Create analysis blueprint
 analysis_bp = Blueprint('api_analysis', __name__)
-
-
-def _normalize_task_folder_name(result_id: str) -> str:
-    """Ensure task folders always start with 'task_' prefix."""
-    if not result_id:
-        return 'task_unknown'
-    return result_id if result_id.startswith('task_') else f'task_{result_id}'
-
-
-def _extract_model_app_from_result(result_data: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
-    """Best-effort extraction of model slug and app number from result payload."""
-    model_slug = None
-    app_number = None
-
-    metadata = result_data.get('metadata') or {}
-    model_slug = metadata.get('model_slug') or metadata.get('model')
-    app_number = metadata.get('app_number') or metadata.get('app')
-
-    if not model_slug or not app_number:
-        summary = result_data.get('summary') or {}
-        model_slug = model_slug or summary.get('model_slug')
-        app_number = app_number or summary.get('app_number')
-
-    if not model_slug or not app_number:
-        static_analysis = (result_data.get('results') or {}).get('static', {}).get('analysis', {})
-        model_slug = model_slug or static_analysis.get('model_slug') or static_analysis.get('target_model')
-        app_number = app_number or static_analysis.get('app_number') or static_analysis.get('target_app_number')
-
-    return model_slug, app_number
-
-
-def _resolve_task_directory(result_data: Dict[str, Any], result_id: str) -> Optional[Path]:
-    """Resolve the filesystem path for a task's result directory."""
-    model_slug, app_number = _extract_model_app_from_result(result_data)
-    task_folder = _normalize_task_folder_name(str(result_id))
-
-    if model_slug and app_number:
-        safe_slug = str(model_slug).replace('/', '_')
-        return RESULTS_DIR / safe_slug / f'app{app_number}' / task_folder
-
-    results_path = result_data.get('results_path')
-    if isinstance(results_path, str) and results_path:
-        candidate = Path(results_path)
-        if not candidate.is_absolute():
-            candidate = (PROJECT_ROOT / candidate).resolve()
-        return candidate
-
-    return None
 
 
 def _extract_issues_from_sarif(sarif_data: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -561,22 +513,9 @@ def get_tool_details(result_id: str, tool_name: str):
 
             if not sarif_data and sarif_file:
                 try:
-                    task_dir = _resolve_task_directory(result_data, result_id)
-                    if task_dir:
-                        task_root = task_dir.resolve()
-                        sarif_path_obj = Path(sarif_file)
-                        sarif_full_path = sarif_path_obj if sarif_path_obj.is_absolute() else (task_root / sarif_path_obj).resolve()
-
-                        try:
-                            sarif_full_path.relative_to(task_root)
-                        except ValueError:
-                            raise ValueError('SARIF path escapes task directory')
-
-                        if sarif_full_path.exists():
-                            with open(sarif_full_path, 'r', encoding='utf-8') as f:
-                                sarif_data = json.load(f)
-                        else:
-                            logger.warning(f"SARIF file missing for {tool_name}: {sarif_full_path}")
+                    sarif_data = result_service.load_sarif_file(result_id, sarif_file)
+                    if not sarif_data:
+                        logger.warning(f"SARIF file missing for {tool_name}: {sarif_file}")
                 except Exception as e:
                     logger.warning(f"Failed to load SARIF file for {tool_name}: {e}")
 
@@ -635,40 +574,13 @@ def get_sarif_file(result_id: str, sarif_path: str):
     Returns: SARIF JSON file or 404 if not found
     """
     try:
-        import os
-        from pathlib import Path
-        
-        # Construct full path to SARIF file
-        # SARIF files are stored in results/{model}/app{N}/task_{id}/sarif/
-        # We need to resolve the actual filesystem path
-        
-        # Extract model slug and app number from result_id or metadata
         from app.services.unified_result_service import UnifiedResultService
         result_service = UnifiedResultService()
-        result = result_service.load_analysis_results(result_id)
         
-        if not result:
-            return api_error(f"Result not found: {result_id}", 404)
+        sarif_data = result_service.load_sarif_file(result_id, sarif_path)
         
-        result_data = result.raw_data
-        task_dir = _resolve_task_directory(result_data, result_id)
-        if not task_dir:
-            return api_error("Invalid result metadata", 400)
-
-        task_root = task_dir.resolve()
-        sarif_full_path = (task_root / sarif_path).resolve()
-
-        try:
-            sarif_full_path.relative_to(task_root)
-        except ValueError:
-            return api_error("Invalid SARIF path", 400)
-
-        if not sarif_full_path.exists():
+        if not sarif_data:
             return api_error(f"SARIF file not found: {sarif_path}", 404)
-        
-        # Read and return SARIF file
-        with open(sarif_full_path, 'r', encoding='utf-8') as f:
-            sarif_data = json.load(f)
         
         return jsonify(sarif_data)
         
