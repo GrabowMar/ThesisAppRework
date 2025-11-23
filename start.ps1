@@ -715,7 +715,7 @@ function Show-InteractiveMenu {
     Write-Host "  [H] Health       - Check service health" -ForegroundColor White
     Write-Host "  [X] Stop         - Stop all services" -ForegroundColor White
     Write-Host "  [C] Clean        - Clean logs and PID files" -ForegroundColor White
-    Write-Host "  [W] Wipeout      - ⚠️  Reset to default state (DB, apps, results)" -ForegroundColor White
+    Write-Host "  [W] Wipeout      - ⚠️  Reset to default state (DB, apps, results, reports)" -ForegroundColor White
     Write-Host "  [P] Password     - Reset admin password to random value" -ForegroundColor White
     Write-Host "  [?] Help         - Show detailed help" -ForegroundColor White
     Write-Host "  [Q] Quit         - Exit" -ForegroundColor White
@@ -1208,6 +1208,7 @@ function Invoke-Wipeout {
     Write-Host "  • Delete the database (src/data/)" -ForegroundColor Yellow
     Write-Host "  • Remove all generated apps (generated/)" -ForegroundColor Yellow
     Write-Host "  • Remove all analysis results (results/)" -ForegroundColor Yellow
+    Write-Host "  • Remove all reports (reports/)" -ForegroundColor Yellow
     Write-Host "  • Create fresh admin user" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "⚠️  THIS CANNOT BE UNDONE! ⚠️" -ForegroundColor Red -BackgroundColor Black
@@ -1264,17 +1265,30 @@ function Invoke-Wipeout {
             Write-Status "  Failed to remove results: $_" "Error"
         }
     }
+
+    # 5. Remove reports
+    $reportsDir = Join-Path $Script:ROOT_DIR "reports"
+    if (Test-Path $reportsDir) {
+        Write-Status "Removing reports..." "Info"
+        try {
+            Remove-Item -Path $reportsDir -Recurse -Force -ErrorAction Stop
+            New-Item -ItemType Directory -Path $reportsDir -Force | Out-Null
+            Write-Status "  Reports removed" "Success"
+        } catch {
+            Write-Status "  Failed to remove reports: $_" "Error"
+        }
+    }
     
-    # 5. Remove logs
+    # 6. Remove logs
     Write-Status "Removing logs..." "Info"
     Get-ChildItem -Path $Script:LOGS_DIR -Filter "*.log" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
     Get-ChildItem -Path $Script:LOGS_DIR -Filter "*.log.old" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
     
-    # 6. Remove PID files
+    # 7. Remove PID files
     Write-Status "Removing PID files..." "Info"
     Get-ChildItem -Path $Script:RUN_DIR -Filter "*.pid" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
     
-    # 7. Recreate database and admin user
+    # 8. Recreate database and admin user
     Write-Status "Initializing fresh database..." "Info"
     $createAdminScript = Join-Path $Script:ROOT_DIR "scripts\create_admin.py"
     
@@ -1324,7 +1338,7 @@ function Show-Help {
     Write-Host "  CleanRebuild  ⚠️  Force rebuild from scratch (no cache - 12-18 min)" -ForegroundColor White
     Write-Host "  Maintenance   Run manual database cleanup (7-day grace period)" -ForegroundColor White
     Write-Host "  Clean         Clean logs and PID files" -ForegroundColor White
-    Write-Host "  Wipeout       ⚠️  Reset to default state (removes DB, apps, results)" -ForegroundColor White
+    Write-Host "  Wipeout       ⚠️  Reset to default state (removes DB, apps, results, reports)" -ForegroundColor White
     Write-Host "  Password      Reset admin password to random value" -ForegroundColor White
     Write-Host "  Help          Show this help message`n" -ForegroundColor White
     

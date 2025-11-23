@@ -203,6 +203,7 @@ logs/
 
 # Analysis results
 results/
+reports/
 
 # Generated content (AI-generated applications and related data)
 generated/
