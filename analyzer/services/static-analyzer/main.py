@@ -151,6 +151,7 @@ class StaticAnalyzer(BaseWSService):
 
     def _detect_available_tools(self) -> List[str]:
         tools: List[str] = []
+        self.log.info("Starting tool detection...")
         # Check Python tools
         for tool in ['bandit', 'pylint', 'mypy', 'semgrep', 'snyk', 'safety', 'pip-audit', 'vulture', 'ruff', 'radon', 'detect-secrets']:
             try:
@@ -161,18 +162,24 @@ class StaticAnalyzer(BaseWSService):
             except Exception as e:
                 self.log.info(f"{tool} not available: {e}")
         
+        self.log.info("Finished Python tools detection. Starting Node.js tools detection...")
+        
         # Check Node.js tools
-        for tool in ['eslint', 'npm-audit', 'stylelint']:
+        for tool in ['eslint', 'npm-audit', 'stylelint', 'html-validator']:
             try:
+                self.log.info(f"Checking {tool}...")
                 # npm-audit is a subcommand, check npm itself
                 check_cmd = ['npm', '--version'] if tool == 'npm-audit' else [tool, '--version']
                 result = subprocess.run(check_cmd, capture_output=True, text=True, timeout=10)
                 if result.returncode == 0:
                     tools.append(tool)
-                    self.log.debug(f"{tool} available")
+                    self.log.info(f"{tool} available")
+                else:
+                    self.log.warning(f"{tool} check failed with code {result.returncode}: {result.stderr}")
             except Exception as e:
-                self.log.debug(f"{tool} not available: {e}")
+                self.log.warning(f"{tool} not available: {e}")
         
+        self.log.info(f"Detected tools: {tools}")
         return tools
     
     def _generate_pylintrc(self, config: Dict[str, Any]) -> str:
@@ -693,6 +700,26 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 # Use ESLint with Microsoft SARIF formatter
                 # ESLint will use .eslintrc.json config file if present
                 cmd = ['eslint', '--format', '@microsoft/eslint-formatter-sarif']
+
+                # Check if target has config, otherwise use default
+                has_config = False
+                for cfg in ['.eslintrc.js', '.eslintrc.json', '.eslintrc.yaml', '.eslintrc.yml', 'eslint.config.js']:
+                     if (source_path / cfg).exists():
+                         has_config = True
+                         break
+                
+                if not has_config:
+                     # Default config is in the service root (/app/.eslintrc.json in Docker)
+                     # Use absolute path to be safe, falling back to CWD if /app doesn't exist (local dev)
+                     default_config = Path('/app/.eslintrc.json')
+                     if not default_config.exists():
+                         default_config = Path.cwd() / '.eslintrc.json'
+                     
+                     if default_config.exists():
+                         cmd.extend(['--config', str(default_config)])
+                         self.log.info(f"Using default ESLint config: {default_config}")
+                     else:
+                         self.log.warning(f"Default ESLint config not found at {default_config}")
                 
                 if len(js_files) <= 20:
                     cmd.extend([str(f) for f in js_files])
@@ -712,7 +739,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                                 total_issues += len(run.get('results', []))
                         result['total_issues'] = total_issues
                         result['issue_count'] = total_issues  # Match total_issues for consistent display
-                        # NOTE: issues[] array intentionally empty - data is in SARIF file
+                        # NOTE: issues[] array intentionally left empty - data is in SARIF file
                         result['issues'] = []  # Explicit - full details in SARIF
                     except Exception as e:
                         self.log.warning(f"Could not parse eslint SARIF output: {e}")
@@ -896,6 +923,65 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         
         return results
     
+    async def analyze_html_files(self, source_path: Path, config: Optional[Dict[str, Any]] = None, selected_tools: Optional[Set[str]] = None) -> Dict[str, Any]:
+        """Run HTML static analysis."""
+        html_files = []
+        for p in source_path.rglob('*.html'):
+            if any(part in self.default_ignores for part in p.parts):
+                continue
+            html_files.append(p)
+        
+        if not html_files:
+            return {'status': 'no_files', 'message': 'No HTML files found'}
+        
+        results: Dict[str, Any] = {}
+        
+        # html-validator analysis
+        html_config = (config or {}).get('html-validator', {})
+        if (
+            'html-validator' in self.available_tools
+            and (selected_tools is None or 'html-validator' in selected_tools)
+            and html_config.get('enabled', True)
+        ):
+            # html-validator-cli --format=json --verbose file1 file2 ...
+            cmd = ['html-validator', '--format=json', '--verbose']
+            cmd.extend([str(p) for p in html_files])
+
+            result = await self._run_tool(cmd, 'html-validator', config=html_config, success_exit_codes=[0, 1], skip_parser=True)
+            
+            if result.get('status') != 'error' and 'output' in result:
+                try:
+                    # Output is usually one JSON object per file, or a list if multiple?
+                    # html-validator-cli output format can be tricky.
+                    # It often outputs multiple JSON objects concatenated if multiple files.
+                    # But let's assume standard JSON for now or handle parsing in parser.
+                    # Actually, let's use a parser if possible, but here we skip it.
+                    # Let's try to parse it as JSON.
+                    output_str = result['output']
+                    # If multiple files, it might be multiple JSONs.
+                    # We might need to wrap them in a list if they are not.
+                    try:
+                        data = json.loads(output_str)
+                    except json.JSONDecodeError:
+                        # Try to fix multiple root objects
+                        data = json.loads(f"[{output_str.replace('}{', '},{')}]")
+                    
+                    results['html-validator'] = {
+                        'tool': 'html-validator',
+                        'executed': True,
+                        'status': 'success',
+                        'results': data,
+                        'total_issues': len(data) if isinstance(data, list) else 1, # Rough count
+                        'issue_count': len(data) if isinstance(data, list) else 1
+                    }
+                except Exception as e:
+                    self.log.warning(f"Could not parse html-validator output: {e}")
+                    results['html-validator'] = result
+            else:
+                results['html-validator'] = result
+        
+        return results
+    
     async def analyze_project_structure(self, source_path: Path) -> Dict[str, Any]:
         """Analyze overall project structure and files.
         
@@ -1023,6 +1109,13 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             await self.send_progress('scanning_css', 'Scanning CSS files', analysis_id=analysis_id)
             css_res = await self.analyze_css_files(model_path, config, selected_set)
             results['results']['css'] = css_res
+
+            self.log.info("═" * 80)
+            self.log.info("🌐 HTML ANALYSIS PHASE")
+            self.log.info("═" * 80)
+            await self.send_progress('scanning_html', 'Scanning HTML files', analysis_id=analysis_id)
+            html_res = await self.analyze_html_files(model_path, config, selected_set)
+            results['results']['html'] = html_res
             
             self.log.info("═" * 80)
             self.log.info("📁 PROJECT STRUCTURE ANALYSIS")

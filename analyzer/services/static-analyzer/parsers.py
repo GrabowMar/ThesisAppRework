@@ -596,6 +596,13 @@ class MyPyParser:
                     'issue_count': 0,
                 }
         
+        # Handle single JSON object (when mypy outputs only one line and json.loads parses it as dict)
+        if isinstance(raw_output, dict):
+            raw_output = [raw_output]
+            
+        if raw_output is None:
+            raw_output = []
+        
         if not isinstance(raw_output, list):
             return {
                 'tool': 'mypy',
@@ -854,7 +861,7 @@ class RadonParser:
                 
                 # Only report if complexity is high enough (C or worse by default)
                 # or if configured otherwise
-                if rank in ['A', 'B'] and not config.get('report_all', False):
+                if rank in ['A', 'B'] and not (config or {}).get('report_all', False):
                     continue
                     
                 severity = rank_map.get(rank, 'low')

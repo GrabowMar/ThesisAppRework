@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Install Node.js dependencies globally (consolidated single install)
 RUN npm install -g --no-audit --no-fund \
-    eslint@9.0.0 \
+    eslint@8.57.0 \
     @typescript-eslint/parser@latest \
     @typescript-eslint/eslint-plugin@latest \
     eslint-plugin-security@latest \
@@ -29,8 +29,12 @@ RUN npm install -g --no-audit --no-fund \
     stylelint@latest \
     stylelint-config-standard@latest \
     prettier@latest \
+    html-validator-cli@latest \
     @microsoft/eslint-formatter-sarif@3.1.0 && \
     npm cache clean --force
+
+# Set NODE_PATH so global modules are found
+ENV NODE_PATH=/usr/lib/node_modules
 
 # Create non-root user
 RUN useradd -u 1000 -m analyzer
