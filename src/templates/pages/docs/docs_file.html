@@ -79,7 +79,112 @@
 {% endblock %}
 
 {% block head_styles %}
+<style>
+    /* Table of Contents Styles */
+    .docs-toc {
+        max-height: calc(100vh - 200px);
+        overflow-y: auto;
+        font-size: 0.9rem;
+    }
+    
+    .toc-link {
+        display: block;
+        padding: 0.25rem 0.5rem;
+        color: var(--tblr-body-color);
+        text-decoration: none;
+        border-left: 2px solid transparent;
+        transition: all 0.2s ease;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .toc-link:hover {
+        color: var(--tblr-primary);
+        background-color: rgba(var(--tblr-primary-rgb), 0.05);
+        text-decoration: none;
+    }
+    
+    .toc-link.active {
+        color: var(--tblr-primary);
+        border-left-color: var(--tblr-primary);
+        background-color: rgba(var(--tblr-primary-rgb), 0.1);
+        font-weight: 500;
+    }
+    
+    /* Indentation for levels */
+    .toc-link.level-1 { padding-left: 0.5rem; font-weight: 600; margin-top: 0.5rem; }
+    .toc-link.level-2 { padding-left: 1rem; }
+    .toc-link.level-3 { padding-left: 1.75rem; font-size: 0.85rem; }
+    .toc-link.level-4 { padding-left: 2.5rem; font-size: 0.85rem; }
+    .toc-link.level-5 { padding-left: 3.25rem; font-size: 0.8rem; }
+    .toc-link.level-6 { padding-left: 4rem; font-size: 0.8rem; }
 
+    /* Markdown Content Styles */
+    .docs-content h1 { margin-top: 0; margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--tblr-border-color); }
+    .docs-content h2 { margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--tblr-border-color-light); }
+    .docs-content h3 { margin-top: 1.5rem; margin-bottom: 0.75rem; }
+    .docs-content h4 { margin-top: 1.25rem; margin-bottom: 0.5rem; }
+    
+    .docs-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 4px;
+        margin: 1rem 0;
+        border: 1px solid var(--tblr-border-color);
+    }
+    
+    .docs-content pre {
+        background-color: #f6f8fa;
+        border-radius: 6px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        overflow-x: auto;
+    }
+    
+    .docs-content code {
+        background-color: rgba(175, 184, 193, 0.2);
+        padding: 0.2em 0.4em;
+        border-radius: 6px;
+        font-size: 85%;
+    }
+    
+    .docs-content pre code {
+        background-color: transparent;
+        padding: 0;
+        border-radius: 0;
+        font-size: 100%;
+    }
+    
+    .docs-content blockquote {
+        border-left: 4px solid var(--tblr-border-color);
+        padding-left: 1rem;
+        color: var(--tblr-muted);
+        margin-left: 0;
+    }
+    
+    .docs-content table {
+        width: 100%;
+        margin-bottom: 1rem;
+        border-collapse: collapse;
+    }
+    
+    .docs-content th, .docs-content td {
+        padding: 0.5rem;
+        border: 1px solid var(--tblr-border-color);
+    }
+    
+    .docs-content th {
+        background-color: var(--tblr-bg-surface-secondary);
+        font-weight: 600;
+    }
+    
+    /* Sticky sidebar adjustment */
+    .sticky-top {
+        top: 1rem;
+        z-index: 100;
+    }
+</style>
 {% endblock %}
 
 {% block scripts %}

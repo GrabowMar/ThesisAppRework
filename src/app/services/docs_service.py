@@ -25,14 +25,14 @@ class DocsService:
     """Aggregates markdown files in /docs into knowledge base sections."""
 
     # Only expose this curated set in the UI to consolidate documentation
-    ALLOWED_DOCS = {
-        "README.md",
-        "QUICKSTART.md",
-        "ARCHITECTURE.md",
-        "OPERATIONS.md",
-        "DEVELOPMENT_GUIDE.md",
-        "SIMPLE_GENERATION_SYSTEM.md",
-    }
+    # ALLOWED_DOCS = {
+    #     "README.md",
+    #     "QUICKSTART.md",
+    #     "ARCHITECTURE.md",
+    #     "OPERATIONS.md",
+    #     "DEVELOPMENT_GUIDE.md",
+    #     "SIMPLE_GENERATION_SYSTEM.md",
+    # }
 
     CATEGORY_RULES: List[tuple] = [
         (r"^OPENROUTER_", "OpenRouter"),
@@ -106,10 +106,10 @@ class DocsService:
                     )
                 )
         # Filter down to the curated allowlist
-        items = [
-            it for it in items
-            if os.path.basename(it.relpath) in cls.ALLOWED_DOCS
-        ]
+        # items = [
+        #     it for it in items
+        #     if os.path.basename(it.relpath) in cls.ALLOWED_DOCS
+        # ]
         # stable sort by title
         items.sort(key=lambda i: (i.category, i.title))
         return items
