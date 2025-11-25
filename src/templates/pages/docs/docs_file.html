@@ -1,81 +1,93 @@
 {% extends "layouts/base.html" %}
+{% set active_page = 'docs' %}
+{% set page_title = title %}
+{% set page_icon = 'fa-solid fa-file-lines' %}
 
 {% block title %}{{ title }} - Documentation{% endblock %}
 
 {% block content %}
 <div class="page-body mt-0">
     <div class="container-fluid">
-        <span class="visually-hidden">About the Platform</span>
-        <!-- Page Header Card -->
-        <div class="card mb-4">
-            <div class="card-body">
-                <div class="row g-2 align-items-center">
-                    <div class="col">
-                        <nav aria-label="breadcrumb" class="mb-2">
-                            <ol class="breadcrumb breadcrumb-alternate">
-                                <li class="breadcrumb-item">
-                                    <a href="{{ url_for('main.dashboard') }}">
-                                        <i class="fas fa-home"></i>
-                                    </a>
-                                </li>
-                                <li class="breadcrumb-item">
-                                    <a href="{{ url_for('docs.docs_index') }}">Documentation</a>
-                                </li>
-                                <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
-                            </ol>
-                        </nav>
-                        <h2 class="card-title mb-2">{{ title }}</h2>
-                        <div class="text-muted">
-                            <i class="fas fa-file-alt me-1"></i>
-                            <code>{{ filepath }}</code>
-                        </div>
-                    </div>
-                    <div class="col-auto ms-auto">
-                        <div class="btn-list">
-                            <a href="{{ url_for('docs.docs_index') }}" class="btn btn-ghost-secondary">
-                                <i class="fas fa-arrow-left me-1"></i>
-                                Back to Docs
-                            </a>
-                            <button class="btn btn-ghost-secondary" onclick="window.print()">
-                                <i class="fas fa-print me-1"></i>
-                                Print
-                            </button>
-                        </div>
+        <!-- Page Header -->
+        <div class="page-header mb-4">
+            <div class="row align-items-center">
+                <div class="col-auto">
+                    <span class="page-icon bg-primary-lt text-primary rounded-3 p-2">
+                        <i class="fa-solid fa-file-lines fa-lg"></i>
+                    </span>
+                </div>
+                <div class="col">
+                    <nav aria-label="breadcrumb" class="mb-1">
+                        <ol class="breadcrumb breadcrumb-alternate mb-0">
+                            <li class="breadcrumb-item">
+                                <a href="{{ url_for('main.dashboard') }}" aria-label="Home">
+                                    <i class="fa-solid fa-house"></i>
+                                </a>
+                            </li>
+                            <li class="breadcrumb-item">
+                                <a href="{{ url_for('docs.docs_index') }}">Documentation</a>
+                            </li>
+                            <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
+                        </ol>
+                    </nav>
+                    <h1 class="page-title mb-0">{{ title }}</h1>
+                </div>
+                <div class="col-auto ms-auto">
+                    <div class="btn-list">
+                        <a href="{{ url_for('docs.docs_index') }}" class="btn btn-outline-secondary">
+                            <i class="fa-solid fa-arrow-left me-2"></i>
+                            Back to Docs
+                        </a>
+                        <button class="btn btn-sm btn-ghost-secondary btn-icon" onclick="window.print()" title="Print">
+                            <i class="fa-solid fa-print"></i>
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
 
-            <div class="row">
-                <!-- Sidebar Navigation -->
-                <div class="col-md-4 col-xl-3 d-none d-md-block">
-                    <div class="sticky-top">
-                        <div class="card">
-                            <div class="card-header">
-                                <h3 class="card-title">Table of Contents</h3>
-                            </div>
-                            <div class="card-body p-2">
-                                <div id="table-of-contents-nav" class="docs-toc"></div>
+        <div class="row row-cards g-2">
+            <!-- Sidebar Navigation -->
+            <div class="col-md-4 col-xl-3 d-none d-md-block">
+                <div class="sticky-top" role="complementary" aria-label="Table of contents">
+                    <div class="card card-table-compact">
+                        <div class="card-header d-flex flex-wrap align-items-center gap-3">
+                            <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+                                <i class="fa-solid fa-list"></i>
+                                <span>Table of Contents</span>
+                            </h3>
+                        </div>
+                        <div class="card-body p-2">
+                            <div id="table-of-contents-nav" class="docs-toc">
+                                <div class="text-center text-muted py-3">
+                                    <div class="spinner-border spinner-border-sm me-2"></div>
+                                    Loading…
+                                </div>
                             </div>
                         </div>
-                        
                     </div>
+                </div>
             </div>
 
-                <!-- Main Content -->
-                <div class="col-md-8 col-xl-9">
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="docs-content" id="markdown-content">
-                                {{ content|safe }}
-                            </div>
+            <!-- Main Content -->
+            <div class="col-md-8 col-xl-9">
+                <div class="card card-table-compact">
+                    <div class="card-header d-flex flex-wrap align-items-center gap-3">
+                        <div class="text-muted small d-flex align-items-center gap-2">
+                            <i class="fa-solid fa-file-code"></i>
+                            <code>{{ filepath }}</code>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="docs-content" id="markdown-content" role="main">
+                            {{ content|safe }}
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-
+</div>
 {% endblock %}
 
 {% block head_styles %}
@@ -84,101 +96,101 @@
     .docs-toc {
         max-height: calc(100vh - 200px);
         overflow-y: auto;
-        font-size: 0.9rem;
+        font-size: 0.875rem;
     }
-    
+
     .toc-link {
         display: block;
         padding: 0.25rem 0.5rem;
         color: var(--tblr-body-color);
         text-decoration: none;
         border-left: 2px solid transparent;
-        transition: all 0.2s ease;
+        transition: all 0.15s ease;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    
+
     .toc-link:hover {
         color: var(--tblr-primary);
-        background-color: rgba(var(--tblr-primary-rgb), 0.05);
+        background-color: var(--tblr-bg-surface-secondary);
         text-decoration: none;
     }
-    
+
     .toc-link.active {
         color: var(--tblr-primary);
         border-left-color: var(--tblr-primary);
-        background-color: rgba(var(--tblr-primary-rgb), 0.1);
+        background-color: var(--tblr-bg-surface-secondary);
         font-weight: 500;
     }
-    
+
     /* Indentation for levels */
     .toc-link.level-1 { padding-left: 0.5rem; font-weight: 600; margin-top: 0.5rem; }
     .toc-link.level-2 { padding-left: 1rem; }
-    .toc-link.level-3 { padding-left: 1.75rem; font-size: 0.85rem; }
-    .toc-link.level-4 { padding-left: 2.5rem; font-size: 0.85rem; }
-    .toc-link.level-5 { padding-left: 3.25rem; font-size: 0.8rem; }
-    .toc-link.level-6 { padding-left: 4rem; font-size: 0.8rem; }
+    .toc-link.level-3 { padding-left: 1.75rem; font-size: 0.8125rem; }
+    .toc-link.level-4 { padding-left: 2.5rem; font-size: 0.8125rem; }
+    .toc-link.level-5 { padding-left: 3.25rem; font-size: 0.75rem; }
+    .toc-link.level-6 { padding-left: 4rem; font-size: 0.75rem; }
 
     /* Markdown Content Styles */
     .docs-content h1 { margin-top: 0; margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--tblr-border-color); }
-    .docs-content h2 { margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--tblr-border-color-light); }
+    .docs-content h2 { margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--tblr-border-color); }
     .docs-content h3 { margin-top: 1.5rem; margin-bottom: 0.75rem; }
     .docs-content h4 { margin-top: 1.25rem; margin-bottom: 0.5rem; }
-    
+
     .docs-content img {
         max-width: 100%;
         height: auto;
-        border-radius: 4px;
+        border-radius: var(--tblr-border-radius);
         margin: 1rem 0;
         border: 1px solid var(--tblr-border-color);
     }
-    
+
     .docs-content pre {
-        background-color: #f6f8fa;
-        border-radius: 6px;
+        background-color: var(--tblr-bg-surface-secondary);
+        border-radius: var(--tblr-border-radius);
         padding: 1rem;
         margin-bottom: 1rem;
         overflow-x: auto;
     }
-    
+
     .docs-content code {
-        background-color: rgba(175, 184, 193, 0.2);
-        padding: 0.2em 0.4em;
-        border-radius: 6px;
+        background-color: var(--tblr-bg-surface-secondary);
+        padding: 0.125em 0.375em;
+        border-radius: var(--tblr-border-radius-sm);
         font-size: 85%;
     }
-    
+
     .docs-content pre code {
         background-color: transparent;
         padding: 0;
         border-radius: 0;
         font-size: 100%;
     }
-    
+
     .docs-content blockquote {
         border-left: 4px solid var(--tblr-border-color);
         padding-left: 1rem;
         color: var(--tblr-muted);
         margin-left: 0;
     }
-    
+
     .docs-content table {
         width: 100%;
         margin-bottom: 1rem;
         border-collapse: collapse;
     }
-    
+
     .docs-content th, .docs-content td {
         padding: 0.5rem;
         border: 1px solid var(--tblr-border-color);
     }
-    
+
     .docs-content th {
         background-color: var(--tblr-bg-surface-secondary);
         font-weight: 600;
     }
-    
+
     /* Sticky sidebar adjustment */
     .sticky-top {
         top: 1rem;
@@ -197,124 +209,120 @@ function initializeDocsPage() {
     generateTableOfContents();
     setupScrollSpy();
     setupKeyboardNavigation();
+    enhanceExternalLinks();
+    setupCodeBlockCopy();
+    setupImageLightbox();
 }
 
 function generateTableOfContents() {
     const content = document.getElementById('markdown-content');
     const tocContainer = document.getElementById('table-of-contents-nav');
-    
+
     if (!content || !tocContainer) return;
-    
+
     const headings = content.querySelectorAll('h1, h2, h3, h4, h5, h6');
-    
+
     if (headings.length === 0) {
         // Hide ToC card if no headings
         const tocCard = tocContainer.closest('.card');
         if (tocCard) tocCard.style.display = 'none';
         return;
     }
-    
+
     // Clear existing content
     tocContainer.innerHTML = '';
-    
+
     headings.forEach((heading, index) => {
         // Create an ID if none exists
         if (!heading.id) {
             heading.id = 'heading-' + index;
         }
-        
+
         const level = parseInt(heading.tagName.charAt(1));
         const text = heading.textContent.trim();
-        
-        // Skip if text is too long (truncate)
         const displayText = text.length > 50 ? text.substring(0, 47) + '...' : text;
-        
+
         const tocItem = document.createElement('a');
         tocItem.className = `toc-link level-${level}`;
         tocItem.href = '#' + heading.id;
         tocItem.textContent = displayText;
-        tocItem.setAttribute('title', text); // Full text in tooltip
+        tocItem.setAttribute('title', text);
         tocItem.setAttribute('data-heading-id', heading.id);
-        
-        // Smooth scroll handler
+
         tocItem.addEventListener('click', function(e) {
             e.preventDefault();
             const target = document.getElementById(heading.id);
             if (target) {
-                // Calculate offset for card header
                 const headerHeight = 150;
                 const targetPosition = target.offsetTop - headerHeight;
-                
+
                 window.scrollTo({
                     top: Math.max(0, targetPosition),
                     behavior: 'smooth'
                 });
-                
-                // Update URL without jumping
+
                 history.replaceState(null, null, '#' + heading.id);
-                
-                // Update active state
                 updateActiveTocItem(tocItem);
             }
         });
-        
+
         tocContainer.appendChild(tocItem);
     });
 }
 
 function setupScrollSpy() {
     const tocLinks = document.querySelectorAll('.toc-link');
-    
     if (tocLinks.length === 0) return;
-    
+
     let ticking = false;
-    
-    function updateActiveTocItem(activeItem) {
-        tocLinks.forEach(link => link.classList.remove('active'));
-        if (activeItem) {
-            activeItem.classList.add('active');
-            
-            // Scroll active item into view in sidebar
-            const tocContainer = document.querySelector('.docs-toc');
-            if (tocContainer && activeItem) {
-                const linkRect = activeItem.getBoundingClientRect();
-                const containerRect = tocContainer.getBoundingClientRect();
-                
-                if (linkRect.top < containerRect.top || linkRect.bottom > containerRect.bottom) {
-                    const scrollTop = tocContainer.scrollTop + (linkRect.top - containerRect.top) - (containerRect.height / 2) + (linkRect.height / 2);
-                    tocContainer.scrollTo({
-                        top: Math.max(0, scrollTop),
-                        behavior: 'smooth'
-                    });
-                }
-            }
-        }
-    }
-    
+
     function handleScroll() {
         if (!ticking) {
             requestAnimationFrame(() => {
-                const scrollY = window.scrollY + 160; // Offset for header card
+                const scrollY = window.scrollY + 160;
                 let activeHeading = null;
-                
+
                 tocLinks.forEach(link => {
                     const targetId = link.getAttribute('data-heading-id');
                     const target = document.getElementById(targetId);
-                    
+
                     if (target && target.offsetTop <= scrollY) {
                         activeHeading = link;
                     }
                 });
-                
+
                 updateActiveTocItem(activeHeading);
                 ticking = false;
             });
             ticking = true;
         }
     }
-    
+
     window.addEventListener('scroll', handleScroll);
-    handleScroll(); // Initial call
+    handleScroll();
+}
+
+function updateActiveTocItem(activeItem) {
+    const tocLinks = document.querySelectorAll('.toc-link');
+    tocLinks.forEach(link => link.classList.remove('active'));
+    if (activeItem) {
+        activeItem.classList.add('active');
+
+        // Scroll active item into view in sidebar
+        const tocContainer = document.querySelector('.docs-toc');
+        if (tocContainer && activeItem) {
+            const linkRect = activeItem.getBoundingClientRect();
+            const containerRect = tocContainer.getBoundingClientRect();
+
+            if (linkRect.top < containerRect.top || linkRect.bottom > containerRect.bottom) {
+                const scrollTop = tocContainer.scrollTop + (linkRect.top - containerRect.top) - (containerRect.height / 2) + (linkRect.height / 2);
+                tocContainer.scrollTo({
+                    top: Math.max(0, scrollTop),
+                    behavior: 'smooth'
+                });
+            }
+        }
+    }
 }
 
 function setupKeyboardNavigation() {
@@ -324,13 +332,13 @@ function setupKeyboardNavigation() {
             e.preventDefault();
             window.location.href = '{{ url_for("docs.docs_index") }}';
         }
-        
+
         // Alt + Home: Go to dashboard
         if (e.altKey && e.key === 'Home') {
             e.preventDefault();
             window.location.href = '{{ url_for("main.dashboard") }}';
         }
-        
+
         // Ctrl + P: Print
         if (e.ctrlKey && e.key === 'p') {
             e.preventDefault();
@@ -339,69 +347,67 @@ function setupKeyboardNavigation() {
     });
 }
 
-// Enhance external links
-document.addEventListener('DOMContentLoaded', function() {
+function enhanceExternalLinks() {
     const contentLinks = document.querySelectorAll('.docs-content a[href^="http"]');
     contentLinks.forEach(link => {
         link.setAttribute('target', '_blank');
         link.setAttribute('rel', 'noopener noreferrer');
-        
-        // Add external link icon
+
         const icon = document.createElement('i');
-        icon.className = 'fas fa-external-link-alt ms-1';
+        icon.className = 'fa-solid fa-arrow-up-right-from-square ms-1';
         icon.style.fontSize = '0.75em';
         icon.style.opacity = '0.7';
         link.appendChild(icon);
     });
-});
+}
 
-// Copy code blocks functionality
-document.addEventListener('DOMContentLoaded', function() {
+function setupCodeBlockCopy() {
     const codeBlocks = document.querySelectorAll('.docs-content pre');
-    
+
     codeBlocks.forEach(block => {
-        // Create copy button
         const copyBtn = document.createElement('button');
         copyBtn.className = 'btn btn-sm btn-ghost-secondary position-absolute';
-        copyBtn.style.top = '0.75rem';
-        copyBtn.style.right = '0.75rem';
-        copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+        copyBtn.style.top = '0.5rem';
+        copyBtn.style.right = '0.5rem';
+        copyBtn.innerHTML = '<i class="fa-solid fa-copy"></i>';
         copyBtn.setAttribute('title', 'Copy to clipboard');
-        
-        // Add copy functionality
+        copyBtn.setAttribute('aria-label', 'Copy code to clipboard');
+
         copyBtn.addEventListener('click', function() {
             const code = block.querySelector('code');
             if (code) {
                 navigator.clipboard.writeText(code.textContent).then(() => {
-                    copyBtn.innerHTML = '<i class="fas fa-check text-success"></i>';
+                    copyBtn.innerHTML = '<i class="fa-solid fa-check text-success"></i>';
                     copyBtn.setAttribute('title', 'Copied!');
-                    
+
                     setTimeout(() => {
-                        copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+                        copyBtn.innerHTML = '<i class="fa-solid fa-copy"></i>';
                         copyBtn.setAttribute('title', 'Copy to clipboard');
                     }, 2000);
                 }).catch(() => {
-                    copyBtn.innerHTML = '<i class="fas fa-times text-danger"></i>';
+                    copyBtn.innerHTML = '<i class="fa-solid fa-xmark text-danger"></i>';
                     setTimeout(() => {
-                        copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+                        copyBtn.innerHTML = '<i class="fa-solid fa-copy"></i>';
                     }, 2000);
                 });
             }
         });
-        
-        // Position block relatively and add button
+
         block.style.position = 'relative';
         block.appendChild(copyBtn);
     });
-});
+}
 
-// Enhanced image lightbox (simple implementation)
-document.addEventListener('DOMContentLoaded', function() {
+function setupImageLightbox() {
     const images = document.querySelectorAll('.docs-content img');
-    
+
     images.forEach(img => {
         img.style.cursor = 'pointer';
-        img.addEventListener('click', function() {
+        img.setAttribute('role', 'button');
+        img.setAttribute('tabindex', '0');
+        img.setAttribute('aria-label', 'Click to enlarge image');
+
+        const openLightbox = function() {
             const lightbox = document.createElement('div');
             lightbox.style.cssText = `
                 position: fixed;
@@ -409,31 +415,49 @@ document.addEventListener('DOMContentLoaded', function() {
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background: rgba(0, 0, 0, 0.8);
+                background: rgba(0, 0, 0, 0.85);
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 z-index: 9999;
                 cursor: pointer;
             `;
-            
+            lightbox.setAttribute('role', 'dialog');
+            lightbox.setAttribute('aria-label', 'Image lightbox');
+
             const lightboxImg = img.cloneNode();
             lightboxImg.style.cssText = `
                 max-width: 90%;
                 max-height: 90%;
-                border-radius: 0.5rem;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+                border-radius: var(--tblr-border-radius);
+                box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
             `;
-            
+
             lightbox.appendChild(lightboxImg);
-            
-            lightbox.addEventListener('click', function() {
+
+            const closeLightbox = function() {
                 document.body.removeChild(lightbox);
+            };
+
+            lightbox.addEventListener('click', closeLightbox);
+            document.addEventListener('keydown', function handler(e) {
+                if (e.key === 'Escape') {
+                    closeLightbox();
+                    document.removeEventListener('keydown', handler);
+                }
             });
-            
+
             document.body.appendChild(lightbox);
+        };
+
+        img.addEventListener('click', openLightbox);
+        img.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openLightbox();
+            }
         });
     });
-});
+}
 </script>
 {% endblock %}

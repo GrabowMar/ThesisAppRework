@@ -3,11 +3,33 @@
 {% set page_title = 'Model Comparison' %}
 {% set page_icon = 'fa-solid fa-table-columns' %}
 {% set page_subtitle = 'Compare models side by side' %}
+{% set active_page = 'models' %}
+
 {% block content %}
+<div class="page-header mb-4">
+  <div class="row align-items-center">
+    <div class="col-auto">
+      <span class="page-icon bg-primary-lt text-primary rounded-3 p-2">
+        <i class="{{ page_icon }} fa-lg"></i>
+      </span>
+    </div>
+    <div class="col">
+      <h1 class="page-title mb-1">{{ page_title }}</h1>
+      <p class="text-muted mb-0">{{ page_subtitle }}</p>
+    </div>
+    <div class="col-auto ms-auto">
+      <div class="btn-list">
+        <a href="/models" class="btn btn-outline-secondary">
+          <i class="fa-solid fa-arrow-left me-2"></i>Back to Models
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
 
     <div class="card mb-3">
       <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-        <h3 class="card-title mb-0"><i class="fa-solid fa-sliders-h me-2"></i>Comparison Settings</h3>
+        <h3 class="card-title mb-0"><i class="fa-solid fa-sliders me-2"></i>Comparison Settings</h3>
         <div class="btn-group btn-group-sm" role="group">
           <a href="/statistics" class="btn btn-outline-secondary" title="View generation statistics">
             <i class="fa-solid fa-chart-line me-1"></i>Statistics
@@ -51,7 +73,7 @@
             <label class="form-label mb-1">Quick Select Models</label>
             <div class="btn-group btn-group-sm" role="group">
               <button type="button" class="btn btn-outline-secondary" id="copy-share-link" title="Copy shareable link"><i class="fa-solid fa-link"></i></button>
-              <button type="button" class="btn btn-outline-secondary" id="clear-selection" title="Clear selection"><i class="fa-solid fa-times"></i></button>
+              <button type="button" class="btn btn-outline-secondary" id="clear-selection" title="Clear selection"><i class="fa-solid fa-xmark"></i></button>
             </div>
           </div>
           <div id="model-picker" class="d-flex flex-wrap"></div>
@@ -150,7 +172,7 @@
           {% else %}
             <div class="card">
               <div class="card-body text-center text-muted py-5">
-                <i class="fa-solid fa-balance-scale fa-3x mb-3"></i>
+                <i class="fa-solid fa-scale-balanced fa-3x mb-3"></i>
                 <div>Select models to compare.</div>
               </div>
             </div>
@@ -163,7 +185,7 @@
       <div class="card-header d-flex justify-content-between align-items-center">
         <h3 class="card-title mb-0"><i class="fa-solid fa-chart-line me-2"></i>Generation Statistics</h3>
         <button class="btn btn-sm btn-outline-secondary" onclick="hideGenerationStats()">
-          <i class="fa-solid fa-times"></i>
+          <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
       <div class="card-body" id="generation-stats-content">
