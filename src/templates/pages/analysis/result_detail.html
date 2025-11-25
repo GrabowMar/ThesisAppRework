@@ -2,6 +2,9 @@
 {% extends 'layouts/base.html' %}
 {% set active_page = 'analysis' %}
 {% set page_title = descriptor.model_slug ~ ' · App #' ~ descriptor.app_number %}
+{% set page_icon = 'fa-solid fa-chart-bar' %}
+
+{% block title %}{{ page_title }} - Analysis Results{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/analysis-report.css') }}">
@@ -17,107 +20,72 @@
 {% block content %}
 {% set severity_order = ['critical', 'high', 'medium', 'low', 'info'] %}
 
-<div class="report-container py-4">
-  {# Report Header #}
-  <div class="report-header mb-4">
-    <div class="d-flex justify-content-between align-items-start">
+<div class="report-container py-2">
+  {# Compact Report Header #}
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div class="d-flex align-items-center gap-2">
+      <a href="{{ url_for('analysis.analysis_list') }}" class="btn btn-sm btn-ghost-secondary btn-icon" title="Back to list">
+        <i class="fa-solid fa-arrow-left"></i>
+      </a>
       <div>
-        <div class="text-muted small text-uppercase mb-1">
-          <i class="fa-solid fa-microscope me-1"></i>
-          {{ descriptor.task_name.replace('_', ' ').title() }} Analysis
+        <h1 class="h4 mb-0">{{ page_title }}</h1>
+        <div class="text-muted small">
+          {{ descriptor.task_name.replace('_', ' ').title() }} • <code>{{ descriptor.identifier[:20] }}…</code> • {{ descriptor.display_timestamp() }}
         </div>
-        <h1 class="h2 mb-1">{{ page_title }}</h1>
-        <p class="text-muted mb-0">
-          Result ID: <code class="text-muted">{{ descriptor.identifier[:32] }}{{ '…' if descriptor.identifier|length > 32 else '' }}</code>
-          <span class="ms-2">•</span>
-          <span class="ms-2">{{ descriptor.display_timestamp() }}</span>
-        </p>
       </div>
-      <div class="d-print-none">
-        <a href="{{ url_for('analysis.analysis_list') }}" class="btn btn-ghost-secondary btn-sm">
-          <i class="fa-solid fa-arrow-left"></i> Back
-        </a>
-        <a href="{{ url_for('analysis.analysis_result_json', result_id=descriptor.identifier) }}" 
-           target="_blank" class="btn btn-ghost-info btn-sm">
-          <i class="fa-solid fa-file-code"></i> JSON
-        </a>
-        <a href="{{ url_for('analysis.export_task_sarif', task_id=descriptor.identifier) }}" 
-           class="btn btn-ghost-success btn-sm" title="Download SARIF 2.1.0">
-          <i class="fa-solid fa-file-shield"></i> SARIF
-        </a>
-        <button onclick="window.print()" class="btn btn-ghost-primary btn-sm">
-          <i class="fa-solid fa-print"></i> Print
-        </button>
-        <a href="{{ url_for('analysis.analysis_result_download', result_id=descriptor.identifier) }}" 
-           class="btn btn-primary btn-sm">
-          <i class="fa-solid fa-download"></i> Download
-        </a>
-      </div>
+    </div>
+    <div class="btn-list flex-nowrap d-print-none">
+      <a href="{{ url_for('analysis.analysis_result_json', result_id=descriptor.identifier) }}" 
+         target="_blank" class="btn btn-sm btn-ghost-info btn-icon" title="View JSON">
+        <i class="fa-solid fa-file-code"></i>
+      </a>
+      <a href="{{ url_for('analysis.export_task_sarif', task_id=descriptor.identifier) }}" 
+         class="btn btn-sm btn-ghost-success btn-icon" title="Download SARIF">
+        <i class="fa-solid fa-file-shield"></i>
+      </a>
+      <button onclick="window.print()" class="btn btn-sm btn-ghost-primary btn-icon" title="Print" type="button">
+        <i class="fa-solid fa-print"></i>
+      </button>
+      <a href="{{ url_for('analysis.analysis_result_download', result_id=descriptor.identifier) }}" 
+         class="btn btn-sm btn-primary" title="Download">
+        <i class="fa-solid fa-download me-1"></i>Download
+      </a>
     </div>
   </div>
 
-  {# Executive Summary Card #}
-  <div class="card mb-4">
-    <div class="card-header bg-primary-lt">
-      <h3 class="card-title mb-0">
-        <i class="fa-solid fa-chart-simple me-2"></i>Executive Summary
-      </h3>
-    </div>
-    <div class="card-body">
-      <div class="row g-3">
-        <div class="col-6 col-md-3">
-          <div class="text-muted small text-uppercase mb-1">Status</div>
-          <div>
-            {% set status_color = 'success' if descriptor.status in ['completed', 'success'] else ('warning' if descriptor.status == 'partial_success' else ('danger' if descriptor.status in ['failed', 'error'] else 'secondary')) %}
-            <span class="badge bg-{{ status_color }}-lt text-{{ status_color }} fs-6">
-              <i class="fa-solid fa-circle-dot me-1"></i>
-              {{ descriptor.status.replace('_', ' ').title() }}
-            </span>
-          </div>
+  {# Compact Executive Summary #}
+  <div class="card card-sm mb-3">
+    <div class="card-body py-2">
+      <div class="row g-2 align-items-center">
+        <div class="col-auto">
+          {% set status_color = 'success' if descriptor.status in ['completed', 'success'] else ('warning' if descriptor.status == 'partial_success' else ('danger' if descriptor.status in ['failed', 'error'] else 'secondary')) %}
+          <span class="badge bg-{{ status_color }}-lt text-{{ status_color }}">
+            <i class="fa-solid fa-circle-dot me-1"></i>{{ descriptor.status.replace('_', ' ').title() }}
+          </span>
         </div>
-        <div class="col-6 col-md-3">
-          <div class="text-muted small text-uppercase mb-1">Total Findings</div>
-          <div class="h3 mb-0">
-            {% set total = summary.get('total_findings', descriptor.total_findings or 0) %}
-            <span class="{% if total > 20 %}text-danger{% elif total > 10 %}text-warning{% else %}text-success{% endif %}">
-              {{ total }}
-            </span>
-          </div>
+        <div class="col-auto border-start ps-3">
+          <span class="text-muted small">Findings:</span>
+          {% set total = summary.get('total_findings', descriptor.total_findings or 0) %}
+          <strong class="{% if total > 20 %}text-danger{% elif total > 10 %}text-warning{% else %}text-success{% endif %}">{{ total }}</strong>
         </div>
-        <div class="col-6 col-md-3">
-          <div class="text-muted small text-uppercase mb-1">Tools Executed</div>
-          <div class="h3 mb-0">
-            {{ summary.get('tools_executed', descriptor.tools_executed or 0) }}
-            <span class="text-muted small">/{{ (descriptor.tools_used|length) if descriptor.tools_used else '?' }}</span>
-            {% if descriptor.tools_failed %}
-            <span class="badge bg-danger-lt text-danger ms-2">{{ descriptor.tools_failed }} failed</span>
-            {% endif %}
-          </div>
+        <div class="col-auto border-start ps-3">
+          <span class="text-muted small">Tools:</span>
+          <strong>{{ summary.get('tools_executed', descriptor.tools_executed or 0) }}/{{ (descriptor.tools_used|length) if descriptor.tools_used else '?' }}</strong>
+          {% if descriptor.tools_failed %}<span class="badge bg-danger-lt text-danger ms-1">{{ descriptor.tools_failed }} failed</span>{% endif %}
         </div>
-        <div class="col-6 col-md-3">
-          <div class="text-muted small text-uppercase mb-1">Services</div>
-          <div class="h3 mb-0">
-            {{ services|length }}
-            {% if summary.get('services_degraded', 0) > 0 %}
-            <span class="badge bg-warning-lt text-warning ms-2">{{ summary.get('services_degraded', 0) }} degraded</span>
-            {% endif %}
-          </div>
+        <div class="col-auto border-start ps-3">
+          <span class="text-muted small">Services:</span>
+          <strong>{{ services|length }}</strong>
+          {% if summary.get('services_degraded', 0) > 0 %}<span class="badge bg-warning-lt text-warning ms-1">{{ summary.get('services_degraded', 0) }} degraded</span>{% endif %}
         </div>
         {% if descriptor.severity_breakdown %}
-        <div class="col-12">
-          <div class="text-muted small text-uppercase mb-2">Severity Distribution</div>
-          <div class="d-flex gap-3 flex-wrap">
-            {% for severity in ['critical', 'high', 'medium', 'low', 'info'] %}
-              {% set count = descriptor.severity_breakdown.get(severity, 0) %}
-              {% if count > 0 %}
-              <div>
-                <span class="badge {% if severity == 'critical' %}bg-danger{% elif severity == 'high' %}bg-danger-lt text-danger{% elif severity == 'medium' %}bg-warning-lt text-warning{% elif severity == 'low' %}bg-info-lt text-info{% else %}bg-secondary-lt{% endif %} fs-6">
-                  {{ severity|capitalize }}: {{ count }}
-                </span>
-              </div>
-              {% endif %}
-            {% endfor %}
-          </div>
+        <div class="col-auto ms-auto d-flex gap-1">
+          {% for severity in ['critical', 'high', 'medium', 'low', 'info'] %}
+            {% set count = descriptor.severity_breakdown.get(severity, 0) %}
+            {% if count > 0 %}
+            <span class="badge {% if severity == 'critical' %}bg-danger{% elif severity == 'high' %}bg-danger-lt text-danger{% elif severity == 'medium' %}bg-warning-lt text-warning{% elif severity == 'low' %}bg-info-lt text-info{% else %}bg-secondary-lt{% endif %}">{{ severity[:1].upper() }}{{ count }}</span>
+            {% endif %}
+          {% endfor %}
         </div>
         {% endif %}
       </div>
@@ -126,45 +94,39 @@
 
   {# Degraded Services Warning #}
   {% if metadata.get('degraded_services') and metadata.degraded_services|length > 0 %}
-  <div class="alert alert-warning mb-4" role="alert">
-    <div class="d-flex align-items-start gap-3">
-      <i class="fa-solid fa-triangle-exclamation fa-lg mt-1" aria-hidden="true"></i>
-      <div class="flex-grow-1">
-        <h4 class="alert-heading mb-2">Partial Results Available</h4>
-        <p class="mb-2">
-          {{ metadata.degraded_services|length }} service{{ 's' if metadata.degraded_services|length > 1 else '' }} 
-          {{ 'were' if metadata.degraded_services|length > 1 else 'was' }} unavailable during analysis.
-        </p>
-        <ul class="mb-0">
+  <div class="alert alert-warning py-2 mb-3" role="alert">
+    <div class="d-flex align-items-center gap-2">
+      <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+      <strong>Partial Results:</strong>
+      <span>{{ metadata.degraded_services|length }} service{{ 's' if metadata.degraded_services|length > 1 else '' }} unavailable</span>
+      <details class="ms-2">
+        <summary class="small cursor-pointer">Details</summary>
+        <ul class="mb-0 mt-1 small">
           {% for svc in metadata.degraded_services %}
-          <li>
-            <strong>{{ svc.service }}</strong>: {{ svc.status }}
-            {% if svc.error %}<span class="text-danger">— {{ svc.error[:80] }}{{ '...' if svc.error|length > 80 else '' }}</span>{% endif %}
-            ({{ svc.tools_affected|length }} tool{{ 's' if svc.tools_affected|length > 1 else '' }} affected)
-          </li>
+          <li><strong>{{ svc.service }}</strong>: {{ svc.status }} ({{ svc.tools_affected|length }} tools)</li>
           {% endfor %}
         </ul>
-      </div>
+      </details>
     </div>
   </div>
   {% endif %}
 
   {# Analysis Sections #}
-  <div class="accordion" id="analysisAccordion">
+  <div class="accordion accordion-flush border rounded" id="analysisAccordion">
     {# Static Analysis Section #}
     <div class="accordion-item">
       <h2 class="accordion-header">
-        <button class="accordion-button" type="button" data-bs-toggle="collapse" 
-                data-bs-target="#staticSection" aria-expanded="true">
-          <i class="fa-solid fa-code me-2"></i>
-          <strong>Static Analysis</strong>
+        <button class="accordion-button py-2" type="button" data-bs-toggle="collapse" 
+                data-bs-target="#staticSection" aria-expanded="true" aria-controls="staticSection">
+          <i class="fa-solid fa-code me-2 text-primary"></i>
+          <span>Static Analysis</span>
           <span class="ms-auto me-3 badge bg-secondary-lt">
-            {{ payload.results.services.static.analysis.results|length if payload.results.services.static and payload.results.services.static.analysis.results else 0 }} tools
+            {{ payload.results.services.static.analysis.results|length if payload.results.services.static and payload.results.services.static.analysis.results else 0 }}
           </span>
         </button>
       </h2>
       <div id="staticSection" class="accordion-collapse collapse show" data-bs-parent="#analysisAccordion">
-        <div class="accordion-body">
+        <div class="accordion-body py-2">
           {% include 'pages/analysis/partials/tab_static.html' %}
         </div>
       </div>
@@ -173,17 +135,17 @@
     {# Dynamic Analysis Section #}
     <div class="accordion-item">
       <h2 class="accordion-header">
-        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
-                data-bs-target="#dynamicSection">
-          <i class="fa-solid fa-play-circle me-2"></i>
-          <strong>Dynamic Analysis</strong>
+        <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" 
+                data-bs-target="#dynamicSection" aria-expanded="false" aria-controls="dynamicSection">
+          <i class="fa-solid fa-play-circle me-2 text-success"></i>
+          <span>Dynamic Analysis</span>
           <span class="ms-auto me-3 badge bg-secondary-lt">
-            {{ payload.results.services.dynamic.analysis.results|length if payload.results.services.dynamic and payload.results.services.dynamic.analysis.results else 0 }} tools
+            {{ payload.results.services.dynamic.analysis.results|length if payload.results.services.dynamic and payload.results.services.dynamic.analysis.results else 0 }}
           </span>
         </button>
       </h2>
       <div id="dynamicSection" class="accordion-collapse collapse" data-bs-parent="#analysisAccordion">
-        <div class="accordion-body">
+        <div class="accordion-body py-2">
           {% include 'pages/analysis/partials/tab_dynamic.html' %}
         </div>
       </div>
@@ -192,17 +154,17 @@
     {# Performance Section #}
     <div class="accordion-item">
       <h2 class="accordion-header">
-        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
-                data-bs-target="#performanceSection">
-          <i class="fa-solid fa-gauge-high me-2"></i>
-          <strong>Performance Testing</strong>
+        <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" 
+                data-bs-target="#performanceSection" aria-expanded="false" aria-controls="performanceSection">
+          <i class="fa-solid fa-gauge-high me-2 text-info"></i>
+          <span>Performance</span>
           <span class="ms-auto me-3 badge bg-secondary-lt">
-            {{ payload.results.services.performance.analysis.results|length if payload.results.services.performance and payload.results.services.performance.analysis.results else 0 }} tests
+            {{ payload.results.services.performance.analysis.results|length if payload.results.services.performance and payload.results.services.performance.analysis.results else 0 }}
           </span>
         </button>
       </h2>
       <div id="performanceSection" class="accordion-collapse collapse" data-bs-parent="#analysisAccordion">
-        <div class="accordion-body">
+        <div class="accordion-body py-2">
           {% include 'pages/analysis/partials/tab_performance.html' %}
         </div>
       </div>
@@ -211,14 +173,14 @@
     {# AI Requirements Section #}
     <div class="accordion-item">
       <h2 class="accordion-header">
-        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
-                data-bs-target="#aiSection">
-          <i class="fa-solid fa-robot me-2"></i>
-          <strong>AI Requirements Analysis</strong>
+        <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" 
+                data-bs-target="#aiSection" aria-expanded="false" aria-controls="aiSection">
+          <i class="fa-solid fa-robot me-2 text-warning"></i>
+          <span>AI Requirements</span>
         </button>
       </h2>
       <div id="aiSection" class="accordion-collapse collapse" data-bs-parent="#analysisAccordion">
-        <div class="accordion-body">
+        <div class="accordion-body py-2">
           {% include 'pages/analysis/partials/tab_ai.html' %}
         </div>
       </div>
@@ -227,14 +189,14 @@
     {# Metadata Section #}
     <div class="accordion-item">
       <h2 class="accordion-header">
-        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
-                data-bs-target="#metadataSection">
-          <i class="fa-solid fa-info-circle me-2"></i>
-          <strong>Metadata & Raw Data</strong>
+        <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" 
+                data-bs-target="#metadataSection" aria-expanded="false" aria-controls="metadataSection">
+          <i class="fa-solid fa-info-circle me-2 text-secondary"></i>
+          <span>Metadata</span>
         </button>
       </h2>
       <div id="metadataSection" class="accordion-collapse collapse" data-bs-parent="#analysisAccordion">
-        <div class="accordion-body">
+        <div class="accordion-body py-2">
           {% include 'pages/analysis/partials/tab_metadata.html' %}
         </div>
       </div>

@@ -1,9 +1,9 @@
 {# Table-based model selection (replaces previous card grid) #}
 {% if models and models|length > 0 %}
   {% if page == 1 %}
-    <div class="card mb-2" data-page="{{ page }}" data-page-size="{{ page_size }}" data-total="{{ total }}">
+    <div class="card card-table-compact mb-2" data-page="{{ page }}" data-page-size="{{ page_size }}" data-total="{{ total }}">
       <div class="table-responsive">
-        <table class="table table-sm table-striped table-vcenter card-table mb-0" aria-label="Available AI Models" id="models-selection-table">
+        <table class="table table-sm table-vcenter table-hover card-table mb-0" aria-label="Available AI Models" id="models-selection-table">
           <thead>
             <tr>
               <th class="w-1" aria-hidden="true"></th>
@@ -13,14 +13,19 @@
               <th class="text-nowrap">Price /1k</th>
               <th class="text-nowrap">Context</th>
               {% if selectable %}
-                <th class="text-end text-nowrap">Action</th>
+                <th class="text-end text-nowrap w-1">Action</th>
               {% endif %}
             </tr>
           </thead>
           <tbody id="model-selection-grid-body">
             {% for m in models %}
               {% set caps = m.get_capabilities() %}
-              <tr class="model-row" data-model-slug="{{ m.canonical_slug }}" _="on click call window.selectModel('{{ m.canonical_slug }}', '{{ m.model_name }}')">
+              <tr class="model-row" 
+                  data-model-slug="{{ m.canonical_slug }}" 
+                  style="cursor: pointer;"
+                  role="button"
+                  tabindex="0"
+                  _="on click call window.selectModel('{{ m.canonical_slug }}', '{{ m.model_name }}') on keypress[key=='Enter'] click()">
                 <td class="text-muted small"><i class="fa-solid fa-brain"></i></td>
                 <td class="fw-semibold text-nowrap">{{ m.model_name }}</td>
                 <td><span class="badge bg-azure-lt text-azure">{{ m.provider|upper }}</span></td>
@@ -30,7 +35,7 @@
                     {% for cap_key, cap_value in caps.items() %}
                       {% if cap_value and cap_value != false and shown|length < 4 %}
                         {% set _ = shown.append(cap_key) %}
-                        <span class="badge bg-info text-dark me-1 mb-1">{{ cap_key|replace('_', ' ')|title }}</span>
+                        <span class="badge bg-info-lt text-info me-1 mb-1">{{ cap_key|replace('_', ' ')|title }}</span>
                       {% endif %}
                     {% endfor %}
                     {% set remaining = (caps|length - shown|length) %}
@@ -45,19 +50,24 @@
                 <td class="small">{{ m.context_window or '—' }}</td>
                 {% if selectable %}
                   <td class="text-end">
-                    <button type="button" class="btn btn-sm btn-ghost-primary" _="on click halt the event then call window.selectModel('{{ m.canonical_slug }}', '{{ m.model_name }}')">Select</button>
+                    <button type="button" 
+                            class="btn btn-sm btn-ghost-primary" 
+                            title="Select {{ m.model_name }}"
+                            _="on click halt the event then call window.selectModel('{{ m.canonical_slug }}', '{{ m.model_name }}')">
+                      <i class="fa-solid fa-check me-1"></i>Select
+                    </button>
                   </td>
                 {% endif %}
               </tr>
             {% endfor %}
             {% if has_next %}
               <tr class="table-loader-row" id="load-more-row">
-                <td class="p-2" colspan="{{ 7 if selectable else 6 }}">
+                <td class="p-3" colspan="{{ 7 if selectable else 6 }}">
                   <button class="btn btn-ghost-primary w-100"
                           hx-get="/api/models/grid?selectable={{ 'true' if selectable else 'false' }}&page={{ page + 1 }}&page_size={{ page_size }}{{ '&provider=' + request.args.get('provider', '') if request.args.get('provider') }}{{ '&capability=' + request.args.get('capability', '') if request.args.get('capability') }}{{ '&price=' + request.args.get('price', '') if request.args.get('price') }}"
                           hx-target="#load-more-row"
                           hx-swap="outerHTML">
-                    <i class="fas fa-plus me-1"></i>Load More Models
+                    <i class="fa-solid fa-plus me-2"></i>Load More Models
                   </button>
                 </td>
               </tr>
@@ -70,7 +80,13 @@
     {# Subsequent pages: return only rows (+ optional load-more row) to replace the load-more placeholder #}
     {% for m in models %}
       {% set caps = m.get_capabilities() %}
-      <tr class="model-row" data-model-slug="{{ m.canonical_slug }}" onclick="selectModel('{{ m.canonical_slug }}', '{{ m.model_name }}')">
+      <tr class="model-row" 
+          data-model-slug="{{ m.canonical_slug }}" 
+          style="cursor: pointer;"
+          role="button"
+          tabindex="0"
+          onclick="selectModel('{{ m.canonical_slug }}', '{{ m.model_name }}')"
+          _="on keypress[key=='Enter'] click()">
         <td class="text-muted small"><i class="fa-solid fa-brain"></i></td>
         <td class="fw-semibold text-nowrap">{{ m.model_name }}</td>
         <td><span class="badge bg-azure-lt text-azure">{{ m.provider|upper }}</span></td>
@@ -80,7 +96,7 @@
             {% for cap_key, cap_value in caps.items() %}
               {% if cap_value and cap_value != false and shown|length < 4 %}
                 {% set _ = shown.append(cap_key) %}
-                <span class="badge bg-info text-dark me-1 mb-1">{{ cap_key|replace('_', ' ')|title }}</span>
+                <span class="badge bg-info-lt text-info me-1 mb-1">{{ cap_key|replace('_', ' ')|title }}</span>
               {% endif %}
             {% endfor %}
             {% set remaining = (caps|length - shown|length) %}
@@ -95,28 +111,37 @@
         <td class="small">{{ m.context_window or '—' }}</td>
         {% if selectable %}
           <td class="text-end">
-            <button type="button" class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); selectModel('{{ m.canonical_slug }}', '{{ m.model_name }}')">Select</button>
+            <button type="button" 
+                    class="btn btn-sm btn-ghost-primary" 
+                    title="Select {{ m.model_name }}"
+                    onclick="event.stopPropagation(); selectModel('{{ m.canonical_slug }}', '{{ m.model_name }}')">
+              <i class="fa-solid fa-check me-1"></i>Select
+            </button>
           </td>
         {% endif %}
       </tr>
     {% endfor %}
     {% if has_next %}
       <tr class="table-loader-row" id="load-more-row">
-        <td class="p-2" colspan="{{ 7 if selectable else 6 }}">
-          <button class="btn btn-outline-primary w-100"
+        <td class="p-3" colspan="{{ 7 if selectable else 6 }}">
+          <button class="btn btn-ghost-primary w-100"
                   hx-get="/api/models/grid?selectable={{ 'true' if selectable else 'false' }}&page={{ page + 1 }}&page_size={{ page_size }}{{ '&provider=' + request.args.get('provider', '') if request.args.get('provider') }}{{ '&capability=' + request.args.get('capability', '') if request.args.get('capability') }}{{ '&price=' + request.args.get('price', '') if request.args.get('price') }}"
                   hx-target="#load-more-row"
                   hx-swap="outerHTML">
-            <i class="fas fa-plus me-1"></i>Load More Models
+            <i class="fa-solid fa-plus me-2"></i>Load More Models
           </button>
         </td>
       </tr>
     {% endif %}
   {% endif %}
 {% else %}
-  <div class="p-4 text-center text-muted">
-    <i class="fas fa-info-circle fa-2x mb-2"></i>
-    <p class="mb-0">No models found for selected filters.</p>
-    <small class="text-muted">Try adjusting your filter criteria above.</small>
+  <div class="empty py-5">
+    <div class="empty-icon">
+      <i class="fa-solid fa-brain fa-3x text-muted"></i>
+    </div>
+    <p class="empty-title h5">No models found</p>
+    <p class="empty-subtitle text-muted">
+      Try adjusting your filter criteria above.
+    </p>
   </div>
 {% endif %}

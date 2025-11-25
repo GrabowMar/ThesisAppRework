@@ -8,6 +8,7 @@
       <strong class="text-muted small text-uppercase">{{ performance_service.service|default('performance-tester') }}</strong>
     </div>
     <span class="badge {% if performance_service.status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif performance_service.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt text-secondary{% endif %}">
+      <i class="fa-solid fa-circle-dot me-1"></i>
       {{ performance_service.status|default('unknown')|replace('_', ' ')|title }}
     </span>
   </div>
@@ -25,7 +26,7 @@
   
   {% if test_results %}
     <div class="table-responsive">
-      <table class="table table-sm table-hover table-vcenter mb-0">
+      <table class="table table-sm table-vcenter table-hover mb-0">
         <thead>
           <tr>
             <th>Test</th>
@@ -35,7 +36,7 @@
             <th class="text-end">Success Rate</th>
             <th class="text-end">Requests</th>
             <th>Issues</th>
-            <th width="8%" class="text-center">Actions</th>
+            <th class="text-center w-1">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -46,11 +47,11 @@
             <td><strong>{{ test_name|replace('_', ' ')|title }}</strong></td>
             <td class="text-center">
               {% if test_data.executed %}
-                <span class="badge badge-sm {% if test_data.status in ['success', 'ok', 'completed'] %}bg-success-lt text-success{% elif test_data.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
+                <span class="badge {% if test_data.status in ['success', 'ok', 'completed'] %}bg-success-lt text-success{% elif test_data.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
                   {{ test_data.status|default('unknown') }}
                 </span>
               {% else %}
-                <span class="badge badge-sm bg-secondary-lt">Skipped</span>
+                <span class="badge bg-secondary-lt">Skipped</span>
               {% endif %}
             </td>
             <td class="text-end">
@@ -64,7 +65,7 @@
             <td class="text-end">
               {% set sr = test_data.success_rate|default(test_data.metrics.success_rate if test_data.metrics is defined else none) %}
               {% if sr is defined and sr is not none %}
-                <span class="{% if sr >= 95 %}text-success{% elif sr >= 80 %}text-warning{% else %}text-danger{% endif %}">
+                <span class="{% if sr >= 95 %}text-success{% elif sr >= 80 %}text-warning{% else %}text-danger{% endif %} fw-medium">
                   {{ sr }}%
                 </span>
               {% else %}
@@ -87,7 +88,7 @@
               {% if test_data.issues %}
                 <details>
                   <summary class="text-warning" style="cursor: pointer;">{{ test_data.issues|length }} issue{{ test_data.issues|length == 1 and '' or 's' }}</summary>
-                  <ul class="mb-0 mt-1">
+                  <ul class="mb-0 mt-1 ps-3">
                     {% for issue in test_data.issues[:3] %}
                       <li>{{ issue }}</li>
                     {% endfor %}
@@ -101,7 +102,7 @@
               {% endif %}
             </td>
             <td class="text-center">
-              <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
+              <button class="btn btn-sm btn-ghost-primary btn-icon tool-detail-btn" 
                       data-tool-name="{{ test_name }}" 
                       data-service-type="performance"
                       title="View detailed metrics">
@@ -115,20 +116,20 @@
       </table>
     </div>
   {% else %}
-    <div class="empty">
+    <div class="empty py-5">
       <div class="empty-icon">
-        <i class="fa-solid fa-question-circle" style="font-size: 2rem;"></i>
+        <i class="fa-solid fa-question-circle fa-3x text-muted"></i>
       </div>
-      <p class="empty-title">No test results</p>
+      <p class="empty-title h5">No test results</p>
       <p class="empty-subtitle text-muted">No performance test results were found in this service.</p>
     </div>
   {% endif %}
 {% else %}
-  <div class="empty">
+  <div class="empty py-5">
     <div class="empty-icon">
-      <i class="fa-solid fa-minus-circle text-muted" style="font-size: 2rem;"></i>
+      <i class="fa-solid fa-minus-circle fa-3x text-muted"></i>
     </div>
-    <p class="empty-title">Performance testing not available</p>
+    <p class="empty-title h5">Performance testing not available</p>
     <p class="empty-subtitle text-muted">This analysis did not include performance testing.</p>
   </div>
 {% endif %}

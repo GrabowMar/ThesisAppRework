@@ -2,89 +2,96 @@
 <div class="row g-3">
   {# Analysis Information #}
   <div class="col-12 col-lg-6">
-    <table class="table table-sm table-vcenter mb-0">
-      <thead class="table-light">
-        <tr>
-          <th colspan="2"><i class="fa-solid fa-info-circle me-2"></i>Analysis Information</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="text-muted" width="35%">Model</td>
-          <td><span class="badge bg-azure-lt text-azure">{{ descriptor.model_slug }}</span></td>
-        </tr>
-        <tr>
-          <td class="text-muted">Application</td>
-          <td><span class="badge bg-secondary-lt">#{{ descriptor.app_number }}</span></td>
-        </tr>
-        <tr>
-          <td class="text-muted">Analysis Type</td>
-          <td><code>{{ descriptor.task_name|default('unknown') }}</code></td>
-        </tr>
-        <tr>
-          <td class="text-muted">Status</td>
-          <td>
-            <span class="badge {% if descriptor.status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif descriptor.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
-              {{ descriptor.status|default('unknown')|replace('_', ' ')|title }}
-            </span>
-          </td>
-        </tr>
-        <tr>
-          <td class="text-muted">Timestamp</td>
-          <td class="small">{{ descriptor.timestamp|default('—') }}</td>
-        </tr>
-        <tr>
-          <td class="text-muted">Identifier</td>
-          <td><code class="small">{{ descriptor.identifier }}</code></td>
-        </tr>
-      </tbody>
-    </table>
+    <div class="card card-table-compact">
+      <table class="table table-sm table-vcenter card-table mb-0">
+        <thead>
+          <tr>
+            <th colspan="2"><i class="fa-solid fa-info-circle me-2"></i>Analysis Information</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="text-muted w-35">Model</td>
+            <td><span class="badge bg-azure-lt text-azure">{{ descriptor.model_slug }}</span></td>
+          </tr>
+          <tr>
+            <td class="text-muted">Application</td>
+            <td><span class="badge bg-secondary-lt">#{{ descriptor.app_number }}</span></td>
+          </tr>
+          <tr>
+            <td class="text-muted">Analysis Type</td>
+            <td><code>{{ descriptor.task_name|default('unknown') }}</code></td>
+          </tr>
+          <tr>
+            <td class="text-muted">Status</td>
+            <td>
+              <span class="badge {% if descriptor.status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif descriptor.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
+                <i class="fa-solid fa-circle-dot me-1"></i>
+                {{ descriptor.status|default('unknown')|replace('_', ' ')|title }}
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td class="text-muted">Timestamp</td>
+            <td class="small">{{ descriptor.timestamp|default('—') }}</td>
+          </tr>
+          <tr>
+            <td class="text-muted">Identifier</td>
+            <td><code class="small">{{ descriptor.identifier }}</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   {# Tools & Execution #}
   <div class="col-12 col-lg-6">
-    <table class="table table-sm table-vcenter mb-0">
-      <thead class="table-light">
-        <tr>
-          <th colspan="2"><i class="fa-solid fa-wrench me-2"></i>Tools & Execution</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="text-muted" width="35%">Total Findings</td>
-          <td><strong class="h4 mb-0">{{ descriptor.total_findings|default(0) }}</strong></td>
-        </tr>
-        {% if descriptor.severity_breakdown %}
-        <tr>
-          <td class="text-muted">Severity</td>
-          <td>
-            {% for severity, count in descriptor.severity_breakdown.items() %}
-              <span class="badge badge-sm {% if severity|lower == 'critical' %}bg-danger{% elif severity|lower == 'high' %}bg-danger-lt text-danger{% elif severity|lower == 'medium' %}bg-warning-lt text-warning{% elif severity|lower == 'low' %}bg-info-lt text-info{% else %}bg-secondary-lt{% endif %}">
-                {{ severity|capitalize }}: {{ count }}
-              </span>
-            {% endfor %}
-          </td>
-        </tr>
-        {% endif %}
-        {% if descriptor.tools_used %}
-        <tr>
-          <td class="text-muted">Tools Used</td>
-          <td>
-            <div class="d-flex flex-wrap gap-1">
-              {% for tool in descriptor.tools_used %}
-                <span class="badge badge-sm bg-secondary-lt">{{ tool }}</span>
-              {% endfor %}
-            </div>
-          </td>
-        </tr>
-        {% endif %}
-      </tbody>
-    </table>
+    <div class="card card-table-compact">
+      <table class="table table-sm table-vcenter card-table mb-0">
+        <thead>
+          <tr>
+            <th colspan="2"><i class="fa-solid fa-wrench me-2"></i>Tools & Execution</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="text-muted w-35">Total Findings</td>
+            <td><strong class="h4 mb-0">{{ descriptor.total_findings|default(0) }}</strong></td>
+          </tr>
+          {% if descriptor.severity_breakdown %}
+          <tr>
+            <td class="text-muted">Severity</td>
+            <td>
+              <div class="d-flex flex-wrap gap-1">
+                {% for severity, count in descriptor.severity_breakdown.items() %}
+                  <span class="badge {% if severity|lower == 'critical' %}bg-danger{% elif severity|lower == 'high' %}bg-danger-lt text-danger{% elif severity|lower == 'medium' %}bg-warning-lt text-warning{% elif severity|lower == 'low' %}bg-info-lt text-info{% else %}bg-secondary-lt{% endif %}">
+                    {{ severity|capitalize }}: {{ count }}
+                  </span>
+                {% endfor %}
+              </div>
+            </td>
+          </tr>
+          {% endif %}
+          {% if descriptor.tools_used %}
+          <tr>
+            <td class="text-muted">Tools Used</td>
+            <td>
+              <div class="d-flex flex-wrap gap-1">
+                {% for tool in descriptor.tools_used %}
+                  <span class="badge bg-secondary-lt">{{ tool }}</span>
+                {% endfor %}
+              </div>
+            </td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
   </div>
 
   {# Raw JSON Payload #}
   <div class="col-12">
-    <div class="card card-sm mb-0">
+    <div class="card">
       <div class="card-header bg-dark text-white">
         <h6 class="card-title mb-0">
           <i class="fa-solid fa-code me-2"></i>Raw JSON Payload
@@ -92,10 +99,10 @@
       </div>
       <div class="card-body p-0">
         <details class="p-3">
-          <summary class="text-muted" style="cursor: pointer;">
+          <summary class="text-muted cursor-pointer">
             <i class="fa-solid fa-chevron-right me-1"></i>Click to expand full JSON
           </summary>
-          <pre class="bg-dark text-white rounded p-3 mt-3 small" style="max-height: 600px; overflow-y: auto;"><code>{{ payload | tojson(indent=2) }}</code></pre>
+          <pre class="bg-dark text-white rounded p-3 mt-3 small overflow-auto" style="max-height: 600px;"><code>{{ payload | tojson(indent=2) }}</code></pre>
         </details>
       </div>
     </div>

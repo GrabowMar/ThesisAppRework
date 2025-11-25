@@ -1,5 +1,5 @@
 {# Tool Detail Modal - Generic modal for displaying detailed tool information #}
-<div class="modal fade" id="toolDetailModal" tabindex="-1" aria-labelledby="toolDetailModalLabel" aria-hidden="true">
+<div class="modal modal-blur fade" id="toolDetailModal" tabindex="-1" aria-labelledby="toolDetailModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
@@ -24,8 +24,10 @@
 
         {# Error State #}
         <div id="modal-error" class="alert alert-danger d-none" role="alert">
-          <i class="fa-solid fa-exclamation-triangle me-2"></i>
-          <span id="modal-error-message">Failed to load tool details</span>
+          <div class="d-flex align-items-center gap-2">
+            <i class="fa-solid fa-exclamation-triangle"></i>
+            <span id="modal-error-message">Failed to load tool details</span>
+          </div>
         </div>
 
         {# Content Container #}
@@ -43,7 +45,7 @@
                 <strong class="text-muted">Duration:</strong> <span id="meta-exec-time">—</span>
               </div>
               <div class="col-auto border-start ps-3 d-none" id="severity-summary-container">
-                <div id="severity-badges"></div>
+                <div id="severity-badges" class="d-flex gap-1"></div>
               </div>
             </div>
           </div>
@@ -74,13 +76,13 @@
             </div>
             
             <div class="table-responsive border rounded">
-              <table class="table table-sm table-hover mb-0" id="issues-table">
+              <table class="table table-sm table-vcenter table-hover mb-0" id="issues-table">
                 <thead class="bg-light">
                   <tr>
-                    <th style="width: 100px;">Severity</th>
+                    <th class="w-10">Severity</th>
                     <th>Message</th>
                     <th>Location</th>
-                    <th style="width: 80px;">Actions</th>
+                    <th class="w-1">Actions</th>
                   </tr>
                 </thead>
                 <tbody id="issues-table-body">
@@ -88,15 +90,18 @@
                 </tbody>
               </table>
             </div>
-            <div id="no-issues-message" class="text-center py-4 text-muted d-none">
-              <i class="fa-solid fa-check-circle fa-2x mb-2 text-success"></i>
-              <p class="mb-0">No issues found.</p>
+            <div id="no-issues-message" class="empty py-5 d-none">
+              <div class="empty-icon">
+                <i class="fa-solid fa-check-circle fa-3x text-success"></i>
+              </div>
+              <p class="empty-title h5">No issues found</p>
+              <p class="empty-subtitle text-muted">This tool completed without detecting any issues.</p>
             </div>
           </div>
 
           {# Detail View (Hidden by default, shown when clicking an issue) #}
           <div id="detail-view" class="d-none mt-3 border-top pt-3">
-            <button class="btn btn-sm btn-ghost-secondary mb-3" id="back-to-list-btn">
+            <button class="btn btn-sm btn-ghost-secondary mb-3" id="back-to-list-btn" type="button">
               <i class="fa-solid fa-arrow-left me-1"></i> Back to List
             </button>
             
@@ -123,16 +128,16 @@
               <div class="alert alert-success bg-success-lt text-dark border-success" id="detail-remediation"></div>
             </div>
 
-            <div class="accordion" id="evidenceAccordion">
+            <div class="accordion accordion-flush" id="evidenceAccordion">
               <div class="accordion-item">
                 <h2 class="accordion-header">
-                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#evidenceCollapse">
-                    Raw Evidence
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#evidenceCollapse" aria-expanded="false" aria-controls="evidenceCollapse">
+                    <i class="fa-solid fa-code me-2"></i>Raw Evidence
                   </button>
                 </h2>
                 <div id="evidenceCollapse" class="accordion-collapse collapse" data-bs-parent="#evidenceAccordion">
-                  <div class="accordion-body">
-                    <pre class="small mb-0" style="max-height: 300px;"><code id="detail-evidence"></code></pre>
+                  <div class="accordion-body p-0">
+                    <pre class="small mb-0 overflow-auto" style="max-height: 300px;"><code id="detail-evidence"></code></pre>
                   </div>
                 </div>
               </div>
@@ -143,7 +148,9 @@
       </div>
       
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          <i class="fa-solid fa-times me-1"></i>Close
+        </button>
       </div>
     </div>
   </div>

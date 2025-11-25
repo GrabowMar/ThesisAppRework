@@ -8,6 +8,7 @@
       <strong class="text-muted small text-uppercase">{{ dynamic_service.service|default('dynamic-analyzer') }}</strong>
     </div>
     <span class="badge {% if dynamic_service.status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif dynamic_service.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt text-secondary{% endif %}">
+      <i class="fa-solid fa-circle-dot me-1"></i>
       {{ dynamic_service.status|default('unknown')|replace('_', ' ')|title }}
     </span>
   </div>
@@ -30,14 +31,14 @@
   
   {% if tools_results or zap_results or vuln_results or port_results %}
     <div class="table-responsive">
-      <table class="table table-sm table-hover table-vcenter mb-0">
+      <table class="table table-sm table-vcenter table-hover mb-0">
         <thead>
           <tr>
             <th>Tool</th>
             <th class="text-center">Status</th>
             <th class="text-center">Issues Found</th>
-            <th width="45%">Summary</th>
-            <th width="10%" class="text-center">Actions</th>
+            <th>Summary</th>
+            <th class="text-center w-1">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -57,11 +58,11 @@
             <tr>
               <td><strong>ZAP</strong></td>
               <td class="text-center">
-                <span class="badge badge-sm bg-success-lt text-success">Success</span>
+                <span class="badge bg-success-lt text-success">Success</span>
               </td>
               <td class="text-center">
                 {% if zap_issues > 0 %}
-                  <span class="badge badge-sm bg-warning-lt text-warning">{{ zap_issues }}</span>
+                  <span class="badge bg-warning-lt text-warning">{{ zap_issues }}</span>
                 {% else %}
                   <span class="text-success"><i class="fa-solid fa-check"></i></span>
                 {% endif %}
@@ -74,7 +75,7 @@
                 {% endif %}
               </td>
               <td class="text-center">
-                <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
+                <button class="btn btn-sm btn-ghost-primary btn-icon tool-detail-btn" 
                         data-tool-name="zap" 
                         data-service-type="dynamic"
                         title="View detailed analysis">
@@ -95,11 +96,11 @@
             <tr>
               <td><strong>VULNSCAN</strong></td>
               <td class="text-center">
-                <span class="badge badge-sm bg-success-lt text-success">Success</span>
+                <span class="badge bg-success-lt text-success">Success</span>
               </td>
               <td class="text-center">
                 {% if vuln_issues > 0 %}
-                  <span class="badge badge-sm bg-warning-lt text-warning">{{ vuln_issues }}</span>
+                  <span class="badge bg-warning-lt text-warning">{{ vuln_issues }}</span>
                 {% else %}
                   <span class="text-success"><i class="fa-solid fa-check"></i></span>
                 {% endif %}
@@ -112,7 +113,7 @@
                 {% endif %}
               </td>
               <td class="text-center">
-                <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
+                <button class="btn btn-sm btn-ghost-primary btn-icon tool-detail-btn" 
                         data-tool-name="vulnerability_scan" 
                         data-service-type="dynamic"
                         title="View detailed analysis">
@@ -128,11 +129,11 @@
             <tr>
               <td><strong>NMAP</strong></td>
               <td class="text-center">
-                <span class="badge badge-sm bg-success-lt text-success">Success</span>
+                <span class="badge bg-success-lt text-success">Success</span>
               </td>
               <td class="text-center">
                 {% if open_ports > 0 %}
-                  <span class="badge badge-sm bg-info-lt text-info">{{ open_ports }}</span>
+                  <span class="badge bg-info-lt text-info">{{ open_ports }}</span>
                 {% else %}
                   <span class="text-success"><i class="fa-solid fa-check"></i></span>
                 {% endif %}
@@ -145,7 +146,7 @@
                 {% endif %}
               </td>
               <td class="text-center">
-                <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
+                <button class="btn btn-sm btn-ghost-primary btn-icon tool-detail-btn" 
                         data-tool-name="nmap" 
                         data-service-type="dynamic"
                         title="View detailed analysis">
@@ -162,23 +163,23 @@
             <td><strong>{{ tool_name|upper }}</strong></td>
             <td class="text-center">
               {% if tool_data.executed %}
-                <span class="badge badge-sm {% if tool_data.status in ['success', 'ok', 'completed', 'no_issues'] %}bg-success-lt text-success{% elif tool_data.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
+                <span class="badge {% if tool_data.status in ['success', 'ok', 'completed', 'no_issues'] %}bg-success-lt text-success{% elif tool_data.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
                   {{ tool_data.status|default('unknown') }}
                 </span>
               {% else %}
-                <span class="badge badge-sm bg-secondary-lt">Skipped</span>
+                <span class="badge bg-secondary-lt">Skipped</span>
               {% endif %}
             </td>
             <td class="text-center">
               {% if tool_data.total_issues is defined and tool_data.total_issues > 0 %}
-                <span class="badge badge-sm bg-warning-lt text-warning">{{ tool_data.total_issues }}</span>
+                <span class="badge bg-warning-lt text-warning">{{ tool_data.total_issues }}</span>
               {% else %}
                 <span class="text-success"><i class="fa-solid fa-check"></i></span>
               {% endif %}
             </td>
             <td class="small text-muted">
               {% if tool_data.status in ['failed', 'error'] and tool_data.error %}
-                <span class="text-danger"><i class="fas fa-exclamation-triangle me-1"></i> {{ tool_data.error }}</span>
+                <span class="text-danger"><i class="fa-solid fa-exclamation-triangle me-1"></i>{{ tool_data.error }}</span>
               {% elif tool_data.total_issues is defined and tool_data.total_issues > 0 %}
                 {{ tool_data.total_issues }} issue(s) found
               {% else %}
@@ -186,7 +187,7 @@
               {% endif %}
             </td>
             <td class="text-center">
-              <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
+              <button class="btn btn-sm btn-ghost-primary btn-icon tool-detail-btn" 
                       data-tool-name="{{ tool_name }}" 
                       data-service-type="dynamic"
                       title="View detailed analysis">
@@ -200,20 +201,20 @@
       </table>
     </div>
   {% else %}
-    <div class="empty">
+    <div class="empty py-5">
       <div class="empty-icon">
-        <i class="fa-solid fa-question-circle" style="font-size: 2rem;"></i>
+        <i class="fa-solid fa-question-circle fa-3x text-muted"></i>
       </div>
-      <p class="empty-title">No tool results</p>
+      <p class="empty-title h5">No tool results</p>
       <p class="empty-subtitle text-muted">No dynamic analysis tool results were found in this service.</p>
     </div>
   {% endif %}
 {% else %}
-  <div class="empty">
+  <div class="empty py-5">
     <div class="empty-icon">
-      <i class="fa-solid fa-minus-circle text-muted" style="font-size: 2rem;"></i>
+      <i class="fa-solid fa-minus-circle fa-3x text-muted"></i>
     </div>
-    <p class="empty-title">Dynamic analysis not available</p>
+    <p class="empty-title h5">Dynamic analysis not available</p>
     <p class="empty-subtitle text-muted">This analysis did not include dynamic security testing.</p>
   </div>
 {% endif %}

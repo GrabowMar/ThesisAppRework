@@ -1,19 +1,21 @@
 {% extends 'layouts/base.html' %}
-
-{% block title %}Analysis Tasks - {{ super() }}{% endblock %}
 {% set active_page = 'analysis' %}
 {% set page_title = 'Analysis Tasks' %}
 {% set page_icon = 'fa-solid fa-microscope' %}
-{% set page_subtitle = 'Monitor and manage analysis tasks' %}
+
+{% block title %}{{ page_title }}{% endblock %}
 
 {% block content %}
-
-  <div id="main-tasks-table-wrapper" hx-get="/analysis/api/tasks/list" hx-trigger="load" hx-swap="innerHTML">
-    <div class="p-4 text-center text-muted">
-      <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-      <span>Loading tasks…</span>
-    </div>
+<div id="main-tasks-table-wrapper" 
+     hx-get="/analysis/api/tasks/list" 
+     hx-trigger="load, every 30s, refresh"
+     hx-target="this"
+     hx-swap="innerHTML">
+  <div class="text-center text-muted py-4">
+    <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+    Loading tasks…
   </div>
+</div>
 {% endblock %}
 
 {% block scripts %}

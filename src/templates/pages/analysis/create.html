@@ -1,5 +1,10 @@
 {# Analysis Creation Wizard Page #}
 {% extends 'layouts/base.html' %}
+{% set active_page = 'analysis' %}
+{% set page_title = 'Create Analysis' %}
+{% set page_icon = 'fa-solid fa-flask' %}
+
+{% block title %}{{ page_title }}{% endblock %}
 
 {% block content %}
 <form id="analysis-wizard-form" method="POST" action="/analysis/create">
@@ -501,36 +506,36 @@
         <div class="card card-sm mb-3">
           <div class="card-header py-2">
             <h6 class="card-title mb-0">
-              <i class="fas fa-route me-2 text-primary"></i>Progress
+              <i class="fa-solid fa-route me-2 text-primary"></i>Progress
             </h6>
+          </div>
+          <div class="progress progress-sm card-progress">
+            <div class="progress-bar bg-primary" role="progressbar" id="wizard-progress-bar" aria-label="Analysis progress" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
           </div>
           <div class="card-body py-2">
             <div class="wizard-progress">
-              <div class="progress mb-3">
-                <div class="progress-bar bg-primary" role="progressbar" id="wizard-progress-bar" aria-label="Analysis progress" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
-              </div>
               <div class="steps steps-counter steps-xs">
                 <div class="step-item active" data-step="1" _="on click call goToStep(1)" role="button" tabindex="0">
                   <div class="step-icon">
-                    <i class="fas fa-brain"></i>
+                    <i class="fa-solid fa-brain"></i>
                   </div>
                   <div class="step-title">Model</div>
                 </div>
                 <div class="step-item" data-step="2" _="on click call goToStep(2)" role="button" tabindex="0">
                   <div class="step-icon">
-                    <i class="fas fa-rocket"></i>
+                    <i class="fa-solid fa-rocket"></i>
                   </div>
                   <div class="step-title">App</div>
                 </div>
                 <div class="step-item" data-step="3" _="on click call goToStep(3)" role="button" tabindex="0">
                   <div class="step-icon">
-                    <i class="fas fa-cogs"></i>
+                    <i class="fa-solid fa-cogs"></i>
                   </div>
                   <div class="step-title">Config</div>
                 </div>
                 <div class="step-item" data-step="4" _="on click call goToStep(4)" role="button" tabindex="0">
                   <div class="step-icon">
-                    <i class="fas fa-check"></i>
+                    <i class="fa-solid fa-check"></i>
                   </div>
                   <div class="step-title">Review</div>
                 </div>
@@ -543,7 +548,7 @@
         <div class="card card-sm mb-3" id="wizard-nav-card">
           <div class="card-header py-2">
             <h6 class="card-title mb-0">
-              <i class="fas fa-gamepad me-2 text-primary"></i>Navigation
+              <i class="fa-solid fa-gamepad me-2 text-primary"></i>Navigation
             </h6>
           </div>
           <div class="card-body py-2">
@@ -553,14 +558,14 @@
               </div>
               <div class="d-flex justify-content-between align-items-center gap-2">
                 <button type="button" class="btn btn-ghost-secondary btn-sm" id="prev-btn" _="on click call previousStep()" disabled>
-                  <i class="fas fa-chevron-left me-1"></i>Previous
+                  <i class="fa-solid fa-chevron-left me-1"></i>Previous
                 </button>
                 <div class="d-flex gap-2 flex-grow-1">
                   <button type="button" class="btn btn-primary btn-sm flex-grow-1" id="next-btn" _="on click call nextStep()" disabled>
                     Complete this step to continue
                   </button>
                   <button type="submit" class="btn btn-success btn-sm flex-grow-1 d-none" id="launch-btn">
-                    <i class="fas fa-rocket me-1"></i>Launch Analysis
+                    <i class="fa-solid fa-rocket me-1"></i>Launch Analysis
                   </button>
                   <button type="button" class="btn btn-success btn-sm flex-grow-1 d-none" id="launch-btn-loading" disabled>
                     <div class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>Launching...
@@ -575,7 +580,7 @@
           <div class="card-header py-2">
             <div class="d-flex align-items-center justify-content-between">
               <h6 class="card-title mb-0">
-                <i class="fas fa-list-check me-2 text-primary"></i>Selections
+                <i class="fa-solid fa-list-check me-2 text-primary"></i>Selections
               </h6>
               <div class="dropdown">
                 <button class="btn btn-sm btn-ghost-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"
@@ -905,16 +910,6 @@ function updateWizardStep() {
           guideCollapse.addEventListener('hidden.bs.collapse', () => { guideIndicator.textContent = 'Show'; });
         }
     }
-    
-  // Scroll to active panel safely (guard against null)
-  try {
-    const activePanel = document.querySelector('.wizard-panel.active');
-    if (activePanel) {
-      activePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  } catch (e) {
-    console.warn('Scroll into view failed:', e);
-  }
 
   // If entering Step 2, refresh batch aggregate if needed
   if (currentStep === 2) {

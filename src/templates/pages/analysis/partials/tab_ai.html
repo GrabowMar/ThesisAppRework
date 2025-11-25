@@ -3,14 +3,15 @@
 
 {% if ai_service %}
   {# Service Header #}
-  <div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
     <div>
-      <h4 class="mb-1">
-        <i class="fa-solid fa-robot me-2"></i>AI Requirements Analysis
+      <h4 class="mb-1 d-flex align-items-center gap-2">
+        <i class="fa-solid fa-robot text-warning"></i>
+        <span>AI Requirements Analysis</span>
       </h4>
       <p class="text-muted small mb-0">{{ ai_service.service|default('ai-analyzer') }}</p>
     </div>
-    <span class="badge badge-outline {% if ai_service.status in ['completed', 'ok', 'success'] %}text-success{% elif ai_service.status in ['failed', 'error'] %}text-danger{% else %}text-secondary{% endif %}">
+    <span class="badge {% if ai_service.status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif ai_service.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt text-secondary{% endif %}">
       <i class="fa-solid fa-circle-dot me-1"></i>
       {{ ai_service.status|default('unknown')|replace('_', ' ')|title }}
     </span>
@@ -24,35 +25,36 @@
   {% if analysis_results and (functional_reqs or summary) %}
     {# Summary Card #}
     {% if summary %}
-      <div class="card card-sm mb-3">
-        <div class="card-header">
-          <h5 class="card-title mb-0">
-            <i class="fa-solid fa-clipboard-check me-2"></i>Requirements Compliance Summary
+      <div class="card card-table-compact mb-3">
+        <div class="card-header d-flex flex-wrap align-items-center gap-3">
+          <h5 class="card-title d-flex align-items-center gap-2 mb-0">
+            <i class="fa-solid fa-clipboard-check"></i>
+            <span>Requirements Compliance Summary</span>
           </h5>
         </div>
         <div class="card-body">
-          <div class="row">
-            <div class="col-md-3">
+          <div class="row g-3">
+            <div class="col-6 col-md-3">
               <div class="text-muted small text-uppercase mb-1">Compliance Rate</div>
               <div class="h3 mb-0 {% if summary.compliance_percentage >= 80 %}text-success{% elif summary.compliance_percentage >= 60 %}text-warning{% else %}text-danger{% endif %}">
                 {{ summary.compliance_percentage|default(0)|round(1) }}%
               </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
               <div class="text-muted small text-uppercase mb-1">Requirements Met</div>
               <div class="h3 mb-0 text-success">
                 {{ summary.functional_requirements_met|default(0) }}/{{ summary.total_functional_requirements|default(0) }}
               </div>
             </div>
             {% if summary.total_control_endpoints is defined and summary.total_control_endpoints > 0 %}
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
               <div class="text-muted small text-uppercase mb-1">Control Endpoints</div>
               <div class="h3 mb-0">
                 {{ summary.control_endpoints_passed|default(0) }}/{{ summary.total_control_endpoints }}
               </div>
             </div>
             {% endif %}
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
               <div class="text-muted small text-uppercase mb-1">AI Model Used</div>
               <div class="small">
                 {{ ai_service.analysis.metadata.ai_model_used|default('Unknown') }}
@@ -65,27 +67,30 @@
 
     {# Functional Requirements #}
     {% if functional_reqs %}
-      <div class="card card-sm">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h5 class="card-title mb-0">
-            <i class="fa-solid fa-list-check me-2"></i>Functional Requirements ({{ functional_reqs|length }})
+      <div class="card card-table-compact">
+        <div class="card-header d-flex flex-wrap align-items-center gap-3">
+          <h5 class="card-title d-flex align-items-center gap-2 mb-0">
+            <i class="fa-solid fa-list-check"></i>
+            <span>Functional Requirements ({{ functional_reqs|length }})</span>
           </h5>
-          <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
-                  data-tool-name="requirements-checker" 
-                  data-service-type="ai"
-                  title="View detailed analysis">
-            <i class="fa-solid fa-magnifying-glass"></i> Details
-          </button>
+          <div class="card-actions ms-auto">
+            <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
+                    data-tool-name="requirements-checker" 
+                    data-service-type="ai"
+                    title="View detailed analysis">
+              <i class="fa-solid fa-magnifying-glass me-1"></i>Details
+            </button>
+          </div>
         </div>
         <div class="card-body p-0">
           <div class="table-responsive">
-            <table class="table table-sm table-vcenter mb-0">
+            <table class="table table-sm table-vcenter table-hover mb-0">
               <thead>
                 <tr>
-                  <th width="5%">Status</th>
-                  <th width="40%">Requirement</th>
-                  <th width="10%" class="text-center">Confidence</th>
-                  <th width="45%">Explanation</th>
+                  <th class="w-1 text-center">Status</th>
+                  <th>Requirement</th>
+                  <th class="text-center">Confidence</th>
+                  <th>Explanation</th>
                 </tr>
               </thead>
               <tbody>
@@ -102,7 +107,7 @@
                     <div class="small">{{ req.requirement }}</div>
                   </td>
                   <td class="text-center">
-                    <span class="badge badge-sm {% if req.confidence == 'HIGH' %}bg-success-lt text-success{% elif req.confidence == 'MEDIUM' %}bg-warning-lt text-warning{% else %}bg-secondary-lt{% endif %}">
+                    <span class="badge {% if req.confidence == 'HIGH' %}bg-success-lt text-success{% elif req.confidence == 'MEDIUM' %}bg-warning-lt text-warning{% else %}bg-secondary-lt{% endif %}">
                       {{ req.confidence|default('N/A') }}
                     </span>
                   </td>
@@ -126,10 +131,11 @@
     {# Control Endpoints Tests #}
     {% set control_tests = analysis_results.control_endpoint_tests if analysis_results and analysis_results.control_endpoint_tests else [] %}
     {% if control_tests %}
-      <div class="card card-sm mt-3">
-        <div class="card-header">
-          <h5 class="card-title mb-0">
-            <i class="fa-solid fa-flask me-2"></i>Control Endpoint Tests ({{ control_tests|length }})
+      <div class="card card-table-compact mt-3">
+        <div class="card-header d-flex flex-wrap align-items-center gap-3">
+          <h5 class="card-title d-flex align-items-center gap-2 mb-0">
+            <i class="fa-solid fa-flask"></i>
+            <span>Control Endpoint Tests ({{ control_tests|length }})</span>
           </h5>
         </div>
         <div class="card-body">
@@ -156,20 +162,20 @@
       </div>
     {% endif %}
   {% else %}
-    <div class="empty">
+    <div class="empty py-5">
       <div class="empty-icon">
-        <i class="fa-solid fa-question-circle" style="font-size: 2rem;"></i>
+        <i class="fa-solid fa-question-circle fa-3x text-muted"></i>
       </div>
-      <p class="empty-title">No analysis results</p>
+      <p class="empty-title h5">No analysis results</p>
       <p class="empty-subtitle text-muted">No AI requirements analysis results were found.</p>
     </div>
   {% endif %}
 {% else %}
-  <div class="empty">
+  <div class="empty py-5">
     <div class="empty-icon">
-      <i class="fa-solid fa-minus-circle text-muted" style="font-size: 2rem;"></i>
+      <i class="fa-solid fa-minus-circle fa-3x text-muted"></i>
     </div>
-    <p class="empty-title">AI requirements analysis not available</p>
+    <p class="empty-title h5">AI requirements analysis not available</p>
     <p class="empty-subtitle text-muted">This analysis did not include AI requirements checking.</p>
   </div>
 {% endif %}

@@ -8,6 +8,7 @@
       <strong class="text-muted small text-uppercase">{{ static_service.service|default('static-analyzer') }}</strong>
     </div>
     <span class="badge {% if static_service.status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif static_service.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt text-secondary{% endif %}">
+      <i class="fa-solid fa-circle-dot me-1"></i>
       {{ static_service.status|default('unknown')|replace('_', ' ')|title }}
     </span>
   </div>
@@ -16,7 +17,7 @@
   {% set tools_results = static_service.analysis.results if static_service.analysis and static_service.analysis.results else {} %}
   {% if tools_results %}
     <div class="table-responsive">
-      <table class="table table-sm table-hover table-vcenter mb-0">
+      <table class="table table-sm table-vcenter table-hover mb-0">
         <thead>
           <tr>
             <th>Tool</th>
@@ -24,8 +25,8 @@
             <th class="text-center">Status</th>
             <th class="text-center">Issues</th>
             <th class="text-center">Severity</th>
-            <th width="35%">Top Issues</th>
-            <th width="10%" class="text-center">Actions</th>
+            <th>Top Issues</th>
+            <th class="text-center w-1">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -41,26 +42,26 @@
                 {% if tool_data.executed %}
                   {% set issue_count = tool_data.issue_count|default(tool_data.total_issues)|default(tool_data.issues|length if tool_data.issues else 0) %}
                   {% if tool_data.status in ['success', 'ok', 'completed', 'no_issues'] %}
-                    <span class="badge badge-sm bg-success-lt text-success" title="Tool executed successfully">
+                    <span class="badge bg-success-lt text-success" title="Tool executed successfully">
                       <i class="fa-solid fa-check"></i> Success
                     </span>
                   {% elif tool_data.status in ['failed', 'error'] %}
-                    <span class="badge badge-sm bg-danger-lt text-danger" title="Tool execution failed">
+                    <span class="badge bg-danger-lt text-danger" title="Tool execution failed">
                       <i class="fa-solid fa-xmark"></i> Error
                     </span>
                   {% else %}
-                    <span class="badge badge-sm bg-secondary-lt" title="Unknown status">
+                    <span class="badge bg-secondary-lt" title="Unknown status">
                       {{ tool_data.status|default('unknown') }}
                     </span>
                   {% endif %}
                 {% else %}
-                  <span class="badge badge-sm bg-secondary-lt">Skipped</span>
+                  <span class="badge bg-secondary-lt">Skipped</span>
                 {% endif %}
               </td>
               <td class="text-center">
                 {% set issue_count = tool_data.issue_count|default(tool_data.total_issues)|default(tool_data.issues|length if tool_data.issues else 0) %}
                 {% if issue_count > 0 %}
-                  <span class="badge badge-sm bg-warning-lt text-warning" title="{{ issue_count }} issue(s) found">{{ issue_count }}</span>
+                  <span class="badge bg-warning-lt text-warning" title="{{ issue_count }} issue(s) found">{{ issue_count }}</span>
                 {% else %}
                   <span class="text-success" title="No issues found"><i class="fa-solid fa-check"></i></span>
                 {% endif %}
@@ -70,19 +71,19 @@
                   {% set high_count = tool_data.issues|selectattr('issue_severity', 'equalto', 'HIGH')|list|length %}
                   {% set medium_count = tool_data.issues|selectattr('issue_severity', 'equalto', 'MEDIUM')|list|length %}
                   {% set low_count = tool_data.issues|selectattr('issue_severity', 'equalto', 'LOW')|list|length %}
-                  <div>
-                    {% if high_count > 0 %}<span class="badge badge-sm bg-danger-lt text-danger">H:{{ high_count }}</span>{% endif %}
-                    {% if medium_count > 0 %}<span class="badge badge-sm bg-warning-lt text-warning">M:{{ medium_count }}</span>{% endif %}
-                    {% if low_count > 0 %}<span class="badge badge-sm bg-info-lt text-info">L:{{ low_count }}</span>{% endif %}
+                  <div class="d-flex gap-1 justify-content-center">
+                    {% if high_count > 0 %}<span class="badge bg-danger-lt text-danger">H:{{ high_count }}</span>{% endif %}
+                    {% if medium_count > 0 %}<span class="badge bg-warning-lt text-warning">M:{{ medium_count }}</span>{% endif %}
+                    {% if low_count > 0 %}<span class="badge bg-info-lt text-info">L:{{ low_count }}</span>{% endif %}
                   </div>
                 {% else %}
                   <span class="text-muted">—</span>
                 {% endif %}
               </td>
-              <td class="small text-muted">
+              <td class="small text-muted text-truncate" style="max-width: 350px;">
                 {% if tool_data.issues %}
                   {% for issue in tool_data.issues[:2] %}
-                    <div class="text-truncate" style="max-width: 350px;">• {{ issue.issue_text|default(issue.message)|default('No description') }}</div>
+                    <div class="text-truncate">• {{ issue.issue_text|default(issue.message)|default('No description') }}</div>
                   {% endfor %}
                   {% if tool_data.issues|length > 2 %}
                     <div class="text-muted">...and {{ tool_data.issues|length - 2 }} more</div>
@@ -92,7 +93,7 @@
                 {% endif %}
               </td>
               <td class="text-center">
-                <button class="btn btn-sm btn-ghost-primary tool-detail-btn" 
+                <button class="btn btn-sm btn-ghost-primary btn-icon tool-detail-btn" 
                         data-tool-name="{{ tool_name }}" 
                         data-service-type="static" 
                         title="View detailed analysis">
@@ -107,20 +108,20 @@
       </table>
     </div>
   {% else %}
-    <div class="empty">
+    <div class="empty py-5">
       <div class="empty-icon">
-        <i class="fa-solid fa-question-circle" style="font-size: 2rem;"></i>
+        <i class="fa-solid fa-question-circle fa-3x text-muted"></i>
       </div>
-      <p class="empty-title">No tool results</p>
+      <p class="empty-title h5">No tool results</p>
       <p class="empty-subtitle text-muted">No static analysis tool results were found in this service.</p>
     </div>
   {% endif %}
 {% else %}
-  <div class="empty">
+  <div class="empty py-5">
     <div class="empty-icon">
-      <i class="fa-solid fa-minus-circle text-muted" style="font-size: 2rem;"></i>
+      <i class="fa-solid fa-minus-circle fa-3x text-muted"></i>
     </div>
-    <p class="empty-title">Static analysis not available</p>
+    <p class="empty-title h5">Static analysis not available</p>
     <p class="empty-subtitle text-muted">This analysis did not include static code analysis.</p>
   </div>
 {% endif %}
