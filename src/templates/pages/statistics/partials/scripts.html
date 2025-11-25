@@ -1,0 +1,265 @@
+{# Statistics Dashboard Scripts - ApexCharts and AJAX refresh #}
+
+<script src="https://cdn.jsdelivr.net/npm/apexcharts@3.44.0/dist/apexcharts.min.js"></script>
+
+<script>
+// Chart instances
+let trendsChart = null;
+let severityChart = null;
+
+// Initialize dashboard on load
+document.addEventListener('DOMContentLoaded', function() {
+    initializeCharts();
+    updateLastCheckTime();
+});
+
+// Initialize ApexCharts
+function initializeCharts() {
+    // Trends Chart - Line chart for analysis activity over time
+    const trendsOptions = {
+        chart: {
+            type: 'area',
+            height: 300,
+            toolbar: { show: false },
+            animations: { enabled: true, easing: 'easeinout', speed: 500 }
+        },
+        series: [{
+            name: 'Completed',
+            data: {{ trends.completed|tojson if trends else '[]' }}
+        }, {
+            name: 'Failed',
+            data: {{ trends.failed|tojson if trends else '[]' }}
+        }],
+        xaxis: {
+            categories: {{ trends.dates|tojson if trends else '[]' }},
+            labels: {
+                style: { colors: '#6c757d' },
+                rotate: -45
+            }
+        },
+        yaxis: {
+            labels: { style: { colors: '#6c757d' } }
+        },
+        colors: ['#2fb344', '#d63939'],
+        fill: {
+            type: 'gradient',
+            gradient: {
+                shadeIntensity: 1,
+                opacityFrom: 0.4,
+                opacityTo: 0.1,
+                stops: [0, 100]
+            }
+        },
+        stroke: { curve: 'smooth', width: 2 },
+        legend: { position: 'top', horizontalAlign: 'right' },
+        tooltip: { theme: 'dark' },
+        grid: { borderColor: '#e9ecef', strokeDashArray: 3 }
+    };
+    
+    const trendsEl = document.querySelector('#trendsChart');
+    if (trendsEl) {
+        trendsChart = new ApexCharts(trendsEl, trendsOptions);
+        trendsChart.render();
+    }
+
+    // Severity Distribution - Donut chart
+    const severityOptions = {
+        chart: {
+            type: 'donut',
+            height: 300,
+            animations: { enabled: true, easing: 'easeinout', speed: 500 }
+        },
+        series: [
+            {{ severity.critical if severity else 0 }},
+            {{ severity.high if severity else 0 }},
+            {{ severity.medium if severity else 0 }},
+            {{ severity.low if severity else 0 }},
+            {{ severity.info if severity else 0 }}
+        ],
+        labels: ['Critical', 'High', 'Medium', 'Low', 'Info'],
+        colors: ['#d63939', '#f76707', '#f59f00', '#2fb344', '#206bc4'],
+        legend: { position: 'bottom' },
+        plotOptions: {
+            pie: {
+                donut: {
+                    size: '65%',
+                    labels: {
+                        show: true,
+                        total: {
+                            show: true,
+                            label: 'Total',
+                            formatter: function(w) {
+                                return w.globals.seriesTotals.reduce((a, b) => a + b, 0);
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        tooltip: { theme: 'dark' },
+        dataLabels: { enabled: false }
+    };
+    
+    const severityEl = document.querySelector('#severityChart');
+    if (severityEl) {
+        severityChart = new ApexCharts(severityEl, severityOptions);
+        severityChart.render();
+    }
+}
+
+// Refresh dashboard data via AJAX
+async function refreshDashboard() {
+    const btn = document.getElementById('refreshBtn');
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Loading...';
+    btn.disabled = true;
+
+    try {
+        // Fetch all data in parallel
+        const [overview, severity, health, trends, activity, quick, filesystem] = await Promise.all([
+            fetch('{{ url_for("stats.api_overview") }}').then(r => r.json()),
+            fetch('{{ url_for("stats.api_severity") }}').then(r => r.json()),
+            fetch('{{ url_for("stats.api_health") }}').then(r => r.json()),
+            fetch('{{ url_for("stats.api_trends") }}').then(r => r.json()),
+            fetch('{{ url_for("stats.api_activity") }}').then(r => r.json()),
+            fetch('{{ url_for("stats.api_quick") }}').then(r => r.json()),
+            fetch('{{ url_for("stats.api_filesystem") }}').then(r => r.json())
+        ]);
+
+        // Update KPI cards
+        updateKPICards(overview, severity, filesystem);
+        
+        // Update health banner
+        updateHealthBanner(health);
+        
+        // Update charts
+        updateCharts(trends, severity);
+        
+        // Update quick stats
+        updateQuickStats(quick, filesystem);
+        
+        // Update activity feed
+        updateActivityFeed(activity);
+        
+        // Update timestamp
+        updateLastCheckTime();
+        
+        // Show success toast
+        showToast('Dashboard refreshed successfully', 'success');
+        
+    } catch (error) {
+        console.error('Error refreshing dashboard:', error);
+        showToast('Error refreshing dashboard', 'danger');
+    } finally {
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+    }
+}
+
+// Update KPI cards with new data
+function updateKPICards(overview, severity, filesystem) {
+    // These would require DOM updates - for now, suggest page reload for full refresh
+    // In production, you'd update specific elements by ID
+}
+
+// Update health banner
+function updateHealthBanner(health) {
+    const banner = document.getElementById('healthBanner');
+    if (!banner) return;
+    
+    const statusDot = banner.querySelector('.status-dot');
+    const statusText = banner.querySelector('strong');
+    
+    const statusClass = health.overall_status === 'healthy' ? 'success' : 
+                       health.overall_status === 'degraded' ? 'warning' : 'danger';
+    
+    statusDot.className = `status-dot status-dot-animated bg-${statusClass}`;
+    statusText.className = `text-${statusClass}`;
+    statusText.textContent = health.overall_status.charAt(0).toUpperCase() + health.overall_status.slice(1);
+}
+
+// Update charts with new data
+function updateCharts(trends, severity) {
+    if (trendsChart && trends) {
+        trendsChart.updateOptions({
+            xaxis: { categories: trends.dates }
+        });
+        trendsChart.updateSeries([
+            { name: 'Completed', data: trends.completed },
+            { name: 'Failed', data: trends.failed }
+        ]);
+    }
+    
+    if (severityChart && severity) {
+        severityChart.updateSeries([
+            severity.critical,
+            severity.high,
+            severity.medium,
+            severity.low,
+            severity.info
+        ]);
+    }
+}
+
+// Update quick stats section
+function updateQuickStats(quick, filesystem) {
+    // Update individual stat elements if they exist
+}
+
+// Update activity feed
+function updateActivityFeed(activity) {
+    const feed = document.getElementById('activityFeed');
+    if (!feed || !activity || !activity.length) return;
+    
+    feed.innerHTML = activity.map(item => `
+        <div class="list-group-item">
+            <div class="row align-items-center">
+                <div class="col-auto">
+                    <span class="status-dot status-dot-animated bg-${getStatusColor(item.status)}"></span>
+                </div>
+                <div class="col text-truncate">
+                    <a href="/applications/${item.model}/${item.app}" class="text-reset d-block">
+                        ${item.model}/app${item.app}
+                    </a>
+                    <div class="d-block text-muted text-truncate mt-n1">
+                        ${item.analysis_type} analysis
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <span class="badge bg-${getStatusColor(item.status)}-lt">
+                        ${item.status}
+                    </span>
+                </div>
+                <div class="col-auto text-muted">
+                    ${item.time_ago}
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Get status color helper
+function getStatusColor(status) {
+    const colors = {
+        'COMPLETED': 'success',
+        'FAILED': 'danger',
+        'RUNNING': 'azure',
+        'PENDING': 'secondary'
+    };
+    return colors[status] || 'secondary';
+}
+
+// Update last check timestamp
+function updateLastCheckTime() {
+    const el = document.getElementById('lastCheck');
+    if (el) {
+        el.textContent = 'just now';
+    }
+}
+
+// Toast notification helper
+function showToast(message, type = 'info') {
+    // Simple toast implementation - can be enhanced with Tabler's toast component
+    console.log(`[${type.toUpperCase()}] ${message}`);
+}
+</script>

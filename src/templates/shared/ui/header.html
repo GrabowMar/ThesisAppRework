@@ -35,8 +35,8 @@
               {% set _ = _bs.append({'label': 'Applications', 'url': url_for('main.applications_index')}) %}
             {% elif 'reports' in request.endpoint %}
               {% set _ = _bs.append({'label': 'Reports', 'url': url_for('reports.reports_index')}) %}
-            {% elif 'statistics' in request.endpoint %}
-              {% set _ = _bs.append({'label': 'Statistics', 'url': url_for('statistics.statistics_overview')}) %}
+            {% elif 'stats' in request.endpoint %}
+              {% set _ = _bs.append({'label': 'Statistics', 'url': url_for('stats.statistics_overview')}) %}
             {% elif 'docs' in request.endpoint %}
               {% set _ = _bs.append({'label': 'Documentation', 'url': url_for('docs.docs_index')}) %}
             {% endif %}
