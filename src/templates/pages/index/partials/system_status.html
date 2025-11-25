@@ -7,7 +7,6 @@
       <th class="w-1">Status</th>
       <th>Service</th>
       <th>Message</th>
-      <th class="w-1 text-nowrap">Health</th>
     </tr>
   </thead>
   <tbody>
@@ -41,10 +40,7 @@
         </div>
       </td>
       <td>
-        <span class="text-truncate">{{ component.message or '—' }}</span>
-      </td>
-      <td>
-        <span class="badge bg-{{ tone }}-lt text-{{ tone }}">{{ status|title }}</span>
+        <span class="d-block text-muted small">{{ component.message or '—' }}</span>
       </td>
     </tr>
     {% endfor %}

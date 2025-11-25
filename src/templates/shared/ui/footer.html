@@ -1,13 +1,29 @@
 {# Minimal static footer - theme-aware and dependency-free #}
-<footer class="footer app-footer border-top py-3 small text-muted">
-  <div class="container-xl">
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
-      <div class="text-center text-md-start">
-        <span class="fw-semibold">Thesis Platform</span>
-        <span class="opacity-75 ms-2">v1.0.0</span>
+<footer class="footer app-footer border-top py-3 bg-body-tertiary text-muted mt-auto">
+  <div class="container-fluid px-4">
+    <div class="row align-items-center">
+      <div class="col-12 col-md-6 text-center text-md-start">
+        <ul class="list-inline list-inline-dots mb-0">
+          <li class="list-inline-item">
+            <span class="fw-semibold text-body">Thesis Platform</span>
+          </li>
+          <li class="list-inline-item">
+            <span class="badge bg-green-lt">v1.0.0</span>
+          </li>
+        </ul>
       </div>
-      <div class="text-center text-md-end opacity-75">
-        © 2024 All rights reserved
+      <div class="col-12 col-md-6 text-center text-md-end mt-2 mt-md-0">
+        <ul class="list-inline list-inline-dots mb-0 small">
+          <li class="list-inline-item">
+            <a href="{{ url_for('docs.docs_index') }}" class="link-secondary">Documentation</a>
+          </li>
+          <li class="list-inline-item">
+            <a href="#" class="link-secondary">License</a>
+          </li>
+          <li class="list-inline-item">
+            © 2024 Thesis Platform
+          </li>
+        </ul>
       </div>
     </div>
   </div>
