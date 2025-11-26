@@ -49,6 +49,7 @@ if (window.__MODELS_JS_LOADED__) {
 
   let modelsPageBootstrapped = false;
   let modelsPageSyncTriggered = false;
+  let bulkSelectionManager = null;
 
   function restoreUiStateFromStorage() {
     try {
@@ -76,12 +77,14 @@ if (window.__MODELS_JS_LOADED__) {
     updateFilterSummaries();
     loadModelsPaginated();
 
+    /* Automatic sync removed
     if (firstActivation && !modelsPageSyncTriggered) {
       modelsPageSyncTriggered = true;
       fetch('/api/models/sync', { method: 'POST' })
         .then(() => loadModelsPaginated())
         .catch(() => console.warn('Model sync failed, using cached data'));
     }
+    */
 
     // Initialize table utilities after first render
     if (firstActivation && typeof TableUtils !== 'undefined') {
@@ -113,13 +116,14 @@ if (window.__MODELS_JS_LOADED__) {
 
     // Initialize bulk selection manager
     if (document.getElementById('models-table')) {
-      new TableUtils.BulkSelectionManager('models-table', 'select-all-models', {
+      window.bulkSelectionManagerActive = true;
+      bulkSelectionManager = new TableUtils.BulkSelectionManager('models-table', 'select-all-models', {
         rowCheckboxClass: 'model-checkbox',
         selectionIndicatorId: 'models-selection-indicator',
         onSelectionChange: (ids) => {
           selectedModels = ids;
           updateBatchSelectionCount();
-          document.getElementById('compare-models-btn').disabled = ids.length === 0;
+          updateCompareButton();
         }
       });
     }
@@ -469,7 +473,13 @@ function loadModelsPaginated() {
       renderPagination(d.pagination || {});
       
       // Re-setup handlers after table render
-      setTimeout(() => setupFilterHandlers(), 100);
+      setTimeout(() => {
+        setupFilterHandlers();
+        if (bulkSelectionManager) {
+          bulkSelectionManager.updateCheckboxListeners();
+          bulkSelectionManager.updateSelectionState();
+        }
+      }, 100);
     })
     .catch(e => {
       if (e.name === 'AbortError') {
@@ -722,7 +732,7 @@ function renderModelsTable(models) {
       : '';
     
     return `<tr>
-      <td><input type="checkbox" class="form-check-input m-0" onchange="toggleModelSelection('${m.slug}')" aria-label="Select" ${selectedModels.includes(m.slug) ? 'checked' : ''}></td>
+      <td><input type="checkbox" class="form-check-input m-0 model-checkbox" value="${m.slug}" onchange="toggleModelSelection('${m.slug}')" aria-label="Select" ${selectedModels.includes(m.slug) ? 'checked' : ''}></td>
       <td>
         <div class="d-flex align-items-center">
           <strong>${m.name}</strong>
@@ -770,11 +780,20 @@ function clearModelSelection() {
 
 /** Toggle inclusion of a single model in bulk selection */
 function toggleModelSelection(slug) {
+  // If BulkSelectionManager is active, it handles the state via event listeners
+  // However, since we use inline onchange handlers, we can also update state here
+  // to ensure immediate feedback even if listeners haven't attached yet
+  
   const i = selectedModels.indexOf(slug);
   if (i > -1) selectedModels.splice(i, 1); else selectedModels.push(slug);
   updateBatchSelectionCount();
   updateCompareButton();
   try { localStorage.setItem('models_selected', JSON.stringify(selectedModels)); } catch(e) {}
+  
+  // Sync BulkSelectionManager if active
+  if (bulkSelectionManager) {
+    bulkSelectionManager.updateSelectionState();
+  }
 }
 
 /** Update compare button state */
