@@ -363,7 +363,7 @@ def application_detail(model_slug, app_number):
     """Detailed view for a specific application using the unified detail context."""
     try:
         context = build_application_detail_context(model_slug, app_number, allow_synthetic=True)
-        return render_template('pages/applications/detail.html', **context)
+        return render_template('pages/applications/applications_detail.html', **context)
     except HTTPException:
         raise
     except Exception as exc:
@@ -455,7 +455,7 @@ def application_section_prompts(model_slug, app_number):
     """Return the prompts modal so the UI can lazy load it via HTMX."""
     try:
         context = build_application_detail_context(model_slug, app_number, allow_synthetic=True)
-        return render_template('pages/applications/partials/modals/prompts_modal.html', **context)
+        return render_template('pages/applications/partials/modals/_prompts_modal.html', **context)
     except HTTPException:
         raise
     except Exception as exc:
@@ -678,7 +678,7 @@ def application_ports_diagnostics(model_slug, app_number):
 def bulk_operations():
     """HTMX endpoint for bulk operations modal content."""
     try:
-        return render_template('pages/applications/partials/bulk_operations.html')
+        return render_template('pages/applications/partials/_bulk_operations.html')
     except Exception as e:
         current_app.logger.error(f"Error loading bulk operations: {e}")
         return f'<div class="alert alert-danger">Error loading bulk operations: {str(e)}</div>'

@@ -23,7 +23,7 @@
 
         {# Breadcrumb: Enhanced styling #}
         <div class="breadcrumb-wrapper d-none d-lg-flex align-items-center">
-          {% from 'shared/ui/macros/nav_macros.html' import breadcrumb %}
+          {% from 'shared/macros/nav_macros.html' import breadcrumb %}
           {% set _bs = [] %}
           {% set _ = _bs.append({'label': 'Dashboard', 'url': url_for('main.dashboard')}) %}
           {% if request and request.endpoint %}

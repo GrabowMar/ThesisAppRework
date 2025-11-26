@@ -761,14 +761,14 @@ def _collect_app_logs(model_slug: str, app_number: int, tail: int = 100) -> Tupl
 
 def _build_application_sections(model_slug: str, app_number: int) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, Any]]]:
     base = [
-        ('overview', 'Overview', 'fas fa-info-circle', 'pages/applications/partials/overview.html'),
-        ('files', 'Files', 'fas fa-folder-open', 'pages/applications/partials/files.html'),
-        ('ports', 'Ports', 'fas fa-network-wired', 'pages/applications/partials/ports.html'),
-        ('container', 'Container', 'fab fa-docker', 'pages/applications/partials/container.html'),
-        ('analyses', 'Analyses', 'fas fa-flask', 'pages/applications/partials/analyses.html'),
-        ('metadata', 'Metadata', 'fas fa-database', 'pages/applications/partials/metadata.html'),
-        ('artifacts', 'Artifacts', 'fas fa-book', 'pages/applications/partials/artifacts.html'),
-        ('logs', 'Logs', 'fas fa-file-lines', 'pages/applications/partials/logs.html'),
+        ('overview', 'Overview', 'fas fa-info-circle', 'pages/applications/partials/_overview.html'),
+        ('files', 'Files', 'fas fa-folder-open', 'pages/applications/partials/_files.html'),
+        ('ports', 'Ports', 'fas fa-network-wired', 'pages/applications/partials/_ports.html'),
+        ('container', 'Container', 'fab fa-docker', 'pages/applications/partials/_container.html'),
+        ('analyses', 'Analyses', 'fas fa-flask', 'pages/applications/partials/_analyses.html'),
+        ('metadata', 'Metadata', 'fas fa-database', 'pages/applications/partials/_metadata.html'),
+        ('artifacts', 'Artifacts', 'fas fa-book', 'pages/applications/partials/_artifacts.html'),
+        ('logs', 'Logs', 'fas fa-file-lines', 'pages/applications/partials/_logs.html'),
     ]
     sections: List[Dict[str, Any]] = []
     sections_map: Dict[str, Dict[str, Any]] = {}
@@ -1051,13 +1051,13 @@ def _calculate_average_model_stats() -> Dict[str, Any]:
 
 def _build_model_sections(model_slug: str) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, Any]]]:
     base = [
-        ('overview', 'Overview', 'fas fa-info-circle', 'pages/models/partials/model_overview.html'),
-        ('capabilities', 'Capabilities', 'fas fa-cogs', 'pages/models/partials/model_capabilities.html'),
-        ('provider', 'Provider & Performance', 'fas fa-server', 'pages/models/partials/provider_performance.html'),
-        ('pricing', 'Pricing', 'fas fa-dollar-sign', 'pages/models/partials/pricing-info.html'),
-        ('applications', 'Applications', 'fas fa-cube', 'pages/models/partials/model_applications.html'),
-        ('usage', 'Usage Analytics', 'fas fa-chart-line', 'pages/models/partials/usage_analytics.html'),
-        ('metadata', 'Metadata', 'fas fa-database', 'pages/models/partials/model_metadata.html'),
+        ('overview', 'Overview', 'fas fa-info-circle', 'pages/models/partials/_model_overview.html'),
+        ('capabilities', 'Capabilities', 'fas fa-cogs', 'pages/models/partials/_model_capabilities.html'),
+        ('provider', 'Provider & Performance', 'fas fa-server', 'pages/models/partials/_provider_performance.html'),
+        ('pricing', 'Pricing', 'fas fa-dollar-sign', 'pages/models/partials/_pricing_info.html'),
+        ('applications', 'Applications', 'fas fa-cube', 'pages/models/partials/_model_applications.html'),
+        ('usage', 'Usage Analytics', 'fas fa-chart-line', 'pages/models/partials/_usage_analytics.html'),
+        ('metadata', 'Metadata', 'fas fa-database', 'pages/models/partials/_model_metadata.html'),
     ]
     sections: List[Dict[str, Any]] = []
     sections_map: Dict[str, Dict[str, Any]] = {}

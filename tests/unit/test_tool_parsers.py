@@ -74,5 +74,5 @@ def test_extract_ai_requirements():
     }
     findings = extract_tool_findings('ai', 'ai-analyzer', results)
     assert len(findings) == 1
-    assert findings[0]['rule_id'] == 'requirement-not-met'
+    assert findings[0]['rule_id'] == 'ai-legacy-requirement-not-met'
     assert findings[0]['severity'] == 'HIGH'

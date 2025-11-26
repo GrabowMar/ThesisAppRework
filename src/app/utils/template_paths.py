@@ -83,9 +83,9 @@ def remap_template(name: str) -> str:
         if (_templates_root() / candidate).exists():
             return candidate
 
-    # Heuristic 2: common error partial relocated to pages/errors/errors_main.html
-    if name == 'partials/common/error.html' and (_templates_root() / 'pages/errors/errors_main.html').exists():
-        return 'pages/errors/errors_main.html'
+    # Heuristic 2: common error partial relocated to pages/errors/main.html
+    if name == 'partials/common/error.html' and (_templates_root() / 'pages/errors/main.html').exists():
+        return 'pages/errors/main.html'
 
     # Heuristic 3: dashboard/system health inner partial moved under pages/system/partials
     if name.startswith('partials/dashboard/_system_health_inner'):
@@ -126,9 +126,9 @@ def remap_template(name: str) -> str:
                 return name
         return name
 
-    # Heuristic 8: error partial moved to pages/errors/errors_main.html
+    # Heuristic 8: error partial moved to pages/errors/main.html
     if name == 'partials/common/error.html':
-        candidate = 'pages/errors/errors_main.html'
+        candidate = 'pages/errors/main.html'
         if (_templates_root() / candidate).exists():
             return candidate
 

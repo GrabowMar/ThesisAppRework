@@ -155,7 +155,7 @@ def model_apps(model_slug):
 def models_import_page():
     """Render a simple import page to upload JSON and call the API."""
     try:
-        return render_template('pages/models/import.html')
+        return render_template('pages/models/models_import.html')
     except Exception as e:
         current_app.logger.error(f"Error rendering models import page: {e}")
         return render_template(
@@ -365,7 +365,7 @@ def models_comparison():
                     row['support'].append(val)
                 comparison_rows.append(row)
         return render_template(
-            'pages/models/comparison.html',
+            'pages/models/models_comparison.html',
             models=selected_models,
             pricing=pricing,
             capability_rows=comparison_rows,
@@ -388,7 +388,7 @@ def model_details(model_slug):
     """Detailed view of a specific model."""
     try:
         context = build_model_detail_context(model_slug, enrich_model=_enrich_model)
-        return render_template('pages/models/model_details.html', **context)
+        return render_template('pages/models/models_detail.html', **context)
     except HTTPException:
         raise
     except Exception as exc:
@@ -473,7 +473,7 @@ def model_section(model_slug, section):
         if not section_cfg:
             current_app.logger.warning(f"Unknown section '{section}' requested for model '{model_slug}'")
             return render_template(
-                'components/error_section.html',
+                'shared/components/_error_section.html',
                 error_title='Unknown Section',
                 error_message=f"The section '{section}' does not exist for this model.",
                 error_icon='fas fa-question-circle'
@@ -484,7 +484,7 @@ def model_section(model_slug, section):
     except HTTPException as http_ex:
         current_app.logger.error(f"HTTP exception rendering section {section} for {model_slug}: {http_ex}")
         return render_template(
-            'components/error_section.html',
+            'shared/components/_error_section.html',
             error_title='Section Load Failed',
             error_message=f"Could not load {section} section: {str(http_ex)}",
             error_icon='fas fa-exclamation-triangle',
@@ -493,7 +493,7 @@ def model_section(model_slug, section):
     except Exception as exc:
         current_app.logger.error("Error rendering model section %s for %s: %s", section, model_slug, exc, exc_info=True)
         return render_template(
-            'components/error_section.html',
+            'shared/components/_error_section.html',
             error_title='Section Error',
             error_message=f"An unexpected error occurred loading {section}.",
             error_detail=str(exc) if current_app.debug else None,

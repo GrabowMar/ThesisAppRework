@@ -46,41 +46,42 @@ def about():
     """About page - redirects to docs since about content is now consolidated there."""
     return redirect(url_for('docs.docs_index'))
 
-@main_bp.route('/spa/dashboard')
-def spa_dashboard():
-    """SPA: Dashboard inner content."""
-    try:
-        return render_template('spa/dashboard_content.html')
-    except Exception as e:
-        current_app.logger.error(f"Error loading SPA dashboard: {e}")
-        return render_template('pages/errors/errors_main.html', error=str(e)), 500
+# SPA routes disabled as templates are missing/deprecated
+# @main_bp.route('/spa/dashboard')
+# def spa_dashboard():
+#     """SPA: Dashboard inner content."""
+#     try:
+#         return render_template('spa/dashboard_content.html')
+#     except Exception as e:
+#         current_app.logger.error(f"Error loading SPA dashboard: {e}")
+#         return render_template('pages/errors/errors_main.html', error=str(e)), 500
 
-@main_bp.route('/spa/analysis')
-def spa_analysis():
-    """SPA: Analysis hub inner content."""
-    try:
-        return render_template('spa/analysis_content.html')
-    except Exception as e:
-        current_app.logger.error(f"Error loading SPA analysis: {e}")
-        return render_template('pages/errors/errors_main.html', error=str(e)), 500
+# @main_bp.route('/spa/analysis')
+# def spa_analysis():
+#     """SPA: Analysis hub inner content."""
+#     try:
+#         return render_template('spa/analysis_content.html')
+#     except Exception as e:
+#         current_app.logger.error(f"Error loading SPA analysis: {e}")
+#         return render_template('pages/errors/errors_main.html', error=str(e)), 500
 
-@main_bp.route('/spa/models')
-def spa_models():
-    """SPA: Models overview inner content."""
-    try:
-        return render_template('spa/models_content.html')
-    except Exception as e:
-        current_app.logger.error(f"Error loading SPA models: {e}")
-        return render_template('pages/errors/errors_main.html', error=str(e)), 500
+# @main_bp.route('/spa/models')
+# def spa_models():
+#     """SPA: Models overview inner content."""
+#     try:
+#         return render_template('spa/models_content.html')
+#     except Exception as e:
+#         current_app.logger.error(f"Error loading SPA models: {e}")
+#         return render_template('pages/errors/errors_main.html', error=str(e)), 500
 
-@main_bp.route('/spa/applications')
-def spa_applications():
-    """SPA: Applications overview inner content."""
-    try:
-        return render_template('spa/applications_content.html')
-    except Exception as e:
-        current_app.logger.error(f"Error loading SPA applications: {e}")
-        return render_template('pages/errors/errors_main.html', error=str(e)), 500
+# @main_bp.route('/spa/applications')
+# def spa_applications():
+#     """SPA: Applications overview inner content."""
+#     try:
+#         return render_template('spa/applications_content.html')
+#     except Exception as e:
+#         current_app.logger.error(f"Error loading SPA applications: {e}")
+#         return render_template('pages/errors/errors_main.html', error=str(e)), 500
 
 @main_bp.route('/system-status')
 def system_status():
@@ -93,7 +94,7 @@ def system_status():
 def api_access():
     """API Access and token management page."""
     return render_template(
-        'pages/api_access.html',
+        'pages/api_access/api_access_main.html',
         page_title='API Access',
         active_page='api-access'
     )
@@ -147,7 +148,7 @@ def models_overview():
             'avg_cost_per_1k': round(avg_cost, 6),
         }
         return render_template(
-            'pages/models/overview.html',
+            'pages/models/models_main.html',
             page_title='Models Overview',
             provider_options=provider_options,
             capability_options=sorted(capability_options),
@@ -191,7 +192,7 @@ def applications_table():
         from app.routes.jinja.applications import build_applications_context  # type: ignore
         context = build_applications_context()
         # Return only the table block so HX swap can replace the section
-        html = render_template('pages/applications/partials/table_block.html', **context)
+        html = render_template('pages/applications/partials/_table_block.html', **context)
         # Add an identifying header so we can confirm in Network panel this is the partial
         from flask import make_response
         resp = make_response(html)
@@ -282,7 +283,7 @@ def applications_generation_metadata_alias(model_slug, app_number):
 def advanced_apps_grid():
     """Advanced apps grid page."""
     return render_template(
-        'views/applications/index.html',
+        'pages/applications/applications_main.html',
         page_title='Applications Grid'
     )
 
@@ -290,7 +291,7 @@ def advanced_apps_grid():
 def advanced_models_overview():
     """Advanced models overview page."""
     return render_template(
-        'pages/models/overview.html',
+        'pages/models/models_main.html',
         page_title='Models Overview'
     )
 

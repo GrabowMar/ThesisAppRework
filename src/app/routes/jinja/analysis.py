@@ -234,7 +234,7 @@ def analysis_tasks_table():
     }
 
     html = render_template(
-        'pages/analysis/partials/tasks_table.html',
+        'pages/analysis/partials/_tasks_table.html',
         items=unified_items,
         pagination=pagination,
         model_filter=model_filter,
@@ -335,7 +335,7 @@ def analysis_create():
         if errors:
             for message in errors:
                 flash(message, 'danger')
-            return render_template('pages/analysis/create.html'), 400
+            return render_template('pages/analysis/analysis_create.html'), 400
 
         missing_targets: List[str] = []
         for mslug, anum in selection_pairs:
@@ -345,7 +345,7 @@ def analysis_create():
         if missing_targets:
             for target in missing_targets:
                 flash(f"Application not found: {target}", 'danger')
-            return render_template('pages/analysis/create.html'), 404
+            return render_template('pages/analysis/analysis_create.html'), 404
 
         try:
             from app.engines.container_tool_registry import get_container_tool_registry
@@ -449,16 +449,16 @@ def analysis_create():
                 if invalid_entries:
                     for message in invalid_entries:
                         flash(message, 'danger')
-                    return render_template('pages/analysis/create.html'), 400
+                    return render_template('pages/analysis/analysis_create.html'), 400
 
                 if not canonical_selection:
                     flash('No valid tools selected after validation.', 'danger')
-                    return render_template('pages/analysis/create.html'), 400
+                    return render_template('pages/analysis/analysis_create.html'), 400
 
                 tool_ids, tool_names, tool_display_names, tools_by_service = build_tool_payload(canonical_selection)
                 if not tools_by_service:
                     flash('No valid tools selected after validation.', 'danger')
-                    return render_template('pages/analysis/create.html'), 400
+                    return render_template('pages/analysis/analysis_create.html'), 400
 
                 try:
                     current_app.logger.debug(
@@ -501,12 +501,12 @@ def analysis_create():
 
                 if not canonical_profile:
                     flash(f"Unknown or empty analysis profile: {analysis_profile}", 'danger')
-                    return render_template('pages/analysis/create.html', 400)
+                    return render_template('pages/analysis/analysis_create.html'), 400
 
                 tool_ids, tool_names, tool_display_names, tools_by_service = build_tool_payload(canonical_profile)
                 if not tool_names:
                     flash(f"No available tools for profile {analysis_profile}", 'danger')
-                    return render_template('pages/analysis/create.html'), 400
+                    return render_template('pages/analysis/analysis_create.html'), 400
 
                 base_options: Dict[str, Any] = {
                     'selected_tools': tool_ids,
@@ -531,7 +531,7 @@ def analysis_create():
 
             if not created_tasks:
                 flash('No analysis tasks were created.', 'warning')
-                return render_template('pages/analysis/create.html'), 500
+                return render_template('pages/analysis/analysis_create.html'), 500
 
             success_message = f"Launched {len(created_tasks)} analysis task(s)"
             if total_subtasks:
@@ -541,11 +541,11 @@ def analysis_create():
         except Exception as exc:  # pragma: no cover - defensive logging
             current_app.logger.exception('analysis_create failed inside processing block')
             flash(f'Error creating analysis task: {exc}', 'danger')
-            return render_template('pages/analysis/create.html'), 500
+            return render_template('pages/analysis/analysis_create.html'), 500
 
         return redirect(url_for('analysis.analysis_list'))
 
-    return render_template('pages/analysis/create.html')
+    return render_template('pages/analysis/analysis_create.html')
 
 
 @analysis_bp.route('/quick/ai')
@@ -657,7 +657,7 @@ def htmx_model_grid_fragment():
     end = start + page_size
     page_models = models[start:end]
     has_next = end < total
-    return render_template('pages/analysis/partials/model_grid_select.html', models=page_models, selectable=selectable, page=page, page_size=page_size, total=total, has_next=has_next)
+    return render_template('pages/analysis/partials/_model_grid_select.html', models=page_models, selectable=selectable, page=page, page_size=page_size, total=total, has_next=has_next)
 
 
 @analysis_bp.route('/api/models/providers')
@@ -688,7 +688,7 @@ def htmx_model_applications_fragment(model_slug):
         current_app.model_service = ModelService(current_app)  # type: ignore[attr-defined]
     svc = current_app.model_service  # type: ignore[attr-defined]
     apps = svc.get_model_apps(model_slug)
-    return render_template('pages/analysis/partials/applications_select.html', applications=apps, model_slug=model_slug)
+    return render_template('pages/analysis/partials/_applications_select.html', applications=apps, model_slug=model_slug)
 
 
 def _get_result_service() -> UnifiedResultService:
@@ -765,7 +765,7 @@ def analysis_result_detail(result_id: str):
     })
 
     return render_template(
-        'pages/analysis/result_detail.html',
+        'pages/analysis/analysis_result_detail.html',
         descriptor=descriptor,
         payload=wrapped_payload,
         findings=findings,

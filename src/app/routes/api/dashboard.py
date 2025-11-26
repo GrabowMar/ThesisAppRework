@@ -308,11 +308,11 @@ def dashboard_fragment(fragment_name: str):
         
         if fragment_name == 'summary-cards':
             summary = build_summary_payload()
-            return render_template('pages/index/partials/summary_cards.html', summary=summary)
+            return render_template('pages/index/partials/_summary_cards.html', summary=summary)
             
         elif fragment_name == 'system-status':
             system_status = build_system_status_payload()
-            return render_template('pages/index/partials/system_status.html', system_status=system_status)
+            return render_template('pages/index/partials/_system_status.html', system_status=system_status)
             
         elif fragment_name == 'recent-activity':
             activity = get_recent_activity_entries()
@@ -320,11 +320,11 @@ def dashboard_fragment(fragment_name: str):
             
         elif fragment_name == 'recent-applications':
             applications = get_recent_applications()
-            return render_template('pages/index/partials/recent_applications.html', applications=applications)
+            return render_template('pages/index/partials/_recent_applications.html', applications=applications)
             
         elif fragment_name == 'recent-analyses':
             analyses = get_recent_analysis_summary()
-            return render_template('pages/index/partials/recent_analyses.html', analyses=analyses)
+            return render_template('pages/index/partials/_recent_analyses.html', analyses=analyses)
             
         elif fragment_name == 'stats':
             stats = {

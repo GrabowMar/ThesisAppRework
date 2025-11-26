@@ -35,9 +35,9 @@
 </head>
 <body id="app-body">
   <div class="page">
-    {% include 'shared/ui/sidebar.html' %}
+    {% include 'shared/ui/_sidebar.html' %}
     <div class="sidebar-backdrop d-lg-none" id="sidebar-backdrop" aria-hidden="true"></div>
-    {% include 'shared/ui/header.html' %}
+    {% include 'shared/ui/_header.html' %}
     {% set has_right_sidebar = has_right_sidebar|default(false) %}
     <div class="page-wrapper{% if has_right_sidebar %} has-right-sidebar{% endif %}{% if active_page %} page-{{ active_page }}{% endif %}">
       <div class="page-body py-3">
@@ -61,7 +61,7 @@
     </div>
   </div>
 
-  {% include 'shared/ui/footer.html' %}
+  {% include 'shared/ui/_footer.html' %}
 
   <!-- Modals / global components -->
   <div class="modal modal-blur fade" id="search-modal" tabindex="-1" aria-hidden="true">

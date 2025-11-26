@@ -58,10 +58,10 @@ def render_pdf(report, data: Dict[str, Any], output_path: Path) -> None:
 def _get_template_name(report_type: str) -> str:
     """Get Jinja2 template name for report type."""
     template_map = {
-        'app_analysis': 'pages/reports/app_analysis.html',
-        'model_comparison': 'pages/reports/model_comparison.html',
-        'tool_effectiveness': 'pages/reports/tool_effectiveness.html',
-        'executive_summary': 'pages/reports/executive_summary.html',
+        'app_analysis': 'pages/reports/partials/_app_analysis.html',
+        'model_comparison': 'pages/reports/partials/_model_comparison.html',
+        'tool_effectiveness': 'pages/reports/partials/_tool_effectiveness.html',
+        'executive_summary': 'pages/reports/partials/_executive_summary.html',
         'custom': 'pages/reports/custom.html'
     }
     

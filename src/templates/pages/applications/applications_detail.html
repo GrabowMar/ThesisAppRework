@@ -1,6 +1,6 @@
 {# Application Detail - Research Dashboard Design #}
 {% extends 'layouts/base.html' %}
-{% from 'components/detail_macros.html' import research_detail_header, research_metric_grid, research_section_nav, research_section, research_scroll_spy_script %}
+{% from 'shared/macros/detail_macros.html' import research_detail_header, research_metric_grid, research_section_nav, research_section, research_scroll_spy_script %}
 {% set active_page = 'applications' %}
 {% set page_title = view.title if view else 'Application Detail' %}
 

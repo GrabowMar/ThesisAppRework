@@ -37,7 +37,7 @@ def reports_index():
     
     # Template renders the reports list
     return render_template(
-        'pages/reports/index_main.html',
+        'pages/reports/reports_main.html',
         reports=reports
     )
 
@@ -79,7 +79,7 @@ def new_report():
     
     # Return modal fragment for HTMX
     return render_template(
-        'pages/reports/new_report_modal.html',
+        'pages/reports/partials/_new_report_modal.html',
         models=models_data,
         apps_by_model=apps_by_model
     )

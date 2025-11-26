@@ -39,7 +39,7 @@ def docs_index():
         }
         for section in sections for item in section.items
     ]
-    return render_template('pages/docs/docs_index.html', sections=sections, docs_files=docs_files)
+    return render_template('pages/docs/docs_main.html', sections=sections, docs_files=docs_files)
 
 @docs_bp.route('/<path:filepath>')
 def docs_file(filepath):
@@ -104,7 +104,7 @@ def docs_search():
     results = DocsService.search(query)
     # Render a small partial list to be injected by HTMX
     return render_template(
-        'pages/docs/partials/search_results.html',
+        'pages/docs/partials/_search_results.html',
         query=query,
         results=results,
     )

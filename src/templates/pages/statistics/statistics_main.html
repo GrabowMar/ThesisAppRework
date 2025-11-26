@@ -6,11 +6,11 @@
   {% if main_partial %}
     {% include main_partial ignore missing %}
   {% else %}
-    {% include 'pages/statistics/partials/main.html' ignore missing %}
+    {% include 'pages/statistics/partials/_main.html' ignore missing %}
   {% endif %}
 {% endblock %}
 
 {% block scripts %}
   {{ super() }}
-  {% include 'pages/statistics/partials/scripts.html' ignore missing %}
+  {% include 'pages/statistics/partials/_scripts.html' ignore missing %}
 {% endblock %}
