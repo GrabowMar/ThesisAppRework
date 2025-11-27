@@ -22,14 +22,6 @@
   .custom-scrollbar::-webkit-scrollbar { width: 4px; }
   .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
   .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
-  .mobile-toggle-btn {
-    bottom: 1rem; 
-    right: 1rem; 
-    z-index: 1000; 
-    border-radius: 50%; 
-    width: 48px; 
-    height: 48px;
-  }
 </style>
 
 {% set ep = request.endpoint or '' %}
@@ -182,7 +174,7 @@
 </aside>
 
 <!-- Mobile sidebar toggle button (visible only on mobile) -->
-<button class="sidebar-toggle-mobile d-lg-none btn btn-primary btn-sm position-fixed shadow mobile-toggle-btn"
+<button class="sidebar-toggle-mobile d-lg-none btn btn-primary position-fixed shadow"
         id="mobile-sidebar-toggle"
         type="button"
         aria-controls="sidebar"
@@ -190,4 +182,8 @@
         aria-label="Open navigation menu">
   <i class="fa-solid fa-bars" aria-hidden="true"></i>
 </button>
+
+<!-- Mobile sidebar backdrop (click to close) -->
+<div id="sidebar-backdrop" class="sidebar-backdrop" aria-hidden="true"></div>
+
 {# Sidebar styles + behavior: static/css/theme.css & static/js/sidebar.js #}

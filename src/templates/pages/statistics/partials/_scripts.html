@@ -13,97 +13,137 @@ document.addEventListener('DOMContentLoaded', function() {
     updateLastCheckTime();
 });
 
+// Sanitize numeric value for charts (handle None, undefined, NaN)
+function sanitizeNumber(val, defaultVal) {
+    defaultVal = typeof defaultVal === 'number' ? defaultVal : 0;
+    if (val === null || val === undefined || val === 'None') return defaultVal;
+    var num = Number(val);
+    return isFinite(num) ? num : defaultVal;
+}
+
+// Sanitize array of numbers
+function sanitizeNumberArray(arr) {
+    if (!Array.isArray(arr)) return [];
+    return arr.map(function(v) { return sanitizeNumber(v, 0); });
+}
+
 // Initialize ApexCharts
 function initializeCharts() {
-    // Trends Chart - Line chart for analysis activity over time
-    const trendsOptions = {
-        chart: {
-            type: 'area',
-            height: 300,
-            toolbar: { show: false },
-            animations: { enabled: true, easing: 'easeinout', speed: 500 }
-        },
-        series: [{
-            name: 'Completed',
-            data: {{ trends.completed|tojson if trends else '[]' }}
-        }, {
-            name: 'Failed',
-            data: {{ trends.failed|tojson if trends else '[]' }}
-        }],
-        xaxis: {
-            categories: {{ trends.dates|tojson if trends else '[]' }},
-            labels: {
-                style: { colors: '#6c757d' },
-                rotate: -45
-            }
-        },
-        yaxis: {
-            labels: { style: { colors: '#6c757d' } }
-        },
-        colors: ['#2fb344', '#d63939'],
-        fill: {
-            type: 'gradient',
-            gradient: {
-                shadeIntensity: 1,
-                opacityFrom: 0.4,
-                opacityTo: 0.1,
-                stops: [0, 100]
-            }
-        },
-        stroke: { curve: 'smooth', width: 2 },
-        legend: { position: 'top', horizontalAlign: 'right' },
-        tooltip: { theme: 'dark' },
-        grid: { borderColor: '#e9ecef', strokeDashArray: 3 }
-    };
+    // Raw data from Jinja (may contain None/null values)
+    var rawTrendsDates = {{ (trends.dates if trends and trends.dates else [])|tojson }};
+    var rawTrendsCompleted = {{ (trends.completed if trends and trends.completed else [])|tojson }};
+    var rawTrendsFailed = {{ (trends.failed if trends and trends.failed else [])|tojson }};
     
-    const trendsEl = document.querySelector('#trendsChart');
-    if (trendsEl) {
+    var rawSeverityCritical = {{ (severity.critical if severity else 0)|tojson }};
+    var rawSeverityHigh = {{ (severity.high if severity else 0)|tojson }};
+    var rawSeverityMedium = {{ (severity.medium if severity else 0)|tojson }};
+    var rawSeverityLow = {{ (severity.low if severity else 0)|tojson }};
+    var rawSeverityInfo = {{ (severity.info if severity else 0)|tojson }};
+    
+    // Sanitize all numeric data
+    var trendsDates = Array.isArray(rawTrendsDates) ? rawTrendsDates : [];
+    var trendsCompleted = sanitizeNumberArray(rawTrendsCompleted);
+    var trendsFailed = sanitizeNumberArray(rawTrendsFailed);
+    
+    var severityData = [
+        sanitizeNumber(rawSeverityCritical, 0),
+        sanitizeNumber(rawSeverityHigh, 0),
+        sanitizeNumber(rawSeverityMedium, 0),
+        sanitizeNumber(rawSeverityLow, 0),
+        sanitizeNumber(rawSeverityInfo, 0)
+    ];
+    var severityTotal = severityData.reduce(function(a, b) { return a + b; }, 0);
+    
+    // Trends Chart - Line chart for analysis activity over time
+    var trendsEl = document.querySelector('#trendsChart');
+    if (trendsEl && trendsDates.length > 0) {
+        var trendsOptions = {
+            chart: {
+                type: 'area',
+                height: 300,
+                toolbar: { show: false },
+                animations: { enabled: true, easing: 'easeinout', speed: 500 }
+            },
+            series: [{
+                name: 'Completed',
+                data: trendsCompleted
+            }, {
+                name: 'Failed',
+                data: trendsFailed
+            }],
+            xaxis: {
+                categories: trendsDates,
+                labels: {
+                    style: { colors: '#6c757d' },
+                    rotate: -45
+                }
+            },
+            yaxis: {
+                labels: { style: { colors: '#6c757d' } },
+                min: 0
+            },
+            colors: ['#2fb344', '#d63939'],
+            fill: {
+                type: 'gradient',
+                gradient: {
+                    shadeIntensity: 1,
+                    opacityFrom: 0.4,
+                    opacityTo: 0.1,
+                    stops: [0, 100]
+                }
+            },
+            stroke: { curve: 'smooth', width: 2 },
+            legend: { position: 'top', horizontalAlign: 'right' },
+            tooltip: { theme: 'dark' },
+            grid: { borderColor: '#e9ecef', strokeDashArray: 3 },
+            noData: { text: 'No analysis data available' }
+        };
         trendsChart = new ApexCharts(trendsEl, trendsOptions);
         trendsChart.render();
+    } else if (trendsEl) {
+        // Show placeholder when no data
+        trendsEl.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-muted"><span>No analysis trends data available</span></div>';
     }
 
-    // Severity Distribution - Donut chart
-    const severityOptions = {
-        chart: {
-            type: 'donut',
-            height: 300,
-            animations: { enabled: true, easing: 'easeinout', speed: 500 }
-        },
-        series: [
-            {{ severity.critical if severity else 0 }},
-            {{ severity.high if severity else 0 }},
-            {{ severity.medium if severity else 0 }},
-            {{ severity.low if severity else 0 }},
-            {{ severity.info if severity else 0 }}
-        ],
-        labels: ['Critical', 'High', 'Medium', 'Low', 'Info'],
-        colors: ['#d63939', '#f76707', '#f59f00', '#2fb344', '#206bc4'],
-        legend: { position: 'bottom' },
-        plotOptions: {
-            pie: {
-                donut: {
-                    size: '65%',
-                    labels: {
-                        show: true,
-                        total: {
+    // Severity Distribution - Donut chart (only render if there's data)
+    var severityEl = document.querySelector('#severityChart');
+    if (severityEl && severityTotal > 0) {
+        var severityOptions = {
+            chart: {
+                type: 'donut',
+                height: 300,
+                animations: { enabled: true, easing: 'easeinout', speed: 500 }
+            },
+            series: severityData,
+            labels: ['Critical', 'High', 'Medium', 'Low', 'Info'],
+            colors: ['#d63939', '#f76707', '#f59f00', '#2fb344', '#206bc4'],
+            legend: { position: 'bottom' },
+            plotOptions: {
+                pie: {
+                    donut: {
+                        size: '65%',
+                        labels: {
                             show: true,
-                            label: 'Total',
-                            formatter: function(w) {
-                                return w.globals.seriesTotals.reduce((a, b) => a + b, 0);
+                            total: {
+                                show: true,
+                                label: 'Total',
+                                formatter: function(w) {
+                                    return w.globals.seriesTotals.reduce(function(a, b) { return a + b; }, 0);
+                                }
                             }
                         }
                     }
                 }
-            }
-        },
-        tooltip: { theme: 'dark' },
-        dataLabels: { enabled: false }
-    };
-    
-    const severityEl = document.querySelector('#severityChart');
-    if (severityEl) {
+            },
+            tooltip: { theme: 'dark' },
+            dataLabels: { enabled: false },
+            noData: { text: 'No severity data' }
+        };
         severityChart = new ApexCharts(severityEl, severityOptions);
         severityChart.render();
+    } else if (severityEl) {
+        // Show placeholder when no findings
+        severityEl.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-muted flex-column"><i class="fa-solid fa-check-circle fa-2x mb-2 text-success"></i><span>No findings to display</span></div>';
     }
 }
 
@@ -180,24 +220,37 @@ function updateHealthBanner(health) {
 
 // Update charts with new data
 function updateCharts(trends, severity) {
+    // Sanitize trends data
     if (trendsChart && trends) {
-        trendsChart.updateOptions({
-            xaxis: { categories: trends.dates }
-        });
-        trendsChart.updateSeries([
-            { name: 'Completed', data: trends.completed },
-            { name: 'Failed', data: trends.failed }
-        ]);
+        var dates = Array.isArray(trends.dates) ? trends.dates : [];
+        var completed = sanitizeNumberArray(trends.completed);
+        var failed = sanitizeNumberArray(trends.failed);
+        
+        if (dates.length > 0) {
+            trendsChart.updateOptions({
+                xaxis: { categories: dates }
+            });
+            trendsChart.updateSeries([
+                { name: 'Completed', data: completed },
+                { name: 'Failed', data: failed }
+            ]);
+        }
     }
     
+    // Sanitize severity data
     if (severityChart && severity) {
-        severityChart.updateSeries([
-            severity.critical,
-            severity.high,
-            severity.medium,
-            severity.low,
-            severity.info
-        ]);
+        var severityData = [
+            sanitizeNumber(severity.critical, 0),
+            sanitizeNumber(severity.high, 0),
+            sanitizeNumber(severity.medium, 0),
+            sanitizeNumber(severity.low, 0),
+            sanitizeNumber(severity.info, 0)
+        ];
+        var total = severityData.reduce(function(a, b) { return a + b; }, 0);
+        
+        if (total > 0) {
+            severityChart.updateSeries(severityData);
+        }
     }
 }
 

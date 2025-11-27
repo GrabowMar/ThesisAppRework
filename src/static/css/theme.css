@@ -386,9 +386,22 @@ body.sidebar-collapsed footer.footer {
 }
 
 /* Mobile sidebar toggle button */
+.sidebar-toggle-mobile {
+	bottom: 1.25rem;
+	left: 1.25rem;
+	z-index: 1020;
+	border-radius: 50%;
+	width: 52px;
+	height: 52px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
 .sidebar-toggle-mobile:hover {
-	background: #495057 !important;
+	background: #0b5ed7 !important;
 	color: #fff !important;
+	transform: scale(1.05);
 }
 
 .sidebar-toggle-mobile:focus {
