@@ -12,6 +12,7 @@ from markupsafe import Markup
 from app.utils.template_paths import render_template_compat as render_template
 from app.paths import REPORTS_DIR
 from ...services.service_locator import ServiceLocator
+from ...services.tool_registry_service import get_tool_registry_service
 from ...extensions import db
 from ...models import Report, ModelCapability, GeneratedApplication, AnalysisTask
 
@@ -77,11 +78,28 @@ def new_report():
             'provider': model.provider
         })
     
+    # Get available tools from the registry
+    tool_registry = get_tool_registry_service()
+    all_tools = tool_registry.get_all_tools()
+    tools_data = [
+        {
+            'name': tool.name,
+            'display_name': tool.display_name,
+            'container': tool.container.value if hasattr(tool.container, 'value') else str(tool.container),
+            'tags': list(tool.tags) if tool.tags else [],
+            'available': tool.available
+        }
+        for tool in all_tools.values()
+    ]
+    # Sort by container then display name
+    tools_data.sort(key=lambda t: (t['container'], t['display_name']))
+    
     # Return modal fragment for HTMX
     return render_template(
         'pages/reports/partials/_new_report_modal.html',
         models=models_data,
-        apps_by_model=apps_by_model
+        apps_by_model=apps_by_model,
+        tools=tools_data
     )
 
 @reports_bp.route('/view/<report_id>')

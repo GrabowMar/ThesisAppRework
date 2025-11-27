@@ -114,8 +114,8 @@ class ModelReportGenerator(BaseReportGenerator):
             total_medium += severity_counts.get('medium', 0)
             total_low += severity_counts.get('low', 0)
             
-            # Extract tools - prefer top-level 'tools', fallback to extraction from services
-            tools = raw_data.get('tools')
+            # Extract tools - prefer top-level 'tools', then nested 'results.tools', fallback to services
+            tools = raw_data.get('tools') or results_wrapper.get('tools')
             if not tools:
                 tools = self._extract_tools_from_services(results_wrapper.get('services', {}))
             
@@ -147,8 +147,8 @@ class ModelReportGenerator(BaseReportGenerator):
                 GeneratedApplication.app_number == app_number
             ).first()
             
-            # Extract findings - prefer top-level 'findings', fallback to extraction from services
-            findings = raw_data.get('findings')
+            # Extract findings - prefer top-level 'findings', then nested 'results.findings', fallback to services
+            findings = raw_data.get('findings') or results_wrapper.get('findings')
             if findings is None:
                 findings = self._extract_findings_from_services(results_wrapper.get('services', {}))
             

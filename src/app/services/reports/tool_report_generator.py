@@ -109,8 +109,10 @@ class ToolReportGenerator(BaseReportGenerator):
                 continue
             
             raw_data = result.raw_data
-            tools = raw_data.get('tools', {})
-            findings = raw_data.get('findings', [])
+            # Handle nested 'results' structure from analyzer_manager
+            results_wrapper = raw_data.get('results', {})
+            tools = raw_data.get('tools') or results_wrapper.get('tools', {})
+            findings = raw_data.get('findings') or results_wrapper.get('findings', [])
             
             # Process each tool in this task
             for tool, tool_data in tools.items():
@@ -132,8 +134,9 @@ class ToolReportGenerator(BaseReportGenerator):
                     else:
                         stats['failed'] += 1
                 
-                # Duration
-                stats['total_duration'] += tool_data.get('duration_seconds', 0.0)
+                # Duration - ensure we handle None values
+                duration = tool_data.get('duration_seconds')
+                stats['total_duration'] += float(duration) if duration is not None else 0.0
                 
                 # Timeline entry for trend analysis
                 stats['execution_timeline'].append({
@@ -141,8 +144,8 @@ class ToolReportGenerator(BaseReportGenerator):
                     'model': task.target_model,
                     'app': task.target_app_number,
                     'success': tool_data.get('status') == 'success',
-                    'findings': tool_data.get('total_issues', 0),
-                    'duration': tool_data.get('duration_seconds', 0)
+                    'findings': tool_data.get('total_issues', 0) or 0,
+                    'duration': float(duration) if duration is not None else 0.0
                 })
             
             # Count findings by tool

@@ -99,9 +99,11 @@ class AppReportGenerator(BaseReportGenerator):
                 continue
             
             raw_data = result.raw_data
-            summary = raw_data.get('summary', {})
-            tools = raw_data.get('tools', {})
-            findings = raw_data.get('findings', [])
+            # Handle nested 'results' structure from analyzer_manager
+            results_wrapper = raw_data.get('results', {})
+            summary = raw_data.get('summary') or results_wrapper.get('summary', {})
+            tools = raw_data.get('tools') or results_wrapper.get('tools', {})
+            findings = raw_data.get('findings') or results_wrapper.get('findings', [])
             
             # Track all tools used across models
             all_tools.update(tools.keys())
