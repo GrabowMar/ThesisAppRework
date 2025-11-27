@@ -1,6 +1,19 @@
 /* ========================================
-   Enhanced Table Styles
+   Unified Table Styles - ThesisApp
+   Consistent styling for all data tables:
+   - Analysis Tasks Table
+   - Models Table  
+   - Applications Table
    ======================================== */
+
+/* CSS Custom Properties for Tables */
+:root {
+  --table-border-color: var(--color-border, rgba(0,0,0,.1));
+  --table-hover-bg: rgba(var(--tblr-primary-rgb, 32, 107, 196), 0.04);
+  --table-selected-bg: rgba(var(--tblr-primary-rgb, 32, 107, 196), 0.08);
+  --table-header-bg: var(--color-bg-alt, #f8f9fa);
+  --table-stripe-bg: rgba(0, 0, 0, 0.02);
+}
 
 /* Base table enhancements */
 .table-enhanced {
@@ -10,39 +23,113 @@
   --table-header-bg: var(--color-bg-alt);
 }
 
+/* ========================================
+   Card Table Container - Unified
+   ======================================== */
+.card-table-compact {
+  border: 1px solid var(--table-border-color);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.card-table-compact .card-header {
+  background-color: transparent;
+  border-bottom: none;
+  padding: 1rem 1.25rem;
+}
+
+.card-table-compact .card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.card-table-compact .card-title i {
+  font-size: 1.125rem;
+  opacity: 0.8;
+}
+
+.card-table-compact .card-body {
+  padding: 0.75rem 1.25rem;
+}
+
+.card-table-compact .card-footer {
+  background-color: transparent;
+  border-top: 1px solid var(--table-border-color);
+  padding: 0.75rem 1.25rem;
+}
+
+/* ========================================
+   Card Actions - Unified Button Layout
+   ======================================== */
+.card-table-compact .card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card-table-compact .card-actions .btn-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.card-table-compact .card-actions .btn {
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.625rem;
+}
+
 /* Sortable column headers */
-.sortable-header {
+.sortable-header,
+.sortable,
+th.sortable {
   position: relative;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
   white-space: nowrap;
+  cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.sortable-header:hover {
+.sortable-header:hover,
+.sortable:hover,
+th.sortable:hover {
   background-color: var(--table-hover-bg) !important;
   color: var(--tblr-primary);
 }
 
-.sortable-header.sorted {
+.sortable-header.sorted,
+.sortable.sorted,
+th.sortable.sorted {
   background-color: var(--table-selected-bg) !important;
   color: var(--tblr-primary);
   font-weight: 600;
 }
 
-.sortable-header .sort-icon {
+.sortable-header .sort-icon,
+.sortable .sort-icon,
+th.sortable .sort-icon {
   opacity: 0.5;
   transition: opacity 0.15s ease, transform 0.15s ease;
+  margin-left: 0.25rem;
 }
 
 .sortable-header:hover .sort-icon,
-.sortable-header.sorted .sort-icon {
+.sortable:hover .sort-icon,
+th.sortable:hover .sort-icon,
+.sortable-header.sorted .sort-icon,
+.sortable.sorted .sort-icon,
+th.sortable.sorted .sort-icon {
   opacity: 1;
 }
 
-.sortable-header.sorted .sort-icon {
+.sortable-header.sorted .sort-icon,
+.sortable.sorted .sort-icon,
+th.sortable.sorted .sort-icon {
   animation: sortPulse 0.3s ease;
 }
 
@@ -51,8 +138,11 @@
   50% { transform: scale(1.2); }
 }
 
-/* Table header styling */
-.card-table-compact .table thead th {
+/* ========================================
+   Table Header Styling - Unified
+   ======================================== */
+.card-table-compact .table thead th,
+.card-table-compact .table > thead > tr > th {
   position: sticky;
   top: 0;
   z-index: 10;
@@ -61,31 +151,53 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--color-text-muted);
-  padding: 0.75rem;
+  color: var(--color-text-muted, #626976);
+  padding: 0.75rem 0.625rem;
   border-bottom: 2px solid var(--table-border-color);
   white-space: nowrap;
+  vertical-align: middle;
 }
 
-/* Table body styling */
-.card-table-compact .table tbody td {
-  padding: 0.625rem 0.75rem;
+/* Scope column attribute for accessibility */
+.card-table-compact .table thead th[scope="col"] {
+  border-bottom-width: 2px;
+}
+
+/* ========================================
+   Table Body Styling - Unified
+   ======================================== */
+.card-table-compact .table tbody td,
+.card-table-compact .table > tbody > tr > td {
+  padding: 0.5rem 0.625rem;
   font-size: 0.8125rem;
   vertical-align: middle;
   transition: background-color 0.15s ease;
+  border-bottom: 1px solid var(--table-border-color);
 }
 
-.card-table-compact .table tbody tr {
+.card-table-compact .table tbody tr,
+.card-table-compact .table > tbody > tr {
   transition: background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.card-table-compact .table tbody tr:hover {
+.card-table-compact .table tbody tr:hover,
+.card-table-compact .table > tbody > tr:hover {
   background-color: var(--table-hover-bg);
-  box-shadow: inset 0 0 0 1px rgba(var(--tblr-primary-rgb), 0.15);
+  box-shadow: inset 0 0 0 1px rgba(var(--tblr-primary-rgb), 0.1);
 }
 
-.card-table-compact .table tbody tr.selected {
+.card-table-compact .table tbody tr.selected,
+.card-table-compact .table > tbody > tr.selected {
   background-color: var(--table-selected-bg);
+}
+
+/* Striped rows (optional - use with table-striped class) */
+.card-table-compact .table-striped tbody tr:nth-of-type(odd) {
+  background-color: var(--table-stripe-bg);
+}
+
+.card-table-compact .table-striped tbody tr:nth-of-type(odd):hover {
+  background-color: var(--table-hover-bg);
 }
 
 /* Loading state */
@@ -114,7 +226,41 @@
   100% { transform: translateX(100%); }
 }
 
-/* Badge standardization */
+/* ========================================
+   Status Indicators - Unified Header Badges
+   ======================================== */
+.status-indicators {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.status-indicators .badge {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.3125rem 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  transition: transform 0.15s ease;
+  border-radius: 0.25rem;
+}
+
+.status-indicators .badge:hover {
+  transform: translateY(-1px);
+}
+
+.status-indicators .badge i,
+.status-indicators .badge .fa,
+.status-indicators .badge .fas,
+.status-indicators .badge .fa-solid {
+  font-size: 0.8125rem;
+}
+
+/* ========================================
+   Badge Standardization - All Tables
+   ======================================== */
 .card-table-compact .badge {
   font-size: 0.6875rem;
   font-weight: 600;
@@ -123,43 +269,63 @@
   line-height: 1.2;
 }
 
-.card-table-compact .badge i {
+.card-table-compact .badge i,
+.card-table-compact .badge .fa,
+.card-table-compact .badge .fas,
+.card-table-compact .badge .fa-solid {
   font-size: 0.75rem;
   margin-right: 0.25rem;
 }
 
 /* Status badge colors */
-.badge.status-running {
-  background-color: rgba(var(--tblr-success-rgb), 0.1);
-  color: var(--tblr-success);
-  border: 1px solid rgba(var(--tblr-success-rgb), 0.3);
+.badge.status-running,
+.badge.bg-success-lt {
+  background-color: rgba(var(--tblr-success-rgb, 47, 179, 68), 0.1) !important;
+  color: var(--tblr-success, #2fb344) !important;
 }
 
-.badge.status-stopped {
-  background-color: rgba(var(--tblr-secondary-rgb), 0.1);
-  color: var(--tblr-secondary);
-  border: 1px solid rgba(var(--tblr-secondary-rgb), 0.3);
+.badge.status-stopped,
+.badge.bg-secondary-lt {
+  background-color: rgba(var(--tblr-secondary-rgb, 98, 105, 118), 0.1) !important;
+  color: var(--tblr-secondary, #626976) !important;
 }
 
-.badge.status-error {
-  background-color: rgba(var(--tblr-danger-rgb), 0.1);
-  color: var(--tblr-danger);
-  border: 1px solid rgba(var(--tblr-danger-rgb), 0.3);
+.badge.status-error,
+.badge.bg-danger-lt {
+  background-color: rgba(var(--tblr-danger-rgb, 214, 57, 57), 0.1) !important;
+  color: var(--tblr-danger, #d63939) !important;
 }
 
-.badge.status-pending {
-  background-color: rgba(var(--tblr-warning-rgb), 0.1);
-  color: var(--tblr-warning);
-  border: 1px solid rgba(var(--tblr-warning-rgb), 0.3);
+.badge.status-pending,
+.badge.bg-warning-lt {
+  background-color: rgba(var(--tblr-warning-rgb, 247, 179, 43), 0.1) !important;
+  color: var(--tblr-warning, #f76707) !important;
 }
 
-.badge.status-completed {
-  background-color: rgba(var(--tblr-info-rgb), 0.1);
-  color: var(--tblr-info);
-  border: 1px solid rgba(var(--tblr-info-rgb), 0.3);
+.badge.status-completed,
+.badge.bg-info-lt {
+  background-color: rgba(var(--tblr-info-rgb, 66, 153, 225), 0.1) !important;
+  color: var(--tblr-info, #4299e1) !important;
 }
 
-/* Button standardization */
+.badge.bg-primary-lt {
+  background-color: rgba(var(--tblr-primary-rgb, 32, 107, 196), 0.1) !important;
+  color: var(--tblr-primary, #206bc4) !important;
+}
+
+.badge.bg-azure-lt {
+  background-color: rgba(var(--tblr-azure-rgb, 66, 153, 225), 0.1) !important;
+  color: var(--tblr-azure, #4299e1) !important;
+}
+
+.badge.bg-dark {
+  background-color: var(--tblr-dark, #1d273b) !important;
+  color: #fff !important;
+}
+
+/* ========================================
+   Ghost Button Standardization - All Tables
+   ======================================== */
 .btn-ghost-primary {
   color: var(--tblr-primary);
   background-color: transparent;
@@ -172,15 +338,15 @@
 }
 
 .btn-ghost-secondary {
-  color: var(--color-text-muted);
+  color: var(--color-text-muted, #626976);
   background-color: transparent;
   border: 1px solid transparent;
 }
 
 .btn-ghost-secondary:hover {
-  background-color: var(--color-bg-alt);
-  border-color: var(--color-border);
-  color: var(--color-text);
+  background-color: var(--color-bg-alt, #f8f9fa);
+  border-color: var(--color-border, rgba(0,0,0,.1));
+  color: var(--color-text, #1d273b);
 }
 
 .btn-ghost-danger {
@@ -227,22 +393,35 @@
   border-color: rgba(var(--tblr-info-rgb), 0.2);
 }
 
-/* Icon buttons in tables */
-.table .btn-icon {
-  width: 2rem;
-  height: 2rem;
+/* ========================================
+   Icon Buttons in Tables - Unified Size
+   ======================================== */
+.table .btn-icon,
+.card-table-compact .btn-icon {
+  width: 1.75rem;
+  height: 1.75rem;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
+  border-radius: 0.25rem;
 }
 
-/* Advanced filter panel */
+.btn-group-sm > .btn-icon,
+.btn-group-sm .btn-icon {
+  width: 1.625rem;
+  height: 1.625rem;
+  font-size: 0.75rem;
+}
+
+/* ========================================
+   Advanced Filter Panel - Unified
+   ======================================== */
 .advanced-filters-panel {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border, rgba(0,0,0,.1));
   border-radius: 0.5rem;
-  background-color: var(--color-bg);
+  background-color: var(--color-bg, #fff);
   padding: 1rem;
   margin-top: 1rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
@@ -270,6 +449,23 @@
   font-size: 1rem;
 }
 
+/* Advanced filters in nested card */
+.advanced-filters-panel > .card {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.advanced-filters-panel > .card > .card-header {
+  background: transparent;
+  border-bottom: 1px solid var(--table-border-color);
+  padding: 0.75rem 0;
+}
+
+.advanced-filters-panel > .card > .card-body {
+  padding: 1rem 0;
+}
+
 /* Filter badge animation */
 .filter-badge-enter {
   animation: filterBadgeEnter 0.3s ease;
@@ -295,7 +491,7 @@
 }
 
 .form-selectgroup-boxes .form-selectgroup-label {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border, rgba(0,0,0,.1));
   border-radius: 0.375rem;
   padding: 0.5rem 0.75rem;
   transition: all 0.15s ease;
@@ -313,29 +509,36 @@
   font-weight: 600;
 }
 
-/* Status indicators group */
-.status-indicators {
+/* ========================================
+   Quick Filter Row - Unified Layout
+   ======================================== */
+.card-table-compact .card-body .row.g-2.align-items-center {
+  margin-top: 0.5rem;
+}
+
+.card-table-compact .card-body .row.g-2.align-items-center > .col-auto {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+}
+
+.card-table-compact .card-body .row.g-2.align-items-center label {
+  margin-bottom: 0;
+  display: flex;
+  align-items: center;
   gap: 0.5rem;
+}
+
+.card-table-compact .card-body .row.g-2.align-items-center label > span.text-muted {
+  display: flex;
   align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+  font-size: 0.8125rem;
 }
 
-.status-indicators .badge {
-  font-size: 0.75rem;
-  padding: 0.375rem 0.625rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  transition: transform 0.15s ease;
-}
-
-.status-indicators .badge:hover {
-  transform: translateY(-1px);
-}
-
-.status-indicators .badge i {
-  font-size: 0.875rem;
+.card-table-compact .card-body .row.g-2.align-items-center .form-select-sm {
+  min-width: auto;
+  font-size: 0.8125rem;
 }
 
 /* Export buttons group */
@@ -349,77 +552,141 @@
   font-size: 0.8125rem;
 }
 
-/* Pagination styling */
+/* ========================================
+   Pagination Styling - Unified
+   ======================================== */
+.card-table-compact .card-footer .pagination,
 .pagination {
   margin-bottom: 0;
 }
 
+.card-table-compact .card-footer .pagination .page-link,
 .pagination .page-link {
   font-size: 0.8125rem;
-  padding: 0.375rem 0.625rem;
-  border-radius: 0.375rem;
-  margin: 0 0.125rem;
+  padding: 0.3125rem 0.5rem;
+  border-radius: 0.25rem;
+  margin: 0 0.0625rem;
   transition: all 0.15s ease;
+  border: 1px solid var(--color-border, rgba(0,0,0,.1));
 }
 
+.card-table-compact .card-footer .pagination .page-link:hover,
 .pagination .page-link:hover {
   background-color: rgba(var(--tblr-primary-rgb), 0.1);
   border-color: var(--tblr-primary);
+  color: var(--tblr-primary);
 }
 
+.card-table-compact .card-footer .pagination .page-item.active .page-link,
 .pagination .page-item.active .page-link {
   background-color: var(--tblr-primary);
   border-color: var(--tblr-primary);
+  color: #fff;
 }
 
-/* Responsive table improvements */
+.card-table-compact .card-footer .pagination .page-item.disabled .page-link,
+.pagination .page-item.disabled .page-link {
+  background-color: transparent;
+  border-color: var(--color-border, rgba(0,0,0,.1));
+  color: var(--color-text-muted, #626976);
+  opacity: 0.6;
+}
+
+/* Page summary text */
+.card-table-compact .card-footer .text-muted,
+#models-page-summary,
+#applications-page-summary {
+  font-size: 0.8125rem;
+}
+
+/* ========================================
+   Responsive Table Improvements
+   ======================================== */
 @media (max-width: 768px) {
+  .card-table-compact .card-header {
+    padding: 0.75rem 1rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .card-table-compact .card-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .card-table-compact .table thead th {
     font-size: 0.6875rem;
-    padding: 0.5rem;
+    padding: 0.5rem 0.375rem;
   }
 
   .card-table-compact .table tbody td {
     font-size: 0.75rem;
-    padding: 0.5rem;
+    padding: 0.375rem;
   }
 
   .status-indicators {
     font-size: 0.6875rem;
+    gap: 0.375rem;
   }
 
-  .card-actions {
-    width: 100%;
-    justify-content: space-between;
+  .status-indicators .badge {
+    font-size: 0.625rem;
+    padding: 0.25rem 0.375rem;
   }
 
   .btn-list {
     flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+
+  .card-table-compact .card-footer {
+    flex-direction: column;
+    gap: 0.75rem;
+    text-align: center;
+  }
+
+  .pagination .page-link {
+    padding: 0.25rem 0.375rem;
+    font-size: 0.75rem;
   }
 }
 
-/* Empty state styling */
-.table-empty-state {
+/* ========================================
+   Empty State Styling - Unified
+   ======================================== */
+.table-empty-state,
+.card-table-compact .empty {
   text-align: center;
   padding: 3rem 1.5rem;
-  color: var(--color-text-muted);
+  color: var(--color-text-muted, #626976);
 }
 
-.table-empty-state i {
+.table-empty-state i,
+.card-table-compact .empty .empty-icon i,
+.card-table-compact .empty-icon .fa,
+.card-table-compact .empty-icon .fas,
+.card-table-compact .empty-icon .fa-solid {
   font-size: 3rem;
   margin-bottom: 1rem;
   opacity: 0.3;
 }
 
-.table-empty-state h4 {
+.table-empty-state h4,
+.card-table-compact .empty .empty-title {
   font-size: 1.125rem;
   margin-bottom: 0.5rem;
-  color: var(--color-text);
+  color: var(--color-text, #1d273b);
 }
 
-.table-empty-state p {
+.table-empty-state p,
+.card-table-compact .empty .empty-subtitle {
   font-size: 0.875rem;
   margin-bottom: 0;
+}
+
+.card-table-compact .empty .empty-action {
+  margin-top: 1rem;
 }
 
 /* Row actions dropdown */
@@ -461,15 +728,31 @@
   background-color: var(--tblr-primary);
 }
 
-/* Dark theme adjustments */
+/* ========================================
+   Dark Theme Adjustments
+   ======================================== */
+:root[data-bs-theme='dark'] {
+  --table-border-color: rgba(255,255,255,.1);
+  --table-header-bg: rgba(0,0,0,.2);
+  --table-stripe-bg: rgba(255,255,255,.02);
+}
+
 :root[data-bs-theme='dark'] .advanced-filters-panel {
-  background-color: var(--color-bg-alt);
+  background-color: var(--color-bg-alt, #1d273b);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
+:root[data-bs-theme='dark'] .card-table-compact {
+  border-color: var(--table-border-color);
+}
+
 :root[data-bs-theme='dark'] .card-table-compact .table thead th {
-  background-color: var(--color-bg);
-  border-bottom-color: var(--color-border);
+  background-color: var(--table-header-bg);
+  border-bottom-color: var(--table-border-color);
+}
+
+:root[data-bs-theme='dark'] .card-table-compact .table tbody td {
+  border-bottom-color: var(--table-border-color);
 }
 
 :root[data-bs-theme='dark'] .card-table-compact .table tbody tr:hover {
@@ -477,7 +760,7 @@
 }
 
 :root[data-bs-theme='dark'] .form-selectgroup-boxes .form-selectgroup-label {
-  border-color: var(--color-border);
+  border-color: var(--color-border, rgba(255,255,255,.1));
   background-color: transparent;
 }
 
@@ -485,8 +768,17 @@
   background-color: rgba(var(--tblr-primary-rgb), 0.05);
 }
 
-/* Accessibility improvements */
-.sortable-header:focus-visible {
+:root[data-bs-theme='dark'] .pagination .page-link {
+  border-color: var(--table-border-color);
+  background-color: transparent;
+}
+
+/* ========================================
+   Accessibility Improvements
+   ======================================== */
+.sortable-header:focus-visible,
+.sortable:focus-visible,
+th.sortable:focus-visible {
   outline: 2px solid var(--tblr-primary);
   outline-offset: -2px;
 }
@@ -496,14 +788,34 @@
   outline-offset: 2px;
 }
 
-/* Print styles */
+/* Visually hidden but screen-reader accessible */
+.visually-hidden:not(:focus):not(:active) {
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+/* ========================================
+   Print Styles
+   ======================================== */
 @media print {
   .card-actions,
   .btn-list,
   .export-buttons,
   .advanced-filters-panel,
-  .pagination {
+  .pagination,
+  .card-table-compact .card-body,
+  .form-check-input {
     display: none !important;
+  }
+
+  .card-table-compact {
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
   }
 
   .card-table-compact .table thead th {
@@ -517,4 +829,110 @@
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+
+  .badge {
+    border: 1px solid #ccc !important;
+  }
+}
+
+/* ========================================
+   Progress Bars in Tables - Unified
+   ======================================== */
+.card-table-compact .progress {
+  height: 0.375rem;
+  border-radius: 0.125rem;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.card-table-compact .progress-sm {
+  height: 0.25rem;
+}
+
+.card-table-compact .progress-bar {
+  transition: width 0.3s ease;
+}
+
+/* ========================================
+   Subtask/Nested Row Styling
+   ======================================== */
+.subtask-row {
+  background-color: rgba(var(--tblr-primary-rgb), 0.02) !important;
+}
+
+.subtask-row:hover {
+  background-color: rgba(var(--tblr-primary-rgb), 0.05) !important;
+}
+
+.subtask-row td:first-child {
+  padding-left: 2.5rem;
+}
+
+.main-task-row {
+  font-weight: 500;
+}
+
+/* Expand/Collapse icon rotation */
+.main-task-row .fa-chevron-right {
+  transition: transform 0.2s ease;
+}
+
+.main-task-row.expanded .fa-chevron-right {
+  transform: rotate(90deg);
+}
+
+/* ========================================
+   Monospace & Truncate Helpers
+   ======================================== */
+.font-monospace {
+  font-family: var(--tblr-font-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+  font-size: 0.8125rem;
+}
+
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+/* Truncate in table cells with max-width */
+td.text-truncate {
+  max-width: 200px;
+}
+
+/* ========================================
+   Search Input Group - Unified
+   ======================================== */
+.input-group-flat {
+  border: 1px solid var(--color-border, rgba(0,0,0,.1));
+  border-radius: 0.375rem;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.input-group-flat:focus-within {
+  border-color: var(--tblr-primary);
+  box-shadow: 0 0 0 0.25rem rgba(var(--tblr-primary-rgb), 0.1);
+}
+
+.input-group-flat .input-group-text {
+  background-color: transparent;
+  border: none;
+  color: var(--color-text-muted, #626976);
+  padding: 0.375rem 0.75rem;
+}
+
+.input-group-flat .form-control {
+  border: none;
+  box-shadow: none;
+}
+
+.input-group-flat .form-control:focus {
+  box-shadow: none;
+}
+
+.input-group-flat .btn {
+  border: none;
+  border-left: 1px solid var(--color-border, rgba(0,0,0,.1));
+  border-radius: 0;
 }

@@ -13,23 +13,23 @@
   <div class="card-header d-flex flex-wrap align-items-center gap-3">
     <div class="d-flex flex-wrap align-items-center gap-2">
       <h3 class="card-title d-flex align-items-center gap-2 mb-0">
-        <i class="fa-solid fa-microscope"></i>
+        <i class="fas fa-microscope"></i>
         <span>Analysis Tasks</span>
       </h3>
       <div class="d-flex flex-wrap align-items-center gap-2 status-indicators">
         <span class="badge bg-primary-lt d-inline-flex align-items-center gap-2">
-          <i class="fa-solid fa-tasks"></i>
+          <i class="fas fa-tasks"></i>
           <span>{{ pagination.total if pagination else 0 }}</span>
         </span>
         {% if pagination and pagination.active_count > 0 %}
         <span class="badge bg-warning-lt d-inline-flex align-items-center gap-2">
-          <i class="fa-solid fa-spinner fa-pulse"></i>
+          <i class="fas fa-spinner fa-pulse"></i>
           <span>{{ pagination.active_count }} active</span>
         </span>
         {% endif %}
         {% if pagination and pagination.total_completed > 0 %}
         <span class="badge bg-success-lt d-inline-flex align-items-center gap-2">
-          <i class="fa-solid fa-check-circle"></i>
+          <i class="fas fa-check-circle"></i>
           <span>{{ pagination.total_completed }} completed</span>
         </span>
         {% endif %}
@@ -47,15 +47,15 @@
       </label>
       <div class="btn-list">
         <button class="btn btn-sm btn-primary" onclick="refreshAnalysisTasks()" title="Refresh tasks" type="button">
-          <i class="fa-solid fa-sync me-1" aria-hidden="true"></i>Refresh
+          <i class="fas fa-sync me-1" aria-hidden="true"></i>Refresh
         </button>
         {% if pagination and pagination.active_count > 0 %}
         <button class="btn btn-sm btn-danger" onclick="stopAllTasks()" title="Stop all pending and running tasks" type="button">
-          <i class="fa-solid fa-stop-circle me-1" aria-hidden="true"></i>Stop All
+          <i class="fas fa-stop-circle me-1" aria-hidden="true"></i>Stop All
         </button>
         {% endif %}
         <a href="{{ url_for('analysis.analysis_create') }}" class="btn btn-sm btn-success">
-          <i class="fa-solid fa-plus me-1" aria-hidden="true"></i>New Analysis
+          <i class="fas fa-plus me-1" aria-hidden="true"></i>New Analysis
         </a>
       </div>
     </div>
@@ -66,7 +66,7 @@
       <div class="col-auto">
         <label class="d-flex align-items-center gap-2 mb-0" for="analysis-model-filter">
           <span class="text-muted d-flex align-items-center gap-1">
-            <i class="fa-solid fa-brain" aria-hidden="true"></i>
+            <i class="fas fa-brain" aria-hidden="true"></i>
             <span>Model</span>
           </span>
           <input type="text" class="form-control form-control-sm" style="min-width: 180px;" 
@@ -80,7 +80,7 @@
       <div class="col-auto">
         <label class="d-flex align-items-center gap-2 mb-0" for="analysis-app-filter">
           <span class="text-muted d-flex align-items-center gap-1">
-            <i class="fa-solid fa-hashtag" aria-hidden="true"></i>
+            <i class="fas fa-hashtag" aria-hidden="true"></i>
             <span>App</span>
           </span>
           <input type="text" class="form-control form-control-sm" style="width: 80px;" 
@@ -94,7 +94,7 @@
       <div class="col-auto">
         <label class="d-flex align-items-center gap-2 mb-0" for="analysis-status-filter">
           <span class="text-muted d-flex align-items-center gap-1">
-            <i class="fa-solid fa-toggle-on" aria-hidden="true"></i>
+            <i class="fas fa-toggle-on" aria-hidden="true"></i>
             <span>Status</span>
           </span>
           <select class="form-select form-select-sm" style="min-width: 120px;" 
@@ -111,23 +111,23 @@
       </div>
       <div class="col-auto ms-auto">
         <button class="btn btn-sm btn-outline-secondary" onclick="clearAnalysisFilters()" type="button" aria-label="Clear all filters">
-          <i class="fa-solid fa-times-circle me-1" aria-hidden="true"></i>Clear Filters
+          <i class="fas fa-times-circle me-1" aria-hidden="true"></i>Clear Filters
         </button>
       </div>
     </div>
   </div>
 
   <div class="table-responsive">
-    <table class="table table-striped table-vcenter table-hover card-table mb-0">
+    <table class="table table-striped table-vcenter table-hover table-sm card-table mb-0">
       <thead>
         <tr>
-          <th scope="col">Task ID</th>
-          <th scope="col">Model</th>
-          <th scope="col" class="text-center">App</th>
+          <th scope="col" class="sortable" data-column="task_id">Task ID</th>
+          <th scope="col" class="sortable" data-column="model">Model</th>
+          <th scope="col" class="text-center sortable" data-column="app">App</th>
           <th scope="col">Tools</th>
-          <th scope="col" class="text-center">Status</th>
+          <th scope="col" class="text-center sortable" data-column="status">Status</th>
           <th scope="col">Progress / Findings</th>
-          <th scope="col" class="text-end">Time</th>
+          <th scope="col" class="text-end sortable" data-column="time">Time</th>
           <th scope="col" class="w-1"><span class="visually-hidden">Actions</span></th>
         </tr>
       </thead>
@@ -144,7 +144,7 @@
                             type="button"
                             aria-label="Toggle subtasks"
                             title="Show/hide subtasks">
-                      <i class="fa-solid fa-chevron-right" id="icon-{{ item.id }}" aria-hidden="true"></i>
+                      <i class="fas fa-chevron-right" id="icon-{{ item.id }}" aria-hidden="true"></i>
                     </button>
                   {% endif %}
                   {% if item.type == 'result' %}
@@ -180,35 +180,35 @@
               <td class="text-center">
                 {% if item.status == 'running' %}
                   <span class="badge bg-warning-lt text-warning">
-                    <i class="fa-solid fa-spinner fa-spin me-1"></i>Running
+                    <i class="fas fa-spinner fa-spin me-1"></i>Running
                   </span>
                 {% elif item.status == 'pending' %}
                   <span class="badge bg-secondary-lt text-secondary">
-                    <i class="fa-solid fa-clock me-1"></i>Pending
+                    <i class="fas fa-clock me-1"></i>Pending
                   </span>
                 {% elif item.status in ['completed', 'success'] %}
                   <span class="badge bg-success-lt text-success">
-                    <i class="fa-solid fa-check me-1"></i>Completed
+                    <i class="fas fa-check me-1"></i>Completed
                   </span>
                 {% elif item.status == 'partial_success' %}
                   <span class="badge bg-warning-lt text-warning">
-                    <i class="fa-solid fa-check-circle me-1"></i>Partial Success
+                    <i class="fas fa-check-circle me-1"></i>Partial Success
                   </span>
                 {% elif item.status in ['failed', 'error'] %}
                   <span class="badge bg-danger-lt text-danger">
-                    <i class="fa-solid fa-times me-1"></i>Failed
+                    <i class="fas fa-times me-1"></i>Failed
                   </span>
                 {% elif item.status == 'cancelled' %}
                   <span class="badge bg-secondary-lt text-secondary">
-                    <i class="fa-solid fa-ban me-1"></i>Cancelled
+                    <i class="fas fa-ban me-1"></i>Cancelled
                   </span>
                 {% elif item.status == 'unknown' or not item.status %}
                   <span class="badge bg-secondary-lt text-secondary">
-                    <i class="fa-solid fa-question me-1"></i>Unknown
+                    <i class="fas fa-question me-1"></i>Unknown
                   </span>
                 {% else %}
                   <span class="badge bg-info-lt text-info">
-                    <i class="fa-solid fa-info-circle me-1"></i>{{ item.status|title }}
+                    <i class="fas fa-info-circle me-1"></i>{{ item.status|title }}
                   </span>
                 {% endif %}
               </td>
@@ -273,12 +273,12 @@
                     <a href="{{ url_for('analysis.analysis_result_detail', result_id=item.id) }}" 
                        class="btn btn-ghost-primary btn-icon" 
                        title="View details">
-                      <i class="fa-solid fa-eye"></i>
+                      <i class="fas fa-eye"></i>
                     </a>
                     <a href="{{ url_for('analysis.analysis_result_download', result_id=item.id) }}" 
                        class="btn btn-ghost-secondary btn-icon" 
                        title="Download JSON">
-                      <i class="fa-solid fa-download"></i>
+                      <i class="fas fa-download"></i>
                     </a>
                   {% elif item.status in ['completed', 'success', 'failed', 'error', 'partial_success'] and item.completed_at %}
                     {% set descriptor = item.result_descriptor %}
@@ -286,23 +286,23 @@
                       <a href="{{ url_for('analysis.analysis_result_detail', result_id=descriptor.identifier) }}" 
                          class="btn btn-ghost-primary btn-icon" 
                          title="View results{% if item.status in ['failed', 'error', 'partial_success'] %} (partial){% endif %}">
-                        <i class="fa-solid fa-eye"></i>
+                        <i class="fas fa-eye"></i>
                       </a>
                       <a href="{{ url_for('analysis.analysis_result_download', result_id=descriptor.identifier) }}" 
                          class="btn btn-ghost-secondary btn-icon" 
                          title="Download JSON">
-                        <i class="fa-solid fa-download"></i>
+                        <i class="fas fa-download"></i>
                       </a>
                     {% else %}
                       <button class="btn btn-ghost-secondary btn-icon disabled" type="button" title="Result file not found" disabled>
-                        <i class="fa-solid fa-eye-slash"></i>
+                        <i class="fas fa-eye-slash"></i>
                       </button>
                     {% endif %}
                   {% else %}
                     <button class="btn btn-ghost-secondary btn-icon" 
                             onclick="refreshAnalysisTasks()" 
                             title="Refresh status">
-                      <i class="fa-solid fa-sync"></i>
+                      <i class="fas fa-sync"></i>
                     </button>
                   {% endif %}
                 </div>
@@ -318,7 +318,7 @@
                     style="display: none;">
                   <td class="ps-5">
                     <div class="d-flex align-items-center gap-2">
-                      <i class="fa-solid fa-level-up-alt fa-rotate-90 text-muted" aria-hidden="true"></i>
+                      <i class="fas fa-level-up-alt fa-rotate-90 text-muted" aria-hidden="true"></i>
                       <span class="text-muted small font-monospace">{{ subtask.service_name or 'Unknown Service' }}</span>
                     </div>
                   </td>
@@ -334,31 +334,31 @@
                   <td class="text-center">
                     {% if subtask.status == 'running' %}
                       <span class="badge bg-warning-lt text-warning">
-                        <i class="fa-solid fa-spinner fa-spin me-1"></i>Running
+                        <i class="fas fa-spinner fa-spin me-1"></i>Running
                       </span>
                     {% elif subtask.status == 'pending' %}
                       <span class="badge bg-secondary-lt text-secondary">
-                        <i class="fa-solid fa-clock me-1"></i>Pending
+                        <i class="fas fa-clock me-1"></i>Pending
                       </span>
                     {% elif subtask.status in ['completed', 'success'] %}
                       <span class="badge bg-success-lt text-success">
-                        <i class="fa-solid fa-check me-1"></i>Completed
+                        <i class="fas fa-check me-1"></i>Completed
                       </span>
                     {% elif subtask.status in ['failed', 'error'] %}
                       <span class="badge bg-danger-lt text-danger">
-                        <i class="fa-solid fa-times me-1"></i>Failed
+                        <i class="fas fa-times me-1"></i>Failed
                       </span>
                     {% elif subtask.status == 'cancelled' %}
                       <span class="badge bg-secondary-lt text-secondary">
-                        <i class="fa-solid fa-ban me-1"></i>Cancelled
+                        <i class="fas fa-ban me-1"></i>Cancelled
                       </span>
                     {% elif subtask.status == 'unknown' or not subtask.status %}
                       <span class="badge bg-secondary-lt text-secondary">
-                        <i class="fa-solid fa-question me-1"></i>Unknown
+                        <i class="fas fa-question me-1"></i>Unknown
                       </span>
                     {% else %}
                       <span class="badge bg-info-lt text-info">
-                        <i class="fa-solid fa-info-circle me-1"></i>{{ subtask.status|title }}
+                        <i class="fas fa-info-circle me-1"></i>{{ subtask.status|title }}
                       </span>
                     {% endif %}
                   </td>
@@ -386,7 +386,7 @@
             <td colspan="8" class="text-center py-5">
               <div class="empty py-4">
                 <div class="empty-icon">
-                  <i class="fa-solid fa-microscope fa-3x text-muted"></i>
+                  <i class="fas fa-microscope fa-3x text-muted"></i>
                 </div>
                 <p class="empty-title h5">No analysis tasks found</p>
                 {% if model_filter or app_filter or status_filter %}
@@ -394,7 +394,7 @@
                 {% else %}
                   <div class="empty-action">
                     <a href="{{ url_for('analysis.analysis_create') }}" class="btn btn-primary">
-                      <i class="fa-solid fa-plus me-1"></i>Create New Analysis
+                      <i class="fas fa-plus me-1"></i>Create New Analysis
                     </a>
                   </div>
                 {% endif %}
