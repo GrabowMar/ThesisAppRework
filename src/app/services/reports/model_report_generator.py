@@ -29,7 +29,7 @@ class ModelReportGenerator(BaseReportGenerator):
     
     def get_template_name(self) -> str:
         """Get template name for model reports."""
-        return 'model_analysis.html'
+        return 'partials/_model_analysis.html'
     
     def collect_data(self) -> Dict[str, Any]:
         """

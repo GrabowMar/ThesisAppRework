@@ -29,7 +29,7 @@ class AppReportGenerator(BaseReportGenerator):
     
     def get_template_name(self) -> str:
         """Get template name for app reports."""
-        return 'app_comparison.html'
+        return 'partials/_app_comparison.html'
     
     def collect_data(self) -> Dict[str, Any]:
         """

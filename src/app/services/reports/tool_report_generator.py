@@ -29,7 +29,7 @@ class ToolReportGenerator(BaseReportGenerator):
     
     def get_template_name(self) -> str:
         """Get template name for tool reports."""
-        return 'tool_analysis.html'
+        return 'partials/_tool_analysis.html'
     
     def collect_data(self) -> Dict[str, Any]:
         """
