@@ -12,7 +12,7 @@
 // Initialization
 // ============================================================================
 
-document.addEventListener('DOMContentLoaded', () => {
+function initTemplatesManager() {
   console.log('[Templates] Initializing templates manager');
   
   // CRITICAL: Only initialize in templates tab, NEVER in wizard
@@ -25,13 +25,19 @@ document.addEventListener('DOMContentLoaded', () => {
   
   if (hasTemplatesTab && !hasWizard) {
     console.log('[Templates] Initializing for templates tab');
-    initTemplatesManager();
+    setupTemplatesManager();
   } else {
     console.log('[Templates] Skipping init - wizard context or wrong page');
   }
-});
+}
 
-function initTemplatesManager() {
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initTemplatesManager);
+} else {
+  initTemplatesManager();
+}
+
+function setupTemplatesManager() {
   // Load templates when the tab is shown
   const templatesTab = document.querySelector('a[href="#templates"]');
   if (templatesTab) {
@@ -39,6 +45,12 @@ function initTemplatesManager() {
       console.log('[Templates] Tab shown, loading templates');
       loadTemplatesLibrary();
     });
+    
+    // Check if already active (e.g. on page load or history restore)
+    if (templatesTab.classList.contains('active') || templatesTab.getAttribute('aria-selected') === 'true') {
+      console.log('[Templates] Tab already active, loading templates');
+      loadTemplatesLibrary();
+    }
   }
   
   // Set up button handlers
@@ -527,5 +539,9 @@ function escapeHtml(text) {
 // Export functions for global access (if needed from outside)
 window.loadTemplatesLibrary = loadTemplatesLibrary;
 window.selectTemplate = selectTemplate;
+
+document.addEventListener('htmx:historyRestore', function(evt) {
+  initTemplatesManager();
+});
 
 })(); // End of IIFE - templates_manager scope

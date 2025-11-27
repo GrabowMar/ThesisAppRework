@@ -3,6 +3,8 @@
  * Handles parsing and normalization of different analysis tool outputs.
  */
 
+(function() {
+
 class BaseParser {
     constructor(data) {
         this.data = data;
@@ -445,3 +447,5 @@ const AnalysisParserFactory = {
 
 // Export for use in browser
 window.AnalysisParserFactory = AnalysisParserFactory;
+
+})();

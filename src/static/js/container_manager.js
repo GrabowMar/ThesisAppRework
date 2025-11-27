@@ -10,6 +10,8 @@
  * - Port testing and management
  */
 
+(function() {
+
 class ContainerManager {
     constructor(modelSlug, appNumber) {
         this.modelSlug = modelSlug;
@@ -466,18 +468,27 @@ class ContainerManager {
 }
 
 // Auto-initialize if container management section exists
-document.addEventListener('DOMContentLoaded', () => {
+function initContainerManager() {
     const containerSection = document.getElementById('container-management-section');
     if (containerSection) {
         const modelSlug = containerSection.dataset.modelSlug;
         const appNumber = parseInt(containerSection.dataset.appNumber);
         
         if (modelSlug && appNumber) {
+            if (window.containerManager) {
+                window.containerManager.destroy();
+            }
             window.containerManager = new ContainerManager(modelSlug, appNumber);
             window.containerManager.init();
         }
     }
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initContainerManager);
+} else {
+    initContainerManager();
+}
 
 // Cleanup on page unload
 window.addEventListener('beforeunload', () => {
@@ -485,3 +496,5 @@ window.addEventListener('beforeunload', () => {
         window.containerManager.destroy();
     }
 });
+
+})();

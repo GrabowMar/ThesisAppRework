@@ -6,6 +6,8 @@
  * Uses the new v2 API endpoints with structured data.
  */
 
+(function() {
+
 class AnalysisResultsAPI {
     constructor(taskId, baseUrl = '/analysis/api') {
         this.taskId = taskId;
@@ -1324,7 +1326,7 @@ class AnalysisResultsManager {
 let analysisResults = null;
 
 // Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
+function initAnalysisResults() {
     console.log('[AnalysisResults] DOM loaded, initializing...');
     
     // Get task ID from page (this would be set in the template)
@@ -1343,4 +1345,16 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('[AnalysisResults] Looking for elements with data attributes:', 
                    document.querySelectorAll('[data-task-id], #task-data'));
     }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAnalysisResults);
+} else {
+    initAnalysisResults();
+}
+
+document.addEventListener('htmx:historyRestore', function(evt) {
+    initAnalysisResults();
 });
+
+})();

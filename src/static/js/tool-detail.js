@@ -4,6 +4,8 @@
  * Replaces the old monolithic ToolDetailModal.
  */
 
+(function() {
+
 class ToolDetailController {
     constructor() {
         this.modalElement = document.getElementById('toolDetailModal');
@@ -365,6 +367,18 @@ class ToolDetailController {
 }
 
 // Initialize
-document.addEventListener('DOMContentLoaded', () => {
+function initToolDetail() {
     window.toolDetailController = new ToolDetailController();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initToolDetail);
+} else {
+    initToolDetail();
+}
+
+document.addEventListener('htmx:historyRestore', function(evt) {
+    initToolDetail();
 });
+
+})();

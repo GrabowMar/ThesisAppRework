@@ -2514,7 +2514,7 @@ function escapeHtml(text) {
 }
 
 // Initialize wizard on page load
-document.addEventListener('DOMContentLoaded', () => {
+function initAnalysisWizard() {
   // Initialize wizard state
     currentStep = 1;
     updateWizardStep();
@@ -2874,6 +2874,12 @@ document.addEventListener('DOMContentLoaded', () => {
       updateNavigationButtons();
     });
   }
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initAnalysisWizard);
+} else {
+  initAnalysisWizard();
+}
   </script>
 {% endblock %}

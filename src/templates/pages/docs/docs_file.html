@@ -201,10 +201,6 @@
 
 {% block scripts %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    initializeDocsPage();
-});
-
 function initializeDocsPage() {
     generateTableOfContents();
     setupScrollSpy();
@@ -212,6 +208,12 @@ function initializeDocsPage() {
     enhanceExternalLinks();
     setupCodeBlockCopy();
     setupImageLightbox();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeDocsPage);
+} else {
+    initializeDocsPage();
 }
 
 function generateTableOfContents() {

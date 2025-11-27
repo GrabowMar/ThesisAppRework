@@ -177,9 +177,15 @@ let isAutoRefreshing = true;
 let currentContainer = 'backend';
 
 // Initialize auto-refresh
-document.addEventListener('DOMContentLoaded', function() {
+function initLogs() {
   startAutoRefresh();
-});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initLogs);
+} else {
+  initLogs();
+}
 
 function switchContainer(containerType) {
   currentContainer = containerType;

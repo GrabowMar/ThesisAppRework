@@ -87,7 +87,7 @@ if (window.__MODELS_JS_LOADED__) {
     */
 
     // Initialize table utilities after first render
-    if (firstActivation && typeof TableUtils !== 'undefined') {
+    if (typeof TableUtils !== 'undefined') {
       initializeTableUtilities();
     }
 
@@ -162,6 +162,12 @@ if (window.__MODELS_JS_LOADED__) {
 
   document.addEventListener('htmx:load', (event) => {
     if (nodeContainsModelsTable(event?.detail?.elt)) {
+      bootstrapModelsPage();
+    }
+  });
+
+  document.addEventListener('htmx:historyRestore', (event) => {
+    if (document.getElementById('models-table-body')) {
       bootstrapModelsPage();
     }
   });

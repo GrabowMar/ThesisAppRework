@@ -247,6 +247,18 @@
     initializeApplicationsTableUtils();
   }
 
+  // Re-initialize on HTMX swaps (sorting, filtering, pagination)
+  // Attach to wrapper to avoid global listener duplication on page navigation
+  const wrapper = document.getElementById('applications-table-wrapper');
+  if (wrapper) {
+    wrapper.addEventListener('htmx:afterSwap', function(evt) {
+      // Check if the swapped content is the table section
+      if (evt.target.id === 'applications-table-section') {
+        initializeApplicationsTableUtils();
+      }
+    });
+  }
+
   // Export functions to global scope for template event handlers
   window.debounceApplicationSearch = debounceApplicationSearch;
   window.clearApplicationSearch = clearApplicationSearch;

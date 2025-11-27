@@ -138,6 +138,7 @@
   document.addEventListener('htmx:afterSettle', onHtmxUpdate);
   document.addEventListener('htmx:afterSwap', onHtmxUpdate);
   document.addEventListener('htmx:afterOnLoad', onHtmxUpdate);
+  document.addEventListener('htmx:historyRestore', onHtmxUpdate);
 
   // Public API
   window.ThesisSidebar = {

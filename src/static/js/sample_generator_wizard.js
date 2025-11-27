@@ -1,6 +1,7 @@
 // Sample Generator Wizard JavaScript
 // Handles wizard navigation, form validation, and generation management
 
+(function() {
 // ============================================================================
 // State Management
 // ============================================================================
@@ -21,10 +22,42 @@ let isGenerating = false;
 // Initialization
 // ============================================================================
 
-document.addEventListener('DOMContentLoaded', () => {
+function initSampleGeneratorWizard() {
+  // Only run if wizard elements exist
+  if (!document.getElementById('wizard-progress-bar')) return;
+  
   console.log('Sample Generator Wizard initialized');
+  
+  // Reset State
+  currentStep = 1;
+  selectedScaffolding = null;
+  selectedTemplates = [];
+  selectedModels = [];
+  isGenerating = false;
+  
   initializeWizard();
   loadInitialData();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initSampleGeneratorWizard);
+} else {
+  initSampleGeneratorWizard();
+}
+
+document.addEventListener('htmx:afterSwap', function(evt) {
+  // Re-initialize if wizard content was swapped in
+  if (document.getElementById('wizard-progress-bar')) {
+    initSampleGeneratorWizard();
+  }
+});
+
+document.addEventListener('htmx:historyRestore', function(evt) {
+  // Re-initialize if wizard content was restored from history
+  if (document.getElementById('wizard-progress-bar')) {
+    console.log('[Wizard] History restore detected, re-initializing...');
+    initSampleGeneratorWizard();
+  }
 });
 
 function initializeWizard() {
@@ -1544,3 +1577,5 @@ window.viewTemplate = viewTemplate;
 window.editTemplate = editTemplate;
 window.deleteTemplate = deleteTemplate;
 window.saveTemplate = saveTemplate;
+window.initSampleGeneratorWizard = initSampleGeneratorWizard;
+})();

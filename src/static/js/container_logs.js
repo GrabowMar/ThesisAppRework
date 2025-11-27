@@ -6,6 +6,8 @@
  * Provides visual feedback for build, start, stop, and other container operations.
  */
 
+(function() {
+
 class ContainerLogsModal {
     constructor() {
         this.modal = null;
@@ -466,6 +468,18 @@ class ContainerLogsModal {
 window.containerLogsModal = null;
 
 // Initialize on DOM ready
-document.addEventListener('DOMContentLoaded', () => {
+function initContainerLogs() {
     window.containerLogsModal = new ContainerLogsModal();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initContainerLogs);
+} else {
+    initContainerLogs();
+}
+
+document.addEventListener('htmx:historyRestore', function(evt) {
+    initContainerLogs();
 });
+
+})();

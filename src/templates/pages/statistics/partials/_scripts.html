@@ -8,10 +8,16 @@ let trendsChart = null;
 let severityChart = null;
 
 // Initialize dashboard on load
-document.addEventListener('DOMContentLoaded', function() {
+function initStatsDashboard() {
     initializeCharts();
     updateLastCheckTime();
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initStatsDashboard);
+} else {
+    initStatsDashboard();
+}
 
 // Sanitize numeric value for charts (handle None, undefined, NaN)
 function sanitizeNumber(val, defaultVal) {

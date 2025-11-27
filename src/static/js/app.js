@@ -86,6 +86,9 @@ if(!window.__APP_JS_DEPRECATION){
   document.addEventListener('htmx:afterSettle', function(evt){
     if(evt && evt.target){ updateProgressBars(evt.target); }
   });
+  document.addEventListener('htmx:historyRestore', function(evt){
+    updateProgressBars(document);
+  });
   document.addEventListener('thesis:refresh-progress', function(evt){
     updateProgressBars(evt && evt.detail && evt.detail.root ? evt.detail.root : document);
   });

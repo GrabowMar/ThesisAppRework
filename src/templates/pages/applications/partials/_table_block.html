@@ -495,9 +495,13 @@ function pollApplicationStatuses() {
 }
 
 // Run polling and rebind handlers
-document.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(pollApplicationStatuses, 500);
+  });
+} else {
   setTimeout(pollApplicationStatuses, 500);
-});
+}
 
 document.body.addEventListener('htmx:afterSwap', (e) => {
   if (e.target?.id === 'applications-table-section') {
