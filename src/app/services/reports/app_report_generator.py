@@ -120,18 +120,43 @@ class AppReportGenerator(BaseReportGenerator):
                 GeneratedApplication.app_number == app_number
             ).first()
             
+            # Extract tool success/failure counts - handle both integer and list formats
+            tools_successful = summary.get('tools_successful', 0)
+            tools_failed = summary.get('tools_failed', 0)
+            
+            # Convert to integers if they're lists (some formats store tool names instead of counts)
+            if isinstance(tools_successful, list):
+                tools_successful = len(tools_successful)
+            if isinstance(tools_failed, list):
+                tools_failed = len(tools_failed)
+            
+            # Ensure we have integers
+            tools_successful = int(tools_successful) if tools_successful else 0
+            tools_failed = int(tools_failed) if tools_failed else 0
+            
+            # Also ensure findings_count is an integer
+            findings_count = summary.get('total_findings', 0)
+            if isinstance(findings_count, list):
+                findings_count = len(findings_count)
+            findings_count = int(findings_count) if findings_count else 0
+            
+            # Handle duration_seconds safely
+            duration_seconds = raw_data.get('metadata', {}).get('duration_seconds', 0)
+            if duration_seconds is None:
+                duration_seconds = 0.0
+            
             models_data.append({
                 'model_slug': model_slug,
                 'task_id': latest_task.task_id,
                 'completed_at': latest_task.completed_at.isoformat() if latest_task.completed_at else None,
-                'duration_seconds': raw_data.get('metadata', {}).get('duration_seconds', 0),
+                'duration_seconds': float(duration_seconds),
                 'app_name': f"{model_slug} / App {app_number}",  # Constructed, not from model
                 'app_description': None,  # GeneratedApplication has no description field
-                'findings_count': summary.get('total_findings', 0),
+                'findings_count': findings_count,
                 'severity_counts': summary.get('findings_by_severity', {}),
                 'tools': tools,
-                'tools_successful': summary.get('tools_successful', 0),
-                'tools_failed': summary.get('tools_failed', 0),
+                'tools_successful': tools_successful,
+                'tools_failed': tools_failed,
                 'findings': findings,
                 'all_tasks_count': len(model_tasks)
             })
