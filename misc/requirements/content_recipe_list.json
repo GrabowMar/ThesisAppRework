@@ -4,17 +4,18 @@
   "category": "Content",
   "description": "Save and view recipes",
   "backend_requirements": [
-    "1. Recipe model: id, title (required), ingredients (text), instructions (text), prep_time, servings",
-    "2. CRUD endpoints: GET /api/recipes, GET /api/recipes/:id, POST, PUT, DELETE",
-    "3. Search recipes: ?query=text searches title and ingredients",
-    "4. Seed with 3-5 sample recipes"
+    "1. Recipe model: id, title (required), ingredients (JSON array), instructions (text), category (optional)",
+    "2. CRUD endpoints: GET /api/recipes, GET /api/recipes/:id, POST, DELETE",
+    "3. Filter by category: ?category=dessert query parameter",
+    "4. Seed with 3-5 sample recipes",
+    "5. JSON responses with proper status codes (200, 201, 404)"
   ],
   "frontend_requirements": [
-    "1. Recipe list showing title, prep time, servings",
+    "1. Recipe list showing title and category",
     "2. Click recipe to view full details (ingredients and instructions)",
-    "3. Add/edit recipe form with all fields",
+    "3. Add recipe form with title, ingredients, instructions, category",
     "4. Delete button with confirmation",
-    "5. Search box to filter recipes"
+    "5. Filter by category dropdown"
   ],
   "api_endpoints": [
     {

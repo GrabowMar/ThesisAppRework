@@ -7,7 +7,8 @@
     "1. Flashcard model: id, question (required), answer (required), category, difficulty",
     "2. CRUD endpoints: GET /api/flashcards, POST, PUT, DELETE",
     "3. GET /api/flashcards/random - return random card",
-    "4. Filter by category: ?category=math"
+    "4. Filter by category: ?category=math",
+    "5. Seed with 10+ sample flashcards across different categories"
   ],
   "frontend_requirements": [
     "1. Card display: large question text centered",

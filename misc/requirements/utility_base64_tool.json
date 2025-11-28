@@ -7,7 +7,8 @@
     "1. POST /api/base64/encode - accept {text: string}, return {encoded: string}",
     "2. POST /api/base64/decode - accept {encoded: string}, return {text: string}",
     "3. Handle decode errors for invalid base64",
-    "4. Support UTF-8 encoding"
+    "4. Support UTF-8 encoding",
+    "5. Return appropriate error messages with 400 status for invalid input"
   ],
   "frontend_requirements": [
     "1. Two textareas: input and output",

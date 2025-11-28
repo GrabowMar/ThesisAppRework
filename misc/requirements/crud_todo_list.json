@@ -7,7 +7,8 @@
     "1. Todo model with SQLAlchemy: id, title (string, required), completed (boolean, default False), created_at",
     "2. REST API endpoints: GET /api/todos (list all), POST /api/todos (create), PUT /api/todos/:id (update), DELETE /api/todos/:id",
     "3. Filter support: ?completed=true/false query parameter",
-    "4. JSON responses with proper status codes (200, 201, 404)"
+    "4. JSON responses with proper status codes (200, 201, 404)",
+    "5. Input validation: title is required and cannot be empty"
   ],
   "frontend_requirements": [
     "1. Display todo list with title and checkbox for completion status",
@@ -47,7 +48,7 @@
     },
     {
       "method": "GET",
-      "path": "/health",
+      "path": "/api/health",
       "description": "Health check endpoint",
       "request": null,
       "response": {"status": "healthy", "service": "backend"}

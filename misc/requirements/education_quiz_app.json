@@ -7,7 +7,8 @@
     "1. Question model: id, question_text (required), options (JSON array), correct_answer (integer index)",
     "2. GET /api/quiz/questions - return 5-10 random questions",
     "3. POST /api/quiz/submit - accept answers array, return score and correct answers",
-    "4. Seed with 20+ sample questions"
+    "4. Seed with 20+ sample questions",
+    "5. GET /api/quiz/review/:id - return quiz results for review"
   ],
   "frontend_requirements": [
     "1. Display one question at a time with radio buttons for options",

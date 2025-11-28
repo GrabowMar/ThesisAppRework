@@ -7,7 +7,8 @@
     "1. Task model: id, title (required), description, status (todo/in_progress/done), priority",
     "2. CRUD endpoints: GET /api/tasks, POST, PUT, DELETE",
     "3. Update status: PUT /api/tasks/:id/status with {status: 'done'}",
-    "4. Filter by status: ?status=todo"
+    "4. Filter by status: ?status=todo",
+    "5. Validate: status must be one of todo/in_progress/done, priority must be low/medium/high"
   ],
   "frontend_requirements": [
     "1. Three columns: To Do, In Progress, Done",

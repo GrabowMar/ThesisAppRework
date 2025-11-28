@@ -4,17 +4,18 @@
   "category": "Inventory",
   "description": "Track stock quantities",
   "backend_requirements": [
-    "1. Item model: id, name (required), sku, quantity (integer), min_quantity, location",
-    "2. CRUD endpoints: GET /api/items, POST, PUT, DELETE",
-    "3. PUT /api/items/:id/adjust - accept {adjustment: +5 or -3} to modify quantity",
-    "4. Alert when quantity < min_quantity"
+    "1. InventoryItem model: id, name (required), sku (unique, required), quantity (integer), min_quantity (threshold for low stock)",
+    "2. CRUD endpoints: GET /api/inventory, POST, PUT, DELETE",
+    "3. Filter for low stock items: ?low_stock=true returns items where quantity < min_quantity",
+    "4. Computed 'low_stock' boolean field in responses",
+    "5. Input validation: name and sku required, quantity must be non-negative"
   ],
   "frontend_requirements": [
-    "1. Item list table: name, SKU, quantity, location",
-    "2. Low stock items highlighted in red",
-    "3. Add item form with all fields",
-    "4. Quantity adjustment controls: +/- buttons or input",
-    "5. Delete item button"
+    "1. Item list table: name, SKU, quantity, min_quantity",
+    "2. Low stock items highlighted in red (quantity < min_quantity)",
+    "3. Add item form with name, SKU, quantity, min_quantity fields",
+    "4. Edit quantity directly in table or via edit form",
+    "5. Delete item button with confirmation"
   ],
   "api_endpoints": [
     {

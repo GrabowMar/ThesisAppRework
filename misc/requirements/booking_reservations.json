@@ -4,16 +4,17 @@
   "category": "Booking",
   "description": "Book time slots or rooms",
   "backend_requirements": [
-    "1. Reservation model: id, name (required), resource (room/table/etc), date (required), time_slot, guests",
-    "2. CRUD endpoints: GET /api/reservations, POST, PUT, DELETE",
-    "3. GET /api/reservations/available?date=X&resource=Y - show available time slots",
-    "4. Validate: prevent double-booking same resource/time"
+    "1. Reservation model: id, name (required), email (required), date (required), time (HH:MM format), party_size (integer)",
+    "2. CRUD endpoints: GET /api/reservations, POST, DELETE",
+    "3. Filter by date: ?date=YYYY-MM-DD query parameter",
+    "4. Validate: prevent double-booking same time slot, validate email format",
+    "5. JSON responses with proper status codes (200, 201, 400, 404, 409 for conflicts)"
   ],
   "frontend_requirements": [
-    "1. Reservation list grouped by date, showing name, resource, time",
-    "2. Book form: name, resource dropdown, date picker, time slot picker, guests",
-    "3. Show available slots when date/resource selected",
-    "4. Cancel reservation button",
+    "1. Reservation list grouped by date, showing name, email, time, party size",
+    "2. Book form: name, email, date picker, time picker, party size",
+    "3. Validation for email format and required fields",
+    "4. Cancel reservation button with confirmation",
     "5. Today's reservations highlighted"
   ],
   "api_endpoints": [

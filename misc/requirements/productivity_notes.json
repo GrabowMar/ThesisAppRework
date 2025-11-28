@@ -4,14 +4,15 @@
   "category": "Productivity",
   "description": "Create and organize notes",
   "backend_requirements": [
-    "1. Note model: id, title (required), content (text), created_at, updated_at, pinned (boolean)",
+    "1. Note model: id, title (required), content (text), tags (JSON array), created_at, updated_at",
     "2. CRUD endpoints: GET /api/notes, POST, PUT /api/notes/:id, DELETE",
     "3. Search notes: ?query=text searches title and content",
-    "4. Pin/unpin notes: PUT /api/notes/:id/pin"
+    "4. Filter by tag: ?tag=work",
+    "5. Auto-update updated_at timestamp on every edit"
   ],
   "frontend_requirements": [
     "1. Two-column layout: note list (left), editor (right)",
-    "2. Note list shows titles with preview, pinned notes at top",
+    "2. Note list shows titles with preview and tags",
     "3. Click note to load in editor",
     "4. Auto-save on typing (debounced)",
     "5. Delete note button with confirmation"

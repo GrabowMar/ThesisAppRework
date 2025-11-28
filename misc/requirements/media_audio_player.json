@@ -4,17 +4,18 @@
   "category": "Media",
   "description": "Play audio files",
   "backend_requirements": [
-    "1. Episode model: id, title, audio_url, duration, description",
-    "2. GET /api/episodes - return list of episodes",
+    "1. Track model: id, title (required), artist (optional), duration (seconds), filepath (server path)",
+    "2. GET /api/tracks - return list of audio tracks",
     "3. Serve static audio files from /audio directory",
-    "4. Seed with 2-3 sample audio URLs"
+    "4. Seed with 2-3 sample audio URLs or placeholder tracks",
+    "5. DELETE /api/tracks/:id - remove track and associated file"
   ],
   "frontend_requirements": [
-    "1. Episode list with title and duration",
-    "2. Click episode to load in HTML5 audio player",
+    "1. Track list with title, artist, and duration",
+    "2. Click track to load in HTML5 audio player",
     "3. Player controls: play/pause, seek bar, volume, current time",
-    "4. Currently playing episode highlighted",
-    "5. Auto-play next episode option"
+    "4. Currently playing track highlighted",
+    "5. Upload audio file button (multipart form)"
   ],
   "api_endpoints": [
     {

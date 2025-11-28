@@ -7,7 +7,8 @@
     "1. GET /api/stats - return {cpu_percent, memory_percent, disk_percent, uptime_seconds}",
     "2. Use psutil library or mock data if not available",
     "3. GET /api/stats/history - return last 10 readings",
-    "4. Update readings every 5 seconds"
+    "4. Update readings every 5 seconds",
+    "5. Store stats history in database with timestamp for trend analysis"
   ],
   "frontend_requirements": [
     "1. Large cards showing CPU%, Memory%, Disk%, Uptime",

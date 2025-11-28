@@ -7,7 +7,8 @@
     "1. Reading model: id, temperature, humidity, timestamp",
     "2. GET /api/sensors/current - return latest reading (or generate random mock data)",
     "3. GET /api/sensors/history?hours=24 - return readings from last N hours",
-    "4. POST /api/sensors/reading - accept new reading (for simulated sensor)"
+    "4. POST /api/sensors/reading - accept new reading (for simulated sensor)",
+    "5. Seed with initial mock sensor data if database is empty"
   ],
   "frontend_requirements": [
     "1. Large cards displaying current temperature and humidity",

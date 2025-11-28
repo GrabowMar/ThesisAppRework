@@ -7,7 +7,8 @@
     "1. Post model: id, title (required), content (text), author, created_at, updated_at",
     "2. CRUD endpoints: GET /api/posts (list), GET /api/posts/:id (single), POST, PUT, DELETE",
     "3. Support pagination: ?page=1&limit=10",
-    "4. Search posts: ?search=query"
+    "4. Search posts: ?search=query",
+    "5. Auto-update updated_at timestamp on every edit"
   ],
   "frontend_requirements": [
     "1. Post list showing title, excerpt (first 200 chars), date, author",

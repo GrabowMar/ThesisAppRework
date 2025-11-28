@@ -7,7 +7,8 @@
     "1. Store model: id, name, address, latitude, longitude, phone",
     "2. GET /api/stores - return all stores",
     "3. GET /api/stores/nearby?lat=X&lng=Y&radius=5 - filter by distance",
-    "4. Seed with 5-10 sample store locations"
+    "4. Seed with 5-10 sample store locations",
+    "5. GET /api/stores/:id - return single store details"
   ],
   "frontend_requirements": [
     "1. Store list showing name, address, phone",

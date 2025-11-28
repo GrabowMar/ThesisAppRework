@@ -7,7 +7,8 @@
     "1. Customer model: id, name (required), email (required, unique), phone, company, notes",
     "2. CRUD endpoints: GET /api/customers, POST, PUT, DELETE",
     "3. Search customers: ?query=text searches name, email, company",
-    "4. Email validation on create/update"
+    "4. Email validation on create/update",
+    "5. JSON responses with proper status codes (200, 201, 400, 404, 409 for duplicate email)"
   ],
   "frontend_requirements": [
     "1. Customer list table: name, email, phone, company",

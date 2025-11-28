@@ -7,7 +7,8 @@
     "1. Notification model: id, message (required), type (info/warning/error), read (boolean), created_at",
     "2. GET /api/notifications - return all, support ?unread=true filter",
     "3. PUT /api/notifications/:id/read - mark as read",
-    "4. DELETE /api/notifications/:id - delete notification"
+    "4. DELETE /api/notifications/:id - delete notification",
+    "5. POST /api/notifications - create new notification with type validation"
   ],
   "frontend_requirements": [
     "1. Notification list with icon based on type, message, time ago",

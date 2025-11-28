@@ -7,7 +7,8 @@
     "1. Score model: id, player_name (required), score (integer, required), achieved_at",
     "2. POST /api/scores - submit new score",
     "3. GET /api/leaderboard - return top 10 scores sorted descending",
-    "4. GET /api/leaderboard?player=name - get player's rank and best score"
+    "4. GET /api/leaderboard?player=name - get player's rank and best score",
+    "5. Input validation: player_name required (max 50 chars), score must be non-negative"
   ],
   "frontend_requirements": [
     "1. Leaderboard table: rank, player name, score, date",

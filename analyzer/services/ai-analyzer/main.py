@@ -176,7 +176,7 @@ class AIAnalyzer(BaseWSService):
     async def _try_gpt4all_analysis(self, code_content: str, requirement: str, config: Optional[Dict[str, Any]] = None) -> Optional[RequirementResult]:
         """Try analysis using GPT4All API."""
         try:
-            prompt = self._build_analysis_prompt(code_content, requirement)
+            prompt = self._build_analysis_prompt(code_content, requirement, None)
             
             async with aiohttp.ClientSession() as session:
                 import aiohttp as _aiohttp
@@ -212,7 +212,7 @@ class AIAnalyzer(BaseWSService):
                 self.log.warning("[API] OpenRouter API key not available")
                 return None
             
-            prompt = self._build_analysis_prompt(code_content, requirement)
+            prompt = self._build_analysis_prompt(code_content, requirement, None)
             self.log.debug(f"[API-OPENROUTER] Built prompt: {len(prompt)} chars for requirement: {requirement[:100]}...")
             
             async with aiohttp.ClientSession() as session:
@@ -263,17 +263,28 @@ class AIAnalyzer(BaseWSService):
             traceback.print_exc()
             return None
     
-    def _build_analysis_prompt(self, code_content: str, requirement: str) -> str:
-        """Build analysis prompt for AI."""
+    def _build_analysis_prompt(self, code_content: str, requirement: str, template_context: Optional[Dict[str, Any]] = None) -> str:
+        """Build analysis prompt for AI with optional template context."""
         # Truncate code if too long
         max_code_length = 8000
         if len(code_content) > max_code_length:
             code_content = code_content[:max_code_length] + "\n[...truncated...]"
         
+        # Add template context if provided
+        context_section = ""
+        if template_context:
+            context_section = f"""
+APPLICATION CONTEXT:
+- Template: {template_context.get('name', 'Unknown')} ({template_context.get('category', 'Unknown')})
+- Description: {template_context.get('description', 'N/A')}
+- Data Model: {json.dumps(template_context.get('data_model', {}), indent=2) if template_context.get('data_model') else 'N/A'}
+
+"""
+        
         return f"""Analyze the following web application code to determine if it meets this specific requirement:
 
 REQUIREMENT: {requirement}
-
+{context_section}
 CODE:
 {code_content}
 
@@ -367,9 +378,36 @@ Focus on whether the functionality described in the requirement is actually impl
             with open(requirements_file, 'r', encoding='utf-8') as f:
                 template_data = json.load(f)
             
-            # Support both new and legacy field names with fallback
-            functional_requirements = template_data.get('functional_requirements') or template_data.get('backend_requirements', [])
-            control_endpoints = template_data.get('control_endpoints', [])
+            # Support current requirement template structure:
+            # - backend_requirements: list of functional requirements (strings)
+            # - frontend_requirements: list of UI/UX requirements (strings)
+            # - api_endpoints: list of endpoint definitions (objects with method, path, description, request, response)
+            # - data_model: object with name, fields, related
+            functional_requirements = template_data.get('backend_requirements', [])
+            
+            # Extract control endpoints from api_endpoints - health check and status endpoints
+            api_endpoints = template_data.get('api_endpoints', [])
+            control_endpoints = [
+                {
+                    'path': ep.get('path', '/'),
+                    'method': ep.get('method', 'GET'),
+                    'expected_status': 200,
+                    'description': ep.get('description', 'API endpoint')
+                }
+                for ep in api_endpoints
+                if ep.get('path', '').lower() in ['/api/health', '/health', '/api/status', '/status']
+            ]
+            
+            # If no health endpoints defined, add a default health check
+            if not control_endpoints:
+                control_endpoints = [
+                    {
+                        'path': '/api/health',
+                        'method': 'GET',
+                        'expected_status': 200,
+                        'description': 'Health check endpoint'
+                    }
+                ]
             
             if not functional_requirements and not control_endpoints:
                 return {
@@ -420,6 +458,14 @@ Focus on whether the functionality described in the requirement is actually impl
             # Read backend and frontend code only (efficient scope)
             code_content = await self._read_app_code_focused(app_path, focus_dirs=['backend', 'frontend'])
             
+            # Build template context for AI prompts
+            template_context = {
+                'name': template_data.get('name', template_slug),
+                'category': template_data.get('category', 'Unknown'),
+                'description': template_data.get('description', ''),
+                'data_model': template_data.get('data_model', {})
+            }
+            
             # Analyze functional requirements with AI
             functional_results = []
             gemini_model = config.get('gemini_model', 'anthropic/claude-3-5-haiku') if config else 'anthropic/claude-3-5-haiku'
@@ -427,7 +473,7 @@ Focus on whether the functionality described in the requirement is actually impl
             for i, req in enumerate(functional_requirements, 1):
                 await self.send_progress('checking_requirement', f"Checking functional requirement {i}/{len(functional_requirements)}", analysis_id=analysis_id)
                 
-                result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model)
+                result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, template_context=template_context)
                 functional_results.append({
                     'requirement': req,
                     'met': result.met,
@@ -457,6 +503,8 @@ Focus on whether the functionality described in the requirement is actually impl
                     'app_number': app_number,
                     'ai_model_used': gemini_model,
                     'template_slug': template_slug,
+                    'template_name': template_data.get('name', template_slug),
+                    'template_category': template_data.get('category', 'Unknown'),
                     'analysis_time': datetime.now().isoformat()
                 },
                 'results': {
@@ -469,6 +517,11 @@ Focus on whether the functionality described in the requirement is actually impl
                         'control_endpoints_passed': passed_endpoints,
                         'compliance_percentage': overall_compliance
                     }
+                },
+                'template_info': {
+                    'description': template_data.get('description', ''),
+                    'data_model': template_data.get('data_model', {}),
+                    'api_endpoints_count': len(api_endpoints)
                 }
             }
             
@@ -519,13 +572,14 @@ Focus on whether the functionality described in the requirement is actually impl
             with open(requirements_file, 'r', encoding='utf-8') as f:
                 template_data = json.load(f)
             
-            # Support both new and legacy field names with fallback
-            stylistic_requirements = template_data.get('stylistic_requirements') or template_data.get('frontend_requirements', [])
+            # Support current requirement template structure:
+            # - frontend_requirements: list of UI/UX requirements (strings)
+            stylistic_requirements = template_data.get('frontend_requirements', [])
             
             if not stylistic_requirements:
                 return {
                     'status': 'warning',
-                    'message': 'No stylistic requirements found in template',
+                    'message': 'No stylistic requirements (frontend_requirements) found in template',
                     'tool_name': 'code-quality-analyzer'
                 }
             
@@ -538,6 +592,13 @@ Focus on whether the functionality described in the requirement is actually impl
             else:
                 code_content = await self._read_app_code_focused(app_path, focus_dirs=['backend', 'frontend'])  # Focused scan
             
+            # Build template context for AI prompts
+            template_context = {
+                'name': template_data.get('name', template_slug),
+                'category': template_data.get('category', 'Unknown'),
+                'description': template_data.get('description', '')
+            }
+            
             await self.send_progress('analyzing_stylistic_requirements', f"Analyzing {len(stylistic_requirements)} stylistic requirements", analysis_id=analysis_id)
             
             # Analyze stylistic requirements with AI
@@ -547,7 +608,7 @@ Focus on whether the functionality described in the requirement is actually impl
             for i, req in enumerate(stylistic_requirements, 1):
                 await self.send_progress('checking_requirement', f"Checking stylistic requirement {i}/{len(stylistic_requirements)}", analysis_id=analysis_id)
                 
-                result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, focus='quality')
+                result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, focus='quality', template_context=template_context)
                 stylistic_results.append({
                     'requirement': req,
                     'met': result.met,
@@ -571,6 +632,8 @@ Focus on whether the functionality described in the requirement is actually impl
                     'app_number': app_number,
                     'ai_model_used': gemini_model,
                     'template_slug': template_slug,
+                    'template_name': template_data.get('name', template_slug),
+                    'template_category': template_data.get('category', 'Unknown'),
                     'full_scan': full_scan,
                     'analysis_time': datetime.now().isoformat()
                 },
@@ -581,6 +644,9 @@ Focus on whether the functionality described in the requirement is actually impl
                         'stylistic_requirements_met': met_stylistic,
                         'compliance_percentage': compliance
                     }
+                },
+                'template_info': {
+                    'description': template_data.get('description', '')
                 }
             }
             
@@ -649,7 +715,7 @@ Focus on whether the functionality described in the requirement is actually impl
         
         return code_content
     
-    async def _analyze_requirement_with_gemini(self, code_content: str, requirement: str, model: str, focus: str = 'functional') -> RequirementResult:
+    async def _analyze_requirement_with_gemini(self, code_content: str, requirement: str, model: str, focus: str = 'functional', template_context: Optional[Dict[str, Any]] = None) -> RequirementResult:
         """Analyze requirement using Gemini Flash via OpenRouter."""
         try:
             if not self.openrouter_api_key:
@@ -662,9 +728,9 @@ Focus on whether the functionality described in the requirement is actually impl
             
             # Build focused prompt
             if focus == 'quality':
-                prompt = self._build_quality_analysis_prompt(code_content, requirement)
+                prompt = self._build_quality_analysis_prompt(code_content, requirement, template_context)
             else:
-                prompt = self._build_analysis_prompt(code_content, requirement)
+                prompt = self._build_analysis_prompt(code_content, requirement, template_context)
             
             # Truncate code if too long
             max_code_length = 12000
@@ -712,12 +778,22 @@ Focus on whether the functionality described in the requirement is actually impl
                 error=str(e)
             )
     
-    def _build_quality_analysis_prompt(self, code_content: str, requirement: str) -> str:
+    def _build_quality_analysis_prompt(self, code_content: str, requirement: str, template_context: Optional[Dict[str, Any]] = None) -> str:
         """Build quality-focused analysis prompt for stylistic requirements."""
+        # Add template context if provided
+        context_section = ""
+        if template_context:
+            context_section = f"""
+APPLICATION CONTEXT:
+- Template: {template_context.get('name', 'Unknown')} ({template_context.get('category', 'Unknown')})
+- Description: {template_context.get('description', 'N/A')}
+
+"""
+        
         return f"""Analyze the following web application code to determine if it meets this CODE QUALITY requirement:
 
 REQUIREMENT: {requirement}
-
+{context_section}
 CODE:
 {code_content}
 

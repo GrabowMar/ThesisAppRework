@@ -7,7 +7,8 @@
     "1. Book model: id, title (required), author (required), year (integer, optional), isbn (optional)",
     "2. CRUD endpoints: GET /api/books, POST /api/books, PUT /api/books/:id, DELETE /api/books/:id",
     "3. Search support: ?query=text searches title and author",
-    "4. Input validation: title and author required, year must be 4 digits"
+    "4. Input validation: title and author required, year must be 4 digits",
+    "5. JSON responses with proper status codes (200, 201, 400, 404)"
   ],
   "frontend_requirements": [
     "1. Book list table with columns: title, author, year",

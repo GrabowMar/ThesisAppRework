@@ -7,7 +7,8 @@
     "1. POST /api/shorten - accept long URL, generate 6-character random code",
     "2. URL model: id, original_url, short_code (unique), created_at, click_count",
     "3. GET /:code - lookup and redirect to original URL, increment counter",
-    "4. Validate URL format before shortening"
+    "4. Validate URL format before shortening",
+    "5. GET /api/urls - return list of recently shortened URLs with click counts"
   ],
   "frontend_requirements": [
     "1. Input field for long URL with 'Shorten' button",

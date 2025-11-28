@@ -7,7 +7,8 @@
     "1. WebSocket endpoint at /ws/chat for bidirectional communication",
     "2. Message model: id, username, text, timestamp",
     "3. Broadcast incoming messages to all connected clients",
-    "4. Store last 50 messages in memory or SQLite"
+    "4. Store last 50 messages in memory or SQLite",
+    "5. GET /api/messages - return recent message history for new connections"
   ],
   "frontend_requirements": [
     "1. Message list showing username, text, and time",

@@ -7,7 +7,8 @@
     "1. POST /api/validate/xml - accept {xml: string}",
     "2. Parse XML using Python's xml.etree or lxml",
     "3. Return {valid: true} or {valid: false, error: message, line: number}",
-    "4. Handle syntax errors with helpful messages"
+    "4. Handle syntax errors with helpful messages",
+    "5. Support large XML input (up to 1MB) with appropriate timeout"
   ],
   "frontend_requirements": [
     "1. Large textarea for XML input with monospace font",
