@@ -1,0 +1,224 @@
+{% set caps = model.capabilities or enriched_data.get('capabilities') or {} %}
+{% set nested_caps = enriched_data.get('capabilities', {}) %}
+
+{% if not caps %}
+  <div class="empty">
+    <div class="empty-icon">
+      <i class="ti ti-info-circle"></i>
+    </div>
+    <p class="empty-title">No Capability Data</p>
+    <p class="empty-subtitle text-muted">Capability information is not available for this model.</p>
+  </div>
+{% else %}
+  <div class="row g-3">
+    {# Core Skills Card - Wide #}
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title"><i class="ti ti-stars me-1"></i>Core Skills</h3>
+        </div>
+        <div class="card-body">
+          <div class="d-flex flex-wrap gap-2">
+            {% if caps.get('text') or caps.get('chat') %}
+              <span class="badge bg-success-lt text-success"><i class="ti ti-message-dots me-1"></i>Text generation</span>
+            {% endif %}
+            {% if caps.get('vision') or caps.get('images') %}
+              <span class="badge bg-success-lt text-success"><i class="ti ti-eye me-1"></i>Vision</span>
+            {% endif %}
+            {% if caps.get('multimodal') %}
+              <span class="badge bg-success-lt text-success"><i class="ti ti-layers-intersect me-1"></i>Multimodal</span>
+            {% endif %}
+            {% if caps.get('function_calling') or caps.get('tool_use') or 'tools' in nested_caps.get('supported_parameters', []) %}
+              <span class="badge bg-success-lt text-success"><i class="ti ti-tool me-1"></i>Function calling</span>
+            {% endif %}
+            {% if caps.get('streaming') %}
+              <span class="badge bg-success-lt text-success"><i class="ti ti-wave-sine me-1"></i>Streaming</span>
+            {% endif %}
+            {% if caps.get('json') or caps.get('json_mode') or 'response_format' in nested_caps.get('supported_parameters', []) %}
+              <span class="badge bg-success-lt text-success"><i class="ti ti-braces me-1"></i>JSON mode</span>
+            {% endif %}
+            {% if caps.get('audio') %}
+              <span class="badge bg-success-lt text-success"><i class="ti ti-microphone-2 me-1"></i>Audio</span>
+            {% endif %}
+            {% if caps|length == 0 %}
+              <span class="text-muted">Provider has not declared core skills.</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Architecture Card #}
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title"><i class="ti ti-ball-pyramid me-1"></i>Architecture</h3>
+        </div>
+        <div class="card-body">
+          <div class="datagrid">
+            <div class="datagrid-item">
+              <div class="datagrid-title">Modality</div>
+              <div class="datagrid-content">
+                {% if nested_caps.get('architecture', {}).get('modality') %}
+                  {{ nested_caps.get('architecture', {}).get('modality') }}
+                {% elif enriched_data.get('architecture_modality') %}
+                  {{ enriched_data.get('architecture_modality') }}
+                {% else %}
+                  <span class="text-muted">Not available</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="datagrid-item">
+              <div class="datagrid-title">Tokenizer</div>
+              <div class="datagrid-content">
+                {% if nested_caps.get('architecture', {}).get('tokenizer') %}
+                  {{ nested_caps.get('architecture', {}).get('tokenizer') }}
+                {% elif enriched_data.get('architecture_tokenizer') %}
+                  {{ enriched_data.get('architecture_tokenizer') }}
+                {% else %}
+                  <span class="text-muted">Unknown</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="datagrid-item">
+              <div class="datagrid-title">Instruct Type</div>
+              <div class="datagrid-content">
+                {% if nested_caps.get('architecture', {}).get('instruct_type') %}
+                  <span class="badge bg-primary-lt">{{ nested_caps.get('architecture', {}).get('instruct_type') }}</span>
+                {% elif enriched_data.get('architecture_instruct_type') %}
+                  <span class="badge bg-primary-lt">{{ enriched_data.get('architecture_instruct_type') }}</span>
+                {% else %}
+                  <span class="text-muted">Not specified</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          <div class="d-flex flex-wrap gap-2 mt-3">
+            {% set inputs = nested_caps.get('architecture', {}).get('input_modalities') or enriched_data.get('architecture_input_modalities') %}
+            {% if inputs %}
+              {% if inputs is iterable and inputs is not string %}
+                {% for modality in inputs %}
+                  <span class="badge bg-secondary-lt"><i class="ti ti-arrow-down-right me-1"></i>{{ modality }}</span>
+                {% endfor %}
+              {% else %}
+                <span class="badge bg-secondary-lt"><i class="ti ti-arrow-down-right me-1"></i>{{ inputs }}</span>
+              {% endif %}
+            {% else %}
+              <span class="text-muted small">Input modalities not published</span>
+            {% endif %}
+            {% set outputs = nested_caps.get('architecture', {}).get('output_modalities') or enriched_data.get('architecture_output_modalities') %}
+            {% if outputs %}
+              {% if outputs is iterable and outputs is not string %}
+                {% for modality in outputs %}
+                  <span class="badge bg-secondary-lt"><i class="ti ti-arrow-up-right me-1"></i>{{ modality }}</span>
+                {% endfor %}
+              {% else %}
+                <span class="badge bg-secondary-lt"><i class="ti ti-arrow-up-right me-1"></i>{{ outputs }}</span>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Supported Parameters Card #}
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title"><i class="ti ti-adjustments-alt me-1"></i>Supported Parameters</h3>
+        </div>
+        <div class="card-body">
+          {% set all_params = nested_caps.get('supported_parameters') or enriched_data.get('openrouter_supported_parameters') %}
+          {% if all_params %}
+            {% if all_params|length <= 12 %}
+              <div class="d-flex flex-wrap gap-1">
+                {% for param in all_params %}
+                  <span class="badge bg-secondary-lt">{{ param }}</span>
+                {% endfor %}
+              </div>
+            {% else %}
+              <details>
+                <summary class="mb-2" style="cursor: pointer;">
+                  <span class="text-primary">Show all {{ all_params|length }} parameters</span>
+                </summary>
+                <div class="d-flex flex-wrap gap-1">
+                  {% for param in all_params %}
+                    <span class="badge bg-secondary-lt">{{ param }}</span>
+                  {% endfor %}
+                </div>
+              </details>
+              <div class="d-flex flex-wrap gap-1 mb-2">
+                {% for param in all_params[:12] %}
+                  <span class="badge bg-secondary-lt">{{ param }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+          {% else %}
+            <p class="text-muted mb-0">Provider has not published parameter-level support.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# Per-Request Limits Card #}
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title"><i class="ti ti-gauge me-1"></i>Per-Request Limits</h3>
+        </div>
+        <div class="card-body">
+          {% set limits = enriched_data.get('openrouter_per_request_limits') %}
+          {% if limits %}
+            <div class="datagrid">
+              {% if limits.get('prompt_tokens') %}
+              <div class="datagrid-item">
+                <div class="datagrid-title">Max Prompt Tokens</div>
+                <div class="datagrid-content">
+                  <span class="badge bg-azure-lt">{{ "{:,}".format(limits.get('prompt_tokens')) }}</span>
+                </div>
+              </div>
+              {% endif %}
+              {% if limits.get('completion_tokens') %}
+              <div class="datagrid-item">
+                <div class="datagrid-title">Max Completion Tokens</div>
+                <div class="datagrid-content">
+                  <span class="badge bg-green-lt">{{ "{:,}".format(limits.get('completion_tokens')) }}</span>
+                </div>
+              </div>
+              {% endif %}
+            </div>
+          {% else %}
+            <p class="text-muted mb-0">No per-request limits specified by provider.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {# Capability Matrix - Full Width #}
+    {% if caps is mapping %}
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title"><i class="ti ti-checklist me-1"></i>Capability Matrix</h3>
+        </div>
+        <div class="card-body">
+          <div class="row row-cols-2 row-cols-md-4 g-2">
+            {% for key, value in caps.items()|sort %}
+              <div class="col">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="text-muted">{{ key }}</span>
+                  {% if value %}
+                    <span class="badge bg-success-lt text-success"><i class="ti ti-check"></i></span>
+                  {% else %}
+                    <span class="badge bg-secondary-lt text-secondary"><i class="ti ti-x"></i></span>
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+{% endif %}

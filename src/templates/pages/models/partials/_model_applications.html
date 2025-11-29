@@ -1,0 +1,191 @@
+{% if applications %}
+  {% set total_apps = applications | length %}
+  {% set running_apps = applications | selectattr('container_status', 'equalto', 'running') | list | length %}
+  {% set completed_apps = applications | selectattr('generation_status', 'equalto', 'completed') | list | length %}
+  {% set failed_apps = applications | selectattr('generation_status', 'equalto', 'failed') | list | length %}
+{% endif %}
+
+{% if applications %}
+  <div class="row g-3">
+    {# Stat Cards #}
+    <div class="col-sm-6 col-lg-3">
+      <div class="card card-sm">
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col-auto">
+              <span class="bg-primary-lt text-primary avatar">
+                <i class="fa-solid fa-cubes"></i>
+              </span>
+            </div>
+            <div class="col">
+              <div class="font-weight-medium">Total apps</div>
+              <div class="text-muted">{{ total_apps }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-sm-6 col-lg-3">
+      <div class="card card-sm">
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col-auto">
+              <span class="bg-success-lt text-success avatar">
+                <i class="fa-solid fa-play"></i>
+              </span>
+            </div>
+            <div class="col">
+              <div class="font-weight-medium">Running</div>
+              <div class="text-muted">{{ running_apps }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-sm-6 col-lg-3">
+      <div class="card card-sm">
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col-auto">
+              <span class="bg-info-lt text-info avatar">
+                <i class="fa-solid fa-check"></i>
+              </span>
+            </div>
+            <div class="col">
+              <div class="font-weight-medium">Generated</div>
+              <div class="text-muted">{{ completed_apps }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-sm-6 col-lg-3">
+      <div class="card card-sm">
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col-auto">
+              <span class="bg-danger-lt text-danger avatar">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+              </span>
+            </div>
+            <div class="col">
+              <div class="font-weight-medium">Failed</div>
+              <div class="text-muted">{{ failed_apps }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Applications Table #}
+    <div class="col-12">
+      <div class="card card-table-compact">
+        <div class="card-header d-flex flex-wrap align-items-center gap-3">
+          <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+            <i class="fa-solid fa-list"></i>
+            <span>Application roster</span>
+          </h3>
+          <div class="card-actions ms-auto">
+            <button class="btn btn-primary btn-sm" onclick="generateApplication()">
+              <i class="fa-solid fa-plus me-1"></i>Generate app
+            </button>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-vcenter card-table">
+            <thead>
+              <tr>
+                <th>App #</th>
+                <th>Version</th>
+                <th>Template</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th class="w-1"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for app in applications %}
+                <tr>
+                  <td>
+                    <span class="badge bg-primary-lt text-primary">{{ app.app_number }}</span>
+                    {% if app_version_counts and app_version_counts.get(app.app_number, 1) > 1 %}
+                      <span class="badge bg-cyan-lt ms-1" title="{{ app_version_counts.get(app.app_number, 1) }} versions exist">
+                        <i class="fa-solid fa-code-branch me-1"></i>{{ app_version_counts.get(app.app_number, 1) }}
+                      </span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <span class="badge bg-purple-lt">v{{ app.version or 1 }}</span>
+                    {% if app.parent_app_id %}
+                      <i class="fa-solid fa-rotate-left text-muted ms-1" title="Regenerated from v{{ app.version - 1 }}"></i>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if app.template_slug %}
+                      <span class="badge bg-indigo-lt">{{ app.template_slug }}</span>
+                    {% else %}
+                      <span class="text-muted">Default</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ app.app_type or 'Web App' }}</td>
+                  <td>
+                    {% if app.container_status == 'running' %}
+                      <span class="badge bg-success">Running</span>
+                    {% elif app.generation_status == 'completed' %}
+                      <span class="badge bg-info">Generated</span>
+                    {% elif app.generation_status == 'failed' %}
+                      <span class="badge bg-danger">Failed</span>
+                    {% else %}
+                      <span class="badge bg-warning text-dark">{{ app.generation_status or 'Pending' }}</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-muted">
+                    {% if app.created_at %}
+                      {{ app.created_at.strftime('%Y-%m-%d %H:%M') }}
+                    {% else %}
+                      Unknown
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div class="btn-list flex-nowrap">
+                      <a href="/applications/{{ model_slug }}/{{ app.app_number }}" class="btn btn-sm btn-ghost-primary btn-icon" aria-label="View">
+                        <i class="fa-solid fa-eye"></i>
+                      </a>
+                      {% if app.container_status == 'running' %}
+                        <button class="btn btn-sm btn-ghost-success btn-icon" onclick="window.open('http://localhost:{{ app.frontend_port or '3000' }}', '_blank')" title="Open application">
+                          <i class="fa-solid fa-external-link-alt"></i>
+                        </button>
+                      {% endif %}
+                      <button class="btn btn-sm btn-ghost-cyan btn-icon" 
+                              onclick="regenerateApplication('{{ model_slug }}', {{ app.app_number }})" 
+                              title="Regenerate this application (creates new version)">
+                        <i class="fa-solid fa-sync"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+{% else %}
+  <div class="empty py-5">
+    <div class="empty-icon">
+      <i class="fa-solid fa-cube fa-3x text-muted"></i>
+    </div>
+    <p class="empty-title h5">No applications yet</p>
+    <p class="empty-subtitle text-muted">This model has not been used to generate applications.</p>
+    <div class="empty-action">
+      <button class="btn btn-primary" onclick="generateApplication()">
+        <i class="fa-solid fa-plus me-1"></i>Generate first application
+      </button>
+    </div>
+  </div>
+{% endif %}

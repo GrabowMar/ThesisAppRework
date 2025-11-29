@@ -257,4 +257,5 @@ package-lock.json
 yarn.lock
 
 # Large model artifacts (do not version control generated model folders)
-models/
+# NOTE: Don't use 'models/' as it conflicts with src/app/models/
+/models/

@@ -1,0 +1,250 @@
+{% set nested_caps = enriched_data.get('capabilities', {}) %}
+
+<div class="row g-3">
+  {# Identity Card #}
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title"><i class="ti ti-id me-1"></i>Identity</h3>
+      </div>
+      <div class="card-body">
+        <div class="datagrid">
+          <div class="datagrid-item">
+            <div class="datagrid-title">Model ID</div>
+            <div class="datagrid-content">{{ model.model_id or model_slug }}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Canonical slug</div>
+            <div class="datagrid-content">
+              {% if model.canonical_slug %}
+                <code>{{ model.canonical_slug }}</code>
+              {% else %}
+                <span class="text-muted">Not assigned</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Database primary key</div>
+            <div class="datagrid-content">#{{ model.id }}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Provider</div>
+            <div class="datagrid-content">{{ model.provider }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Sync State Card #}
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title"><i class="ti ti-clock me-1"></i>Sync state</h3>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <div class="text-muted">Created</div>
+          <div class="fw-bold">
+            {% if model.created_at %}
+              {{ model.created_at.strftime('%Y-%m-%d %H:%M') }}
+            {% else %}
+              <span class="text-muted">Unknown</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="mb-3">
+          <div class="text-muted">Last updated</div>
+          <div class="fw-bold">
+            {% if model.updated_at %}
+              {{ model.updated_at.strftime('%Y-%m-%d %H:%M') }}
+            {% else %}
+              <span class="text-muted">Unknown</span>
+            {% endif %}
+          </div>
+        </div>
+        <div>
+          <div class="text-muted">Catalog usage</div>
+          <div class="fw-bold">{{ model.apps_count or 0 }} linked apps</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Export Card #}
+  <div class="col-md-3">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title"><i class="ti ti-file-download me-1"></i>Export</h3>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <a href="/models/{{ model_slug }}/export.json" class="btn btn-outline-primary btn-sm">
+            <i class="ti ti-code me-1"></i>JSON
+          </a>
+          <a href="/models/{{ model_slug }}/export.csv" class="btn btn-outline-secondary btn-sm">
+            <i class="ti ti-file-spreadsheet me-1"></i>CSV
+          </a>
+          <button class="btn btn-outline-info btn-sm" onclick="copyModelData(event)">
+            <i class="ti ti-copy me-1"></i>Copy payload
+          </button>
+        </div>
+        <p class="text-muted small mb-0 mt-3">Exports reflect the latest synchronized metadata snapshot.</p>
+      </div>
+    </div>
+  </div>
+
+  {# OpenRouter Metadata Card #}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title"><i class="ti ti-cloud-data-connection me-1"></i>OpenRouter metadata</h3>
+      </div>
+      <div class="card-body">
+        {% if nested_caps %}
+        <div class="table-responsive">
+          <table class="table table-sm table-hover">
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for key, value in nested_caps.items() if value is not none and value != '' %}
+              <tr>
+                <td><code>{{ key }}</code></td>
+                <td>
+                  {% if value is mapping %}
+                    <span class="text-muted">{{ value | length }} keys</span>
+                    <details>
+                      <summary class="btn btn-sm btn-link p-0">View JSON</summary>
+                      <pre class="mt-2 bg-light p-2 rounded">{{ value | tojson(indent=2) }}</pre>
+                    </details>
+                  {% elif value is iterable and value is not string %}
+                    {% if value | length > 4 %}
+                      {{ value[:4] | join(', ') }} <span class="text-muted">( +{{ value | length - 4 }} more )</span>
+                    {% else %}
+                      {{ value | join(', ') }}
+                    {% endif %}
+                  {% elif value is number %}
+                    {% if value > 1000 %}
+                      {{ '{:,}'.format(value) }}
+                    {% else %}
+                      {{ value }}
+                    {% endif %}
+                  {% else %}
+                    {% set str_value = value | string %}
+                    {% if str_value | length > 140 %}
+                      {{ str_value[:137] }}...
+                    {% else %}
+                      {{ str_value }}
+                    {% endif %}
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">OpenRouter did not return additional metadata for this model.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# Enriched Dataset Card #}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title"><i class="ti ti-database-export me-1"></i>Enriched dataset</h3>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm table-hover">
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for key, value in enriched_data.items() if value is not none and value != '' %}
+              <tr>
+                <td><code>{{ key }}</code></td>
+                <td>
+                  {% if value is mapping %}
+                    <span class="text-muted">{{ value | length }} keys</span>
+                    <details>
+                      <summary class="btn btn-sm btn-link p-0">View JSON</summary>
+                      <pre class="mt-2 bg-light p-2 rounded">{{ value | tojson(indent=2) }}</pre>
+                    </details>
+                  {% elif value is iterable and value is not string %}
+                    {% if value | length > 4 %}
+                      {{ value[:4] | join(', ') }} <span class="text-muted">( +{{ value | length - 4 }} more )</span>
+                    {% else %}
+                      {{ value | join(', ') }}
+                    {% endif %}
+                  {% elif value is number %}
+                    {% if value > 1000 %}
+                      {{ '{:,}'.format(value) }}
+                    {% else %}
+                      {{ value }}
+                    {% endif %}
+                  {% else %}
+                    {% set str_value = value | string %}
+                    {% if str_value | length > 140 %}
+                      {{ str_value[:137] }}...
+                    {% else %}
+                      {{ str_value }}
+                    {% endif %}
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Raw JSON Payload Card #}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title"><i class="ti ti-code me-1"></i>Raw JSON payload</h3>
+      </div>
+      <div class="card-body">
+        <details>
+          <summary class="btn btn-sm btn-link p-0">Toggle payload</summary>
+          <pre class="mt-3 bg-light p-3 rounded" id="raw-json-data">{{ enriched_data | tojson(indent=2) }}</pre>
+        </details>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function copyModelData(evt) {
+  const data = document.getElementById('raw-json-data').textContent;
+  navigator.clipboard.writeText(data).then(() => {
+    const btn = evt.target.closest('button');
+    if (!btn) {
+      return;
+    }
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="ti ti-check me-1"></i>Copied!';
+    btn.classList.remove('btn-outline-info');
+    btn.classList.add('btn-success');
+    setTimeout(() => {
+      btn.innerHTML = original;
+      btn.classList.remove('btn-success');
+      btn.classList.add('btn-outline-info');
+    }, 2000);
+  }).catch(err => {
+    console.error('Failed to copy model data', err);
+  });
+}
+</script>

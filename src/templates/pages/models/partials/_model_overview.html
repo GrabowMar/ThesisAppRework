@@ -1,0 +1,160 @@
+{# Model Overview Section - Enhanced with OpenRouter Metadata #}
+<div class="row g-3">
+  {# Model Identity Card #}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title"><i class="fa-solid fa-id-badge me-1"></i>Model Identity</h3>
+      </div>
+      <div class="card-body">
+        <div class="datagrid">
+          <div class="datagrid-item">
+            <div class="datagrid-title">Display Name</div>
+            <div class="datagrid-content">
+              <strong>{{ model.get('display_name') or model.get('model_name') or enriched_data.get('openrouter_name') or 'Unknown' }}</strong>
+            </div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Canonical Slug</div>
+            <div class="datagrid-content">
+              {% if enriched_data.get('openrouter_canonical_slug') %}
+                <code class="text-primary">{{ enriched_data.get('openrouter_canonical_slug') }}</code>
+              {% else %}
+                <span class="text-muted">Not available</span>
+              {% endif %}
+            </div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Database ID</div>
+            <div class="datagrid-content">
+              <span class="badge bg-secondary-lt">{{ model.get('id', 'N/A') }}</span>
+            </div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Created On OpenRouter</div>
+            <div class="datagrid-content">
+              {% if enriched_data.get('openrouter_created') %}
+                {% set created_ts = enriched_data.get('openrouter_created') %}
+                <span title="{{ created_ts | string }}">
+                  {{ created_ts | string }}
+                </span>
+              {% else %}
+                <span class="text-muted">Not published</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Description Card #}
+  {% if enriched_data.get('openrouter_description') %}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title"><i class="fa-solid fa-file-text me-1"></i>OpenRouter Description</h3>
+      </div>
+      <div class="card-body">
+        <p class="mb-0">{{ enriched_data.get('openrouter_description') }}</p>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Model Variants Card #}
+  {% set variants = enriched_data.get('openrouter_variants') %}
+  {% if variants %}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title"><i class="fa-solid fa-layer-group me-1"></i>Model Variants</h3>
+      </div>
+      <div class="card-body">
+        {% if variants is iterable and variants is not string %}
+          <div class="d-flex flex-wrap gap-2">
+            {% for variant in variants %}
+              <span class="badge bg-purple-lt">{{ variant }}</span>
+            {% endfor %}
+          </div>
+        {% else %}
+          <span class="badge bg-purple-lt">{{ variants }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Context Length & Limits Card #}
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title"><i class="fa-solid fa-database me-1"></i>Context & Capacity</h3>
+      </div>
+      <div class="card-body">
+        <div class="datagrid">
+          <div class="datagrid-item">
+            <div class="datagrid-title">Context Length</div>
+            <div class="datagrid-content">
+              {% if enriched_data.get('openrouter_context_length') %}
+                <span class="badge bg-blue-lt">{{ "{:,}".format(enriched_data.get('openrouter_context_length')) }} tokens</span>
+              {% elif model.get('context_window') %}
+                <span class="badge bg-blue-lt">{{ "{:,}".format(model.get('context_window')) }} tokens</span>
+              {% else %}
+                <span class="text-muted">Not specified</span>
+              {% endif %}
+            </div>
+          </div>
+          {% if stats and stats.avg_context_length %}
+          <div class="datagrid-item">
+            <div class="datagrid-title">vs DB Average</div>
+            <div class="datagrid-content">
+              {% set model_ctx = enriched_data.get('openrouter_context_length') or model.get('context_window') or 0 %}
+              {% set avg_ctx = stats.get('avg_context_length', 0) %}
+              {% if model_ctx > avg_ctx %}
+                <span class="badge bg-success-lt text-success">
+                  <i class="fa-solid fa-arrow-up"></i> {{ '%.0f'|format((model_ctx - avg_ctx) / avg_ctx * 100) }}% above average
+                </span>
+              {% elif model_ctx < avg_ctx %}
+                <span class="badge bg-warning-lt text-warning">
+                  <i class="fa-solid fa-arrow-down"></i> {{ '%.0f'|format((avg_ctx - model_ctx) / avg_ctx * 100) }}% below average
+                </span>
+              {% else %}
+                <span class="badge bg-secondary-lt">At average</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Provider Status Card #}
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title"><i class="fa-solid fa-shield-halved me-1"></i>Provider Status</h3>
+      </div>
+      <div class="card-body">
+        <div class="d-flex flex-wrap gap-2">
+          {% if model.get('is_free') or enriched_data.get('openrouter_is_free') %}
+            <span class="badge bg-success-lt text-success"><i class="fa-solid fa-gift me-1"></i>Free Model</span>
+          {% else %}
+            <span class="badge bg-secondary-lt"><i class="fa-solid fa-dollar-sign me-1"></i>Paid Model</span>
+          {% endif %}
+          
+          {% if enriched_data.get('top_provider_is_moderated') %}
+            <span class="badge bg-info-lt text-info"><i class="fa-solid fa-check-circle me-1"></i>Moderated</span>
+          {% elif enriched_data.get('top_provider_is_moderated') == false %}
+            <span class="badge bg-secondary-lt"><i class="fa-solid fa-times-circle me-1"></i>Unmoderated</span>
+          {% endif %}
+
+          {% if model.get('installed') %}
+            <span class="badge bg-primary-lt text-primary"><i class="fa-solid fa-download me-1"></i>Installed</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
