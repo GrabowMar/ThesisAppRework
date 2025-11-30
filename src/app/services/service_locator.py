@@ -57,6 +57,11 @@ class ServiceLocator:
             DockerManager = None
 
         try:
+            from .docker_status_cache import DockerStatusCache
+        except ImportError:
+            DockerStatusCache = None
+
+        try:
             from .analysis_inspection_service import AnalysisInspectionService
         except ImportError:  # pragma: no cover
             AnalysisInspectionService = None  # type: ignore
@@ -83,7 +88,14 @@ class ServiceLocator:
 
         # No registrations for removed legacy services
         if DockerManager:
-            cls.register('docker_manager', DockerManager())
+            docker_mgr = DockerManager()
+            cls.register('docker_manager', docker_mgr)
+            # Register status cache with reference to docker manager
+            if DockerStatusCache:
+                cls.register('docker_status_cache', DockerStatusCache(docker_manager=docker_mgr))
+        elif DockerStatusCache:
+            # Register cache without docker manager (will fetch lazily)
+            cls.register('docker_status_cache', DockerStatusCache())
         if AnalysisInspectionService:
             cls.register('analysis_inspection_service', AnalysisInspectionService())
         if UnifiedResultService:
@@ -139,6 +151,10 @@ class ServiceLocator:
         return cls.get('docker_manager')
     
     @classmethod
+    def get_docker_status_cache(cls):
+        """Get the Docker status cache service."""
+        return cls.get('docker_status_cache')
+    
     @classmethod
     def get_generation_service(cls):
         """Get the generation service."""

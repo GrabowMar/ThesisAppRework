@@ -114,72 +114,34 @@ def build_applications_context():
     # Docker status will be fetched via HTMX/client-side if needed
     check_docker = request.args.get('check_docker', 'false').lower() == 'true'
     
-    # Prepare Docker status map (status only) - only if explicitly requested
-    docker_mgr = None
+    # Get Docker status cache for efficient lookups
+    status_cache = None
     if check_docker:
         try:
             from app.services.service_locator import ServiceLocator
-            docker_mgr = ServiceLocator.get_docker_manager()
+            status_cache = ServiceLocator.get_docker_status_cache()
         except Exception:
-            docker_mgr = None  # type: ignore
-
-    STOPPED_STATES = {'exited', 'dead', 'created', 'removing', 'stopped'}
+            status_cache = None
 
     def _resolve_status_fast(db_status_raw: str | None) -> str:
         """Fast status resolution using only database status."""
         db_status = (db_status_raw or '').strip().lower()
-        if db_status in ('running', 'stopped', 'not_created', 'error'):
+        if db_status in ('running', 'stopped', 'not_created', 'error', 'no_compose'):
             return db_status
         return db_status if db_status else 'unknown'
-
-    def _resolve_status_docker(model_slug: str, app_number: int, db_status_raw: str | None) -> tuple[str, dict[str, Any]]:
-        """Determine application status using Docker (slow but accurate)."""
-        status_details: dict[str, Any] = {}
-        db_status = (db_status_raw or '').strip().lower()
-        status_guess = db_status if db_status else 'unknown'
-
-        if not docker_mgr or not getattr(docker_mgr, 'client', None):
-            return status_guess, status_details
-
-        try:
-            summary = docker_mgr.container_status_summary(model_slug, app_number)  # type: ignore[attr-defined]
-            status_details = summary or {}
-        except Exception:
-            return status_guess, status_details
-
-        states = [str(s or '').lower() for s in status_details.get('states', [])]
-        containers_found = int(status_details.get('containers_found') or 0)
-
-        if any(state == 'running' for state in states):
-            return 'running', status_details
-        if any(state in STOPPED_STATES for state in states):
-            return 'stopped', status_details
-        if containers_found:
-            # Containers exist but status unknown -> treat as stopped to avoid "Unknown" badge
-            return 'stopped', status_details
-
-        # No containers found. If compose file exists, assume not created yet.
-        compose_exists = False
-        try:
-            compose_path = docker_mgr._get_compose_path(model_slug, app_number)  # type: ignore[attr-defined]
-            compose_exists = compose_path.exists()
-            status_details['compose_path'] = str(compose_path)
-            status_details['compose_file_exists'] = compose_exists
-        except Exception:
-            pass
-
-        if compose_exists:
-            return 'not_created', status_details
-
-        if status_guess == 'running':
-            # Docker shows nothing running, override stale DB state
-            return 'stopped', status_details
-
-        return status_guess or 'unknown', status_details
 
     def _project_name(model_slug: str, app_num: int) -> str:
         safe_model = (model_slug or '').replace('_', '-').replace('.', '-')
         return f"{safe_model}-app{app_num}"
+
+    # Pre-fetch bulk status from cache if Docker checks are enabled
+    bulk_status_map: dict[tuple[str, int], Any] = {}
+    if check_docker and status_cache:
+        try:
+            apps_list = [(r.model_slug, r.app_number) for r in rows]
+            bulk_status_map = status_cache.get_bulk_status(apps_list)
+        except Exception as e:
+            current_app.logger.warning(f"Failed to get bulk status from cache: {e}")
 
     # Build application dicts
     applications_all: list[dict] = []
@@ -199,21 +161,25 @@ def build_applications_context():
         except Exception:
             model_provider = r.provider or 'local'
             display_name = r.model_slug
-        # Determine live status - use fast path unless Docker checks requested
-        raw_db_status = r.container_status
-        if not raw_db_status and getattr(r, 'generation_status', None):
-            try:
-                raw_db_status = r.generation_status.value  # type: ignore[attr-defined]
-            except Exception:
-                raw_db_status = str(r.generation_status)
-
-        # Fast path: just use DB status (no Docker API calls)
-        if not check_docker:
-            status = _resolve_status_fast(raw_db_status)
-            status_details = {}
+        
+        # Determine status - use cache if Docker checks requested
+        status_details = {}
+        cache_key = (r.model_slug, r.app_number)
+        
+        if check_docker and cache_key in bulk_status_map:
+            # Use cached Docker status
+            cache_entry = bulk_status_map[cache_key]
+            status = cache_entry.status
+            status_details = cache_entry.to_dict() if hasattr(cache_entry, 'to_dict') else {}
         else:
-            # Slow path: check Docker for accurate status
-            status, status_details = _resolve_status_docker(r.model_slug, r.app_number, raw_db_status)
+            # Fast path: just use DB status (no Docker API calls)
+            raw_db_status = r.container_status
+            if not raw_db_status and getattr(r, 'generation_status', None):
+                try:
+                    raw_db_status = r.generation_status.value  # type: ignore[attr-defined]
+                except Exception:
+                    raw_db_status = str(r.generation_status)
+            status = _resolve_status_fast(raw_db_status)
         
         if status == 'running':
             running_count += 1
