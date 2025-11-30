@@ -50,11 +50,8 @@
             </div>
           </div>
           <div class="col-md-6">
-            <h6>Analysis & Export</h6>
+            <h6>Export & Management</h6>
             <div class="list-group">
-              <button class="list-group-item list-group-item-action" onclick="batchOperation('analyze')">
-                <i class="fas fa-flask me-2 text-info"></i>Run Analysis
-              </button>
               <button class="list-group-item list-group-item-action" onclick="batchOperation('export')">
                 <i class="fas fa-download me-2 text-secondary"></i>Export Selected
               </button>
@@ -142,7 +139,10 @@ function batchOperation(operation) {
   }
 
   const promises = selected.map(appKey => {
-    const [modelSlug, appNumber] = appKey.split('-');
+    // Split at last dash since model slugs can contain dashes (e.g., anthropic_claude-4.5-haiku-20251001-1)
+    const lastDashIndex = appKey.lastIndexOf('-');
+    const modelSlug = appKey.substring(0, lastDashIndex);
+    const appNumber = appKey.substring(lastDashIndex + 1);
     
     switch(operation) {
       case 'start':
@@ -150,12 +150,6 @@ function batchOperation(operation) {
       case 'restart':
       case 'build':
         return fetch(`/api/app/${modelSlug}/${appNumber}/${operation}`, { method: 'POST' });
-      case 'analyze':
-        return fetch(`/api/applications/${modelSlug}/${appNumber}/analyze`, { 
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ analysis_type: 'full' })
-        });
       case 'export':
         window.open(`/applications/${modelSlug}/${appNumber}/export.csv`, '_blank');
         return Promise.resolve({ ok: true });
