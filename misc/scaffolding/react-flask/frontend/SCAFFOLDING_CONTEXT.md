@@ -1,102 +1,97 @@
 # Frontend Scaffolding Context
 
 ## Technical Stack
-- **Framework**: React 18 (Vite)
-- **Styling**: Tailwind CSS 3.4 (utility-first)
-- **Icons**: Heroicons (`@heroicons/react`)
-- **Notifications**: react-hot-toast (pre-configured)
-- **HTTP Client**: Axios
+- **React 18** with Vite
+- **Tailwind CSS 3.4** - full utility classes available
+- **Heroicons** - `@heroicons/react/24/outline` and `/24/solid`
+- **react-hot-toast** - pre-configured, just import `toast`
+- **Axios** - HTTP client
 
-## Pre-Built Components (USE THESE!)
-```jsx
-import { Layout, Card, Spinner, EmptyState } from './components';
-import { CheckCircleIcon } from '@heroicons/react/24/outline';
-```
-
-| Component | Usage |
-|-----------|-------|
-| `<Layout title="" subtitle="" icon={<Icon />}>` | App shell with gradient header + footer |
-| `<Card title="" actions={}>` | Content container with shadow |
-| `<Spinner size="sm\|md\|lg" />` | Loading indicator |
-| `<EmptyState title="" message="" action={} />` | Empty state display |
-
-## Architecture Rules
+## Architecture Rules (MUST FOLLOW)
 1. `src/App.jsx` exports default functional component
-2. API: Use relative paths (`/api/items`), never hardcode localhost
-3. Define `const API_URL = '';` at top
-4. Use `toast.success()` / `toast.error()` for feedback
+2. API calls use relative paths (`/api/items`) - never hardcode localhost
+3. Define `const API_URL = '';` at top of file
+4. Use `toast.success()` / `toast.error()` for user feedback
 
-## Quick Patterns
+## Available Utilities
 
-### Buttons with Interactions
+### Helper Components (optional - use or build your own)
 ```jsx
-<button className="btn-primary hover:scale-105 transition-transform duration-200">
-  <PlusIcon className="h-5 w-5 mr-2" /> Add
-</button>
-<button className="btn-danger btn-sm">Delete</button>
+import { Spinner, EmptyState } from './components';
+```
+- `<Spinner size="sm|md|lg" />` - loading spinner
+- `<EmptyState title="" message="" />` - empty state display
+
+### CSS Utility Classes (defined in App.css)
+```
+Buttons: btn-primary, btn-secondary, btn-danger, btn-success, btn-sm, btn-lg
+Forms:   input, input-error, label, form-group
+Alerts:  alert-error, alert-success, alert-warning, alert-info
+Badges:  badge-primary, badge-success, badge-warning, badge-danger
+Tables:  table (auto-styled th/td)
+Icons:   icon-btn, icon-btn-primary, icon-btn-danger
+Lists:   list-item, list-item-bordered
 ```
 
-### Form Input
+### Tailwind - Full Freedom
+Use any Tailwind classes. Common patterns:
+- Colors: `bg-{color}-{shade}`, `text-{color}-{shade}` (e.g., `bg-emerald-500`, `text-rose-600`)
+- Gradients: `bg-gradient-to-r from-{color} to-{color}`
+- Spacing: `p-{n}`, `m-{n}`, `gap-{n}`, `space-y-{n}`
+- Layout: `flex`, `grid`, `grid-cols-{n}`, `justify-between`, `items-center`
+- Responsive: `sm:`, `md:`, `lg:`, `xl:` prefixes
+- Effects: `shadow-{sm|md|lg|xl}`, `rounded-{sm|md|lg|xl|full}`
+- Transitions: `transition-all`, `duration-{ms}`, `hover:`, `focus:`
+
+### Icons (ONLY use these exact names from @heroicons/react)
 ```jsx
-<input 
-  className="input focus:ring-2 focus:ring-blue-500 transition-all duration-200" 
-  placeholder="Enter value..."
-/>
+import { IconName } from '@heroicons/react/24/outline'; // or /24/solid
 ```
 
-### List Item with Actions
+**Common Icons (verified, use these exact names):**
+- Navigation: `HomeIcon`, `ArrowLeftIcon`, `ArrowRightIcon`, `ChevronDownIcon`, `ChevronUpIcon`, `Bars3Icon`, `XMarkIcon`
+- Actions: `PlusIcon`, `MinusIcon`, `TrashIcon`, `PencilIcon`, `PencilSquareIcon`, `CheckIcon`, `XMarkIcon`
+- User/Auth: `UserIcon`, `UserCircleIcon`, `UserPlusIcon`, `ArrowRightOnRectangleIcon` (logout), `ArrowLeftOnRectangleIcon` (login), `LockClosedIcon`, `LockOpenIcon`, `KeyIcon`
+- Communication: `EnvelopeIcon`, `ChatBubbleLeftIcon`, `BellIcon`, `PhoneIcon`
+- Data: `MagnifyingGlassIcon`, `FunnelIcon`, `AdjustmentsHorizontalIcon`, `DocumentIcon`, `FolderIcon`, `ClipboardIcon`
+- Status: `CheckCircleIcon`, `ExclamationCircleIcon`, `ExclamationTriangleIcon`, `InformationCircleIcon`, `QuestionMarkCircleIcon`
+- Media: `PhotoIcon`, `PlayIcon`, `PauseIcon`, `MusicalNoteIcon`, `FilmIcon`
+- Commerce: `ShoppingCartIcon`, `CreditCardIcon`, `CurrencyDollarIcon`, `TagIcon`, `GiftIcon`
+- UI: `EyeIcon`, `EyeSlashIcon`, `HeartIcon`, `StarIcon`, `BookmarkIcon`, `ShareIcon`, `LinkIcon`
+- Misc: `CalendarIcon`, `ClockIcon`, `MapPinIcon`, `GlobeAltIcon`, `CloudIcon`, `SunIcon`, `MoonIcon`, `Cog6ToothIcon`
+
+**⚠️ DO NOT invent icon names** - If unsure, use a generic icon like `Squares2X2Icon` or skip the icon.
+
 ```jsx
-<li className="flex items-center justify-between py-3 px-4 hover:bg-gray-50 rounded-lg transition-colors">
-  <span>{item.name}</span>
-  <div className="flex gap-2">
-    <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors">
-      <PencilIcon className="h-4 w-4" />
-    </button>
-    <button className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors">
-      <TrashIcon className="h-4 w-4" />
-    </button>
-  </div>
-</li>
+<PlusIcon className="h-5 w-5" />
 ```
 
-### Stats/Badge
+### Toast Notifications
 ```jsx
-<span className="badge-success">Active</span>
-<span className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-  {count} items
-</span>
-```
+import toast from 'react-hot-toast';
 
-### Toast with Promise
-```jsx
-toast.promise(axios.post('/api/items', data), {
+toast.success('Saved!');
+toast.error('Failed to save');
+toast.promise(asyncOperation, {
   loading: 'Saving...',
-  success: 'Created!',
-  error: 'Failed'
+  success: 'Done!',
+  error: 'Error'
 });
 ```
 
-## CSS Classes (from App.css)
-- Buttons: `btn-primary`, `btn-secondary`, `btn-danger`, `btn-success`, `btn-sm`
-- Forms: `input`, `input-error`, `label`, `form-group`
-- Alerts: `alert-error`, `alert-success`, `alert-warning`, `alert-info`
-- Badges: `badge-primary`, `badge-success`, `badge-danger`
-- Tables: `table` (with styled th/td)
-
-## Complete Example
+## Code Pattern
 ```jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { PlusIcon, TrashIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
-import { Layout, Card, Spinner, EmptyState } from './components';
+import { PlusIcon } from '@heroicons/react/24/outline';
+import { Spinner } from './components';
 
 const API_URL = '';
 
 function App() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [newItem, setNewItem] = useState('');
 
   useEffect(() => { fetchItems(); }, []);
 
@@ -111,71 +106,22 @@ function App() {
     }
   };
 
-  const handleAdd = async (e) => {
-    e.preventDefault();
-    if (!newItem.trim()) return;
-    try {
-      const { data } = await axios.post(`${API_URL}/api/items`, { name: newItem });
-      setItems([data, ...items]);
-      setNewItem('');
-      toast.success('Added!');
-    } catch (err) {
-      toast.error('Failed to add');
-    }
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      await axios.delete(`${API_URL}/api/items/${id}`);
-      setItems(items.filter(i => i.id !== id));
-      toast.success('Deleted');
-    } catch (err) {
-      toast.error('Failed to delete');
-    }
-  };
-
+  // Build your own UI structure - be creative with layout and colors!
   return (
-    <Layout 
-      title="My App" 
-      subtitle="Manage your items"
-      icon={<CheckCircleIcon className="h-10 w-10" />}
-    >
-      <Card title="Items" subtitle={`${items.length} total`}>
-        <form onSubmit={handleAdd} className="flex gap-3 mb-6">
-          <input
-            className="input flex-1"
-            value={newItem}
-            onChange={(e) => setNewItem(e.target.value)}
-            placeholder="Add new item..."
-          />
-          <button type="submit" className="btn-primary hover:scale-105 transition-transform">
-            <PlusIcon className="h-5 w-5" />
-          </button>
-        </form>
-
-        {loading ? (
-          <div className="flex justify-center py-12"><Spinner size="lg" /></div>
-        ) : items.length === 0 ? (
-          <EmptyState title="No items yet" message="Add your first item above" />
-        ) : (
-          <ul className="divide-y divide-gray-100">
-            {items.map(item => (
-              <li key={item.id} className="flex items-center justify-between py-3 hover:bg-gray-50 rounded-lg px-2 transition-colors">
-                <span className="font-medium text-gray-900">{item.name}</span>
-                <button 
-                  onClick={() => handleDelete(item.id)}
-                  className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                >
-                  <TrashIcon className="h-5 w-5" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-    </Layout>
+    <div className="min-h-screen bg-gray-50">
+      {/* Your header design */}
+      {/* Your main content */}
+      {/* Your footer */}
+    </div>
   );
 }
 
 export default App;
 ```
+
+## Design Freedom
+- Choose your own color scheme (not limited to blue)
+- Create your own header/layout structure
+- Use cards, grids, lists - whatever fits the app
+- Add animations, gradients, shadows as you see fit
+- Make it visually appropriate for the app's purpose
