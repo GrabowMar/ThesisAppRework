@@ -2,10 +2,15 @@
 
 {{ description }}
 
-## Requirements
+## App-Specific Requirements
 {% for req in frontend_requirements %}
 - {{ req }}
 {% endfor %}
+
+## Shared UI Requirements (apply to ALL apps)
+1. **Header**: Gradient background (blue-600 to indigo-600), app icon from Heroicons, title, and subtitle tagline.
+2. **Layout**: Card-based content area with shadow-lg, rounded-xl corners. Footer with "Powered by React + Flask" and current year.
+3. **Interactions**: All buttons have hover:scale-105 transform, inputs have focus:ring-2, smooth transitions (duration-200).
 
 ## Backend API
 Backend API is available at `/api/*` paths (proxied by Nginx/Vite to backend container)
@@ -25,22 +30,28 @@ Backend API is available at `/api/*` paths (proxied by Nginx/Vite to backend con
 
 ## Quality Standards
 
-- **UI/UX**:
-   - Use Bootstrap 5 components (Cards, Modals, Alerts, Badges).
-   - Implement **Loading States** (spinners) for all async operations.
-   - Implement **Error Handling** (dismissible alerts) for failed requests.
-   - Ensure **Responsive Design** (mobile-friendly).
+- **UI/UX (Tailwind CSS)**:
+   - Use the pre-built component classes: `btn-primary`, `card`, `input`, `alert-*`, `badge-*`, `table`
+   - Use `<Layout>` component for consistent page structure
+   - Use `<Spinner>` and `<EmptyState>` from `./components` for loading/empty states
+   - Use Heroicons for all icons: `import { IconName } from '@heroicons/react/24/outline'`
+   - Use `toast.success()` / `toast.error()` for user feedback (react-hot-toast)
+   - Implement **Loading States** with `<Spinner />` for all async operations
+   - Implement **Error Handling** with `alert-error` class for failed requests
+   - Ensure **Responsive Design** using Tailwind's responsive prefixes (`sm:`, `md:`, `lg:`)
 - **Functionality**:
-   - Implement full CRUD if the API supports it.
-   - Add form validation (client-side) before submitting.
-   - Auto-refresh lists after updates.
+   - Implement full CRUD if the API supports it
+   - Add form validation (client-side) before submitting
+   - Auto-refresh lists after updates
+   - Use `toast.promise()` for async operations with loading feedback
 - **Code Quality**:
-   - Clean, readable code.
-   - meaningful variable names.
-   - Handle edge cases (empty lists, 404s).
-- **Completeness**: Generate the FULL application code. Do not use placeholders like "TODO: Implement this" or return a simple "Loading..." screen without logic.
+   - Clean, readable code with meaningful variable names
+   - Handle edge cases (empty lists, 404s, network errors)
+   - Use async/await pattern with try/catch for API calls
+- **Completeness**: Generate the FULL application code. Do not use placeholders like "TODO: Implement this".
 
 ## Output
 
 Output the **complete JSX code** for `App.jsx` in a single code block. Do not include markdown outside the code block.
+
 

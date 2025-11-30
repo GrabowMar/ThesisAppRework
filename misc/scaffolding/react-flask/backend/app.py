@@ -5,9 +5,9 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/health')
+@app.route('/api/health')
 def health():
-    return jsonify({"status": "healthy", "service": "scaffold"}), 200
+    return jsonify({"status": "healthy", "service": "backend"}), 200
 
 if __name__ == '__main__':
     import os

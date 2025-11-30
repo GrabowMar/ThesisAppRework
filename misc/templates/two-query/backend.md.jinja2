@@ -17,16 +17,17 @@
 ## Scaffolding & Technical Constraints
 {{ scaffolding_backend_context }}
 
-- **Persistence**: If using SQLite, use absolute path `/app/data/app.db` (e.g. `sqlite:////app/data/app.db`) to ensure data persists across container restarts.
+- **Persistence**: Use absolute path `sqlite:////app/data/app.db` for SQLite database.
 
 ## Quality Standards
 
-- **Validation**: Validate all input data. Return 400 for invalid inputs.
-- **Error Handling**: Wrap database operations in try/except blocks. Return 500 for server errors.
-- **Pagination**: Implement pagination for list endpoints (default 20 items).
-- **Search/Filtering**: Add query parameter filtering for list endpoints where appropriate.
-- **Documentation**: Add docstrings to all functions and classes.
-- **Comments**: Explain complex logic.
+- **Validation**: Validate all input data. Return 400 with `{"error": "message"}` for invalid inputs.
+- **Error Handling**: Use `@handle_errors` decorator pattern. Return 500 for server errors.
+- **Pagination**: Implement pagination for list endpoints (default 20, max 100 items).
+- **Filtering**: Add query parameter filtering for list endpoints where appropriate.
+- **Logging**: Use Python's logging module for important operations (create, update, delete).
+- **Models**: All models must have `to_dict()` method for JSON serialization.
+- **Health Check**: Always include `/api/health` endpoint returning `{"status": "healthy"}`.
 
 ## Output
 
