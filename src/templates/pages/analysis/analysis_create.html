@@ -388,6 +388,58 @@
                     </div>
                   </div>
                 </div>
+                
+                <!-- Container Management Options -->
+                <div class="card card-sm bg-light mt-3">
+                  <div class="card-header py-2">
+                    <div class="d-flex align-items-center justify-content-between">
+                      <h6 class="card-title mb-0">
+                        <i class="fab fa-docker text-primary me-2"></i>Container Management
+                      </h6>
+                      <span class="badge bg-info-lt text-info">Optional</span>
+                    </div>
+                  </div>
+                  <div class="card-body py-2">
+                    <p class="text-muted small mb-3">
+                      Enable smart container lifecycle management to automatically start or build application containers 
+                      before analysis and optionally stop them afterward. Useful for dynamic and performance testing.
+                    </p>
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" id="container-auto-start" name="container_auto_start">
+                          <label class="form-check-label" for="container-auto-start">
+                            <span class="fw-medium">Auto-start containers</span>
+                            <div class="text-muted small">Start containers before analysis begins</div>
+                          </label>
+                        </div>
+                      </div>
+                      <div class="col-md-6">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" id="container-build-if-missing" name="container_build_if_missing">
+                          <label class="form-check-label" for="container-build-if-missing">
+                            <span class="fw-medium">Build if missing</span>
+                            <div class="text-muted small">Build containers if images don't exist</div>
+                          </label>
+                        </div>
+                      </div>
+                      <div class="col-md-6">
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" id="container-stop-after" name="container_stop_after">
+                          <label class="form-check-label" for="container-stop-after">
+                            <span class="fw-medium">Stop after analysis</span>
+                            <div class="text-muted small">Stop containers when analysis completes</div>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="alert alert-info py-2 mt-3 mb-0 small">
+                      <i class="fas fa-info-circle me-2"></i>
+                      <strong>Note:</strong> Container management adds ~30-120 seconds for startup (longer for builds). 
+                      Static analysis can proceed without running containers.
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -473,6 +525,12 @@
                             <tr>
                               <th scope="row" class="text-muted fw-medium">Estimated Cost</th>
                               <td id="summary-cost">-</td>
+                            </tr>
+                            <tr id="summary-container-row" class="d-none">
+                              <th scope="row" class="text-muted fw-medium">
+                                <i class="fab fa-docker text-primary me-1"></i>Container Management
+                              </th>
+                              <td id="summary-containers">-</td>
                             </tr>
                           </tbody>
                         </table>
@@ -2466,6 +2524,34 @@ function updateAnalysisSummary() {
   if (costElement && summaryCostElement) {
     summaryCostElement.textContent = costElement.textContent || '-';
   }
+  
+  // Container management summary
+  const containerAutoStart = document.getElementById('container-auto-start');
+  const containerBuildIfMissing = document.getElementById('container-build-if-missing');
+  const containerStopAfter = document.getElementById('container-stop-after');
+  const summaryContainerRow = document.getElementById('summary-container-row');
+  const summaryContainersElement = document.getElementById('summary-containers');
+  
+  if (summaryContainerRow && summaryContainersElement) {
+    const containerFeatures = [];
+    if (containerAutoStart && containerAutoStart.checked) {
+      containerFeatures.push('Auto-start');
+    }
+    if (containerBuildIfMissing && containerBuildIfMissing.checked) {
+      containerFeatures.push('Build if missing');
+    }
+    if (containerStopAfter && containerStopAfter.checked) {
+      containerFeatures.push('Stop after');
+    }
+    
+    if (containerFeatures.length > 0) {
+      summaryContainerRow.classList.remove('d-none');
+      summaryContainersElement.innerHTML = `<span class="badge bg-primary-lt text-primary">${containerFeatures.join(', ')}</span>`;
+    } else {
+      summaryContainerRow.classList.add('d-none');
+      summaryContainersElement.textContent = '-';
+    }
+  }
 }
 
 // Filter functions
@@ -2615,6 +2701,17 @@ function initAnalysisWizard() {
             }
         });
     }
+    
+    // Container management checkboxes - update summary when changed
+    const containerCheckboxIds = ['container-auto-start', 'container-build-if-missing', 'container-stop-after'];
+    containerCheckboxIds.forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox) {
+            checkbox.addEventListener('change', () => {
+                updateAnalysisSummary();
+            });
+        }
+    });
     
     // Form submission handling
     const form = document.getElementById('analysis-wizard-form');

@@ -264,6 +264,11 @@ def analysis_create():
         analysis_profile = (form.get('analysis_profile') or '').strip()
         selected_tools = form.getlist('selected_tools[]')
         priority = (form.get('priority') or 'normal').strip()
+        
+        # Container management options (all opt-in, disabled by default)
+        container_auto_start = form.get('container_auto_start') == 'on'
+        container_build_if_missing = form.get('container_build_if_missing') == 'on'
+        container_stop_after = form.get('container_stop_after') == 'on'
 
         try:
             current_app.logger.debug(
@@ -476,6 +481,12 @@ def analysis_create():
                     'tools_by_service': tools_by_service,
                     'source': 'wizard_custom',
                     'analysis_type': 'custom',
+                    # Container management options
+                    'container_management': {
+                        'start_before_analysis': container_auto_start,
+                        'build_if_missing': container_build_if_missing,
+                        'stop_after_analysis': container_stop_after,
+                    },
                 }
 
                 new_tasks, subtask_count = enqueue_for_targets(
@@ -516,6 +527,12 @@ def analysis_create():
                     'source': f'wizard_profile_{profile_key}',
                     'analysis_type': profile_key,
                     'selected_profile': profile_key,
+                    # Container management options
+                    'container_management': {
+                        'start_before_analysis': container_auto_start,
+                        'build_if_missing': container_build_if_missing,
+                        'stop_after_analysis': container_stop_after,
+                    },
                 }
 
                 new_tasks, subtask_count = enqueue_for_targets(

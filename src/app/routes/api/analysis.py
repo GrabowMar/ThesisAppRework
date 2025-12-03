@@ -221,7 +221,12 @@ def run_analysis():
         "app_number": 1,
         "analysis_type": "security",  # security, performance, dynamic, ai, unified
         "tools": ["bandit", "safety"],  # Optional: specific tools to run
-        "priority": "normal"  # Optional: normal, high, low
+        "priority": "normal",  # Optional: normal, high, low
+        "container_management": {  # Optional: container lifecycle management
+            "start_before_analysis": false,  # Start containers before analysis
+            "build_if_missing": false,  # Build containers if not present
+            "stop_after_analysis": false  # Stop containers after analysis completes
+        }
     }
     
     Returns:
@@ -248,6 +253,14 @@ def run_analysis():
         analysis_type = data.get('analysis_type', 'security').strip()
         tools = data.get('tools', [])
         priority = data.get('priority', 'normal').strip()
+        
+        # Parse container management options (opt-in, disabled by default)
+        container_opts = data.get('container_management', {})
+        container_management = {
+            'start_before_analysis': bool(container_opts.get('start_before_analysis', False)),
+            'build_if_missing': bool(container_opts.get('build_if_missing', False)),
+            'stop_after_analysis': bool(container_opts.get('stop_after_analysis', False))
+        }
         
         if not model_slug:
             return api_error("Missing required field: model_slug", 400)
@@ -303,7 +316,8 @@ def run_analysis():
             'selected_tools': tool_ids,
             'selected_tool_names': tool_names,
             'tools_by_service': tools_by_service,
-            'source': 'api'
+            'source': 'api',
+            'container_management': container_management
         }
         
         # Create task - use multi-service if multiple containers involved
@@ -340,7 +354,8 @@ def run_analysis():
                 'status': task.status.value if hasattr(task.status, 'value') else str(task.status),
                 'created_at': task.created_at.isoformat() if task.created_at else None,
                 'tools_count': len(tools) if tools else 'all',
-                'priority': priority
+                'priority': priority,
+                'container_management': container_management
             }
         }), 201
         

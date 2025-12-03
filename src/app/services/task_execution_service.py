@@ -560,6 +560,10 @@ class TaskExecutionService:
 
     def _execute_real_analysis(self, task: AnalysisTask) -> dict:
         """Execute real analysis using analyzer_manager directly."""
+        # Track container management state for cleanup in finally block
+        container_started = False
+        container_opts = {}
+        
         try:
             # Try to dispatch to Celery first if available AND Redis is reachable
             # Default to 'false' for local dev - set USE_CELERY_ANALYSIS=true in Docker
@@ -588,6 +592,114 @@ class TaskExecutionService:
                 task.task_id, analysis_type, task.target_model, task.target_app_number
             )
             
+            # Extract tool names and container management options from metadata
+            meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
+            custom_options = meta.get('custom_options', {})
+            tool_names = custom_options.get('tools') or custom_options.get('selected_tool_names') or []
+            container_opts = custom_options.get('container_management', {})
+            
+            # =================================================================
+            # SMART CONTAINER MANAGEMENT: Start/build containers before analysis
+            # =================================================================
+            if container_opts.get('start_before_analysis', False):
+                self._log(
+                    "[CONTAINER] Task %s: Container management enabled (start_before=%s, build_if_missing=%s, stop_after=%s)",
+                    task.task_id, 
+                    container_opts.get('start_before_analysis'),
+                    container_opts.get('build_if_missing'),
+                    container_opts.get('stop_after_analysis')
+                )
+                
+                try:
+                    docker_mgr = ServiceLocator.get_docker_manager()
+                    
+                    # Check current container status
+                    status_summary = docker_mgr.container_status_summary(
+                        task.target_model, 
+                        task.target_app_number
+                    )
+                    current_states = set(status_summary.get('states', []))
+                    containers_found = status_summary.get('containers_found', 0)
+                    
+                    self._log(
+                        "[CONTAINER] Task %s: Current container status - found=%d, states=%s",
+                        task.task_id, containers_found, current_states
+                    )
+                    
+                    # Update progress to indicate container management
+                    task.progress_percentage = 10.0
+                    db.session.commit()
+                    
+                    # Determine if we need to start/build containers
+                    need_start = containers_found == 0 or 'running' not in current_states
+                    
+                    if need_start:
+                        if container_opts.get('build_if_missing', False) and containers_found == 0:
+                            # No containers found - build them first
+                            self._log(
+                                "[CONTAINER] Task %s: Building containers (no existing containers found)",
+                                task.task_id
+                            )
+                            build_result = docker_mgr.build_containers(
+                                task.target_model,
+                                task.target_app_number,
+                                no_cache=False,  # Use cache for faster builds
+                                start_after=True  # Start containers after build
+                            )
+                            
+                            if not build_result.get('success'):
+                                error_msg = build_result.get('error', 'Container build failed')
+                                self._log(
+                                    "[CONTAINER] Task %s: Build failed - %s. Proceeding with static-only analysis.",
+                                    task.task_id, error_msg, level='warning'
+                                )
+                                # Don't fail the entire analysis - static analysis can proceed without containers
+                            else:
+                                container_started = True
+                                self._log(
+                                    "[CONTAINER] Task %s: Containers built and started successfully",
+                                    task.task_id
+                                )
+                        else:
+                            # Containers exist but not running - just start them
+                            self._log(
+                                "[CONTAINER] Task %s: Starting existing containers",
+                                task.task_id
+                            )
+                            start_result = docker_mgr.start_containers(
+                                task.target_model,
+                                task.target_app_number
+                            )
+                            
+                            if not start_result.get('success'):
+                                error_msg = start_result.get('error', 'Container start failed')
+                                self._log(
+                                    "[CONTAINER] Task %s: Start failed - %s. Proceeding with static-only analysis.",
+                                    task.task_id, error_msg, level='warning'
+                                )
+                            else:
+                                container_started = True
+                                self._log(
+                                    "[CONTAINER] Task %s: Containers started successfully",
+                                    task.task_id
+                                )
+                        
+                        # Give containers time to initialize
+                        if container_started:
+                            import time as _time
+                            _time.sleep(3)  # Brief pause for container startup
+                    else:
+                        self._log(
+                            "[CONTAINER] Task %s: Containers already running, no action needed",
+                            task.task_id
+                        )
+                        
+                except Exception as container_err:
+                    self._log(
+                        "[CONTAINER] Task %s: Container management failed - %s. Proceeding with analysis.",
+                        task.task_id, container_err, level='warning'
+                    )
+            
             # Update progress to indicate analysis starting
             task.progress_percentage = 20.0
             db.session.commit()
@@ -595,11 +707,6 @@ class TaskExecutionService:
             # Import analyzer wrapper
             from app.services.analyzer_manager_wrapper import get_analyzer_wrapper
             wrapper = get_analyzer_wrapper()
-            
-            # Extract tool names from metadata if available
-            meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
-            custom_options = meta.get('custom_options', {})
-            tool_names = custom_options.get('tools') or custom_options.get('selected_tool_names') or []
             
             # DEBUG: Log full metadata
             self._log(
@@ -822,6 +929,38 @@ class TaskExecutionService:
                 'error': str(e),
                 'payload': {}
             }
+        
+        finally:
+            # =================================================================
+            # SMART CONTAINER MANAGEMENT: Stop containers after analysis
+            # =================================================================
+            if container_opts.get('stop_after_analysis', False) and container_started:
+                try:
+                    docker_mgr = ServiceLocator.get_docker_manager()
+                    self._log(
+                        "[CONTAINER] Task %s: Stopping containers after analysis completion",
+                        task.task_id
+                    )
+                    stop_result = docker_mgr.stop_containers(
+                        task.target_model,
+                        task.target_app_number
+                    )
+                    if stop_result.get('success'):
+                        self._log(
+                            "[CONTAINER] Task %s: Containers stopped successfully",
+                            task.task_id
+                        )
+                    else:
+                        self._log(
+                            "[CONTAINER] Task %s: Failed to stop containers - %s",
+                            task.task_id, stop_result.get('error', 'Unknown error'),
+                            level='warning'
+                        )
+                except Exception as cleanup_err:
+                    self._log(
+                        "[CONTAINER] Task %s: Container cleanup failed - %s",
+                        task.task_id, cleanup_err, level='warning'
+                    )
 
     def _execute_unified_analysis(self, task: AnalysisTask) -> dict:
         """Execute unified/comprehensive analysis using analyzer_manager directly."""
