@@ -18,11 +18,22 @@
 {{ scaffolding_frontend_context }}
 
 ## MUST FOLLOW
-1. **API paths**: Use EXACT paths from API section above - replace any `/api/YOUR_RESOURCE` with actual paths like `/api/todos`
+1. **API paths**: Replace `/api/YOUR_RESOURCE` with EXACT paths from API section (e.g., `/api/todos`)
 2. **Available components**: ONLY `Spinner` and `ErrorBoundary` exist in `./components`
 3. **List response**: Backend returns `{items: [...], total: N}` - use `response.data.items`
-4. **Only implement requirements**: Do NOT add routing/auth unless requirements specify it
-5. **Delete confirmation**: Use `window.confirm()` before delete operations
+4. **Delete confirmation**: Use `window.confirm()` before delete operations
+5. **No routing/auth** unless requirements specify it
+
+## QUALITY EXPECTATIONS
+Write production-ready React code that includes:
+- **Loading states**: Show spinner during data fetching and form submission
+- **Error handling**: Display error messages, include retry button for failed loads
+- **Form validation**: Validate inputs before submit, show field-specific errors
+- **Empty states**: Helpful message when no items exist
+- **Toast notifications**: Success/error feedback for user actions
+- **Search/filter**: Allow users to filter the list (if applicable)
+- **Inline editing**: Edit items without navigating away (if update is required)
+- Keep it pragmatic - good UX without over-engineering
 
 ## Output
 
