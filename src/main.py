@@ -75,8 +75,8 @@ def main():
         return 1
     
     # Determine execution mode for banner
-    use_celery = os.environ.get('USE_CELERY_ANALYSIS', 'true').lower() == 'true'
-    execution_mode = "Celery Distributed Task Queue" if use_celery else "ThreadPoolExecutor (4 workers)"
+    use_celery = os.environ.get('USE_CELERY_ANALYSIS', 'false').lower() == 'true'
+    execution_mode = "Celery Distributed Task Queue" if use_celery else "ThreadPoolExecutor (8 workers)"
 
     # Print startup information with a Unicode banner; fall back to ASCII if needed
     try:

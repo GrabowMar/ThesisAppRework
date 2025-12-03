@@ -18,6 +18,10 @@ services:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - OPENROUTER_ALLOW_ALL_PROVIDERS=${OPENROUTER_ALLOW_ALL_PROVIDERS:-true}
       - PYTHONUNBUFFERED=1
+      # Celery configuration for Docker environment
+      - USE_CELERY_ANALYSIS=true
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       # Authentication & Security
       - REGISTRATION_ENABLED=${REGISTRATION_ENABLED:-false}
       - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-false}

@@ -26,6 +26,7 @@ Future extension points (left as TODO comments):
 
 from __future__ import annotations
 
+import os
 import threading
 import time
 import json
@@ -59,7 +60,7 @@ class TaskExecutionService:
     In tests we shorten delays to keep suite fast (< 1s per task).
     """
 
-    def __init__(self, poll_interval: float = 5.0, batch_size: int = 3, app=None, max_workers: int = 4):
+    def __init__(self, poll_interval: float = 5.0, batch_size: int = 5, app=None, max_workers: int = 8):
         self.poll_interval = poll_interval
         self.batch_size = batch_size
         self.max_workers = max_workers
@@ -90,6 +91,108 @@ class TaskExecutionService:
         except (RuntimeError, ImportError):
             self._service_timeout = 600
             self._retry_enabled = False
+        
+        # Redis availability cache (checked periodically, not on every task)
+        self._redis_available: Optional[bool] = None
+        self._redis_check_time: float = 0.0
+        self._redis_check_interval: float = 30.0  # Re-check every 30 seconds
+        
+        # Circuit breaker state for analyzer services
+        # Tracks consecutive failures and cooldown times
+        self._service_failures: Dict[str, int] = {}  # service_name -> consecutive_failures
+        self._service_cooldown_until: Dict[str, float] = {}  # service_name -> cooldown_end_time
+        self._circuit_breaker_threshold: int = 3  # failures before circuit opens
+        self._circuit_breaker_cooldown: float = 300.0  # 5 minutes cooldown
+
+    def _is_redis_available(self) -> bool:
+        """Check if Redis is available for Celery task dispatch.
+        
+        Uses a cached result to avoid checking Redis on every single task.
+        Re-checks every 30 seconds.
+        """
+        import time as _time
+        
+        current_time = _time.time()
+        
+        # Return cached result if still valid
+        if self._redis_available is not None and (current_time - self._redis_check_time) < self._redis_check_interval:
+            return self._redis_available
+        
+        # Perform actual Redis check
+        try:
+            import redis
+            redis_url = os.environ.get('CELERY_BROKER_URL') or os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+            client = redis.from_url(redis_url, socket_timeout=2.0, socket_connect_timeout=2.0)
+            client.ping()
+            self._redis_available = True
+            self._log("[REDIS] Redis is available at %s", redis_url, level='debug')
+        except ImportError:
+            self._log("[REDIS] redis-py not installed, Celery unavailable", level='warning')
+            self._redis_available = False
+        except Exception as e:
+            self._log("[REDIS] Redis not reachable: %s", str(e), level='warning')
+            self._redis_available = False
+        
+        self._redis_check_time = current_time
+        return self._redis_available
+    
+    def _is_service_available(self, service_name: str) -> bool:
+        """Check if a service is available (circuit breaker not tripped).
+        
+        Returns False if the service has failed too many times recently.
+        """
+        current_time = time.time()
+        
+        # Check if service is in cooldown
+        cooldown_until = self._service_cooldown_until.get(service_name, 0)
+        if current_time < cooldown_until:
+            remaining = int(cooldown_until - current_time)
+            self._log(
+                "[CIRCUIT] Service %s is in cooldown (tripped), %ds remaining",
+                service_name, remaining, level='debug'
+            )
+            return False
+        
+        # Cooldown expired - reset if it was tripped
+        if cooldown_until > 0 and current_time >= cooldown_until:
+            self._log(
+                "[CIRCUIT] Service %s cooldown expired, resetting circuit breaker",
+                service_name
+            )
+            self._service_failures[service_name] = 0
+            self._service_cooldown_until[service_name] = 0
+        
+        return True
+    
+    def _record_service_failure(self, service_name: str) -> None:
+        """Record a service failure for circuit breaker tracking."""
+        failures = self._service_failures.get(service_name, 0) + 1
+        self._service_failures[service_name] = failures
+        
+        if failures >= self._circuit_breaker_threshold:
+            cooldown_end = time.time() + self._circuit_breaker_cooldown
+            self._service_cooldown_until[service_name] = cooldown_end
+            self._log(
+                "[CIRCUIT] Service %s circuit breaker TRIPPED after %d failures. "
+                "Cooldown for %ds",
+                service_name, failures, int(self._circuit_breaker_cooldown),
+                level='warning'
+            )
+        else:
+            self._log(
+                "[CIRCUIT] Service %s failure recorded (%d/%d before trip)",
+                service_name, failures, self._circuit_breaker_threshold,
+                level='debug'
+            )
+    
+    def _record_service_success(self, service_name: str) -> None:
+        """Record a service success, resetting the failure counter."""
+        if self._service_failures.get(service_name, 0) > 0:
+            self._log(
+                "[CIRCUIT] Service %s success, resetting failure count",
+                service_name, level='debug'
+            )
+        self._service_failures[service_name] = 0
 
     def _execute_service_with_timeout(self, engine, model_slug: str, app_number: int, tools: list, service_name: str) -> Dict[str, Any]:
         """Execute a service with timeout protection.
@@ -167,6 +270,107 @@ class TaskExecutionService:
         # Shutdown thread pool executor
         self.executor.shutdown(wait=True, cancel_futures=False)
         self._log("TaskExecutionService stopped")
+    
+    def _recover_stuck_tasks(self) -> int:
+        """Recover tasks stuck in RUNNING state for too long.
+        
+        Tasks stuck in RUNNING for >15 minutes are reset to PENDING for retry.
+        This runs periodically (every 5 min) instead of only at startup.
+        
+        Returns:
+            Number of tasks recovered
+        """
+        from datetime import timedelta
+        
+        stuck_threshold = timedelta(minutes=15)
+        cutoff_time = datetime.now(timezone.utc) - stuck_threshold
+        
+        # Find tasks stuck in RUNNING state past the threshold
+        stuck_tasks = AnalysisTask.query.filter(
+            AnalysisTask.status == AnalysisStatus.RUNNING,
+            AnalysisTask.started_at != None,  # noqa: E711
+            AnalysisTask.started_at < cutoff_time
+        ).all()
+        
+        if not stuck_tasks:
+            return 0
+        
+        recovered_count = 0
+        for task in stuck_tasks:
+            # Check if this is a Celery task that's actually still running
+            # by checking if it's in our active futures (ThreadPool) or has a Celery task ID
+            meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
+            celery_task_id = meta.get('custom_options', {}).get('celery_task_id')
+            
+            # Skip if it's a known active future in our thread pool
+            with self._futures_lock:
+                if task.task_id in self._active_futures:
+                    self._log(
+                        "[RECOVERY] Skipping task %s - still active in thread pool",
+                        task.task_id, level='debug'
+                    )
+                    continue
+            
+            # Check Celery task state if available
+            if celery_task_id:
+                try:
+                    from celery.result import AsyncResult
+                    from app.celery_worker import celery
+                    result = AsyncResult(celery_task_id, app=celery)
+                    if result.state in ('PENDING', 'STARTED', 'RETRY'):
+                        self._log(
+                            "[RECOVERY] Skipping task %s - Celery task %s is %s",
+                            task.task_id, celery_task_id, result.state, level='debug'
+                        )
+                        continue
+                except Exception:
+                    pass  # Can't check Celery state, proceed with recovery
+            
+            # Calculate how long it's been stuck
+            started_at = task.started_at
+            if started_at.tzinfo is None:
+                started_at = started_at.replace(tzinfo=timezone.utc)
+            stuck_duration = datetime.now(timezone.utc) - started_at
+            
+            self._log(
+                "[RECOVERY] Recovering stuck task %s (stuck for %s)",
+                task.task_id, stuck_duration, level='warning'
+            )
+            
+            # Reset to PENDING for retry (up to 3 retries)
+            retry_count = meta.get('retry_count', 0)
+            if retry_count >= 3:
+                # Max retries exceeded - mark as FAILED
+                task.status = AnalysisStatus.FAILED
+                task.error_message = f"Task stuck after {retry_count} retries (last stuck for {stuck_duration})"
+                task.completed_at = datetime.now(timezone.utc)
+                self._log(
+                    "[RECOVERY] Task %s failed after %d retries",
+                    task.task_id, retry_count, level='error'
+                )
+            else:
+                # Reset to PENDING for retry
+                task.status = AnalysisStatus.PENDING
+                task.started_at = None
+                task.progress_percentage = 0.0
+                # Update retry count in metadata
+                if hasattr(task, 'set_metadata'):
+                    updated_meta = dict(meta)
+                    updated_meta['retry_count'] = retry_count + 1
+                    updated_meta['last_recovery'] = datetime.now(timezone.utc).isoformat()
+                    task.set_metadata(updated_meta)
+                self._log(
+                    "[RECOVERY] Task %s reset to PENDING (retry %d/3)",
+                    task.task_id, retry_count + 1
+                )
+            
+            recovered_count += 1
+        
+        if recovered_count > 0:
+            db.session.commit()
+            self._log("[RECOVERY] Recovered %d stuck task(s)", recovered_count)
+        
+        return recovered_count
 
     # --- Internal helpers -------------------------------------------------
     def _run_loop(self):  # pragma: no cover - timing heavy, exercised indirectly
@@ -176,6 +380,10 @@ class TaskExecutionService:
         # This ensures logs from the thread are properly captured
         self._thread_logger = self._setup_thread_logging()
         self._log("[THREAD] TaskExecutionService daemon thread started")
+        
+        # Track last stuck task check time (every 5 minutes)
+        last_stuck_check = 0.0
+        stuck_check_interval = 300.0  # 5 minutes
 
         # We deliberately push an app context each loop iteration to ensure a fresh
         # DB session binding (avoids stale sessions across test database teardown/create).
@@ -186,6 +394,12 @@ class TaskExecutionService:
                     if not components:  # Should not happen if context active
                         time.sleep(self.poll_interval)
                         continue
+                    
+                    # Periodic stuck task recovery (every 5 minutes)
+                    current_time = time.time()
+                    if (current_time - last_stuck_check) >= stuck_check_interval:
+                        self._recover_stuck_tasks()
+                        last_stuck_check = current_time
 
                     next_tasks = queue_service.get_next_tasks(limit=self.batch_size)
                     if not next_tasks:
@@ -225,9 +439,26 @@ class TaskExecutionService:
                             pass
                         self._log("Task %s started", task_db.task_id)
 
+                        # Check if this is a unified analysis task with subtasks
+                        # If so, use parallel subtask execution instead of direct analysis
+                        meta = task_db.get_metadata() if hasattr(task_db, 'get_metadata') else {}
+                        custom_options = meta.get('custom_options', {})
+                        is_unified = custom_options.get('unified_analysis', False)
+                        has_subtasks = task_db.is_main_task and hasattr(task_db, 'subtasks') and len(list(task_db.subtasks)) > 0
+                        
                         # Execute real analysis instead of simulation
                         try:
-                            result = self._execute_real_analysis(task_db)
+                            if is_unified and has_subtasks:
+                                # Unified analysis with subtasks - use parallel execution
+                                subtask_ids = [st.task_id for st in task_db.subtasks]
+                                self._log(
+                                    "[UNIFIED] Task %s has %d subtasks, using parallel execution",
+                                    task_db.task_id, len(subtask_ids)
+                                )
+                                result = self.submit_parallel_subtasks(task_db.task_id, subtask_ids)
+                            else:
+                                # Regular task - use direct analysis
+                                result = self._execute_real_analysis(task_db)
                             
                             # Handle parallel execution (status='running' means Celery took over)
                             if result.get('status') == 'running':
@@ -330,19 +561,24 @@ class TaskExecutionService:
     def _execute_real_analysis(self, task: AnalysisTask) -> dict:
         """Execute real analysis using analyzer_manager directly."""
         try:
-            # Try to dispatch to Celery first if available
-            try:
-                # Check if we should use Celery (env var or config)
-                use_celery = os.environ.get('USE_CELERY_ANALYSIS', 'true').lower() == 'true'
-                
-                if use_celery:
-                    from app.tasks import execute_analysis
-                    self._log(f"[EXEC] Dispatching task {task.task_id} to Celery worker")
-                    # Dispatch task
-                    execute_analysis.delay(task.id)
-                    return {'status': 'running', 'payload': {'message': 'Dispatched to Celery'}}
-            except (ImportError, Exception) as e:
-                self._log(f"[EXEC] Celery dispatch failed: {e}, falling back to local execution", level='warning')
+            # Try to dispatch to Celery first if available AND Redis is reachable
+            # Default to 'false' for local dev - set USE_CELERY_ANALYSIS=true in Docker
+            use_celery = os.environ.get('USE_CELERY_ANALYSIS', 'false').lower() == 'true'
+            
+            if use_celery:
+                try:
+                    # First check if Redis is reachable before attempting Celery dispatch
+                    if self._is_redis_available():
+                        from app.tasks import execute_analysis
+                        self._log(f"[EXEC] Dispatching task {task.task_id} to Celery worker")
+                        # Dispatch task to Celery
+                        result = execute_analysis.delay(task.id)
+                        self._log(f"[EXEC] Task {task.task_id} dispatched to Celery (task_id={result.id})")
+                        return {'status': 'running', 'payload': {'message': 'Dispatched to Celery', 'celery_task_id': result.id}}
+                    else:
+                        self._log("[EXEC] Redis not available, skipping Celery dispatch", level='warning')
+                except (ImportError, Exception) as e:
+                    self._log(f"[EXEC] Celery dispatch failed: {e}, falling back to local execution", level='warning')
 
             # Get the analysis type (string)
             analysis_type = task.task_name
@@ -845,6 +1081,23 @@ class TaskExecutionService:
                 if not subtask:
                     return {'status': 'error', 'error': f'Subtask {subtask_id} not found'}
                 
+                # Check circuit breaker BEFORE marking as running
+                if not self._is_service_available(service_name):
+                    self._log(
+                        f"[SUBTASK] Skipping subtask {subtask_id} - service {service_name} circuit breaker tripped",
+                        level='warning'
+                    )
+                    subtask.status = AnalysisStatus.FAILED
+                    subtask.error_message = f"Service {service_name} temporarily unavailable (circuit breaker)"
+                    subtask.completed_at = datetime.now(timezone.utc)
+                    db.session.commit()
+                    return {
+                        'status': 'skipped',
+                        'error': f'Service {service_name} circuit breaker tripped',
+                        'service_name': service_name,
+                        'subtask_id': subtask_id
+                    }
+                
                 # Mark as running
                 subtask.status = AnalysisStatus.RUNNING
                 subtask.started_at = datetime.now(timezone.utc)
@@ -863,10 +1116,17 @@ class TaskExecutionService:
                     timeout=600
                 )
                 
-                # Store result and mark complete (partial is still a success - results were generated)
+                # Update circuit breaker based on result
                 status = str(result.get('status', '')).lower()
                 success = status in ('success', 'completed', 'ok', 'partial')
                 is_partial = status == 'partial'
+                
+                if success:
+                    self._record_service_success(service_name)
+                elif status in ('error', 'timeout', 'failed'):
+                    self._record_service_failure(service_name)
+                
+                # Store result and mark complete (partial is still a success - results were generated)
                 subtask.status = AnalysisStatus.PARTIAL_SUCCESS if is_partial else (AnalysisStatus.COMPLETED if success else AnalysisStatus.FAILED)
                 subtask.completed_at = datetime.now(timezone.utc)
                 subtask.progress_percentage = 100.0
@@ -897,6 +1157,9 @@ class TaskExecutionService:
                     level='error',
                     exc_info=True
                 )
+                # Record failure for circuit breaker
+                self._record_service_failure(service_name)
+                
                 # Mark subtask as failed
                 try:
                     subtask = AnalysisTask.query.get(subtask_id)

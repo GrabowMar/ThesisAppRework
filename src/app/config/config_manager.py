@@ -150,8 +150,8 @@ class ConfigManager:
             Dictionary with queue limits (max_concurrent_tasks, max_concurrent_per_type)
         """
         return {
-            'max_concurrent_tasks': int(os.environ.get('QUEUE_MAX_CONCURRENT_TASKS', '5')),
-            'max_concurrent_per_type': int(os.environ.get('QUEUE_MAX_CONCURRENT_PER_TYPE', '3'))
+            'max_concurrent_tasks': int(os.environ.get('QUEUE_MAX_CONCURRENT_TASKS', '10')),
+            'max_concurrent_per_type': int(os.environ.get('QUEUE_MAX_CONCURRENT_PER_TYPE', '5'))
         }
     
     @property
