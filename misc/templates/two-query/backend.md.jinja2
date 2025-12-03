@@ -11,26 +11,21 @@
 {% if api_endpoints %}
 {{ api_endpoints }}
 
-**CRITICAL**: Frontend will call these EXACT paths. Do not use different endpoint names.
+**CRITICAL**: Frontend will call these EXACT paths. Do not change endpoint names.
 {% endif %}
 
-## Scaffolding & Technical Constraints
+## Technical Reference
 {{ scaffolding_backend_context }}
 
-- **Persistence**: Use absolute path `sqlite:////app/data/app.db` for SQLite database.
-
-## Quality Standards
-
-- **Validation**: Validate all input data. Return 400 with `{"error": "message"}` for invalid inputs.
-- **Error Handling**: Use `@handle_errors` decorator pattern. Return 500 for server errors.
-- **Pagination**: Implement pagination for list endpoints (default 20, max 100 items).
-- **Filtering**: Add query parameter filtering for list endpoints where appropriate.
-- **Logging**: Use Python's logging module for important operations (create, update, delete).
-- **Models**: All models must have `to_dict()` method for JSON serialization.
-- **Health Check**: Always include `/api/health` endpoint returning `{"status": "healthy"}`.
+## MUST FOLLOW
+1. **Database**: `sqlite:////app/data/app.db` (exactly 4 slashes)
+2. **Code order**: imports → app setup → decorators → models → db.create_all() → routes → main
+3. **Only implement requirements**: Do NOT add authentication unless requirements specify it
+4. **List response format**: `{"items": [...], "total": N}`
+5. **IMPORTANT**: Replace example placeholders like `/api/YOUR_RESOURCE` with ACTUAL paths from requirements above (e.g., `/api/todos`)
 
 ## Output
 
-Output the **complete Python code** for `app.py` in a single code block. Do not include markdown outside the code block.
+Output the **complete Python code** for `app.py` in a single code block.
 
 

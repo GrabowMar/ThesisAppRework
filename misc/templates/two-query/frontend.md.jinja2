@@ -2,56 +2,30 @@
 
 {{ description }}
 
-## App-Specific Requirements
+## Requirements
 {% for req in frontend_requirements %}
 - {{ req }}
 {% endfor %}
 
-## Shared UI Requirements (apply to ALL apps)
-1. **Header**: Styled header section with app title, relevant icon, and brief description. Choose colors/gradients that fit the app's purpose.
-2. **Layout**: Clean, organized layout with clear visual hierarchy. Include a footer with copyright/attribution.
-3. **Polish**: Smooth transitions on interactive elements, proper hover/focus states, responsive design.
-
-## Backend API
-Backend API is available at `/api/*` paths (proxied by Nginx/Vite to backend container)
-
-**CRITICAL: Use EXACT endpoint paths below. Frontend and backend MUST match.**
-
+## Backend API (USE EXACT PATHS)
 {% if api_endpoints %}
 {{ api_endpoints }}
 
-**Do not use different endpoint paths (like /api/items instead of /api/todos).**
-{% else %}
-- Additional endpoints per requirements
+**CRITICAL**: Use these EXACT endpoint paths. Backend implements them exactly as shown.
 {% endif %}
 
-## Scaffolding & Technical Constraints
+## Technical Reference
 {{ scaffolding_frontend_context }}
 
-## Quality Standards
-
-- **UI/UX (Tailwind CSS)**:
-   - Use the pre-built component classes: `btn-primary`, `card`, `input`, `alert-*`, `badge-*`, `table`
-   - Use `<Layout>` component for consistent page structure
-   - Use `<Spinner>` and `<EmptyState>` from `./components` for loading/empty states
-   - Use Heroicons for all icons: `import { IconName } from '@heroicons/react/24/outline'`
-   - Use `toast.success()` / `toast.error()` for user feedback (react-hot-toast)
-   - Implement **Loading States** with `<Spinner />` for all async operations
-   - Implement **Error Handling** with `alert-error` class for failed requests
-   - Ensure **Responsive Design** using Tailwind's responsive prefixes (`sm:`, `md:`, `lg:`)
-- **Functionality**:
-   - Implement full CRUD if the API supports it
-   - Add form validation (client-side) before submitting
-   - Auto-refresh lists after updates
-   - Use `toast.promise()` for async operations with loading feedback
-- **Code Quality**:
-   - Clean, readable code with meaningful variable names
-   - Handle edge cases (empty lists, 404s, network errors)
-   - Use async/await pattern with try/catch for API calls
-- **Completeness**: Generate the FULL application code. Do not use placeholders like "TODO: Implement this".
+## MUST FOLLOW
+1. **API paths**: Use EXACT paths from API section above - replace any `/api/YOUR_RESOURCE` with actual paths like `/api/todos`
+2. **Available components**: ONLY `Spinner` and `ErrorBoundary` exist in `./components`
+3. **List response**: Backend returns `{items: [...], total: N}` - use `response.data.items`
+4. **Only implement requirements**: Do NOT add routing/auth unless requirements specify it
+5. **Delete confirmation**: Use `window.confirm()` before delete operations
 
 ## Output
 
-Output the **complete JSX code** for `App.jsx` in a single code block. Do not include markdown outside the code block.
+Output the **complete JSX code** for `App.jsx` in a single code block.
 
 

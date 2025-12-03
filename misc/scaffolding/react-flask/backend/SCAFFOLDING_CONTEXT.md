@@ -1,88 +1,34 @@
 # Backend Blueprint Reference
 
+## CRITICAL RULES (READ FIRST)
+1. **Use EXACT endpoint paths from requirements** - Replace `/api/YOUR_RESOURCE` in examples with actual paths like `/api/todos`, `/api/books`, etc.
+2. **Database path**: Use exactly `sqlite:////app/data/app.db` (4 slashes for absolute path)
+3. **Define helpers BEFORE using them**: Put `handle_errors` decorator definition at TOP, before routes
+4. **Only implement what requirements ask for**: Do NOT add auth unless requirements specify it
+
 ## Stack
-- **Flask 3.0** (Python 3.11)
-- **SQLAlchemy** with SQLite (`/app/data/app.db`)
-- **Flask-CORS** enabled
-- **Gunicorn** (production) / Werkzeug (dev)
+- Flask 3.0, SQLAlchemy, Flask-CORS, Gunicorn/Werkzeug
 
-## Architecture Rules
-1. ALL API routes start with `/api/`
-2. Models inherit from `db.Model` and have `to_dict()` method
-3. Database path: `sqlite:////app/data/app.db`
-4. Port from `FLASK_RUN_PORT` env (default 5000)
-5. Host must be `0.0.0.0` for container access
-
-## Patterns
-
-### Model Definition
+## Code Structure (FOLLOW THIS ORDER)
 ```python
-class Item(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'created_at': self.created_at.isoformat() if self.created_at else None
-        }
-```
-
-### CRUD Routes
-```python
-@app.route('/api/items', methods=['GET'])
-def get_items():
-    items = Item.query.all()
-    return jsonify([i.to_dict() for i in items])
-
-@app.route('/api/items', methods=['POST'])
-def create_item():
-    data = request.get_json()
-    if not data or not data.get('name'):
-        return jsonify({'error': 'Name required'}), 400
-    item = Item(name=data['name'])
-    db.session.add(item)
-    db.session.commit()
-    return jsonify(item.to_dict()), 201
-
-@app.route('/api/items/<int:id>', methods=['PUT'])
-def update_item(id):
-    item = Item.query.get_or_404(id)
-    data = request.get_json()
-    if 'name' in data:
-        item.name = data['name']
-    db.session.commit()
-    return jsonify(item.to_dict())
-
-@app.route('/api/items/<int:id>', methods=['DELETE'])
-def delete_item(id):
-    item = Item.query.get_or_404(id)
-    db.session.delete(item)
-    db.session.commit()
-    return jsonify({'message': 'Deleted'})
-```
-
-### Pagination
-```python
-@app.route('/api/items')
-def get_items():
-    page = request.args.get('page', 1, type=int)
-    per_page = min(request.args.get('per_page', 20, type=int), 100)
-    pagination = Item.query.paginate(page=page, per_page=per_page)
-    return jsonify({
-        'items': [i.to_dict() for i in pagination.items],
-        'total': pagination.total,
-        'page': page,
-        'pages': pagination.pages
-    })
-```
-
-### Error Handling
-```python
+# 1. Imports
+from flask import Flask, jsonify, request
+from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
 from functools import wraps
+import os, logging
 
+# 2. App setup
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////app/data/app.db'  # 4 slashes!
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+CORS(app)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# 3. Helper decorators (MUST BE BEFORE ROUTES)
 def handle_errors(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -93,49 +39,71 @@ def handle_errors(f):
             logger.error(f"Error: {e}")
             return jsonify({'error': 'Server error'}), 500
     return decorated
-```
 
-### Auth (if requirements need it)
-```python
-from flask_jwt_extended import JWTManager, jwt_required, create_access_token, get_jwt_identity
-import bcrypt
-
-app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'secret')
-jwt = JWTManager(app)
-
-class User(db.Model):
+# 4. Models - RENAME to match your requirements (Todo, Book, Task, etc.)
+class YourModel(db.Model):  # <- RENAME THIS (e.g., Todo, Book, Task)
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
+    # Add fields from requirements (title, name, completed, etc.)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    def set_password(self, password):
-        self.password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    
-    def check_password(self, password):
-        return bcrypt.checkpw(password.encode(), self.password_hash.encode())
+    def to_dict(self):
+        return {
+            'id': self.id,
+            # Return all your model's fields here
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
 
-@app.route('/api/auth/login', methods=['POST'])
-def login():
+# 5. Create tables
+with app.app_context():
+    db.create_all()
+
+# 6. Routes - USE EXACT PATHS FROM REQUIREMENTS (e.g., /api/todos, /api/books)
+@app.route('/api/health')
+def health():
+    return jsonify({'status': 'healthy', 'service': 'backend'})
+
+# REPLACE '/api/YOUR_RESOURCE' with actual path from requirements!
+@app.route('/api/YOUR_RESOURCE', methods=['GET'])  # e.g., '/api/todos'
+@handle_errors
+def get_resources():
+    resources = YourModel.query.all()
+    return jsonify({'items': [r.to_dict() for r in resources], 'total': len(resources)})
+
+@app.route('/api/YOUR_RESOURCE', methods=['POST'])  # e.g., '/api/todos'
+@handle_errors
+def create_resource():
     data = request.get_json()
-    user = User.query.filter_by(username=data.get('username')).first()
-    if user and user.check_password(data.get('password', '')):
-        return jsonify({'token': create_access_token(identity=user.id)})
-    return jsonify({'error': 'Invalid credentials'}), 401
+    # Validate required fields from requirements
+    resource = YourModel(**data)  # Adapt to your fields
+    db.session.add(resource)
+    db.session.commit()
+    return jsonify(resource.to_dict()), 201
 
-@app.route('/api/protected')
-@jwt_required()
-def protected():
-    user_id = get_jwt_identity()
-    return jsonify({'user_id': user_id})
+@app.route('/api/YOUR_RESOURCE/<int:id>', methods=['PUT'])  # e.g., '/api/todos/<int:id>'
+@handle_errors
+def update_resource(id):
+    resource = YourModel.query.get_or_404(id)
+    data = request.get_json()
+    # Update fields from request
+    db.session.commit()
+    return jsonify(resource.to_dict())
+
+@app.route('/api/YOUR_RESOURCE/<int:id>', methods=['DELETE'])  # e.g., '/api/todos/<int:id>'
+@handle_errors
+def delete_resource(id):
+    resource = YourModel.query.get_or_404(id)
+    db.session.delete(resource)
+    db.session.commit()
+    return jsonify({})
+
+# 7. Main
+if __name__ == '__main__':
+    port = int(os.environ.get('FLASK_RUN_PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
 ```
 
-## Available Imports
-```python
-from flask import Flask, jsonify, request, abort
-from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, timedelta
-from functools import wraps
-import os, logging, secrets
-# If auth needed: flask_jwt_extended, bcrypt
-```
+## Response Formats
+- **List**: `{"items": [...], "total": N}`
+- **Single**: `{...item fields...}`
+- **Error**: `{"error": "message"}` with status 400/404/500
+- **Delete**: `{"message": "Deleted"}` or `{}`
