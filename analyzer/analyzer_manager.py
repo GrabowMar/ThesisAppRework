@@ -841,6 +841,125 @@ class AnalyzerManager:
         
         return health_results
     
+    async def test_all_services(self) -> Dict[str, Any]:
+        """Run comprehensive tests on all services.
+        
+        Returns detailed test results including:
+        - Health check status for each service
+        - Ping response times
+        - Functional test results
+        """
+        logger.info("Running comprehensive service tests...")
+        
+        results = {
+            'services': {},
+            'summary': {
+                'total_services': len(self.services),
+                'healthy_services': 0,
+                'successful_pings': 0,
+                'functional_tests_passed': 0,
+                'overall_health': 'unknown'
+            }
+        }
+        
+        # Test each service
+        for service_name in self.services.keys():
+            service_result = {
+                'health': 'unknown',
+                'ping_ms': None,
+                'functional': False,
+                'errors': []
+            }
+            
+            # 1. Health check
+            try:
+                health = await self.check_service_health(service_name)
+                service_result['health'] = health.get('status', 'unknown')
+                if service_result['health'] == 'healthy':
+                    results['summary']['healthy_services'] += 1
+            except Exception as e:
+                service_result['errors'].append(f"Health check failed: {e}")
+            
+            # 2. Ping test with timing
+            try:
+                import time
+                start = time.time()
+                ping_msg = {
+                    "type": "ping",
+                    "timestamp": datetime.now().isoformat(),
+                    "id": str(uuid.uuid4())
+                }
+                ping_result = await self.send_websocket_message(service_name, ping_msg, timeout=5)
+                elapsed = (time.time() - start) * 1000
+                service_result['ping_ms'] = round(elapsed, 2)
+                if ping_result.get('status') != 'error':
+                    results['summary']['successful_pings'] += 1
+            except Exception as e:
+                service_result['errors'].append(f"Ping failed: {e}")
+            
+            # 3. Functional test (service-specific)
+            try:
+                func_result = await self._test_service_function(service_name)
+                service_result['functional'] = func_result.get('success', False)
+                if service_result['functional']:
+                    results['summary']['functional_tests_passed'] += 1
+                if func_result.get('error'):
+                    service_result['errors'].append(func_result['error'])
+            except Exception as e:
+                service_result['errors'].append(f"Functional test failed: {e}")
+            
+            results['services'][service_name] = service_result
+        
+        # Determine overall health
+        total = results['summary']['total_services']
+        healthy = results['summary']['healthy_services']
+        if healthy == total:
+            results['summary']['overall_health'] = 'healthy'
+        elif healthy >= total / 2:
+            results['summary']['overall_health'] = 'degraded'
+        else:
+            results['summary']['overall_health'] = 'unhealthy'
+        
+        return results
+    
+    async def _test_service_function(self, service_name: str) -> Dict[str, Any]:
+        """Run a minimal functional test for a specific service."""
+        # Send a capabilities/info request to verify service is responding properly
+        test_msg = {
+            "type": "get_capabilities",
+            "timestamp": datetime.now().isoformat(),
+            "id": str(uuid.uuid4())
+        }
+        
+        try:
+            result = await self.send_websocket_message(service_name, test_msg, timeout=10)
+            if result.get('status') == 'error':
+                return {'success': False, 'error': result.get('error')}
+            return {'success': True}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}
+    
+    async def _test_service_ping(self, service_name: str) -> Dict[str, Any]:
+        """Test service ping with response time measurement."""
+        import time
+        start = time.time()
+        
+        ping_msg = {
+            "type": "ping",
+            "timestamp": datetime.now().isoformat(),
+            "id": str(uuid.uuid4())
+        }
+        
+        try:
+            result = await self.send_websocket_message(service_name, ping_msg, timeout=10)
+            elapsed = time.time() - start
+            
+            if result.get('status') == 'error':
+                return {'status': 'error', 'error': result.get('error')}
+            return {'status': 'success', 'response_time': elapsed}
+        except Exception as e:
+            return {'status': 'error', 'error': str(e)}
+    
     # =================================================================
     # ANALYSIS OPERATIONS
     # =================================================================
