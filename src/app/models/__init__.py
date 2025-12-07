@@ -38,6 +38,7 @@ from .results_cache import AnalysisResultsCache
 from .simple_tool_results import ToolResult, ToolSummary
 from .user import User
 from .report import Report
+from .pipeline_settings import PipelineSettings
 
 from ..utils.time import utc_now
 
@@ -62,6 +63,7 @@ __all__ = [
     'ToolResult', 'ToolSummary',
     'User',
     'Report',
+    'PipelineSettings',
 
     # Utility function
     'utc_now'

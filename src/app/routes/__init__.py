@@ -13,6 +13,7 @@ from .jinja.docs import docs_bp
 from .jinja.sample_generator import sample_generator_bp
 from .jinja.auth import auth_bp
 from .jinja.profile import profile_bp
+from .jinja.automation import automation_bp
 
 # Refactored API blueprints - organized by domain
 from .api import (
@@ -45,6 +46,7 @@ __all__ = [
     'sample_generator_bp',
     'auth_bp',
     'profile_bp',
+    'automation_bp',
 
     # Main API orchestrator blueprint
     'api_bp',
@@ -100,6 +102,7 @@ def register_blueprints(app):
     app.register_blueprint(docs_bp)
     app.register_blueprint(sample_generator_bp)
     app.register_blueprint(profile_bp)  # User profile and settings
+    app.register_blueprint(automation_bp)  # End-to-end automation pipeline
 
     # Register refactored API blueprints under /api prefix
     app.register_blueprint(api_bp, url_prefix='/api')  # Main API orchestrator (includes all nested blueprints)

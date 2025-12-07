@@ -67,6 +67,14 @@
     'title': 'Tools',
     'items': [
       {
+        'label': 'Automation',
+        'url': url_for('automation.index'),
+        'icon': 'fa-solid fa-wand-magic-sparkles',
+        'nav_target': 'automation',
+        'is_active': ep.startswith('automation.'),
+        'title': 'End-to-End Automation Pipeline'
+      },
+      {
         'label': 'Sample Generator',
         'url': url_for('sample_generator.index'),
         'icon': 'fa-solid fa-code',

@@ -11,6 +11,7 @@ from .reports import reports_bp
 from .docs import docs_bp
 from .sample_generator import sample_generator_bp
 from .auth import auth_bp
+from .automation import automation_bp
 
 __all__ = [
     'main_bp',
@@ -20,5 +21,6 @@ __all__ = [
     'reports_bp',
     'docs_bp',
     'sample_generator_bp',
-    'auth_bp'
+    'auth_bp',
+    'automation_bp',
 ]

@@ -1,0 +1,165 @@
+{# Stage 3: Report Configuration #}
+<div class="row g-4">
+  {# Report Format Selection #}
+  <div class="col-12">
+    <label class="form-label fw-medium">Report Format</label>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div class="card card-sm h-100 m-0">
+          <div class="card-body py-3 text-center">
+            <input class="form-check-input" type="checkbox" name="report_format" id="format-html" value="html" checked>
+            <label class="form-check-label d-block mt-2" for="format-html">
+              <i class="fas fa-file-code fa-2x text-primary mb-2"></i>
+              <span class="fw-semibold d-block">HTML Report</span>
+              <span class="text-muted small">Interactive web-based report</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card card-sm h-100 m-0">
+          <div class="card-body py-3 text-center">
+            <input class="form-check-input" type="checkbox" name="report_format" id="format-pdf" value="pdf">
+            <label class="form-check-label d-block mt-2" for="format-pdf">
+              <i class="fas fa-file-pdf fa-2x text-danger mb-2"></i>
+              <span class="fw-semibold d-block">PDF Report</span>
+              <span class="text-muted small">Printable document format</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card card-sm h-100 m-0">
+          <div class="card-body py-3 text-center">
+            <input class="form-check-input" type="checkbox" name="report_format" id="format-json" value="json">
+            <label class="form-check-label d-block mt-2" for="format-json">
+              <i class="fas fa-file-code fa-2x text-success mb-2"></i>
+              <span class="fw-semibold d-block">JSON Export</span>
+              <span class="text-muted small">Machine-readable data</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Report Scope #}
+  <div class="col-12">
+    <label class="form-label fw-medium">Report Scope</label>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="card card-sm h-100 m-0">
+          <div class="card-body py-2 d-flex align-items-start gap-2">
+            <input class="form-check-input mt-1" type="radio" name="report_scope" id="scope-individual" value="individual" checked>
+            <label class="form-check-label d-block" for="scope-individual">
+              <span class="fw-semibold d-block">Individual Reports</span>
+              <span class="text-muted small">Separate report per application</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card card-sm h-100 m-0">
+          <div class="card-body py-2 d-flex align-items-start gap-2">
+            <input class="form-check-input mt-1" type="radio" name="report_scope" id="scope-aggregate" value="aggregate">
+            <label class="form-check-label d-block" for="scope-aggregate">
+              <span class="fw-semibold d-block">Aggregate Report</span>
+              <span class="text-muted small">Single consolidated report with comparisons</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Report Sections #}
+  <div class="col-12">
+    <div class="card bg-light border-0">
+      <div class="card-header py-2 d-flex justify-content-between align-items-center">
+        <h3 class="h6 mb-0">Report Sections</h3>
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-ghost-primary btn-sm" onclick="selectAllSections()">All</button>
+          <button type="button" class="btn btn-ghost-secondary btn-sm" onclick="selectMinimalSections()">Minimal</button>
+        </div>
+      </div>
+      <div class="card-body py-2">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="section" id="section-summary" value="summary" checked>
+              <label class="form-check-label" for="section-summary">Executive Summary</label>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="section" id="section-security" value="security" checked>
+              <label class="form-check-label" for="section-security">Security Findings</label>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="section" id="section-quality" value="quality" checked>
+              <label class="form-check-label" for="section-quality">Code Quality Metrics</label>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="section" id="section-performance" value="performance" checked>
+              <label class="form-check-label" for="section-performance">Performance Benchmarks</label>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="section" id="section-ai" value="ai" checked>
+              <label class="form-check-label" for="section-ai">AI Analysis</label>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="section" id="section-comparison" value="comparison">
+              <label class="form-check-label" for="section-comparison">Model Comparison</label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Report Options #}
+  <div class="col-12">
+    <label class="form-label fw-medium">Additional Options</label>
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="report-auto-open" checked>
+          <label class="form-check-label" for="report-auto-open">
+            Open report when ready
+          </label>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="report-include-code">
+          <label class="form-check-label" for="report-include-code">
+            Include code snippets
+          </label>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="report-include-sarif">
+          <label class="form-check-label" for="report-include-sarif">
+            Include SARIF data
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Help Alert #}
+<div class="alert alert-info mt-4">
+  <i class="fas fa-lightbulb me-2"></i>
+  Reports will be generated after analysis completes for each application. HTML reports provide
+  interactive charts and filtering. Choose Aggregate Report for cross-model comparisons.
+</div>

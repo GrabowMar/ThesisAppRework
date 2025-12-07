@@ -815,13 +815,37 @@ body.sidebar-collapsed footer.footer {
 }
 
 /* Step item styling */
-.steps .step-item.completed .step-number {
+.steps .step-item.completed .step-number,
+.steps .step-item.completed .step-icon {
 	background-color: var(--tblr-success);
 	border-color: var(--tblr-success);
+	color: #fff;
 }
 
 .steps .step-item.completed .step-title {
 	color: var(--tblr-success);
+}
+
+.steps .step-item.active .step-number,
+.steps .step-item.active .step-icon {
+	background-color: var(--tblr-primary);
+	border-color: var(--tblr-primary);
+	color: #fff;
+}
+
+.steps .step-item.active .step-title {
+	color: var(--tblr-primary);
+	font-weight: 600;
+}
+
+/* Clickable step items */
+.steps .step-item[role="button"] {
+	cursor: pointer;
+}
+
+.steps .step-item[role="button"]:hover:not(.active):not(.completed) .step-icon {
+	background-color: var(--tblr-bg-surface-secondary);
+	border-color: var(--tblr-border-color);
 }
 
 /* Card hover effects */
@@ -835,3 +859,14 @@ body.sidebar-collapsed footer.footer {
 	transition: all 0.2s ease;
 }
 
+/* Validation highlight for wizard steps */
+.border-warning {
+	border: 2px solid var(--tblr-warning) !important;
+	box-shadow: 0 0 0 0.25rem rgba(var(--tblr-warning-rgb), 0.25);
+	animation: pulse-warning 1s ease-in-out;
+}
+
+@keyframes pulse-warning {
+	0%, 100% { box-shadow: 0 0 0 0 rgba(var(--tblr-warning-rgb), 0.5); }
+	50% { box-shadow: 0 0 0 0.5rem rgba(var(--tblr-warning-rgb), 0); }
+}

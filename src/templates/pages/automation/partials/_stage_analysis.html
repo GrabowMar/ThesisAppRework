@@ -1,0 +1,163 @@
+{# Stage 2: Analysis Configuration #}
+<div class="row g-4">
+  {# Analysis Profile Selection #}
+  <div class="col-12">
+    <label class="form-label fw-medium">Analysis Profile</label>
+    <div class="row g-3">
+      <div class="col-md-3 col-sm-6">
+        <div class="card card-sm h-100 m-0">
+          <div class="card-body py-2 d-flex align-items-start gap-2">
+            <input class="form-check-input mt-1" type="radio" name="analysis_profile" id="profile-comprehensive" value="comprehensive" checked>
+            <label class="form-check-label d-block" for="profile-comprehensive">
+              <span class="fw-semibold d-block">Comprehensive</span>
+              <span class="text-muted small">All available tools</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-sm-6">
+        <div class="card card-sm h-100 m-0">
+          <div class="card-body py-2 d-flex align-items-start gap-2">
+            <input class="form-check-input mt-1" type="radio" name="analysis_profile" id="profile-security" value="security">
+            <label class="form-check-label d-block" for="profile-security">
+              <span class="fw-semibold d-block">Security</span>
+              <span class="text-muted small">Vulnerability scanning</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-sm-6">
+        <div class="card card-sm h-100 m-0">
+          <div class="card-body py-2 d-flex align-items-start gap-2">
+            <input class="form-check-input mt-1" type="radio" name="analysis_profile" id="profile-quality" value="quality">
+            <label class="form-check-label d-block" for="profile-quality">
+              <span class="fw-semibold d-block">Quality</span>
+              <span class="text-muted small">Code quality checks</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3 col-sm-6">
+        <div class="card card-sm h-100 m-0">
+          <div class="card-body py-2 d-flex align-items-start gap-2">
+            <input class="form-check-input mt-1" type="radio" name="analysis_profile" id="profile-custom" value="custom">
+            <label class="form-check-label d-block" for="profile-custom">
+              <span class="fw-semibold d-block">Custom</span>
+              <span class="text-muted small">Select specific tools</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Custom Tool Selection (shown when custom profile selected) #}
+  <div class="col-12" id="custom-tools-section" style="display: none;">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="h6 mb-0">Select Analysis Tools</h3>
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-ghost-primary" onclick="selectAllTools()">Select all</button>
+          <button type="button" class="btn btn-ghost-secondary" onclick="clearAllTools()">Clear</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="row g-3" id="tools-grid">
+          {# Tool categories loaded dynamically #}
+          <div class="col-lg-6">
+            <div class="card card-sm border">
+              <div class="card-header py-2">
+                <h4 class="card-title mb-0"><i class="fas fa-search text-primary me-2"></i>Static Analysis</h4>
+              </div>
+              <div class="card-body p-0" id="static-tools-list">
+                <div class="text-center py-3">
+                  <div class="spinner-border spinner-border-sm text-primary"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="card card-sm border">
+              <div class="card-header py-2">
+                <h4 class="card-title mb-0"><i class="fas fa-play text-success me-2"></i>Dynamic Analysis</h4>
+              </div>
+              <div class="card-body p-0" id="dynamic-tools-list">
+                <div class="text-center py-3">
+                  <div class="spinner-border spinner-border-sm text-success"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="card card-sm border">
+              <div class="card-header py-2">
+                <h4 class="card-title mb-0"><i class="fas fa-tachometer-alt text-info me-2"></i>Performance Testing</h4>
+              </div>
+              <div class="card-body p-0" id="performance-tools-list">
+                <div class="text-center py-3">
+                  <div class="spinner-border spinner-border-sm text-info"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="card card-sm border">
+              <div class="card-header py-2">
+                <h4 class="card-title mb-0"><i class="fas fa-brain text-warning me-2"></i>AI Analysis</h4>
+              </div>
+              <div class="card-body p-0" id="ai-tools-list">
+                <div class="text-center py-3">
+                  <div class="spinner-border spinner-border-sm text-warning"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Analysis Options #}
+  <div class="col-12">
+    <div class="card bg-light border-0">
+      <div class="card-header py-2">
+        <h3 class="h6 mb-0">Analysis Options</h3>
+      </div>
+      <div class="card-body py-2">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="analysis-wait-complete" checked>
+              <label class="form-check-label" for="analysis-wait-complete">
+                Wait for analysis completion
+              </label>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="analysis-parallel">
+              <label class="form-check-label" for="analysis-parallel">
+                Run analyses in parallel
+              </label>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="analysis-container-auto">
+              <label class="form-check-label" for="analysis-container-auto">
+                Auto-start containers
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Help Alert #}
+<div class="alert alert-info mt-4">
+  <i class="fas fa-lightbulb me-2"></i>
+  Analysis will run automatically after each application is generated. Choose a profile for quick setup
+  or select custom to pick specific tools. The Comprehensive profile runs all available analyzers.
+</div>
