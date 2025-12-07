@@ -1321,14 +1321,15 @@ function showProviderDropdown(slug, element) {
   // Show loading state
   const providerModal = document.createElement('div');
   providerModal.id = 'provider-modal';
-  providerModal.className = 'modal modal-blur fade show';
-  providerModal.style.display = 'block';
+  providerModal.className = 'modal modal-blur fade';
+  providerModal.tabIndex = -1;
+  providerModal.setAttribute('aria-hidden', 'true');
   providerModal.innerHTML = `
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">Model Providers</h5>
-          <button type="button" class="btn-close" onclick="closeProviderModal()"></button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
           <div class="text-center py-4">
@@ -1342,14 +1343,17 @@ function showProviderDropdown(slug, element) {
     </div>
   `;
   
-  // Add modal backdrop
-  const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop fade show';
-  backdrop.id = 'provider-modal-backdrop';
-  
-  document.body.appendChild(backdrop);
   document.body.appendChild(providerModal);
-  document.body.classList.add('modal-open');
+  
+  // Use Bootstrap Modal API (handles backdrop automatically)
+  const bsModal = new bootstrap.Modal(providerModal, { focus: true });
+  bsModal.show();
+  
+  // Cleanup on ANY close method (backdrop click, Escape, X button)
+  providerModal.addEventListener('hidden.bs.modal', () => {
+    bsModal.dispose();
+    providerModal.remove();
+  }, { once: true });
   
   // Fetch provider data
   fetch(`/api/models/${slug}/providers`)
@@ -1428,14 +1432,20 @@ function showProviderDropdown(slug, element) {
 }
 
 /**
- * Close provider modal
+ * Close provider modal (kept for backwards compatibility, but Bootstrap handles this now)
  */
 function closeProviderModal() {
   const modal = document.getElementById('provider-modal');
-  const backdrop = document.getElementById('provider-modal-backdrop');
-  if (modal) modal.remove();
-  if (backdrop) backdrop.remove();
-  document.body.classList.remove('modal-open');
+  if (modal) {
+    const bsModal = bootstrap.Modal.getInstance(modal);
+    if (bsModal) {
+      bsModal.hide();
+    } else {
+      modal.remove();
+      document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+      document.body.classList.remove('modal-open');
+    }
+  }
 }
 
 /**
@@ -1448,14 +1458,15 @@ function showVariantDropdown(slug, element) {
   // Show loading state
   const variantModal = document.createElement('div');
   variantModal.id = 'variant-modal';
-  variantModal.className = 'modal modal-blur fade show';
-  variantModal.style.display = 'block';
+  variantModal.className = 'modal modal-blur fade';
+  variantModal.tabIndex = -1;
+  variantModal.setAttribute('aria-hidden', 'true');
   variantModal.innerHTML = `
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">Pricing Tiers</h5>
-          <button type="button" class="btn-close" onclick="closeVariantModal()"></button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
           <div class="text-center py-4">
@@ -1469,14 +1480,17 @@ function showVariantDropdown(slug, element) {
     </div>
   `;
   
-  // Add modal backdrop
-  const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop fade show';
-  backdrop.id = 'variant-modal-backdrop';
-  
-  document.body.appendChild(backdrop);
   document.body.appendChild(variantModal);
-  document.body.classList.add('modal-open');
+  
+  // Use Bootstrap Modal API (handles backdrop automatically)
+  const bsModal = new bootstrap.Modal(variantModal, { focus: true });
+  bsModal.show();
+  
+  // Cleanup on ANY close method (backdrop click, Escape, X button)
+  variantModal.addEventListener('hidden.bs.modal', () => {
+    bsModal.dispose();
+    variantModal.remove();
+  }, { once: true });
   
   // Fetch variant data
   fetch(`/api/models/${slug}/variants`)
@@ -1564,14 +1578,20 @@ function showVariantDropdown(slug, element) {
 }
 
 /**
- * Close variant modal
+ * Close variant modal (kept for backwards compatibility, but Bootstrap handles this now)
  */
 function closeVariantModal() {
   const modal = document.getElementById('variant-modal');
-  const backdrop = document.getElementById('variant-modal-backdrop');
-  if (modal) modal.remove();
-  if (backdrop) backdrop.remove();
-  document.body.classList.remove('modal-open');
+  if (modal) {
+    const bsModal = bootstrap.Modal.getInstance(modal);
+    if (bsModal) {
+      bsModal.hide();
+    } else {
+      modal.remove();
+      document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+      document.body.classList.remove('modal-open');
+    }
+  }
 }
 
 /**

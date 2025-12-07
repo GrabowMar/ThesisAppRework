@@ -5,6 +5,98 @@
 
 window.ThesisApp = window.ThesisApp || {};
 
+// ============================================================================
+// HTMX Modal Utilities - Proper Bootstrap Modal Management
+// ============================================================================
+// Use these helpers for HTMX-loaded modals to ensure proper backdrop cleanup.
+// DO NOT manually create/manage backdrops - Bootstrap handles this automatically.
+// ============================================================================
+
+/**
+ * Initialize an HTMX-loaded modal with proper Bootstrap cleanup.
+ * This ensures the modal backdrop is removed on ANY close method:
+ * - Clicking the X button
+ * - Clicking outside the modal (backdrop)
+ * - Pressing Escape key
+ * - Programmatic close via bsModal.hide()
+ *
+ * @param {string|HTMLElement} modalOrId - Modal element or its ID
+ * @param {Object} options - Bootstrap Modal options (optional)
+ * @returns {bootstrap.Modal} Bootstrap Modal instance
+ *
+ * @example
+ * // In your HTMX-loaded modal template script:
+ * const bsModal = ThesisApp.initHtmxModal('my-modal-id');
+ * // Modal is automatically shown and will clean up on close
+ *
+ * @example
+ * // With custom options:
+ * const bsModal = ThesisApp.initHtmxModal(document.getElementById('my-modal'), {
+ *   keyboard: false,  // Disable Escape key close
+ *   backdrop: 'static'  // Don't close on backdrop click
+ * });
+ */
+ThesisApp.initHtmxModal = function(modalOrId, options) {
+  const modal = typeof modalOrId === 'string'
+    ? document.getElementById(modalOrId)
+    : modalOrId;
+  
+  if (!modal) {
+    console.error('[ThesisApp] initHtmxModal: Modal not found:', modalOrId);
+    return null;
+  }
+  
+  // Remove any existing style="display:block" that might interfere
+  modal.style.removeProperty('display');
+  
+  // Initialize Bootstrap Modal with options
+  const defaultOptions = { focus: true };
+  const bsModal = new bootstrap.Modal(modal, { ...defaultOptions, ...options });
+  
+  // Show the modal
+  bsModal.show();
+  
+  // Single cleanup handler for ALL close methods (backdrop click, Escape, buttons)
+  modal.addEventListener('hidden.bs.modal', function cleanupModal() {
+    bsModal.dispose();
+    modal.remove();
+    // Also clean up any orphan backdrops (defensive, shouldn't be needed)
+    document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('overflow');
+    document.body.style.removeProperty('padding-right');
+  }, { once: true });
+  
+  return bsModal;
+};
+
+/**
+ * Close and cleanup a dynamically created modal.
+ * Use this for programmatic close when you have the Bootstrap Modal instance.
+ *
+ * @param {bootstrap.Modal} bsModal - Bootstrap Modal instance
+ */
+ThesisApp.closeModal = function(bsModal) {
+  if (bsModal && typeof bsModal.hide === 'function') {
+    bsModal.hide();
+    // hidden.bs.modal event will handle cleanup
+  }
+};
+
+/**
+ * Emergency cleanup for orphan modal backdrops.
+ * Call this if a modal was improperly closed and left a backdrop behind.
+ * Should rarely be needed if using initHtmxModal() properly.
+ */
+ThesisApp.cleanupOrphanBackdrops = function() {
+  document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+  document.body.classList.remove('modal-open');
+  document.body.style.removeProperty('overflow');
+  document.body.style.removeProperty('padding-right');
+};
+
+// ============================================================================
+
 // 1. Very small htmx wrapper (legacy templates may still call it)
 ThesisApp.htmxAjax = function(method, url, target){
   if (window.htmx?.ajax){
