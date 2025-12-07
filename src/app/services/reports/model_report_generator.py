@@ -3,9 +3,10 @@ Model Report Generator
 
 Generates comprehensive reports showing all analyses for a specific model across all apps.
 Shows model performance, consistency, and patterns.
+Includes generation metadata (cost, tokens, time) for full context.
 """
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pathlib import Path
 
 from .base_generator import BaseReportGenerator
@@ -14,6 +15,7 @@ from ...models import AnalysisTask, GeneratedApplication
 from ...services.service_locator import ServiceLocator
 from ...services.service_base import ValidationError, NotFoundError
 from ...utils.time import utc_now
+from ..generation_statistics import load_generation_records, GenerationRecord
 
 logger = logging.getLogger(__name__)
 
@@ -187,6 +189,9 @@ class ModelReportGenerator(BaseReportGenerator):
         
         scientific_stats = self._calculate_scientific_metrics(findings_per_app, durations, apps_data)
         
+        # Load generation metadata (cost, tokens, time)
+        generation_metadata = self._get_generation_metadata_for_model(model_slug)
+        
         # Compile final data structure
         data = {
             'report_type': 'model_analysis',
@@ -207,7 +212,8 @@ class ModelReportGenerator(BaseReportGenerator):
                 'average_findings_per_app': total_findings / len(apps_data) if apps_data else 0
             },
             'scientific_metrics': scientific_stats,
-            'tools_statistics': tools_stats
+            'tools_statistics': tools_stats,
+            'generation_metadata': generation_metadata
         }
         
         self.data = data
@@ -409,3 +415,116 @@ class ModelReportGenerator(BaseReportGenerator):
         }
         
         return metrics
+    
+    def _get_generation_metadata_for_model(self, model_slug: str) -> Dict[str, Any]:
+        """
+        Load generation metadata (cost, tokens, time) for all apps of a model.
+        
+        Returns aggregated generation statistics across all apps.
+        """
+        try:
+            records = load_generation_records(include_files=True, include_db=True, include_applications=True)
+            
+            # Filter to this model
+            model_records = [r for r in records if r.model == model_slug]
+            
+            if not model_records:
+                return {'available': False, 'message': 'No generation metadata found'}
+            
+            # Aggregate statistics
+            total_cost = 0.0
+            total_tokens = 0
+            total_prompt_tokens = 0
+            total_completion_tokens = 0
+            total_generation_time_ms = 0
+            total_lines = 0
+            records_with_cost = 0
+            records_with_tokens = 0
+            records_with_time = 0
+            records_with_lines = 0
+            
+            # Per-app breakdown
+            apps_generation = {}
+            providers = set()
+            
+            for rec in model_records:
+                app_num = rec.app_num
+                if app_num is None:
+                    continue
+                
+                if app_num not in apps_generation:
+                    apps_generation[app_num] = {
+                        'app_number': app_num,
+                        'components': [],
+                        'total_cost': 0.0,
+                        'total_tokens': 0,
+                        'generation_time_ms': 0,
+                        'total_lines': 0,
+                        'provider': None,
+                        'success': None
+                    }
+                
+                app_data = apps_generation[app_num]
+                
+                # Track component
+                if rec.component:
+                    app_data['components'].append(rec.component)
+                
+                # Aggregate costs
+                if rec.estimated_cost:
+                    app_data['total_cost'] += rec.estimated_cost
+                    total_cost += rec.estimated_cost
+                    records_with_cost += 1
+                
+                # Aggregate tokens
+                if rec.total_tokens:
+                    app_data['total_tokens'] += rec.total_tokens
+                    total_tokens += rec.total_tokens
+                    records_with_tokens += 1
+                
+                if rec.prompt_tokens:
+                    total_prompt_tokens += rec.prompt_tokens
+                if rec.completion_tokens:
+                    total_completion_tokens += rec.completion_tokens
+                
+                # Aggregate generation time
+                if rec.generation_time_ms:
+                    app_data['generation_time_ms'] += rec.generation_time_ms
+                    total_generation_time_ms += rec.generation_time_ms
+                    records_with_time += 1
+                
+                # Aggregate lines
+                if rec.total_lines:
+                    app_data['total_lines'] += rec.total_lines
+                    total_lines += rec.total_lines
+                    records_with_lines += 1
+                
+                # Track provider
+                if rec.provider_name:
+                    providers.add(rec.provider_name)
+                    app_data['provider'] = rec.provider_name
+                
+                # Track success
+                if rec.success is not None:
+                    app_data['success'] = rec.success
+            
+            return {
+                'available': True,
+                'total_generations': len(model_records),
+                'total_cost': round(total_cost, 6),
+                'total_tokens': total_tokens,
+                'total_prompt_tokens': total_prompt_tokens,
+                'total_completion_tokens': total_completion_tokens,
+                'total_generation_time_ms': total_generation_time_ms,
+                'total_generation_time_seconds': round(total_generation_time_ms / 1000, 2) if total_generation_time_ms else 0,
+                'total_lines_generated': total_lines,
+                'avg_cost_per_generation': round(total_cost / records_with_cost, 6) if records_with_cost else 0,
+                'avg_tokens_per_generation': round(total_tokens / records_with_tokens) if records_with_tokens else 0,
+                'avg_generation_time_ms': round(total_generation_time_ms / records_with_time) if records_with_time else 0,
+                'avg_lines_per_generation': round(total_lines / records_with_lines) if records_with_lines else 0,
+                'providers': list(providers),
+                'apps_breakdown': list(apps_generation.values())
+            }
+        except Exception as e:
+            logger.warning(f"Failed to load generation metadata for {model_slug}: {e}")
+            return {'available': False, 'error': str(e)}

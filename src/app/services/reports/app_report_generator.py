@@ -3,6 +3,7 @@ App Report Generator
 
 Generates cross-model comparison reports for a specific app.
 Shows how different models performed on the same application.
+Includes generation metadata (cost, tokens, time) for full context.
 """
 import logging
 from typing import Dict, Any, List
@@ -14,6 +15,7 @@ from ...models import AnalysisTask, GeneratedApplication
 from ...services.service_locator import ServiceLocator
 from ...services.service_base import ValidationError, NotFoundError
 from ...utils.time import utc_now
+from ..generation_statistics import load_generation_records
 
 logger = logging.getLogger(__name__)
 
@@ -213,6 +215,9 @@ class AppReportGenerator(BaseReportGenerator):
                     success = 1 if tool_data.get('status') == 'success' else 0
                     tool_usage[tool_name]['success_rate_by_model'][model_data['model_slug']] = success
         
+        # Load generation metadata for cost/token comparison across models
+        generation_comparison = self._get_generation_comparison_for_app(app_number, [m['model_slug'] for m in models_data])
+        
         # Compile final data structure
         data = {
             'report_type': 'app_comparison',
@@ -230,7 +235,8 @@ class AppReportGenerator(BaseReportGenerator):
                 'unique_findings': unique_findings,
                 'unique_findings_count': len(unique_findings),
                 'tool_usage': tool_usage
-            }
+            },
+            'generation_comparison': generation_comparison
         }
         
         self.data = data
@@ -245,3 +251,86 @@ class AppReportGenerator(BaseReportGenerator):
             'best_model': data.get('comparison', {}).get('best_performing_model'),
             'generated_at': data.get('timestamp')
         }
+    
+    def _get_generation_comparison_for_app(self, app_number: int, model_slugs: List[str]) -> Dict[str, Any]:
+        """
+        Load generation metadata for comparing models on a specific app.
+        
+        Returns per-model generation stats (cost, tokens, time, lines).
+        """
+        try:
+            records = load_generation_records(include_files=True, include_db=True, include_applications=True)
+            
+            # Filter to this app number and models
+            app_records = [r for r in records if r.app_num == app_number and r.model in model_slugs]
+            
+            if not app_records:
+                return {'available': False, 'message': 'No generation metadata found'}
+            
+            # Group by model
+            models_generation = {}
+            
+            for rec in app_records:
+                model = rec.model
+                if model not in models_generation:
+                    models_generation[model] = {
+                        'model_slug': model,
+                        'components': [],
+                        'total_cost': 0.0,
+                        'total_tokens': 0,
+                        'prompt_tokens': 0,
+                        'completion_tokens': 0,
+                        'generation_time_ms': 0,
+                        'total_lines': 0,
+                        'provider': None
+                    }
+                
+                data = models_generation[model]
+                
+                if rec.component:
+                    data['components'].append(rec.component)
+                
+                if rec.estimated_cost:
+                    data['total_cost'] += rec.estimated_cost
+                if rec.total_tokens:
+                    data['total_tokens'] += rec.total_tokens
+                if rec.prompt_tokens:
+                    data['prompt_tokens'] += rec.prompt_tokens
+                if rec.completion_tokens:
+                    data['completion_tokens'] += rec.completion_tokens
+                if rec.generation_time_ms:
+                    data['generation_time_ms'] += rec.generation_time_ms
+                if rec.total_lines:
+                    data['total_lines'] += rec.total_lines
+                if rec.provider_name:
+                    data['provider'] = rec.provider_name
+            
+            # Find cheapest and most expensive
+            models_list = list(models_generation.values())
+            models_with_cost = [m for m in models_list if m['total_cost'] > 0]
+            
+            cheapest_model = None
+            most_expensive_model = None
+            if models_with_cost:
+                sorted_by_cost = sorted(models_with_cost, key=lambda x: x['total_cost'])
+                cheapest_model = sorted_by_cost[0]['model_slug']
+                most_expensive_model = sorted_by_cost[-1]['model_slug']
+            
+            # Calculate totals
+            total_cost = sum(m['total_cost'] for m in models_list)
+            total_tokens = sum(m['total_tokens'] for m in models_list)
+            total_lines = sum(m['total_lines'] for m in models_list)
+            
+            return {
+                'available': True,
+                'models': models_list,
+                'cheapest_model': cheapest_model,
+                'most_expensive_model': most_expensive_model,
+                'total_cost': round(total_cost, 6),
+                'total_tokens': total_tokens,
+                'total_lines': total_lines,
+                'avg_cost_per_model': round(total_cost / len(models_list), 6) if models_list else 0
+            }
+        except Exception as e:
+            logger.warning(f"Failed to load generation comparison for app {app_number}: {e}")
+            return {'available': False, 'error': str(e)}

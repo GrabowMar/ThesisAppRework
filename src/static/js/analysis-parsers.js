@@ -374,8 +374,79 @@ class PerformanceParser extends BaseParser {
 
 class AiParser extends BaseParser {
     parse() {
-        const results = this.data.analysis?.results || {};
+        const analysis = this.data.analysis || {};
         const flattened = [];
+
+        // Check for new multi-tool format first
+        const toolsMap = analysis.tools || {};
+        if (Object.keys(toolsMap).length > 0) {
+            // New multi-tool format
+            
+            // Parse requirements-checker results
+            const reqChecker = toolsMap['requirements-checker'] || {};
+            if (reqChecker.status === 'success' && reqChecker.results) {
+                const reqResults = reqChecker.results;
+                
+                // Functional requirements
+                if (reqResults.functional_requirements) {
+                    reqResults.functional_requirements.forEach((req, idx) => {
+                        flattened.push({
+                            id: `ai-func-req-${idx}`,
+                            tool: 'requirements-checker',
+                            severity: req.met ? 'success' : 'high',
+                            message: req.requirement,
+                            status: req.met ? 'Met' : 'Not Met',
+                            confidence: req.confidence,
+                            category: 'functional',
+                            raw: req
+                        });
+                    });
+                }
+                
+                // Control endpoint tests
+                if (reqResults.control_endpoint_tests) {
+                    reqResults.control_endpoint_tests.forEach((test, idx) => {
+                        flattened.push({
+                            id: `ai-control-${idx}`,
+                            tool: 'requirements-checker',
+                            severity: test.passed ? 'success' : 'high',
+                            message: `${test.method || 'GET'} ${test.endpoint}`,
+                            status: test.passed ? 'Passed' : 'Failed',
+                            confidence: 'HIGH',
+                            category: 'control',
+                            raw: test
+                        });
+                    });
+                }
+            }
+            
+            // Parse code-quality-analyzer results
+            const qualityAnalyzer = toolsMap['code-quality-analyzer'] || {};
+            if (qualityAnalyzer.status === 'success' && qualityAnalyzer.results) {
+                const qualityResults = qualityAnalyzer.results;
+                
+                // Stylistic requirements
+                if (qualityResults.stylistic_requirements) {
+                    qualityResults.stylistic_requirements.forEach((req, idx) => {
+                        flattened.push({
+                            id: `ai-style-req-${idx}`,
+                            tool: 'code-quality-analyzer',
+                            severity: req.met ? 'success' : 'medium',
+                            message: req.requirement,
+                            status: req.met ? 'Met' : 'Not Met',
+                            confidence: req.confidence,
+                            category: 'stylistic',
+                            raw: req
+                        });
+                    });
+                }
+            }
+            
+            return flattened;
+        }
+
+        // Legacy single-tool format fallback
+        const results = analysis.results || {};
 
         if (results.functional_requirements) {
             results.functional_requirements.forEach((req, idx) => {
@@ -386,7 +457,38 @@ class AiParser extends BaseParser {
                     message: req.requirement,
                     status: req.met ? 'Met' : 'Not Met',
                     confidence: req.confidence,
+                    category: 'functional',
                     raw: req
+                });
+            });
+        }
+        
+        if (results.stylistic_requirements) {
+            results.stylistic_requirements.forEach((req, idx) => {
+                flattened.push({
+                    id: `ai-style-${idx}`,
+                    tool: 'code-quality-analyzer',
+                    severity: req.met ? 'success' : 'medium',
+                    message: req.requirement,
+                    status: req.met ? 'Met' : 'Not Met',
+                    confidence: req.confidence,
+                    category: 'stylistic',
+                    raw: req
+                });
+            });
+        }
+        
+        if (results.control_endpoint_tests) {
+            results.control_endpoint_tests.forEach((test, idx) => {
+                flattened.push({
+                    id: `ai-control-${idx}`,
+                    tool: 'requirements-checker',
+                    severity: test.passed ? 'success' : 'high',
+                    message: test.endpoint,
+                    status: test.passed ? 'Passed' : 'Failed',
+                    confidence: 'HIGH',
+                    category: 'control',
+                    raw: test
                 });
             });
         }
@@ -395,13 +497,14 @@ class AiParser extends BaseParser {
     }
 
     getToolData(toolName) {
-        const toolFindings = this.parse();
+        const allFindings = this.parse();
+        const toolFindings = toolName ? allFindings.filter(f => f.tool === toolName) : allFindings;
         
         return {
             summary: {
-                name: 'AI Requirements',
+                name: toolName || 'AI Requirements',
                 status: 'completed',
-                total_issues: toolFindings.filter(f => f.severity === 'high').length
+                total_issues: toolFindings.filter(f => f.severity !== 'success').length
             },
             issues: toolFindings,
             metrics: []
@@ -414,9 +517,9 @@ class AiParser extends BaseParser {
 
         return {
             title: item.message,
-            subtitle: `AI Requirement Check (${item.confidence} Confidence)`,
-            severity: item.severity === 'success' ? 'info' : 'high',
-            description: item.raw.explanation,
+            subtitle: `AI ${item.category ? item.category.charAt(0).toUpperCase() + item.category.slice(1) : 'Requirement'} Check (${item.confidence} Confidence)`,
+            severity: item.severity === 'success' ? 'info' : item.severity,
+            description: item.raw.explanation || item.raw.description || item.raw.error || 'No explanation provided.',
             location: 'N/A',
             code: null,
             remediation: item.raw.met ? null : 'Implement the missing requirement.',

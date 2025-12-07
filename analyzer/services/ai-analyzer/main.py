@@ -810,6 +810,78 @@ EXPLANATION: [Detailed explanation with specific code examples or patterns found
 
 Provide concrete evidence from the code to support your assessment."""
     
+    def _calculate_aggregate_summary(self, tools_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Calculate aggregate summary from multiple tool results."""
+        summary = {
+            'tools_run': len(tools_results),
+            'tools_successful': 0,
+            'overall_compliance': 0.0,
+            'requirements_summary': {
+                'total_functional': 0,
+                'functional_met': 0,
+                'total_stylistic': 0,
+                'stylistic_met': 0,
+                'total_endpoints': 0,
+                'endpoints_passed': 0
+            }
+        }
+        
+        compliance_values = []
+        
+        for tool_name, result in tools_results.items():
+            if not isinstance(result, dict):
+                continue
+                
+            if result.get('status') == 'success':
+                summary['tools_successful'] += 1
+            
+            # Extract from requirements-checker results
+            if tool_name == 'requirements-checker' and result.get('status') == 'success':
+                results_data = result.get('results', {})
+                tool_summary = results_data.get('summary', {})
+                
+                summary['requirements_summary']['total_functional'] = tool_summary.get('total_functional_requirements', 0)
+                summary['requirements_summary']['functional_met'] = tool_summary.get('functional_requirements_met', 0)
+                summary['requirements_summary']['total_endpoints'] = tool_summary.get('total_control_endpoints', 0)
+                summary['requirements_summary']['endpoints_passed'] = tool_summary.get('control_endpoints_passed', 0)
+                
+                if tool_summary.get('compliance_percentage') is not None:
+                    compliance_values.append(tool_summary['compliance_percentage'])
+            
+            # Extract from code-quality-analyzer results
+            elif tool_name == 'code-quality-analyzer' and result.get('status') == 'success':
+                results_data = result.get('results', {})
+                tool_summary = results_data.get('summary', {})
+                
+                summary['requirements_summary']['total_stylistic'] = tool_summary.get('total_stylistic_requirements', 0)
+                summary['requirements_summary']['stylistic_met'] = tool_summary.get('stylistic_requirements_met', 0)
+                
+                if tool_summary.get('compliance_percentage') is not None:
+                    compliance_values.append(tool_summary['compliance_percentage'])
+        
+        # Calculate overall compliance as average of individual tool compliances
+        if compliance_values:
+            summary['overall_compliance'] = sum(compliance_values) / len(compliance_values)
+        
+        # Calculate total requirements met ratio
+        total_reqs = (
+            summary['requirements_summary']['total_functional'] +
+            summary['requirements_summary']['total_stylistic'] +
+            summary['requirements_summary']['total_endpoints']
+        )
+        total_met = (
+            summary['requirements_summary']['functional_met'] +
+            summary['requirements_summary']['stylistic_met'] +
+            summary['requirements_summary']['endpoints_passed']
+        )
+        
+        if total_reqs > 0:
+            summary['total_requirements'] = total_reqs
+            summary['total_met'] = total_met
+            summary['total_compliance_percentage'] = (total_met / total_reqs) * 100
+        
+        return summary
+    
     async def handle_message(self, websocket, message_data):
         """Handle incoming WebSocket messages."""
         try:
@@ -821,8 +893,8 @@ Provide concrete evidence from the code to support your assessment."""
                 app_number = message_data.get("app_number", 1)
                 config = message_data.get("config", None)
                 analysis_id = message_data.get("id")
-                # Tool selection normalized
-                tools = list(self.extract_selected_tools(message_data) or ["requirements-checker"])
+                # Tool selection normalized - default to both tools for comprehensive analysis
+                tools = list(self.extract_selected_tools(message_data) or ["requirements-checker", "code-quality-analyzer"])
                 
                 # Validate template_slug is provided in config
                 if not config or not config.get('template_slug'):
@@ -841,39 +913,75 @@ Provide concrete evidence from the code to support your assessment."""
                     self.log.info(f"[TOOL-EXEC] Using template: {config.get('template_slug')}, config keys: {list(config.keys())}")
                     print(f"[ai-analyzer] Template: {config.get('template_slug')}, config keys: {list(config.keys())}")
                 
-                # Route to appropriate analysis method based on selected tools
+                # Run all requested tools and aggregate results
                 self.log.debug(f"[TOOL-ROUTING] Routing analysis based on tools: {tools}")
+                
+                # Aggregate results from multiple tools
+                aggregated_results = {
+                    'status': 'success',
+                    'tools': {},
+                    'metadata': {
+                        'model_slug': model_slug,
+                        'app_number': app_number,
+                        'template_slug': config.get('template_slug'),
+                        'requested_tools': tools,
+                        'analysis_time': datetime.now().isoformat()
+                    }
+                }
+                
+                tools_run = 0
+                errors = []
+                
+                # Run requirements-checker if requested
                 if "requirements-checker" in tools:
-                    # Get port information
                     backend_port = config.get('backend_port', 5000) if config else 5000
                     frontend_port = config.get('frontend_port', 8000) if config else 8000
                     
-                    analysis_results = await self.check_requirements_with_curl(
+                    req_result = await self.check_requirements_with_curl(
                         model_slug, app_number, backend_port, frontend_port, config, analysis_id=analysis_id
                     )
-                elif "code-quality-analyzer" in tools:
-                    analysis_results = await self.analyze_code_quality(
+                    aggregated_results['tools']['requirements-checker'] = req_result
+                    tools_run += 1
+                    if req_result.get('status') == 'error':
+                        errors.append(f"requirements-checker: {req_result.get('error', 'Unknown error')}")
+                
+                # Run code-quality-analyzer if requested
+                if "code-quality-analyzer" in tools:
+                    quality_result = await self.analyze_code_quality(
                         model_slug, app_number, config, analysis_id=analysis_id
                     )
-                else:
-                    # No valid tool specified
+                    aggregated_results['tools']['code-quality-analyzer'] = quality_result
+                    tools_run += 1
+                    if quality_result.get('status') == 'error':
+                        errors.append(f"code-quality-analyzer: {quality_result.get('error', 'Unknown error')}")
+                
+                # Handle case where no valid tools were specified
+                if tools_run == 0:
                     error_msg = f"No valid analysis tool selected. Available: {self._detect_available_tools()}"
                     self.log.error(f"[TOOL-ROUTING] {error_msg}")
-                    analysis_results = {
+                    aggregated_results = {
                         'status': 'error',
                         'error': error_msg
                     }
+                else:
+                    # Calculate overall summary
+                    aggregated_results['summary'] = self._calculate_aggregate_summary(aggregated_results['tools'])
+                    
+                    # Set overall status based on tool results
+                    if errors:
+                        aggregated_results['status'] = 'partial_success' if tools_run > len(errors) else 'error'
+                        aggregated_results['errors'] = errors
                 
                 response = {
                     "type": "ai_analysis_result",
-                    "status": "success",
+                    "status": aggregated_results.get('status', 'success'),
                     "service": self.info.name,
-                    "analysis": analysis_results,
+                    "analysis": aggregated_results,
                     "timestamp": datetime.now().isoformat()
                 }
                 
                 await websocket.send(json.dumps(response))
-                self.log.info(f"AI analysis completed for {model_slug} app {app_number}")
+                self.log.info(f"AI analysis completed for {model_slug} app {app_number} ({tools_run} tools run)")
             
             elif msg_type == "server_status":
                 response = {

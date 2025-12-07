@@ -355,7 +355,8 @@ def _load_openrouter_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
     openrouter_data["provider_name"] = metadata.get("provider_name")
     openrouter_data["prompt_cost"] = metadata.get("prompt_cost")
     openrouter_data["completion_cost"] = metadata.get("completion_cost")
-    openrouter_data["estimated_cost"] = metadata.get("estimated_cost")
+    # Support both 'total_cost' (new format) and 'estimated_cost' (legacy format)
+    openrouter_data["estimated_cost"] = metadata.get("total_cost") or metadata.get("estimated_cost")
     
     return openrouter_data
 
@@ -408,7 +409,8 @@ def _load_generation_records_from_files() -> List[GenerationRecord]:
     for meta_path in _iter_metadata_files():
         metadata: Dict[str, Any] = _load_json(meta_path) or {}
         run_id = str(metadata.get("result_id") or meta_path.stem)
-        model = str(metadata.get("model") or "unknown")
+        # Support both 'model_slug' (new format) and 'model' (legacy format)
+        model = str(metadata.get("model_slug") or metadata.get("model") or "unknown")
         component = metadata.get("component")
         app_num_raw = metadata.get("app_num")
         try:

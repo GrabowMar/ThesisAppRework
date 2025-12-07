@@ -177,6 +177,24 @@
                 data-bs-target="#aiSection" aria-expanded="false" aria-controls="aiSection">
           <i class="fa-solid fa-robot me-2 text-warning"></i>
           <span>AI Requirements</span>
+          {% set ai_analysis = payload.results.services.ai.analysis if payload.results.services.ai and payload.results.services.ai.analysis else {} %}
+          {% set has_ai_tools = ai_analysis.tools is defined and ai_analysis.tools is mapping %}
+          {% if has_ai_tools %}
+            {% set ai_summary = ai_analysis.summary if ai_analysis.summary else {} %}
+            <span class="ms-auto me-2 badge {% if ai_summary.overall_compliance >= 80 %}bg-success-lt text-success{% elif ai_summary.overall_compliance >= 60 %}bg-warning-lt text-warning{% else %}bg-danger-lt text-danger{% endif %}">
+              {{ ai_summary.overall_compliance|default(0)|round(1) }}%
+            </span>
+            <span class="badge bg-secondary-lt me-3">
+              {{ ai_summary.tools_run|default(0) }} tools
+            </span>
+          {% elif ai_analysis.results %}
+            {% set legacy_summary = ai_analysis.results.summary if ai_analysis.results.summary else {} %}
+            <span class="ms-auto me-3 badge {% if legacy_summary.compliance_percentage >= 80 %}bg-success-lt text-success{% elif legacy_summary.compliance_percentage >= 60 %}bg-warning-lt text-warning{% else %}bg-danger-lt text-danger{% endif %}">
+              {{ legacy_summary.compliance_percentage|default(0)|round(1) }}%
+            </span>
+          {% else %}
+            <span class="ms-auto me-3 badge bg-secondary-lt">N/A</span>
+          {% endif %}
         </button>
       </h2>
       <div id="aiSection" class="accordion-collapse collapse" data-bs-parent="#analysisAccordion">
