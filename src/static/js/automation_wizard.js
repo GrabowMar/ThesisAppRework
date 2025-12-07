@@ -47,13 +47,13 @@ const AutomationWizard = {
     
     // API endpoints
     endpoints: {
-        startPipeline: '/automation/api/start',
-        pausePipeline: '/automation/api/pause',
-        cancelPipeline: '/automation/api/cancel',
-        getStatus: (id) => `/automation/api/status/${id}`,
+        startPipeline: '/automation/api/pipeline/start',
+        pausePipeline: (id) => `/automation/api/pipeline/${id}/cancel`, // No pause - use cancel
+        cancelPipeline: (id) => `/automation/api/pipeline/${id}/cancel`,
+        getStatus: (id) => `/automation/api/pipeline/${id}/status`,
         getTools: '/automation/api/tools',
-        fragmentStage: (stage) => `/automation/fragment/stage/${stage}`,
-        fragmentStatus: '/automation/fragment/status'
+        fragmentStage: (stage) => `/automation/fragments/stage/${stage}`,
+        fragmentStatus: '/automation/fragments/status'
     }
 };
 
@@ -667,13 +667,12 @@ async function pausePipeline() {
     if (!wizard.state.pipelineId) return;
     
     try {
-        const response = await fetch(wizard.endpoints.pausePipeline, {
+        const response = await fetch(wizard.endpoints.pausePipeline(wizard.state.pipelineId), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify({ pipeline_id: wizard.state.pipelineId })
+            }
         });
         
         const data = await response.json();
@@ -705,13 +704,12 @@ async function cancelPipeline() {
     }
     
     try {
-        const response = await fetch(wizard.endpoints.cancelPipeline, {
+        const response = await fetch(wizard.endpoints.cancelPipeline(wizard.state.pipelineId), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify({ pipeline_id: wizard.state.pipelineId })
+            }
         });
         
         const data = await response.json();
@@ -1429,17 +1427,22 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             clearAllExistingApps();
         }
-        // Save settings button
-        if (e.target.matches('#save-settings-btn, #save-settings-btn *')) {
+        // Save settings button (both old and sidebar)
+        if (e.target.matches('#save-settings-btn, #save-settings-btn *, #save-settings-btn-sidebar, #save-settings-btn-sidebar *')) {
             e.preventDefault();
             showSaveSettingsModal();
+        }
+        // Load settings button (sidebar - opens modal)
+        if (e.target.matches('#load-settings-btn-sidebar, #load-settings-btn-sidebar *')) {
+            e.preventDefault();
+            showLoadSettingsModal();
         }
         // Save settings confirm
         if (e.target.matches('#save-settings-confirm, #save-settings-confirm *')) {
             e.preventDefault();
             saveCurrentSettings();
         }
-        // Load settings item
+        // Load settings item (legacy dropdown - still works if present)
         if (e.target.matches('.load-settings-item, .load-settings-item *')) {
             e.preventDefault();
             const item = e.target.closest('.load-settings-item');
@@ -1447,8 +1450,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 loadPipelineSettings(item.dataset.settingsId);
             }
         }
-        // Manage settings link
-        if (e.target.matches('#manage-settings-link, #manage-settings-link *')) {
+        // Manage settings link (both old and sidebar)
+        if (e.target.matches('#manage-settings-link, #manage-settings-link *, #manage-settings-link-sidebar, #manage-settings-link-sidebar *')) {
             e.preventDefault();
             showManageSettingsModal();
         }
@@ -1513,26 +1516,29 @@ function updateExistingAppsSummary() {
 }
 
 /**
- * Filter templates by search query
+ * Filter templates by search query (works with table rows)
  */
 function filterTemplates(query) {
     const items = document.querySelectorAll('.template-item');
-    const lowerQuery = query.toLowerCase();
+    const lowerQuery = (query || '').toLowerCase().trim();
+    
     items.forEach(item => {
         const slug = (item.dataset.slug || '').toLowerCase();
         const text = item.textContent.toLowerCase();
-        const visible = slug.includes(lowerQuery) || text.includes(lowerQuery);
+        const visible = !lowerQuery || slug.includes(lowerQuery) || text.includes(lowerQuery);
         item.style.display = visible ? '' : 'none';
     });
 }
+// Expose globally for inline handlers
+window.filterTemplates = filterTemplates;
 
 /**
- * Filter models by search query
+ * Filter models by search query (works with table rows)
  */
 function filterModels(query) {
     const items = document.querySelectorAll('.model-item');
     const headers = document.querySelectorAll('.provider-header');
-    const lowerQuery = query.toLowerCase();
+    const lowerQuery = (query || '').toLowerCase().trim();
     
     // Track visible providers
     const visibleProviders = new Set();
@@ -1540,31 +1546,62 @@ function filterModels(query) {
     items.forEach(item => {
         const slug = (item.dataset.slug || '').toLowerCase();
         const text = item.textContent.toLowerCase();
-        const isVisible = slug.includes(lowerQuery) || text.includes(lowerQuery);
+        const isVisible = !lowerQuery || slug.includes(lowerQuery) || text.includes(lowerQuery);
         item.style.display = isVisible ? '' : 'none';
         if (isVisible && item.dataset.provider) {
             visibleProviders.add(item.dataset.provider);
         }
     });
     
-    // Show/hide provider headers
+    // Show/hide provider headers based on visible models
     headers.forEach(header => {
-        header.style.display = visibleProviders.has(header.dataset.provider) ? '' : 'none';
+        const provider = header.dataset.provider;
+        header.style.display = (!lowerQuery || visibleProviders.has(provider)) ? '' : 'none';
     });
 }
+// Expose globally for inline handlers
+window.filterModels = filterModels;
+
+/**
+ * Toggle template checkbox when clicking the row
+ */
+function toggleTemplateCheckbox(row) {
+    const checkbox = row.querySelector('input[type="checkbox"]');
+    if (checkbox) {
+        checkbox.checked = !checkbox.checked;
+        collectGenerationConfig();
+    }
+}
+// Expose globally for inline handlers
+window.toggleTemplateCheckbox = toggleTemplateCheckbox;
+
+/**
+ * Toggle model checkbox when clicking the row
+ */
+function toggleModelCheckbox(row) {
+    const checkbox = row.querySelector('input[type="checkbox"]');
+    if (checkbox) {
+        checkbox.checked = !checkbox.checked;
+        collectGenerationConfig();
+    }
+}
+// Expose globally for inline handlers
+window.toggleModelCheckbox = toggleModelCheckbox;
 
 /**
  * Filter existing apps by search query
  */
 function filterExistingApps(query) {
     const items = document.querySelectorAll('.existing-app-item');
-    const lowerQuery = query.toLowerCase();
+    const lowerQuery = (query || '').toLowerCase().trim();
     items.forEach(item => {
         const model = (item.dataset.model || '').toLowerCase();
         const text = item.textContent.toLowerCase();
-        item.style.display = (model.includes(lowerQuery) || text.includes(lowerQuery)) ? '' : 'none';
+        item.style.display = (!lowerQuery || model.includes(lowerQuery) || text.includes(lowerQuery)) ? '' : 'none';
     });
 }
+// Expose globally for inline handlers
+window.filterExistingApps = filterExistingApps;
 
 /**
  * Filter existing apps by model
@@ -1579,6 +1616,8 @@ function filterExistingAppsByModel(model) {
         }
     });
 }
+// Expose globally for inline handlers
+window.filterExistingAppsByModel = filterExistingAppsByModel;
 
 /**
  * Filter existing apps by status
@@ -1593,6 +1632,21 @@ function filterExistingAppsByStatus(status) {
         }
     });
 }
+// Expose globally for inline handlers
+window.filterExistingAppsByStatus = filterExistingAppsByStatus;
+
+/**
+ * Toggle existing app checkbox when clicking the row
+ */
+function toggleExistingAppCheckbox(row) {
+    const checkbox = row.querySelector('input[type="checkbox"]');
+    if (checkbox) {
+        checkbox.checked = !checkbox.checked;
+        updateExistingAppsSummary();
+    }
+}
+// Expose globally for inline handlers
+window.toggleExistingAppCheckbox = toggleExistingAppCheckbox;
 
 /**
  * Select all visible templates
@@ -1670,6 +1724,154 @@ function showSaveSettingsModal() {
 }
 
 /**
+ * Show the load settings modal with all saved settings
+ */
+function showLoadSettingsModal() {
+    const list = document.getElementById('load-settings-list');
+    if (list) {
+        list.innerHTML = `
+            <div class="text-center py-4 text-muted">
+                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                Loading saved settings...
+            </div>
+        `;
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('loadSettingsModal'));
+    modal.show();
+    
+    // Load settings list
+    fetch('/automation/api/settings')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderLoadSettingsList(data.data);
+            } else {
+                if (list) {
+                    list.innerHTML = '<div class="text-center py-4 text-danger">Error loading settings</div>';
+                }
+            }
+        })
+        .catch(err => {
+            console.error('Error loading settings:', err);
+            if (list) {
+                list.innerHTML = '<div class="text-center py-4 text-danger">Error loading settings</div>';
+            }
+        });
+}
+
+/**
+ * Render the load settings list with full preview
+ */
+function renderLoadSettingsList(settings) {
+    const list = document.getElementById('load-settings-list');
+    if (!list) return;
+    
+    if (!settings || settings.length === 0) {
+        list.innerHTML = `
+            <div class="text-center py-5 text-muted">
+                <i class="fas fa-bookmark fa-2x mb-3 opacity-50"></i>
+                <p class="mb-1">No saved settings</p>
+                <p class="small">Save your current pipeline configuration to reuse it later.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    list.innerHTML = settings.map(s => {
+        const config = s.config || {};
+        const templatesCount = (config.templates || []).length;
+        const modelsCount = (config.models || []).length;
+        const existingAppsCount = (config.existingApps || []).length;
+        const analysisProfile = config.analysisProfile || 'comprehensive';
+        const reportFormats = (config.reportFormats || ['html']).map(f => f.toUpperCase()).join(', ');
+        const mode = config.mode || 'generate';
+        
+        return `
+            <div class="list-group-item list-group-item-action load-settings-modal-item" 
+                 data-settings-id="${s.id}" 
+                 role="button">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <h6 class="mb-0">${escapeHtml(s.name)}</h6>
+                        ${s.description ? `<small class="text-muted">${escapeHtml(s.description)}</small>` : ''}
+                    </div>
+                    <div class="d-flex gap-1">
+                        ${s.is_default ? '<span class="badge bg-primary">Default</span>' : ''}
+                    </div>
+                </div>
+                <div class="row g-2 small">
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted">Mode</div>
+                        <div class="fw-medium">
+                            <i class="fas ${mode === 'existing' ? 'fa-folder-open' : 'fa-magic'} me-1 text-primary"></i>
+                            ${mode === 'existing' ? 'Existing' : 'Generate'}
+                        </div>
+                    </div>
+                    ${mode === 'generate' ? `
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted">Templates</div>
+                        <div class="fw-medium">${templatesCount}</div>
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted">Models</div>
+                        <div class="fw-medium">${modelsCount}</div>
+                    </div>
+                    ` : `
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted">Existing Apps</div>
+                        <div class="fw-medium">${existingAppsCount}</div>
+                    </div>
+                    <div class="col-6 col-md-3"></div>
+                    `}
+                    <div class="col-6 col-md-3">
+                        <div class="text-muted">Analysis</div>
+                        <div class="fw-medium text-capitalize">${analysisProfile}</div>
+                    </div>
+                </div>
+                <div class="mt-2 small">
+                    <span class="badge bg-secondary-lt me-1">${reportFormats}</span>
+                    ${mode === 'generate' ? `<span class="text-muted">${templatesCount * modelsCount} jobs</span>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    // Add click handlers
+    list.querySelectorAll('.load-settings-modal-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const settingsId = item.dataset.settingsId;
+            loadPipelineSettingsAndClose(settingsId);
+        });
+    });
+}
+
+/**
+ * Load pipeline settings and close the modal
+ */
+function loadPipelineSettingsAndClose(settingsId) {
+    fetch(`/automation/api/settings/${settingsId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.data) {
+                applySettings(data.data.config);
+                
+                // Close the modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('loadSettingsModal'));
+                if (modal) modal.hide();
+                
+                showNotification(`Settings "${data.data.name}" loaded`, 'success');
+            } else {
+                showNotification('Error loading settings', 'error');
+            }
+        })
+        .catch(err => {
+            console.error('Error loading settings:', err);
+            showNotification('Error loading settings', 'error');
+        });
+}
+
+/**
  * Show the manage settings modal
  */
 function showManageSettingsModal() {
@@ -1734,12 +1936,38 @@ function saveCurrentSettings() {
     const description = document.getElementById('settings-description')?.value.trim() || '';
     const isDefault = document.getElementById('settings-default')?.checked || false;
     
-    // Gather current config
+    // Gather COMPLETE current config from AutomationWizard
+    // First ensure we collect from all steps
+    collectGenerationConfig();
+    collectAnalysisConfig();
+    collectReportsConfig();
+    
+    const wizard = AutomationWizard;
     const config = {
-        mode: document.querySelector('input[name="generation_mode"]:checked')?.value || 'generate',
-        templates: Array.from(document.querySelectorAll('input[name="template"]:checked')).map(cb => cb.value),
-        models: Array.from(document.querySelectorAll('input[name="model"]:checked')).map(cb => cb.value),
-        existingApps: Array.from(document.querySelectorAll('input[name="existing_app"]:checked')).map(cb => cb.value),
+        // Step 1 - Generation
+        mode: wizard.config.generationMode || 'generate',
+        templates: wizard.config.templates || [],
+        models: wizard.config.models || [],
+        existingApps: wizard.config.existingApps || [],
+        
+        // Step 2 - Analysis
+        analysisProfile: wizard.config.analysisProfile || 'comprehensive',
+        analysisTools: wizard.config.analysisTools || [],
+        analysisOptions: wizard.config.analysisOptions || {
+            waitForCompletion: true,
+            parallel: false,
+            autoStartContainers: false
+        },
+        
+        // Step 3 - Reports
+        reportFormats: wizard.config.reportFormats || ['html'],
+        reportScope: wizard.config.reportScope || 'individual',
+        reportSections: wizard.config.reportSections || ['summary', 'security', 'quality', 'performance', 'ai'],
+        reportOptions: wizard.config.reportOptions || {
+            autoOpen: true,
+            includeCode: false,
+            includeSarif: false
+        }
     };
     
     fetch('/automation/api/settings', {
@@ -1752,9 +1980,11 @@ function saveCurrentSettings() {
             if (data.success) {
                 const modal = bootstrap.Modal.getInstance(document.getElementById('saveSettingsModal'));
                 if (modal) modal.hide();
+                // Clear the form
+                document.getElementById('settings-name').value = '';
+                document.getElementById('settings-description').value = '';
+                document.getElementById('settings-default').checked = false;
                 showNotification('Settings saved successfully', 'success');
-                // Refresh the dropdown
-                setTimeout(() => location.reload(), 500);
             } else {
                 showNotification('Error saving settings: ' + (data.error || 'Unknown error'), 'error');
             }
@@ -1784,6 +2014,10 @@ function loadPipelineSettings(settingsId) {
  * Apply settings configuration to the UI
  */
 function applySettings(config) {
+    const wizard = AutomationWizard;
+    
+    // === Step 1: Generation Settings ===
+    
     // Set mode
     if (config.mode === 'existing') {
         const existingRadio = document.getElementById('mode-existing');
@@ -1810,9 +2044,106 @@ function applySettings(config) {
         cb.checked = config.existingApps && config.existingApps.includes(cb.value);
     });
     
-    // Update summaries
-    collectGenerationConfig();
+    // Update wizard config for generation
+    wizard.config.generationMode = config.mode || 'generate';
+    wizard.config.templates = config.templates || [];
+    wizard.config.models = config.models || [];
+    wizard.config.existingApps = config.existingApps || [];
+    
+    // === Step 2: Analysis Settings ===
+    
+    // Set analysis profile
+    if (config.analysisProfile) {
+        const profileRadio = document.querySelector(`input[name="analysis_profile"][value="${config.analysisProfile}"]`);
+        if (profileRadio) {
+            profileRadio.checked = true;
+            // Show/hide custom tools section
+            const customSection = document.getElementById('custom-tools-section');
+            if (customSection) {
+                customSection.style.display = config.analysisProfile === 'custom' ? 'block' : 'none';
+            }
+        }
+        wizard.config.analysisProfile = config.analysisProfile;
+    }
+    
+    // Set custom analysis tools
+    if (config.analysisTools) {
+        document.querySelectorAll('input[name="analysis_tool"]').forEach(cb => {
+            cb.checked = config.analysisTools.includes(cb.value);
+        });
+        wizard.config.analysisTools = config.analysisTools;
+    }
+    
+    // Set analysis options
+    if (config.analysisOptions) {
+        const opts = config.analysisOptions;
+        const waitComplete = document.getElementById('analysis-wait-complete');
+        const parallel = document.getElementById('analysis-parallel');
+        const autoStart = document.getElementById('analysis-container-auto');
+        
+        if (waitComplete) waitComplete.checked = opts.waitForCompletion ?? true;
+        if (parallel) parallel.checked = opts.parallel ?? false;
+        if (autoStart) autoStart.checked = opts.autoStartContainers ?? false;
+        
+        wizard.config.analysisOptions = opts;
+    }
+    
+    // === Step 3: Reports Settings ===
+    
+    // Set report formats
+    if (config.reportFormats) {
+        document.querySelectorAll('input[name="report_format"]').forEach(cb => {
+            cb.checked = config.reportFormats.includes(cb.value);
+        });
+        wizard.config.reportFormats = config.reportFormats;
+    }
+    
+    // Set report scope
+    if (config.reportScope) {
+        const scopeRadio = document.querySelector(`input[name="report_scope"][value="${config.reportScope}"]`);
+        if (scopeRadio) scopeRadio.checked = true;
+        wizard.config.reportScope = config.reportScope;
+    }
+    
+    // Set report sections
+    if (config.reportSections) {
+        document.querySelectorAll('input[name="section"]').forEach(cb => {
+            cb.checked = config.reportSections.includes(cb.value);
+        });
+        wizard.config.reportSections = config.reportSections;
+    }
+    
+    // Set report options
+    if (config.reportOptions) {
+        const opts = config.reportOptions;
+        const autoOpen = document.getElementById('report-auto-open');
+        const includeCode = document.getElementById('report-include-code');
+        const includeSarif = document.getElementById('report-include-sarif');
+        
+        if (autoOpen) autoOpen.checked = opts.autoOpen ?? true;
+        if (includeCode) includeCode.checked = opts.includeCode ?? false;
+        if (includeSarif) includeSarif.checked = opts.includeSarif ?? false;
+        
+        wizard.config.reportOptions = opts;
+    }
+    
+    // === Update UI summaries ===
+    updateSelectionSummary();
     updateExistingAppsSummary();
+    
+    // Update sidebar analysis summary
+    const analysisSummaryEl = document.getElementById('sidebar-analysis-summary');
+    if (analysisSummaryEl && config.analysisProfile) {
+        const profileName = config.analysisProfile.charAt(0).toUpperCase() + config.analysisProfile.slice(1);
+        analysisSummaryEl.innerHTML = `Profile: <strong>${profileName}</strong>`;
+    }
+    
+    // Update sidebar reports summary
+    const reportsSummaryEl = document.getElementById('sidebar-reports-summary');
+    if (reportsSummaryEl && config.reportFormats) {
+        const formatsText = config.reportFormats.map(f => f.toUpperCase()).join(', ');
+        reportsSummaryEl.innerHTML = `Format: <strong>${formatsText}</strong>`;
+    }
 }
 
 /**
@@ -1883,3 +2214,7 @@ window.filterModels = filterModels;
 window.filterExistingApps = filterExistingApps;
 window.setDefaultSettings = setDefaultSettings;
 window.deleteSettings = deleteSettings;
+window.showSaveSettingsModal = showSaveSettingsModal;
+window.showLoadSettingsModal = showLoadSettingsModal;
+window.showManageSettingsModal = showManageSettingsModal;
+window.loadPipelineSettingsAndClose = loadPipelineSettingsAndClose;

@@ -143,6 +143,28 @@
     {# Sidebar #}
     <div class="col-xxl-4 col-xl-5 col-lg-5">
       <div class="analysis-sidebar right-sticky-sidebar sticky-top">
+        {# Pipeline Settings - Save/Load #}
+        <div class="card card-sm mb-3">
+          <div class="card-header py-2 d-flex justify-content-between align-items-center">
+            <h6 class="card-title mb-0">
+              <i class="fas fa-bookmark me-2 text-primary"></i>Pipeline Settings
+            </h6>
+            <a href="#" class="small text-muted" id="manage-settings-link-sidebar" title="Manage saved settings">
+              <i class="fas fa-cog"></i>
+            </a>
+          </div>
+          <div class="card-body py-2">
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-sm btn-outline-primary flex-fill" id="save-settings-btn-sidebar">
+                <i class="fas fa-save me-1"></i>Save
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary flex-fill" id="load-settings-btn-sidebar">
+                <i class="fas fa-folder-open me-1"></i>Load
+              </button>
+            </div>
+          </div>
+        </div>
+
         {# Progress Stepper #}
         <div class="card card-sm mb-3">
           <div class="card-header py-2">
@@ -278,6 +300,29 @@
         <div class="card card-sm" id="status-card" hx-get="/automation/fragments/status" hx-trigger="load, every 10s" hx-swap="innerHTML">
           {% include 'pages/automation/partials/_status_metrics.html' %}
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Load Settings Modal #}
+<div class="modal fade" id="loadSettingsModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-folder-open me-2"></i>Load Pipeline Settings</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="load-settings-list" class="list-group">
+          <div class="text-center py-4 text-muted">
+            <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+            Loading saved settings...
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
       </div>
     </div>
   </div>

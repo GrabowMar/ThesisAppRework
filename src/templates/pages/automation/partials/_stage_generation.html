@@ -16,80 +16,73 @@
   </div>
 </div>
 
-{# Save/Load Settings #}
-<div class="card mb-4">
-  <div class="card-header d-flex justify-content-between align-items-center py-2">
-    <h3 class="h6 mb-0"><i class="fas fa-bookmark me-2"></i>Pipeline Settings</h3>
-    <div class="btn-group btn-group-sm" role="group">
-      <button type="button" class="btn btn-ghost-primary" id="save-settings-btn">
-        <i class="fas fa-save me-1"></i>Save
-      </button>
-      <button type="button" class="btn btn-ghost-secondary" data-bs-toggle="dropdown" aria-expanded="false">
-        <i class="fas fa-folder-open me-1"></i>Load
-      </button>
-      <ul class="dropdown-menu dropdown-menu-end" id="saved-settings-dropdown">
-        {% if saved_settings %}
-          {% for setting in saved_settings %}
-          <li>
-            <a class="dropdown-item d-flex justify-content-between align-items-center load-settings-item" href="#" data-settings-id="{{ setting.id }}">
-              <span>{{ setting.name }}</span>
-              {% if setting.is_default %}
-              <span class="badge bg-primary-lt">Default</span>
-              {% endif %}
-            </a>
-          </li>
-          {% endfor %}
-          <li><hr class="dropdown-divider"></li>
-          <li><a class="dropdown-item text-muted" href="#" id="manage-settings-link">
-            <i class="fas fa-cog me-1"></i>Manage Settings...
-          </a></li>
-        {% else %}
-          <li><span class="dropdown-item text-muted">No saved settings</span></li>
-        {% endif %}
-      </ul>
-    </div>
-  </div>
-</div>
-
 {# Generate New Apps Mode #}
 <div id="generate-new-section">
   <div class="row g-4">
     {# Templates Selection #}
     <div class="col-12 col-xl-6">
-      <div class="card h-100">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h3 class="h6 mb-0">Templates</h3>
+      <div class="card card-table-compact h-100">
+        <div class="card-header d-flex justify-content-between align-items-center py-2">
+          <h3 class="h6 mb-0"><i class="fas fa-file-code text-primary me-2"></i>Templates</h3>
           <div class="btn-group btn-group-sm" role="group">
             <button type="button" class="btn btn-ghost-primary" id="select-all-templates">Select all</button>
             <button type="button" class="btn btn-ghost-secondary" id="clear-all-templates">Clear</button>
           </div>
         </div>
-        <div class="card-body">
-          <div class="input-group input-group-sm mb-3">
-            <span class="input-group-text"><i class="fas fa-search"></i></span>
-            <input type="search" class="form-control" placeholder="Search templates" id="template-search">
+        <div class="card-body border-top p-0">
+          <div class="p-3 border-bottom">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text"><i class="fas fa-search"></i></span>
+              <input type="search" class="form-control" placeholder="Search templates..." id="template-search" 
+                     oninput="filterTemplates(this.value)">
+            </div>
           </div>
-          <div id="template-selection-list" class="list-group list-group-flush" style="max-height: 360px; overflow-y: auto;">
+          <div id="template-selection-list" class="table-responsive" style="max-height: 360px; overflow-y: auto;">
             {% if templates %}
-              {% for tpl in templates %}
-              <label class="list-group-item list-group-item-action d-flex align-items-center template-item" data-slug="{{ tpl.slug }}">
-                <input type="checkbox" class="form-check-input me-3" name="template" value="{{ tpl.slug }}">
-                <div class="flex-grow-1">
-                  <div class="fw-medium">{{ tpl.name or tpl.slug }}</div>
-                  {% if tpl.description %}
-                  <div class="text-muted small">{{ tpl.description|truncate(60) }}</div>
-                  {% endif %}
-                </div>
-                {% if tpl.category %}
-                <span class="badge bg-secondary-lt ms-2">{{ tpl.category }}</span>
-                {% endif %}
-              </label>
-              {% endfor %}
+            <table class="table table-sm table-vcenter table-hover card-table mb-0" id="templates-selection-table">
+              <thead>
+                <tr>
+                  <th class="w-1"></th>
+                  <th class="text-nowrap">Template</th>
+                  <th>Description</th>
+                  <th class="text-nowrap">Category</th>
+                </tr>
+              </thead>
+              <tbody id="template-selection-tbody">
+                {% for tpl in templates %}
+                <tr class="template-item" data-slug="{{ tpl.slug }}" style="cursor: pointer;"
+                    onclick="toggleTemplateCheckbox(this)">
+                  <td>
+                    <input type="checkbox" class="form-check-input" name="template" value="{{ tpl.slug }}"
+                           onclick="event.stopPropagation()">
+                  </td>
+                  <td class="fw-semibold text-nowrap">{{ tpl.name or tpl.slug }}</td>
+                  <td class="small text-muted">
+                    {% if tpl.description %}
+                      {{ tpl.description|truncate(50) }}
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if tpl.category %}
+                      <span class="badge bg-secondary-lt text-secondary">{{ tpl.category }}</span>
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
             {% else %}
-              <div class="text-center text-muted py-4">
-                <i class="fas fa-inbox fa-2x mb-2 opacity-50"></i>
-                <p class="small mb-0">No templates available</p>
+            <div class="empty py-5">
+              <div class="empty-icon">
+                <i class="fas fa-inbox fa-3x text-muted"></i>
               </div>
+              <p class="empty-title h5">No templates available</p>
+              <p class="empty-subtitle text-muted">Templates may not be configured yet.</p>
+            </div>
             {% endif %}
           </div>
         </div>
@@ -98,42 +91,65 @@
 
     {# Models Selection #}
     <div class="col-12 col-xl-6">
-      <div class="card h-100">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <h3 class="h6 mb-0">Models</h3>
+      <div class="card card-table-compact h-100">
+        <div class="card-header d-flex justify-content-between align-items-center py-2">
+          <h3 class="h6 mb-0"><i class="fas fa-brain text-primary me-2"></i>Models</h3>
           <div class="btn-group btn-group-sm" role="group">
             <button type="button" class="btn btn-ghost-primary" id="select-all-models">Select all</button>
             <button type="button" class="btn btn-ghost-secondary" id="clear-all-models">Clear</button>
           </div>
         </div>
-        <div class="card-body">
-          <div class="input-group input-group-sm mb-3">
-            <span class="input-group-text"><i class="fas fa-search"></i></span>
-            <input type="search" class="form-control" placeholder="Search models" id="model-search">
+        <div class="card-body border-top p-0">
+          <div class="p-3 border-bottom">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text"><i class="fas fa-search"></i></span>
+              <input type="search" class="form-control" placeholder="Search models..." id="model-search"
+                     oninput="filterModels(this.value)">
+            </div>
           </div>
-          <div id="model-selection-list" class="list-group list-group-flush" style="max-height: 360px; overflow-y: auto;">
+          <div id="model-selection-list" class="table-responsive" style="max-height: 360px; overflow-y: auto;">
             {% if models %}
-              {% set current_provider = namespace(value='') %}
-              {% for model in models %}
-                {% if model.provider != current_provider.value %}
-                  {% set current_provider.value = model.provider %}
-                  <div class="list-group-item bg-light py-1 px-3 small fw-bold text-muted text-uppercase provider-header" data-provider="{{ model.provider }}">
-                    {{ model.provider }}
-                  </div>
-                {% endif %}
-                <label class="list-group-item list-group-item-action d-flex align-items-center model-item" data-slug="{{ model.slug }}" data-provider="{{ model.provider }}">
-                  <input type="checkbox" class="form-check-input me-3" name="model" value="{{ model.slug }}">
-                  <div class="flex-grow-1">
-                    <div class="fw-medium">{{ model.name }}</div>
-                    <div class="text-muted small">{{ model.display_name }}</div>
-                  </div>
-                </label>
-              {% endfor %}
+            <table class="table table-sm table-vcenter table-hover card-table mb-0" id="models-selection-table">
+              <thead>
+                <tr>
+                  <th class="w-1"></th>
+                  <th class="text-nowrap">Model</th>
+                  <th class="text-nowrap">Provider</th>
+                  <th>Display Name</th>
+                </tr>
+              </thead>
+              <tbody id="model-selection-tbody">
+                {% set current_provider = namespace(value='') %}
+                {% for model in models %}
+                  {% if model.provider != current_provider.value %}
+                    {% set current_provider.value = model.provider %}
+                    <tr class="provider-header bg-light" data-provider="{{ model.provider }}">
+                      <td colspan="4" class="py-1 px-3 small fw-bold text-muted text-uppercase">
+                        <i class="fas fa-layer-group me-1"></i>{{ model.provider }}
+                      </td>
+                    </tr>
+                  {% endif %}
+                  <tr class="model-item" data-slug="{{ model.slug }}" data-provider="{{ model.provider }}" 
+                      style="cursor: pointer;" onclick="toggleModelCheckbox(this)">
+                    <td>
+                      <input type="checkbox" class="form-check-input" name="model" value="{{ model.slug }}"
+                             onclick="event.stopPropagation()">
+                    </td>
+                    <td class="fw-semibold text-nowrap">{{ model.name }}</td>
+                    <td><span class="badge bg-azure-lt text-azure">{{ model.provider|upper }}</span></td>
+                    <td class="small text-muted">{{ model.display_name }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
             {% else %}
-              <div class="text-center text-muted py-4">
-                <i class="fas fa-robot fa-2x mb-2 opacity-50"></i>
-                <p class="small mb-0">No models available</p>
+            <div class="empty py-5">
+              <div class="empty-icon">
+                <i class="fas fa-robot fa-3x text-muted"></i>
               </div>
+              <p class="empty-title h5">No models available</p>
+              <p class="empty-subtitle text-muted">Models may not be configured yet.</p>
+            </div>
             {% endif %}
           </div>
         </div>
@@ -193,86 +209,125 @@
 
 {# Use Existing Apps Mode #}
 <div id="existing-apps-section" class="d-none">
-  <div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-      <h3 class="h6 mb-0">Select Existing Applications</h3>
-      <div class="d-flex gap-2">
-        <div class="btn-group btn-group-sm" role="group">
-          <button type="button" class="btn btn-ghost-primary" id="select-all-existing-apps">Select all</button>
-          <button type="button" class="btn btn-ghost-secondary" id="clear-all-existing-apps">Clear</button>
-        </div>
+  <div class="card card-table-compact">
+    <div class="card-header d-flex justify-content-between align-items-center py-2">
+      <h3 class="h6 mb-0"><i class="fas fa-folder-open text-primary me-2"></i>Select Existing Applications</h3>
+      <div class="btn-group btn-group-sm" role="group">
+        <button type="button" class="btn btn-ghost-primary" id="select-all-existing-apps">Select all</button>
+        <button type="button" class="btn btn-ghost-secondary" id="clear-all-existing-apps">Clear</button>
       </div>
     </div>
-    <div class="card-body">
+    <div class="card-body border-top p-0">
       {# Filters Row #}
-      <div class="row g-2 mb-3">
-        <div class="col-md-4">
-          <div class="input-group input-group-sm">
-            <span class="input-group-text"><i class="fas fa-search"></i></span>
-            <input type="search" class="form-control" placeholder="Search apps" id="existing-apps-search">
+      <div class="p-3 border-bottom">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <div class="input-group input-group-sm">
+              <span class="input-group-text"><i class="fas fa-search"></i></span>
+              <input type="search" class="form-control" placeholder="Search apps..." id="existing-apps-search"
+                     oninput="filterExistingApps(this.value)">
+            </div>
           </div>
-        </div>
-        <div class="col-md-4">
-          <select class="form-select form-select-sm" id="filter-model" title="Filter by model">
-            <option value="">All Models</option>
-            {% if models %}
-              {% for model in models %}
-              <option value="{{ model.slug }}">{{ model.display_name }}</option>
-              {% endfor %}
-            {% endif %}
-          </select>
-        </div>
-        <div class="col-md-4">
-          <select class="form-select form-select-sm" id="filter-status" title="Filter by status">
-            <option value="">All Statuses</option>
-            <option value="completed">Completed</option>
-            <option value="pending">Pending</option>
-            <option value="failed">Failed</option>
-          </select>
+          <div class="col-md-4">
+            <select class="form-select form-select-sm" id="filter-model" title="Filter by model"
+                    onchange="filterExistingAppsByModel(this.value)">
+              <option value="">All Models</option>
+              {% if models %}
+                {% for model in models %}
+                <option value="{{ model.slug }}">{{ model.display_name }}</option>
+                {% endfor %}
+              {% endif %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <select class="form-select form-select-sm" id="filter-status" title="Filter by status"
+                    onchange="filterExistingAppsByStatus(this.value)">
+              <option value="">All Statuses</option>
+              <option value="completed">Completed</option>
+              <option value="pending">Pending</option>
+              <option value="failed">Failed</option>
+            </select>
+          </div>
         </div>
       </div>
 
       {# Existing Apps List #}
-      <div id="existing-apps-list" class="list-group list-group-flush" style="max-height: 450px; overflow-y: auto;">
+      <div id="existing-apps-list" class="table-responsive" style="max-height: 450px; overflow-y: auto;">
         {% if existing_apps %}
-          {% for app in existing_apps %}
-          <label class="list-group-item list-group-item-action d-flex align-items-center existing-app-item" 
-                 data-model="{{ app.model_slug }}" 
-                 data-app-number="{{ app.app_number }}"
-                 data-status="{{ app.status|default('unknown') }}">
-            <input type="checkbox" class="form-check-input me-3" 
-                   name="existing_app" 
-                   value="{{ app.model_slug }}:{{ app.app_number }}">
-            <div class="flex-grow-1">
-              <div class="d-flex align-items-center">
-                <span class="fw-medium">{{ app.model_slug }}</span>
-                <span class="text-muted mx-2">/</span>
-                <span>App {{ app.app_number }}</span>
-              </div>
-              <div class="text-muted small">
-                {% if app.template_slug %}Template: {{ app.template_slug }}{% endif %}
-                {% if app.created_at %} • Created: {{ app.created_at.strftime('%Y-%m-%d %H:%M') }}{% endif %}
-              </div>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-              {% if app.status == 'completed' %}
-              <span class="badge bg-success">Completed</span>
-              {% elif app.status == 'pending' %}
-              <span class="badge bg-warning">Pending</span>
-              {% elif app.status == 'failed' %}
-              <span class="badge bg-danger">Failed</span>
-              {% else %}
-              <span class="badge bg-secondary">Unknown</span>
-              {% endif %}
-            </div>
-          </label>
-          {% endfor %}
+        <table class="table table-sm table-vcenter table-hover card-table mb-0" id="existing-apps-table">
+          <thead>
+            <tr>
+              <th class="w-1"></th>
+              <th class="text-nowrap">Model</th>
+              <th class="text-nowrap">App #</th>
+              <th>Template</th>
+              <th class="text-nowrap">Created</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="existing-apps-tbody">
+            {% for app in existing_apps %}
+            <tr class="existing-app-item" 
+                data-model="{{ app.model_slug }}" 
+                data-app-number="{{ app.app_number }}"
+                data-status="{{ app.status|default('unknown') }}"
+                style="cursor: pointer;"
+                onclick="toggleExistingAppCheckbox(this)">
+              <td>
+                <input type="checkbox" class="form-check-input" 
+                       name="existing_app" 
+                       value="{{ app.model_slug }}:{{ app.app_number }}"
+                       onclick="event.stopPropagation()">
+              </td>
+              <td class="fw-semibold text-nowrap">{{ app.model_slug }}</td>
+              <td><span class="badge bg-primary-lt text-primary">#{{ app.app_number }}</span></td>
+              <td class="small">
+                {% if app.template_slug %}
+                  {{ app.template_slug }}
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td class="small text-muted">
+                {% if app.created_at %}
+                  {{ app.created_at.strftime('%Y-%m-%d %H:%M') }}
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if app.status == 'completed' %}
+                  <span class="badge bg-success-lt text-success">
+                    <i class="fas fa-check me-1"></i>Completed
+                  </span>
+                {% elif app.status == 'pending' %}
+                  <span class="badge bg-warning-lt text-warning">
+                    <i class="fas fa-clock me-1"></i>Pending
+                  </span>
+                {% elif app.status == 'failed' %}
+                  <span class="badge bg-danger-lt text-danger">
+                    <i class="fas fa-times me-1"></i>Failed
+                  </span>
+                {% else %}
+                  <span class="badge bg-secondary-lt text-secondary">
+                    <i class="fas fa-question me-1"></i>Unknown
+                  </span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
         {% else %}
-          <div class="text-center text-muted py-5">
-            <i class="fas fa-folder-open fa-2x mb-2 opacity-50"></i>
-            <p class="small mb-0">No existing applications found</p>
-            <p class="small text-muted">Generate some applications first, or switch to "Generate New Apps" mode.</p>
+        <div class="empty py-5">
+          <div class="empty-icon">
+            <i class="fas fa-folder-open fa-3x text-muted"></i>
           </div>
+          <p class="empty-title h5">No existing applications found</p>
+          <p class="empty-subtitle text-muted">
+            Generate some applications first, or switch to "Generate New Apps" mode.
+          </p>
+        </div>
         {% endif %}
       </div>
     </div>

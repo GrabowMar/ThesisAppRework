@@ -87,20 +87,22 @@
             <div class="card-body border-top">
               <div class="row g-4">
                 <div class="col-12 col-xl-6">
-                  <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                      <h3 class="h6 mb-0">Templates</h3>
+                  <div class="card card-table-compact h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center py-2">
+                      <h3 class="h6 mb-0"><i class="fas fa-file-code text-primary me-2"></i>Templates</h3>
                       <div class="btn-group btn-group-sm" role="group">
                         <button type="button" class="btn btn-ghost-primary" onclick="selectAllTemplates()">Select all</button>
                         <button type="button" class="btn btn-ghost-secondary" onclick="clearAllTemplates()">Clear</button>
                       </div>
                     </div>
-                    <div class="card-body">
-                      <div class="input-group input-group-sm mb-3">
-                        <span class="input-group-text"><i class="fas fa-search"></i></span>
-                        <input type="search" class="form-control" placeholder="Search templates" oninput="filterTemplates(this.value)">
+                    <div class="card-body border-top p-0">
+                      <div class="p-3 border-bottom">
+                        <div class="input-group input-group-sm">
+                          <span class="input-group-text"><i class="fas fa-search"></i></span>
+                          <input type="search" class="form-control" placeholder="Search templates..." id="template-search-input" oninput="filterTemplates(this.value)">
+                        </div>
                       </div>
-                      <div id="template-selection-list" class="list-group list-group-flush" style="max-height: 360px; overflow-y: auto;">
+                      <div id="template-selection-list" class="table-responsive" style="max-height: 360px; overflow-y: auto;">
                         <div class="text-center text-muted py-5">
                           <div class="spinner-border text-primary"></div>
                           <p class="small mb-0 mt-3">Loading templates...</p>
@@ -110,20 +112,22 @@
                   </div>
                 </div>
                 <div class="col-12 col-xl-6">
-                  <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                      <h3 class="h6 mb-0">Models</h3>
+                  <div class="card card-table-compact h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center py-2">
+                      <h3 class="h6 mb-0"><i class="fas fa-brain text-primary me-2"></i>Models</h3>
                       <div class="btn-group btn-group-sm" role="group">
                         <button type="button" class="btn btn-ghost-primary" onclick="selectAllModels()">Select all</button>
                         <button type="button" class="btn btn-ghost-secondary" onclick="clearAllModels()">Clear</button>
                       </div>
                     </div>
-                    <div class="card-body">
-                      <div class="input-group input-group-sm mb-3">
-                        <span class="input-group-text"><i class="fas fa-search"></i></span>
-                        <input type="search" class="form-control" placeholder="Search models" oninput="filterModels(this.value)">
+                    <div class="card-body border-top p-0">
+                      <div class="p-3 border-bottom">
+                        <div class="input-group input-group-sm">
+                          <span class="input-group-text"><i class="fas fa-search"></i></span>
+                          <input type="search" class="form-control" placeholder="Search models..." id="model-search-input" oninput="filterModels(this.value)">
+                        </div>
                       </div>
-                      <div id="model-selection-list" class="list-group list-group-flush" style="max-height: 360px; overflow-y: auto;">
+                      <div id="model-selection-list" class="table-responsive" style="max-height: 360px; overflow-y: auto;">
                         <div class="text-center text-muted py-5">
                           <div class="spinner-border text-primary"></div>
                           <p class="small mb-0 mt-3">Loading models...</p>

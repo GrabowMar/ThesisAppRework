@@ -421,7 +421,7 @@ async function loadTemplates() {
     listContainer.innerHTML = '';
     
     if (templates.length === 0) {
-      listContainer.innerHTML = '<div class="text-center text-muted p-4"><i class="fas fa-info-circle fa-2x mb-2 opacity-50"></i><p>No templates available</p><p class="small">Templates should be in <code>misc/app_templates/</code></p></div>';
+      listContainer.innerHTML = '<div class="empty py-5"><div class="empty-icon"><i class="fas fa-inbox fa-3x text-muted"></i></div><p class="empty-title h5">No templates available</p><p class="empty-subtitle text-muted">Templates should be in <code>misc/requirements/</code></p></div>';
       return;
     }
     
@@ -441,10 +441,27 @@ async function loadTemplates() {
       selectedTemplates = selectedTemplates.filter(num => validAppNums.has(num));
     }
     
-    // Render items
+    // Render as table
+    const table = document.createElement('table');
+    table.className = 'table table-sm table-vcenter table-hover card-table mb-0';
+    table.id = 'templates-selection-table';
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th class="w-1"></th>
+          <th class="text-nowrap">Template</th>
+          <th>Description</th>
+          <th class="text-nowrap">Category</th>
+        </tr>
+      </thead>
+      <tbody id="template-selection-tbody"></tbody>
+    `;
+    listContainer.appendChild(table);
+    
+    const tbody = table.querySelector('tbody');
     templates.forEach(template => {
-      const item = createTemplateListItem(template);
-      listContainer.appendChild(item);
+      const row = createTemplateTableRow(template);
+      tbody.appendChild(row);
     });
   console.log('[Wizard] Templates UI updated with V2 requirements');
   console.log('[Wizard] Template items added to wizard list, ready for clicks');  
@@ -454,6 +471,48 @@ async function loadTemplates() {
     console.error('[Wizard] Error loading templates:', error);
     listContainer.innerHTML = `<div class="text-center text-danger p-4"><i class="fas fa-exclamation-triangle fa-2x mb-2"></i><p class="fw-bold">Error loading templates</p><p class="small">${error.message}</p><button class="btn btn-sm btn-outline-primary mt-2" onclick="loadTemplates()">Retry</button></div>`;
   }
+}
+
+function createTemplateTableRow(template) {
+  const row = document.createElement('tr');
+  row.className = 'template-item';
+  row.style.cursor = 'pointer';
+  
+  const slug = template.slug || '';
+  const name = template.name || template.display_name || template.title || `Template ${slug}`;
+  const description = template.description || template.desc || '';
+  const category = template.category || 'general';
+  
+  row.setAttribute('data-template-slug', slug);
+  
+  row.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const templateSlug = row.getAttribute('data-template-slug');
+    if (templateSlug) {
+      toggleTemplateSelection(templateSlug);
+    }
+  });
+  
+  const isSelected = selectedTemplates.includes(slug);
+  if (isSelected) {
+    row.classList.add('table-primary');
+  }
+  
+  row.innerHTML = `
+    <td>
+      <input type="checkbox" class="form-check-input" data-template-slug="${escapeHtml(slug)}" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();">
+    </td>
+    <td class="fw-semibold text-nowrap">${escapeHtml(name)}</td>
+    <td class="small text-muted">
+      ${description ? escapeHtml(description.slice(0, 50)) + (description.length > 50 ? '...' : '') : '<span class="text-muted">—</span>'}
+    </td>
+    <td>
+      <span class="badge bg-secondary-lt text-secondary">${escapeHtml(category)}</span>
+    </td>
+  `;
+  
+  return row;
 }
 
 function createTemplateListItem(template) {
@@ -543,28 +602,88 @@ function toggleTemplateSelection(slug) {
 }
 
 function updateTemplateSelectionUI() {
-  // Re-render all items with updated selection state
+  // Re-render all items with updated selection state using table format
   if (templatesCache && templatesCache.length > 0) {
     const listContainer = document.getElementById('template-selection-list');
     if (listContainer) {
       listContainer.innerHTML = '';
+      
+      const table = document.createElement('table');
+      table.className = 'table table-sm table-vcenter table-hover card-table mb-0';
+      table.id = 'templates-selection-table';
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th class="w-1"></th>
+            <th class="text-nowrap">Template</th>
+            <th>Description</th>
+            <th class="text-nowrap">Category</th>
+          </tr>
+        </thead>
+        <tbody id="template-selection-tbody"></tbody>
+      `;
+      listContainer.appendChild(table);
+      
+      const tbody = table.querySelector('tbody');
       templatesCache.forEach(template => {
-        const item = createTemplateListItem(template);
-        listContainer.appendChild(item);
+        const row = createTemplateTableRow(template);
+        tbody.appendChild(row);
       });
     }
   }
 }
 
 function updateModelSelectionUI() {
-  // Re-render all items with updated selection state
+  // Re-render all items with updated selection state using table format
   if (modelsCache && modelsCache.length > 0) {
     const listContainer = document.getElementById('model-selection-list');
     if (listContainer) {
       listContainer.innerHTML = '';
+      
+      // Group models by provider
+      const modelsByProvider = {};
       modelsCache.forEach(model => {
-        const item = createModelListItem(model);
-        listContainer.appendChild(item);
+        const provider = model.provider || 'Unknown';
+        if (!modelsByProvider[provider]) {
+          modelsByProvider[provider] = [];
+        }
+        modelsByProvider[provider].push(model);
+      });
+      
+      const table = document.createElement('table');
+      table.className = 'table table-sm table-vcenter table-hover card-table mb-0';
+      table.id = 'models-selection-table';
+      table.innerHTML = `
+        <thead>
+          <tr>
+            <th class="w-1"></th>
+            <th class="text-nowrap">Model</th>
+            <th class="text-nowrap">Provider</th>
+            <th>Pricing</th>
+          </tr>
+        </thead>
+        <tbody id="model-selection-tbody"></tbody>
+      `;
+      listContainer.appendChild(table);
+      
+      const tbody = table.querySelector('tbody');
+      
+      Object.keys(modelsByProvider).sort().forEach(provider => {
+        // Provider header row
+        const headerRow = document.createElement('tr');
+        headerRow.className = 'provider-header bg-light';
+        headerRow.setAttribute('data-provider', provider);
+        headerRow.innerHTML = `
+          <td colspan="4" class="py-1 px-3 small fw-bold text-muted text-uppercase">
+            <i class="fas fa-layer-group me-1"></i>${escapeHtml(provider)}
+          </td>
+        `;
+        tbody.appendChild(headerRow);
+        
+        modelsByProvider[provider].forEach(model => {
+          const row = createModelTableRow(model);
+          tbody.appendChild(row);
+        });
       });
     }
   }
@@ -612,14 +731,59 @@ async function loadModels() {
     listContainer.innerHTML = '';
 
     if (models.length === 0) {
-      listContainer.innerHTML = '<div class="text-center text-muted p-4"><i class="fas fa-info-circle fa-2x mb-2 opacity-50"></i><p>No models available</p><p class="small">Check database for model capabilities</p></div>';
+      listContainer.innerHTML = '<div class="empty py-5"><div class="empty-icon"><i class="fas fa-robot fa-3x text-muted"></i></div><p class="empty-title h5">No models available</p><p class="empty-subtitle text-muted">Check database for model capabilities</p></div>';
       return;
     }
 
+    // Group models by provider for table rendering
+    const modelsByProvider = {};
     models.forEach(model => {
-      const item = createModelListItem(model);
-      listContainer.appendChild(item);
+      const provider = model.provider || 'Unknown';
+      if (!modelsByProvider[provider]) {
+        modelsByProvider[provider] = [];
+      }
+      modelsByProvider[provider].push(model);
     });
+
+    // Render as table with provider groupings
+    const table = document.createElement('table');
+    table.className = 'table table-sm table-vcenter table-hover card-table mb-0';
+    table.id = 'models-selection-table';
+    table.innerHTML = `
+      <thead>
+        <tr>
+          <th class="w-1"></th>
+          <th class="text-nowrap">Model</th>
+          <th class="text-nowrap">Provider</th>
+          <th>Pricing</th>
+        </tr>
+      </thead>
+      <tbody id="model-selection-tbody"></tbody>
+    `;
+    listContainer.appendChild(table);
+    
+    const tbody = table.querySelector('tbody');
+    
+    // Render models grouped by provider
+    Object.keys(modelsByProvider).sort().forEach(provider => {
+      // Provider header row
+      const headerRow = document.createElement('tr');
+      headerRow.className = 'provider-header bg-light';
+      headerRow.setAttribute('data-provider', provider);
+      headerRow.innerHTML = `
+        <td colspan="4" class="py-1 px-3 small fw-bold text-muted text-uppercase">
+          <i class="fas fa-layer-group me-1"></i>${escapeHtml(provider)}
+        </td>
+      `;
+      tbody.appendChild(headerRow);
+      
+      // Model rows for this provider
+      modelsByProvider[provider].forEach(model => {
+        const row = createModelTableRow(model);
+        tbody.appendChild(row);
+      });
+    });
+
     console.log('[Wizard] Models UI updated');
     updateSidebar();
     updateNavigationButtons();
@@ -744,6 +908,66 @@ function extractModelsFromResponse(data) {
     : payload && payload.data && payload.data.pagination ? payload.data.pagination
     : null;
   return { models, pagination };
+}
+
+function createModelTableRow(model) {
+  const row = document.createElement('tr');
+  row.className = 'model-item';
+  row.style.cursor = 'pointer';
+  
+  let slug = getModelSlug(model);
+  if (!slug) {
+    slug = `model-${String(model.model_id || model.name || model.provider || 'unknown').replace(/\s+/g, '-').toLowerCase()}`;
+  }
+  model.slug = slug;
+  const name = model.model_name || model.name || model.display_name || slug;
+  const provider = model.provider || 'Unknown';
+  
+  const inputCost = normalizeModelCost(model);
+  const outputCost = normalizeModelOutputCost(model);
+  
+  row.setAttribute('data-model-slug', slug);
+  row.setAttribute('data-provider', provider);
+  
+  row.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const modelSlug = row.getAttribute('data-model-slug');
+    if (modelSlug) {
+      toggleModelSelection(modelSlug);
+    }
+  });
+  
+  const isSelected = selectedModels.includes(slug);
+  if (isSelected) {
+    row.classList.add('table-primary');
+  }
+  
+  // Build pricing display
+  let pricingHtml = '';
+  if (inputCost !== null || outputCost !== null) {
+    const parts = [];
+    if (inputCost !== null) {
+      parts.push(`<span class="badge bg-success-lt text-success me-1" title="Input cost per 1K tokens">In ${formatCost(inputCost)}</span>`);
+    }
+    if (outputCost !== null) {
+      parts.push(`<span class="badge bg-warning-lt text-warning" title="Output cost per 1K tokens">Out ${formatCost(outputCost)}</span>`);
+    }
+    pricingHtml = parts.join('');
+  } else {
+    pricingHtml = '<span class="text-muted">—</span>';
+  }
+  
+  row.innerHTML = `
+    <td>
+      <input type="checkbox" class="form-check-input" data-model-slug="${escapeHtml(slug)}" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation();">
+    </td>
+    <td class="fw-semibold text-nowrap">${escapeHtml(name)}</td>
+    <td><span class="badge bg-azure-lt text-azure">${escapeHtml(provider.toUpperCase())}</span></td>
+    <td class="small">${pricingHtml}</td>
+  `;
+  
+  return row;
 }
 
 function createModelListItem(model) {
@@ -1535,20 +1759,40 @@ function unselectModel(slug) {
 }
 
 function filterTemplates(searchTerm) {
-  const term = searchTerm.toLowerCase();
-  const items = document.querySelectorAll('#template-selection-list .list-group-item');
+  const term = (searchTerm || '').toLowerCase().trim();
+  const items = document.querySelectorAll('#template-selection-list .template-item');
+  
   items.forEach(item => {
+    const slug = (item.getAttribute('data-template-slug') || '').toLowerCase();
     const text = item.textContent.toLowerCase();
-    item.style.display = text.includes(term) ? '' : 'none';
+    const visible = !term || slug.includes(term) || text.includes(term);
+    item.style.display = visible ? '' : 'none';
   });
 }
 
 function filterModels(searchTerm) {
-  const term = searchTerm.toLowerCase();
-  const items = document.querySelectorAll('#model-selection-list .list-group-item');
+  const term = (searchTerm || '').toLowerCase().trim();
+  const items = document.querySelectorAll('#model-selection-list .model-item');
+  const headers = document.querySelectorAll('#model-selection-list .provider-header');
+  
+  // Track visible providers
+  const visibleProviders = new Set();
+  
   items.forEach(item => {
+    const slug = (item.getAttribute('data-model-slug') || '').toLowerCase();
     const text = item.textContent.toLowerCase();
-    item.style.display = text.includes(term) ? '' : 'none';
+    const provider = item.getAttribute('data-provider');
+    const visible = !term || slug.includes(term) || text.includes(term);
+    item.style.display = visible ? '' : 'none';
+    if (visible && provider) {
+      visibleProviders.add(provider);
+    }
+  });
+  
+  // Show/hide provider headers based on visible models
+  headers.forEach(header => {
+    const provider = header.getAttribute('data-provider');
+    header.style.display = (!term || visibleProviders.has(provider)) ? '' : 'none';
   });
 }
 
