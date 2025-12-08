@@ -23,7 +23,7 @@ class Report(db.Model):
     
     # Configuration (JSON) - stores parameters for regeneration
     # model_analysis: {'model_slug': str, 'date_range': {start, end}}
-    # app_analysis: {'app_number': int, 'filter_models': [str], 'date_range': {start, end}}
+    # app_analysis (template comparison): {'template_slug': str, 'filter_models': [str], 'date_range': {start, end}}
     # tool_analysis: {'tool_name': str (optional), 'filter_model': str (optional), 'filter_app': int (optional), 'date_range': {start, end}}
     config = db.Column(db.Text, nullable=False)  # JSON: Configuration specific to report type
     

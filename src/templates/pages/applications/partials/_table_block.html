@@ -6,7 +6,7 @@
 {% set statuses_selected_raw = request.args.get('status','') if request else '' %}
 {% set selected_statuses = statuses_selected_raw.split(',') if statuses_selected_raw else [] %}
 {% set selected_statuses = selected_statuses|select|list %}
-{% set type_val = request.args.get('type','') if request else '' %}
+{% set template_val = request.args.get('template','') if request else '' %}
 {% set per_page_val = request.args.get('per_page','25') if request else '25' %}
 {% set search_term = request.args.get('search','') if request else '' %}
 <div class="card card-table-compact mb-3">
@@ -55,7 +55,7 @@
       <div class="col-12">
         <div class="input-group input-group-flat">
           <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
-          <input type="text" id="application-search" class="form-control" placeholder="Search by model, app number, or type..." value="{{ search_term }}" onkeyup="debounceApplicationSearch()" aria-label="Search applications" />
+          <input type="text" id="application-search" class="form-control" placeholder="Search by model, app number, or template..." value="{{ search_term }}" onkeyup="debounceApplicationSearch()" aria-label="Search applications" />
           <button class="btn btn-outline-secondary" onclick="clearApplicationSearch()" type="button" title="Clear search" aria-label="Clear search"><i class="fas fa-xmark" aria-hidden="true"></i></button>
           <button class="btn btn-outline-primary" onclick="toggleApplicationsAdvancedFilters()" type="button" title="Advanced filters" aria-label="Toggle advanced filters">
             <i class="fas fa-filter me-1" aria-hidden="true"></i>
@@ -71,7 +71,7 @@
       <div class="card mb-3">
         <div class="card-body">
           <div class="row g-3">
-            <div class="col-md-6">
+            <div class="col-md-12">
               <label class="form-label">Status Filters</label>
               <div class="d-flex flex-wrap gap-2">
                 <label class="form-check">
@@ -93,19 +93,6 @@
                 <label class="form-check">
                   <input type="checkbox" class="form-check-input" id="filter-status-not-created" value="not_created" onchange="updateApplicationsAdvancedFilters()">
                   <span class="form-check-label">Not Created</span>
-                </label>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Type Filters</label>
-              <div class="d-flex flex-wrap gap-2">
-                <label class="form-check">
-                  <input type="checkbox" class="form-check-input" id="filter-type-react-flask" value="react-flask" onchange="updateApplicationsAdvancedFilters()">
-                  <span class="form-check-label">React + Flask</span>
-                </label>
-                <label class="form-check">
-                  <input type="checkbox" class="form-check-input" id="filter-type-other" value="other" onchange="updateApplicationsAdvancedFilters()">
-                  <span class="form-check-label">Other</span>
                 </label>
               </div>
             </div>
@@ -168,16 +155,18 @@
         </label>
       </div>
       <div class="col-auto">
-        <label class="d-flex align-items-center gap-2 mb-0" for="type-filter">
+        <label class="d-flex align-items-center gap-2 mb-0" for="template-filter">
           <span class="text-muted d-flex align-items-center gap-1">
-            <i class="fas fa-layer-group" aria-hidden="true"></i>
-            <span>Type</span>
+            <i class="fas fa-file-code" aria-hidden="true"></i>
+            <span>Template</span>
           </span>
-          <select class="form-select form-select-sm" style="min-width: 120px;" id="type-filter" onchange="applyApplicationFilters()" aria-label="Filter by type">
-            <option value="">All Types</option>
-            <option value="web_app" {% if type_val == 'web_app' %}selected{% endif %}>Web App</option>
-            <option value="api_service" {% if type_val == 'api_service' %}selected{% endif %}>API</option>
-            <option value="cli_tool" {% if type_val == 'cli_tool' %}selected{% endif %}>CLI</option>
+          <select class="form-select form-select-sm" style="min-width: 160px;" id="template-filter" onchange="applyApplicationFilters()" aria-label="Filter by template">
+            <option value="">All Templates</option>
+            {% if available_templates is defined %}
+              {% for tpl in available_templates %}
+              <option value="{{ tpl.slug }}" {% if tpl.slug == template_val %}selected{% endif %}>{{ tpl.name }}{% if tpl.category %} ({{ tpl.category }}){% endif %}</option>
+              {% endfor %}
+            {% endif %}
           </select>
         </label>
       </div>
@@ -197,7 +186,7 @@
 					<th scope="col" class="sortable" data-column="provider">Provider</th>
 					<th scope="col" class="text-center sortable" data-column="app_number">App</th>
 					<th scope="col" class="text-center sortable" data-column="created_at">Generated</th>
-					<th scope="col" class="sortable" data-column="app_type">Type</th>
+					<th scope="col" class="sortable" data-column="template_slug">Template</th>
 					<th scope="col" class="text-center sortable" data-column="container_status">Status</th>
 					<th scope="col">Ports</th>
 					<th scope="col" class="text-end sortable" data-column="container_size">Size</th>
@@ -226,7 +215,14 @@
 						{% endif %}
 					</td>
 					<td>
-						<span class="text-muted small">{{ app.app_type|replace('_', ' ')|title }}</span>
+						{% if app.template_slug %}
+							<span class="badge bg-indigo-lt" title="{{ app.template_slug }}">{{ app.template_name or app.template_slug }}</span>
+							{% if app.template_category %}
+							<span class="text-muted small d-block">{{ app.template_category }}</span>
+							{% endif %}
+						{% else %}
+							<span class="text-muted small">—</span>
+						{% endif %}
 					</td>
 					<td class="text-center">
 						{% set status_lower = app.status|lower|replace('_', ' ')|replace('?', '')|trim %}

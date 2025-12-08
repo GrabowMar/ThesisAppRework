@@ -14,15 +14,15 @@ def mock_reports_dir(tmp_path):
 # AppReportGenerator Tests
 # =============================================================================
 
-def test_validate_config_missing_app_number(mock_reports_dir):
-    """Test validation fails when app_number is missing."""
+def test_validate_config_missing_template_slug(mock_reports_dir):
+    """Test validation fails when template_slug is missing."""
     generator = AppReportGenerator(config={}, reports_dir=mock_reports_dir)
-    with pytest.raises(ValidationError, match="app_number is required"):
+    with pytest.raises(ValidationError, match="template_slug is required"):
         generator.validate_config()
 
 def test_validate_config_success(mock_reports_dir):
     """Test validation succeeds with valid config."""
-    generator = AppReportGenerator(config={'app_number': 1}, reports_dir=mock_reports_dir)
+    generator = AppReportGenerator(config={'template_slug': 'crud_todo_list'}, reports_dir=mock_reports_dir)
     try:
         generator.validate_config()
     except ValidationError:
@@ -30,7 +30,7 @@ def test_validate_config_success(mock_reports_dir):
 
 def test_get_template_name(mock_reports_dir):
     """Test template name is correct."""
-    generator = AppReportGenerator(config={'app_number': 1}, reports_dir=mock_reports_dir)
+    generator = AppReportGenerator(config={'template_slug': 'crud_todo_list'}, reports_dir=mock_reports_dir)
     assert generator.get_template_name() == 'partials/_app_comparison.html'
 
 
@@ -77,11 +77,11 @@ class TestGenerationMetadataHelpers:
     def test_app_generator_has_generation_comparison_method(self, mock_reports_dir):
         """Test that AppReportGenerator has generation comparison helper."""
         generator = AppReportGenerator(
-            config={'app_number': 1},
+            config={'template_slug': 'crud_todo_list'},
             reports_dir=mock_reports_dir
         )
-        assert hasattr(generator, '_get_generation_comparison_for_app')
-        assert callable(generator._get_generation_comparison_for_app)
+        assert hasattr(generator, '_get_generation_comparison_for_template')
+        assert callable(generator._get_generation_comparison_for_template)
     
     @patch('app.services.reports.model_report_generator.load_generation_records')
     def test_model_metadata_returns_dict_on_no_records(self, mock_load, mock_reports_dir):
@@ -104,10 +104,14 @@ class TestGenerationMetadataHelpers:
         mock_load.return_value = []
         
         generator = AppReportGenerator(
-            config={'app_number': 1},
+            config={'template_slug': 'crud_todo_list'},
             reports_dir=mock_reports_dir
         )
-        result = generator._get_generation_comparison_for_app(1, ['model-a', 'model-b'])
+        result = generator._get_generation_comparison_for_template(
+            'crud_todo_list', 
+            ['model-a', 'model-b'],
+            {'model-a': 1, 'model-b': 1}
+        )
         
         assert isinstance(result, dict)
         assert 'available' in result
@@ -149,8 +153,8 @@ class TestGenerationMetadataHelpers:
         assert result.get('total_tokens') == 4500  # 1000 + 2000 + 1500
     
     @patch('app.services.reports.app_report_generator.load_generation_records')
-    def test_app_comparison_filters_by_app_number(self, mock_load, mock_reports_dir):
-        """Test that app comparison only includes records for the specified app."""
+    def test_app_comparison_filters_by_template(self, mock_load, mock_reports_dir):
+        """Test that app comparison only includes records for the specified models and app numbers."""
         class MockRecord:
             def __init__(self, model, app_num, cost, tokens, time_ms, lines, provider):
                 self.model = model
@@ -167,18 +171,23 @@ class TestGenerationMetadataHelpers:
         
         mock_load.return_value = [
             MockRecord('model-a', 1, 0.01, 1000, 5000, 100, 'OpenAI'),
-            MockRecord('model-b', 1, 0.02, 2000, 8000, 200, 'Anthropic'),
-            MockRecord('model-a', 2, 0.03, 3000, 10000, 300, 'OpenAI'),  # Different app
+            MockRecord('model-b', 2, 0.02, 2000, 8000, 200, 'Anthropic'),
+            MockRecord('model-a', 3, 0.03, 3000, 10000, 300, 'OpenAI'),  # Different app
         ]
         
         generator = AppReportGenerator(
-            config={'app_number': 1},
+            config={'template_slug': 'crud_todo_list'},
             reports_dir=mock_reports_dir
         )
-        result = generator._get_generation_comparison_for_app(1, ['model-a', 'model-b'])
+        # Simulate that model-a used app 1 and model-b used app 2 for the template
+        result = generator._get_generation_comparison_for_template(
+            'crud_todo_list',
+            ['model-a', 'model-b'],
+            {'model-a': 1, 'model-b': 2}
+        )
         
         assert result.get('available') == True
-        # Should only have 2 models for app 1
+        # Should have 2 models matching their respective app numbers
         models = result.get('models', [])
         assert len(models) == 2
         model_slugs = [m.get('model_slug') for m in models]

@@ -94,12 +94,31 @@ def new_report():
     # Sort by container then display name
     tools_data.sort(key=lambda t: (t['container'], t['display_name']))
     
+    # Get available templates from generation service
+    from ...services.generation import get_generation_service
+    gen_service = get_generation_service()
+    templates_catalog = gen_service.get_template_catalog()
+    
+    # Simplify template data for the modal
+    templates_data = [
+        {
+            'slug': t.get('slug'),
+            'name': t.get('name'),
+            'category': t.get('category', 'general')
+        }
+        for t in templates_catalog
+        if t.get('slug') and t.get('name')
+    ]
+    # Sort by category then name
+    templates_data.sort(key=lambda t: (t['category'], t['name']))
+    
     # Return modal fragment for HTMX
     return render_template(
         'pages/reports/partials/_new_report_modal.html',
         models=models_data,
         apps_by_model=apps_by_model,
-        tools=tools_data
+        tools=tools_data,
+        templates=templates_data
     )
 
 @reports_bp.route('/view/<report_id>')

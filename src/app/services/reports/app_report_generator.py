@@ -1,8 +1,8 @@
 """
-App Report Generator
+Template Comparison Report Generator
 
-Generates cross-model comparison reports for a specific app.
-Shows how different models performed on the same application.
+Generates cross-model comparison reports for apps using the same template.
+Shows how different models performed when implementing the same requirements.
 Includes generation metadata (cost, tokens, time) for full context.
 """
 import logging
@@ -22,30 +22,31 @@ logger = logging.getLogger(__name__)
 
 
 class AppReportGenerator(BaseReportGenerator):
-    """Generator for app-centric cross-model comparison reports."""
+    """Generator for template-centric cross-model comparison reports."""
     
     def validate_config(self) -> None:
-        """Validate configuration for app report."""
-        app_number = self.config.get('app_number')
-        if app_number is None:
-            raise ValidationError("app_number is required for app analysis report")
+        """Validate configuration for template comparison report."""
+        template_slug = self.config.get('template_slug')
+        if not template_slug:
+            raise ValidationError("template_slug is required for template comparison report")
     
     def get_template_name(self) -> str:
-        """Get template name for app reports."""
+        """Get template name for template comparison reports."""
         return 'partials/_app_comparison.html'
     
     def collect_data(self) -> Dict[str, Any]:
         """
-        Collect all analysis data for a specific app across all models.
+        Collect all analysis data for apps using a specific template across all models.
         
-        Hybrid approach:
-        1. Query database for all completed tasks for this app number
-        2. Load detailed findings from consolidated JSON files
-        3. Compare models' performance on the same app
+        Template-based approach:
+        1. Query database for all GeneratedApplications with matching template_slug
+        2. Find completed analysis tasks for those apps
+        3. Load detailed findings from consolidated JSON files
+        4. Compare models' performance on the same template requirements
         """
         self.validate_config()
         
-        app_number = self.config.get('app_number')
+        template_slug = self.config.get('template_slug')
         date_range = self.config.get('date_range', {})
         filter_models = self.config.get('filter_models', [])  # Optional: limit to specific models
         
@@ -54,18 +55,34 @@ class AppReportGenerator(BaseReportGenerator):
         if single_model and not filter_models:
             filter_models = [single_model]
         
-        logger.info(f"Collecting app comparison report data for app {app_number}" + 
+        logger.info(f"Collecting template comparison report data for template '{template_slug}'" + 
                     (f" (filtered to models: {filter_models})" if filter_models else ""))
         
-        # Step 1: Query database for all tasks for this app (fast filtering)
-        # Include completed AND failed analyses to support Option B (placeholder for failures)
+        # Step 1: Find all apps that used this template
+        apps_query = db.session.query(GeneratedApplication).filter(
+            GeneratedApplication.template_slug == template_slug
+        )
+        
+        # Apply model filter if provided
+        if filter_models:
+            apps_query = apps_query.filter(GeneratedApplication.model_slug.in_(filter_models))
+        
+        apps = apps_query.all()
+        
+        if not apps:
+            logger.warning(f"No apps found using template '{template_slug}'")
+            return self._empty_report_data(template_slug, date_range)
+        
+        # Build a map of (model_slug, app_number) for the apps using this template
+        app_identifiers = [(app.model_slug, app.app_number) for app in apps]
+        
+        # Step 2: Query analysis tasks for these specific apps
+        # We need to find tasks where (target_model, target_app_number) matches our apps
+        # Only include COMPLETED or PARTIAL_SUCCESS - don't pollute report with failed analyses
         query = db.session.query(AnalysisTask).filter(
-            AnalysisTask.target_app_number == app_number,
             AnalysisTask.status.in_([
                 AnalysisStatus.COMPLETED,
-                AnalysisStatus.PARTIAL_SUCCESS,
-                AnalysisStatus.FAILED,
-                AnalysisStatus.CANCELLED
+                AnalysisStatus.PARTIAL_SUCCESS
             ])
         )
         
@@ -75,26 +92,39 @@ class AppReportGenerator(BaseReportGenerator):
         if date_range.get('end'):
             query = query.filter(AnalysisTask.completed_at <= date_range['end'])
         
-        # Apply model filter if provided
-        if filter_models:
-            query = query.filter(AnalysisTask.target_model.in_(filter_models))
+        # Filter to only tasks for apps using this template
+        # Use OR conditions for each (model, app_number) pair
+        from sqlalchemy import or_, and_
+        app_conditions = [
+            and_(
+                AnalysisTask.target_model == model_slug,
+                AnalysisTask.target_app_number == app_number
+            )
+            for model_slug, app_number in app_identifiers
+        ]
+        
+        if app_conditions:
+            query = query.filter(or_(*app_conditions))
         
         tasks = query.order_by(
             AnalysisTask.target_model,
             AnalysisTask.completed_at.desc()
         ).all()
         
-        # Allow empty results with a warning - report will show placeholder for failed analyses
+        # Return empty report if no successful analyses exist
         if not tasks:
-            logger.warning(f"No completed or failed analyses found for app {app_number}, creating placeholder entry")
-            tasks = []  # Continue with empty list - will create placeholder data
+            logger.warning(f"No successful analyses found for template '{template_slug}' - cannot generate comparison report")
+            return self._empty_report_data(template_slug, date_range)
         
-        # Step 2: Load detailed results from filesystem (complete data)
+        # Step 3: Load detailed results from filesystem (complete data)
         unified_service = ServiceLocator().get_unified_result_service()
         
         models_data = []
         all_findings = []
         all_tools = set()
+        
+        # Build a lookup for app info by (model_slug, app_number)
+        apps_lookup = {(app.model_slug, app.app_number): app for app in apps}
         
         # Group tasks by model and get latest for each model
         models_map = {}
@@ -108,50 +138,14 @@ class AppReportGenerator(BaseReportGenerator):
             model_tasks = models_map[model_slug]
             latest_task = model_tasks[0]  # Already sorted by completed_at desc
             
-            # Check if task failed - create placeholder entry (Option B)
-            if latest_task.status in (AnalysisStatus.FAILED, AnalysisStatus.CANCELLED):
-                logger.info(f"Creating placeholder for failed/cancelled task {latest_task.task_id}")
-                models_data.append({
-                    'model_slug': model_slug,
-                    'task_id': latest_task.task_id,
-                    'completed_at': latest_task.completed_at.isoformat() if latest_task.completed_at else None,
-                    'duration_seconds': 0.0,
-                    'app_name': f"{model_slug} / App {app_number}",
-                    'app_description': None,
-                    'findings_count': 0,
-                    'severity_counts': {},
-                    'tools': {},
-                    'tools_successful': 0,
-                    'tools_failed': 0,
-                    'findings': [],
-                    'all_tasks_count': len(model_tasks),
-                    'analysis_status': 'failed',
-                    'error_message': latest_task.error_message or 'Analysis failed or was cancelled',
-                })
-                continue
+            # Get the app info for this task
+            app_info = apps_lookup.get((latest_task.target_model, latest_task.target_app_number))
             
             # Load consolidated results for completed/partial success tasks
             result = unified_service.load_analysis_results(latest_task.task_id)
             
             if not result or not result.raw_data:
-                logger.warning(f"No results found for task {latest_task.task_id}, creating placeholder")
-                models_data.append({
-                    'model_slug': model_slug,
-                    'task_id': latest_task.task_id,
-                    'completed_at': latest_task.completed_at.isoformat() if latest_task.completed_at else None,
-                    'duration_seconds': 0.0,
-                    'app_name': f"{model_slug} / App {app_number}",
-                    'app_description': None,
-                    'findings_count': 0,
-                    'severity_counts': {},
-                    'tools': {},
-                    'tools_successful': 0,
-                    'tools_failed': 0,
-                    'findings': [],
-                    'all_tasks_count': len(model_tasks),
-                    'analysis_status': 'no_results',
-                    'error_message': 'No analysis results available',
-                })
+                logger.warning(f"No results found for task {latest_task.task_id}, skipping model")
                 continue
             
             raw_data = result.raw_data
@@ -170,11 +164,7 @@ class AppReportGenerator(BaseReportGenerator):
                 for f in findings
             ])
             
-            # Get app metadata for this model
-            app = db.session.query(GeneratedApplication).filter(
-                GeneratedApplication.model_slug == model_slug,
-                GeneratedApplication.app_number == app_number
-            ).first()
+            # Use app_info from our lookup (already retrieved above)
             
             # Extract tool success/failure counts - handle both integer and list formats
             tools_successful = summary.get('tools_successful', 0)
@@ -201,12 +191,17 @@ class AppReportGenerator(BaseReportGenerator):
             if duration_seconds is None:
                 duration_seconds = 0.0
             
+            # Get app number from app_info
+            app_number = app_info.app_number if app_info else latest_task.target_app_number
+            
             models_data.append({
                 'model_slug': model_slug,
                 'task_id': latest_task.task_id,
+                'app_number': app_number,
+                'template_slug': template_slug,
                 'completed_at': latest_task.completed_at.isoformat() if latest_task.completed_at else None,
                 'duration_seconds': float(duration_seconds),
-                'app_name': f"{model_slug} / App {app_number}",  # Constructed, not from model
+                'app_name': f"{model_slug} / {template_slug}",
                 'app_description': None,  # GeneratedApplication has no description field
                 'findings_count': findings_count,
                 'severity_counts': summary.get('findings_by_severity', {}),
@@ -272,23 +267,28 @@ class AppReportGenerator(BaseReportGenerator):
                     tool_usage[tool_name]['success_rate_by_model'][model_data['model_slug']] = success
         
         # Load generation metadata for cost/token comparison across models
-        generation_comparison = self._get_generation_comparison_for_app(app_number, [m['model_slug'] for m in models_data])
+        # Collect all app numbers used by this template for generation stats
+        app_numbers_by_model = {m['model_slug']: m.get('app_number') for m in models_data}
+        generation_comparison = self._get_generation_comparison_for_template(
+            template_slug, 
+            [m['model_slug'] for m in models_data],
+            app_numbers_by_model
+        )
         
-        # Count successful vs failed analyses
-        successful_analyses = [m for m in models_data if m.get('analysis_status') == 'completed']
-        failed_analyses = [m for m in models_data if m.get('analysis_status') in ('failed', 'no_results')]
+        # All models in models_data are from successful analyses now
+        successful_analyses = len(models_data)
         
         # Compile final data structure
         data = {
-            'report_type': 'app_comparison',
-            'app_number': app_number,
+            'report_type': 'template_comparison',
+            'template_slug': template_slug,
             'timestamp': utc_now().isoformat(),
             'date_range': date_range,
             'models': models_data,
             'models_count': len(models_data),
             'total_tasks': len(tasks),
-            'successful_analyses': len(successful_analyses),
-            'failed_analyses': len(failed_analyses),
+            'successful_analyses': successful_analyses,
+            'failed_analyses': 0,  # We no longer include failed analyses
             'comparison': {
                 'best_performing_model': best_model,
                 'worst_performing_model': worst_model,
@@ -305,26 +305,60 @@ class AppReportGenerator(BaseReportGenerator):
         return data
     
     def generate_summary(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate summary for app comparison report."""
+        """Generate summary for template comparison report."""
         return {
-            'app_number': data.get('app_number'),
+            'template_slug': data.get('template_slug'),
             'models_compared': data.get('models_count', 0),
             'common_findings': data.get('comparison', {}).get('common_findings_count', 0),
             'best_model': data.get('comparison', {}).get('best_performing_model'),
             'generated_at': data.get('timestamp')
         }
     
-    def _get_generation_comparison_for_app(self, app_number: int, model_slugs: List[str]) -> Dict[str, Any]:
+    def _empty_report_data(self, template_slug: str, date_range: Dict[str, Any]) -> Dict[str, Any]:
+        """Return empty report structure when no apps found for template."""
+        return {
+            'report_type': 'template_comparison',
+            'template_slug': template_slug,
+            'timestamp': utc_now().isoformat(),
+            'date_range': date_range,
+            'models': [],
+            'models_count': 0,
+            'total_tasks': 0,
+            'successful_analyses': 0,
+            'failed_analyses': 0,
+            'comparison': {
+                'best_performing_model': None,
+                'worst_performing_model': None,
+                'common_findings': [],
+                'common_findings_count': 0,
+                'unique_findings': [],
+                'unique_findings_count': 0,
+                'tool_usage': {}
+            },
+            'generation_comparison': {'available': False, 'message': 'No apps found for this template'}
+        }
+    
+    def _get_generation_comparison_for_template(
+        self, 
+        template_slug: str, 
+        model_slugs: List[str],
+        app_numbers_by_model: Dict[str, int]
+    ) -> Dict[str, Any]:
         """
-        Load generation metadata for comparing models on a specific app.
+        Load generation metadata for comparing models on a specific template.
         
         Returns per-model generation stats (cost, tokens, time, lines).
         """
         try:
             records = load_generation_records(include_files=True, include_db=True, include_applications=True)
             
-            # Filter to this app number and models
-            app_records = [r for r in records if r.app_num == app_number and r.model in model_slugs]
+            # Filter to models in our list and their corresponding app numbers
+            app_records = []
+            for r in records:
+                if r.model in model_slugs:
+                    expected_app_num = app_numbers_by_model.get(r.model)
+                    if expected_app_num is not None and r.app_num == expected_app_num:
+                        app_records.append(r)
             
             if not app_records:
                 return {'available': False, 'message': 'No generation metadata found'}
@@ -394,5 +428,5 @@ class AppReportGenerator(BaseReportGenerator):
                 'avg_cost_per_model': round(total_cost / len(models_list), 6) if models_list else 0
             }
         except Exception as e:
-            logger.warning(f"Failed to load generation comparison for app {app_number}: {e}")
+            logger.warning(f"Failed to load generation comparison for template {template_slug}: {e}")
             return {'available': False, 'error': str(e)}

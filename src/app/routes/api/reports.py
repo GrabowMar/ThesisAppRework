@@ -73,8 +73,8 @@ def generate_report():
             "model_slug": "openai_gpt-4",
             "date_range": {"start": "2025-01-01", "end": "2025-12-31"}  // optional
             
-            // For app_analysis:
-            "app_number": 1,
+            // For app_analysis (template comparison):
+            "template_slug": "crud_todo_list",
             "filter_models": ["model1", "model2"],  // optional
             "date_range": {"start": "2025-01-01", "end": "2025-12-31"}  // optional
             
@@ -116,8 +116,8 @@ def generate_report():
             if not config.get('model_slug'):
                 return jsonify({'success': False, 'error': 'model_slug required for model_analysis'}), 400
         elif report_type == 'app_analysis':
-            if config.get('app_number') is None:
-                return jsonify({'success': False, 'error': 'app_number required for app_analysis'}), 400
+            if not config.get('template_slug'):
+                return jsonify({'success': False, 'error': 'template_slug required for app_analysis (template comparison)'}), 400
         # tool_analysis is flexible - no required fields
         
         # Get service

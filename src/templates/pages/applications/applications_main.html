@@ -41,7 +41,7 @@
     const modelFilter = modelSelect ? Array.from(modelSelect.selectedOptions).map(opt => opt.value).filter(Boolean).join(',') : '';
     const statusSelect = document.getElementById('status-filter');
     const statusFilter = statusSelect ? Array.from(statusSelect.selectedOptions).map(opt => opt.value).filter(Boolean).join(',') : '';
-    const typeFilter = document.getElementById('type-filter')?.value;
+    const templateFilter = document.getElementById('template-filter')?.value;
     const perPageSelect = document.getElementById('apps-per-page');
     const perPageValue = extra.per_page || perPageSelect?.value;
     
@@ -49,7 +49,7 @@
     if (search) params.set('search', search);
     if (modelFilter) params.set('model', modelFilter);
     if (statusFilter) params.set('status', statusFilter);
-    if (typeFilter) params.set('type', typeFilter);
+    if (templateFilter) params.set('template', templateFilter);
     if (perPageValue) params.set('per_page', perPageValue);
     if (extra.page) params.set('page', extra.page);
 
@@ -95,7 +95,6 @@
       filterInputIds: [
         'filter-status-running', 'filter-status-stopped', 'filter-status-error',
         'filter-status-pending', 'filter-status-not-created',
-        'filter-type-react-flask', 'filter-type-other',
         'filter-date-from', 'filter-date-to'
       ]
     });
@@ -119,12 +118,12 @@
       const search = document.getElementById('application-search')?.value;
       const modelFilter = document.getElementById('model-filter')?.value;
       const statusFilter = document.getElementById('status-filter')?.value;
-      const typeFilter = document.getElementById('type-filter')?.value;
+      const templateFilter = document.getElementById('template-filter')?.value;
       
       if (search) params.set('search', search);
       if (modelFilter) params.set('model', modelFilter);
       if (statusFilter) params.set('status', statusFilter);
-      if (typeFilter) params.set('type', typeFilter);
+      if (templateFilter) params.set('template', templateFilter);
       
       TableUtils.exportTable('/api/export/applications', format, params);
     } else {
@@ -154,11 +153,6 @@
       if (document.getElementById(`filter-status-${status}`)?.checked) activeCount++;
     });
     
-    // Count checked type filters
-    ['react-flask', 'other'].forEach(type => {
-      if (document.getElementById(`filter-type-${type}`)?.checked) activeCount++;
-    });
-    
     // Count date range filters
     if (document.getElementById('filter-date-from')?.value) activeCount++;
     if (document.getElementById('filter-date-to')?.value) activeCount++;
@@ -180,11 +174,11 @@
     // Get basic filter values
     const search = document.getElementById('application-search')?.value;
     const modelFilter = document.getElementById('model-filter')?.value;
-    const typeFilter = document.getElementById('type-filter')?.value;
+    const templateFilter = document.getElementById('template-filter')?.value;
     
     if (search) params.set('search', search);
     if (modelFilter) params.set('model', modelFilter);
-    if (typeFilter) params.set('type', typeFilter);
+    if (templateFilter) params.set('template', templateFilter);
     
     // Get advanced status filters (multiple checkboxes)
     const statusFilters = [];
@@ -220,12 +214,6 @@
     // Clear status checkboxes
     ['running', 'stopped', 'error', 'pending', 'not-created'].forEach(status => {
       const checkbox = document.getElementById(`filter-status-${status}`);
-      if (checkbox) checkbox.checked = false;
-    });
-    
-    // Clear type checkboxes
-    ['react-flask', 'other'].forEach(type => {
-      const checkbox = document.getElementById(`filter-type-${type}`);
       if (checkbox) checkbox.checked = false;
     });
     

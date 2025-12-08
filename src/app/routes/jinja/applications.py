@@ -37,6 +37,16 @@ def require_authentication():
 
 def build_applications_context():
     """Build context for Applications overview using application-centric filtering and pagination."""
+    # Load template catalog for enriching apps with template metadata
+    from app.services.service_locator import ServiceLocator
+    try:
+        gen_service = ServiceLocator.get_generation_service()
+        template_catalog = gen_service.get_template_catalog() if gen_service else []
+        template_map = {t['slug']: t for t in template_catalog}
+    except Exception:
+        template_catalog = []
+        template_map = {}
+    
     # Filter & table state parameters
     model_filter_raw = (request.args.get('model') or '').strip()
     # Accept comma-separated slugs
@@ -45,7 +55,7 @@ def build_applications_context():
     search_filter = (request.args.get('search') or '').strip()
     status_filter_raw = (request.args.get('status') or '').strip()  # comma-aware
     status_filters = [s.strip().lower() for s in status_filter_raw.split(',') if s.strip()]
-    type_filter = (request.args.get('type') or '').strip()
+    template_filter = (request.args.get('template') or '').strip()  # Changed from type_filter
     ports_filter = (request.args.get('ports') or '').strip()
     analysis_filter = (request.args.get('analysis') or '').strip()
     # Enhanced sorting: support column name + direction
@@ -88,7 +98,7 @@ def build_applications_context():
         'model_slug': GeneratedApplication.model_slug,
         'provider': GeneratedApplication.provider,
         'app_number': GeneratedApplication.app_number,
-        'app_type': GeneratedApplication.app_type,
+        'template_slug': GeneratedApplication.template_slug,
         'container_status': GeneratedApplication.container_status,
         'created_at': GeneratedApplication.created_at
     }
@@ -183,6 +193,12 @@ def build_applications_context():
         
         if status == 'running':
             running_count += 1
+        
+        # Get template metadata from catalog
+        template_info = template_map.get(r.template_slug, {})
+        template_name = template_info.get('name', r.template_slug) if r.template_slug else None
+        template_category = template_info.get('category', '') if r.template_slug else ''
+        
         applications_all.append({
             'model_slug': r.model_slug,
             'model_provider': model_provider,
@@ -190,7 +206,9 @@ def build_applications_context():
             'app_number': r.app_number,
             'status': status,
             'id': r.id,
-            'app_type': r.app_type or 'web_app',
+            'template_slug': r.template_slug,
+            'template_name': template_name,
+            'template_category': template_category,
             'ports': derived_ports,
             'container_size': None,
             'analysis_status': 'none',
@@ -203,8 +221,8 @@ def build_applications_context():
         if not status_filters:
             return True
         return (a.get('status') or '').lower() in status_filters
-    def _passes_type(a: dict) -> bool:
-        return (not type_filter) or (a.get('app_type') == type_filter)
+    def _passes_template(a: dict) -> bool:
+        return (not template_filter) or (a.get('template_slug') == template_filter)
     def _passes_ports(a: dict) -> bool:
         if not ports_filter:
             return True
@@ -227,7 +245,7 @@ def build_applications_context():
             return (a.get('analysis_status') in (None, '', 'none'))
         return True
 
-    filtered_apps = [a for a in applications_all if _passes_status(a) and _passes_type(a) and _passes_ports(a) and _passes_analysis(a)]
+    filtered_apps = [a for a in applications_all if _passes_status(a) and _passes_template(a) and _passes_ports(a) and _passes_analysis(a)]
 
     # Sort applications
     if sort_field in ('model', 'model_desc'):
@@ -272,6 +290,17 @@ def build_applications_context():
         'analyzed_applications': analyzed_count,
         'unique_models': len({r.model_slug for r in rows}),
     }
+    
+    # Get unique templates that have generated apps (for filter dropdown)
+    available_templates = []
+    used_template_slugs = sorted({r.template_slug for r in rows if r.template_slug})
+    for slug in used_template_slugs:
+        info = template_map.get(slug, {})
+        available_templates.append({
+            'slug': slug,
+            'name': info.get('name', slug),
+            'category': info.get('category', '')
+        })
 
     context = {
         'total_apps': total_apps_overall,
@@ -283,6 +312,7 @@ def build_applications_context():
         'total_applications': total_apps_overall,
         'total_count': total_filtered,
         'available_models': available_models,
+        'available_templates': available_templates,
         'stats': stats,
         'applications_stats': stats,
         'current_filters': {
@@ -290,6 +320,7 @@ def build_applications_context():
             'provider': provider_filter,
             'search': search_filter,
             'status': status_filter_raw,
+            'template': template_filter,
             'sort': sort_field,
             'page': page,
             'per_page': per_page,

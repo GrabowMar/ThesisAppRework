@@ -242,8 +242,8 @@ class ReportGenerationService:
             return f"Model Analysis Report: {model}"
         
         elif report_type == 'app_analysis':
-            app = config.get('app_number', 'unknown')
-            return f"App Comparison Report: App #{app}"
+            template = config.get('template_slug', 'unknown')
+            return f"Template Comparison Report: {template}"
         
         elif report_type == 'tool_analysis':
             tool = config.get('tool_name', 'All Tools')

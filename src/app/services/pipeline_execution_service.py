@@ -582,24 +582,36 @@ class PipelineExecutionService:
                         )
                 
                 elif report_type == 'app_analysis':
-                    # Generate cross-model comparison for each app number
-                    unique_app_numbers = list(set(r.get('app_number') for r in apps_with_analysis))
-                    for app_number in unique_app_numbers:
-                        models_for_app = [r.get('model_slug') for r in apps_with_analysis 
-                                         if r.get('app_number') == app_number]
+                    # Generate cross-model comparison for each template
+                    # Group apps by template_slug
+                    templates_to_models = {}
+                    for r in apps_with_analysis:
+                        template = r.get('template_slug')
+                        if template:
+                            if template not in templates_to_models:
+                                templates_to_models[template] = []
+                            templates_to_models[template].append(r.get('model_slug'))
+                    
+                    for template_slug, models_for_template in templates_to_models.items():
+                        # Deduplicate models
+                        unique_models = list(set(models_for_template))
                         report_config = {
-                            'app_number': app_number,
-                            'filter_models': models_for_app,
+                            'template_slug': template_slug,
+                            'filter_models': unique_models,
                         }
                         
                         report = report_service.generate_report(
                             report_type=report_type,
                             format=report_format,
                             config=report_config,
-                            title=f"Pipeline Report - App {app_number} ({len(models_for_app)} models)",
+                            title=f"Pipeline Report - {template_slug} ({len(unique_models)} models)",
                             user_id=pipeline.user_id,
                         )
                         created_reports.append(report.report_id)
+                        self._log(
+                            "Generated template comparison report for %s with %d models",
+                            template_slug, len(unique_models)
+                        )
                 
                 elif report_type == 'tool_analysis':
                     # Tool effectiveness report across all apps in pipeline
