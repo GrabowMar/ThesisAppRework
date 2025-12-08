@@ -497,6 +497,14 @@ def create_app(config_name: str = 'default') -> Flask:
             logger.warning(f"Task execution service not started: {_exec_err}")
             logger.warning("Web app analyses will NOT generate result files until service is started")
         
+        # Initialize pipeline execution service for automation pipelines
+        try:  # pragma: no cover - wiring
+            from app.services.pipeline_execution_service import init_pipeline_execution_service
+            pipeline_svc = init_pipeline_execution_service(app=app)
+            logger.info(f"Pipeline execution service initialized (poll_interval={pipeline_svc.poll_interval}s)")
+        except Exception as _pipeline_err:  # pragma: no cover
+            logger.warning(f"Pipeline execution service not started: {_pipeline_err}")
+        
         # Validate and fix model IDs on startup (provider namespace normalization, case fixes)
         try:  # pragma: no cover - maintenance task
             with app.app_context():

@@ -39,6 +39,7 @@ from .simple_tool_results import ToolResult, ToolSummary
 from .user import User
 from .report import Report
 from .pipeline_settings import PipelineSettings
+from .pipeline import PipelineExecution, PipelineExecutionStatus
 
 from ..utils.time import utc_now
 
@@ -64,6 +65,8 @@ __all__ = [
     'User',
     'Report',
     'PipelineSettings',
+    'PipelineExecution',
+    'PipelineExecutionStatus',
 
     # Utility function
     'utc_now'

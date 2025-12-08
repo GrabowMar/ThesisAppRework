@@ -793,16 +793,32 @@ async function pollPipelineStatus() {
             throw new Error('Failed to fetch status');
         }
         
-        const data = await response.json();
+        const result = await response.json();
         
-        // Update state
+        if (!result.success || !result.data) {
+            throw new Error(result.error || 'Invalid response');
+        }
+        
+        const data = result.data;
+        
+        // Update state from database-backed pipeline
         wizard.state.status = data.status;
-        wizard.state.currentJob = data.current_job;
-        wizard.state.completedJobs = data.completed_jobs || [];
+        wizard.state.currentJob = data.current_job || null;
+        wizard.state.completedJobs = []; // Will be built from progress
         
-        // Update UI
+        // Update UI with progress from each stage
+        updateStageProgress('generation', data.progress?.generation);
+        updateStageProgress('analysis', data.progress?.analysis);
+        updateStageProgress('reports', data.progress?.reports);
+        
+        // Update overall progress
+        updateOverallProgress(data.overall_progress || 0);
+        
+        // Update current stage indicator
+        updateCurrentStage(data.stage);
+        
+        // Update execution UI
         updateExecutionUI();
-        updateMetricsPanel(data);
         
         // Check for completion
         if (['completed', 'failed', 'cancelled'].includes(data.status)) {
@@ -814,6 +830,107 @@ async function pollPipelineStatus() {
     } catch (error) {
         console.error('Status poll error:', error);
         // Don't stop polling on error, might be temporary
+    }
+}
+
+/**
+ * Update progress display for a specific stage
+ */
+function updateStageProgress(stageName, progress) {
+    if (!progress) return;
+    
+    const total = progress.total || 0;
+    const completed = progress.completed || 0;
+    const failed = progress.failed || 0;
+    const done = completed + failed;
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    
+    // Update count badge
+    const countEl = document.getElementById(`stage-count-${stageName}`);
+    if (countEl) {
+        countEl.textContent = `${done}/${total}`;
+    }
+    
+    // Update progress bar
+    const progressEl = document.getElementById(`stage-progress-${stageName}`);
+    if (progressEl) {
+        progressEl.style.width = `${pct}%`;
+    }
+    
+    // Update status text
+    const statusEl = document.getElementById(`stage-status-${stageName}`);
+    if (statusEl) {
+        if (progress.status === 'skipped') {
+            statusEl.textContent = 'Skipped';
+        } else if (progress.status === 'completed') {
+            statusEl.textContent = failed > 0 ? `Done (${failed} failed)` : 'Completed';
+        } else if (progress.status === 'running') {
+            statusEl.textContent = 'Running...';
+        } else {
+            statusEl.textContent = 'Pending';
+        }
+    }
+    
+    // Update card styling based on status
+    const cardEl = document.getElementById(`stage-card-${stageName}`);
+    if (cardEl) {
+        cardEl.classList.remove('border-primary', 'border-success', 'border-danger');
+        if (progress.status === 'running') {
+            cardEl.classList.add('border-primary');
+        } else if (progress.status === 'completed') {
+            cardEl.classList.add(failed > 0 ? 'border-warning' : 'border-success');
+        }
+    }
+    
+    // Update icon
+    const iconEl = document.getElementById(`stage-icon-${stageName}`);
+    if (iconEl) {
+        const icon = iconEl.querySelector('i');
+        if (icon) {
+            icon.classList.remove('fa-spin');
+            if (progress.status === 'running') {
+                icon.classList.add('fa-spin');
+            }
+        }
+    }
+    
+    // Add to activity log for new completions
+    if (progress.status === 'completed' && done === total && total > 0) {
+        addActivityLog(`${stageName.charAt(0).toUpperCase() + stageName.slice(1)} stage completed (${completed} success, ${failed} failed)`, 
+                       failed > 0 ? 'warning' : 'success');
+    }
+}
+
+/**
+ * Update overall progress bar
+ */
+function updateOverallProgress(pct) {
+    const progressBar = document.getElementById('overall-progress-bar');
+    const progressText = document.getElementById('overall-progress-text');
+    
+    if (progressBar) {
+        progressBar.style.width = `${pct}%`;
+        progressBar.setAttribute('aria-valuenow', pct);
+    }
+    if (progressText) {
+        progressText.textContent = `${Math.round(pct)}%`;
+    }
+}
+
+/**
+ * Update current stage indicator
+ */
+function updateCurrentStage(stage) {
+    // Update metrics panel
+    const stageText = document.getElementById('metrics-current-stage');
+    if (stageText) {
+        const stageNames = {
+            'generation': 'Generation',
+            'analysis': 'Analysis', 
+            'reports': 'Reports',
+            'done': 'Complete'
+        };
+        stageText.textContent = stageNames[stage] || stage;
     }
 }
 
@@ -833,6 +950,83 @@ function startElapsedTimer() {
 /**
  * Stop elapsed time counter
  */
+/**
+ * Check for an active pipeline and restore it on page load
+ */
+async function checkAndRestoreActivePipeline() {
+    const wizard = AutomationWizard;
+    
+    try {
+        const response = await fetch('/automation/api/pipelines/active', {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        
+        if (!response.ok) {
+            return; // No active pipeline or error
+        }
+        
+        const result = await response.json();
+        
+        if (!result.success || !result.data) {
+            return; // No active pipeline
+        }
+        
+        const pipeline = result.data;
+        
+        // Restore pipeline state
+        wizard.state.pipelineId = pipeline.id;
+        wizard.state.status = pipeline.status;
+        wizard.state.startTime = pipeline.started_at ? new Date(pipeline.started_at).getTime() : Date.now();
+        
+        // Update hidden form fields
+        document.getElementById('pipeline-id').value = pipeline.id;
+        document.getElementById('pipeline-status').value = pipeline.status;
+        
+        // Restore config if available
+        if (pipeline.config) {
+            wizard.config = {
+                ...wizard.config,
+                models: pipeline.config.models || [],
+                templates: pipeline.config.templates || [],
+                analysisProfile: pipeline.config.analysis_profile || 'comprehensive',
+                enableGeneration: pipeline.config.stages?.generation ?? true,
+                enableAnalysis: pipeline.config.stages?.analysis ?? true,
+                enableReports: pipeline.config.stages?.reports ?? true
+            };
+        }
+        
+        // Navigate to execution panel
+        goToStep(5);
+        
+        // Update UI with current status
+        updateExecutionUI();
+        
+        // Update progress from pipeline data
+        if (pipeline.progress) {
+            updateStageProgress('generation', pipeline.progress.generation);
+            updateStageProgress('analysis', pipeline.progress.analysis);
+            updateStageProgress('reports', pipeline.progress.reports);
+            updateOverallProgress(pipeline.overall_progress || 0);
+            updateCurrentStage(pipeline.stage);
+        }
+        
+        // Start polling if pipeline is still running
+        if (['running', 'pending'].includes(pipeline.status)) {
+            startStatusPolling();
+            startElapsedTimer();
+            addActivityLog('Reconnected to active pipeline', 'info');
+        } else {
+            // Show completion state
+            onPipelineComplete(pipeline);
+        }
+        
+        console.log('Restored active pipeline:', pipeline.id);
+        
+    } catch (error) {
+        console.error('Error checking for active pipeline:', error);
+    }
+}
+
 function stopElapsedTimer() {
     const wizard = AutomationWizard;
     
@@ -874,6 +1068,7 @@ function updateExecutionUI() {
     const statusBadge = document.getElementById('exec-status-badge');
     if (statusBadge) {
         const statusColors = {
+            'pending': 'bg-secondary',
             'running': 'bg-primary',
             'paused': 'bg-warning',
             'completed': 'bg-success',
@@ -884,26 +1079,13 @@ function updateExecutionUI() {
         statusBadge.textContent = wizard.state.status.charAt(0).toUpperCase() + wizard.state.status.slice(1);
     }
     
-    // Update overall progress
-    const totalJobs = wizard.config.templates.length * wizard.config.models.length * 3; // gen + analysis + report
-    const completedCount = wizard.state.completedJobs.length;
-    const progress = totalJobs > 0 ? Math.round((completedCount / totalJobs) * 100) : 0;
-    
-    const progressBar = document.getElementById('overall-progress-bar');
-    const progressText = document.getElementById('overall-progress-text');
-    
-    if (progressBar) {
-        progressBar.style.width = `${progress}%`;
-        progressBar.setAttribute('aria-valuenow', progress);
-    }
-    if (progressText) {
-        progressText.textContent = `${progress}%`;
-    }
+    // Note: Overall progress is now updated by updateOverallProgress() called from pollPipelineStatus()
+    // Stage progress is updated by updateStageProgress() called from pollPipelineStatus()
     
     // Update current job details
     updateCurrentJobDetails();
     
-    // Update completed jobs table
+    // Update completed jobs table (legacy - may need to convert to activity log)
     updateCompletedJobsTable();
     
     // Update control buttons
@@ -1361,8 +1543,13 @@ function resetWizard() {
  * Initialize wizard on page load
  */
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize at step 1
-    goToStep(1);
+    // Check for active pipeline first
+    checkAndRestoreActivePipeline();
+    
+    // Initialize at step 1 (if no active pipeline)
+    if (!AutomationWizard.state.pipelineId) {
+        goToStep(1);
+    }
     
     // Load analysis tools
     loadAnalysisTools();

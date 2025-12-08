@@ -16,7 +16,7 @@ from flask_login import current_user
 
 from app.services.generation import get_generation_service
 from app.services.service_locator import ServiceLocator
-from app.models import ModelCapability, GeneratedApplication, AnalysisTask, PipelineSettings
+from app.models import ModelCapability, GeneratedApplication, AnalysisTask, PipelineSettings, PipelineExecution, PipelineExecutionStatus
 from app.constants import AnalysisStatus
 from app.extensions import db
 
@@ -187,6 +187,29 @@ def _load_user_settings(user_id: int) -> List[Dict[str, Any]]:
         return []
 
 
+def _load_recent_pipelines(user_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+    """Load recent pipeline executions for a user."""
+    try:
+        pipelines = PipelineExecution.get_user_pipelines(user_id, limit=limit)
+        return [p.to_dict() for p in pipelines]
+    except Exception as exc:
+        current_app.logger.exception("Failed to load recent pipelines", exc_info=exc)
+        return []
+
+
+def _get_active_pipeline(user_id: int) -> Optional[Dict[str, Any]]:
+    """Get the currently active (running) pipeline for a user."""
+    try:
+        pipeline = PipelineExecution.query.filter_by(
+            user_id=user_id,
+            status=PipelineExecutionStatus.RUNNING
+        ).order_by(PipelineExecution.created_at.desc()).first()
+        return pipeline.to_dict() if pipeline else None
+    except Exception as exc:
+        current_app.logger.exception("Failed to get active pipeline", exc_info=exc)
+        return None
+
+
 @automation_bp.route('/')
 def index():
     """Main automation pipeline interface."""
@@ -195,6 +218,8 @@ def index():
     templates = _load_available_templates()
     existing_apps = _load_existing_apps()
     saved_settings = _load_user_settings(current_user.id) if current_user.is_authenticated else []
+    recent_pipelines = _load_recent_pipelines(current_user.id, limit=10) if current_user.is_authenticated else []
+    active_pipeline = _get_active_pipeline(current_user.id) if current_user.is_authenticated else None
     
     return render_template(
         'pages/automation/automation_main.html',
@@ -203,6 +228,8 @@ def index():
         templates=templates,
         existing_apps=existing_apps,
         saved_settings=saved_settings,
+        recent_pipelines=recent_pipelines,
+        active_pipeline=active_pipeline,
         page_title='Automation Pipeline',
         active_page='automation',
     )
@@ -304,12 +331,14 @@ def api_start_pipeline():
                 "format": "html",
                 "options": {...}
             }
-        }
+        },
+        "name": "Optional pipeline name"
     }
     """
     try:
         data = request.get_json() or {}
         config = data.get('config', {})
+        name = data.get('name', '')
         
         # Validate configuration
         gen_config = config.get('generation', {})
@@ -319,67 +348,40 @@ def api_start_pipeline():
                 'error': 'Generation requires at least one model and one template'
             }), 400
         
-        # Generate pipeline ID
-        import uuid
-        pipeline_id = f"pipeline_{uuid.uuid4().hex[:12]}"
+        # Create pipeline execution in database
+        current_app.logger.info(f"[DEBUG] Creating pipeline for user_id={current_user.id}")
+        pipeline = PipelineExecution(
+            user_id=current_user.id,
+            config=config,
+            name=name or None,
+        )
+        db.session.add(pipeline)
+        current_app.logger.info(f"[DEBUG] Pipeline added to session: {pipeline.pipeline_id}")
         
-        # Calculate total jobs
-        models = gen_config.get('models', [])
-        templates = gen_config.get('templates', [])
-        total_generation_jobs = len(models) * len(templates)
+        # Start the pipeline
+        pipeline.start()
+        current_app.logger.info(f"[DEBUG] Pipeline started, calling commit...")
+        db.session.commit()
+        current_app.logger.info(f"[DEBUG] Commit complete")
         
-        analysis_enabled = config.get('analysis', {}).get('enabled', True)
-        reports_enabled = config.get('reports', {}).get('enabled', True)
+        # Verify immediately after commit
+        verify_pipeline = PipelineExecution.query.filter_by(pipeline_id=pipeline.pipeline_id).first()
+        current_app.logger.info(f"[DEBUG] Verify immediately after commit: found={verify_pipeline is not None}")
         
-        # Initialize pipeline state
-        pipeline_state = {
-            'id': pipeline_id,
-            'status': 'running',
-            'stage': 'generation',
-            'config': config,
-            'created_at': datetime.utcnow().isoformat(),
-            'progress': {
-                'generation': {
-                    'total': total_generation_jobs,
-                    'completed': 0,
-                    'failed': 0,
-                    'status': 'pending',
-                    'results': [],
-                },
-                'analysis': {
-                    'total': total_generation_jobs if analysis_enabled else 0,
-                    'completed': 0,
-                    'failed': 0,
-                    'status': 'pending' if analysis_enabled else 'skipped',
-                    'task_ids': [],
-                },
-                'reports': {
-                    'total': 1 if reports_enabled else 0,
-                    'completed': 0,
-                    'failed': 0,
-                    'status': 'pending' if reports_enabled else 'skipped',
-                    'report_ids': [],
-                },
-            },
-        }
-        
-        # Store pipeline state in session
-        from flask import session
-        if 'automation_pipelines' not in session:
-            session['automation_pipelines'] = {}
-        session['automation_pipelines'][pipeline_id] = pipeline_state
-        session.modified = True
-        
-        current_app.logger.info(f"Started automation pipeline {pipeline_id} with {total_generation_jobs} generation jobs")
+        current_app.logger.info(
+            f"Started automation pipeline {pipeline.pipeline_id} with "
+            f"{pipeline.progress['generation']['total']} generation jobs"
+        )
         
         return jsonify({
             'success': True,
-            'pipeline_id': pipeline_id,
-            'message': f'Pipeline started with {total_generation_jobs} generation jobs',
-            'data': pipeline_state,
+            'pipeline_id': pipeline.pipeline_id,
+            'message': f"Pipeline started with {pipeline.progress['generation']['total']} generation jobs",
+            'data': pipeline.to_dict(),
         }), 201
         
     except Exception as e:
+        db.session.rollback()
         current_app.logger.exception(f"Error starting pipeline: {e}")
         return jsonify({
             'success': False,
@@ -389,11 +391,18 @@ def api_start_pipeline():
 
 @automation_bp.route('/api/pipeline/<pipeline_id>/status', methods=['GET'])
 def api_pipeline_status(pipeline_id: str):
-    """Get pipeline status."""
+    """Get pipeline status from database."""
     try:
-        from flask import session
-        pipelines = session.get('automation_pipelines', {})
-        pipeline = pipelines.get(pipeline_id)
+        current_app.logger.info(f"[DEBUG] Status check for pipeline_id={pipeline_id}, user_id={current_user.id if not current_user.is_anonymous else 'anonymous'}")
+        
+        # First, check without user filter
+        any_pipeline = PipelineExecution.query.filter_by(pipeline_id=pipeline_id).first()
+        current_app.logger.info(f"[DEBUG] Pipeline without user filter: found={any_pipeline is not None}")
+        if any_pipeline:
+            current_app.logger.info(f"[DEBUG] Found pipeline belongs to user_id={any_pipeline.user_id}")
+        
+        # Get pipeline from database
+        pipeline = PipelineExecution.get_by_id(pipeline_id, user_id=current_user.id)
         
         if not pipeline:
             return jsonify({
@@ -403,7 +412,7 @@ def api_pipeline_status(pipeline_id: str):
         
         return jsonify({
             'success': True,
-            'data': pipeline,
+            'data': pipeline.to_dict(),
         })
         
     except Exception as e:
@@ -825,18 +834,18 @@ def _execute_reports_job(pipeline_id: str, pipeline: Dict, config: Dict) -> Dict
 def api_cancel_pipeline(pipeline_id: str):
     """Cancel a running pipeline."""
     try:
-        from flask import session
-        pipelines = session.get('automation_pipelines', {})
-        pipeline = pipelines.get(pipeline_id)
+        # Get pipeline from database
+        pipeline = PipelineExecution.get_by_id(pipeline_id, user_id=current_user.id)
         
         if not pipeline:
             return jsonify({'success': False, 'error': 'Pipeline not found'}), 404
         
-        pipeline['status'] = 'cancelled'
-        session.modified = True
+        # Cancel the pipeline
+        pipeline.cancel()
+        db.session.commit()
         
-        # Cancel any pending analysis tasks
-        task_ids = pipeline.get('progress', {}).get('analysis', {}).get('task_ids', [])
+        # Cancel any pending analysis tasks associated with this pipeline
+        task_ids = pipeline.progress.get('analysis', {}).get('task_ids', [])
         for task_id in task_ids:
             try:
                 from app.services.task_service import AnalysisTaskService
@@ -850,7 +859,53 @@ def api_cancel_pipeline(pipeline_id: str):
         })
         
     except Exception as e:
+        db.session.rollback()
         current_app.logger.exception(f"Error cancelling pipeline: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# Pipeline History API endpoints
+# ---------------------------------------------------------------------------
+
+
+@automation_bp.route('/api/pipelines', methods=['GET'])
+def api_list_pipelines():
+    """List all pipelines for the current user."""
+    try:
+        limit = request.args.get('limit', 20, type=int)
+        pipelines = PipelineExecution.get_user_pipelines(current_user.id, limit=limit)
+        return jsonify({
+            'success': True,
+            'data': [p.to_dict() for p in pipelines],
+        })
+    except Exception as e:
+        current_app.logger.exception(f"Error listing pipelines: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@automation_bp.route('/api/pipelines/active', methods=['GET'])
+def api_get_active_pipeline():
+    """Get the currently active (running) pipeline for the user."""
+    try:
+        pipeline = PipelineExecution.query.filter_by(
+            user_id=current_user.id,
+            status=PipelineExecutionStatus.RUNNING
+        ).order_by(PipelineExecution.created_at.desc()).first()
+        
+        if not pipeline:
+            return jsonify({
+                'success': True,
+                'data': None,
+                'message': 'No active pipeline',
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': pipeline.to_dict(),
+        })
+    except Exception as e:
+        current_app.logger.exception(f"Error getting active pipeline: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
