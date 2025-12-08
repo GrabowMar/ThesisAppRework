@@ -585,20 +585,29 @@ async function launchPipeline() {
     // Collect final config
     collectStepConfig(4);
     
-    // Prepare payload
+    // Prepare payload - wrapped in 'config' with nested structure matching backend expectation
     const payload = {
-        templates: wizard.config.templates,
-        models: wizard.config.models,
-        analysis: {
-            profile: wizard.config.analysisProfile,
-            tools: wizard.config.analysisProfile === 'custom' ? wizard.config.analysisTools : [],
-            options: wizard.config.analysisOptions
-        },
-        reports: {
-            formats: wizard.config.reportFormats,
-            scope: wizard.config.reportScope,
-            sections: wizard.config.reportSections,
-            options: wizard.config.reportOptions
+        config: {
+            generation: {
+                models: wizard.config.models,
+                templates: wizard.config.templates,
+                options: {}
+            },
+            analysis: {
+                enabled: true,
+                profile: wizard.config.analysisProfile,
+                tools: wizard.config.analysisProfile === 'custom' ? wizard.config.analysisTools : [],
+                options: wizard.config.analysisOptions
+            },
+            reports: {
+                enabled: true,
+                formats: wizard.config.reportFormats,
+                scope: wizard.config.reportScope,
+                sections: wizard.config.reportSections,
+                types: ['app_analysis'],  // Default report type
+                format: wizard.config.reportFormats[0] || 'html',  // Primary format
+                options: wizard.config.reportOptions
+            }
         },
         name: wizard.config.pipelineName
     };
