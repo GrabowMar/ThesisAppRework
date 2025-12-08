@@ -12,6 +12,7 @@ from pathlib import Path
 from .base_generator import BaseReportGenerator
 from ...extensions import db
 from ...models import AnalysisTask, GeneratedApplication
+from ...constants import AnalysisStatus
 from ...services.service_locator import ServiceLocator
 from ...services.service_base import ValidationError, NotFoundError
 from ...utils.time import utc_now
@@ -47,13 +48,27 @@ class ModelReportGenerator(BaseReportGenerator):
         model_slug = self.config.get('model_slug')
         date_range = self.config.get('date_range', {})
         
-        logger.info(f"Collecting model report data for {model_slug}")
+        # Support filter_apps from pipeline config
+        filter_apps = self.config.get('filter_apps', [])
         
-        # Step 1: Query database for all completed tasks (fast filtering)
+        logger.info(f"Collecting model report data for {model_slug}" +
+                    (f" (filtered to apps: {filter_apps})" if filter_apps else ""))
+        
+        # Step 1: Query database for all terminal tasks (fast filtering)
+        # Include completed, partial success, and failed to support Option B placeholders
         query = db.session.query(AnalysisTask).filter(
             AnalysisTask.target_model == model_slug,
-            AnalysisTask.status == 'completed'
+            AnalysisTask.status.in_([
+                AnalysisStatus.COMPLETED,
+                AnalysisStatus.PARTIAL_SUCCESS,
+                AnalysisStatus.FAILED,
+                AnalysisStatus.CANCELLED
+            ])
         )
+        
+        # Apply app number filter if provided (from pipeline)
+        if filter_apps:
+            query = query.filter(AnalysisTask.target_app_number.in_(filter_apps))
         
         # Apply date range filter if provided
         if date_range.get('start'):
@@ -66,8 +81,10 @@ class ModelReportGenerator(BaseReportGenerator):
             AnalysisTask.completed_at.desc()
         ).all()
         
+        # Allow empty results with warning - report will show no data
         if not tasks:
-            raise NotFoundError(f"No completed analyses found for model {model_slug}")
+            logger.warning(f"No completed or failed analyses found for model {model_slug}")
+            tasks = []  # Continue with empty list
         
         # Step 2: Load detailed results from filesystem (complete data)
         unified_service = ServiceLocator().get_unified_result_service()
@@ -92,11 +109,60 @@ class ModelReportGenerator(BaseReportGenerator):
             app_tasks = apps_map[app_number]
             latest_task = app_tasks[0]  # Already sorted by completed_at desc
             
+            # Check if task failed - create placeholder entry (Option B)
+            if latest_task.status in (AnalysisStatus.FAILED, AnalysisStatus.CANCELLED):
+                logger.info(f"Creating placeholder for failed/cancelled task {latest_task.task_id}")
+                app = db.session.query(GeneratedApplication).filter(
+                    GeneratedApplication.model_slug == model_slug,
+                    GeneratedApplication.app_number == app_number
+                ).first()
+                apps_data.append({
+                    'app_number': app_number,
+                    'task_id': latest_task.task_id,
+                    'task_status': latest_task.status.value if latest_task.status else 'failed',
+                    'completed_at': latest_task.completed_at.isoformat() if latest_task.completed_at else None,
+                    'duration_seconds': 0.0,
+                    'app_name': f"{model_slug} / App {app_number}",
+                    'app_type': app.app_type if app else None,
+                    'app_description': getattr(app, 'description', None) if app else None,
+                    'findings_count': 0,
+                    'severity_counts': {},
+                    'tools': {},
+                    'findings': [],
+                    'summary': {},
+                    'all_tasks_count': len(app_tasks),
+                    'analysis_status': 'failed',
+                    'error_message': latest_task.error_message or 'Analysis failed or was cancelled',
+                })
+                continue
+            
             # Load consolidated results
             result = unified_service.load_analysis_results(latest_task.task_id)
             
             if not result or not result.raw_data:
-                logger.warning(f"No results found for task {latest_task.task_id}")
+                logger.warning(f"No results found for task {latest_task.task_id}, creating placeholder")
+                app = db.session.query(GeneratedApplication).filter(
+                    GeneratedApplication.model_slug == model_slug,
+                    GeneratedApplication.app_number == app_number
+                ).first()
+                apps_data.append({
+                    'app_number': app_number,
+                    'task_id': latest_task.task_id,
+                    'task_status': latest_task.status.value if latest_task.status else 'unknown',
+                    'completed_at': latest_task.completed_at.isoformat() if latest_task.completed_at else None,
+                    'duration_seconds': 0.0,
+                    'app_name': f"{model_slug} / App {app_number}",
+                    'app_type': app.app_type if app else None,
+                    'app_description': getattr(app, 'description', None) if app else None,
+                    'findings_count': 0,
+                    'severity_counts': {},
+                    'tools': {},
+                    'findings': [],
+                    'summary': {},
+                    'all_tasks_count': len(app_tasks),
+                    'analysis_status': 'no_results',
+                    'error_message': 'No analysis results available',
+                })
                 continue
             
             raw_data = result.raw_data
@@ -162,7 +228,7 @@ class ModelReportGenerator(BaseReportGenerator):
             apps_data.append({
                 'app_number': app_number,
                 'task_id': latest_task.task_id,
-                'task_status': latest_task.status,
+                'task_status': latest_task.status.value if latest_task.status else 'completed',
                 'completed_at': latest_task.completed_at.isoformat() if latest_task.completed_at else None,
                 'duration_seconds': duration_seconds,
                 'app_name': f"{model_slug} / App {app_number}",  # Constructed from slug and number
@@ -173,7 +239,9 @@ class ModelReportGenerator(BaseReportGenerator):
                 'tools': tools,
                 'findings': findings,
                 'summary': summary,
-                'all_tasks_count': len(app_tasks)  # Historical task count
+                'all_tasks_count': len(app_tasks),  # Historical task count
+                'analysis_status': 'completed',
+                'error_message': None,
             })
         
         # Calculate tool success rates and effectiveness metrics

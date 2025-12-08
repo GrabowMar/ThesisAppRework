@@ -12,6 +12,7 @@ from collections import defaultdict
 from .base_generator import BaseReportGenerator
 from ...extensions import db
 from ...models import AnalysisTask
+from ...constants import AnalysisStatus
 from ...services.service_locator import ServiceLocator
 from ...services.service_base import ValidationError, NotFoundError
 from ...utils.time import utc_now
@@ -48,22 +49,32 @@ class ToolReportGenerator(BaseReportGenerator):
         3. Aggregate tool statistics globally
         """
         tool_name = self.config.get('tool_name')  # Optional
-        filter_model = self.config.get('filter_model')  # Optional
-        filter_app = self.config.get('filter_app')  # Optional
+        filter_model = self.config.get('filter_model')  # Optional (single model)
+        filter_models = self.config.get('filter_models', [])  # Optional (list of models from pipeline)
+        filter_app = self.config.get('filter_app')  # Optional (single app)
+        filter_apps = self.config.get('filter_apps', [])  # Optional (list of apps from pipeline)
         date_range = self.config.get('date_range', {})
         
-        logger.info(f"Collecting tool report data (tool={tool_name}, model={filter_model}, app={filter_app})")
+        logger.info(f"Collecting tool report data (tool={tool_name}, model={filter_model or filter_models}, app={filter_app or filter_apps})")
         
-        # Step 1: Query database for completed tasks (fast filtering)
+        # Step 1: Query database for terminal tasks (fast filtering)
         query = db.session.query(AnalysisTask).filter(
-            AnalysisTask.status == 'completed'
+            AnalysisTask.status.in_([
+                AnalysisStatus.COMPLETED,
+                AnalysisStatus.PARTIAL_SUCCESS
+            ])
         )
         
         # Apply filters
         if filter_model:
             query = query.filter(AnalysisTask.target_model == filter_model)
+        elif filter_models:
+            query = query.filter(AnalysisTask.target_model.in_(filter_models))
+        
         if filter_app is not None:
             query = query.filter(AnalysisTask.target_app_number == filter_app)
+        elif filter_apps:
+            query = query.filter(AnalysisTask.target_app_number.in_(filter_apps))
         if date_range.get('start'):
             query = query.filter(AnalysisTask.completed_at >= date_range['start'])
         if date_range.get('end'):
@@ -72,7 +83,8 @@ class ToolReportGenerator(BaseReportGenerator):
         tasks = query.order_by(AnalysisTask.completed_at.desc()).all()
         
         if not tasks:
-            raise NotFoundError("No completed analyses found with the specified filters")
+            logger.warning("No completed analyses found with the specified filters")
+            tasks = []  # Continue with empty list
         
         # Step 2: Load detailed tool data from filesystem
         unified_service = ServiceLocator().get_unified_result_service()

@@ -473,11 +473,12 @@ class PipelineExecutionService:
     
     def _execute_reports_job(self, pipeline: PipelineExecution, job: Dict[str, Any]):
         """Execute report generation job."""
-        successful_apps = job.get('apps', [])
+        # Get apps from job - these are apps where generation succeeded
+        generated_apps = job.get('apps', [])
         
-        if not successful_apps:
+        if not generated_apps:
             self._log(
-                "No successful apps to report on for pipeline %s",
+                "No generated apps to report on for pipeline %s",
                 pipeline.pipeline_id,
                 level='warning'
             )
@@ -485,9 +486,54 @@ class PipelineExecutionService:
             db.session.commit()
             return
         
+        # Filter to only apps with analysis tasks that exist (completed, failed, or partial)
+        # This supports Option B: including failed analyses with placeholder data
+        progress = pipeline.progress
+        task_ids = progress.get('analysis', {}).get('task_ids', [])
+        
+        # Build mapping of app_number -> analysis status
+        apps_with_analysis = []
+        for app_result in generated_apps:
+            app_number = app_result.get('app_number')
+            model_slug = app_result.get('model_slug')
+            
+            # Find the analysis task for this app
+            has_analysis_task = False
+            for task_id in task_ids:
+                if task_id.startswith('skipped') or task_id.startswith('error:'):
+                    continue
+                task = AnalysisTask.query.filter_by(task_id=task_id).first()
+                if task and task.target_model == model_slug and task.target_app_number == app_number:
+                    # Found analysis task for this app - include regardless of status
+                    # Report generator handles failed analyses with placeholder (Option B)
+                    apps_with_analysis.append({
+                        **app_result,
+                        'analysis_task_id': task_id,
+                        'analysis_status': task.status.value if task.status else 'unknown'
+                    })
+                    has_analysis_task = True
+                    break
+            
+            if not has_analysis_task:
+                self._log(
+                    "No analysis task found for %s app %d, skipping report",
+                    model_slug, app_number,
+                    level='warning'
+                )
+        
+        if not apps_with_analysis:
+            self._log(
+                "No apps with analysis tasks to report on for pipeline %s",
+                pipeline.pipeline_id,
+                level='warning'
+            )
+            pipeline.add_report_id('skipped:no_analyses', success=False)
+            db.session.commit()
+            return
+        
         self._log(
             "Generating reports for %d apps in pipeline %s",
-            len(successful_apps), pipeline.pipeline_id
+            len(apps_with_analysis), pipeline.pipeline_id
         )
         
         try:
@@ -500,40 +546,73 @@ class PipelineExecutionService:
             
             config = pipeline.config
             reports_config = config.get('reports', {})
-            report_types = reports_config.get('types', ['app_analysis'])
+            report_types = reports_config.get('types', ['model_analysis'])  # Default to model_analysis
             report_format = reports_config.get('format', 'html')
             
             created_reports = []
             
+            # Group apps by model for model_analysis reports
+            models_to_apps = {}
+            for app_result in apps_with_analysis:
+                model = app_result.get('model_slug')
+                if model not in models_to_apps:
+                    models_to_apps[model] = []
+                models_to_apps[model].append(app_result.get('app_number'))
+            
             for report_type in report_types:
-                if report_type == 'app_analysis':
-                    # Generate report for each app
-                    for app_result in successful_apps:
+                if report_type == 'model_analysis':
+                    # Generate one report per model (showing all its apps)
+                    for model_slug, app_numbers in models_to_apps.items():
                         report_config = {
-                            'model_slug': app_result.get('model_slug'),
-                            'app_number': app_result.get('app_number'),
+                            'model_slug': model_slug,
+                            'filter_apps': app_numbers,  # Only include apps from this pipeline
                         }
                         
                         report = report_service.generate_report(
                             report_type=report_type,
                             format=report_format,
                             config=report_config,
-                            title=f"Pipeline Report - {app_result.get('model_slug')} App {app_result.get('app_number')}",
+                            title=f"Pipeline Report - {model_slug} ({len(app_numbers)} apps)",
                             user_id=pipeline.user_id,
                         )
                         created_reports.append(report.report_id)
-                else:
-                    # Model comparison or tool effectiveness
+                        self._log(
+                            "Generated model_analysis report for %s with %d apps",
+                            model_slug, len(app_numbers)
+                        )
+                
+                elif report_type == 'app_analysis':
+                    # Generate cross-model comparison for each app number
+                    unique_app_numbers = list(set(r.get('app_number') for r in apps_with_analysis))
+                    for app_number in unique_app_numbers:
+                        models_for_app = [r.get('model_slug') for r in apps_with_analysis 
+                                         if r.get('app_number') == app_number]
+                        report_config = {
+                            'app_number': app_number,
+                            'filter_models': models_for_app,
+                        }
+                        
+                        report = report_service.generate_report(
+                            report_type=report_type,
+                            format=report_format,
+                            config=report_config,
+                            title=f"Pipeline Report - App {app_number} ({len(models_for_app)} models)",
+                            user_id=pipeline.user_id,
+                        )
+                        created_reports.append(report.report_id)
+                
+                elif report_type == 'tool_analysis':
+                    # Tool effectiveness report across all apps in pipeline
                     report_config = {
-                        'filter_models': list(set(r.get('model_slug') for r in successful_apps)),
-                        'filter_apps': list(set(r.get('app_number') for r in successful_apps)),
+                        'filter_models': list(models_to_apps.keys()),
+                        'filter_apps': list(set(r.get('app_number') for r in apps_with_analysis)),
                     }
                     
                     report = report_service.generate_report(
                         report_type=report_type,
                         format=report_format,
                         config=report_config,
-                        title=f"Pipeline {report_type.replace('_', ' ').title()}",
+                        title=f"Pipeline Tool Analysis ({len(apps_with_analysis)} apps)",
                         user_id=pipeline.user_id,
                     )
                     created_reports.append(report.report_id)
