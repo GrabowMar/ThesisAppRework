@@ -1,0 +1,1 @@
+C:\Users\grabowmar\Desktop\ThesisAppRework\.venv\Scripts\python.exe: can't open file 'c:\\Users\\grabowmar\\Desktop\\ThesisAppRework\\test_automation_api.py': [Errno 2] No such file or directory

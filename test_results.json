@@ -1,0 +1,246 @@
+{
+  "tests": [
+    {
+      "log": "Testing Analyzer Status..."
+    },
+    {
+      "test": "analyzer_status",
+      "status_code": 200,
+      "response": {
+        "status": {
+          "all_ports_accessible": true,
+          "all_running": true,
+          "containers": {
+            "ai-analyzer": {
+              "name": "analyzer-ai-analyzer-1",
+              "ports": [
+                {
+                  "Protocol": "tcp",
+                  "PublishedPort": 2004,
+                  "TargetPort": 2004,
+                  "URL": "0.0.0.0"
+                },
+                {
+                  "Protocol": "tcp",
+                  "PublishedPort": 2004,
+                  "TargetPort": 2004,
+                  "URL": "::"
+                }
+              ],
+              "state": "running",
+              "status": "Up 2 hours (healthy)"
+            },
+            "celery-worker": {
+              "name": "analyzer-celery-worker-1",
+              "ports": [
+                {
+                  "Protocol": "tcp",
+                  "PublishedPort": 0,
+                  "TargetPort": 5000,
+                  "URL": ""
+                }
+              ],
+              "state": "running",
+              "status": "Up 2 hours (unhealthy)"
+            },
+            "dynamic-analyzer": {
+              "name": "analyzer-dynamic-analyzer-1",
+              "ports": [
+                {
+                  "Protocol": "tcp",
+                  "PublishedPort": 2002,
+                  "TargetPort": 2002,
+                  "URL": "0.0.0.0"
+                },
+                {
+                  "Protocol": "tcp",
+                  "PublishedPort": 2002,
+                  "TargetPort": 2002,
+                  "URL": "::"
+                }
+              ],
+              "state": "running",
+              "status": "Up 2 hours (healthy)"
+            },
+            "gateway": {
+              "name": "analyzer-gateway-1",
+              "ports": [
+                {
+                  "Protocol": "tcp",
+                  "PublishedPort": 8765,
+                  "TargetPort": 8765,
+                  "URL": "0.0.0.0"
+                },
+                {
+                  "Protocol": "tcp",
+                  "PublishedPort": 8765,
+                  "TargetPort": 8765,
+                  "URL": "::"
+                }
+              ],
+              "state": "running",
+              "status": "Up 2 hours (healthy)"
+            },
+            "performance-tester": {
+              "name": "analyzer-performance-tester-1",
+              "ports": [
+                {
+                  "Protocol": "tcp",
+                  "PublishedPort": 2003,
+                  "TargetPort": 2003,
+                  "URL": "0.0.0.0"
+                },
+                {
+                  "Protocol": "tcp",
+                  "PublishedPort": 2003,
+                  "TargetPort": 2003,
+                  "URL": "::"
+                }
+              ],
+              "state": "running",
+              "status": "Up 2 hours (healthy)"
+            },
+            "redis": {
+              "name": "analyzer-redis-1",
+              "ports": [
+                {
+                  "Protocol": "tcp",
+                  "PublishedPort": 6379,
+                  "TargetPort": 6379,
+                  "URL": "0.0.0.0"
+                },
+                {
+                  "Protocol": "tcp",
+                  "PublishedPort": 6379,
+                  "TargetPort": 6379,
+                  "URL": "::"
+                }
+              ],
+              "state": "running",
+              "status": "Up 2 hours (healthy)"
+            },
+            "static-analyzer": {
+              "name": "analyzer-static-analyzer-1",
+              "ports": [
+                {
+                  "Protocol": "tcp",
+                  "PublishedPort": 2001,
+                  "TargetPort": 2001,
+                  "URL": "0.0.0.0"
+                },
+                {
+                  "Protocol": "tcp",
+                  "PublishedPort": 2001,
+                  "TargetPort": 2001,
+                  "URL": "::"
+                }
+              ],
+              "state": "running",
+              "status": "Up 2 hours (healthy)"
+            }
+          },
+          "overall_healthy": true,
+          "ports": {
+            "ai-analyzer": {
+              "accessible": true,
+              "port": 2004
+            },
+            "dynamic-analyzer": {
+              "accessible": true,
+              "port": 2002
+            },
+            "performance-tester": {
+              "accessible": true,
+              "port": 2003
+            },
+            "static-analyzer": {
+              "accessible": true,
+              "port": 2001
+            }
+          }
+        },
+        "success": true
+      }
+    },
+    {
+      "log": "Testing Analyzer Health..."
+    },
+    {
+      "test": "analyzer_health",
+      "status_code": 200,
+      "response": {
+        "health": {
+          "ai-analyzer": {
+            "available_tools": [],
+            "service": "ai-analyzer",
+            "status": "healthy",
+            "timestamp": "2025-12-07T22:44:26.556628",
+            "type": "health_response",
+            "uptime": 5504.369651,
+            "version": "1.0.0"
+          },
+          "dynamic-analyzer": {
+            "available_tools": [
+              "curl",
+              "nmap",
+              "zap"
+            ],
+            "service": "dynamic-analyzer",
+            "status": "healthy",
+            "timestamp": "2025-12-07T22:44:26.556088",
+            "type": "health_response",
+            "uptime": 5486.028788,
+            "version": "2.0.0"
+          },
+          "performance-tester": {
+            "available_tools": [
+              "curl",
+              "ab",
+              "artillery",
+              "locust",
+              "aiohttp"
+            ],
+            "service": "performance-tester",
+            "status": "healthy",
+            "timestamp": "2025-12-07T22:44:26.556532",
+            "type": "health_response",
+            "uptime": 5504.368334,
+            "version": "2.0.0"
+          },
+          "static-analyzer": {
+            "available_tools": [
+              "bandit",
+              "pylint",
+              "mypy",
+              "semgrep",
+              "safety",
+              "pip-audit",
+              "vulture",
+              "ruff",
+              "radon",
+              "detect-secrets",
+              "eslint",
+              "npm-audit",
+              "stylelint",
+              "html-validator"
+            ],
+            "service": "static-analyzer",
+            "status": "healthy",
+            "timestamp": "2025-12-07T22:44:26.556825",
+            "type": "health_response",
+            "uptime": 5504.429419,
+            "version": "1.0.0"
+          }
+        },
+        "overall_healthy": true,
+        "success": true
+      }
+    }
+  ],
+  "summary": {
+    "containers_healthy": true,
+    "completed": true
+  },
+  "start_time": "2025-12-07 23:44:25",
+  "end_time": "2025-12-07 23:44:36"
+}

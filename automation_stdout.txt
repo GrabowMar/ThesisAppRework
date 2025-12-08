@@ -1,0 +1,50 @@
+[2025-12-08 00:39:52] INFO: Starting full automation test
+[2025-12-08 00:39:52] INFO: Models: ['google/gemma-3-4b-it', 'meta-llama/llama-3.2-3b-instruct', 'cohere/command-r7b-12-2024']
+[2025-12-08 00:39:52] INFO: Templates: ['crud_todo_list', 'auth_user_login', 'api_weather_display']
+[2025-12-08 00:39:52] INFO: Total jobs: 9
+[2025-12-08 00:39:52] INFO: Checking analyzer container health...
+[2025-12-08 00:39:52] INFO: Analyzer status: HEALTHY
+[2025-12-08 00:39:52] INFO: === GENERATION PHASE ===
+[2025-12-08 00:39:52] INFO: Generating app: model=google/gemma-3-4b-it, template=crud_todo_list
+[2025-12-08 00:42:36] INFO: Generation successful: app5
+[2025-12-08 00:42:38] INFO: Generating app: model=google/gemma-3-4b-it, template=auth_user_login
+[2025-12-08 00:45:01] INFO: Generation successful: app6
+[2025-12-08 00:45:03] INFO: Generating app: model=google/gemma-3-4b-it, template=api_weather_display
+[2025-12-08 00:46:58] INFO: Generation successful: app7
+[2025-12-08 00:47:00] INFO: Generating app: model=meta-llama/llama-3.2-3b-instruct, template=crud_todo_list
+[2025-12-08 00:48:32] INFO: Generation successful: app4
+[2025-12-08 00:48:34] INFO: Generating app: model=meta-llama/llama-3.2-3b-instruct, template=auth_user_login
+[2025-12-08 00:50:28] INFO: Generation successful: app5
+[2025-12-08 00:50:30] INFO: Generating app: model=meta-llama/llama-3.2-3b-instruct, template=api_weather_display
+[2025-12-08 00:51:04] INFO: Generation successful: app6
+[2025-12-08 00:51:07] INFO: Generating app: model=cohere/command-r7b-12-2024, template=crud_todo_list
+[2025-12-08 00:52:18] INFO: Generation successful: app5
+[2025-12-08 00:52:20] INFO: Generating app: model=cohere/command-r7b-12-2024, template=auth_user_login
+[2025-12-08 00:53:04] INFO: Generation successful: app6
+[2025-12-08 00:53:06] INFO: Generating app: model=cohere/command-r7b-12-2024, template=api_weather_display
+[2025-12-08 00:53:47] INFO: Generation successful: app7
+[2025-12-08 00:53:49] INFO: Generation complete: 9/9 successful
+[2025-12-08 00:53:49] INFO: === ANALYSIS PHASE ===
+[2025-12-08 00:53:49] INFO: Starting analysis: google_gemma-3-4b-it/app5
+[2025-12-08 00:53:49] INFO: Analysis started: task_id=task_1349c8790162
+[2025-12-08 00:53:54] INFO: Starting analysis: google_gemma-3-4b-it/app6
+[2025-12-08 00:53:54] INFO: Analysis started: task_id=task_1ad18c47b584
+[2025-12-08 00:53:59] INFO: Starting analysis: google_gemma-3-4b-it/app7
+[2025-12-08 00:53:59] INFO: Analysis started: task_id=task_d546a03e5943
+[2025-12-08 00:54:04] INFO: Starting analysis: meta-llama_llama-3.2-3b-instruct/app4
+[2025-12-08 00:54:04] INFO: Analysis started: task_id=task_e3304d3ce3d0
+[2025-12-08 00:54:09] INFO: Starting analysis: meta-llama_llama-3.2-3b-instruct/app5
+[2025-12-08 00:54:09] INFO: Analysis started: task_id=task_fe66b218a618
+[2025-12-08 00:54:14] INFO: Starting analysis: meta-llama_llama-3.2-3b-instruct/app6
+[2025-12-08 00:54:14] INFO: Analysis started: task_id=task_41b72135a089
+[2025-12-08 00:54:19] INFO: Starting analysis: cohere_command-r7b-12-2024/app5
+[2025-12-08 00:54:19] INFO: Analysis started: task_id=task_435ca268ad4d
+[2025-12-08 00:54:24] INFO: Starting analysis: cohere_command-r7b-12-2024/app6
+[2025-12-08 00:54:24] INFO: Analysis started: task_id=task_790ac953df5f
+[2025-12-08 00:54:29] INFO: Starting analysis: cohere_command-r7b-12-2024/app7
+[2025-12-08 00:54:29] INFO: Analysis started: task_id=task_f7522b9af50b
+[2025-12-08 00:54:34] INFO: === SUMMARY ===
+[2025-12-08 00:54:34] INFO: Generation: 9/9 successful
+[2025-12-08 00:54:34] INFO: Analysis started: 9/9 successful
+
+Results saved to c:/Users/grabowmar/Desktop/ThesisAppRework/full_automation_results.json

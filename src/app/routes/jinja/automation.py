@@ -23,13 +23,51 @@ from app.extensions import db
 automation_bp = Blueprint('automation', __name__, url_prefix='/automation')
 
 
+def _authenticate_request():
+    """
+    Authenticate request using either session or Bearer token.
+    Returns (user, error_response) tuple.
+    """
+    # Check for session authentication first
+    if current_user.is_authenticated:
+        return current_user, None
+    
+    # Check for Bearer token (for API endpoints)
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        token = auth_header[7:]
+        try:
+            from app.models import User
+            user = User.verify_api_token(token)
+            if user:
+                # Set user for this request context
+                from flask_login import login_user
+                login_user(user, remember=False)
+                return user, None
+        except Exception as e:
+            current_app.logger.warning(f"Token auth failed: {e}")
+    
+    return None, None
+
+
 # Require authentication
 @automation_bp.before_request
 def require_authentication():
     """Require authentication for all automation endpoints."""
-    if not current_user.is_authenticated:
-        flash('Please log in to access the automation pipeline.', 'info')
-        return redirect(url_for('auth.login', next=request.url))
+    # Check if this is an API endpoint (should allow token auth)
+    is_api_endpoint = request.path.startswith('/automation/api/')
+    
+    user, _ = _authenticate_request()
+    
+    if not user and not current_user.is_authenticated:
+        if is_api_endpoint:
+            return jsonify({
+                'success': False,
+                'error': 'Authentication required. Use session or Bearer token.'
+            }), 401
+        else:
+            flash('Please log in to access the automation pipeline.', 'info')
+            return redirect(url_for('auth.login', next=request.url))
 
 
 def _get_generation_service():
@@ -514,6 +552,16 @@ def _execute_analysis_job(pipeline_id: str, pipeline: Dict, config: Dict, job_in
     if not analysis_config.get('enabled', True):
         return {'success': True, 'message': 'Analysis skipped'}
     
+    # Check if we need to auto-start containers (only on first analysis job)
+    analysis_options = analysis_config.get('options', {})
+    if job_index == 0 and analysis_options.get('autoStartContainers', False):
+        container_check_result = _ensure_analyzer_containers_running()
+        if not container_check_result.get('success'):
+            return {
+                'success': False,
+                'error': f"Container startup failed: {container_check_result.get('error', 'Unknown error')}. Analysis aborted."
+            }
+    
     # Get the generated app from generation results
     gen_results = pipeline['progress']['generation'].get('results', [])
     
@@ -542,7 +590,7 @@ def _execute_analysis_job(pipeline_id: str, pipeline: Dict, config: Dict, job_in
         from app.engines.container_tool_registry import get_container_tool_registry
         
         # Get tools
-        profile = analysis_config.get('profile', 'security')
+        profile = analysis_config.get('profile', 'comprehensive')
         tools = analysis_config.get('tools', [])
         
         if not tools:
@@ -550,6 +598,15 @@ def _execute_analysis_job(pipeline_id: str, pipeline: Dict, config: Dict, job_in
             registry = get_container_tool_registry()
             all_tools = registry.get_all_tools()
             tools = [t.name for t in all_tools.values() if t.available]
+        
+        # Build container management options for the task
+        container_management = {}
+        if analysis_options.get('autoStartContainers', False):
+            container_management = {
+                'start_before_analysis': True,
+                'build_if_missing': True,
+                'stop_after_analysis': False,
+            }
         
         # Create analysis task
         task = AnalysisTaskService.create_task(
@@ -560,6 +617,7 @@ def _execute_analysis_job(pipeline_id: str, pipeline: Dict, config: Dict, job_in
             custom_options={
                 'source': 'automation_pipeline',
                 'pipeline_id': pipeline_id,
+                'container_management': container_management,
             },
         )
         
@@ -587,6 +645,95 @@ def _execute_analysis_job(pipeline_id: str, pipeline: Dict, config: Dict, job_in
             progress['status'] = 'completed'
             pipeline['stage'] = 'reports'
         
+        return {'success': False, 'error': str(e)}
+
+
+def _ensure_analyzer_containers_running() -> Dict[str, Any]:
+    """
+    Check if analyzer containers are running and healthy.
+    If not running, attempt to start them.
+    
+    Returns:
+        Dict with 'success' (bool) and 'error' (str) if failed
+    """
+    import sys
+    import time
+    from pathlib import Path
+    from flask import current_app
+    
+    try:
+        # Add project root to path (src/app -> src -> project_root)
+        project_root = Path(current_app.root_path).parent.parent
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+        
+        from analyzer.analyzer_manager import AnalyzerManager
+        
+        manager = AnalyzerManager()
+        
+        # Check current status
+        containers = manager.get_container_status()
+        
+        all_running = all(
+            c.get('state') == 'running' 
+            for c in containers.values()
+        ) if containers else False
+        
+        # Check port accessibility
+        all_ports_accessible = all(
+            manager.check_port_accessibility('localhost', service_info.port)
+            for service_info in manager.services.values()
+        )
+        
+        # If already healthy, return success
+        if all_running and all_ports_accessible:
+            current_app.logger.info("[CONTAINER] Analyzer containers already running and healthy")
+            return {'success': True, 'message': 'Containers already running'}
+        
+        # Need to start containers
+        current_app.logger.info("[CONTAINER] Starting analyzer containers...")
+        
+        success = manager.start_services()
+        
+        if not success:
+            return {
+                'success': False,
+                'error': 'Failed to start analyzer containers'
+            }
+        
+        # Wait for containers to become healthy (max 90 seconds)
+        max_wait = 90
+        start_time = time.time()
+        
+        while time.time() - start_time < max_wait:
+            # Check port accessibility
+            all_accessible = all(
+                manager.check_port_accessibility('localhost', service_info.port)
+                for service_info in manager.services.values()
+            )
+            
+            if all_accessible:
+                current_app.logger.info("[CONTAINER] All analyzer containers are healthy")
+                return {'success': True, 'message': 'Containers started successfully'}
+            
+            time.sleep(3)
+        
+        # Timeout - check final status
+        final_containers = manager.get_container_status()
+        running_count = sum(1 for c in final_containers.values() if c.get('state') == 'running')
+        
+        if running_count >= len(manager.services):
+            # All running but ports not accessible - might just need more time
+            current_app.logger.warning("[CONTAINER] Containers running but ports may not be fully accessible yet")
+            return {'success': True, 'message': 'Containers started (ports warming up)'}
+        
+        return {
+            'success': False,
+            'error': f'Timeout waiting for containers to become healthy. {running_count}/{len(manager.services)} running.'
+        }
+        
+    except Exception as e:
+        current_app.logger.exception(f"[CONTAINER] Error managing containers: {e}")
         return {'success': False, 'error': str(e)}
 
 
@@ -932,6 +1079,238 @@ def api_get_tools():
         
     except Exception as e:
         current_app.logger.exception(f"Error getting tools: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+        }), 500
+
+# ---------------------------------------------------------------------------
+# Analyzer Container Management API
+# ---------------------------------------------------------------------------
+
+
+@automation_bp.route('/api/analyzer/status', methods=['GET'])
+def api_analyzer_status():
+    """
+    Get status of all analyzer containers.
+    
+    Returns:
+    {
+        "success": true,
+        "status": {
+            "containers": {...},
+            "ports": {...},
+            "health": {...},
+            "overall_healthy": bool,
+            "all_running": bool
+        }
+    }
+    """
+    try:
+        import sys
+        from pathlib import Path
+        
+        # Add project root to path (src/app -> src -> project_root)
+        project_root = Path(current_app.root_path).parent.parent
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+        
+        from analyzer.analyzer_manager import AnalyzerManager
+        import asyncio
+        
+        manager = AnalyzerManager()
+        
+        # Get container status
+        containers = manager.get_container_status()
+        
+        # Check port accessibility
+        ports = {}
+        for service_name, service_info in manager.services.items():
+            ports[service_name] = {
+                'port': service_info.port,
+                'accessible': manager.check_port_accessibility('localhost', service_info.port)
+            }
+        
+        # Calculate overall status
+        all_running = all(
+            c.get('state') == 'running' 
+            for c in containers.values()
+        ) if containers else False
+        
+        all_ports_accessible = all(p.get('accessible', False) for p in ports.values())
+        
+        return jsonify({
+            'success': True,
+            'status': {
+                'containers': containers,
+                'ports': ports,
+                'all_running': all_running,
+                'all_ports_accessible': all_ports_accessible,
+                'overall_healthy': all_running and all_ports_accessible,
+            }
+        })
+        
+    except Exception as e:
+        current_app.logger.exception(f"Error getting analyzer status: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+        }), 500
+
+
+@automation_bp.route('/api/analyzer/start', methods=['POST'])
+def api_analyzer_start():
+    """
+    Start all analyzer containers.
+    
+    Request body (optional):
+    {
+        "wait_for_health": true  // Wait for health checks to pass
+    }
+    
+    Returns:
+    {
+        "success": true,
+        "message": "Analyzer containers started",
+        "status": {...}
+    }
+    """
+    try:
+        import sys
+        from pathlib import Path
+        
+        # Add project root to path (src/app -> src -> project_root)
+        project_root = Path(current_app.root_path).parent.parent
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+        
+        from analyzer.analyzer_manager import AnalyzerManager
+        import time
+        
+        data = request.get_json() or {}
+        wait_for_health = data.get('wait_for_health', True)
+        
+        manager = AnalyzerManager()
+        
+        current_app.logger.info("Starting analyzer containers...")
+        
+        # Start services
+        success = manager.start_services()
+        
+        if not success:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to start analyzer containers'
+            }), 500
+        
+        # Wait for health if requested
+        if wait_for_health:
+            max_wait = 60  # Maximum 60 seconds to wait
+            start_time = time.time()
+            
+            while time.time() - start_time < max_wait:
+                # Check if all ports are accessible
+                all_accessible = True
+                for service_name, service_info in manager.services.items():
+                    if not manager.check_port_accessibility('localhost', service_info.port):
+                        all_accessible = False
+                        break
+                
+                if all_accessible:
+                    break
+                
+                time.sleep(2)
+            
+            if not all_accessible:
+                current_app.logger.warning("Not all analyzer ports accessible after waiting")
+        
+        # Get final status
+        containers = manager.get_container_status()
+        ports = {}
+        for service_name, service_info in manager.services.items():
+            ports[service_name] = {
+                'port': service_info.port,
+                'accessible': manager.check_port_accessibility('localhost', service_info.port)
+            }
+        
+        all_running = all(
+            c.get('state') == 'running' 
+            for c in containers.values()
+        ) if containers else False
+        
+        all_ports_accessible = all(p.get('accessible', False) for p in ports.values())
+        
+        return jsonify({
+            'success': True,
+            'message': 'Analyzer containers started',
+            'status': {
+                'containers': containers,
+                'ports': ports,
+                'all_running': all_running,
+                'all_ports_accessible': all_ports_accessible,
+                'overall_healthy': all_running and all_ports_accessible,
+            }
+        })
+        
+    except Exception as e:
+        current_app.logger.exception(f"Error starting analyzer containers: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+        }), 500
+
+
+@automation_bp.route('/api/analyzer/health', methods=['GET'])
+def api_analyzer_health():
+    """
+    Perform health checks on all analyzer containers.
+    
+    Returns:
+    {
+        "success": true,
+        "health": {
+            "static-analyzer": {"status": "healthy", ...},
+            ...
+        },
+        "overall_healthy": bool
+    }
+    """
+    try:
+        import sys
+        from pathlib import Path
+        
+        # Add project root to path (src/app -> src -> project_root)
+        project_root = Path(current_app.root_path).parent.parent
+        if str(project_root) not in sys.path:
+            sys.path.insert(0, str(project_root))
+        
+        from analyzer.analyzer_manager import AnalyzerManager
+        import asyncio
+        
+        manager = AnalyzerManager()
+        
+        # Run health checks
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            health_results = loop.run_until_complete(manager.check_all_services_health())
+        finally:
+            loop.close()
+        
+        # Determine overall health
+        overall_healthy = all(
+            h.get('status') == 'healthy' 
+            for h in health_results.values()
+        ) if health_results else False
+        
+        return jsonify({
+            'success': True,
+            'health': health_results,
+            'overall_healthy': overall_healthy,
+        })
+        
+    except Exception as e:
+        current_app.logger.exception(f"Error checking analyzer health: {e}")
         return jsonify({
             'success': False,
             'error': str(e),

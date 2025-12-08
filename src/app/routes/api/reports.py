@@ -5,12 +5,12 @@ Handles report creation, retrieval, and download operations.
 """
 import logging
 from datetime import datetime
-from flask import Blueprint, request, jsonify, send_file, current_app
-from flask_login import current_user
+from flask import Blueprint, request, jsonify, send_file, current_app, g
+from flask_login import current_user, login_user
 from pathlib import Path
 
 from ...extensions import db
-from ...models import Report
+from ...models import Report, User
 from ...services.service_locator import ServiceLocator
 from ...services.service_base import NotFoundError, ValidationError, ServiceError
 
@@ -20,14 +20,41 @@ logger = logging.getLogger(__name__)
 reports_bp = Blueprint('reports_api', __name__, url_prefix='/reports')
 
 
+def _authenticate_request():
+    """
+    Authenticate request using either session or Bearer token.
+    Returns (user, error_response) tuple.
+    """
+    # Check for session authentication first
+    if current_user.is_authenticated:
+        return current_user, None
+    
+    # Check for Bearer token (for API endpoints)
+    auth_header = request.headers.get('Authorization', '')
+    if auth_header.startswith('Bearer '):
+        token = auth_header[7:]
+        try:
+            user = User.verify_api_token(token)
+            if user:
+                # Set user for this request context
+                login_user(user, remember=False)
+                return user, None
+        except Exception as e:
+            logger.warning(f"Token auth failed: {e}")
+    
+    return None, None
+
+
 # Require authentication for all report API routes
 @reports_bp.before_request
 def require_authentication():
     """Require authentication for all report API endpoints."""
-    if not current_user.is_authenticated:
+    user, _ = _authenticate_request()
+    
+    if not user and not current_user.is_authenticated:
         return jsonify({
             'error': 'Authentication required',
-            'message': 'Please log in to access this endpoint',
+            'message': 'Please log in or provide a Bearer token',
             'login_url': '/auth/login'
         }), 401
 

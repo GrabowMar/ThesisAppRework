@@ -1584,6 +1584,10 @@ class GenerationService:
         )
         
         result['app_dir'] = str(app_dir)
+        result['app_num'] = app_num
+        result['app_number'] = app_num  # Alias for API compatibility
+        result['model_slug'] = model_slug
+        result['template_slug'] = template_slug
         backend_port, frontend_port = self.scaffolding.get_ports(model_slug, app_num)
         result['backend_port'] = backend_port
         result['frontend_port'] = frontend_port

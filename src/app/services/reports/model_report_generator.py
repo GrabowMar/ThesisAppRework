@@ -140,8 +140,8 @@ class ModelReportGenerator(BaseReportGenerator):
                 else:
                     stats['failed'] += 1
                 
-                stats['total_findings'] += tool_data.get('total_issues', 0)
-                stats['total_duration'] += tool_data.get('duration_seconds', 0.0)
+                stats['total_findings'] += tool_data.get('total_issues') or 0
+                stats['total_duration'] += tool_data.get('duration_seconds') or 0.0
             
             # Get app metadata
             app = db.session.query(GeneratedApplication).filter(
