@@ -131,31 +131,66 @@ class ServiceInfo:
 class AnalyzerManager:
     """Main manager for analyzer infrastructure."""
     
+    @staticmethod
+    def _is_running_in_docker() -> bool:
+        """Detect if running inside a Docker container."""
+        # Check for Docker-specific files/environment
+        if os.path.exists('/.dockerenv'):
+            return True
+        if os.environ.get('RUNNING_IN_DOCKER', '').lower() in ('true', '1', 'yes'):
+            return True
+        # Check if redis host is reachable (indicates we're in analyzer network)
+        if os.environ.get('REDIS_URL', '').startswith('redis://redis:'):
+            return True
+        try:
+            with open('/proc/1/cgroup', 'r') as f:
+                return 'docker' in f.read()
+        except Exception:
+            pass
+        return False
+    
     def __init__(self):
+        # Detect if running inside Docker to use service names instead of localhost
+        in_docker = self._is_running_in_docker()
+        
+        # When running in Docker (e.g., Celery worker), use service names
+        # When running on host (CLI), use localhost with port mapping
+        if in_docker:
+            static_url = 'ws://static-analyzer:2001'
+            dynamic_url = 'ws://dynamic-analyzer:2002'
+            perf_url = 'ws://performance-tester:2003'
+            ai_url = 'ws://ai-analyzer:2004'
+            logger.info("Running in Docker - using container service names for WebSocket URLs")
+        else:
+            static_url = 'ws://127.0.0.1:2001'
+            dynamic_url = 'ws://127.0.0.1:2002'
+            perf_url = 'ws://127.0.0.1:2003'
+            ai_url = 'ws://127.0.0.1:2004'
+        
         self.services = {
             'static-analyzer': ServiceInfo(
                 name='static-analyzer',
                 port=2001,
                 container_name='analyzer-static-analyzer-1',
-                websocket_url='ws://127.0.0.1:2001'
+                websocket_url=static_url
             ),
             'dynamic-analyzer': ServiceInfo(
                 name='dynamic-analyzer', 
                 port=2002,
                 container_name='analyzer-dynamic-analyzer-1',
-                websocket_url='ws://127.0.0.1:2002'
+                websocket_url=dynamic_url
             ),
             'performance-tester': ServiceInfo(
                 name='performance-tester',
                 port=2003, 
                 container_name='analyzer-performance-tester-1',
-                websocket_url='ws://127.0.0.1:2003'
+                websocket_url=perf_url
             ),
             'ai-analyzer': ServiceInfo(
                 name='ai-analyzer',
                 port=2004,
                 container_name='analyzer-ai-analyzer-1', 
-                websocket_url='ws://127.0.0.1:2004'
+                websocket_url=ai_url
             )
         }
         

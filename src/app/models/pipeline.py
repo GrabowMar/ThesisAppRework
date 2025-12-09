@@ -75,9 +75,17 @@ class PipelineExecution(db.Model):
         
         # Initialize progress based on config
         gen_config = config.get('generation', {})
-        models = gen_config.get('models', [])
-        templates = gen_config.get('templates', [])
-        total_generation_jobs = len(models) * len(templates)
+        generation_mode = gen_config.get('mode', 'generate')
+        
+        if generation_mode == 'existing':
+            # Existing apps mode - count selected apps (generation step is skipped)
+            existing_apps = gen_config.get('existingApps', [])
+            total_generation_jobs = len(existing_apps)
+        else:
+            # Generate mode - count model/template combinations
+            models = gen_config.get('models', [])
+            templates = gen_config.get('templates', [])
+            total_generation_jobs = len(models) * len(templates)
         
         analysis_enabled = config.get('analysis', {}).get('enabled', True)
         reports_enabled = config.get('reports', {}).get('enabled', True)
@@ -309,6 +317,14 @@ class PipelineExecution(db.Model):
         
         if self.current_stage == 'generation':
             gen_config = config.get('generation', {})
+            generation_mode = gen_config.get('mode', 'generate')
+            
+            if generation_mode == 'existing':
+                # Existing apps mode - skip generation entirely
+                # Return None to trigger stage transition
+                return None
+            
+            # Generate mode - need models and templates
             models = gen_config.get('models', [])
             templates = gen_config.get('templates', [])
             
@@ -335,21 +351,45 @@ class PipelineExecution(db.Model):
             if not analysis_config.get('enabled', True):
                 return None
             
-            gen_results = progress.get('generation', {}).get('results', [])
-            job_index = self.current_job_index
+            gen_config = config.get('generation', {})
+            generation_mode = gen_config.get('mode', 'generate')
             
-            if job_index >= len(gen_results):
-                return None
-            
-            gen_result = gen_results[job_index]
-            
-            return {
-                'stage': 'analysis',
-                'job_index': job_index,
-                'model_slug': gen_result.get('model_slug'),
-                'app_number': gen_result.get('app_number'),
-                'success': gen_result.get('success', False),
-            }
+            if generation_mode == 'existing':
+                # Existing apps mode - get jobs from existingApps
+                existing_apps = gen_config.get('existingApps', [])
+                job_index = self.current_job_index
+                
+                if job_index >= len(existing_apps):
+                    return None
+                
+                app_ref = existing_apps[job_index]
+                # app_ref is "model_slug:app_number" format
+                model_slug, app_number = app_ref.rsplit(':', 1)
+                
+                return {
+                    'stage': 'analysis',
+                    'job_index': job_index,
+                    'model_slug': model_slug,
+                    'app_number': int(app_number),
+                    'success': True,  # Existing apps are already generated
+                }
+            else:
+                # Generate mode - get jobs from generation results
+                gen_results = progress.get('generation', {}).get('results', [])
+                job_index = self.current_job_index
+                
+                if job_index >= len(gen_results):
+                    return None
+                
+                gen_result = gen_results[job_index]
+                
+                return {
+                    'stage': 'analysis',
+                    'job_index': job_index,
+                    'model_slug': gen_result.get('model_slug'),
+                    'app_number': gen_result.get('app_number'),
+                    'success': gen_result.get('success', False),
+                }
         
         elif self.current_stage == 'reports':
             reports_config = config.get('reports', {})

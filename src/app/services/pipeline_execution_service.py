@@ -156,11 +156,31 @@ class PipelineExecutionService:
     def _check_stage_transition(self, pipeline: PipelineExecution):
         """Check if pipeline should transition to next stage or complete."""
         progress = pipeline.progress
+        config = pipeline.config
         
         if pipeline.current_stage == 'generation':
+            gen_config = config.get('generation', {})
+            generation_mode = gen_config.get('mode', 'generate')
             gen = progress.get('generation', {})
-            if gen.get('status') == 'completed':
-                # Check if analysis is enabled
+            
+            if generation_mode == 'existing':
+                # Existing apps mode - skip generation entirely, go to analysis
+                progress['generation']['status'] = 'skipped'
+                
+                if progress.get('analysis', {}).get('status') != 'skipped':
+                    pipeline.current_stage = 'analysis'
+                    pipeline.current_job_index = 0
+                    progress['analysis']['status'] = 'running'
+                    pipeline.progress = progress
+                    self._log("Pipeline %s (existing apps mode) transitioning to analysis stage", pipeline.pipeline_id)
+                else:
+                    # No analysis - complete pipeline
+                    pipeline.status = PipelineExecutionStatus.COMPLETED
+                    pipeline.completed_at = datetime.now(timezone.utc)
+                    pipeline.current_stage = 'done'
+                    self._log("Pipeline %s completed (existing apps, skipped analysis)", pipeline.pipeline_id)
+            elif gen.get('status') == 'completed':
+                # Generation complete - check if analysis is enabled
                 if progress.get('analysis', {}).get('status') != 'skipped':
                     pipeline.current_stage = 'analysis'
                     pipeline.current_job_index = 0

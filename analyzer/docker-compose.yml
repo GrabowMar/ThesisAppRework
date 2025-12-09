@@ -206,6 +206,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - PYTHONUNBUFFERED=1
       - PYTHONPATH=/app/src
+      - RUNNING_IN_DOCKER=true
     volumes:
       - ../generated/apps:/app/generated/apps
       - ../results:/app/results

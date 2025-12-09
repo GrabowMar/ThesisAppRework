@@ -342,11 +342,22 @@ def api_start_pipeline():
         
         # Validate configuration
         gen_config = config.get('generation', {})
-        if not gen_config.get('models') or not gen_config.get('templates'):
-            return jsonify({
-                'success': False,
-                'error': 'Generation requires at least one model and one template'
-            }), 400
+        generation_mode = gen_config.get('mode', 'generate')
+        
+        if generation_mode == 'existing':
+            # Existing apps mode - need at least one app selected
+            if not gen_config.get('existingApps'):
+                return jsonify({
+                    'success': False,
+                    'error': 'Please select at least one existing app'
+                }), 400
+        else:
+            # Generate mode - need models and templates
+            if not gen_config.get('models') or not gen_config.get('templates'):
+                return jsonify({
+                    'success': False,
+                    'error': 'Generation requires at least one model and one template'
+                }), 400
         
         # Create pipeline execution in database
         current_app.logger.info(f"[DEBUG] Creating pipeline for user_id={current_user.id}")

@@ -536,8 +536,10 @@ async function launchPipeline() {
     const payload = {
         config: {
             generation: {
+                mode: wizard.config.generationMode || 'generate',
                 models: wizard.config.models,
                 templates: wizard.config.templates,
+                existingApps: wizard.config.existingApps || [],
                 options: {}
             },
             analysis: {
