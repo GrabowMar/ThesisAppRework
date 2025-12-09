@@ -455,7 +455,16 @@ async def main():
     host = os.getenv("GATEWAY_HOST", "0.0.0.0")
     port = int(os.getenv("GATEWAY_PORT", "8765"))
     logger.info(f"Starting Analyzer Gateway on ws://{host}:{port}")
-    async with serve(handle_client, host, port):
+    # Disable keepalive pings to prevent timeouts during long-running analysis
+    # Static analysis tools (semgrep, bandit, etc.) can block for 30+ seconds
+    async with serve(
+        handle_client,
+        host,
+        port,
+        ping_interval=None,
+        ping_timeout=None,
+        max_size=100 * 1024 * 1024,  # 100 MB for large SARIF responses
+    ):
         logger.info("Gateway listening and ready")
         await asyncio.Future()
 

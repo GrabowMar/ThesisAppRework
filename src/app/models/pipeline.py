@@ -9,6 +9,9 @@ Pipelines survive server restarts and can be resumed.
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 import json
+import logging
+
+logger = logging.getLogger('pipeline_model')
 import uuid
 
 from ..extensions import db
@@ -315,6 +318,11 @@ class PipelineExecution(db.Model):
         config = self.config
         progress = self.progress
         
+        logger.debug(
+            "[get_next_job] Pipeline %s: stage=%s, job_index=%d",
+            getattr(self, 'pipeline_id', 'unknown'), self.current_stage, self.current_job_index
+        )
+        
         if self.current_stage == 'generation':
             gen_config = config.get('generation', {})
             generation_mode = gen_config.get('mode', 'generate')
@@ -322,6 +330,7 @@ class PipelineExecution(db.Model):
             if generation_mode == 'existing':
                 # Existing apps mode - skip generation entirely
                 # Return None to trigger stage transition
+                logger.debug("[get_next_job] Existing mode in generation stage - returning None")
                 return None
             
             # Generate mode - need models and templates
@@ -349,6 +358,7 @@ class PipelineExecution(db.Model):
         elif self.current_stage == 'analysis':
             analysis_config = config.get('analysis', {})
             if not analysis_config.get('enabled', True):
+                logger.debug("[get_next_job] Analysis disabled - returning None")
                 return None
             
             gen_config = config.get('generation', {})
@@ -359,13 +369,20 @@ class PipelineExecution(db.Model):
                 existing_apps = gen_config.get('existingApps', [])
                 job_index = self.current_job_index
                 
+                logger.debug(
+                    "[get_next_job] Existing mode in analysis stage: job_index=%d, existing_apps_count=%d",
+                    job_index, len(existing_apps)
+                )
+                
                 if job_index >= len(existing_apps):
+                    logger.debug("[get_next_job] Job index >= existing apps count - returning None")
                     return None
                 
                 app_ref = existing_apps[job_index]
                 # app_ref is "model_slug:app_number" format
                 model_slug, app_number = app_ref.rsplit(':', 1)
                 
+                logger.debug("[get_next_job] Returning analysis job for %s:%s", model_slug, app_number)
                 return {
                     'stage': 'analysis',
                     'job_index': job_index,

@@ -19,7 +19,8 @@ const AutomationWizard = {
         analysisOptions: {
             waitForCompletion: true,
             parallel: false,
-            autoStartContainers: false
+            autoStartContainers: false,
+            stopAfterAnalysis: true  // Clean up containers after analysis
         },
         pipelineName: ''
     },
@@ -360,7 +361,8 @@ function collectAnalysisConfig() {
     wizard.config.analysisOptions = {
         waitForCompletion: document.getElementById('analysis-wait-complete')?.checked ?? true,
         parallel: document.getElementById('analysis-parallel')?.checked ?? false,
-        autoStartContainers: document.getElementById('analysis-container-auto')?.checked ?? false
+        autoStartContainers: document.getElementById('analysis-container-auto')?.checked ?? false,
+        stopAfterAnalysis: document.getElementById('analysis-container-stop')?.checked ?? true  // Default cleanup
     };
 }
 
@@ -1419,7 +1421,8 @@ function resetWizard() {
         analysisOptions: {
             waitForCompletion: true,
             parallel: false,
-            autoStartContainers: false
+            autoStartContainers: false,
+            stopAfterAnalysis: true  // Clean up containers after analysis
         },
         pipelineName: ''
     };
@@ -2056,7 +2059,8 @@ function saveCurrentSettings() {
         analysisOptions: wizard.config.analysisOptions || {
             waitForCompletion: true,
             parallel: false,
-            autoStartContainers: false
+            autoStartContainers: false,
+            stopAfterAnalysis: true
         }
     };
     
@@ -2170,10 +2174,12 @@ function applySettings(config) {
         const waitComplete = document.getElementById('analysis-wait-complete');
         const parallel = document.getElementById('analysis-parallel');
         const autoStart = document.getElementById('analysis-container-auto');
+        const stopAfter = document.getElementById('analysis-container-stop');
         
         if (waitComplete) waitComplete.checked = opts.waitForCompletion ?? true;
         if (parallel) parallel.checked = opts.parallel ?? false;
         if (autoStart) autoStart.checked = opts.autoStartContainers ?? false;
+        if (stopAfter) stopAfter.checked = opts.stopAfterAnalysis ?? true;
         
         wizard.config.analysisOptions = opts;
     }

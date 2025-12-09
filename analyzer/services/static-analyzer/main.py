@@ -60,7 +60,28 @@ class StaticAnalyzer(BaseWSService):
         
         start_time = time.time()
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            # Use asyncio subprocess to avoid blocking the event loop
+            # This allows WebSocket ping/pong to continue during long-running tools
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            try:
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+                raise subprocess.TimeoutExpired(cmd, timeout)
+            
+            # Create a result object compatible with subprocess.run output
+            class SubprocessResult:
+                def __init__(self, returncode, stdout, stderr):
+                    self.returncode = returncode
+                    self.stdout = stdout.decode('utf-8', errors='replace') if stdout else ''
+                    self.stderr = stderr.decode('utf-8', errors='replace') if stderr else ''
+            
+            result = SubprocessResult(proc.returncode, stdout, stderr)
             duration = time.time() - start_time
             
             # Check if this is a successful exit code

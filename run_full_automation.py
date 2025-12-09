@@ -146,6 +146,7 @@ def start_analysis(model_slug, app_number):
         "tools": [],
         "options": {
             "autoStartContainers": True,
+            "stopAfterAnalysis": True,  # Clean up containers after analysis
             "waitForCompletion": True
         }
     }

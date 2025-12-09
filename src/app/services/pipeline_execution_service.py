@@ -127,10 +127,22 @@ class PipelineExecutionService:
     
     def _process_pipeline(self, pipeline: PipelineExecution):
         """Process a single pipeline - execute its next job."""
+        # Debug: Log current state before getting next job
+        status_val = pipeline.status.value if hasattr(pipeline.status, 'value') else str(pipeline.status)
+        self._log(
+            "[DEBUG] Pipeline %s: stage=%s, job_index=%d, status=%s",
+            pipeline.pipeline_id, pipeline.current_stage, 
+            pipeline.current_job_index, status_val
+        )
+        
         # Get next job to execute
         job = pipeline.get_next_job()
         
         if job is None:
+            self._log(
+                "[DEBUG] Pipeline %s: get_next_job returned None, checking stage transition",
+                pipeline.pipeline_id
+            )
             # No more jobs - check if we need to transition stages
             self._check_stage_transition(pipeline)
             return
@@ -215,12 +227,33 @@ class PipelineExecutionService:
         progress = pipeline.progress
         task_ids = progress.get('analysis', {}).get('task_ids', [])
         
+        # Get expected number of analysis jobs
+        config = pipeline.config
+        gen_config = config.get('generation', {})
+        generation_mode = gen_config.get('mode', 'generate')
+        
+        if generation_mode == 'existing':
+            # Existing apps mode - count from existingApps
+            expected_jobs = len(gen_config.get('existingApps', []))
+        else:
+            # Generate mode - count from generation results
+            gen_results = progress.get('generation', {}).get('results', [])
+            expected_jobs = len(gen_results)
+        
         if not task_ids:
-            self._log(
-                "Pipeline %s: No analysis tasks to wait for",
-                pipeline.pipeline_id
-            )
-            return True  # No tasks to wait for
+            # No tasks created yet - but are there jobs to process?
+            if expected_jobs > 0 and pipeline.current_job_index < expected_jobs:
+                self._log(
+                    "Pipeline %s: No analysis tasks yet, but %d jobs remaining (index=%d)",
+                    pipeline.pipeline_id, expected_jobs - pipeline.current_job_index, pipeline.current_job_index
+                )
+                return False  # Still have jobs to process, don't complete
+            else:
+                self._log(
+                    "Pipeline %s: No analysis tasks to wait for (expected=%d, index=%d)",
+                    pipeline.pipeline_id, expected_jobs, pipeline.current_job_index
+                )
+                return True  # No tasks to wait for
         
         completed_count = 0
         failed_count = 0
@@ -287,6 +320,19 @@ class PipelineExecutionService:
         model_slug = job['model_slug']
         template_slug = job['template_slug']
         
+        # Check if we already generated an app for this model+template in this pipeline
+        # (prevents duplicates on server restart)
+        progress = pipeline.progress
+        existing_results = progress.get('generation', {}).get('results', [])
+        for existing_result in existing_results:
+            if (existing_result.get('model_slug') == model_slug and
+                existing_result.get('template_slug') == template_slug):
+                self._log(
+                    "Skipping duplicate generation for %s with template %s (already generated app %d)",
+                    model_slug, template_slug, existing_result.get('app_number')
+                )
+                return  # Already generated this model+template combo
+        
         self._log(
             "Generating app for %s with template %s",
             model_slug, template_slug
@@ -347,7 +393,8 @@ class PipelineExecutionService:
             }
             pipeline.add_generation_result(result)
         
-        db.session.commit()
+        # NOTE: Don't commit here - let _process_pipeline commit atomically
+        # with advance_job_index() to prevent duplicate jobs on restart
     
     def _execute_analysis_job(self, pipeline: PipelineExecution, job: Dict[str, Any]):
         """Execute a single analysis job."""
@@ -358,7 +405,7 @@ class PipelineExecutionService:
                 job.get('model_slug'), job.get('app_number')
             )
             pipeline.add_analysis_task_id('skipped', success=False)
-            db.session.commit()
+            # NOTE: Don't commit here - let _process_pipeline commit atomically
             return
         
         model_slug = job['model_slug']
@@ -439,12 +486,15 @@ class PipelineExecutionService:
                     tools = []
             
             # Build container management options
+            # For pipelines, we want to:
+            # 1. Build and start containers before analysis (if autoStartContainers is enabled)
+            # 2. Stop containers after successful analysis (always, to clean up resources)
             container_management = {}
             if options.get('autoStartContainers', False):
                 container_management = {
                     'start_before_analysis': True,
                     'build_if_missing': True,
-                    'stop_after_analysis': False,
+                    'stop_after_analysis': options.get('stopAfterAnalysis', True),  # Default to True for cleanup
                 }
             
             # Create analysis task
@@ -475,7 +525,8 @@ class PipelineExecutionService:
             )
             pipeline.add_analysis_task_id(f'error:{str(e)}', success=False)
         
-        db.session.commit()
+        # NOTE: Don't commit here - let _process_pipeline commit atomically
+        # with advance_job_index() to prevent duplicate jobs on restart
     
     def _execute_reports_job(self, pipeline: PipelineExecution, job: Dict[str, Any]):
         """Execute report generation job."""

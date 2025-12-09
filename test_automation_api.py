@@ -118,6 +118,7 @@ if __name__ == "__main__":
             templates=templates,
             options={
                 "autoStartContainers": True,
+                "stopAfterAnalysis": True,  # Clean up containers after analysis
                 "waitForCompletion": False,  # Don't wait, just start
                 "parallel": True
             }

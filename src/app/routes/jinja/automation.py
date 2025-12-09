@@ -625,7 +625,7 @@ def _execute_analysis_job(pipeline_id: str, pipeline: Dict, config: Dict, job_in
             container_management = {
                 'start_before_analysis': True,
                 'build_if_missing': True,
-                'stop_after_analysis': False,
+                'stop_after_analysis': analysis_options.get('stopAfterAnalysis', True),  # Default to cleanup
             }
         
         # Create analysis task
