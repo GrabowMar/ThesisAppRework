@@ -140,13 +140,11 @@ class PipelineExecutionService:
             pipeline.pipeline_id, job['stage'], job.get('job_index', 0)
         )
         
-        # Execute based on stage
+        # Execute based on stage (reports stage removed - pipeline completes after analysis)
         if job['stage'] == 'generation':
             self._execute_generation_job(pipeline, job)
         elif job['stage'] == 'analysis':
             self._execute_analysis_job(pipeline, job)
-        elif job['stage'] == 'reports':
-            self._execute_reports_job(pipeline, job)
         
         # Advance to next job
         pipeline.advance_job_index()
@@ -170,30 +168,18 @@ class PipelineExecutionService:
                     pipeline.progress = progress
                     self._log("Pipeline %s transitioning to analysis stage", pipeline.pipeline_id)
                 else:
-                    # Skip to reports
-                    pipeline.current_stage = 'reports'
-                    pipeline.current_job_index = 0
+                    # No analysis - complete pipeline
+                    pipeline.status = PipelineExecutionStatus.COMPLETED
+                    pipeline.completed_at = datetime.now(timezone.utc)
+                    pipeline.current_stage = 'done'
+                    self._log("Pipeline %s completed (skipped analysis)", pipeline.pipeline_id)
         
         elif pipeline.current_stage == 'analysis':
             # Poll actual task completion status from database
             analysis_done = self._check_analysis_tasks_completion(pipeline)
             
             if analysis_done:
-                if progress.get('reports', {}).get('status') != 'skipped':
-                    pipeline.current_stage = 'reports'
-                    pipeline.current_job_index = 0
-                    progress = pipeline.progress  # Refresh after update
-                    progress['reports']['status'] = 'running'
-                    pipeline.progress = progress
-                    self._log("Pipeline %s transitioning to reports stage", pipeline.pipeline_id)
-                else:
-                    # Complete pipeline
-                    pipeline.status = PipelineExecutionStatus.COMPLETED
-                    pipeline.completed_at = datetime.now(timezone.utc)
-        
-        elif pipeline.current_stage == 'reports':
-            reports = progress.get('reports', {})
-            if reports.get('status') == 'completed':
+                # Reports stage removed - complete pipeline after analysis
                 pipeline.status = PipelineExecutionStatus.COMPLETED
                 pipeline.completed_at = datetime.now(timezone.utc)
                 pipeline.current_stage = 'done'

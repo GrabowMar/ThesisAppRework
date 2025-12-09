@@ -1,4 +1,4 @@
-{# Stage 4: Review & Launch #}
+{# Stage 3: Review & Launch #}
 <div class="row g-4">
   {# Pipeline Summary Card #}
   <div class="col-12">
@@ -9,7 +9,7 @@
       <div class="card-body">
         <div class="row g-3" id="pipeline-summary">
           {# Generation Summary #}
-          <div class="col-md-4">
+          <div class="col-md-6">
             <div class="card h-100">
               <div class="card-header py-2 bg-azure-lt">
                 <h4 class="card-title mb-0 h6">
@@ -30,7 +30,7 @@
           </div>
 
           {# Analysis Summary #}
-          <div class="col-md-4">
+          <div class="col-md-6">
             <div class="card h-100">
               <div class="card-header py-2 bg-green-lt">
                 <h4 class="card-title mb-0 h6">
@@ -45,27 +45,6 @@
                   <dd class="col-7" id="summary-tools-count">-</dd>
                   <dt class="col-5 text-muted">Options:</dt>
                   <dd class="col-7" id="summary-analysis-options">-</dd>
-                </dl>
-              </div>
-            </div>
-          </div>
-
-          {# Reports Summary #}
-          <div class="col-md-4">
-            <div class="card h-100">
-              <div class="card-header py-2 bg-orange-lt">
-                <h4 class="card-title mb-0 h6">
-                  <i class="fas fa-file-alt me-2 text-orange"></i>Reports
-                </h4>
-              </div>
-              <div class="card-body py-2">
-                <dl class="row mb-0 small">
-                  <dt class="col-5 text-muted">Formats:</dt>
-                  <dd class="col-7" id="summary-report-formats">-</dd>
-                  <dt class="col-5 text-muted">Scope:</dt>
-                  <dd class="col-7" id="summary-report-scope">-</dd>
-                  <dt class="col-5 text-muted">Sections:</dt>
-                  <dd class="col-7" id="summary-report-sections">-</dd>
                 </dl>
               </div>
             </div>
@@ -91,13 +70,12 @@
                 <th>Template</th>
                 <th>Model</th>
                 <th>Analysis</th>
-                <th>Reports</th>
                 <th class="text-end">Est. Time</th>
               </tr>
             </thead>
             <tbody id="job-queue-preview">
               <tr>
-                <td colspan="6" class="text-center text-muted py-3">
+                <td colspan="5" class="text-center text-muted py-3">
                   <i class="fas fa-info-circle me-2"></i>
                   Select templates and models to preview job queue
                 </td>

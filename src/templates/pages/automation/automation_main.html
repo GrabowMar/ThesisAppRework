@@ -2,7 +2,7 @@
 {% extends 'layouts/base.html' %}
 {% set page_title = 'Automation Pipeline' %}
 {% set page_icon = 'fa-solid fa-wand-magic-sparkles' %}
-{% set page_subtitle = 'End-to-end workflow: Generation → Analysis → Reports' %}
+{% set page_subtitle = 'End-to-end workflow: Generation → Analysis' %}
 {% set active_page = 'automation' %}
 
 {% block content %}
@@ -40,6 +40,9 @@
               {% include 'pages/automation/partials/_stage_generation.html' %}
             </div>
           </div>
+          
+          {# Past Pipeline Executions - Collapsible #}
+          {% include 'pages/automation/partials/_past_executions.html' %}
         </div>
 
         {# Step 2: Analysis Configuration #}
@@ -69,39 +72,12 @@
           </div>
         </div>
 
-        {# Step 3: Reports Configuration #}
+        {# Step 3: Review & Execute #}
         <div class="col-12 wizard-panel" data-panel="3">
           <div class="card card-table-compact">
             <div class="card-header d-flex flex-wrap align-items-center gap-3 py-2">
               <div class="d-flex align-items-center gap-2">
                 <span class="badge bg-primary text-uppercase rounded-pill px-3">Step 3</span>
-                <div>
-                  <h3 class="card-title mb-0 d-flex align-items-center gap-2">
-                    <i class="fas fa-file-lines text-primary"></i>
-                    <span>Report Generation</span>
-                  </h3>
-                  <div class="text-muted small">Configure output reports and formats</div>
-                </div>
-              </div>
-              <div class="ms-auto">
-                <div class="form-check form-switch">
-                  <input class="form-check-input" type="checkbox" id="enable-reports" checked>
-                  <label class="form-check-label small" for="enable-reports">Enabled</label>
-                </div>
-              </div>
-            </div>
-            <div class="card-body border-top" id="reports-config">
-              {% include 'pages/automation/partials/_stage_reports.html' %}
-            </div>
-          </div>
-        </div>
-
-        {# Step 4: Review & Execute #}
-        <div class="col-12 wizard-panel" data-panel="4">
-          <div class="card card-table-compact">
-            <div class="card-header d-flex flex-wrap align-items-center gap-3 py-2">
-              <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-primary text-uppercase rounded-pill px-3">Step 4</span>
                 <div>
                   <h3 class="card-title mb-0 d-flex align-items-center gap-2">
                     <i class="fas fa-rocket text-primary"></i>
@@ -118,7 +94,7 @@
         </div>
 
         {# Execution Progress #}
-        <div class="col-12 wizard-panel" data-panel="5">
+        <div class="col-12 wizard-panel" data-panel="4">
           <div class="card card-table-compact">
             <div class="card-header d-flex flex-wrap align-items-center gap-3 py-2">
               <div class="d-flex align-items-center gap-2">
@@ -192,12 +168,6 @@
                 </div>
                 <div class="step-item" data-step="3" role="button" tabindex="0" onclick="goToStep(3)">
                   <div class="step-icon">
-                    <i class="fas fa-file-lines"></i>
-                  </div>
-                  <div class="step-title">Reports</div>
-                </div>
-                <div class="step-item" data-step="4" role="button" tabindex="0" onclick="goToStep(4)">
-                  <div class="step-icon">
                     <i class="fas fa-rocket"></i>
                   </div>
                   <div class="step-title">Execute</div>
@@ -217,7 +187,7 @@
           <div class="card-body py-2">
             <div class="d-flex flex-column gap-2">
               <div class="d-flex justify-content-between align-items-center small text-muted">
-                <span>Step <span id="current-step" class="fw-bold text-primary">1</span> of <span class="fw-bold">4</span></span>
+                <span>Step <span id="current-step" class="fw-bold text-primary">1</span> of <span class="fw-bold">3</span></span>
                 <span id="progress-percentage" class="fw-semibold">0%</span>
               </div>
               <div class="d-flex justify-content-between align-items-center gap-2">
@@ -268,15 +238,6 @@
               </div>
               <div class="small" id="sidebar-analysis-summary">
                 Profile: <strong>Comprehensive</strong>
-              </div>
-            </div>
-            <div class="border-top pt-3 mt-3">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <span class="small text-muted">Reports</span>
-                <span class="badge bg-success-lt" id="reports-status-badge">Enabled</span>
-              </div>
-              <div class="small" id="sidebar-reports-summary">
-                Format: <strong>HTML</strong>
               </div>
             </div>
             <div class="card bg-azure-lt mt-3">

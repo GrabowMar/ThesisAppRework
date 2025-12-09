@@ -1,6 +1,6 @@
 /**
  * Automation Wizard - Pipeline State Machine & UI Controller
- * Manages the multi-step wizard for automated generation → analysis → reports workflow
+ * Manages the multi-step wizard for automated generation → analysis workflow
  */
 
 // ============================================================================
@@ -20,14 +20,6 @@ const AutomationWizard = {
             waitForCompletion: true,
             parallel: false,
             autoStartContainers: false
-        },
-        reportFormats: ['html'],
-        reportScope: 'individual',
-        reportSections: ['summary', 'security', 'quality', 'performance', 'ai'],
-        reportOptions: {
-            autoOpen: true,
-            includeCode: false,
-            includeSarif: false
         },
         pipelineName: ''
     },
@@ -66,7 +58,7 @@ const AutomationWizard = {
  */
 function goToStep(step) {
     const wizard = AutomationWizard;
-    const totalSteps = 5; // 4 config + 1 execution
+    const totalSteps = 4; // 3 config + 1 execution
     
     // Validate step bounds
     if (step < 1 || step > totalSteps) return;
@@ -104,10 +96,10 @@ function goToStep(step) {
     updateWizardProgress(step);
     
     // Special handling for review step
-    if (step === 4) updateReviewSummary();
+    if (step === 3) updateReviewSummary();
     
     // Special handling for execution step
-    if (step === 5) {
+    if (step === 4) {
         // Hide stepper, show metrics
         toggleExecutionMode(true);
     } else {
@@ -183,18 +175,18 @@ function updateNavigationButtons() {
     }
     
     // Show/hide next vs start button based on step
-    if (step < 4) {
-        // Steps 1-3: show Next button
+    if (step < 3) {
+        // Steps 1-2: show Next button
         if (nextBtn) nextBtn.classList.remove('d-none');
         if (startBtn) startBtn.classList.add('d-none');
         if (startBtnLoading) startBtnLoading.classList.add('d-none');
-    } else if (step === 4) {
-        // Step 4 (Review): show Start Pipeline button
+    } else if (step === 3) {
+        // Step 3 (Review): show Start Pipeline button
         if (nextBtn) nextBtn.classList.add('d-none');
         if (startBtn) startBtn.classList.remove('d-none');
         if (startBtnLoading) startBtnLoading.classList.add('d-none');
     } else {
-        // Step 5 (Execution): hide navigation
+        // Step 4 (Execution): hide navigation
         if (nextBtn) nextBtn.classList.add('d-none');
         if (startBtn) startBtn.classList.add('d-none');
     }
@@ -204,7 +196,7 @@ function updateNavigationButtons() {
  * Update wizard progress bar
  */
 function updateWizardProgress(step) {
-    const totalConfigSteps = 4;
+    const totalConfigSteps = 3;
     const progress = Math.round((Math.min(step, totalConfigSteps) / totalConfigSteps) * 100);
     
     const progressBar = document.getElementById('wizard-progress-bar');
@@ -287,14 +279,7 @@ function validateStep(step) {
             }
             return true;
             
-        case 3: // Reports
-            if (wizard.config.reportFormats.length === 0) {
-                showNotification('Please select at least one report format', 'warning');
-                return false;
-            }
-            return true;
-            
-        case 4: // Review
+        case 3: // Review
             return true;
             
         default:
@@ -317,11 +302,7 @@ function collectStepConfig(step) {
             collectAnalysisConfig();
             break;
             
-        case 3: // Reports
-            collectReportsConfig();
-            break;
-            
-        case 4: // Review
+        case 3: // Review
             wizard.config.pipelineName = document.getElementById('pipeline-name')?.value || '';
             break;
     }
@@ -383,34 +364,7 @@ function collectAnalysisConfig() {
     };
 }
 
-/**
- * Collect reports step configuration
- */
-function collectReportsConfig() {
-    const wizard = AutomationWizard;
-    
-    // Get report formats
-    wizard.config.reportFormats = Array.from(
-        document.querySelectorAll('input[name="report_format"]:checked')
-    ).map(el => el.value);
-    
-    // Get report scope
-    wizard.config.reportScope = document.querySelector(
-        'input[name="report_scope"]:checked'
-    )?.value || 'individual';
-    
-    // Get report sections
-    wizard.config.reportSections = Array.from(
-        document.querySelectorAll('input[name="section"]:checked')
-    ).map(el => el.value);
-    
-    // Get report options
-    wizard.config.reportOptions = {
-        autoOpen: document.getElementById('report-auto-open')?.checked ?? true,
-        includeCode: document.getElementById('report-include-code')?.checked ?? false,
-        includeSarif: document.getElementById('report-include-sarif')?.checked ?? false
-    };
-}
+
 
 // ============================================================================
 // UI Updates
@@ -478,7 +432,7 @@ function updateStageBadge(badgeId, enabled) {
 }
 
 /**
- * Update the review summary (step 4)
+ * Update the review summary (step 3)
  */
 function updateReviewSummary() {
     const wizard = AutomationWizard;
@@ -503,20 +457,14 @@ function updateReviewSummary() {
     setText('summary-analysis-options', 
         config.analysisOptions.parallel ? 'Parallel' : 'Sequential');
     
-    // Reports summary
-    setText('summary-report-formats', config.reportFormats.join(', ').toUpperCase());
-    setText('summary-report-scope', 
-        config.reportScope.charAt(0).toUpperCase() + config.reportScope.slice(1));
-    setText('summary-report-sections', config.reportSections.length);
-    
     // Job queue preview
     updateJobQueuePreview();
     
     // Estimated time
     const totalJobs = config.templates.length * config.models.length;
-    const estMinutes = totalJobs * 5; // Rough estimate: 5 min per job (gen + analysis + report)
+    const estMinutes = totalJobs * 3; // Rough estimate: 3 min per job (gen + analysis)
     setText('est-duration', formatDuration(estMinutes * 60));
-    setText('total-operations', totalJobs * 3); // gen + analysis + report
+    setText('total-operations', totalJobs * 2); // gen + analysis
     setText('total-jobs-badge', `${totalJobs} jobs`);
 }
 
@@ -545,8 +493,7 @@ function updateJobQueuePreview() {
                     <td><span class="badge bg-azure-lt text-azure">${templateName}</span></td>
                     <td>${modelName}</td>
                     <td><span class="badge bg-green-lt text-green">${config.analysisProfile}</span></td>
-                    <td><span class="badge bg-orange-lt text-orange">${config.reportFormats.join(', ')}</span></td>
-                    <td class="text-end text-muted">~5 min</td>
+                    <td class="text-end text-muted">~3 min</td>
                 </tr>
             `;
         });
@@ -555,7 +502,7 @@ function updateJobQueuePreview() {
     if (html === '') {
         html = `
             <tr>
-                <td colspan="6" class="text-center text-muted py-3">
+                <td colspan="5" class="text-center text-muted py-3">
                     <i class="fas fa-info-circle me-2"></i>
                     Select templates and models to preview job queue
                 </td>
@@ -577,13 +524,13 @@ async function launchPipeline() {
     const wizard = AutomationWizard;
     
     // Final validation
-    if (!validateStep(1) || !validateStep(2) || !validateStep(3)) {
+    if (!validateStep(1) || !validateStep(2)) {
         showNotification('Please complete all required configuration', 'error');
         return;
     }
     
     // Collect final config
-    collectStepConfig(4);
+    collectStepConfig(3);
     
     // Prepare payload - wrapped in 'config' with nested structure matching backend expectation
     const payload = {
@@ -598,15 +545,6 @@ async function launchPipeline() {
                 profile: wizard.config.analysisProfile,
                 tools: wizard.config.analysisProfile === 'custom' ? wizard.config.analysisTools : [],
                 options: wizard.config.analysisOptions
-            },
-            reports: {
-                enabled: true,
-                formats: wizard.config.reportFormats,
-                scope: wizard.config.reportScope,
-                sections: wizard.config.reportSections,
-                types: ['app_analysis'],  // Default report type
-                format: wizard.config.reportFormats[0] || 'html',  // Primary format
-                options: wizard.config.reportOptions
             }
         },
         name: wizard.config.pipelineName
@@ -643,7 +581,7 @@ async function launchPipeline() {
         wizard.state.jobs = data.jobs || [];
         
         // Navigate to execution panel
-        goToStep(5);
+        goToStep(4);
         
         // Start polling for status
         startStatusPolling();
@@ -809,7 +747,6 @@ async function pollPipelineStatus() {
         // Update UI with progress from each stage
         updateStageProgress('generation', data.progress?.generation);
         updateStageProgress('analysis', data.progress?.analysis);
-        updateStageProgress('reports', data.progress?.reports);
         
         // Update overall progress
         updateOverallProgress(data.overall_progress || 0);
@@ -926,8 +863,7 @@ function updateCurrentStage(stage) {
     if (stageText) {
         const stageNames = {
             'generation': 'Generation',
-            'analysis': 'Analysis', 
-            'reports': 'Reports',
+            'analysis': 'Analysis',
             'done': 'Complete'
         };
         stageText.textContent = stageNames[stage] || stage;
@@ -990,13 +926,12 @@ async function checkAndRestoreActivePipeline() {
                 templates: pipeline.config.templates || [],
                 analysisProfile: pipeline.config.analysis_profile || 'comprehensive',
                 enableGeneration: pipeline.config.stages?.generation ?? true,
-                enableAnalysis: pipeline.config.stages?.analysis ?? true,
-                enableReports: pipeline.config.stages?.reports ?? true
+                enableAnalysis: pipeline.config.stages?.analysis ?? true
             };
         }
         
         // Navigate to execution panel
-        goToStep(5);
+        goToStep(4);
         
         // Update UI with current status
         updateExecutionUI();
@@ -1005,7 +940,6 @@ async function checkAndRestoreActivePipeline() {
         if (pipeline.progress) {
             updateStageProgress('generation', pipeline.progress.generation);
             updateStageProgress('analysis', pipeline.progress.analysis);
-            updateStageProgress('reports', pipeline.progress.reports);
             updateOverallProgress(pipeline.overall_progress || 0);
             updateCurrentStage(pipeline.stage);
         }
@@ -1397,24 +1331,6 @@ function clearAllTools() {
     });
 }
 
-/**
- * Select all report sections
- */
-function selectAllSections() {
-    document.querySelectorAll('input[name="section"]').forEach(el => {
-        el.checked = true;
-    });
-}
-
-/**
- * Select minimal report sections
- */
-function selectMinimalSections() {
-    document.querySelectorAll('input[name="section"]').forEach(el => {
-        el.checked = ['summary', 'security'].includes(el.value);
-    });
-}
-
 // ============================================================================
 // Utility Functions
 // ============================================================================
@@ -1440,8 +1356,7 @@ function formatDuration(seconds) {
 function getStageIcon(stage) {
     const icons = {
         'generation': 'fa-code',
-        'analysis': 'fa-search-plus',
-        'reports': 'fa-file-alt'
+        'analysis': 'fa-search-plus'
     };
     return icons[stage] || 'fa-cog';
 }
@@ -1452,8 +1367,7 @@ function getStageIcon(stage) {
 function getStageColor(stage) {
     const colors = {
         'generation': 'bg-azure-lt text-azure',
-        'analysis': 'bg-green-lt text-green',
-        'reports': 'bg-orange-lt text-orange'
+        'analysis': 'bg-green-lt text-green'
     };
     return colors[stage] || 'bg-secondary';
 }
@@ -1494,22 +1408,16 @@ function resetWizard() {
     
     // Reset config
     wizard.config = {
+        generationMode: 'generate',
         templates: [],
         models: [],
+        existingApps: [],
         analysisProfile: 'comprehensive',
         analysisTools: [],
         analysisOptions: {
             waitForCompletion: true,
             parallel: false,
             autoStartContainers: false
-        },
-        reportFormats: ['html'],
-        reportScope: 'individual',
-        reportSections: ['summary', 'security', 'quality', 'performance', 'ai'],
-        reportOptions: {
-            autoOpen: true,
-            includeCode: false,
-            includeSarif: false
         },
         pipelineName: ''
     };
@@ -1585,9 +1493,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         if (e.target.matches('#enable-analysis')) {
             updateStageBadge('analysis-status-badge', e.target.checked);
-        }
-        if (e.target.matches('#enable-reports')) {
-            updateStageBadge('reports-status-badge', e.target.checked);
         }
     });
     
@@ -1980,7 +1885,6 @@ function renderLoadSettingsList(settings) {
         const modelsCount = (config.models || []).length;
         const existingAppsCount = (config.existingApps || []).length;
         const analysisProfile = config.analysisProfile || 'comprehensive';
-        const reportFormats = (config.reportFormats || ['html']).map(f => f.toUpperCase()).join(', ');
         const mode = config.mode || 'generate';
         
         return `
@@ -2026,7 +1930,6 @@ function renderLoadSettingsList(settings) {
                     </div>
                 </div>
                 <div class="mt-2 small">
-                    <span class="badge bg-secondary-lt me-1">${reportFormats}</span>
                     ${mode === 'generate' ? `<span class="text-muted">${templatesCount * modelsCount} jobs</span>` : ''}
                 </div>
             </div>
@@ -2136,7 +2039,6 @@ function saveCurrentSettings() {
     // First ensure we collect from all steps
     collectGenerationConfig();
     collectAnalysisConfig();
-    collectReportsConfig();
     
     const wizard = AutomationWizard;
     const config = {
@@ -2153,16 +2055,6 @@ function saveCurrentSettings() {
             waitForCompletion: true,
             parallel: false,
             autoStartContainers: false
-        },
-        
-        // Step 3 - Reports
-        reportFormats: wizard.config.reportFormats || ['html'],
-        reportScope: wizard.config.reportScope || 'individual',
-        reportSections: wizard.config.reportSections || ['summary', 'security', 'quality', 'performance', 'ai'],
-        reportOptions: wizard.config.reportOptions || {
-            autoOpen: true,
-            includeCode: false,
-            includeSarif: false
         }
     };
     
@@ -2284,45 +2176,6 @@ function applySettings(config) {
         wizard.config.analysisOptions = opts;
     }
     
-    // === Step 3: Reports Settings ===
-    
-    // Set report formats
-    if (config.reportFormats) {
-        document.querySelectorAll('input[name="report_format"]').forEach(cb => {
-            cb.checked = config.reportFormats.includes(cb.value);
-        });
-        wizard.config.reportFormats = config.reportFormats;
-    }
-    
-    // Set report scope
-    if (config.reportScope) {
-        const scopeRadio = document.querySelector(`input[name="report_scope"][value="${config.reportScope}"]`);
-        if (scopeRadio) scopeRadio.checked = true;
-        wizard.config.reportScope = config.reportScope;
-    }
-    
-    // Set report sections
-    if (config.reportSections) {
-        document.querySelectorAll('input[name="section"]').forEach(cb => {
-            cb.checked = config.reportSections.includes(cb.value);
-        });
-        wizard.config.reportSections = config.reportSections;
-    }
-    
-    // Set report options
-    if (config.reportOptions) {
-        const opts = config.reportOptions;
-        const autoOpen = document.getElementById('report-auto-open');
-        const includeCode = document.getElementById('report-include-code');
-        const includeSarif = document.getElementById('report-include-sarif');
-        
-        if (autoOpen) autoOpen.checked = opts.autoOpen ?? true;
-        if (includeCode) includeCode.checked = opts.includeCode ?? false;
-        if (includeSarif) includeSarif.checked = opts.includeSarif ?? false;
-        
-        wizard.config.reportOptions = opts;
-    }
-    
     // === Update UI summaries ===
     updateSelectionSummary();
     updateExistingAppsSummary();
@@ -2332,13 +2185,6 @@ function applySettings(config) {
     if (analysisSummaryEl && config.analysisProfile) {
         const profileName = config.analysisProfile.charAt(0).toUpperCase() + config.analysisProfile.slice(1);
         analysisSummaryEl.innerHTML = `Profile: <strong>${profileName}</strong>`;
-    }
-    
-    // Update sidebar reports summary
-    const reportsSummaryEl = document.getElementById('sidebar-reports-summary');
-    if (reportsSummaryEl && config.reportFormats) {
-        const formatsText = config.reportFormats.map(f => f.toUpperCase()).join(', ');
-        reportsSummaryEl.innerHTML = `Format: <strong>${formatsText}</strong>`;
     }
 }
 
@@ -2395,8 +2241,6 @@ window.cancelPipeline = cancelPipeline;
 window.resetWizard = resetWizard;
 window.selectAllTools = selectAllTools;
 window.clearAllTools = clearAllTools;
-window.selectAllSections = selectAllSections;
-window.selectMinimalSections = selectMinimalSections;
 window.clearActivityLog = clearActivityLog;
 window.selectAllTemplates = selectAllTemplates;
 window.clearAllTemplates = clearAllTemplates;

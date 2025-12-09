@@ -1,0 +1,173 @@
+{# Past Pipeline Executions - Collapsible Section #}
+<div class="card mt-3">
+  <div class="card-header py-2">
+    <a class="d-flex align-items-center text-decoration-none text-reset" 
+       data-bs-toggle="collapse" href="#past-executions-collapse" role="button" 
+       aria-expanded="false" aria-controls="past-executions-collapse">
+      <span class="me-auto d-flex align-items-center gap-2">
+        <i class="fas fa-history text-primary"></i>
+        <span class="fw-medium">Past Pipeline Executions</span>
+        {% if recent_pipelines %}
+        <span class="badge bg-secondary-lt">{{ recent_pipelines|length }}</span>
+        {% endif %}
+      </span>
+      <i class="fas fa-chevron-down text-muted collapse-icon"></i>
+    </a>
+  </div>
+  <div class="collapse" id="past-executions-collapse">
+    <div class="card-body p-0">
+      {% if recent_pipelines and recent_pipelines|length > 0 %}
+      <div class="table-responsive">
+        <table class="table table-hover table-sm mb-0">
+          <thead>
+            <tr>
+              <th class="ps-3">Pipeline</th>
+              <th>Status</th>
+              <th>Stage</th>
+              <th>Progress</th>
+              <th>Started</th>
+              <th class="text-end pe-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for pipeline in recent_pipelines %}
+            <tr>
+              <td class="ps-3">
+                <div class="fw-medium">{{ pipeline.name or 'Pipeline #' ~ pipeline.id[:8] }}</div>
+                <div class="text-muted small">{{ pipeline.id[:12] }}...</div>
+              </td>
+              <td>
+                {% set status_colors = {
+                  'pending': 'bg-secondary',
+                  'running': 'bg-primary',
+                  'paused': 'bg-warning',
+                  'completed': 'bg-success',
+                  'failed': 'bg-danger',
+                  'cancelled': 'bg-secondary'
+                } %}
+                <span class="badge {{ status_colors.get(pipeline.status, 'bg-secondary') }}">
+                  {% if pipeline.status == 'running' %}
+                  <i class="fas fa-spinner fa-spin me-1"></i>
+                  {% elif pipeline.status == 'completed' %}
+                  <i class="fas fa-check me-1"></i>
+                  {% elif pipeline.status == 'failed' %}
+                  <i class="fas fa-times me-1"></i>
+                  {% endif %}
+                  {{ pipeline.status|capitalize }}
+                </span>
+              </td>
+              <td>
+                <span class="text-capitalize small">{{ pipeline.stage or '-' }}</span>
+              </td>
+              <td>
+                {% set progress = pipeline.overall_progress|default(0) %}
+                <div class="d-flex align-items-center gap-2" style="min-width: 100px;">
+                  <div class="progress flex-fill" style="height: 6px;">
+                    <div class="progress-bar 
+                         {% if pipeline.status == 'completed' %}bg-success
+                         {% elif pipeline.status == 'failed' %}bg-danger
+                         {% else %}bg-primary{% endif %}" 
+                         style="width: {{ progress }}%"></div>
+                  </div>
+                  <span class="small text-muted">{{ progress|int }}%</span>
+                </div>
+              </td>
+              <td>
+                <span class="small text-muted" title="{{ pipeline.created_at }}">
+                  {% if pipeline.started_at %}
+                  {{ pipeline.started_at }}
+                  {% else %}
+                  {{ pipeline.created_at }}
+                  {% endif %}
+                </span>
+              </td>
+              <td class="text-end pe-3">
+                {% if pipeline.status == 'running' %}
+                <button class="btn btn-sm btn-ghost-primary" onclick="viewPipeline('{{ pipeline.id }}')" title="View Progress">
+                  <i class="fas fa-eye"></i>
+                </button>
+                <button class="btn btn-sm btn-ghost-danger" onclick="cancelPipelineById('{{ pipeline.id }}')" title="Cancel">
+                  <i class="fas fa-stop"></i>
+                </button>
+                {% elif pipeline.status == 'completed' %}
+                <a href="{{ url_for('analysis.analysis_index') }}" class="btn btn-sm btn-ghost-success" title="View Results">
+                  <i class="fas fa-chart-bar"></i>
+                </a>
+                {% elif pipeline.status == 'failed' %}
+                <button class="btn btn-sm btn-ghost-secondary" onclick="viewPipelineError('{{ pipeline.id }}')" title="View Error">
+                  <i class="fas fa-exclamation-triangle"></i>
+                </button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-center py-4 text-muted">
+        <i class="fas fa-inbox fa-2x mb-3 opacity-50"></i>
+        <p class="mb-1">No past pipeline executions</p>
+        <p class="small">Configure and run your first pipeline to see history here.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<style>
+  .collapse-icon {
+    transition: transform 0.2s ease;
+  }
+  [aria-expanded="true"] .collapse-icon {
+    transform: rotate(180deg);
+  }
+</style>
+
+<script>
+  // Helper function to view a running pipeline
+  function viewPipeline(pipelineId) {
+    // Set pipeline ID and navigate to execution panel
+    document.getElementById('pipeline-id').value = pipelineId;
+    AutomationWizard.state.pipelineId = pipelineId;
+    AutomationWizard.state.status = 'running';
+    goToStep(4);
+    startStatusPolling();
+    startElapsedTimer();
+  }
+  
+  // Cancel a pipeline by ID
+  function cancelPipelineById(pipelineId) {
+    if (!confirm('Are you sure you want to cancel this pipeline?')) return;
+    
+    fetch(`/automation/api/pipeline/${pipelineId}/cancel`, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showNotification('Pipeline cancelled', 'success');
+        location.reload();
+      } else {
+        showNotification(data.error || 'Failed to cancel', 'error');
+      }
+    })
+    .catch(err => showNotification('Error cancelling pipeline', 'error'));
+  }
+  
+  // View pipeline error details
+  function viewPipelineError(pipelineId) {
+    fetch(`/automation/api/pipeline/${pipelineId}/status`, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success && data.data) {
+        const error = data.data.error_message || 'Unknown error';
+        alert(`Pipeline Error:\n\n${error}`);
+      }
+    })
+    .catch(err => alert('Error fetching pipeline details'));
+  }
+</script>

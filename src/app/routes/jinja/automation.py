@@ -455,8 +455,7 @@ def api_execute_stage(pipeline_id: str):
             result = _execute_generation_job(pipeline_id, pipeline, config, job_index)
         elif stage == 'analysis':
             result = _execute_analysis_job(pipeline_id, pipeline, config, job_index)
-        elif stage == 'reports':
-            result = _execute_reports_job(pipeline_id, pipeline, config)
+        # Reports stage removed - reports are now generated separately via Reports module
         
         # Update session
         session['automation_pipelines'][pipeline_id] = pipeline
@@ -585,7 +584,8 @@ def _execute_analysis_job(pipeline_id: str, pipeline: Dict, config: Dict, job_in
         progress['failed'] += 1
         if progress['completed'] + progress['failed'] >= progress['total']:
             progress['status'] = 'completed'
-            pipeline['stage'] = 'reports'
+            pipeline['stage'] = 'done'
+            pipeline['status'] = 'completed'
         return {'success': True, 'message': 'Skipped - generation failed'}
     
     model_slug = gen_result.get('model_slug')
@@ -638,7 +638,8 @@ def _execute_analysis_job(pipeline_id: str, pipeline: Dict, config: Dict, job_in
         
         if progress['completed'] + progress['failed'] >= progress['total']:
             progress['status'] = 'completed'
-            pipeline['stage'] = 'reports'
+            pipeline['stage'] = 'done'
+            pipeline['status'] = 'completed'
         
         return {
             'success': True,
@@ -652,7 +653,8 @@ def _execute_analysis_job(pipeline_id: str, pipeline: Dict, config: Dict, job_in
         
         if progress['completed'] + progress['failed'] >= progress['total']:
             progress['status'] = 'completed'
-            pipeline['stage'] = 'reports'
+            pipeline['stage'] = 'done'
+            pipeline['status'] = 'completed'
         
         return {'success': False, 'error': str(e)}
 
