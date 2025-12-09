@@ -473,7 +473,8 @@ class TaskExecutionService:
                             is_partial = status == 'partial'
                             
                             # Save analysis results to database via UnifiedResultService
-                            if success and result.get('payload'):
+                            # Always save payload (even for failed analyses - it contains diagnostic info)
+                            if result.get('payload'):
                                 try:
                                     unified_service = ServiceLocator.get_unified_result_service()
                                     unified_service.store_analysis_results(
@@ -487,14 +488,9 @@ class TaskExecutionService:
                                     self._log("Failed to store results via UnifiedResultService: %s", e, level='error')
                                     # Fallback to basic DB update if service fails
                                     task_db.set_result_summary(result['payload'])
-                            elif result.get('error'):
-                                # Save error details
-                                error_payload = {
-                                    'status': 'error',
-                                    'error': result['error'],
-                                    'timestamp': datetime.now(timezone.utc).isoformat()
-                                }
-                                task_db.set_result_summary(error_payload)
+                            
+                            # Save error message if present (for failed analyses)
+                            if result.get('error'):
                                 task_db.error_message = result['error']
                                 
                         except Exception as e:
@@ -847,6 +843,7 @@ class TaskExecutionService:
             # Count statistics for summary
             total_findings = 0
             all_services_status = []
+            service_errors = []  # Collect error messages from failed services
             
             for service_name, service_result in services_to_process.items():
                 if not isinstance(service_result, dict):
@@ -854,6 +851,12 @@ class TaskExecutionService:
                 
                 status = service_result.get('status', 'unknown')
                 all_services_status.append(status)
+                
+                # Collect error messages from failed services
+                if status in ('error', 'failed', 'timeout'):
+                    error_msg = service_result.get('error')
+                    if error_msg:
+                        service_errors.append(f"{service_name}: {error_msg}")
                 
                 # Count findings from analysis section if available
                 if isinstance(service_result.get('analysis'), dict):
@@ -865,6 +868,8 @@ class TaskExecutionService:
                         self._log(f"[DEBUG] Service {service_name} has {findings} findings")
             
             self._log(f"[DEBUG] Total findings across all services: {total_findings}")
+            if service_errors:
+                self._log(f"[DEBUG] Service errors: {service_errors}")
             
             # Determine overall status
             # CRITICAL FIX: Default to 'partial' when status list is empty but findings exist
@@ -900,10 +905,17 @@ class TaskExecutionService:
                 task.task_id, overall_status, total_findings, results_path
             )
             
+            # Build error message from service failures (for database logging)
+            combined_error = None
+            if overall_status == 'failed' and service_errors:
+                combined_error = "; ".join(service_errors[:5])  # Limit to first 5 errors
+                if len(service_errors) > 5:
+                    combined_error += f" (and {len(service_errors) - 5} more errors)"
+            
             return {
                 'status': overall_status,
                 'payload': wrapped_payload,
-                'error': None
+                'error': combined_error
             }
             
         except Exception as e:
