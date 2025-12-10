@@ -82,6 +82,7 @@ services:
       - ./results:/app/results
       - ./logs:/app/logs
       - ./src/data:/app/src/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       - redis
       - web

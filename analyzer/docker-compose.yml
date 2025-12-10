@@ -213,6 +213,7 @@ services:
       - ../logs:/app/logs
       - ../src/data:/app/src/data
       - ../.env:/app/.env:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     depends_on:
       - redis
     user: "1000:1000"

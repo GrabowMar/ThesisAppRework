@@ -1048,6 +1048,13 @@ function Invoke-Reload {
     # Brief pause to ensure clean shutdown
     Start-Sleep -Seconds 2
     
+    # Reset stuck tasks
+    Write-Status "Resetting stuck tasks..." "Info"
+    $fixScript = Join-Path $Script:ROOT_DIR "scripts\fix_task_statuses.py"
+    if (Test-Path $fixScript) {
+        & $Script:PYTHON_CMD $fixScript
+    }
+
     # Start services again
     Write-Status "Restarting services..." "Info"
     $Script:Background = $true
