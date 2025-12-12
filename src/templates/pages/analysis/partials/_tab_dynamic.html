@@ -1,206 +1,441 @@
-{# Dynamic Analysis Tab - Compact Report Layout #}
+{# Dynamic Analysis Tab - Enhanced Report Layout (Matching AI tab quality) #}
 {% set dynamic_service = payload.results.services.dynamic if payload.results.services and payload.results.services.dynamic else none %}
 
 {% if dynamic_service %}
-  {# Service Status Bar #}
+  {# Service Header #}
   <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
     <div>
-      <strong class="text-muted small text-uppercase">{{ dynamic_service.service|default('dynamic-analyzer') }}</strong>
+      <h4 class="mb-1 d-flex align-items-center gap-2">
+        <i class="fa-solid fa-shield-halved text-success"></i>
+        <span>Dynamic Security Analysis</span>
+      </h4>
+      <p class="text-muted small mb-0">{{ dynamic_service.service|default('dynamic-analyzer') }}</p>
     </div>
-    <span class="badge {% if dynamic_service.status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif dynamic_service.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt text-secondary{% endif %}">
+    <span class="badge {% if dynamic_service.status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif dynamic_service.status == 'partial_success' %}bg-warning-lt text-warning{% elif dynamic_service.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt text-secondary{% endif %}">
       <i class="fa-solid fa-circle-dot me-1"></i>
       {{ dynamic_service.status|default('unknown')|replace('_', ' ')|title }}
     </span>
   </div>
 
-  {# Tools Results Table #}
-  {# Use tool_results from analysis (normalized tool map) instead of iterating over results keys #}
-  {% set tools_results = dynamic_service.analysis.tool_results if dynamic_service.analysis and dynamic_service.analysis.tool_results else {} %}
+  {# Extract results #}
+  {% set analysis = dynamic_service.analysis if dynamic_service.analysis else {} %}
+  {% set tools_results = analysis.tool_results if analysis.tool_results else {} %}
   {% if not tools_results %}
-    {# Fallback to tool_runs inside results.results if tool_results not at top level #}
-    {% set tools_results = dynamic_service.analysis.results.tool_runs if dynamic_service.analysis and dynamic_service.analysis.results and dynamic_service.analysis.results.tool_runs else {} %}
+    {% set tools_results = analysis.results.tool_runs if analysis.results and analysis.results.tool_runs else {} %}
+  {% endif %}
+  {% set tools_used = analysis.tools_used if analysis.tools_used else [] %}
+  {% set target_urls = analysis.target_urls if analysis.target_urls else [] %}
+  {% set summary = analysis.summary if analysis.summary else {} %}
+  
+  {# Check for specific dynamic tools data #}
+  {% set zap_results = analysis.results.zap_security_scan if analysis.results and analysis.results.zap_security_scan else none %}
+  {% set vuln_results = analysis.results.vulnerability_scan if analysis.results and analysis.results.vulnerability_scan else none %}
+  {% set port_results = analysis.results.port_scan if analysis.results and analysis.results.port_scan else none %}
+  {% set connectivity = analysis.results.connectivity if analysis.results and analysis.results.connectivity else [] %}
+  
+  {# Calculate aggregate statistics #}
+  {% set ns = namespace(total_vulnerabilities=0, total_alerts=0, open_ports=0, reachable_urls=0, tools_executed=0, high_risk=0, medium_risk=0, low_risk=0, info_risk=0) %}
+  
+  {# Count ZAP alerts #}
+  {% if zap_results %}
+    {% for scan in zap_results %}
+      {% if scan.alerts_by_risk %}
+        {% for risk, alerts in scan.alerts_by_risk.items() %}
+          {% set ns.total_alerts = ns.total_alerts + alerts|length %}
+          {% if risk|lower == 'high' %}
+            {% set ns.high_risk = ns.high_risk + alerts|length %}
+          {% elif risk|lower == 'medium' %}
+            {% set ns.medium_risk = ns.medium_risk + alerts|length %}
+          {% elif risk|lower == 'low' %}
+            {% set ns.low_risk = ns.low_risk + alerts|length %}
+          {% else %}
+            {% set ns.info_risk = ns.info_risk + alerts|length %}
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+      {% if scan.vulnerabilities %}
+        {% set ns.total_vulnerabilities = ns.total_vulnerabilities + scan.vulnerabilities|length %}
+      {% endif %}
+    {% endfor %}
   {% endif %}
   
-  {# Metadata keys that should NOT appear as tools in the generic loop #}
-  {% set metadata_keys = ['connectivity', 'vulnerability_scan', 'port_scan', 'zap_security_scan', 'tool_runs', 'summary', 'status', 'error', 'analysis_time', 'model_slug', 'app_number', 'tools_used', 'target_urls', 'zap', 'nmap', 'vulnscan'] %}
+  {# Count vulnerability scan results #}
+  {% if vuln_results %}
+    {% for scan in vuln_results %}
+      {% if scan.vulnerabilities %}
+        {% set ns.total_vulnerabilities = ns.total_vulnerabilities + scan.vulnerabilities|length %}
+      {% endif %}
+    {% endfor %}
+  {% endif %}
   
-  {# Check for specific dynamic tools #}
-  {% set zap_results = dynamic_service.analysis.results.zap_security_scan if dynamic_service.analysis and dynamic_service.analysis.results and dynamic_service.analysis.results.zap_security_scan else none %}
-  {% set vuln_results = dynamic_service.analysis.results.vulnerability_scan if dynamic_service.analysis and dynamic_service.analysis.results and dynamic_service.analysis.results.vulnerability_scan else none %}
-  {% set port_results = dynamic_service.analysis.results.port_scan if dynamic_service.analysis and dynamic_service.analysis.results and dynamic_service.analysis.results.port_scan else none %}
+  {# Count open ports #}
+  {% if port_results and port_results.open_ports %}
+    {% set ns.open_ports = port_results.open_ports|length %}
+  {% endif %}
   
-  {% if tools_results or zap_results or vuln_results or port_results %}
-    <div class="table-responsive">
-      <table class="table table-sm table-vcenter table-hover mb-0">
-        <thead>
-          <tr>
-            <th>Tool</th>
-            <th class="text-center">Status</th>
-            <th class="text-center">Issues Found</th>
-            <th>Summary</th>
-            <th class="text-center w-1">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {# ZAP Security Scan #}
-          {% if zap_results %}
-            {% set zap_issues = 0 %}
-            {% for scan in zap_results %}
-               {% if scan.alerts_by_risk %}
-                 {% for risk, alerts in scan.alerts_by_risk.items() %}
-                   {% set zap_issues = zap_issues + alerts|length %}
-                 {% endfor %}
-               {% endif %}
-               {% if scan.vulnerabilities %}
-                 {% set zap_issues = zap_issues + scan.vulnerabilities|length %}
-               {% endif %}
-            {% endfor %}
-            <tr>
-              <td><strong>ZAP</strong></td>
-              <td class="text-center">
-                <span class="badge bg-success-lt text-success">Success</span>
-              </td>
-              <td class="text-center">
-                {% if zap_issues > 0 %}
-                  <span class="badge bg-warning-lt text-warning">{{ zap_issues }}</span>
-                {% else %}
-                  <span class="text-success"><i class="fa-solid fa-check"></i></span>
-                {% endif %}
-              </td>
-              <td class="small text-muted">
-                {% if zap_issues > 0 %}
-                  {{ zap_issues }} issue(s) found
-                {% else %}
-                  <span class="text-success">No issues detected</span>
-                {% endif %}
-              </td>
-              <td class="text-center">
-                <button class="btn btn-sm btn-ghost-primary btn-icon tool-detail-btn" 
-                        data-tool-name="zap" 
-                        data-service-type="dynamic"
-                        title="View detailed analysis">
-                  <i class="fa-solid fa-magnifying-glass"></i>
-                </button>
-              </td>
-            </tr>
-          {% endif %}
+  {# Count reachable URLs #}
+  {% for conn in connectivity %}
+    {% if conn.analysis and conn.analysis.reachable %}
+      {% set ns.reachable_urls = ns.reachable_urls + 1 %}
+    {% endif %}
+  {% endfor %}
 
-          {# Vulnerability Scan #}
-          {% if vuln_results %}
-            {% set vuln_issues = 0 %}
-            {% for scan in vuln_results %}
-               {% if scan.vulnerabilities %}
-                 {% set vuln_issues = vuln_issues + scan.vulnerabilities|length %}
-               {% endif %}
-            {% endfor %}
-            <tr>
-              <td><strong>VULNSCAN</strong></td>
-              <td class="text-center">
-                <span class="badge bg-success-lt text-success">Success</span>
-              </td>
-              <td class="text-center">
-                {% if vuln_issues > 0 %}
-                  <span class="badge bg-warning-lt text-warning">{{ vuln_issues }}</span>
-                {% else %}
-                  <span class="text-success"><i class="fa-solid fa-check"></i></span>
-                {% endif %}
-              </td>
-              <td class="small text-muted">
-                {% if vuln_issues > 0 %}
-                  {{ vuln_issues }} issue(s) found
-                {% else %}
-                  <span class="text-success">No issues detected</span>
-                {% endif %}
-              </td>
-              <td class="text-center">
-                <button class="btn btn-sm btn-ghost-primary btn-icon tool-detail-btn" 
-                        data-tool-name="vulnerability_scan" 
-                        data-service-type="dynamic"
-                        title="View detailed analysis">
-                  <i class="fa-solid fa-magnifying-glass"></i>
-                </button>
-              </td>
-            </tr>
-          {% endif %}
-
-          {# Port Scan #}
-          {% if port_results %}
-            {% set open_ports = port_results.open_ports|length if port_results.open_ports else 0 %}
-            <tr>
-              <td><strong>NMAP</strong></td>
-              <td class="text-center">
-                <span class="badge bg-success-lt text-success">Success</span>
-              </td>
-              <td class="text-center">
-                {% if open_ports > 0 %}
-                  <span class="badge bg-info-lt text-info">{{ open_ports }}</span>
-                {% else %}
-                  <span class="text-success"><i class="fa-solid fa-check"></i></span>
-                {% endif %}
-              </td>
-              <td class="small text-muted">
-                {% if open_ports > 0 %}
-                  {{ open_ports }} open port(s) found
-                {% else %}
-                  <span class="text-success">No open ports detected</span>
-                {% endif %}
-              </td>
-              <td class="text-center">
-                <button class="btn btn-sm btn-ghost-primary btn-icon tool-detail-btn" 
-                        data-tool-name="nmap" 
-                        data-service-type="dynamic"
-                        title="View detailed analysis">
-                  <i class="fa-solid fa-magnifying-glass"></i>
-                </button>
-              </td>
-            </tr>
-          {% endif %}
-
-          {% for tool_name, tool_data in tools_results.items() %}
-          {# Skip metadata keys that aren't actual tools #}
-          {% if tool_name.lower() not in metadata_keys %}
-          <tr>
-            <td><strong>{{ tool_name|upper }}</strong></td>
-            <td class="text-center">
-              {% if tool_data.executed %}
-                <span class="badge {% if tool_data.status in ['success', 'ok', 'completed', 'no_issues'] %}bg-success-lt text-success{% elif tool_data.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
-                  {{ tool_data.status|default('unknown') }}
-                </span>
-              {% else %}
-                <span class="badge bg-secondary-lt">Skipped</span>
-              {% endif %}
-            </td>
-            <td class="text-center">
-              {% if tool_data.total_issues is defined and tool_data.total_issues > 0 %}
-                <span class="badge bg-warning-lt text-warning">{{ tool_data.total_issues }}</span>
-              {% else %}
-                <span class="text-success"><i class="fa-solid fa-check"></i></span>
-              {% endif %}
-            </td>
-            <td class="small text-muted">
-              {% if tool_data.status in ['failed', 'error'] and tool_data.error %}
-                <span class="text-danger"><i class="fa-solid fa-exclamation-triangle me-1"></i>{{ tool_data.error }}</span>
-              {% elif tool_data.total_issues is defined and tool_data.total_issues > 0 %}
-                {{ tool_data.total_issues }} issue(s) found
-              {% else %}
-                <span class="text-success">No issues detected</span>
-              {% endif %}
-            </td>
-            <td class="text-center">
-              <button class="btn btn-sm btn-ghost-primary btn-icon tool-detail-btn" 
-                      data-tool-name="{{ tool_name }}" 
-                      data-service-type="dynamic"
-                      title="View detailed analysis">
-                <i class="fa-solid fa-magnifying-glass"></i>
-              </button>
-            </td>
-          </tr>
-          {% endif %}
-          {% endfor %}
-        </tbody>
-      </table>
+  {# Overall Summary Card #}
+  <div class="card card-table-compact mb-3">
+    <div class="card-header d-flex flex-wrap align-items-center gap-3">
+      <h5 class="card-title d-flex align-items-center gap-2 mb-0">
+        <i class="fa-solid fa-chart-pie"></i>
+        <span>Security Scan Summary</span>
+      </h5>
+      <div class="ms-auto small text-muted">
+        {{ tools_used|length }} tools • {{ target_urls|length }} target URLs
+      </div>
     </div>
-  {% else %}
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-6 col-md-3">
+          <div class="text-muted small text-uppercase mb-1">Security Alerts</div>
+          <div class="h3 mb-0 {% if ns.total_alerts > 10 %}text-danger{% elif ns.total_alerts > 5 %}text-warning{% elif ns.total_alerts > 0 %}text-info{% else %}text-success{% endif %}">
+            {{ ns.total_alerts + ns.total_vulnerabilities }}
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="text-muted small text-uppercase mb-1">Risk Level</div>
+          <div class="h3 mb-0 {% if ns.high_risk > 0 %}text-danger{% elif ns.medium_risk > 0 %}text-warning{% elif ns.low_risk > 0 %}text-info{% else %}text-success{% endif %}">
+            {% if ns.high_risk > 0 %}
+              <i class="fa-solid fa-exclamation-triangle"></i> High
+            {% elif ns.medium_risk > 0 %}
+              <i class="fa-solid fa-triangle-exclamation"></i> Medium
+            {% elif ns.low_risk > 0 %}
+              <i class="fa-solid fa-info-circle"></i> Low
+            {% else %}
+              <i class="fa-solid fa-check-circle"></i> Clean
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="text-muted small text-uppercase mb-1">Connectivity</div>
+          <div class="h4 mb-0">
+            <span class="{% if ns.reachable_urls == target_urls|length %}text-success{% elif ns.reachable_urls > 0 %}text-warning{% else %}text-danger{% endif %}">{{ ns.reachable_urls }}</span>
+            <span class="text-muted">/</span>
+            <span class="text-muted">{{ target_urls|length }}</span>
+            <span class="small text-muted ms-1">reachable</span>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="text-muted small text-uppercase mb-1">Risk Breakdown</div>
+          <div class="d-flex gap-1 align-items-center">
+            {% if ns.high_risk > 0 %}<span class="badge bg-danger" title="High risk">H{{ ns.high_risk }}</span>{% endif %}
+            {% if ns.medium_risk > 0 %}<span class="badge bg-warning" title="Medium risk">M{{ ns.medium_risk }}</span>{% endif %}
+            {% if ns.low_risk > 0 %}<span class="badge bg-info" title="Low risk">L{{ ns.low_risk }}</span>{% endif %}
+            {% if ns.info_risk > 0 %}<span class="badge bg-secondary" title="Informational">I{{ ns.info_risk }}</span>{% endif %}
+            {% if not ns.high_risk and not ns.medium_risk and not ns.low_risk and not ns.info_risk %}
+              <span class="text-success"><i class="fa-solid fa-shield-check me-1"></i>No vulnerabilities</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% if target_urls %}
+      <div class="mt-3 pt-3 border-top">
+        <span class="text-muted small">Target URLs: </span>
+        {% for url in target_urls %}
+          <code class="small me-2">{{ url }}</code>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Connectivity Status Card #}
+  {% if connectivity|length > 0 %}
+  <div class="card card-table-compact mb-3">
+    <div class="card-header d-flex flex-wrap align-items-center gap-3 bg-info-lt">
+      <h5 class="card-title d-flex align-items-center gap-2 mb-0">
+        <i class="fa-solid fa-network-wired text-info"></i>
+        <span>Connectivity Tests</span>
+      </h5>
+      <span class="badge {% if ns.reachable_urls == target_urls|length %}bg-success-lt text-success{% elif ns.reachable_urls > 0 %}bg-warning-lt text-warning{% else %}bg-danger-lt text-danger{% endif %} ms-2">
+        {{ ns.reachable_urls }}/{{ target_urls|length }} reachable
+      </span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm table-vcenter table-hover mb-0">
+          <thead>
+            <tr>
+              <th style="width: 40px;"></th>
+              <th>URL</th>
+              <th class="text-center" style="width: 100px;">Status</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for conn in connectivity %}
+              {% set conn_analysis = conn.analysis if conn.analysis else {} %}
+              <tr>
+                <td class="text-center">
+                  {% if conn_analysis.reachable %}
+                    <i class="fa-solid fa-check-circle text-success" title="Reachable"></i>
+                  {% else %}
+                    <i class="fa-solid fa-times-circle text-danger" title="Unreachable"></i>
+                  {% endif %}
+                </td>
+                <td>
+                  <code class="small">{{ conn_analysis.url|default('Unknown') }}</code>
+                </td>
+                <td class="text-center">
+                  {% if conn_analysis.reachable %}
+                    <span class="badge bg-success-lt text-success">Reachable</span>
+                  {% else %}
+                    <span class="badge bg-danger-lt text-danger">Unreachable</span>
+                  {% endif %}
+                </td>
+                <td class="small text-muted">
+                  {% if conn_analysis.error %}
+                    <details>
+                      <summary class="text-danger" style="cursor: pointer;">
+                        <i class="fa-solid fa-chevron-right me-1"></i>Connection failed
+                      </summary>
+                      <div class="mt-2 text-wrap small" style="max-width: 400px;">
+                        {{ conn_analysis.error|truncate(200) }}
+                      </div>
+                    </details>
+                  {% elif conn_analysis.reachable %}
+                    <span class="text-success"><i class="fa-solid fa-check me-1"></i>Successfully connected</span>
+                  {% else %}
+                    <span class="text-muted">No details available</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ZAP Security Scan Card #}
+  {% if zap_results %}
+  <div class="card card-table-compact mb-3">
+    <div class="card-header d-flex flex-wrap align-items-center gap-3 bg-danger-lt">
+      <h5 class="card-title d-flex align-items-center gap-2 mb-0">
+        <i class="fa-solid fa-bug text-danger"></i>
+        <span>ZAP Security Scan</span>
+      </h5>
+      <span class="badge {% if ns.total_alerts > 0 %}bg-warning-lt text-warning{% else %}bg-success-lt text-success{% endif %} ms-2">
+        {{ ns.total_alerts }} alert{{ 's' if ns.total_alerts != 1 else '' }}
+      </span>
+      <div class="card-actions ms-auto">
+        <button class="btn btn-sm btn-ghost-danger tool-detail-btn" 
+                data-tool-name="zap" 
+                data-service-type="dynamic"
+                title="View detailed scan results">
+          <i class="fa-solid fa-magnifying-glass me-1"></i>Details
+        </button>
+      </div>
+    </div>
+    <div class="card-body">
+      {% for scan in zap_results %}
+        <div class="{% if not loop.first %}mt-3 pt-3 border-top{% endif %}">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <code class="small">{{ scan.url|default('Unknown URL') }}</code>
+            {% if scan.status == 'error' %}
+              <span class="badge bg-danger-lt text-danger">Error</span>
+            {% elif scan.total_alerts > 0 %}
+              <span class="badge bg-warning-lt text-warning">{{ scan.total_alerts }} alerts</span>
+            {% else %}
+              <span class="badge bg-success-lt text-success">Clean</span>
+            {% endif %}
+          </div>
+          
+          {% if scan.status == 'error' %}
+            <div class="alert alert-danger py-2 mb-0">
+              <i class="fa-solid fa-exclamation-circle me-2"></i>
+              {{ scan.error|default('Scan failed')|truncate(150) }}
+            </div>
+          {% elif scan.alerts_by_risk %}
+            {% for risk, alerts in scan.alerts_by_risk.items() %}
+              {% if alerts|length > 0 %}
+                <div class="mb-2">
+                  <span class="badge {% if risk|lower == 'high' %}bg-danger{% elif risk|lower == 'medium' %}bg-warning{% elif risk|lower == 'low' %}bg-info{% else %}bg-secondary{% endif %} me-2">
+                    {{ risk|title }} Risk
+                  </span>
+                  <span class="small text-muted">{{ alerts|length }} alert{{ 's' if alerts|length != 1 else '' }}</span>
+                </div>
+                <ul class="list-unstyled mb-2 ms-3">
+                  {% for alert in alerts[:3] %}
+                    <li class="mb-1 small">
+                      <i class="fa-solid fa-angle-right text-muted me-1"></i>
+                      <strong>{{ alert.name|default(alert.alert)|default('Unknown alert') }}</strong>
+                      {% if alert.url or alert.other %}
+                        <span class="text-muted ms-1">({{ alert.url|default(alert.other)|default('')|truncate(50) }})</span>
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                  {% if alerts|length > 3 %}
+                    <li class="small text-muted">...and {{ alerts|length - 3 }} more</li>
+                  {% endif %}
+                </ul>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <div class="text-success small">
+              <i class="fa-solid fa-check-circle me-1"></i>No security alerts detected
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# Port Scan Card #}
+  {% if port_results %}
+  <div class="card card-table-compact mb-3">
+    <div class="card-header d-flex flex-wrap align-items-center gap-3 bg-secondary-lt">
+      <h5 class="card-title d-flex align-items-center gap-2 mb-0">
+        <i class="fa-solid fa-server text-secondary"></i>
+        <span>Port Scan (Nmap)</span>
+      </h5>
+      <span class="badge {% if port_results.total_open > 0 %}bg-info-lt text-info{% else %}bg-success-lt text-success{% endif %} ms-2">
+        {{ port_results.total_open|default(0) }} open port{{ 's' if port_results.total_open != 1 else '' }}
+      </span>
+      <div class="card-actions ms-auto">
+        <button class="btn btn-sm btn-ghost-secondary tool-detail-btn" 
+                data-tool-name="nmap" 
+                data-service-type="dynamic"
+                title="View port scan details">
+          <i class="fa-solid fa-magnifying-glass me-1"></i>Details
+        </button>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="row g-3 mb-3">
+        <div class="col-md-4">
+          <div class="text-muted small">Host</div>
+          <code>{{ port_results.host|default('localhost') }}</code>
+        </div>
+        <div class="col-md-4">
+          <div class="text-muted small">Ports Scanned</div>
+          <span>{{ port_results.scanned_ports|length if port_results.scanned_ports else 0 }}</span>
+        </div>
+        <div class="col-md-4">
+          <div class="text-muted small">Open Ports</div>
+          <span class="{% if port_results.total_open > 0 %}fw-bold text-info{% else %}text-success{% endif %}">{{ port_results.total_open|default(0) }}</span>
+        </div>
+      </div>
+      
+      {% if port_results.open_ports and port_results.open_ports|length > 0 %}
+        <h6 class="mb-2"><i class="fa-solid fa-door-open me-1"></i>Open Ports</h6>
+        <div class="d-flex flex-wrap gap-2">
+          {% for port in port_results.open_ports %}
+            <span class="badge bg-info-lt text-info">{{ port }}</span>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="text-success small">
+          <i class="fa-solid fa-shield-check me-1"></i>No open ports detected on scanned range
+        </div>
+      {% endif %}
+      
+      {% if port_results.scanned_ports %}
+        <details class="mt-3">
+          <summary class="text-muted small" style="cursor: pointer;">
+            <i class="fa-solid fa-chevron-right me-1"></i>View scanned ports ({{ port_results.scanned_ports|length }})
+          </summary>
+          <div class="mt-2 d-flex flex-wrap gap-1">
+            {% for port in port_results.scanned_ports %}
+              <span class="badge bg-secondary-lt small">{{ port }}</span>
+            {% endfor %}
+          </div>
+        </details>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# Additional Tools Summary #}
+  {% set metadata_keys = ['connectivity', 'vulnerability_scan', 'port_scan', 'zap_security_scan', 'tool_runs', 'summary', 'status', 'error', 'analysis_time', 'model_slug', 'app_number', 'tools_used', 'target_urls', 'zap', 'nmap', 'vulnscan'] %}
+  {% set has_other_tools = false %}
+  {% for tool_name, tool_data in tools_results.items() %}
+    {% if tool_name.lower() not in metadata_keys %}
+      {% set has_other_tools = true %}
+    {% endif %}
+  {% endfor %}
+  
+  {% if has_other_tools %}
+  <div class="card card-table-compact mb-3">
+    <div class="card-header d-flex flex-wrap align-items-center gap-3">
+      <h5 class="card-title d-flex align-items-center gap-2 mb-0">
+        <i class="fa-solid fa-toolbox text-muted"></i>
+        <span>Other Security Tools</span>
+      </h5>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm table-vcenter table-hover mb-0">
+          <thead>
+            <tr>
+              <th style="width: 140px;">Tool</th>
+              <th class="text-center" style="width: 100px;">Status</th>
+              <th class="text-center" style="width: 80px;">Issues</th>
+              <th>Summary</th>
+              <th class="text-center" style="width: 60px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for tool_name, tool_data in tools_results.items() %}
+              {% if tool_name.lower() not in metadata_keys %}
+              <tr>
+                <td>
+                  <div class="fw-bold">{{ tool_name|upper }}</div>
+                </td>
+                <td class="text-center">
+                  {% if tool_data.executed %}
+                    <span class="badge {% if tool_data.status in ['success', 'ok', 'completed', 'no_issues'] %}bg-success-lt text-success{% elif tool_data.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
+                      {{ tool_data.status|default('unknown') }}
+                    </span>
+                  {% else %}
+                    <span class="badge bg-secondary-lt">Skipped</span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  {% if tool_data.total_issues is defined and tool_data.total_issues > 0 %}
+                    <span class="badge bg-warning-lt text-warning">{{ tool_data.total_issues }}</span>
+                  {% else %}
+                    <span class="text-success"><i class="fa-solid fa-check"></i></span>
+                  {% endif %}
+                </td>
+                <td class="small text-muted">
+                  {% if tool_data.status in ['failed', 'error'] and tool_data.error %}
+                    <span class="text-danger"><i class="fa-solid fa-exclamation-triangle me-1"></i>{{ tool_data.error|truncate(60) }}</span>
+                  {% elif tool_data.total_issues is defined and tool_data.total_issues > 0 %}
+                    {{ tool_data.total_issues }} issue{{ 's' if tool_data.total_issues != 1 else '' }} detected
+                  {% else %}
+                    <span class="text-success"><i class="fa-solid fa-check me-1"></i>No issues detected</span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  <button class="btn btn-sm btn-ghost-primary btn-icon tool-detail-btn" 
+                          data-tool-name="{{ tool_name }}" 
+                          data-service-type="dynamic"
+                          title="View detailed analysis">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                  </button>
+                </td>
+              </tr>
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# No results fallback #}
+  {% if not tools_results and not zap_results and not port_results and not connectivity %}
     <div class="empty py-5">
       <div class="empty-icon">
         <i class="fa-solid fa-question-circle fa-3x text-muted"></i>

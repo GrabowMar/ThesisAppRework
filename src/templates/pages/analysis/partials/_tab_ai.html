@@ -19,7 +19,10 @@
 
   {# Detect result structure: new multi-tool format vs legacy single-tool format #}
   {% set ai_analysis = ai_service.analysis if ai_service.analysis else {} %}
-  {% set has_tools_map = ai_analysis.tools is defined and ai_analysis.tools is mapping %}
+  
+  {# Get tools dict safely #}
+  {% set tools_dict = ai_analysis.tools if ai_analysis.tools else {} %}
+  {% set has_tools_map = tools_dict|length > 0 %}
   
   {# Multi-tool aggregate format (new) #}
   {% if has_tools_map %}
@@ -43,7 +46,7 @@
           <div class="row g-3">
             <div class="col-6 col-md-3">
               <div class="text-muted small text-uppercase mb-1">Overall Compliance</div>
-              {% set compliance_pct = aggregate_summary.get('overall_compliance', 0) %}
+              {% set compliance_pct = aggregate_summary.overall_compliance|default(0) %}
               <div class="h3 mb-0 {% if compliance_pct >= 80 %}text-success{% elif compliance_pct >= 60 %}text-warning{% else %}text-danger{% endif %}">
                 {{ compliance_pct|round(1) }}%
               </div>
@@ -81,8 +84,8 @@
       </div>
     {% endif %}
 
-    {# Requirements Checker Results #}
-    {% set req_checker = tools_results.get('requirements-checker', {}) if tools_results else {} %}
+    {# Requirements Checker Results - use direct dictionary access #}
+    {% set req_checker = tools_results['requirements-checker'] if 'requirements-checker' in tools_results else {} %}
     {% if req_checker and req_checker.status == 'success' %}
       {% set req_results = req_checker.results if req_checker.results else {} %}
       {% set req_summary = req_results.summary if req_results.summary else {} %}
@@ -213,8 +216,8 @@
       </div>
     {% endif %}
 
-    {# Code Quality Analyzer Results #}
-    {% set quality_analyzer = tools_results.get('code-quality-analyzer', {}) if tools_results else {} %}
+    {# Code Quality Analyzer Results - use direct dictionary access #}
+    {% set quality_analyzer = tools_results['code-quality-analyzer'] if 'code-quality-analyzer' in tools_results else {} %}
     {% if quality_analyzer and quality_analyzer.status == 'success' %}
       {% set quality_results = quality_analyzer.results if quality_analyzer.results else {} %}
       {% set quality_summary = quality_results.summary if quality_results.summary else {} %}

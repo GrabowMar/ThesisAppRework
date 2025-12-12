@@ -65,25 +65,24 @@
         </div>
         <div class="col-auto border-start ps-3">
           <span class="text-muted small">Findings:</span>
-          {% set total = summary.get('total_findings', descriptor.total_findings or 0) %}
+          {% set total = summary.total_findings|default(descriptor.total_findings)|default(0) %}
           <strong class="{% if total > 20 %}text-danger{% elif total > 10 %}text-warning{% else %}text-success{% endif %}">{{ total }}</strong>
         </div>
         <div class="col-auto border-start ps-3">
           <span class="text-muted small">Tools:</span>
-          <strong>{{ summary.get('tools_executed', descriptor.tools_executed or 0) }}/{{ (descriptor.tools_used|length) if descriptor.tools_used else '?' }}</strong>
+          <strong>{{ summary.tools_executed|default(descriptor.tools_executed)|default(0) }}/{{ (descriptor.tools_used|length) if descriptor.tools_used else '?' }}</strong>
           {% if descriptor.tools_failed %}<span class="badge bg-danger-lt text-danger ms-1">{{ descriptor.tools_failed }} failed</span>{% endif %}
         </div>
         <div class="col-auto border-start ps-3">
           <span class="text-muted small">Services:</span>
           <strong>{{ services|length }}</strong>
-          {% if summary.get('services_degraded', 0) > 0 %}<span class="badge bg-warning-lt text-warning ms-1">{{ summary.get('services_degraded', 0) }} degraded</span>{% endif %}
+          {% if (summary.services_degraded|default(0)) > 0 %}<span class="badge bg-warning-lt text-warning ms-1">{{ summary.services_degraded|default(0) }} degraded</span>{% endif %}
         </div>
         {% if descriptor.severity_breakdown %}
         <div class="col-auto ms-auto d-flex gap-1">
-          {% for severity in ['critical', 'high', 'medium', 'low', 'info'] %}
-            {% set count = descriptor.severity_breakdown.get(severity, 0) %}
-            {% if count > 0 %}
-            <span class="badge {% if severity == 'critical' %}bg-danger{% elif severity == 'high' %}bg-danger-lt text-danger{% elif severity == 'medium' %}bg-warning-lt text-warning{% elif severity == 'low' %}bg-info-lt text-info{% else %}bg-secondary-lt{% endif %}">{{ severity[:1].upper() }}{{ count }}</span>
+          {% for sev_name, sev_count in descriptor.severity_breakdown.items() %}
+            {% if sev_count and sev_count > 0 %}
+            <span class="badge {% if sev_name == 'critical' %}bg-danger{% elif sev_name == 'high' %}bg-danger-lt text-danger{% elif sev_name == 'medium' %}bg-warning-lt text-warning{% elif sev_name == 'low' %}bg-info-lt text-info{% else %}bg-secondary-lt{% endif %}">{{ sev_name[:1]|upper }}{{ sev_count }}</span>
             {% endif %}
           {% endfor %}
         </div>
@@ -93,7 +92,7 @@
   </div>
 
   {# Degraded Services Warning #}
-  {% if metadata.get('degraded_services') and metadata.degraded_services|length > 0 %}
+  {% if metadata.degraded_services and metadata.degraded_services|length > 0 %}
   <div class="alert alert-warning py-2 mb-3" role="alert">
     <div class="d-flex align-items-center gap-2">
       <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
@@ -114,15 +113,21 @@
   {# Analysis Sections #}
   <div class="accordion accordion-flush border rounded" id="analysisAccordion">
     {# Static Analysis Section #}
+    {% set static_service = payload.results.services.static if payload.results.services and payload.results.services.static else none %}
     <div class="accordion-item">
       <h2 class="accordion-header">
         <button class="accordion-button py-2" type="button" data-bs-toggle="collapse" 
                 data-bs-target="#staticSection" aria-expanded="true" aria-controls="staticSection">
           <i class="fa-solid fa-code me-2 text-primary"></i>
           <span>Static Analysis</span>
-          <span class="ms-auto me-3 badge bg-secondary-lt">
-            {{ payload.results.services.static.analysis.results|length if payload.results.services.static and payload.results.services.static.analysis.results else 0 }}
-          </span>
+          {% if static_service %}
+            {% set static_status = static_service.status|default('unknown') %}
+            <span class="ms-auto me-2 badge {% if static_status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif static_status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
+              {{ static_status|replace('_', ' ')|title }}
+            </span>
+          {% else %}
+            <span class="ms-auto me-3 badge bg-secondary-lt">N/A</span>
+          {% endif %}
         </button>
       </h2>
       <div id="staticSection" class="accordion-collapse collapse show" data-bs-parent="#analysisAccordion">
@@ -133,15 +138,21 @@
     </div>
 
     {# Dynamic Analysis Section #}
+    {% set dynamic_service = payload.results.services.dynamic if payload.results.services and payload.results.services.dynamic else none %}
     <div class="accordion-item">
       <h2 class="accordion-header">
         <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" 
                 data-bs-target="#dynamicSection" aria-expanded="false" aria-controls="dynamicSection">
-          <i class="fa-solid fa-play-circle me-2 text-success"></i>
+          <i class="fa-solid fa-shield-halved me-2 text-success"></i>
           <span>Dynamic Analysis</span>
-          <span class="ms-auto me-3 badge bg-secondary-lt">
-            {{ payload.results.services.dynamic.analysis.results|length if payload.results.services.dynamic and payload.results.services.dynamic.analysis.results else 0 }}
-          </span>
+          {% if dynamic_service %}
+            {% set dynamic_status = dynamic_service.status|default('unknown') %}
+            <span class="ms-auto me-2 badge {% if dynamic_status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif dynamic_status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
+              {{ dynamic_status|replace('_', ' ')|title }}
+            </span>
+          {% else %}
+            <span class="ms-auto me-3 badge bg-secondary-lt">N/A</span>
+          {% endif %}
         </button>
       </h2>
       <div id="dynamicSection" class="accordion-collapse collapse" data-bs-parent="#analysisAccordion">
@@ -152,15 +163,21 @@
     </div>
 
     {# Performance Section #}
+    {% set performance_service = payload.results.services.performance if payload.results.services and payload.results.services.performance else none %}
     <div class="accordion-item">
       <h2 class="accordion-header">
         <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" 
                 data-bs-target="#performanceSection" aria-expanded="false" aria-controls="performanceSection">
           <i class="fa-solid fa-gauge-high me-2 text-info"></i>
           <span>Performance</span>
-          <span class="ms-auto me-3 badge bg-secondary-lt">
-            {{ payload.results.services.performance.analysis.results|length if payload.results.services.performance and payload.results.services.performance.analysis.results else 0 }}
-          </span>
+          {% if performance_service %}
+            {% set perf_status = performance_service.status|default('unknown') %}
+            <span class="ms-auto me-2 badge {% if perf_status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif perf_status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
+              {{ perf_status|replace('_', ' ')|title }}
+            </span>
+          {% else %}
+            <span class="ms-auto me-3 badge bg-secondary-lt">N/A</span>
+          {% endif %}
         </button>
       </h2>
       <div id="performanceSection" class="accordion-collapse collapse" data-bs-parent="#analysisAccordion">

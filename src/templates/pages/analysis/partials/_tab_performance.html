@@ -1,120 +1,384 @@
-{# Performance Analysis Tab - Compact Report Layout #}
+{# Performance Analysis Tab - Enhanced Report Layout (Matching AI tab quality) #}
 {% set performance_service = payload.results.services.performance if payload.results.services and payload.results.services.performance else none %}
 
 {% if performance_service %}
-  {# Service Status Bar #}
+  {# Service Header #}
   <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
     <div>
-      <strong class="text-muted small text-uppercase">{{ performance_service.service|default('performance-tester') }}</strong>
+      <h4 class="mb-1 d-flex align-items-center gap-2">
+        <i class="fa-solid fa-gauge-high text-info"></i>
+        <span>Performance Testing</span>
+      </h4>
+      <p class="text-muted small mb-0">{{ performance_service.service|default('performance-tester') }}</p>
     </div>
-    <span class="badge {% if performance_service.status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif performance_service.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt text-secondary{% endif %}">
+    <span class="badge {% if performance_service.status in ['completed', 'ok', 'success'] %}bg-success-lt text-success{% elif performance_service.status == 'partial_success' %}bg-warning-lt text-warning{% elif performance_service.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt text-secondary{% endif %}">
       <i class="fa-solid fa-circle-dot me-1"></i>
       {{ performance_service.status|default('unknown')|replace('_', ' ')|title }}
     </span>
   </div>
 
-  {# Performance Metrics Table #}
-  {# Use tool_results from analysis (normalized tool map) instead of iterating over results keys #}
-  {% set test_results = performance_service.analysis.tool_results if performance_service.analysis and performance_service.analysis.tool_results else {} %}
+  {# Extract results #}
+  {% set analysis = performance_service.analysis if performance_service.analysis else {} %}
+  {% set test_results = analysis.tool_results if analysis.tool_results else {} %}
   {% if not test_results %}
-    {# Fallback to tool_runs inside results.results if tool_results not at top level #}
-    {% set test_results = performance_service.analysis.results.tool_runs if performance_service.analysis and performance_service.analysis.results and performance_service.analysis.results.tool_runs else {} %}
+    {% set test_results = analysis.results.tool_runs if analysis.results and analysis.results.tool_runs else {} %}
   {% endif %}
+  {% set tools_used = analysis.tools_used if analysis.tools_used else [] %}
+  {% set target_urls = analysis.target_urls if analysis.target_urls else [] %}
+  {% set summary = analysis.summary if analysis.summary else {} %}
   
-  {# Metadata keys that should NOT appear as tools (URLs, summary keys, etc.) #}
+  {# Metadata keys that should NOT appear as tools #}
   {% set metadata_keys = ['tool_runs', 'summary', 'status', 'error', 'analysis_time', 'model_slug', 'app_number', 'tools_used', 'target_urls', 'connectivity'] %}
   
-  {% if test_results %}
-    <div class="table-responsive">
-      <table class="table table-sm table-vcenter table-hover mb-0">
-        <thead>
-          <tr>
-            <th>Test</th>
-            <th class="text-center">Status</th>
-            <th class="text-end">Response Time</th>
-            <th class="text-end">Throughput</th>
-            <th class="text-end">Success Rate</th>
-            <th class="text-end">Requests</th>
-            <th>Issues</th>
-            <th class="text-center w-1">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for test_name, test_data in test_results.items() %}
-          {# Skip metadata keys and URL-based results (which start with http://) #}
-          {% if test_name.lower() not in metadata_keys and not test_name.startswith('http://') and not test_name.startswith('https://') %}
-          <tr>
-            <td><strong>{{ test_name|replace('_', ' ')|title }}</strong></td>
-            <td class="text-center">
-              {% if test_data.executed %}
-                <span class="badge {% if test_data.status in ['success', 'ok', 'completed'] %}bg-success-lt text-success{% elif test_data.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
-                  {{ test_data.status|default('unknown') }}
-                </span>
-              {% else %}
-                <span class="badge bg-secondary-lt">Skipped</span>
-              {% endif %}
-            </td>
-            <td class="text-end">
-              {% set rt = test_data.avg_response_time|default(test_data.metrics.response_time if test_data.metrics is defined else none) %}
-              {{ rt|default('—') }}{% if rt %}ms{% endif %}
-            </td>
-            <td class="text-end">
-              {% set tp = test_data.requests_per_second|default(test_data.metrics.throughput if test_data.metrics is defined else none) %}
-              {{ tp|default('—') }}{% if tp %} req/s{% endif %}
-            </td>
-            <td class="text-end">
-              {% set sr = test_data.success_rate|default(test_data.metrics.success_rate if test_data.metrics is defined else none) %}
-              {% if sr is defined and sr is not none %}
-                <span class="{% if sr >= 95 %}text-success{% elif sr >= 80 %}text-warning{% else %}text-danger{% endif %} fw-medium">
-                  {{ sr }}%
-                </span>
-              {% else %}
-                —
-              {% endif %}
-            </td>
-            <td class="text-end">
-              {% set total = test_data.requests|default(test_data.completed_requests)|default(test_data.metrics.total_requests if test_data.metrics is defined else none) %}
-              {% set failed = test_data.failed_requests|default(test_data.metrics.failed_requests if test_data.metrics is defined else none) %}
-              {% if total %}
-                {{ total }}
-                {% if failed %}
-                  <span class="text-danger small">({{ failed }} failed)</span>
-                {% endif %}
-              {% else %}
-                —
-              {% endif %}
-            </td>
-            <td class="small text-muted">
-              {% if test_data.issues %}
-                <details>
-                  <summary class="text-warning" style="cursor: pointer;">{{ test_data.issues|length }} issue{{ test_data.issues|length == 1 and '' or 's' }}</summary>
-                  <ul class="mb-0 mt-1 ps-3">
-                    {% for issue in test_data.issues[:3] %}
-                      <li>{{ issue }}</li>
-                    {% endfor %}
-                    {% if test_data.issues|length > 3 %}
-                      <li class="text-muted">...and {{ test_data.issues|length - 3 }} more</li>
-                    {% endif %}
-                  </ul>
-                </details>
-              {% else %}
-                <span class="text-success">None</span>
-              {% endif %}
-            </td>
-            <td class="text-center">
-              <button class="btn btn-sm btn-ghost-primary btn-icon tool-detail-btn" 
-                      data-tool-name="{{ test_name }}" 
-                      data-service-type="performance"
-                      title="View detailed metrics">
-                <i class="fa-solid fa-magnifying-glass"></i>
-              </button>
-            </td>
-          </tr>
+  {# Calculate aggregate statistics #}
+  {% set ns = namespace(
+    total_requests=0, 
+    failed_requests=0, 
+    avg_response_time=0, 
+    tools_executed=0, 
+    tools_with_issues=0,
+    best_rps=0,
+    worst_response=0,
+    response_times=[],
+    rps_values=[]
+  ) %}
+  
+  {% for test_name, test_data in test_results.items() %}
+    {% if test_name.lower() not in metadata_keys and not test_name.startswith('http://') and not test_name.startswith('https://') %}
+      {% if test_data.executed %}
+        {% set ns.tools_executed = ns.tools_executed + 1 %}
+        
+        {# Collect metrics #}
+        {% set reqs = test_data.requests|default(test_data.completed_requests)|default(test_data.metrics.total_requests if test_data.metrics else 0)|default(0) %}
+        {% set failed = test_data.failed_requests|default(test_data.metrics.failed_requests if test_data.metrics else 0)|default(0) %}
+        {% set rt = test_data.avg_response_time|default(test_data.metrics.response_time if test_data.metrics else none) %}
+        {% set rps = test_data.requests_per_second|default(test_data.metrics.throughput if test_data.metrics else none) %}
+        
+        {% set ns.total_requests = ns.total_requests + reqs %}
+        {% set ns.failed_requests = ns.failed_requests + failed %}
+        
+        {% if rt %}
+          {% set ns.response_times = ns.response_times + [rt] %}
+          {% if rt > ns.worst_response %}
+            {% set ns.worst_response = rt %}
           {% endif %}
-          {% endfor %}
-        </tbody>
-      </table>
+        {% endif %}
+        
+        {% if rps %}
+          {% set ns.rps_values = ns.rps_values + [rps] %}
+          {% if rps > ns.best_rps %}
+            {% set ns.best_rps = rps %}
+          {% endif %}
+        {% endif %}
+        
+        {% if test_data.issues and test_data.issues|length > 0 %}
+          {% set ns.tools_with_issues = ns.tools_with_issues + 1 %}
+        {% endif %}
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+  
+  {# Calculate averages #}
+  {% if ns.response_times|length > 0 %}
+    {% set ns.avg_response_time = (ns.response_times|sum / ns.response_times|length)|round(2) %}
+  {% endif %}
+
+  {# Overall Summary Card #}
+  <div class="card card-table-compact mb-3">
+    <div class="card-header d-flex flex-wrap align-items-center gap-3">
+      <h5 class="card-title d-flex align-items-center gap-2 mb-0">
+        <i class="fa-solid fa-chart-pie"></i>
+        <span>Performance Summary</span>
+      </h5>
+      <div class="ms-auto small text-muted">
+        {{ ns.tools_executed }} test{{ 's' if ns.tools_executed != 1 else '' }} executed
+      </div>
     </div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-6 col-md-3">
+          <div class="text-muted small text-uppercase mb-1">Total Requests</div>
+          <div class="h3 mb-0 text-primary">
+            {{ ns.total_requests }}
+            {% if ns.failed_requests > 0 %}
+              <span class="text-danger small">({{ ns.failed_requests }} failed)</span>
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="text-muted small text-uppercase mb-1">Avg Response Time</div>
+          <div class="h3 mb-0 {% if ns.avg_response_time > 1000 %}text-danger{% elif ns.avg_response_time > 500 %}text-warning{% elif ns.avg_response_time > 0 %}text-success{% else %}text-muted{% endif %}">
+            {% if ns.avg_response_time > 0 %}
+              {{ ns.avg_response_time }}
+              <span class="small">ms</span>
+            {% else %}
+              —
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="text-muted small text-uppercase mb-1">Best Throughput</div>
+          <div class="h3 mb-0 {% if ns.best_rps > 100 %}text-success{% elif ns.best_rps > 50 %}text-info{% elif ns.best_rps > 0 %}text-warning{% else %}text-muted{% endif %}">
+            {% if ns.best_rps > 0 %}
+              {{ ns.best_rps|round(1) }}
+              <span class="small">req/s</span>
+            {% else %}
+              —
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="text-muted small text-uppercase mb-1">Success Rate</div>
+          {% set success_rate = ((ns.total_requests - ns.failed_requests) / ns.total_requests * 100)|round(1) if ns.total_requests > 0 else 0 %}
+          <div class="h3 mb-0 {% if success_rate >= 99 %}text-success{% elif success_rate >= 95 %}text-info{% elif success_rate >= 90 %}text-warning{% else %}text-danger{% endif %}">
+            {% if ns.total_requests > 0 %}
+              {{ success_rate }}%
+            {% else %}
+              —
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      {% if tools_used %}
+      <div class="mt-3 pt-3 border-top">
+        <span class="text-muted small">Tools used: </span>
+        {% for tool in tools_used %}
+          <span class="badge bg-secondary-lt me-1">{{ tool }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Performance Metrics Visual #}
+  {% if ns.tools_executed > 0 %}
+  <div class="card card-table-compact mb-3">
+    <div class="card-header d-flex flex-wrap align-items-center gap-3 bg-info-lt">
+      <h5 class="card-title d-flex align-items-center gap-2 mb-0">
+        <i class="fa-solid fa-chart-line text-info"></i>
+        <span>Performance Metrics</span>
+      </h5>
+    </div>
+    <div class="card-body">
+      <div class="row g-4" id="performance-metrics">
+        <div class="col-md-3 text-center">
+          <div class="text-muted small mb-2">Response Time Rating</div>
+          <div class="display-6 mb-1">
+            {% if ns.avg_response_time == 0 %}
+              <span class="text-muted">N/A</span>
+            {% elif ns.avg_response_time <= 200 %}
+              <span class="text-success"><i class="fa-solid fa-rocket"></i></span>
+            {% elif ns.avg_response_time <= 500 %}
+              <span class="text-info"><i class="fa-solid fa-bolt"></i></span>
+            {% elif ns.avg_response_time <= 1000 %}
+              <span class="text-warning"><i class="fa-solid fa-clock"></i></span>
+            {% else %}
+              <span class="text-danger"><i class="fa-solid fa-hourglass"></i></span>
+            {% endif %}
+          </div>
+          <div class="small text-muted">
+            {% if ns.avg_response_time == 0 %}No data{% elif ns.avg_response_time <= 200 %}Excellent{% elif ns.avg_response_time <= 500 %}Good{% elif ns.avg_response_time <= 1000 %}Fair{% else %}Slow{% endif %}
+          </div>
+        </div>
+        <div class="col-md-3 text-center">
+          <div class="text-muted small mb-2">Throughput Rating</div>
+          <div class="display-6 mb-1">
+            {% if ns.best_rps == 0 %}
+              <span class="text-muted">N/A</span>
+            {% elif ns.best_rps >= 100 %}
+              <span class="text-success"><i class="fa-solid fa-fire"></i></span>
+            {% elif ns.best_rps >= 50 %}
+              <span class="text-info"><i class="fa-solid fa-gauge-high"></i></span>
+            {% elif ns.best_rps >= 20 %}
+              <span class="text-warning"><i class="fa-solid fa-gauge"></i></span>
+            {% else %}
+              <span class="text-danger"><i class="fa-solid fa-gauge-simple"></i></span>
+            {% endif %}
+          </div>
+          <div class="small text-muted">
+            {% if ns.best_rps == 0 %}No data{% elif ns.best_rps >= 100 %}Excellent{% elif ns.best_rps >= 50 %}Good{% elif ns.best_rps >= 20 %}Fair{% else %}Low{% endif %}
+          </div>
+        </div>
+        <div class="col-md-3 text-center">
+          <div class="text-muted small mb-2">Reliability</div>
+          <div class="display-6 mb-1">
+            {% set success_rate = ((ns.total_requests - ns.failed_requests) / ns.total_requests * 100) if ns.total_requests > 0 else 0 %}
+            {% if ns.total_requests == 0 %}
+              <span class="text-muted">N/A</span>
+            {% elif success_rate >= 99 %}
+              <span class="text-success"><i class="fa-solid fa-shield-check"></i></span>
+            {% elif success_rate >= 95 %}
+              <span class="text-info"><i class="fa-solid fa-shield"></i></span>
+            {% elif success_rate >= 90 %}
+              <span class="text-warning"><i class="fa-solid fa-shield-halved"></i></span>
+            {% else %}
+              <span class="text-danger"><i class="fa-solid fa-triangle-exclamation"></i></span>
+            {% endif %}
+          </div>
+          <div class="small text-muted">
+            {% if ns.total_requests == 0 %}No data{% elif success_rate >= 99 %}Excellent{% elif success_rate >= 95 %}Good{% elif success_rate >= 90 %}Fair{% else %}Poor{% endif %}
+          </div>
+        </div>
+        <div class="col-md-3 text-center">
+          <div class="text-muted small mb-2">Overall Grade</div>
+          <div class="display-6 mb-1">
+            {% set grade_score = 0 %}
+            {% if ns.avg_response_time > 0 %}
+              {% if ns.avg_response_time <= 200 %}{% set grade_score = grade_score + 3 %}{% elif ns.avg_response_time <= 500 %}{% set grade_score = grade_score + 2 %}{% elif ns.avg_response_time <= 1000 %}{% set grade_score = grade_score + 1 %}{% endif %}
+            {% endif %}
+            {% if ns.best_rps > 0 %}
+              {% if ns.best_rps >= 100 %}{% set grade_score = grade_score + 3 %}{% elif ns.best_rps >= 50 %}{% set grade_score = grade_score + 2 %}{% elif ns.best_rps >= 20 %}{% set grade_score = grade_score + 1 %}{% endif %}
+            {% endif %}
+            {% if ns.total_requests > 0 %}
+              {% set sr = ((ns.total_requests - ns.failed_requests) / ns.total_requests * 100) %}
+              {% if sr >= 99 %}{% set grade_score = grade_score + 3 %}{% elif sr >= 95 %}{% set grade_score = grade_score + 2 %}{% elif sr >= 90 %}{% set grade_score = grade_score + 1 %}{% endif %}
+            {% endif %}
+            {% if ns.total_requests == 0 and ns.avg_response_time == 0 %}
+              <span class="text-muted">N/A</span>
+            {% elif grade_score >= 8 %}
+              <span class="text-success fw-bold">A</span>
+            {% elif grade_score >= 6 %}
+              <span class="text-info fw-bold">B</span>
+            {% elif grade_score >= 4 %}
+              <span class="text-warning fw-bold">C</span>
+            {% elif grade_score >= 2 %}
+              <span class="text-warning fw-bold">D</span>
+            {% else %}
+              <span class="text-danger fw-bold">F</span>
+            {% endif %}
+          </div>
+          <div class="small text-muted">
+            {% if ns.total_requests == 0 and ns.avg_response_time == 0 %}No tests{% elif grade_score >= 8 %}Excellent{% elif grade_score >= 6 %}Good{% elif grade_score >= 4 %}Average{% elif grade_score >= 2 %}Below Avg{% else %}Poor{% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Detailed Test Results Table #}
+  {% if test_results %}
+  <div class="card card-table-compact mb-3">
+    <div class="card-header d-flex flex-wrap align-items-center gap-3">
+      <h5 class="card-title d-flex align-items-center gap-2 mb-0">
+        <i class="fa-solid fa-list-check text-muted"></i>
+        <span>Test Results by Tool</span>
+      </h5>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm table-vcenter table-hover mb-0">
+          <thead>
+            <tr>
+              <th style="width: 140px;">Test Tool</th>
+              <th class="text-center" style="width: 90px;">Status</th>
+              <th class="text-end" style="width: 100px;">Response Time</th>
+              <th class="text-end" style="width: 100px;">Throughput</th>
+              <th class="text-end" style="width: 100px;">Success Rate</th>
+              <th class="text-end" style="width: 100px;">Requests</th>
+              <th>Issues</th>
+              <th class="text-center" style="width: 60px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for test_name, test_data in test_results.items() %}
+              {# Skip metadata keys and URL-based results #}
+              {% if test_name.lower() not in metadata_keys and not test_name.startswith('http://') and not test_name.startswith('https://') %}
+              <tr>
+                <td>
+                  <div class="fw-bold">{{ test_name|replace('_', ' ')|title }}</div>
+                  {% if test_data.metrics and test_data.metrics.test_duration %}
+                    <div class="text-muted small">{{ test_data.metrics.test_duration|round(1) }}s duration</div>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  {% if test_data.executed %}
+                    <span class="badge {% if test_data.status in ['success', 'ok', 'completed'] %}bg-success-lt text-success{% elif test_data.status in ['failed', 'error'] %}bg-danger-lt text-danger{% else %}bg-secondary-lt{% endif %}">
+                      {{ test_data.status|default('unknown') }}
+                    </span>
+                  {% else %}
+                    <span class="badge bg-secondary-lt">Skipped</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  {% set rt = test_data.avg_response_time|default(test_data.metrics.response_time if test_data.metrics else none) %}
+                  {% if rt %}
+                    <span class="{% if rt > 1000 %}text-danger{% elif rt > 500 %}text-warning{% else %}text-success{% endif %} fw-medium">
+                      {{ rt|round(1) }}ms
+                    </span>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  {% set tp = test_data.requests_per_second|default(test_data.metrics.throughput if test_data.metrics else none) %}
+                  {% if tp %}
+                    <span class="{% if tp >= 100 %}text-success{% elif tp >= 50 %}text-info{% else %}text-warning{% endif %} fw-medium">
+                      {{ tp|round(1) }} req/s
+                    </span>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  {% set sr = test_data.success_rate|default(test_data.metrics.success_rate if test_data.metrics else none) %}
+                  {% if sr is defined and sr is not none %}
+                    <span class="{% if sr >= 99 %}text-success{% elif sr >= 95 %}text-info{% elif sr >= 90 %}text-warning{% else %}text-danger{% endif %} fw-medium">
+                      {{ sr|round(1) }}%
+                    </span>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+                <td class="text-end">
+                  {% set total = test_data.requests|default(test_data.completed_requests)|default(test_data.metrics.total_requests if test_data.metrics else none) %}
+                  {% set failed = test_data.failed_requests|default(test_data.metrics.failed_requests if test_data.metrics else none) %}
+                  {% if total %}
+                    <span>{{ total }}</span>
+                    {% if failed and failed > 0 %}
+                      <span class="text-danger small">({{ failed }} ✗)</span>
+                    {% endif %}
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+                <td class="small">
+                  {% if test_data.issues and test_data.issues|length > 0 %}
+                    <details>
+                      <summary class="text-warning" style="cursor: pointer;">
+                        <i class="fa-solid fa-chevron-right me-1"></i>{{ test_data.issues|length }} issue{{ 's' if test_data.issues|length != 1 else '' }}
+                      </summary>
+                      <ul class="mb-0 mt-2 ps-3 small">
+                        {% for issue in test_data.issues[:3] %}
+                          <li class="text-truncate mb-1" style="max-width: 250px;">{{ issue }}</li>
+                        {% endfor %}
+                        {% if test_data.issues|length > 3 %}
+                          <li class="text-muted">...and {{ test_data.issues|length - 3 }} more</li>
+                        {% endif %}
+                      </ul>
+                    </details>
+                  {% elif test_data.status in ['failed', 'error'] and test_data.error %}
+                    <span class="text-danger"><i class="fa-solid fa-exclamation-triangle me-1"></i>{{ test_data.error|truncate(40) }}</span>
+                  {% else %}
+                    <span class="text-success"><i class="fa-solid fa-check me-1"></i>None</span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  <button class="btn btn-sm btn-ghost-primary btn-icon tool-detail-btn" 
+                          data-tool-name="{{ test_name }}" 
+                          data-service-type="performance"
+                          title="View detailed metrics">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                  </button>
+                </td>
+              </tr>
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
   {% else %}
     <div class="empty py-5">
       <div class="empty-icon">
@@ -122,6 +386,12 @@
       </div>
       <p class="empty-title h5">No test results</p>
       <p class="empty-subtitle text-muted">No performance test results were found in this service.</p>
+      {% if analysis.status == 'error' %}
+        <p class="text-danger small mt-2">
+          <i class="fa-solid fa-exclamation-circle me-1"></i>
+          The performance tester encountered an error. This may indicate that the target application was not reachable.
+        </p>
+      {% endif %}
     </div>
   {% endif %}
 {% else %}
