@@ -43,8 +43,9 @@
           <div class="row g-3">
             <div class="col-6 col-md-3">
               <div class="text-muted small text-uppercase mb-1">Overall Compliance</div>
-              <div class="h3 mb-0 {% if aggregate_summary.overall_compliance >= 80 %}text-success{% elif aggregate_summary.overall_compliance >= 60 %}text-warning{% else %}text-danger{% endif %}">
-                {{ aggregate_summary.overall_compliance|default(0)|round(1) }}%
+              {% set compliance_pct = aggregate_summary.get('overall_compliance', 0) %}
+              <div class="h3 mb-0 {% if compliance_pct >= 80 %}text-success{% elif compliance_pct >= 60 %}text-warning{% else %}text-danger{% endif %}">
+                {{ compliance_pct|round(1) }}%
               </div>
             </div>
             {% if aggregate_summary.total_requirements is defined %}

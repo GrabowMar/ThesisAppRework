@@ -754,6 +754,53 @@ def analysis_result_detail(result_id: str):
     task_info = {'task_id': result_id, 'status': results.status}
     metadata_block = payload.get('metadata', {})
     
+    # Transform service names and structure for template compatibility
+    # Mapping: static-analyzer → static, dynamic-analyzer → dynamic, etc.
+    SERVICE_NAME_MAP = {
+        'static-analyzer': 'static',
+        'dynamic-analyzer': 'dynamic',
+        'performance-tester': 'performance',
+        'ai-analyzer': 'ai'
+    }
+    
+    def transform_services(raw_services: dict) -> dict:
+        """Transform service data to template-expected format.
+        
+        Wraps everything in DescriptorDict for Jinja2 attribute access compatibility.
+        """
+        transformed = {}
+        for full_name, service_data in raw_services.items():
+            short_name = SERVICE_NAME_MAP.get(full_name, full_name)
+            if isinstance(service_data, dict):
+                payload = service_data.get('payload', {})
+                
+                # AI analyzer has different structure: payload.tools instead of payload.results
+                if full_name == 'ai-analyzer':
+                    transformed[short_name] = DescriptorDict({
+                        'status': service_data.get('status', 'unknown'),
+                        'service': full_name,
+                        'analysis': DescriptorDict({
+                            'tools': payload.get('tools', {}),
+                            'summary': payload.get('summary', {}),
+                            'metadata': payload.get('metadata', {}),
+                            'results': payload.get('results', {})  # Legacy fallback
+                        })
+                    })
+                else:
+                    # Static/Dynamic/Performance: payload.results structure
+                    transformed[short_name] = DescriptorDict({
+                        'status': service_data.get('status', 'unknown'),
+                        'service': full_name,
+                        'analysis': DescriptorDict({
+                            'results': payload.get('results', {}),
+                            'tools_used': payload.get('tools_used', []),
+                            'tools': payload.get('results', {})  # Alias for compatibility
+                        })
+                    })
+        return DescriptorDict(transformed)
+    
+    transformed_services = transform_services(services) if services else {}
+    
     # Build descriptor for filesystem results
     descriptor = DescriptorDict({
         'identifier': result_id,
@@ -774,7 +821,7 @@ def analysis_result_detail(result_id: str):
     # Wrap payload in expected structure for template compatibility
     wrapped_payload = DescriptorDict({
         'results': DescriptorDict({
-            'services': services,
+            'services': transformed_services,
             'summary': summary_block
         }),
         'task': payload.get('task', {}),
@@ -786,7 +833,7 @@ def analysis_result_detail(result_id: str):
         descriptor=descriptor,
         payload=wrapped_payload,
         findings=findings,
-        services=services,
+        services=transformed_services,
         summary=summary_block,
         task_info=task_info,
         metadata=metadata_block,

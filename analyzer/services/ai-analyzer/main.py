@@ -982,6 +982,8 @@ Provide concrete evidence from the code to support your assessment."""
                 
                 await websocket.send(json.dumps(response))
                 self.log.info(f"AI analysis completed for {model_slug} app {app_number} ({tools_run} tools run)")
+                # Give client time to receive the message before connection closes
+                await asyncio.sleep(0.1)
             
             elif msg_type == "server_status":
                 response = {
@@ -995,6 +997,7 @@ Provide concrete evidence from the code to support your assessment."""
                 }
                 print(f"[ai-analyzer] Sending server_status response: {response}")
                 await websocket.send(json.dumps(response))
+                await asyncio.sleep(0.1)
                 
             else:
                 print(f"[ai-analyzer] Unknown message type: {msg_type}")
@@ -1004,6 +1007,7 @@ Provide concrete evidence from the code to support your assessment."""
                     "service": self.info.name
                 }
                 await websocket.send(json.dumps(response))
+                await asyncio.sleep(0.1)
                 
         except Exception as e:
             print(f"[ai-analyzer] Error handling message: {e}")

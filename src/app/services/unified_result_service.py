@@ -141,8 +141,8 @@ class UnifiedResultService:
             # Hydrate findings from SARIF if needed (before DB store)
             self._hydrate_tools_with_sarif(clean_payload, task_id)
             
-            # Get task record
-            task = db.session.get(AnalysisTask, task_id)
+            # Get task record by task_id field (not primary key)
+            task = AnalysisTask.query.filter_by(task_id=task_id).first()
             if not task:
                 logger.error(f"Task {task_id} not found")
                 return False
@@ -305,8 +305,8 @@ class UnifiedResultService:
                 logger.error(f"No JSON file found for {task_id}")
                 return False
             
-            # Get task
-            task = db.session.get(AnalysisTask, task_id)
+            # Get task by task_id field (not primary key)
+            task = AnalysisTask.query.filter_by(task_id=task_id).first()
             if not task:
                 logger.error(f"Task {task_id} not found")
                 return False
@@ -403,7 +403,8 @@ class UnifiedResultService:
     
     def _db_load_results(self, task_id: str) -> Optional[Dict[str, Any]]:
         """Load results from database."""
-        task = db.session.get(AnalysisTask, task_id)
+        # Use filter_by for task_id string field (not primary key)
+        task = AnalysisTask.query.filter_by(task_id=task_id).first()
         if task:
             return task.get_result_summary()
         return None
@@ -718,8 +719,19 @@ class UnifiedResultService:
         
         # Extract metadata
         metadata = payload.get('metadata', {})
-        model_slug = metadata.get('model_slug', 'unknown')
-        app_number = metadata.get('app_number', 0)
+        model_slug = metadata.get('model_slug')
+        app_number = metadata.get('app_number')
+        
+        # Fallback: look up from database task if not in metadata
+        if not model_slug or not app_number:
+            task = AnalysisTask.query.filter_by(task_id=task_id).first()
+            if task:
+                model_slug = model_slug or task.target_model
+                app_number = app_number or task.target_app_number
+        
+        # Final fallback to defaults
+        model_slug = model_slug or 'unknown'
+        app_number = app_number if app_number is not None else 0
         
         # Parse timestamp if available
         modified_at = None
@@ -852,8 +864,8 @@ class UnifiedResultService:
     
     def find_path_by_identifier(self, identifier: str) -> Optional[Path]:
         """Find result file path by identifier (task_id)."""
-        # Try to look up the task in DB to get model/app first
-        task = db.session.get(AnalysisTask, identifier)
+        # Try to look up the task in DB to get model/app first (by task_id field, not primary key)
+        task = AnalysisTask.query.filter_by(task_id=identifier).first()
         if task:
             # If we have task, we know where to look
             model_dir = Path(RESULTS_DIR) / task.target_model.replace('/', '_')

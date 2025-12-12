@@ -181,11 +181,12 @@
           {% set has_ai_tools = ai_analysis.tools is defined and ai_analysis.tools is mapping %}
           {% if has_ai_tools %}
             {% set ai_summary = ai_analysis.summary if ai_analysis.summary else {} %}
-            <span class="ms-auto me-2 badge {% if ai_summary.overall_compliance >= 80 %}bg-success-lt text-success{% elif ai_summary.overall_compliance >= 60 %}bg-warning-lt text-warning{% else %}bg-danger-lt text-danger{% endif %}">
-              {{ ai_summary.overall_compliance|default(0)|round(1) }}%
+            {% set ai_compliance = ai_summary.get('overall_compliance', 0) if ai_summary else 0 %}
+            <span class="ms-auto me-2 badge {% if ai_compliance >= 80 %}bg-success-lt text-success{% elif ai_compliance >= 60 %}bg-warning-lt text-warning{% else %}bg-danger-lt text-danger{% endif %}">
+              {{ ai_compliance|round(1) }}%
             </span>
             <span class="badge bg-secondary-lt me-3">
-              {{ ai_summary.tools_run|default(0) }} tools
+              {{ ai_summary.get('tools_run', 0) }} tools
             </span>
           {% elif ai_analysis.results %}
             {% set legacy_summary = ai_analysis.results.summary if ai_analysis.results.summary else {} %}

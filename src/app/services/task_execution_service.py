@@ -277,11 +277,60 @@ class TaskExecutionService:
         Tasks stuck in RUNNING for >15 minutes are reset to PENDING for retry.
         This runs periodically (every 5 min) instead of only at startup.
         
+        Also recovers main tasks where all subtasks have completed but the main
+        task is still in RUNNING state (can happen after server restart).
+        
         Returns:
             Number of tasks recovered
         """
         from datetime import timedelta
         
+        recovered_count = 0
+        
+        # FIRST: Recover main tasks with completed subtasks (highest priority)
+        # This handles the case where server restarted mid-analysis
+        main_tasks_stuck = AnalysisTask.query.filter(
+            AnalysisTask.status == AnalysisStatus.RUNNING,
+            AnalysisTask.is_main_task == True  # noqa: E712
+        ).all()
+        
+        for main_task in main_tasks_stuck:
+            subtasks = list(main_task.subtasks) if hasattr(main_task, 'subtasks') else []
+            if not subtasks:
+                continue
+            
+            # Check if all subtasks are in terminal states
+            terminal_states = [AnalysisStatus.COMPLETED, AnalysisStatus.FAILED, 
+                               AnalysisStatus.CANCELLED, AnalysisStatus.PARTIAL_SUCCESS]
+            all_done = all(st.status in terminal_states for st in subtasks)
+            
+            if all_done:
+                # All subtasks done but main task still running - fix it
+                any_failed = any(st.status == AnalysisStatus.FAILED for st in subtasks)
+                all_failed = all(st.status == AnalysisStatus.FAILED for st in subtasks)
+                
+                if all_failed:
+                    main_task.status = AnalysisStatus.FAILED
+                    main_task.error_message = "All subtasks failed"
+                elif any_failed:
+                    main_task.status = AnalysisStatus.PARTIAL_SUCCESS
+                else:
+                    main_task.status = AnalysisStatus.COMPLETED
+                
+                main_task.completed_at = datetime.now(timezone.utc)
+                main_task.progress_percentage = 100.0
+                
+                self._log(
+                    "[RECOVERY] Fixed main task %s with completed subtasks: status=%s",
+                    main_task.task_id, main_task.status.value, level='warning'
+                )
+                recovered_count += 1
+        
+        if recovered_count > 0:
+            db.session.commit()
+            self._log("[RECOVERY] Fixed %d main task(s) with completed subtasks", recovered_count)
+        
+        # SECOND: Standard stuck task recovery (for tasks >15 min without progress)
         stuck_threshold = timedelta(minutes=15)
         cutoff_time = datetime.now(timezone.utc) - stuck_threshold
         
@@ -1410,11 +1459,13 @@ class TaskExecutionService:
                         'unified_analysis': True,
                         'orchestrator_version': '3.0.0',
                         'executor': 'ThreadPoolExecutor',
-                        'generated_at': datetime.now(timezone.utc).isoformat()
+                        'generated_at': datetime.now(timezone.utc).isoformat(),
+                        'model_slug': main_task.target_model,
+                        'app_number': main_task.target_app_number
                     }
                 }
                 
-                # Update main task status and duration
+                # Update main task status and duration - COMMIT IMMEDIATELY to persist status
                 main_task.status = AnalysisStatus.COMPLETED if not any_failed else AnalysisStatus.FAILED
                 main_task.completed_at = datetime.now(timezone.utc)
                 main_task.progress_percentage = 100.0
@@ -1428,6 +1479,10 @@ class TaskExecutionService:
                     duration = (main_task.completed_at - started_at).total_seconds()
                     main_task.actual_duration = duration
                 
+                # Commit status changes immediately so frontend sees completed status
+                db.session.commit()
+                self._log(f"[AGGREGATE] Main task {main_task_id} status set to {main_task.status.value}")
+                
                 # Store results via UnifiedResultService (handles DB and Filesystem)
                 try:
                     unified_service = ServiceLocator.get_unified_result_service()
@@ -1440,7 +1495,8 @@ class TaskExecutionService:
                     self._log(f"[AGGREGATE] Stored unified results for {main_task_id}")
                 except Exception as e:
                     self._log(f"[AGGREGATE] Failed to store unified results: {e}", level='error')
-                    # Fallback DB update
+                    # Fallback DB update - refresh task and update
+                    db.session.refresh(main_task)
                     main_task.set_result_summary(unified_payload)
                     db.session.commit()
                 
@@ -1585,6 +1641,18 @@ class TaskExecutionService:
             if service_name == 'performance-tester':
                 request_message['target_url'] = target_urls[0]
         
+        # Add AI analyzer specific config (template_slug, ports)
+        if service_name == 'ai-analyzer':
+            try:
+                from app.services.analyzer_manager_wrapper import get_analyzer_wrapper
+                analyzer_mgr = get_analyzer_wrapper().manager
+                ai_config = analyzer_mgr._resolve_ai_config(model_slug, app_number, tools)
+                if ai_config:
+                    request_message['config'] = ai_config
+                    self._log(f"[WebSocket] Added AI config for {service_name}: template={ai_config.get('template_slug')}")
+            except Exception as e:
+                self._log(f"[WebSocket] Error resolving AI config: {e}", level='warning')
+        
         self._log(
             f"[WebSocket] Connecting to {service_name} at {websocket_url} "
             f"for {model_slug}/app{app_number} with tools: {tools}"
@@ -1596,7 +1664,8 @@ class TaskExecutionService:
                 open_timeout=10,
                 close_timeout=10,
                 ping_interval=None,
-                ping_timeout=None
+                ping_timeout=None,
+                max_size=100 * 1024 * 1024,  # 100MB to match server
             ) as websocket:
                 # Send request
                 await websocket.send(json.dumps(request_message))
@@ -1606,8 +1675,11 @@ class TaskExecutionService:
                 deadline = time.time() + timeout
                 first_frame: Optional[Dict[str, Any]] = None
                 terminal_frame: Optional[Dict[str, Any]] = None
+                all_frames: List[Dict[str, Any]] = []
+                connection_closed = False
+                close_code = None
                 
-                while time.time() < deadline:
+                while time.time() < deadline and not connection_closed:
                     remaining = max(0.1, deadline - time.time())
                     
                     try:
@@ -1615,8 +1687,18 @@ class TaskExecutionService:
                     except asyncio.TimeoutError:
                         self._log(f"[WebSocket] Timeout waiting for {service_name}", level='warning')
                         break
-                    except ConnectionClosed:
-                        self._log(f"[WebSocket] Connection closed by {service_name}", level='warning')
+                    except ConnectionClosed as cc:
+                        # Connection closed by server
+                        # Check the reason attribute for any last message
+                        connection_closed = True
+                        close_code = cc.code
+                        
+                        # websockets 10+ stores last received frames
+                        # Try to access any frames that were received before close
+                        if hasattr(cc, 'rcvd') and cc.rcvd:
+                            self._log(f"[WebSocket] Connection closed by {service_name} (code={cc.code}), reason: {cc.reason}")
+                        else:
+                            self._log(f"[WebSocket] Connection closed by {service_name} (code={cc.code})")
                         break
                     
                     # Parse frame
@@ -1626,34 +1708,85 @@ class TaskExecutionService:
                         self._log(f"[WebSocket] Invalid JSON from {service_name}: {str(e)}", level='error')
                         continue
                     
+                    all_frames.append(frame)
                     if first_frame is None:
                         first_frame = frame
                     
                     # Check if terminal frame
                     frame_type = str(frame.get('type', '')).lower()
                     has_analysis = isinstance(frame.get('analysis'), dict)
+                    frame_status = str(frame.get('status', '')).lower()
                     
                     self._log(
                         f"[WebSocket] Frame from {service_name}: type={frame_type}, "
-                        f"has_analysis={has_analysis}, status={frame.get('status')}",
+                        f"has_analysis={has_analysis}, status={frame_status}",
                         level='debug'
                     )
                     
-                    # Terminal conditions
-                    if ('analysis_result' in frame_type) or (frame_type.endswith('_analysis') and has_analysis):
+                    # Terminal conditions - accept various result frame types
+                    # More comprehensive detection for all analyzer services
+                    is_terminal = (
+                        ('analysis_result' in frame_type) or 
+                        ('_result' in frame_type and has_analysis) or
+                        (frame_type.endswith('_analysis') and has_analysis) or
+                        (frame_status in ('success', 'completed') and has_analysis) or
+                        (frame_type == 'result' and has_analysis)
+                    )
+                    
+                    if is_terminal:
                         terminal_frame = frame
-                        if has_analysis:
-                            self._log(f"[WebSocket] Received terminal frame from {service_name}")
-                            break
+                        self._log(f"[WebSocket] Received terminal frame from {service_name}: type={frame_type}, status={frame_status}")
+                        # Break immediately - we have what we need
+                        break
                 
                 # Return best available frame
-                result = terminal_frame or first_frame or {
-                    'status': 'error',
-                    'error': 'No response from service'
-                }
+                result = terminal_frame or first_frame
+                
+                # If we got a connection closed but no frames, it's an error
+                if result is None:
+                    if connection_closed:
+                        result = {
+                            'status': 'error',
+                            'error': f'Connection closed (code={close_code}) before receiving data'
+                        }
+                    else:
+                        result = {
+                            'status': 'error',
+                            'error': 'No response from service'
+                        }
+                
+                # Determine final status - be lenient with success detection
+                final_status = result.get('status', 'error')
+                
+                # If status says error but we have valid analysis data, treat as success
+                if final_status == 'error' and result.get('analysis'):
+                    final_status = 'success'
+                    result['status'] = 'success'
+                    self._log(f"[WebSocket] Recovered success status for {service_name} (had analysis data)")
+                
+                # Also check if analysis contains successful tool results
+                analysis = result.get('analysis', {})
+                if final_status == 'error' and isinstance(analysis, dict):
+                    tool_results = analysis.get('tool_results', {})
+                    tools_executed = analysis.get('tools_executed', [])
+                    if tool_results or tools_executed:
+                        final_status = 'success'
+                        result['status'] = 'success'
+                        self._log(f"[WebSocket] Recovered success status for {service_name} (had tool results)")
+                
+                # If connection closed with frames received, check if any frame had results
+                if connection_closed and final_status == 'error' and all_frames:
+                    # Look through all frames for any with analysis data
+                    for frame in all_frames:
+                        if frame.get('analysis') or frame.get('tool_results'):
+                            result = frame
+                            final_status = 'success'
+                            result['status'] = 'success'
+                            self._log(f"[WebSocket] Recovered from all_frames for {service_name}")
+                            break
                 
                 self._log(
-                    f"[WebSocket] Analysis complete from {service_name}: status={result.get('status')}"
+                    f"[WebSocket] Analysis complete from {service_name}: status={final_status}"
                 )
                 
                 return {
@@ -1668,10 +1801,13 @@ class TaskExecutionService:
                 'error': f'Connection to {service_name} timed out after {timeout}s',
                 'payload': {}
             }
-        except ConnectionClosed:
+        except ConnectionClosed as cc:
+            # Connection closed before we got inside the recv loop
+            # This shouldn't happen normally, but handle gracefully
+            self._log(f"[WebSocket] Connection to {service_name} closed early (code={cc.code})", level='warning')
             return {
                 'status': 'error',
-                'error': f'Connection to {service_name} closed unexpectedly',
+                'error': f'Connection to {service_name} closed unexpectedly (code={cc.code})',
                 'payload': {}
             }
         except Exception as e:

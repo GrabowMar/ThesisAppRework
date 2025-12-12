@@ -170,6 +170,15 @@ class BaseWSService:
                     await self._handle_health(websocket)
                 else:
                     await self.handle_message(websocket, data)
+                    # After handling an analysis request, perform a graceful close
+                    # This ensures the client receives all data before connection ends
+                    # The close() method sends a proper close frame and waits for ACK
+                    self.log.debug(f"Analysis complete for {client}, initiating graceful close")
+                    try:
+                        await websocket.close(1000, "Analysis complete")  # Normal closure
+                    except Exception:
+                        pass  # Client may have already disconnected
+                    return  # Exit handler after analysis
 
         except websockets.exceptions.ConnectionClosed:
             self.log.debug(f"Client disconnected: {client}")

@@ -823,6 +823,8 @@ class DynamicAnalyzer(BaseWSService):
 
                 await websocket.send(json.dumps(response))
                 self.log.info(f"Dynamic analysis completed for {model_slug} app {app_number}")
+                # Give client time to receive the message before connection closes
+                await asyncio.sleep(0.1)
             else:
                 response = {
                     "type": "error",
@@ -830,6 +832,7 @@ class DynamicAnalyzer(BaseWSService):
                     "service": self.info.name
                 }
                 await websocket.send(json.dumps(response))
+                await asyncio.sleep(0.1)
         except Exception as e:
             self.log.error(f"Error handling message: {e}")
             error_response = {

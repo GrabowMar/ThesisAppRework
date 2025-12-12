@@ -1181,6 +1181,81 @@ class AnalyzerManager:
             logger.debug(f"Performance result normalization failed: {e}")
         return raw_result
     
+    def _resolve_ai_config(self, model_slug: str, app_number: int, 
+                          tools: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
+        """Resolve AI analyzer configuration including template_slug and ports.
+        
+        This is a synchronous helper for task_execution_service to get AI config
+        without running the full async analysis.
+        
+        Returns:
+            Dict with template_slug, backend_port, frontend_port, or None on failure
+        """
+        try:
+            template_slug = None
+            
+            # Try to get template_slug from database
+            try:
+                import sys
+                from pathlib import Path
+                
+                # Add src to path if not already there
+                src_path = Path(__file__).parent.parent / 'src'
+                if str(src_path) not in sys.path:
+                    sys.path.insert(0, str(src_path))
+                
+                from app.models import GeneratedApplication
+                from flask import current_app
+                
+                # Use existing app context if available
+                app_record = GeneratedApplication.query.filter_by(
+                    model_slug=model_slug,
+                    app_number=app_number
+                ).order_by(GeneratedApplication.version.desc()).first()
+                
+                if app_record and app_record.template_slug:
+                    template_slug = app_record.template_slug
+                    logger.info(f"Found template_slug from database: {template_slug}")
+            except Exception as e:
+                logger.debug(f"Could not query database for template_slug: {e}")
+            
+            # Fallback: try to infer from directory structure
+            if not template_slug:
+                app_path = self._find_app_path(model_slug, app_number)
+                if app_path:
+                    # App path structure: generated/apps/{model}/{template_slug}/app{N}
+                    parts = Path(app_path).parts
+                    if len(parts) >= 2:
+                        # Check if parent looks like a template slug
+                        potential_template = parts[-2]
+                        if potential_template and not potential_template.startswith('app'):
+                            template_slug = potential_template
+                            logger.info(f"Inferred template_slug from path: {template_slug}")
+            
+            # Final fallback
+            if not template_slug:
+                template_slug = 'crud_todo_list'
+                logger.warning(f"Using default template_slug: {template_slug}")
+            
+            # Resolve ports
+            ports_tuple = self._resolve_app_ports(model_slug, app_number)
+            if ports_tuple:
+                backend_port, frontend_port = ports_tuple
+            else:
+                backend_port = 5000
+                frontend_port = 8000
+                logger.warning(f"Using default ports for {model_slug}/app{app_number}")
+            
+            return {
+                "template_slug": template_slug,
+                "backend_port": backend_port,
+                "frontend_port": frontend_port,
+                "gemini_model": "anthropic/claude-3-5-haiku"
+            }
+        except Exception as e:
+            logger.error(f"Failed to resolve AI config: {e}")
+            return None
+    
     async def run_ai_analysis(self, model_slug: str, app_number: int,
                             ai_model: Optional[str] = None, tools: Optional[List[str]] = None,
                             template_slug: Optional[str] = None) -> Dict[str, Any]:

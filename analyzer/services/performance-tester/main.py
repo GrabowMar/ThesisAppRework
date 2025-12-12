@@ -781,6 +781,8 @@ scenarios:
                 
                 self.log.info(f"[PERF-RESPONSE] Sending response with analysis status={result.get('status')}")
                 await websocket.send(json.dumps(wrapped))
+                # Give client time to receive the message before connection closes
+                await asyncio.sleep(0.1)
             
             elif message_type == 'health_check':
                 await websocket.send(json.dumps({
@@ -791,12 +793,14 @@ scenarios:
                     'available_tools': self.available_tools,
                     'timestamp': datetime.now().isoformat()
                 }))
+                await asyncio.sleep(0.1)
             
             else:
                 await websocket.send(json.dumps({
                     'type': 'error',
                     'error': f'Unknown message type: {message_type}'
                 }))
+                await asyncio.sleep(0.1)
                 
         except Exception as e:
             self.log.error(f"Error handling message: {e}")
