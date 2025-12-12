@@ -278,6 +278,14 @@ with app.app_context(): get_maintenance_service()._run_maintenance()"
 - **Sequential execution**: Currently 1 task at a time; subsequent tasks wait in queue
 - **Check progress**: Query `task.status` to see state; `RUNNING` means actively executing, check `task.started_at` for how long
 
+### Analyzer Connection Resilience (Dec 2025)
+- **Pre-flight health checks**: Before starting subtasks, system verifies all required analyzer services (ports 2001-2004) are accessible
+- **Retry with exponential backoff**: WebSocket connections retry up to 3 times with 2s/4s/8s delays for transient failures
+- **TCP port check before WebSocket**: Uses socket-level check to verify port accessibility before attempting WebSocket handshake
+- **Clear error messages**: If services are down, error clearly states which services are inaccessible and how to fix
+- **Circuit breaker**: After 3 consecutive failures to a service, that service is put in 5-minute cooldown
+- **Recovery**: Services automatically become available again after cooldown expires or on first success
+
 ### Container Rebuild Strategies
 - **Fast incremental** (`./start.ps1 -Mode Rebuild`): 
   - Uses BuildKit cache mounts (30-90 seconds)

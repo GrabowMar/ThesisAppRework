@@ -194,6 +194,86 @@ class TaskExecutionService:
             )
         self._service_failures[service_name] = 0
 
+    def _preflight_check_services(
+        self,
+        required_services: set,
+        max_retries: int = 5,
+        retry_delay: float = 2.0
+    ) -> List[str]:
+        """Pre-flight check to verify all required analyzer services are accessible.
+        
+        Checks TCP connectivity to all required service ports before starting analysis.
+        Uses retry logic with exponential backoff to handle transient issues.
+        
+        Args:
+            required_services: Set of service names to check
+            max_retries: Maximum number of retry attempts per service
+            retry_delay: Base delay between retries (exponential backoff applied)
+            
+        Returns:
+            List of service names that are NOT accessible (empty = all OK)
+        """
+        import socket
+        
+        SERVICE_PORTS = {
+            'static-analyzer': 2001,
+            'dynamic-analyzer': 2002,
+            'performance-tester': 2003,
+            'ai-analyzer': 2004
+        }
+        
+        inaccessible = []
+        
+        for service_name in required_services:
+            port = SERVICE_PORTS.get(service_name)
+            if not port:
+                self._log(f"[PREFLIGHT] Unknown service: {service_name}", level='warning')
+                continue
+            
+            accessible = False
+            for attempt in range(1, max_retries + 1):
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(5.0)
+                    result = sock.connect_ex(('127.0.0.1', port))
+                    sock.close()
+                    
+                    if result == 0:
+                        accessible = True
+                        if attempt > 1:
+                            self._log(
+                                f"[PREFLIGHT] ✓ {service_name}:{port} accessible on attempt {attempt}",
+                                level='info'
+                            )
+                        break
+                    else:
+                        if attempt < max_retries:
+                            wait_time = retry_delay * (2 ** (attempt - 1))  # Exponential backoff
+                            self._log(
+                                f"[PREFLIGHT] {service_name}:{port} not accessible (attempt {attempt}/{max_retries}), "
+                                f"waiting {wait_time:.1f}s...",
+                                level='warning'
+                            )
+                            time.sleep(wait_time)
+                        
+                except socket.error as e:
+                    if attempt < max_retries:
+                        wait_time = retry_delay * (2 ** (attempt - 1))
+                        self._log(
+                            f"[PREFLIGHT] Socket error for {service_name}:{port} (attempt {attempt}/{max_retries}): {e}",
+                            level='warning'
+                        )
+                        time.sleep(wait_time)
+            
+            if not accessible:
+                self._log(
+                    f"[PREFLIGHT] ✗ {service_name}:{port} NOT accessible after {max_retries} attempts",
+                    level='error'
+                )
+                inaccessible.append(service_name)
+        
+        return inaccessible
+
     def _execute_service_with_timeout(self, engine, model_slug: str, app_number: int, tools: list, service_name: str) -> Dict[str, Any]:
         """Execute a service with timeout protection.
         
@@ -1132,6 +1212,39 @@ class TaskExecutionService:
             error_msg = f"No subtasks found for main task {main_task_id}"
             self._log(error_msg, level='error')
             raise RuntimeError(error_msg)
+        
+        # PRE-FLIGHT CHECK: Verify all required analyzer services are accessible
+        # This prevents tasks from failing due to transient connectivity issues
+        required_services = set()
+        for subtask in subtasks:
+            if subtask.service_name:
+                required_services.add(subtask.service_name)
+        
+        if required_services:
+            inaccessible_services = self._preflight_check_services(required_services)
+            if inaccessible_services:
+                # Some services are not accessible - fail early with clear error
+                error_msg = (
+                    f"Pre-flight check failed: The following analyzer services are not accessible: "
+                    f"{', '.join(inaccessible_services)}. "
+                    f"Ensure Docker containers are running and healthy. "
+                    f"Run 'python analyzer/analyzer_manager.py status' to check."
+                )
+                self._log(error_msg, level='error')
+                
+                # Mark all subtasks as failed
+                for subtask in subtasks:
+                    subtask.status = AnalysisStatus.FAILED
+                    subtask.error_message = error_msg
+                    subtask.completed_at = datetime.now(timezone.utc)
+                db.session.commit()
+                
+                raise RuntimeError(error_msg)
+            
+            self._log(
+                f"[PREFLIGHT] All {len(required_services)} analyzer services verified accessible: "
+                f"{', '.join(required_services)}"
+            )
             
         # Try to use Celery first
         use_celery = os.environ.get('USE_CELERY_ANALYSIS', 'false').lower() == 'true'
@@ -1537,9 +1650,14 @@ class TaskExecutionService:
         model_slug: str,
         app_number: int,
         tools: List[str],
-        timeout: int = 600
+        timeout: int = 600,
+        max_retries: int = 3,
+        retry_delay: float = 2.0
     ) -> Dict[str, Any]:
-        """Execute analysis via WebSocket (synchronous wrapper for thread pool)."""
+        """Execute analysis via WebSocket (synchronous wrapper for thread pool).
+        
+        Includes retry logic with exponential backoff for transient connection failures.
+        """
         # Service port mapping
         SERVICE_PORTS = {
             'static-analyzer': 2001,
@@ -1556,26 +1674,126 @@ class TaskExecutionService:
                 'payload': {}
             }
         
-        # Run async WebSocket communication in new event loop
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                result = loop.run_until_complete(
-                    self._websocket_request_async(
-                        service_name, port, model_slug, app_number, tools, timeout
-                    )
-                )
-                return result
-            finally:
-                loop.close()
-        except Exception as e:
-            self._log(f"[WebSocket] Error: {e}", level='error', exc_info=True)
+        # Pre-flight connection check with retry
+        if not self._check_service_port_accessible(port, service_name, max_retries=3, retry_delay=1.0):
             return {
                 'status': 'error',
-                'error': f'WebSocket execution error: {str(e)}',
+                'error': f'Service {service_name} on port {port} is not accessible after multiple attempts',
                 'payload': {}
             }
+        
+        # Run async WebSocket communication with retry logic
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(
+                        self._websocket_request_async(
+                            service_name, port, model_slug, app_number, tools, timeout
+                        )
+                    )
+                    
+                    # Check if result indicates connection failure (should retry)
+                    if result.get('status') == 'error':
+                        error_msg = result.get('error', '')
+                        is_connection_error = any(x in error_msg.lower() for x in [
+                            'connect call failed', 'connection refused', 'errno 111',
+                            'connection reset', 'no route to host', 'network unreachable'
+                        ])
+                        
+                        if is_connection_error and attempt < max_retries:
+                            wait_time = retry_delay * (2 ** (attempt - 1))  # Exponential backoff
+                            self._log(
+                                f"[WebSocket] Connection error to {service_name} (attempt {attempt}/{max_retries}): {error_msg}. "
+                                f"Retrying in {wait_time:.1f}s...",
+                                level='warning'
+                            )
+                            last_error = error_msg
+                            time.sleep(wait_time)
+                            continue
+                    
+                    return result
+                finally:
+                    loop.close()
+                    
+            except Exception as e:
+                last_error = str(e)
+                if attempt < max_retries:
+                    wait_time = retry_delay * (2 ** (attempt - 1))
+                    self._log(
+                        f"[WebSocket] Error on attempt {attempt}/{max_retries} to {service_name}: {e}. "
+                        f"Retrying in {wait_time:.1f}s...",
+                        level='warning'
+                    )
+                    time.sleep(wait_time)
+                else:
+                    self._log(f"[WebSocket] All {max_retries} attempts failed for {service_name}: {e}", level='error', exc_info=True)
+        
+        return {
+            'status': 'error',
+            'error': f'WebSocket execution failed after {max_retries} attempts: {last_error}',
+            'payload': {}
+        }
+    
+    def _check_service_port_accessible(
+        self,
+        port: int,
+        service_name: str,
+        max_retries: int = 3,
+        retry_delay: float = 1.0
+    ) -> bool:
+        """Check if a service port is accessible before attempting WebSocket connection.
+        
+        Uses TCP socket check with retry logic for transient failures.
+        """
+        import socket
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(5.0)
+                result = sock.connect_ex(('127.0.0.1', port))
+                sock.close()
+                
+                if result == 0:
+                    if attempt > 1:
+                        self._log(
+                            f"[PREFLIGHT] Service {service_name}:{port} accessible on attempt {attempt}",
+                            level='info'
+                        )
+                    return True
+                else:
+                    if attempt < max_retries:
+                        self._log(
+                            f"[PREFLIGHT] Service {service_name}:{port} not accessible (attempt {attempt}/{max_retries}), "
+                            f"waiting {retry_delay}s...",
+                            level='warning'
+                        )
+                        time.sleep(retry_delay)
+                    else:
+                        self._log(
+                            f"[PREFLIGHT] Service {service_name}:{port} not accessible after {max_retries} attempts",
+                            level='error'
+                        )
+                        return False
+                        
+            except socket.error as e:
+                if attempt < max_retries:
+                    self._log(
+                        f"[PREFLIGHT] Socket error checking {service_name}:{port} (attempt {attempt}/{max_retries}): {e}",
+                        level='warning'
+                    )
+                    time.sleep(retry_delay)
+                else:
+                    self._log(
+                        f"[PREFLIGHT] Socket error for {service_name}:{port} after {max_retries} attempts: {e}",
+                        level='error'
+                    )
+                    return False
+        
+        return False
     
     async def _websocket_request_async(
         self,
