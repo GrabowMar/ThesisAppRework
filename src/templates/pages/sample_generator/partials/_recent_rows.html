@@ -14,9 +14,24 @@
       <td>{{ r.app_name or ('App #' ~ (r.app_num or '?')) }}</td>
       <td>{{ r.model or '—' }}</td>
       <td>
-        <span class="badge {{ 'bg-success' if r.success else 'bg-danger' }}">
-          {{ 'Success' if r.success else 'Failed' }}
-        </span>
+        {% if r.status == 'completed' %}
+          <span class="badge bg-success">Success</span>
+        {% elif r.status == 'failed' %}
+          <span class="badge bg-danger">Failed</span>
+        {% elif r.status == 'running' %}
+          <span class="badge bg-info">Running</span>
+        {% else %}
+          <span class="badge bg-warning">Pending</span>
+        {% endif %}
+      </td>
+      <td class="text-muted small" style="max-width: 200px;">
+        {% if r.error_message %}
+          <span class="text-truncate d-inline-block" style="max-width: 190px;" title="{{ r.error_message }}">
+            {{ r.error_message }}
+          </span>
+        {% else %}
+          —
+        {% endif %}
       </td>
       <td>{{ '%.1fs'|format(r.duration) if r.duration else '-' }}</td>
       <td class="text-end">
@@ -28,5 +43,5 @@
     </tr>
   {% endfor %}
 {% else %}
-  <tr><td colspan="6" class="text-center text-muted py-4">No recent generations</td></tr>
+  <tr><td colspan="7" class="text-center text-muted py-4">No recent generations</td></tr>
 {% endif %}

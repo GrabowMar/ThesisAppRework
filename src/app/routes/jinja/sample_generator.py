@@ -62,6 +62,7 @@ def _load_recent(limit: int = 10) -> List[Dict[str, Any]]:
     """Load recent generation results from GeneratedApplication table."""
     try:
         from app.models import GeneratedApplication
+        from app.constants import AnalysisStatus
 
         results = (
             GeneratedApplication.query
@@ -70,13 +71,33 @@ def _load_recent(limit: int = 10) -> List[Dict[str, Any]]:
             .all()
         )
 
+        def _get_status_info(result):
+            """Determine status and message for a generation result."""
+            status = result.generation_status
+            metadata = result.get_metadata() or {}
+            
+            # Determine success/failed/pending based on status enum
+            if status == AnalysisStatus.COMPLETED:
+                return 'completed', None
+            elif status == AnalysisStatus.FAILED:
+                # Extract error message from metadata
+                errors = metadata.get('errors', [])
+                error_msg = errors[0] if errors else 'Generation failed'
+                return 'failed', error_msg
+            elif status == AnalysisStatus.RUNNING:
+                return 'running', 'Generation in progress...'
+            else:  # PENDING, CANCELLED, or unknown
+                return 'pending', None
+
         return [
             {
                 'timestamp': result.created_at,
                 'app_name': f"{result.template_slug or 'App'} #{result.app_number}",
                 'app_num': result.app_number,
                 'model': result.model_slug,
-                'success': result.generation_status and result.generation_status.value == 'completed',
+                'status': _get_status_info(result)[0],
+                'success': result.generation_status == AnalysisStatus.COMPLETED,
+                'error_message': _get_status_info(result)[1],
                 'duration': None,  # Not tracked in GeneratedApplication
                 'result_id': f"{result.model_slug}_app{result.app_number}",
                 'template_slug': result.template_slug,

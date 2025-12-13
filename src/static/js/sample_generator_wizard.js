@@ -1816,7 +1816,7 @@ async function loadPastGenerations(limit = null) {
   // Show loading state
   tbody.innerHTML = `
     <tr>
-      <td colspan="6" class="text-center py-4">
+      <td colspan="7" class="text-center py-4">
         <div class="spinner-border text-primary" role="status"></div>
         <p class="small text-muted mt-2 mb-0">Loading past generations...</p>
       </td>
@@ -1840,7 +1840,7 @@ async function loadPastGenerations(limit = null) {
     if (recent.length === 0) {
       tbody.innerHTML = `
         <tr id="past-generations-empty">
-          <td colspan="6" class="text-center py-5">
+          <td colspan="7" class="text-center py-5">
             <div class="empty py-4">
               <div class="empty-icon">
                 <i class="fas fa-history fa-3x text-muted"></i>
@@ -1860,10 +1860,30 @@ async function loadPastGenerations(limit = null) {
       const appName = r.app_name || `App #${r.app_num || '?'}`;
       const model = r.model || '—';
       const duration = r.duration ? `${r.duration.toFixed(1)}s` : '—';
-      const statusBadge = r.success
-        ? '<span class="badge bg-success-lt text-success"><i class="fas fa-check me-1"></i>Success</span>'
-        : '<span class="badge bg-warning-lt text-warning"><i class="fas fa-clock me-1"></i>Pending</span>';
+      const errorMessage = r.error_message || '';
       const resultId = r.result_id || `${r.model}_app${r.app_num}`;
+      
+      // Determine status badge based on status field
+      let statusBadge;
+      const status = r.status || (r.success ? 'completed' : 'pending');
+      switch (status) {
+        case 'completed':
+          statusBadge = '<span class="badge bg-success-lt text-success"><i class="fas fa-check me-1"></i>Success</span>';
+          break;
+        case 'failed':
+          statusBadge = '<span class="badge bg-danger-lt text-danger"><i class="fas fa-times me-1"></i>Failed</span>';
+          break;
+        case 'running':
+          statusBadge = '<span class="badge bg-info-lt text-info"><i class="fas fa-spinner fa-spin me-1"></i>Running</span>';
+          break;
+        default:
+          statusBadge = '<span class="badge bg-warning-lt text-warning"><i class="fas fa-clock me-1"></i>Pending</span>';
+      }
+      
+      // Render error message cell
+      const errorCell = errorMessage 
+        ? `<span class="text-truncate d-inline-block" style="max-width: 240px;" title="${escapeHtml(errorMessage)}">${escapeHtml(errorMessage)}</span>`
+        : '<span class="text-muted">—</span>';
       
       return `
         <tr>
@@ -1871,6 +1891,7 @@ async function loadPastGenerations(limit = null) {
           <td><strong>${escapeHtml(appName)}</strong></td>
           <td><span class="badge bg-azure-lt text-azure">${escapeHtml(model)}</span></td>
           <td class="text-center">${statusBadge}</td>
+          <td class="text-muted small" style="max-width: 250px;">${errorCell}</td>
           <td class="text-end text-muted small">${escapeHtml(duration)}</td>
           <td>
             <div class="btn-group btn-group-sm" role="group">
@@ -1889,7 +1910,7 @@ async function loadPastGenerations(limit = null) {
     console.error('[Wizard] Error loading past generations:', error);
     tbody.innerHTML = `
       <tr>
-        <td colspan="6" class="text-center py-4 text-danger">
+        <td colspan="7" class="text-center py-4 text-danger">
           <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
           <p class="fw-bold mb-1">Error loading past generations</p>
           <p class="small mb-2">${escapeHtml(error.message)}</p>

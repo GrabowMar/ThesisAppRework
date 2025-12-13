@@ -106,6 +106,7 @@
                         <th scope="col">Application</th>
                         <th scope="col">Model</th>
                         <th scope="col" class="text-center">Status</th>
+                        <th scope="col">Log Message</th>
                         <th scope="col" class="text-end">Duration</th>
                         <th scope="col" class="w-1"><span class="visually-hidden">Actions</span></th>
                       </tr>
@@ -130,14 +131,31 @@
                               <span class="badge bg-azure-lt text-azure">{{ r.model or '—' }}</span>
                             </td>
                             <td class="text-center">
-                              {% if r.success %}
+                              {% if r.status == 'completed' %}
                                 <span class="badge bg-success-lt text-success">
                                   <i class="fas fa-check me-1"></i>Success
+                                </span>
+                              {% elif r.status == 'failed' %}
+                                <span class="badge bg-danger-lt text-danger">
+                                  <i class="fas fa-times me-1"></i>Failed
+                                </span>
+                              {% elif r.status == 'running' %}
+                                <span class="badge bg-info-lt text-info">
+                                  <i class="fas fa-spinner fa-spin me-1"></i>Running
                                 </span>
                               {% else %}
                                 <span class="badge bg-warning-lt text-warning">
                                   <i class="fas fa-clock me-1"></i>Pending
                                 </span>
+                              {% endif %}
+                            </td>
+                            <td class="text-muted small" style="max-width: 250px;">
+                              {% if r.error_message %}
+                                <span class="text-truncate d-inline-block" style="max-width: 240px;" title="{{ r.error_message }}">
+                                  {{ r.error_message }}
+                                </span>
+                              {% else %}
+                                <span class="text-muted">—</span>
                               {% endif %}
                             </td>
                             <td class="text-end text-muted small">
@@ -156,7 +174,7 @@
                         {% endfor %}
                       {% else %}
                         <tr id="past-generations-empty">
-                          <td colspan="6" class="text-center py-5">
+                          <td colspan="7" class="text-center py-5">
                             <div class="empty py-4">
                               <div class="empty-icon">
                                 <i class="fas fa-history fa-3x text-muted"></i>
