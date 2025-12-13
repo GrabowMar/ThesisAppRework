@@ -47,8 +47,15 @@
                 <div class="text-muted small">Linked Apps</div>
                 <div class="fw-medium">{{ model.get('apps_count', 0) }}</div>
               </div>
+              {% set created_ts = enriched_data.get('capabilities', {}).get('created') %}
+              {% if created_ts %}
+              <div class="col">
+                <div class="text-muted small">Created (OpenRouter)</div>
+                <div class="fw-medium">{{ created_ts | int | timestamp_to_date }}</div>
+              </div>
+              {% endif %}
               {% if enriched_data.get('openrouter_canonical_slug') %}
-              <div class="col-12">
+              <div class="col">
                 <div class="text-muted small">Canonical Slug</div>
                 <code class="small text-truncate d-block" title="{{ enriched_data.get('openrouter_canonical_slug') }}">{{ enriched_data.get('openrouter_canonical_slug') }}</code>
               </div>
@@ -90,6 +97,39 @@
       </div>
     </div>
   </div>
+
+  {# Performance Score & External Links #}
+  {% set perf_score = enriched_data.get('performance_score') %}
+  {% set hf_id = enriched_data.get('capabilities', {}).get('hugging_face_id') or enriched_data.get('hugging_face_id') %}
+  {% if perf_score or hf_id %}
+  <div class="col-12">
+    <div class="card card-sm">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center flex-wrap gap-3">
+          {% if perf_score %}
+          <div class="d-flex align-items-center gap-2">
+            <i class="fas fa-chart-line {% if perf_score > 0.7 %}text-success{% elif perf_score > 0.4 %}text-warning{% else %}text-secondary{% endif %}" aria-hidden="true"></i>
+            <span class="text-muted small">Performance Score:</span>
+            <span class="badge {% if perf_score > 0.7 %}bg-success-lt text-success{% elif perf_score > 0.4 %}bg-warning-lt text-warning{% else %}bg-secondary-lt{% endif %}">
+              {{ '%.2f'|format(perf_score) }}
+            </span>
+          </div>
+          {% endif %}
+          {% if hf_id %}
+          <div class="d-flex align-items-center gap-2">
+            <svg class="text-warning" style="width: 16px; height: 16px;" viewBox="0 0 95 88" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M47.2 0C21.1 0 0 21.2 0 47.3c0 26.2 21.1 47.3 47.2 47.3 26.1 0 47.2-21.2 47.2-47.3C94.4 21.2 73.3 0 47.2 0zm0 88.4C23.5 88.4 4.2 69.1 4.2 45.4S23.5 2.4 47.2 2.4s43 19.3 43 43-19.3 43-43 43zm24.2-43.1c0-1.8-1.1-3.3-2.7-3.9.6-.9 1-2 1-3.1 0-3.1-2.5-5.6-5.6-5.6-2.2 0-4.1 1.3-5 3.2-.8-1.9-2.7-3.2-5-3.2-3.1 0-5.6 2.5-5.6 5.6 0 1.1.3 2.2 1 3.1-1.6.6-2.7 2.1-2.7 3.9 0 2.3 1.8 4.1 4.1 4.1h16.4c2.3 0 4.1-1.8 4.1-4.1zM33.1 32.7c-3.1 0-5.6 2.5-5.6 5.6 0 1.1.3 2.2 1 3.1-1.6.6-2.7 2.1-2.7 3.9 0 2.3 1.8 4.1 4.1 4.1h16.4c2.3 0 4.1-1.8 4.1-4.1 0-1.8-1.1-3.3-2.7-3.9.6-.9 1-2 1-3.1 0-3.1-2.5-5.6-5.6-5.6-2.2 0-4.1 1.3-5 3.2-.8-1.9-2.7-3.2-5-3.2zM47.2 52.3c-8.2 0-14.9 6.7-14.9 14.9h4.2c0-5.9 4.8-10.7 10.7-10.7 5.9 0 10.7 4.8 10.7 10.7h4.2c0-8.2-6.7-14.9-14.9-14.9z"/></svg>
+            <span class="text-muted small">Hugging Face:</span>
+            <a href="https://huggingface.co/{{ hf_id }}" target="_blank" rel="noopener noreferrer" class="small text-decoration-none">
+              <code>{{ hf_id }}</code>
+              <i class="fas fa-external-link-alt ms-1 small"></i>
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   {# Description - Only if exists, inline #}
   {% if enriched_data.get('openrouter_description') %}

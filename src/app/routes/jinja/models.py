@@ -81,6 +81,18 @@ def _enrich_model(m: ModelCapability) -> dict:
         'architecture_tokenizer': meta.get('architecture_tokenizer'),
         'architecture_instruct_type': meta.get('architecture_instruct_type'),
         'performance_score': meta.get('performance_score') or m.cost_efficiency,
+        # Additional fields from OpenRouter API
+        'hugging_face_id': meta.get('hugging_face_id') or caps.get('hugging_face_id') if isinstance(caps, dict) else None,
+        'default_parameters': meta.get('default_parameters') or (caps.get('default_parameters') if isinstance(caps, dict) else None),
+        'openrouter_created': meta.get('created') or (caps.get('created') if isinstance(caps, dict) else None),
+        'openrouter_name': meta.get('name') or meta.get('openrouter_name'),
+        'openrouter_description': meta.get('description') or meta.get('openrouter_description'),
+        'openrouter_canonical_slug': meta.get('canonical_slug') or meta.get('openrouter_canonical_slug') or m.canonical_slug,
+        'openrouter_supported_parameters': meta.get('supported_parameters') or (caps.get('supported_parameters') if isinstance(caps, dict) else None),
+        'openrouter_per_request_limits': meta.get('per_request_limits') or (caps.get('per_request_limits') if isinstance(caps, dict) else None),
+        'top_provider_context_length': meta.get('top_provider_context_length') or (caps.get('top_provider', {}).get('context_length') if isinstance(caps, dict) and isinstance(caps.get('top_provider'), dict) else None),
+        'top_provider_is_moderated': meta.get('top_provider_is_moderated') or (caps.get('top_provider', {}).get('is_moderated') if isinstance(caps, dict) and isinstance(caps.get('top_provider'), dict) else None),
+        'top_provider_max_completion_tokens': meta.get('top_provider_max_completion_tokens') or (caps.get('top_provider', {}).get('max_completion_tokens') if isinstance(caps, dict) and isinstance(caps.get('top_provider'), dict) else None),
     }
     return data
 
