@@ -1454,7 +1454,7 @@ class GenerationService:
     async def generate_full_app(
         self,
         model_slug: str,
-        app_num: int,
+        app_num: Optional[int],  # None = auto-allocate next available
         template_slug: str,
         generate_frontend: bool = True,
         generate_backend: bool = True,
@@ -1491,6 +1491,9 @@ class GenerationService:
             parent_app_id=parent_app_id,
             version=version
         )
+        
+        # Use the allocated app_num from DB record (may differ if input was None)
+        app_num = app_record.app_number
         
         # Acquire app-specific lock to prevent concurrent writes to same app
         app_lock = self._get_app_lock(model_slug, app_num)

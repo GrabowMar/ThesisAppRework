@@ -426,19 +426,19 @@ async function loadTemplates() {
     }
     
     // Map V2 requirements to wizard template format
-    templates.forEach((template, index) => {
-      // V2 uses string IDs, map to numeric app_num for wizard compatibility
-      template.app_num = index + 1;
+    templates.forEach((template) => {
+      // Ensure display_name is set for consistency
       template.display_name = template.name;
     });
     
     // Update cache with modified templates
     templatesCache = templates;
-    console.log('[Wizard] Templates cache updated:', templatesCache.map(t => ({ id: t.id, app_num: t.app_num, name: t.name })));
+    console.log('[Wizard] Templates cache updated:', templatesCache.map(t => ({ slug: t.slug, name: t.name })));
 
+    // Filter out any previously selected templates that no longer exist
     if (selectedTemplates.length) {
-      const validAppNums = new Set(templates.map(t => t.app_num));
-      selectedTemplates = selectedTemplates.filter(num => validAppNums.has(num));
+      const validSlugs = new Set(templates.map(t => t.slug));
+      selectedTemplates = selectedTemplates.filter(slug => validSlugs.has(slug));
     }
     
     // Render as table
@@ -1486,12 +1486,12 @@ function updateSidebar() {
     if (selectedTemplates.length === 0) {
       templateList.innerHTML = '<li class="text-muted">No templates selected</li>';
     } else {
-      const items = selectedTemplates.slice(0, 10).map(appNum => {
-        const template = templatesCache?.find(t => t.app_num === appNum);
-        const displayName = template?.display_name || `App ${appNum}`;
+      const items = selectedTemplates.slice(0, 10).map(slug => {
+        const template = templatesCache?.find(t => t.slug === slug);
+        const displayName = template?.name || template?.display_name || slug;
         return `<li class='d-flex align-items-center justify-content-between'>
           <span class='text-truncate me-2'>${escapeHtml(displayName)}</span>
-          <button type='button' class='btn btn-link p-0 text-danger small' onclick="unselectTemplate(${appNum})" aria-label='Remove template'>&times;</button>
+          <button type='button' class='btn btn-link p-0 text-danger small' onclick="unselectTemplate('${escapeHtml(slug)}')" aria-label='Remove template'>&times;</button>
         </li>`;
       }).join('');
       const more = selectedTemplates.length > 10 ? `<li class='text-muted small'>+${selectedTemplates.length - 10} more...</li>` : '';
@@ -1734,13 +1734,14 @@ function escapeHtml(text) {
   return str.replace(/[&<>"']/g, function(m) { return map[m]; });
 }
 
-function unselectTemplate(appNum) {
-  selectedTemplates = selectedTemplates.filter(num => num !== appNum);
+function unselectTemplate(slug) {
+  selectedTemplates = selectedTemplates.filter(s => s !== slug);
   updateSidebar();
   updateNavigationButtons();
+  updateTemplateSelectionUI();
   
   // Update checkbox if visible
-  const checkbox = document.querySelector(`input[data-template="${appNum}"]`);
+  const checkbox = document.querySelector(`input[data-template-slug="${slug}"]`);
   if (checkbox) {
     checkbox.checked = false;
   }

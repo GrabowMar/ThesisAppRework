@@ -158,18 +158,9 @@ def generate():
         
         logger.info(f"Found model: {model.model_name} (ID: {model.model_id})")
         
-        # Auto-allocate app number if not provided (atomic reservation happens in service)
-        if app_num_provided is None:
-            # Query for next available app number
-            max_app = GeneratedApplication.query.filter_by(
-                model_slug=model_slug
-            ).order_by(
-                GeneratedApplication.app_number.desc()
-            ).first()
-            app_num = (max_app.app_number + 1) if max_app else 1
-            logger.info(f"Auto-allocated app number: {app_num}")
-        else:
-            app_num = app_num_provided
+        # Let the service handle atomic app number allocation if not provided
+        # DO NOT pre-allocate here - it causes race conditions in batch generation
+        app_num = app_num_provided  # Will be None if not provided, service handles it atomically
         
         # Optional flags
         gen_frontend = data.get('generate_frontend', True)
@@ -186,7 +177,7 @@ def generate():
         version = data.get('version', 1)  # Default to version 1
         parent_app_id = data.get('parent_app_id')  # For regenerations
         
-        logger.info(f"Generation: {model_slug}/app{app_num} v{version}")
+        logger.info(f"Generation request: {model_slug}/app{app_num or 'auto'} v{version}")
         logger.info(f"  OpenRouter model_id: {model.model_id}")
         logger.info(f"  Frontend: {gen_frontend}, Backend: {gen_backend}")
         logger.info(f"  Template: {template_slug}")
