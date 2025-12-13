@@ -8,37 +8,31 @@
 {% block content %}
 <div class="page-body mt-0">
     <div class="container-fluid">
-        <!-- Page Header -->
-        <div class="page-header mb-4">
-            <div class="row align-items-center">
-                <div class="col-auto">
-                    <span class="page-icon bg-primary-lt text-primary rounded-3 p-2">
-                        <i class="fa-solid fa-file-lines fa-lg"></i>
-                    </span>
-                </div>
-                <div class="col">
-                    <nav aria-label="breadcrumb" class="mb-1">
-                        <ol class="breadcrumb breadcrumb-alternate mb-0">
-                            <li class="breadcrumb-item">
-                                <a href="{{ url_for('main.dashboard') }}" aria-label="Home">
-                                    <i class="fa-solid fa-house"></i>
-                                </a>
-                            </li>
-                            <li class="breadcrumb-item">
-                                <a href="{{ url_for('docs.docs_index') }}">Documentation</a>
-                            </li>
-                            <li class="breadcrumb-item active" aria-current="page">{{ title }}</li>
-                        </ol>
-                    </nav>
-                    <h1 class="page-title mb-0">{{ title }}</h1>
-                </div>
-                <div class="col-auto ms-auto">
-                    <div class="btn-list">
-                        <a href="{{ url_for('docs.docs_index') }}" class="btn btn-outline-secondary">
-                            <i class="fa-solid fa-arrow-left me-2"></i>
-                            Back to Docs
+        <!-- Compact Header Bar -->
+        <div class="card card-sm mb-3 bg-primary text-white">
+            <div class="card-body py-2">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <a href="{{ url_for('docs.docs_index') }}" class="btn btn-ghost-light btn-sm">
+                            <i class="fa-solid fa-arrow-left me-1"></i>
+                            Docs
                         </a>
-                        <button class="btn btn-sm btn-ghost-secondary btn-icon" onclick="window.print()" title="Print">
+                    </div>
+                    <div class="col">
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb breadcrumb-dots mb-0" style="--tblr-breadcrumb-divider-color: rgba(255,255,255,0.5);">
+                                <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}" class="text-white-50">Home</a></li>
+                                <li class="breadcrumb-item"><a href="{{ url_for('docs.docs_index') }}" class="text-white-50">Documentation</a></li>
+                                <li class="breadcrumb-item text-white active" aria-current="page">{{ title }}</li>
+                            </ol>
+                        </nav>
+                    </div>
+                    <div class="col-auto">
+                        <span class="text-white-50 small me-2">
+                            <i class="fa-solid fa-file-code me-1"></i>
+                            {{ filepath }}
+                        </span>
+                        <button class="btn btn-ghost-light btn-sm btn-icon" onclick="window.print()" title="Print">
                             <i class="fa-solid fa-print"></i>
                         </button>
                     </div>
@@ -46,20 +40,20 @@
             </div>
         </div>
 
-        <div class="row row-cards g-2">
+        <div class="row g-3">
             <!-- Sidebar Navigation -->
-            <div class="col-md-4 col-xl-3 d-none d-md-block">
+            <div class="col-lg-3 d-none d-lg-block">
                 <div class="sticky-top" role="complementary" aria-label="Table of contents">
-                    <div class="card card-table-compact">
-                        <div class="card-header d-flex flex-wrap align-items-center gap-3">
-                            <h3 class="card-title d-flex align-items-center gap-2 mb-0">
-                                <i class="fa-solid fa-list"></i>
-                                <span>Table of Contents</span>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">
+                                <i class="fa-solid fa-list me-2 text-muted"></i>
+                                Contents
                             </h3>
                         </div>
-                        <div class="card-body p-2">
+                        <div class="card-body p-0">
                             <div id="table-of-contents-nav" class="docs-toc">
-                                <div class="text-center text-muted py-3">
+                                <div class="text-center text-muted py-4">
                                     <div class="spinner-border spinner-border-sm me-2"></div>
                                     Loading…
                                 </div>
@@ -70,15 +64,18 @@
             </div>
 
             <!-- Main Content -->
-            <div class="col-md-8 col-xl-9">
-                <div class="card card-table-compact">
-                    <div class="card-header d-flex flex-wrap align-items-center gap-3">
-                        <div class="text-muted small d-flex align-items-center gap-2">
-                            <i class="fa-solid fa-file-code"></i>
-                            <code>{{ filepath }}</code>
+            <div class="col-lg-9">
+                <div class="card">
+                    <div class="card-body docs-content-wrapper">
+                        <!-- Document Title -->
+                        <div class="docs-header mb-4 pb-3 border-bottom">
+                            <h1 class="docs-title mb-2">{{ title }}</h1>
+                            <div class="docs-meta text-muted small">
+                                <span class="me-3"><i class="fa-solid fa-folder me-1"></i>Documentation</span>
+                                <span><i class="fa-solid fa-file-lines me-1"></i>{{ filepath }}</span>
+                            </div>
                         </div>
-                    </div>
-                    <div class="card-body">
+                        
                         <div class="docs-content" id="markdown-content" role="main">
                             {{ content|safe }}
                         </div>
@@ -91,117 +88,400 @@
 {% endblock %}
 
 {% block head_styles %}
+<!-- Mermaid.js for diagram rendering -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 <style>
-    /* Table of Contents Styles */
+    /* ===== Table of Contents ===== */
     .docs-toc {
-        max-height: calc(100vh - 200px);
+        max-height: calc(100vh - 220px);
         overflow-y: auto;
-        font-size: 0.875rem;
+        font-size: 0.8125rem;
     }
 
     .toc-link {
         display: block;
-        padding: 0.25rem 0.5rem;
-        color: var(--tblr-body-color);
+        padding: 0.375rem 1rem;
+        color: var(--tblr-secondary);
         text-decoration: none;
         border-left: 2px solid transparent;
         transition: all 0.15s ease;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
     }
 
     .toc-link:hover {
         color: var(--tblr-primary);
-        background-color: var(--tblr-bg-surface-secondary);
+        background-color: rgba(32, 107, 196, 0.04);
         text-decoration: none;
     }
 
     .toc-link.active {
         color: var(--tblr-primary);
         border-left-color: var(--tblr-primary);
-        background-color: var(--tblr-bg-surface-secondary);
+        background-color: rgba(32, 107, 196, 0.08);
+        font-weight: 600;
+    }
+
+    /* ToC indentation */
+    .toc-link.level-1 { padding-left: 1rem; font-weight: 600; color: var(--tblr-body-color); }
+    .toc-link.level-2 { padding-left: 1.5rem; }
+    .toc-link.level-3 { padding-left: 2rem; font-size: 0.75rem; }
+    .toc-link.level-4 { padding-left: 2.5rem; font-size: 0.75rem; }
+
+    /* ===== Document Header ===== */
+    .docs-header {
+        border-bottom: 2px solid var(--tblr-primary) !important;
+    }
+
+    .docs-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--tblr-body-color);
+        margin: 0;
+    }
+
+    .docs-content-wrapper {
+        padding: 2rem;
+    }
+
+    /* ===== Markdown Content Styles ===== */
+    .docs-content {
+        font-size: 0.9375rem;
+        line-height: 1.7;
+        color: var(--tblr-body-color);
+    }
+
+    .docs-content h1 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin: 2.5rem 0 1rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid var(--tblr-primary);
+        color: var(--tblr-body-color);
+    }
+
+    .docs-content h1:first-child {
+        display: none; /* Hide duplicate title */
+    }
+
+    .docs-content h2 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin: 2rem 0 1rem 0;
+        padding-bottom: 0.375rem;
+        border-bottom: 1px solid var(--tblr-border-color);
+        color: var(--tblr-body-color);
+    }
+
+    .docs-content h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin: 1.75rem 0 0.75rem 0;
+        color: var(--tblr-body-color);
+    }
+
+    .docs-content h4 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin: 1.5rem 0 0.5rem 0;
+        color: var(--tblr-secondary);
+    }
+
+    .docs-content p {
+        margin-bottom: 1rem;
+    }
+
+    .docs-content a {
+        color: var(--tblr-primary);
+        text-decoration: none;
+        border-bottom: 1px solid transparent;
+        transition: border-color 0.15s ease;
+    }
+
+    .docs-content a:hover {
+        border-bottom-color: var(--tblr-primary);
+    }
+
+    /* ===== Code Blocks - High Contrast ===== */
+    .docs-content code {
+        font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+        font-size: 0.8125rem;
+        background-color: #1e293b;
+        color: #e2e8f0;
+        padding: 0.2em 0.4em;
+        border-radius: 4px;
         font-weight: 500;
     }
 
-    /* Indentation for levels */
-    .toc-link.level-1 { padding-left: 0.5rem; font-weight: 600; margin-top: 0.5rem; }
-    .toc-link.level-2 { padding-left: 1rem; }
-    .toc-link.level-3 { padding-left: 1.75rem; font-size: 0.8125rem; }
-    .toc-link.level-4 { padding-left: 2.5rem; font-size: 0.8125rem; }
-    .toc-link.level-5 { padding-left: 3.25rem; font-size: 0.75rem; }
-    .toc-link.level-6 { padding-left: 4rem; font-size: 0.75rem; }
-
-    /* Markdown Content Styles */
-    .docs-content h1 { margin-top: 0; margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--tblr-border-color); }
-    .docs-content h2 { margin-top: 2rem; margin-bottom: 1rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--tblr-border-color); }
-    .docs-content h3 { margin-top: 1.5rem; margin-bottom: 0.75rem; }
-    .docs-content h4 { margin-top: 1.25rem; margin-bottom: 0.5rem; }
-
-    .docs-content img {
-        max-width: 100%;
-        height: auto;
-        border-radius: var(--tblr-border-radius);
-        margin: 1rem 0;
-        border: 1px solid var(--tblr-border-color);
-    }
-
     .docs-content pre {
-        background-color: var(--tblr-bg-surface-secondary);
-        border-radius: var(--tblr-border-radius);
-        padding: 1rem;
-        margin-bottom: 1rem;
+        background-color: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+        margin: 1.25rem 0;
         overflow-x: auto;
-    }
-
-    .docs-content code {
-        background-color: var(--tblr-bg-surface-secondary);
-        padding: 0.125em 0.375em;
-        border-radius: var(--tblr-border-radius-sm);
-        font-size: 85%;
+        position: relative;
     }
 
     .docs-content pre code {
         background-color: transparent;
+        color: #e2e8f0;
         padding: 0;
-        border-radius: 0;
-        font-size: 100%;
+        font-size: 0.8125rem;
+        line-height: 1.6;
     }
 
-    .docs-content blockquote {
-        border-left: 4px solid var(--tblr-border-color);
-        padding-left: 1rem;
-        color: var(--tblr-muted);
-        margin-left: 0;
+    /* Code block line numbers effect */
+    .docs-content pre::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: linear-gradient(180deg, #3b82f6, #8b5cf6);
+        border-radius: 8px 0 0 8px;
     }
 
+    /* ===== Tables ===== */
     .docs-content table {
         width: 100%;
-        margin-bottom: 1rem;
+        margin: 1.25rem 0;
         border-collapse: collapse;
-    }
-
-    .docs-content th, .docs-content td {
-        padding: 0.5rem;
+        font-size: 0.875rem;
         border: 1px solid var(--tblr-border-color);
+        border-radius: 8px;
+        overflow: hidden;
     }
 
     .docs-content th {
         background-color: var(--tblr-bg-surface-secondary);
         font-weight: 600;
+        text-align: left;
+        padding: 0.75rem 1rem;
+        border-bottom: 2px solid var(--tblr-border-color);
+        color: var(--tblr-body-color);
     }
 
-    /* Sticky sidebar adjustment */
+    .docs-content td {
+        padding: 0.625rem 1rem;
+        border-bottom: 1px solid var(--tblr-border-color);
+        vertical-align: top;
+    }
+
+    .docs-content tr:last-child td {
+        border-bottom: none;
+    }
+
+    .docs-content tr:hover td {
+        background-color: rgba(32, 107, 196, 0.03);
+    }
+
+    /* ===== Blockquotes ===== */
+    .docs-content blockquote {
+        margin: 1.25rem 0;
+        padding: 1rem 1.25rem;
+        background-color: rgba(32, 107, 196, 0.05);
+        border-left: 4px solid var(--tblr-primary);
+        border-radius: 0 8px 8px 0;
+        color: var(--tblr-secondary);
+    }
+
+    .docs-content blockquote p:last-child {
+        margin-bottom: 0;
+    }
+
+    /* ===== Lists ===== */
+    .docs-content ul, .docs-content ol {
+        margin: 1rem 0;
+        padding-left: 1.5rem;
+    }
+
+    .docs-content li {
+        margin-bottom: 0.375rem;
+    }
+
+    .docs-content li > ul, .docs-content li > ol {
+        margin: 0.375rem 0;
+    }
+
+    /* ===== Horizontal Rules ===== */
+    .docs-content hr {
+        margin: 2rem 0;
+        border: none;
+        border-top: 1px solid var(--tblr-border-color);
+    }
+
+    /* ===== Images ===== */
+    .docs-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 8px;
+        margin: 1.25rem 0;
+        border: 1px solid var(--tblr-border-color);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+
+    /* ===== Mermaid Diagrams ===== */
+    .mermaid-container {
+        position: relative;
+        margin: 1.5rem 0;
+    }
+
+    .docs-content .mermaid {
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        border: 1px solid var(--tblr-border-color);
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        overflow-x: auto;
+    }
+
+    [data-bs-theme="dark"] .docs-content .mermaid {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    }
+
+    .docs-content .mermaid svg {
+        max-width: 100%;
+        height: auto;
+    }
+
+    .docs-content pre.mermaid-source {
+        display: none !important;
+    }
+
+    .mermaid-container::before {
+        content: 'Diagram';
+        position: absolute;
+        top: -0.625rem;
+        left: 1.25rem;
+        background: var(--tblr-card-bg, #fff);
+        padding: 0 0.625rem;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        color: var(--tblr-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        z-index: 1;
+    }
+
+    /* ===== Copy Button ===== */
+    .code-copy-btn {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: #94a3b8;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        opacity: 0;
+        transition: all 0.15s ease;
+    }
+
+    .docs-content pre:hover .code-copy-btn {
+        opacity: 1;
+    }
+
+    .code-copy-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: #e2e8f0;
+    }
+
+    /* ===== Sticky Sidebar ===== */
     .sticky-top {
         top: 1rem;
         z-index: 100;
+    }
+
+    /* ===== Print Styles ===== */
+    @media print {
+        .docs-toc, .btn, nav { display: none !important; }
+        .docs-content pre { white-space: pre-wrap; }
     }
 </style>
 {% endblock %}
 
 {% block scripts %}
 <script>
+// Initialize Mermaid with theme detection
+function initMermaid() {
+    const isDarkMode = document.documentElement.getAttribute('data-bs-theme') === 'dark' ||
+                       window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    mermaid.initialize({
+        startOnLoad: false,
+        theme: isDarkMode ? 'dark' : 'default',
+        securityLevel: 'loose',
+        flowchart: {
+            useMaxWidth: true,
+            htmlLabels: true,
+            curve: 'basis'
+        },
+        sequence: {
+            useMaxWidth: true,
+            diagramMarginX: 20,
+            diagramMarginY: 20
+        },
+        er: {
+            useMaxWidth: true
+        },
+        themeVariables: isDarkMode ? {
+            primaryColor: '#206bc4',
+            primaryTextColor: '#fff',
+            primaryBorderColor: '#206bc4',
+            lineColor: '#a0aec0',
+            secondaryColor: '#2d3748',
+            tertiaryColor: '#1a1f2e'
+        } : {}
+    });
+
+    // Find all code blocks with mermaid content
+    const codeBlocks = document.querySelectorAll('.docs-content pre code');
+    let mermaidCount = 0;
+    
+    codeBlocks.forEach((codeBlock, index) => {
+        const text = codeBlock.textContent.trim();
+        // Check if this looks like mermaid code
+        if (text.startsWith('flowchart') || 
+            text.startsWith('graph') || 
+            text.startsWith('sequenceDiagram') || 
+            text.startsWith('classDiagram') ||
+            text.startsWith('stateDiagram') ||
+            text.startsWith('erDiagram') ||
+            text.startsWith('gantt') ||
+            text.startsWith('pie') ||
+            text.startsWith('gitGraph')) {
+            
+            const pre = codeBlock.parentElement;
+            
+            // Create container
+            const container = document.createElement('div');
+            container.className = 'mermaid-container';
+            
+            const mermaidDiv = document.createElement('div');
+            mermaidDiv.className = 'mermaid';
+            mermaidDiv.id = 'mermaid-' + mermaidCount++;
+            mermaidDiv.textContent = text;
+            
+            container.appendChild(mermaidDiv);
+            
+            // Insert container after pre and hide pre
+            pre.classList.add('mermaid-source');
+            pre.insertAdjacentElement('afterend', container);
+        }
+    });
+
+    // Run mermaid on all .mermaid divs
+    if (mermaidCount > 0) {
+        mermaid.run().catch(err => {
+            console.warn('Mermaid rendering error:', err);
+        });
+    }
+}
+
 function initializeDocsPage() {
+    initMermaid();
     generateTableOfContents();
     setupScrollSpy();
     setupKeyboardNavigation();
@@ -364,14 +644,12 @@ function enhanceExternalLinks() {
 }
 
 function setupCodeBlockCopy() {
-    const codeBlocks = document.querySelectorAll('.docs-content pre');
+    const codeBlocks = document.querySelectorAll('.docs-content pre:not(.mermaid-source)');
 
     codeBlocks.forEach(block => {
         const copyBtn = document.createElement('button');
-        copyBtn.className = 'btn btn-sm btn-ghost-secondary position-absolute';
-        copyBtn.style.top = '0.5rem';
-        copyBtn.style.right = '0.5rem';
-        copyBtn.innerHTML = '<i class="fa-solid fa-copy"></i>';
+        copyBtn.className = 'code-copy-btn';
+        copyBtn.innerHTML = '<i class="fa-solid fa-copy me-1"></i>Copy';
         copyBtn.setAttribute('title', 'Copy to clipboard');
         copyBtn.setAttribute('aria-label', 'Copy code to clipboard');
 
@@ -379,23 +657,22 @@ function setupCodeBlockCopy() {
             const code = block.querySelector('code');
             if (code) {
                 navigator.clipboard.writeText(code.textContent).then(() => {
-                    copyBtn.innerHTML = '<i class="fa-solid fa-check text-success"></i>';
-                    copyBtn.setAttribute('title', 'Copied!');
+                    copyBtn.innerHTML = '<i class="fa-solid fa-check me-1"></i>Copied!';
+                    copyBtn.style.color = '#4ade80';
 
                     setTimeout(() => {
-                        copyBtn.innerHTML = '<i class="fa-solid fa-copy"></i>';
-                        copyBtn.setAttribute('title', 'Copy to clipboard');
+                        copyBtn.innerHTML = '<i class="fa-solid fa-copy me-1"></i>Copy';
+                        copyBtn.style.color = '';
                     }, 2000);
                 }).catch(() => {
-                    copyBtn.innerHTML = '<i class="fa-solid fa-xmark text-danger"></i>';
+                    copyBtn.innerHTML = '<i class="fa-solid fa-xmark me-1"></i>Failed';
                     setTimeout(() => {
-                        copyBtn.innerHTML = '<i class="fa-solid fa-copy"></i>';
+                        copyBtn.innerHTML = '<i class="fa-solid fa-copy me-1"></i>Copy';
                     }, 2000);
                 });
             }
         });
 
-        block.style.position = 'relative';
         block.appendChild(copyBtn);
     });
 }

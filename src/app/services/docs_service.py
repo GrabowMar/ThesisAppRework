@@ -35,6 +35,21 @@ class DocsService:
     # }
 
     CATEGORY_RULES: List[tuple] = [
+        # Quick Start / Getting Started
+        (r"^QUICKSTART|^GETTING_STARTED|^QUICK_REF|^QUICK_START", "Quick Start"),
+        # Architecture & Overview
+        (r"^ARCHITECTURE|^OVERVIEW", "Architecture"),
+        # API & Development
+        (r"^api-reference|^API_", "API"),
+        (r"^development-guide|^DEVELOPMENT_", "Development"),
+        (r"^deployment-guide|^DEPLOYMENT_|^PRODUCTION_|^OVH_", "Deployment"),
+        # Analyzer
+        (r"^ANALYZER_", "Analyzer"),
+        # Models
+        (r"^MODELS_", "Models"),
+        # Troubleshooting
+        (r"^TROUBLESHOOTING", "Troubleshooting"),
+        # Technical
         (r"^OPENROUTER_", "OpenRouter"),
         (r"^DOCKER_", "Docker"),
         (r"^CONTAINER_", "Container Management"),
@@ -42,11 +57,7 @@ class DocsService:
         (r"^SECURITY_", "Security"),
         (r"^DASHBOARD_", "Dashboard"),
         (r"^SAMPLE_GENERATOR_|^SIMPLE_GENERATION_", "Generator"),
-        (r"^ANALYZER_", "Analyzer"),
         (r"^RESEARCH_", "Research"),
-        (r"^PRODUCTION_|^OVH_", "Deployment"),
-        (r"^GETTING_STARTED|^QUICK_REF|^QUICK_START", "Quick Start"),
-        (r"^MODELS_", "Models"),
         (r"^METADATA_", "Metadata"),
     ]
 

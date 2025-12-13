@@ -1,53 +1,154 @@
 # Quick Start Guide
 
+Get up and running with ThesisAppRework in under 5 minutes.
+
 ## Prerequisites
 
-- **Windows** (Recommended) or Linux/Mac
-- **Python 3.10+**
-- **Docker Desktop** (for analyzer services)
-- **PowerShell 7+** (for orchestration scripts)
+Before starting, ensure you have:
+
+- **Python 3.10+** - [Download](https://www.python.org/downloads/)
+- **Docker Desktop** - [Download](https://www.docker.com/products/docker-desktop/)
+- **Git** - [Download](https://git-scm.com/downloads)
 
 ## Installation
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/GrabowMar/ThesisAppRework.git
-   cd ThesisAppRework
-   ```
+### 1. Clone the Repository
 
-2. **Run the orchestrator**:
-   The `start.ps1` script handles setup, dependencies, and startup.
-   ```powershell
-   ./start.ps1
-   ```
+```bash
+git clone https://github.com/GrabowMar/ThesisAppRework.git
+cd ThesisAppRework
+```
+
+### 2. Create Virtual Environment
+
+**Windows (PowerShell):**
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+**Linux/macOS:**
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+### 3. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Configure Environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set your API key:
+```
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+SECRET_KEY=your-secret-key-here
+```
+
+### 5. Initialize Database
+
+```bash
+python src/init_db.py
+```
 
 ## Running the Application
 
 ### Interactive Mode (Recommended)
-Run `./start.ps1` and choose an option from the menu:
-- **[S] Start**: Launches the full stack (Flask app + Analyzer services).
-- **[D] Dev**: Runs Flask in developer mode (faster startup, no analyzers).
-- **[L] Logs**: View aggregated logs from all services.
-- **[M] Monitor**: Real-time status dashboard.
 
-### Command Line Options
-- Start full stack: `./start.ps1 -Mode Start`
-- Start dev mode: `./start.ps1 -Mode Dev -NoAnalyzer`
-- Stop all services: `./start.ps1 -Mode Stop`
+```bash
+./start.ps1
+```
 
-## Accessing the App
+This opens an interactive menu with options to start, stop, and manage services.
 
-- **Web Interface**: http://localhost:5000
-- **API**: http://localhost:5000/api
-- **Analyzer Services**:
-  - Static Analysis: ws://localhost:2001
-  - Dynamic Analysis: ws://localhost:2002
-  - Performance: ws://localhost:2003
-  - AI Analysis: ws://localhost:2004
+### Quick Commands
 
-## First Steps
+| Command | Description |
+|---------|-------------|
+| `./start.ps1 -Mode Start` | Start Flask + all analyzers |
+| `./start.ps1 -Mode Dev` | Start Flask only (fast) |
+| `./start.ps1 -Mode Stop` | Stop all services |
+| `./start.ps1 -Mode Status` | View dashboard |
 
-1. **Login**: Use the default admin credentials (printed in logs on first run) or reset via `./start.ps1 -Mode Password`.
-2. **Generate an App**: Go to **Generation** and select a model.
-3. **Run Analysis**: Navigate to **Analysis**, select the generated app, and choose an analysis profile (e.g., "Security Scan").
-4. **View Results**: Check the **Dashboard** for real-time progress and detailed reports.
+### Direct Python
+
+```bash
+python src/main.py
+```
+
+Access the application at **http://localhost:5000**
+
+## First Analysis
+
+### Using the Web UI
+
+1. Navigate to http://localhost:5000
+2. Log in or create an account
+3. Go to **Analysis → Create New**
+4. Select a model and app number
+5. Choose analysis type (e.g., "comprehensive")
+6. Click **Start Analysis**
+
+### Using the CLI
+
+```bash
+# Start analyzer containers
+python analyzer/analyzer_manager.py start
+
+# Run analysis
+python analyzer/analyzer_manager.py analyze openai_gpt-4 1 comprehensive
+
+# View results
+python analyzer/analyzer_manager.py status
+```
+
+## Verifying Installation
+
+### Check Flask
+
+```bash
+curl http://localhost:5000/api/health
+```
+
+Expected: `{"status": "healthy"}`
+
+### Check Analyzers
+
+```bash
+python analyzer/analyzer_manager.py health
+```
+
+All services should show "healthy" status.
+
+## Common Issues
+
+### Port 5000 Already in Use
+
+```bash
+# Stop all services
+./start.ps1 -Mode Stop
+
+# Or manually kill process
+netstat -ano | findstr :5000
+taskkill /PID <PID> /F
+```
+
+### Docker Not Running
+
+Ensure Docker Desktop is running before starting analyzers.
+
+### Missing API Key
+
+If AI analysis fails, verify `OPENROUTER_API_KEY` is set in `.env`.
+
+## Next Steps
+
+- [Architecture Overview](ARCHITECTURE.md) - Understand the system design
+- [API Reference](api-reference.md) - REST API documentation
+- [Development Guide](development-guide.md) - Contributing and testing

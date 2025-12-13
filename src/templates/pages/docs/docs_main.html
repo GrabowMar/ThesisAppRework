@@ -6,6 +6,41 @@
 {% block title %}Documentation - AI Model Analysis Platform{% endblock %}
 
 {% block content %}
+        <!-- Search Bar -->
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="card card-sm">
+                    <div class="card-body py-2">
+                        <div class="row align-items-center">
+                            <div class="col">
+                                <div class="input-icon">
+                                    <span class="input-icon-addon">
+                                        <i class="fa-solid fa-search"></i>
+                                    </span>
+                                    <input type="text" 
+                                           class="form-control form-control-rounded" 
+                                           id="docs-search"
+                                           placeholder="Search documentation... (Ctrl+K)"
+                                           hx-get="{{ url_for('docs.docs_search') }}"
+                                           hx-trigger="keyup changed delay:300ms"
+                                           hx-target="#search-results"
+                                           hx-indicator="#search-spinner"
+                                           name="q"
+                                           autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="col-auto">
+                                <span id="search-spinner" class="htmx-indicator">
+                                    <span class="spinner-border spinner-border-sm text-muted"></span>
+                                </span>
+                            </div>
+                        </div>
+                        <div id="search-results" class="mt-2"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Quick Stats -->
         <div class="row row-cards g-2 mb-3">
             <div class="col-6 col-lg-3">
@@ -60,7 +95,45 @@
                     </div>
                 </div>
             </div>
-        </div>        <!-- Documentation Grid -->
+        </div>        <!-- Featured Guides -->
+        <div class="row row-cards g-2 mb-3">
+            <div class="col-12">
+                <div class="card card-sm bg-primary-lt border-0">
+                    <div class="card-body py-3">
+                        <div class="row align-items-center">
+                            <div class="col-auto">
+                                <span class="avatar avatar-lg bg-primary text-white">
+                                    <i class="fa-solid fa-star"></i>
+                                </span>
+                            </div>
+                            <div class="col">
+                                <div class="fw-bold text-primary">Featured Guides</div>
+                                <div class="text-muted small">Essential documentation to get started</div>
+                            </div>
+                            <div class="col-auto d-none d-md-flex gap-2 flex-wrap">
+                                <a href="{{ url_for('docs.docs_file', filepath='QUICKSTART.md') }}" class="btn btn-sm btn-primary">
+                                    <i class="fa-solid fa-rocket me-1"></i>Quick Start
+                                </a>
+                                <a href="{{ url_for('docs.docs_file', filepath='ARCHITECTURE.md') }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fa-solid fa-sitemap me-1"></i>Architecture
+                                </a>
+                                <a href="{{ url_for('docs.docs_file', filepath='api-reference.md') }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fa-solid fa-code me-1"></i>API Reference
+                                </a>
+                                <a href="{{ url_for('docs.docs_file', filepath='ANALYZER_GUIDE.md') }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fa-solid fa-microscope me-1"></i>Analyzers
+                                </a>
+                                <a href="{{ url_for('docs.docs_file', filepath='TROUBLESHOOTING.md') }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="fa-solid fa-wrench me-1"></i>Troubleshooting
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Documentation Grid -->
         <div class="row row-cards g-2 mb-3">
             <!-- Core Documentation -->
             <div class="col-lg-8">
@@ -300,4 +373,29 @@
             </div>
         </div>
         {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Keyboard shortcut for search (Ctrl+K)
+document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        const searchInput = document.getElementById('docs-search');
+        if (searchInput) {
+            searchInput.focus();
+            searchInput.select();
+        }
+    }
+    // Escape to clear search
+    if (e.key === 'Escape') {
+        const searchInput = document.getElementById('docs-search');
+        if (searchInput && document.activeElement === searchInput) {
+            searchInput.value = '';
+            searchInput.blur();
+            document.getElementById('search-results').innerHTML = '';
+        }
+    }
+});
+</script>
 {% endblock %}
