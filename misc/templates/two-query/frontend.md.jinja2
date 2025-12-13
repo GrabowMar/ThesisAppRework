@@ -7,38 +7,20 @@
 - {{ req }}
 {% endfor %}
 
-## Backend API
 {% if api_endpoints %}
+## Backend API
 {{ api_endpoints }}
-
-**Note**: Use these endpoint paths to communicate with the backend.
 {% endif %}
 
-## Technical Reference
+## Reference
 {{ scaffolding_frontend_context }}
 
-## Guidelines
-1. **Pre-installed components**: `Spinner`, `ErrorBoundary` in `./components`
-2. **List response**: Backend returns `{items: [...], total: N}` - use `response.data.items`
-3. **Styling**: Tailwind CSS is available, or use custom CSS in App.css
-4. **No routing/auth** unless requirements specify it
-
-## What You Can Generate
-- **App.jsx** (required): Main application component
-- **App.css**: Custom styles
-- **Additional components**: components/*.jsx as needed
-- **Utility files**: hooks/*.js, utils/*.js, services/*.js
-
 ## Output Format
-- Main component: ```jsx block
-- CSS styles: ```css block or ```css:App.css
-- Additional components: ```jsx:components/ComponentName.jsx blocks
-- Extra npm packages: Mention them clearly if needed
+Wrap each file in markdown code blocks:
+- `jsx` → becomes App.jsx
+- `jsx:components/Name.jsx` → additional component
+- `css` → becomes App.css
 
-Generate complete, working code that implements ALL requirements with good UX:
-- Loading states during data fetching
-- Error handling with user feedback
-- Toast notifications for actions
-- Responsive design
+Generate complete, working code with good UX (loading, errors, toasts).
 
 

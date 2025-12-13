@@ -7,32 +7,20 @@
 - {{ req }}
 {% endfor %}
 
-## API Endpoints
 {% if api_endpoints %}
+## API Endpoints
 {{ api_endpoints }}
-
-**Note**: Frontend will call these paths. Use them as specified.
 {% endif %}
 
-## Technical Reference
+## Reference
 {{ scaffolding_backend_context }}
 
-## Guidelines
-1. **Database**: `sqlite:////app/data/app.db` (4 slashes for absolute path)
-2. **List response format**: `{"items": [...], "total": N}`
-3. **File uploads**: Save to `/app/data/uploads/` directory
-4. **No authentication** unless requirements explicitly specify it
-
-## What You Can Generate
-- **app.py** (required): Main application with routes and models
-- **Additional Python files**: models.py, routes.py, utils.py, services/*.py as needed
-- **requirements.txt additions**: Mention any extra packages needed
-
 ## Output Format
-- Main code: ```python block
-- Additional files: ```python:filename.py blocks
-- Extra requirements: ```requirements block
+Wrap each file in markdown code blocks:
+- `python` → becomes app.py
+- `python:filename.py` → additional Python file
+- `requirements` → extra dependencies
 
-Generate complete, working code that implements ALL requirements.
+Generate complete, working code for ALL requirements.
 
 
