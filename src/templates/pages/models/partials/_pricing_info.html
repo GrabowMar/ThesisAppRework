@@ -1,17 +1,9 @@
 {% set nested_pricing = enriched_data.get('capabilities', {}).get('pricing', {}) %}
 {% set prompt_price = nested_pricing.get('prompt') %}
-{% if prompt_price %}
-  {% set prompt_price = prompt_price | float %}
-{% else %}
-  {% set prompt_price = enriched_data.get('openrouter_prompt_price') %}
-{% endif %}
+{% if prompt_price %}{% set prompt_price = prompt_price | float %}{% else %}{% set prompt_price = enriched_data.get('openrouter_prompt_price') %}{% endif %}
 
 {% set completion_price = nested_pricing.get('completion') %}
-{% if completion_price %}
-  {% set completion_price = completion_price | float %}
-{% else %}
-  {% set completion_price = enriched_data.get('openrouter_completion_price') %}
-{% endif %}
+{% if completion_price %}{% set completion_price = completion_price | float %}{% else %}{% set completion_price = enriched_data.get('openrouter_completion_price') %}{% endif %}
 
 {% set additional_pricing = [
   ('Per request', nested_pricing.get('request') or enriched_data.get('openrouter_pricing_request')),
@@ -22,130 +14,119 @@
   ('Cache write', enriched_data.get('openrouter_pricing_input_cache_write'))
 ] %}
 
-<header class="detail-section-title">
-  <div class="detail-section-title__icon">
-    <i class="ti ti-currency-dollar"></i>
+<div class="row g-2">
+  {# Main Pricing Stats - Compact horizontal row #}
+  <div class="col-6 col-lg-3">
+    <div class="card card-sm h-100">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center">
+          <span class="bg-success-lt text-success avatar avatar-sm me-2"><i class="fas fa-arrow-down"></i></span>
+          <div>
+            <div class="text-muted small">Input</div>
+            <div class="fw-bold">{% if prompt_price %}${{ '%.6f'|format(prompt_price) }}{% else %}<span class="text-muted">—</span>{% endif %}</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
-  <div>
-    <h2 class="detail-section-title__label">Pricing</h2>
-    <p class="detail-section-title__hint">Token costs, optional add-ons, and cost efficiency signals</p>
+
+  <div class="col-6 col-lg-3">
+    <div class="card card-sm h-100">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center">
+          <span class="bg-primary-lt text-primary avatar avatar-sm me-2"><i class="fas fa-arrow-up"></i></span>
+          <div>
+            <div class="text-muted small">Output</div>
+            <div class="fw-bold">{% if completion_price %}${{ '%.6f'|format(completion_price) }}{% else %}<span class="text-muted">—</span>{% endif %}</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
-</header>
 
-<div class="detail-grid">
-  <article class="card detail-card">
-    <div class="card-body detail-stat">
-      <div class="detail-stat__icon bg-success-lt text-success"><i class="ti ti-arrow-down"></i></div>
-      <div class="detail-stat__content">
-        <div class="detail-stat-label">Input price</div>
-        <div class="detail-stat-value">
-          {% if prompt_price %}
-            ${{ '%.6f'|format(prompt_price) }}
-          {% else %}
-            <span class="text-muted">Unavailable</span>
-          {% endif %}
+  <div class="col-6 col-lg-3">
+    <div class="card card-sm h-100">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center">
+          <span class="bg-info-lt text-info avatar avatar-sm me-2"><i class="fas fa-balance-scale"></i></span>
+          <div>
+            <div class="text-muted small">Efficiency</div>
+            <div class="fw-bold">{% if model.get('cost_efficiency') %}{{ '%.2f'|format(model.get('cost_efficiency')) }}{% else %}<span class="text-muted">—</span>{% endif %}</div>
+          </div>
         </div>
-        <div class="detail-stat-hint">per 1K prompt tokens</div>
       </div>
     </div>
-  </article>
+  </div>
 
-  <article class="card detail-card">
-    <div class="card-body detail-stat">
-      <div class="detail-stat__icon bg-primary-lt text-primary"><i class="ti ti-arrow-up"></i></div>
-      <div class="detail-stat__content">
-        <div class="detail-stat-label">Output price</div>
-        <div class="detail-stat-value">
-          {% if completion_price %}
-            ${{ '%.6f'|format(completion_price) }}
-          {% else %}
-            <span class="text-muted">Unavailable</span>
-          {% endif %}
+  <div class="col-6 col-lg-3">
+    <div class="card card-sm h-100">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center">
+          <span class="{% if model.get('is_free') %}bg-success-lt text-success{% else %}bg-secondary-lt text-secondary{% endif %} avatar avatar-sm me-2"><i class="fas fa-{% if model.get('is_free') %}gift{% else %}dollar-sign{% endif %}"></i></span>
+          <div>
+            <div class="text-muted small">Tier</div>
+            <div class="fw-bold">{% if model.get('is_free') %}Free{% else %}Paid{% endif %}</div>
+          </div>
         </div>
-        <div class="detail-stat-hint">per 1K completion tokens</div>
       </div>
     </div>
-  </article>
+  </div>
 
-  <article class="card detail-card">
-    <div class="card-body detail-stat">
-      <div class="detail-stat__icon bg-info-lt text-info"><i class="ti ti-scale"></i></div>
-      <div class="detail-stat__content">
-        <div class="detail-stat-label">Cost efficiency</div>
-        <div class="detail-stat-value">
-          {% if model.get('cost_efficiency') %}
-            {{ '%.2f'|format(model.get('cost_efficiency')) }}
-          {% else %}
-            <span class="text-muted">Not scored</span>
-          {% endif %}
+  {# Additional Pricing & Price Comparison - Always side by side #}
+  <div class="col-md-6">
+    <div class="card card-sm h-100">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center mb-2">
+          <i class="fas fa-file-invoice-dollar text-warning me-2" aria-hidden="true"></i>
+          <span class="text-muted small text-uppercase fw-bold">Additional Pricing</span>
         </div>
-        <div class="detail-stat-hint">Composite price/performance indicator</div>
-      </div>
-    </div>
-  </article>
-
-  {% if model.get('is_free') %}
-    <article class="card detail-card detail-card--wide">
-      <div class="card-body">
-        <div class="alert alert-success mb-0" role="alert">
-          <i class="ti ti-gift me-1"></i>
-          <strong>Free model</strong> — usage does not incur token charges.
-        </div>
-      </div>
-    </article>
-  {% endif %}
-
-  <article class="card detail-card detail-card--wide">
-    <div class="card-body">
-      <h3 class="detail-card__title mb-2"><i class="ti ti-file-invoice me-1"></i>Additional pricing</h3>
-      {% set addon_ns = namespace(has_addons=false) %}
-      <div class="detail-datalist">
-        {% for pair in additional_pricing %}
-          {% set label = pair[0] %}
-          {% set raw_value = pair[1] %}
-          {% if raw_value is not none and raw_value != '' %}
-            {% set numeric = raw_value | float %}
-            {% if numeric %}
-              {% set addon_ns.has_addons = true %}
-              <div class="detail-datalist__item">
-                <dt>{{ label }}</dt>
-                <dd>${{ '%.6f'|format(numeric) }}</dd>
-              </div>
+        {% set addon_ns = namespace(has_addons=false) %}
+        <div class="small">
+          {% for pair in additional_pricing %}
+            {% set label = pair[0] %}
+            {% set raw_value = pair[1] %}
+            {% if raw_value is not none and raw_value != '' %}
+              {% set numeric = raw_value | float %}
+              {% if numeric %}
+                {% set addon_ns.has_addons = true %}
+                <div class="d-flex justify-content-between"><span class="text-muted">{{ label }}</span><span>${{ '%.6f'|format(numeric) }}</span></div>
+              {% endif %}
             {% endif %}
-          {% endif %}
-        {% endfor %}
-      </div>
-      {% if not addon_ns.has_addons %}
-        <p class="text-muted mb-0">No additional provider fees published.</p>
-      {% endif %}
-    </div>
-  </article>
-
-  {% if stats and (stats.get('avg_prompt_price') or stats.get('avg_completion_price')) %}
-  <article class="card detail-card detail-card--wide">
-    <div class="card-body">
-      <h3 class="detail-card__title mb-2"><i class="ti ti-chart-bar me-1"></i>Price Comparison vs Database Average</h3>
-      <div class="row">
-        <div class="col-md-6">
-          <canvas id="promptPriceChart" style="max-height: 200px;"></canvas>
+          {% endfor %}
         </div>
-        <div class="col-md-6">
-          <canvas id="completionPriceChart" style="max-height: 200px;"></canvas>
-        </div>
+        {% if not addon_ns.has_addons %}
+          <span class="text-muted small">No additional fees published</span>
+        {% endif %}
       </div>
     </div>
-  </article>
-  {% endif %}
+  </div>
 
-  <article class="card detail-card detail-card--wide">
-    <div class="card-body">
-      <h3 class="detail-card__title mb-2"><i class="ti ti-info-circle me-1"></i>Pricing notes</h3>
-      <p class="text-muted mb-0">
-        Values originate from OpenRouter catalog metadata and may lag behind live provider pricing.
-        Always confirm rates on the provider dashboard before deploying cost-sensitive workloads.
-      </p>
+  {# Price Comparison Chart - Always show #}
+  <div class="col-md-6">
+    <div class="card card-sm h-100">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center mb-2">
+          <i class="fas fa-chart-bar text-info me-2" aria-hidden="true"></i>
+          <span class="text-muted small text-uppercase fw-bold">vs Average</span>
+        </div>
+        {% if stats and (stats.get('avg_prompt_price') or stats.get('avg_completion_price')) %}
+        <div class="row">
+          <div class="col-6"><canvas id="promptPriceChart" style="max-height: 100px;"></canvas></div>
+          <div class="col-6"><canvas id="completionPriceChart" style="max-height: 100px;"></canvas></div>
+        </div>
+        {% else %}
+        <span class="text-muted small">No comparison data available</span>
+        {% endif %}
+      </div>
     </div>
-  </article>
+  </div>
+
+  {# Pricing Notes - Inline #}
+  <div class="col-12">
+    <div class="text-muted small text-center">
+      <i class="fas fa-info-circle me-1"></i>Prices from OpenRouter catalog; confirm with provider before cost-sensitive deployments.
+    </div>
+  </div>
 </div>
 
 {% if stats and (stats.get('avg_prompt_price') or stats.get('avg_completion_price')) %}

@@ -1,99 +1,68 @@
-{# Provider & Performance section for model detail page #}
+{# Provider & Performance section - Compact #}
 {% set top_provider_name = enriched_data.get('top_provider_name') %}
 {% set top_provider_latency = enriched_data.get('top_provider_latency_ms') %}
 {% set top_provider_moderated = enriched_data.get('top_provider_is_moderated') %}
 {% set top_provider_context = enriched_data.get('top_provider_context_length') %}
 {% set top_provider_max_tokens = enriched_data.get('top_provider_max_completion_tokens') %}
 
-<div class="card">
-  <div class="card-header">
-    <h3 class="card-title"><i class="ti ti-server me-2"></i>Provider & Performance</h3>
-  </div>
-  <div class="card-body">
-    {% if top_provider_name %}
-      <div class="row g-3">
-        {# Provider Info Card #}
-        <div class="col-md-6">
-          <div class="card card-sm bg-primary-lt">
-            <div class="card-body">
-              <h4 class="card-title mb-3"><i class="ti ti-building me-1"></i>Top Provider</h4>
-              <div class="datagrid">
-                <div class="datagrid-item">
-                  <div class="datagrid-title">Provider Name</div>
-                  <div class="datagrid-content">
-                    <strong>{{ top_provider_name }}</strong>
-                  </div>
-                </div>
-                <div class="datagrid-item">
-                  <div class="datagrid-title">Moderation</div>
-                  <div class="datagrid-content">
-                    {% if top_provider_moderated %}
-                      <span class="badge bg-success-lt text-success"><i class="ti ti-shield-check me-1"></i>Moderated</span>
-                    {% else %}
-                      <span class="badge bg-secondary-lt"><i class="ti ti-shield-x me-1"></i>Unmoderated</span>
-                    {% endif %}
-                  </div>
-                </div>
-                {% if top_provider_context %}
-                <div class="datagrid-item">
-                  <div class="datagrid-title">Context Length</div>
-                  <div class="datagrid-content">{{ "{:,}".format(top_provider_context) }} tokens</div>
-                </div>
-                {% endif %}
-                {% if top_provider_max_tokens %}
-                <div class="datagrid-item">
-                  <div class="datagrid-title">Max Completion</div>
-                  <div class="datagrid-content">{{ "{:,}".format(top_provider_max_tokens) }} tokens</div>
-                </div>
-                {% endif %}
-              </div>
-            </div>
+{% if top_provider_name %}
+  <div class="row g-2">
+    {# Provider Info #}
+    <div class="col-md-6">
+      <div class="card card-sm h-100">
+        <div class="card-status-top bg-primary"></div>
+        <div class="card-body py-2">
+          <div class="d-flex align-items-center mb-2">
+            <i class="fas fa-building text-primary me-2" aria-hidden="true"></i>
+            <span class="text-muted small text-uppercase fw-bold">Top Provider</span>
+          </div>
+          <div class="h4 mb-2">{{ top_provider_name }}</div>
+          <div class="d-flex flex-wrap gap-2 small">
+            {% if top_provider_moderated %}
+              <span class="badge bg-success-lt text-success"><i class="fas fa-shield-alt me-1"></i>Moderated</span>
+            {% else %}
+              <span class="badge bg-secondary-lt"><i class="fas fa-times-circle me-1"></i>Unmoderated</span>
+            {% endif %}
+            {% if top_provider_context %}<span class="text-muted">{{ "{:,}".format(top_provider_context) }} ctx</span>{% endif %}
+            {% if top_provider_max_tokens %}<span class="text-muted">{{ "{:,}".format(top_provider_max_tokens) }} max</span>{% endif %}
           </div>
         </div>
+      </div>
+    </div>
 
-        {# Performance Metrics Card #}
-        <div class="col-md-6">
-          <div class="card card-sm bg-info-lt">
-            <div class="card-body">
-              <h4 class="card-title mb-3"><i class="ti ti-gauge me-1"></i>Performance Metrics</h4>
-              <div class="datagrid">
-                {% if top_provider_latency %}
-                <div class="datagrid-item">
-                  <div class="datagrid-title">Latency (TTFT)</div>
-                  <div class="datagrid-content">
-                    <strong>{{ top_provider_latency }}ms</strong>
-                    {% if top_provider_latency < 500 %}
-                      <span class="badge bg-success-lt ms-2"><i class="ti ti-bolt"></i>Fast</span>
-                    {% elif top_provider_latency < 1000 %}
-                      <span class="badge bg-warning-lt ms-2"><i class="ti ti-clock"></i>Medium</span>
-                    {% else %}
-                      <span class="badge bg-danger-lt ms-2"><i class="ti ti-hourglass"></i>Slow</span>
-                    {% endif %}
-                  </div>
-                </div>
-                {% endif %}
-                <div class="datagrid-item">
-                  <div class="datagrid-title">Reliability</div>
-                  <div class="datagrid-content">
-                    <span class="text-muted">Determined by OpenRouter</span>
-                  </div>
-                </div>
-              </div>
-              {% if not top_provider_latency %}
-                <p class="text-muted mb-0 small">Performance metrics not published by provider.</p>
-              {% endif %}
-            </div>
+    {# Performance #}
+    <div class="col-md-6">
+      <div class="card card-sm h-100">
+        <div class="card-status-top {% if top_provider_latency and top_provider_latency < 500 %}bg-success{% elif top_provider_latency and top_provider_latency < 1000 %}bg-warning{% else %}bg-secondary{% endif %}"></div>
+        <div class="card-body py-2">
+          <div class="d-flex align-items-center mb-2">
+            <i class="fas fa-tachometer-alt text-info me-2" aria-hidden="true"></i>
+            <span class="text-muted small text-uppercase fw-bold">Performance</span>
           </div>
+          {% if top_provider_latency %}
+          <div class="d-flex align-items-baseline gap-2">
+            <span class="h3 mb-0">{{ top_provider_latency }}ms</span>
+            {% if top_provider_latency < 500 %}
+              <span class="badge bg-success-lt text-success"><i class="fas fa-bolt"></i> Fast</span>
+            {% elif top_provider_latency < 1000 %}
+              <span class="badge bg-warning-lt text-warning"><i class="fas fa-clock"></i> Medium</span>
+            {% else %}
+              <span class="badge bg-danger-lt text-danger"><i class="fas fa-hourglass-half"></i> Slow</span>
+            {% endif %}
+          </div>
+          <div class="text-muted small">Time to first token (TTFT)</div>
+          {% else %}
+            <span class="text-muted small">Performance metrics not published</span>
+          {% endif %}
         </div>
       </div>
-    {% else %}
-      <div class="empty">
-        <div class="empty-icon">
-          <i class="ti ti-server"></i>
-        </div>
-        <p class="empty-title">No Provider Data</p>
-        <p class="empty-subtitle text-muted">Provider information is not available for this model.</p>
-      </div>
-    {% endif %}
+    </div>
   </div>
-</div>
+{% else %}
+  <div class="card card-sm">
+    <div class="card-body py-3 text-center">
+      <i class="fas fa-server text-muted me-2" aria-hidden="true"></i>
+      <span class="text-muted">Provider information is not available for this model.</span>
+    </div>
+  </div>
+{% endif %}

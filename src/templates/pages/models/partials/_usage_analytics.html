@@ -1,322 +1,161 @@
-{# Usage Analytics Section for Model Detail #}
+{# Usage Analytics Section - Compact #}
 {% set running_count = stats.get('running_apps', 0) %}
 {% set total_apps = stats.get('applications', 0) %}
 {% set security_tests = stats.get('security_tests', 0) %}
 {% set performance_tests = stats.get('performance_tests', 0) %}
 {% set quality_score = stats.get('avg_analysis_quality') %}
 
-<div class="row g-3 mb-4">
-  <div class="col-md-3 col-sm-6">
-    <div class="card">
-      <div class="card-body">
-        <div class="d-flex align-items-center justify-content-between">
-          <div class="subheader">Running Apps</div>
-          <div class="text-{{ 'success' if running_count > 0 else 'muted' }}">
-            <i class="fas fa-play"></i>
+<div class="row g-2">
+  {# Compact Stat Row #}
+  <div class="col-6 col-lg-3">
+    <div class="card card-sm h-100">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center">
+          <span class="bg-{{ 'success' if running_count > 0 else 'secondary' }}-lt text-{{ 'success' if running_count > 0 else 'secondary' }} avatar avatar-sm me-2"><i class="fas fa-play"></i></span>
+          <div>
+            <div class="text-muted small">Running</div>
+            <div class="fw-bold">{{ running_count }}<span class="text-muted small fw-normal"> / {{ total_apps }}</span></div>
           </div>
-        </div>
-        <div class="h1 mb-0">{{ running_count }}</div>
-        <div class="text-muted small">
-          {{ ((running_count / total_apps * 100)|round(1) if total_apps > 0 else 0) }}% of {{ total_apps }} total
         </div>
       </div>
     </div>
   </div>
   
-  <div class="col-md-3 col-sm-6">
-    <div class="card">
-      <div class="card-body">
-        <div class="d-flex align-items-center justify-content-between">
-          <div class="subheader">Security Tests</div>
-          <div class="text-{{ 'primary' if security_tests > 0 else 'muted' }}">
-            <i class="fas fa-shield-alt"></i>
+  <div class="col-6 col-lg-3">
+    <div class="card card-sm h-100">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center">
+          <span class="bg-{{ 'primary' if security_tests > 0 else 'secondary' }}-lt text-{{ 'primary' if security_tests > 0 else 'secondary' }} avatar avatar-sm me-2"><i class="fas fa-shield-alt"></i></span>
+          <div>
+            <div class="text-muted small">Security</div>
+            <div class="fw-bold">{{ security_tests }}</div>
           </div>
-        </div>
-        <div class="h1 mb-0">{{ security_tests }}</div>
-        <div class="text-muted small">
-          {% if total_apps > 0 %}
-            {{ ((security_tests / total_apps * 100)|round(1)) }}% coverage
-          {% else %}
-            No applications yet
-          {% endif %}
         </div>
       </div>
     </div>
   </div>
   
-  <div class="col-md-3 col-sm-6">
-    <div class="card">
-      <div class="card-body">
-        <div class="d-flex align-items-center justify-content-between">
-          <div class="subheader">Performance Tests</div>
-          <div class="text-{{ 'info' if performance_tests > 0 else 'muted' }}">
-            <i class="fas fa-tachometer-alt"></i>
+  <div class="col-6 col-lg-3">
+    <div class="card card-sm h-100">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center">
+          <span class="bg-{{ 'info' if performance_tests > 0 else 'secondary' }}-lt text-{{ 'info' if performance_tests > 0 else 'secondary' }} avatar avatar-sm me-2"><i class="fas fa-tachometer-alt"></i></span>
+          <div>
+            <div class="text-muted small">Performance</div>
+            <div class="fw-bold">{{ performance_tests }}</div>
           </div>
-        </div>
-        <div class="h1 mb-0">{{ performance_tests }}</div>
-        <div class="text-muted small">
-          {% if total_apps > 0 %}
-            {{ ((performance_tests / total_apps * 100)|round(1)) }}% coverage
-          {% else %}
-            No applications yet
-          {% endif %}
         </div>
       </div>
     </div>
   </div>
   
-  <div class="col-md-3 col-sm-6">
-    <div class="card">
-      <div class="card-body">
-        <div class="d-flex align-items-center justify-content-between">
-          <div class="subheader">Analysis Quality</div>
-          <div class="text-{{ 'success' if quality_score and quality_score >= 80 else 'warning' if quality_score and quality_score >= 60 else 'danger' if quality_score else 'muted' }}">
-            <i class="fas fa-star"></i>
+  <div class="col-6 col-lg-3">
+    <div class="card card-sm h-100">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center">
+          <span class="bg-{{ 'success' if quality_score and quality_score >= 80 else 'warning' if quality_score and quality_score >= 60 else 'danger' if quality_score else 'secondary' }}-lt text-{{ 'success' if quality_score and quality_score >= 80 else 'warning' if quality_score and quality_score >= 60 else 'danger' if quality_score else 'secondary' }} avatar avatar-sm me-2"><i class="fas fa-star"></i></span>
+          <div>
+            <div class="text-muted small">Quality</div>
+            <div class="fw-bold">{% if quality_score is not none %}{{ quality_score|round(1) }}{% else %}—{% endif %}</div>
           </div>
-        </div>
-        <div class="h1 mb-0">
-          {% if quality_score is not none %}
-            {{ quality_score|round(1) }}
-          {% else %}
-            —
-          {% endif %}
-        </div>
-        <div class="text-muted small">
-          {% if quality_score is not none %}
-            {% if quality_score >= 80 %}
-              Excellent quality
-            {% elif quality_score >= 60 %}
-              Good quality
-            {% else %}
-              Needs improvement
-            {% endif %}
-          {% else %}
-            No data available
-          {% endif %}
         </div>
       </div>
     </div>
   </div>
 </div>
 
-{# Application Usage Timeline/Chart #}
+{# Application Timeline Table (only if apps exist) #}
 {% if applications and applications|length > 0 %}
-<div class="card mb-3">
-  <div class="card-header">
-    <h3 class="card-title">
-      <i class="fas fa-history me-2"></i>
-      Application Usage Timeline
-    </h3>
-  </div>
-  <div class="card-body">
-    <div class="table-responsive">
-      <table class="table table-sm table-hover mb-0">
-        <thead>
-          <tr>
-            <th>App #</th>
-            <th>Status</th>
-            <th>Type</th>
-            <th>Framework</th>
-            <th>Created</th>
-            <th>Security</th>
-            <th>Performance</th>
-            <th class="text-end">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for app in recent_apps[:10] %}
-          <tr>
-            <td class="fw-bold">
-              <a href="/applications/{{ app.model_slug }}/{{ app.app_number }}" class="text-decoration-none">
-                #{{ app.app_number }}
-              </a>
-            </td>
-            <td>
-              {% if app.container_status == 'running' %}
-                <span class="badge bg-success-lt text-success">
-                  <i class="fas fa-play me-1"></i>Running
-                </span>
-              {% elif app.container_status == 'stopped' %}
-                <span class="badge bg-warning-lt text-warning">
-                  <i class="fas fa-stop me-1"></i>Stopped
-                </span>
-              {% else %}
-                <span class="badge bg-secondary-lt text-secondary">
-                  <i class="fas fa-question me-1"></i>{{ app.container_status or 'Unknown' }}
-                </span>
-              {% endif %}
-            </td>
-            <td>
-              <span class="badge bg-secondary-lt">{{ app.app_type or 'web_app' }}</span>
-            </td>
-            <td class="small">
-              {% if app.backend_framework %}
-                <span class="badge bg-info-lt text-dark me-1">{{ app.backend_framework }}</span>
-              {% endif %}
-              {% if app.frontend_framework %}
-                <span class="badge bg-success-lt text-dark">{{ app.frontend_framework }}</span>
-              {% endif %}
-              {% if not app.backend_framework and not app.frontend_framework %}
-                <span class="text-muted">—</span>
-              {% endif %}
-            </td>
-            <td class="small text-muted">
-              {{ app.created_at.strftime('%Y-%m-%d %H:%M') if app.created_at else '—' }}
-            </td>
-            <td class="text-center">
-              {% set sec_count = app.security_analyses.count() if app.security_analyses else 0 %}
-              {% if sec_count > 0 %}
-                <span class="badge bg-primary-lt">{{ sec_count }}</span>
-              {% else %}
-                <span class="text-muted">—</span>
-              {% endif %}
-            </td>
-            <td class="text-center">
-              {% set perf_count = app.performance_tests.count() if app.performance_tests else 0 %}
-              {% if perf_count > 0 %}
-                <span class="badge bg-info-lt">{{ perf_count }}</span>
-              {% else %}
-                <span class="text-muted">—</span>
-              {% endif %}
-            </td>
-            <td class="text-end">
-              <a href="/applications/{{ app.model_slug }}/{{ app.app_number }}" 
-                 class="btn btn-sm btn-ghost-primary"
-                 title="View Details">
-                <i class="fas fa-arrow-right"></i>
-              </a>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    
-    {% if applications|length > 10 %}
-    <div class="mt-3 text-center">
-      <a href="/applications?model={{ model_slug }}" class="btn btn-outline-primary btn-sm">
-        <i class="fas fa-list me-1"></i>
-        View All {{ applications|length }} Applications
-      </a>
-    </div>
-    {% endif %}
-  </div>
-</div>
-
-{# Quick Stats Summary #}
-<div class="row g-3">
-  <div class="col-md-6">
-    <div class="card">
-      <div class="card-header">
-        <h3 class="card-title">
-          <i class="fas fa-chart-pie me-2"></i>
-          Status Distribution
-        </h3>
+<div class="row g-2 mt-0">
+  <div class="col-12">
+    <div class="card card-sm">
+      <div class="card-header py-2 d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-history text-primary me-2"></i>
+          <span class="fw-bold small">Recent Applications</span>
+        </div>
+        {% if applications|length > 5 %}
+        <a href="/applications?model={{ model_slug }}" class="btn btn-sm btn-ghost-primary py-0">All {{ applications|length }}</a>
+        {% endif %}
       </div>
-      <div class="card-body">
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-vcenter table-hover card-table table-sm">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Status</th>
+                <th>Framework</th>
+                <th>Created</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for app in recent_apps[:5] %}
+              <tr>
+                <td><a href="/applications/{{ app.model_slug }}/{{ app.app_number }}" class="fw-medium">{{ app.app_number }}</a></td>
+                <td>
+                  {% if app.container_status == 'running' %}<span class="badge bg-success-lt text-success">Running</span>
+                  {% elif app.container_status == 'stopped' %}<span class="badge bg-warning-lt text-warning">Stopped</span>
+                  {% else %}<span class="badge bg-secondary-lt">{{ app.container_status or 'Unknown' }}</span>{% endif %}
+                </td>
+                <td>
+                  {% if app.backend_framework %}<span class="badge bg-info-lt">{{ app.backend_framework }}</span>{% endif %}
+                  {% if not app.backend_framework %}<span class="text-muted">—</span>{% endif %}
+                </td>
+                <td class="text-muted small">{{ app.created_at.strftime('%m/%d %H:%M') if app.created_at else '—' }}</td>
+                <td class="text-end"><a href="/applications/{{ app.model_slug }}/{{ app.app_number }}" class="btn btn-sm btn-ghost-primary py-0"><i class="fas fa-arrow-right"></i></a></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Status Distribution & Insights - Compact Side by Side #}
+  <div class="col-md-6">
+    <div class="card card-sm h-100">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center mb-2">
+          <i class="fas fa-chart-pie text-info me-2" aria-hidden="true"></i>
+          <span class="text-muted small text-uppercase fw-bold">Distribution</span>
+        </div>
         {% set stopped_count = applications|selectattr('container_status', 'equalto', 'stopped')|list|length %}
         {% set other_count = total_apps - running_count - stopped_count %}
-        
-        <div class="mb-2">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <span class="text-success">
-              <i class="fas fa-play me-1"></i>Running
-            </span>
-            <strong>{{ running_count }}</strong>
-          </div>
-          <div class="progress progress-sm">
-            <div class="progress-bar bg-success" 
-                 style="width: {{ (running_count / total_apps * 100) if total_apps > 0 else 0 }}%"></div>
-          </div>
+        <div class="d-flex gap-3 small">
+          <div><span class="badge bg-success me-1"></span>Running: <strong>{{ running_count }}</strong></div>
+          <div><span class="badge bg-warning me-1"></span>Stopped: <strong>{{ stopped_count }}</strong></div>
+          {% if other_count > 0 %}<div><span class="badge bg-secondary me-1"></span>Other: <strong>{{ other_count }}</strong></div>{% endif %}
         </div>
-        
-        <div class="mb-2">
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <span class="text-warning">
-              <i class="fas fa-stop me-1"></i>Stopped
-            </span>
-            <strong>{{ stopped_count }}</strong>
-          </div>
-          <div class="progress progress-sm">
-            <div class="progress-bar bg-warning" 
-                 style="width: {{ (stopped_count / total_apps * 100) if total_apps > 0 else 0 }}%"></div>
-          </div>
-        </div>
-        
-        {% if other_count > 0 %}
-        <div>
-          <div class="d-flex justify-content-between align-items-center mb-1">
-            <span class="text-secondary">
-              <i class="fas fa-question me-1"></i>Other
-            </span>
-            <strong>{{ other_count }}</strong>
-          </div>
-          <div class="progress progress-sm">
-            <div class="progress-bar bg-secondary" 
-                 style="width: {{ (other_count / total_apps * 100) if total_apps > 0 else 0 }}%"></div>
-          </div>
-        </div>
-        {% endif %}
       </div>
     </div>
   </div>
   
   <div class="col-md-6">
-    <div class="card">
-      <div class="card-header">
-        <h3 class="card-title">
-          <i class="fas fa-info-circle me-2"></i>
-          Usage Insights
-        </h3>
-      </div>
-      <div class="card-body">
-        <div class="mb-3">
-          <div class="text-muted small mb-1">Total Applications Generated</div>
-          <div class="h3 mb-0">{{ total_apps }}</div>
+    <div class="card card-sm h-100">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center mb-2">
+          <i class="fas fa-info-circle text-secondary me-2" aria-hidden="true"></i>
+          <span class="text-muted small text-uppercase fw-bold">Insights</span>
         </div>
-        
-        <div class="mb-3">
-          <div class="text-muted small mb-1">Analysis Coverage</div>
-          <div class="h3 mb-0">
-            {% set total_analyses = security_tests + performance_tests %}
-            {% if total_apps > 0 %}
-              {{ ((total_analyses / (total_apps * 2) * 100)|round(1)) }}%
-            {% else %}
-              0%
-            {% endif %}
-          </div>
-          <div class="small text-muted">{{ total_analyses }} / {{ total_apps * 2 }} possible tests</div>
+        <div class="small">
+          <div class="d-flex justify-content-between"><span class="text-muted">Total Apps</span><strong>{{ total_apps }}</strong></div>
+          <div class="d-flex justify-content-between"><span class="text-muted">Analysis Coverage</span><strong>{% set total_analyses = security_tests + performance_tests %}{% if total_apps > 0 %}{{ ((total_analyses / (total_apps * 2) * 100)|round(1)) }}%{% else %}0%{% endif %}</strong></div>
         </div>
-        
-        {% if model_dict.get('cache_timestamp') %}
-        <div>
-          <div class="text-muted small mb-1">Last Data Sync</div>
-          <div class="small">
-            {{ model_dict.cache_timestamp.strftime('%Y-%m-%d %H:%M UTC') if model_dict.cache_timestamp else 'Never' }}
-          </div>
-        </div>
-        {% endif %}
       </div>
     </div>
   </div>
 </div>
-
 {% else %}
-<div class="card">
-  <div class="card-body">
-    <div class="research-empty-state">
-      <div class="research-empty-icon">
-        <i class="fas fa-chart-line" aria-hidden="true"></i>
-      </div>
-      <div class="research-empty-title">No Usage Data Yet</div>
-      <div class="research-empty-message">
-        No applications have been generated with this model yet. Generate your first application to see usage analytics.
-      </div>
-      <div class="research-empty-action mt-3">
-        <button class="btn btn-primary" onclick="generateApplication()">
-          <i class="fas fa-plus me-1"></i>
-          Generate First Application
-        </button>
+<div class="row g-2 mt-0">
+  <div class="col-12">
+    <div class="card card-sm">
+      <div class="card-body py-3 text-center">
+        <i class="fas fa-chart-line text-muted me-2" aria-hidden="true"></i>
+        <span class="text-muted">No applications generated yet.</span>
+        <button class="btn btn-sm btn-primary ms-2" onclick="generateApplication()"><i class="fas fa-plus me-1"></i>Generate</button>
       </div>
     </div>
   </div>
