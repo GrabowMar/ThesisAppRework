@@ -59,6 +59,7 @@ from app.paths import (
     GENERATED_INDICES_DIR,
     GENERATED_MARKDOWN_DIR,
     TEMPLATES_V2_DIR,
+    MISC_DIR,
 )
 from app.services.port_allocation_service import get_port_allocation_service
 from app.services.openrouter_chat_service import get_openrouter_chat_service
@@ -897,43 +898,70 @@ Generate the React component code:"""
         return content
 
     def _get_system_prompt(self, component: str) -> str:
-        """Get system prompt."""
+        """Get system prompt from external file or fallback to embedded prompt."""
+        # Try to load from external file first
+        prompts_dir = MISC_DIR / 'prompts' / 'system'
+        prompt_file = prompts_dir / f'{component}.md'
+        
+        if prompt_file.exists():
+            try:
+                content = prompt_file.read_text(encoding='utf-8')
+                logger.info(f"Loaded system prompt from {prompt_file}")
+                return content
+            except Exception as e:
+                logger.warning(f"Failed to load prompt from {prompt_file}: {e}, using fallback")
+        
+        # Fallback to embedded prompts
         if component == 'frontend':
             return """You are an expert React developer specializing in production-ready web applications.
 
-Your task is to generate ONLY the App.jsx component code based on the given requirements.
+Your task is to generate complete, working React frontend code based on the given requirements.
 
-RULES:
-- Generate ONLY application code (App.jsx component)
-- DO NOT generate infrastructure files (package.json, vite.config.js, index.html, Dockerfile, etc)
+## What You CAN Generate
+- Main App component (App.jsx)
+- Additional React components (create new files as needed)
+- Custom CSS styles (App.css or additional CSS files)
+- Additional npm dependencies (mention them clearly)
+- Utility functions and hooks
+
+## Technical Guidelines
 - Use modern React patterns (functional components, hooks)
-- Include all necessary imports (React, axios, useState, useEffect, etc)
-- Implement ALL specified frontend requirements completely
+- Include all necessary imports
 - Add proper error handling, loading states, and user feedback
-- Use clean, semantic JSX structure
-- Include inline styles or use className for CSS (App.css will exist)
-- Generate complete, working code - no placeholders or TODOs. Do not return a simple "Loading..." screen without logic.
+- Use Tailwind CSS or custom CSS for styling
 
-Return ONLY the JSX/JavaScript code wrapped in ```jsx code blocks."""
+## Output Format
+Return your code wrapped in appropriate markdown code blocks:
+- JSX/React code: ```jsx or ```javascript
+- CSS code: ```css or ```css:filename.css
+- Additional components: ```jsx:components/ComponentName.jsx
+
+Generate complete, working code - no placeholders or TODOs."""
         
-        else:
+        else:  # backend
             return """You are an expert Flask developer specializing in production-ready REST APIs.
 
-Your task is to generate ONLY the Flask application code based on the given requirements.
+Your task is to generate complete, working Flask backend code based on the given requirements.
 
-RULES:
-- Generate ONLY application code (routes, models, business logic)
-- DO NOT generate infrastructure files (Dockerfile, requirements.txt, docker-compose.yml, etc)
+## What You CAN Generate
+- Main application code (app.py with routes, models, business logic)
+- Additional Python modules (models.py, routes.py, utils.py, etc.)
+- Additional requirements for requirements.txt
+
+## Technical Guidelines
 - Use Flask best practices and proper project structure
 - Use SQLAlchemy for database models when needed
-- If using SQLite, store the database file in the `/app/data` directory (e.g., `sqlite:////app/data/app.db`) to ensure persistence.
+- Database path: sqlite:////app/data/app.db
 - Include CORS configuration for frontend integration
-- Implement ALL specified backend requirements completely
 - Add proper error handling, validation, and logging
-- Use appropriate HTTP status codes and response formats
-- Generate complete, working code - no placeholders or TODOs
 
-Return ONLY the Python code wrapped in ```python code blocks."""
+## Output Format
+Return your code wrapped in appropriate markdown code blocks:
+- Python code: ```python
+- Additional files: ```python:filename.py
+- Requirements: ```requirements
+
+Generate complete, working code - no placeholders or TODOs."""
 
 
 class CodeMerger:
@@ -1037,41 +1065,72 @@ class CodeMerger:
 
     def merge_backend(self, app_dir: Path, generated_content: str) -> bool:
         """
-        Replace backend app.py with LLM-generated code after extracting from fences.
+        Replace backend app.py with LLM-generated code and handle additional files.
         """
-        logger.info("Starting simplified backend merge (direct overwrite)...")
+        logger.info("Starting backend merge...")
         app_py_path = app_dir / 'backend' / 'app.py'
         if not app_py_path.exists():
             logger.error(f"Target app.py missing at {app_py_path}!")
             return False
 
-        # Extract code from markdown fences
-        generated_code = self._select_code_block(generated_content, {'python', 'py'})
-        if not generated_code:
+        # Extract all code blocks from the response
+        all_blocks = self._extract_all_code_blocks(generated_content)
+        
+        # Find main Python code (no filename specified or app.py)
+        main_code = None
+        for block in all_blocks:
+            lang = block.get('language', '').lower()
+            filename = block.get('filename', '').lower()
+            if lang in {'python', 'py'} and (not filename or filename == 'app.py'):
+                main_code = block['code']
+                break
+        
+        if not main_code:
+            # Fall back to old method
+            main_code = self._select_code_block(generated_content, {'python', 'py'})
+        
+        if not main_code:
             logger.error(f"Code extraction failed: No Python code found in LLM response")
-            if '```' in generated_content[:200]:
-                logger.error(f"  → Found fence markers but extraction failed (incomplete/malformed fences?)")
-            else:
-                logger.error(f"  → No markdown code fences detected (LLM may not have generated code)")
             logger.error(f"Response preview: {generated_content[:500]}...")
             return False
 
-        logger.info(f"Extracted {len(generated_code)} chars of Python code from LLM response")
+        logger.info(f"Extracted {len(main_code)} chars of Python code from LLM response")
 
         # Validate Python syntax
-        is_valid, errors = self.validate_generated_code(generated_code, 'backend')
+        is_valid, errors = self.validate_generated_code(main_code, 'backend')
         if not is_valid:
             logger.error(f"Backend code validation failed with {len(errors)} error(s):")
             for i, error in enumerate(errors, 1):
                 logger.error(f"  {i}. {error}")
             logger.error("Writing code anyway - Docker build will catch critical errors")
 
-        # Write complete generated code directly
-        app_py_path.write_text(generated_code, encoding='utf-8')
-        logger.info(f"✓ Wrote {len(generated_code)} chars to {app_py_path}")
+        # Write main app.py
+        app_py_path.write_text(main_code, encoding='utf-8')
+        logger.info(f"✓ Wrote {len(main_code)} chars to {app_py_path}")
 
-        # Infer and update dependencies
-        inferred_deps = self._infer_backend_dependencies(generated_code)
+        # Handle additional Python files
+        backend_dir = app_dir / 'backend'
+        for block in all_blocks:
+            lang = block.get('language', '').lower()
+            filename = block.get('filename', '')
+            code = block.get('code', '')
+            
+            if not filename or filename.lower() == 'app.py':
+                continue
+                
+            # Handle additional Python files
+            if lang in {'python', 'py'} and filename.endswith('.py'):
+                target_path = backend_dir / filename
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                target_path.write_text(code, encoding='utf-8')
+                logger.info(f"✓ Wrote additional file: {filename}")
+            
+            # Handle requirements additions
+            elif lang == 'requirements' or filename == 'requirements.txt':
+                self._append_requirements(app_dir, code)
+
+        # Infer and update dependencies from main code
+        inferred_deps = self._infer_backend_dependencies(main_code)
         if inferred_deps:
             logger.info(f"Inferred {len(inferred_deps)} backend dependencies: {sorted(inferred_deps)}")
             self._update_backend_requirements(app_dir, inferred_deps)
@@ -1080,55 +1139,163 @@ class CodeMerger:
 
     def merge_frontend(self, app_dir: Path, generated_content: str) -> bool:
         """
-        Replace frontend App.jsx with LLM-generated code after extracting from fences.
+        Replace frontend App.jsx with LLM-generated code and handle additional files.
         """
-        logger.info("Starting simplified frontend merge (direct overwrite)...")
+        logger.info("Starting frontend merge...")
         app_jsx = app_dir / 'frontend' / 'src' / 'App.jsx'
         if not app_jsx.exists():
             logger.error(f"Target App.jsx missing at {app_jsx}!")
             return False
         
-        # Extract code from markdown fences
-        selected_code = self._select_code_block(generated_content, {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'})
-        if not selected_code:
+        # Extract all code blocks from the response
+        all_blocks = self._extract_all_code_blocks(generated_content)
+        
+        # Find main JSX code (no filename specified or App.jsx)
+        main_code = None
+        for block in all_blocks:
+            lang = block.get('language', '').lower()
+            filename = block.get('filename', '').lower()
+            if lang in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}:
+                if not filename or filename == 'app.jsx' or filename == 'src/app.jsx':
+                    main_code = block['code']
+                    break
+        
+        if not main_code:
+            # Fall back to old method
+            main_code = self._select_code_block(generated_content, {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'})
+        
+        if not main_code:
             logger.error(f"Code extraction failed: No frontend code found in LLM response")
-            if '```' in generated_content[:200]:
-                logger.error(f"  → Found fence markers but extraction failed (incomplete/malformed fences?)")
-            elif '```python' in generated_content[:200]:
-                logger.error(f"  → LLM used 'python' tag instead of 'jsx/javascript' (wrong language tag)")
-            else:
-                logger.error(f"  → No markdown code fences detected (LLM may not have generated code)")
             logger.error(f"Response preview: {generated_content[:500]}...")
             return False
 
-        logger.info(f"Extracted {len(selected_code)} chars of JSX code from LLM response")
+        logger.info(f"Extracted {len(main_code)} chars of JSX code from LLM response")
 
         # Fix Docker networking: replace localhost with relative path for Nginx proxy
-        if 'localhost:5000' in selected_code:
+        if 'localhost:5000' in main_code:
             logger.info("Fixing API_URL: replacing localhost:5000 with relative path")
-            selected_code = re.sub(
+            main_code = re.sub(
                 r'http://localhost:5000',
                 '',
-                selected_code,
+                main_code,
                 flags=re.IGNORECASE
             )
 
         # Validate frontend code (warnings only)
-        is_valid, errors = self.validate_generated_code(selected_code, 'frontend')
+        is_valid, errors = self.validate_generated_code(main_code, 'frontend')
         if errors:
             logger.warning(f"Frontend validation warnings ({len(errors)}):")
             for i, error in enumerate(errors, 1):
                 logger.warning(f"  {i}. {error}")
 
         # Ensure export default exists
-        if 'export default' not in selected_code:
+        if 'export default' not in main_code:
             logger.info("Adding missing 'export default App;'")
-            selected_code += "\n\nexport default App;"
+            main_code += "\n\nexport default App;"
 
-        # Write complete generated code directly
-        app_jsx.write_text(selected_code, encoding='utf-8')
-        logger.info(f"✓ Wrote {len(selected_code)} chars to {app_jsx}")
+        # Write main App.jsx
+        app_jsx.write_text(main_code, encoding='utf-8')
+        logger.info(f"✓ Wrote {len(main_code)} chars to {app_jsx}")
+        
+        # Handle additional frontend files
+        frontend_src_dir = app_dir / 'frontend' / 'src'
+        for block in all_blocks:
+            lang = block.get('language', '').lower()
+            filename = block.get('filename', '')
+            code = block.get('code', '')
+            
+            if not filename:
+                continue
+            
+            # Normalize filename
+            filename_lower = filename.lower()
+            if filename_lower in {'app.jsx', 'src/app.jsx'}:
+                continue  # Already handled
+            
+            # Handle CSS files
+            if lang == 'css' or filename.endswith('.css'):
+                # Default to App.css if no specific filename
+                target_filename = filename if filename.endswith('.css') else 'App.css'
+                target_path = frontend_src_dir / target_filename
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                target_path.write_text(code, encoding='utf-8')
+                logger.info(f"✓ Wrote CSS file: {target_filename}")
+            
+            # Handle additional JSX/JS files
+            elif lang in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}:
+                # Handle paths like components/TrackList.jsx
+                target_path = frontend_src_dir / filename
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                target_path.write_text(code, encoding='utf-8')
+                logger.info(f"✓ Wrote additional component: {filename}")
+        
         return True
+    
+    def _extract_all_code_blocks(self, content: str) -> List[Dict[str, str]]:
+        """Extract all code blocks from content, including filename annotations.
+        
+        Supports formats:
+        - ```python
+        - ```python:filename.py
+        - ```jsx:components/MyComponent.jsx
+        - ```css:App.css
+        - ```requirements
+        
+        Returns list of dicts with 'language', 'filename', and 'code' keys.
+        """
+        blocks = []
+        # Pattern matches ```lang or ```lang:filename
+        pattern = re.compile(
+            r"```(?P<lang>[a-zA-Z0-9_+-]+)?(?::(?P<filename>[^\n\r`]+))?\s*[\r\n]+(.*?)```",
+            re.DOTALL
+        )
+        
+        for match in pattern.finditer(content or ""):
+            lang = (match.group('lang') or '').strip().lower()
+            filename = (match.group('filename') or '').strip()
+            code = (match.group(3) or '').strip()
+            
+            if code:
+                blocks.append({
+                    'language': lang,
+                    'filename': filename,
+                    'code': code
+                })
+        
+        return blocks
+    
+    def _append_requirements(self, app_dir: Path, requirements_content: str) -> None:
+        """Append requirements content to backend requirements.txt."""
+        requirements_path = app_dir / 'backend' / 'requirements.txt'
+        if not requirements_path.exists():
+            logger.warning(f"Backend requirements.txt missing at {requirements_path}")
+            return
+        
+        try:
+            existing = requirements_path.read_text(encoding='utf-8')
+            existing_packages = {
+                re.split(r'[<>=]', line, 1)[0].strip().lower() 
+                for line in existing.splitlines() 
+                if line.strip() and not line.strip().startswith('#')
+            }
+            
+            new_lines = []
+            for line in requirements_content.splitlines():
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                pkg_name = re.split(r'[<>=]', line, 1)[0].strip().lower()
+                if pkg_name and pkg_name not in existing_packages:
+                    new_lines.append(line)
+            
+            if new_lines:
+                with requirements_path.open('a', encoding='utf-8') as f:
+                    if not existing.endswith('\n'):
+                        f.write('\n')
+                    f.write('\n'.join(new_lines) + '\n')
+                logger.info(f"Added {len(new_lines)} requirements: {', '.join(new_lines)}")
+        except Exception as e:
+            logger.warning(f"Failed to append requirements: {e}")
     
     def _select_code_block(self, content: str, preferred_languages: Set[str]) -> Optional[str]:
         """Pick the first code block that matches preferred languages.

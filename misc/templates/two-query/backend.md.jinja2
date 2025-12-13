@@ -7,34 +7,32 @@
 - {{ req }}
 {% endfor %}
 
-## API Endpoints (MUST IMPLEMENT EXACTLY)
+## API Endpoints
 {% if api_endpoints %}
 {{ api_endpoints }}
 
-**CRITICAL**: Frontend will call these EXACT paths. Do not change endpoint names.
+**Note**: Frontend will call these paths. Use them as specified.
 {% endif %}
 
 ## Technical Reference
 {{ scaffolding_backend_context }}
 
-## MUST FOLLOW
-1. **Database**: `sqlite:////app/data/app.db` (exactly 4 slashes)
-2. **Code order**: imports → app setup → validators/decorators → models → db.create_all() → routes → error handlers → main
-3. **IMPORTANT**: Replace `/api/YOUR_RESOURCE` placeholders with ACTUAL paths from requirements above (e.g., `/api/todos`)
-4. **List response format**: `{"items": [...], "total": N}`
-5. **No authentication** unless requirements explicitly specify it
+## Guidelines
+1. **Database**: `sqlite:////app/data/app.db` (4 slashes for absolute path)
+2. **List response format**: `{"items": [...], "total": N}`
+3. **File uploads**: Save to `/app/data/uploads/` directory
+4. **No authentication** unless requirements explicitly specify it
 
-## QUALITY EXPECTATIONS
-Write production-ready code that includes:
-- **Input validation** with specific error messages for each field (required, length limits, format)
-- **Proper error handling** with meaningful messages (not just "Server error")
-- **Logging** for important operations (create, update, delete)
-- **HTTP error handlers** (404, 405, 500)
-- **Docstrings** for routes explaining what they do
-- Keep it pragmatic - include validation and error handling, but don't over-engineer
+## What You Can Generate
+- **app.py** (required): Main application with routes and models
+- **Additional Python files**: models.py, routes.py, utils.py, services/*.py as needed
+- **requirements.txt additions**: Mention any extra packages needed
 
-## Output
+## Output Format
+- Main code: ```python block
+- Additional files: ```python:filename.py blocks
+- Extra requirements: ```requirements block
 
-Output the **complete Python code** for `app.py` in a single code block.
+Generate complete, working code that implements ALL requirements.
 
 
