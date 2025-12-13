@@ -417,17 +417,40 @@ def get_tool_details(result_id: str, tool_name: str):
         matched_analysis_block: Optional[Dict[str, Any]] = None
         
         # Try to find tool in services
+        # Support both nested (results.services) and flat (services) structures
         services = result_data.get('results', {}).get('services', {})
+        if not services:
+            services = result_data.get('services', {})
+        
+        # Service name mappings: short name -> possible full names in data
+        SERVICE_NAME_VARIANTS = {
+            'static': ['static', 'static-analyzer'],
+            'dynamic': ['dynamic', 'dynamic-analyzer'],
+            'performance': ['performance', 'performance-tester'],
+            'ai': ['ai', 'ai-analyzer']
+        }
         
         # Search through all services if not specified
         search_services = [service_type] if service_type else ['static', 'dynamic', 'performance', 'ai']
         
         for svc in search_services:
-            if svc not in services:
+            # Try all variants of the service name
+            svc_variants = SERVICE_NAME_VARIANTS.get(svc, [svc])
+            svc_data = None
+            actual_svc_name = None
+            for variant in svc_variants:
+                if variant in services:
+                    svc_data = services[variant]
+                    actual_svc_name = variant
+                    break
+            
+            if not svc_data:
                 continue
             
-            svc_data = services[svc]
+            # Support both 'analysis' and 'payload' keys
             analysis = svc_data.get('analysis', {})
+            if not analysis:
+                analysis = svc_data.get('payload', {})
             
             # Check different result structures
             if svc == 'static':

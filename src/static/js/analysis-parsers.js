@@ -94,12 +94,20 @@ class StaticParser extends BaseParser {
 
         for (const [lang, tools] of Object.entries(results)) {
             for (const [toolName, toolData] of Object.entries(tools)) {
-                const issues = Array.isArray(toolData) ? toolData : (toolData.issues || []);
+                let issues = Array.isArray(toolData) ? toolData : (toolData.issues || []);
+                
+                // If issues array is empty but SARIF data exists, extract from SARIF
+                if (issues.length === 0 && toolData.sarif && toolData.sarif.runs) {
+                    issues = SarifParser.parse(toolData.sarif);
+                    // Add language to SARIF-extracted issues
+                    issues = issues.map(issue => ({ ...issue, language: lang }));
+                }
+                
                 issues.forEach((issue, index) => {
                     flattened.push({
                         id: `${toolName}-${index}`,
                         tool: toolName,
-                        language: lang,
+                        language: issue.language || lang,
                         severity: this.normalizeSeverity(issue.severity || issue.level || issue.issue_severity),
                         message: issue.message || issue.text || issue.description || issue.issue_text,
                         file: issue.file || issue.path || issue.filename,
@@ -533,8 +541,35 @@ const AnalysisParserFactory = {
     getParser: (type, data) => {
         // Extract the specific service data if available
         // We expect data to be the full payload (window.ANALYSIS_DATA)
-        // The structure is data.results.services[type]
-        const serviceData = data?.results?.services?.[type] || {};
+        // Support both nested (data.results.services) and flat (data.services) structures
+        // Also support service name variants (static vs static-analyzer)
+        const SERVICE_NAME_VARIANTS = {
+            'static': ['static', 'static-analyzer'],
+            'dynamic': ['dynamic', 'dynamic-analyzer'],
+            'performance': ['performance', 'performance-tester'],
+            'ai': ['ai', 'ai-analyzer']
+        };
+        
+        // Try nested structure first, then flat structure
+        let services = data?.results?.services || {};
+        if (!services || Object.keys(services).length === 0) {
+            services = data?.services || {};
+        }
+        
+        // Find service data using variant names
+        let serviceData = {};
+        const variants = SERVICE_NAME_VARIANTS[type] || [type];
+        for (const variant of variants) {
+            if (services[variant]) {
+                serviceData = services[variant];
+                break;
+            }
+        }
+        
+        // Support both 'analysis' and 'payload' keys within service data
+        if (!serviceData.analysis && serviceData.payload) {
+            serviceData = { analysis: serviceData.payload, ...serviceData };
+        }
 
         switch (type) {
             case 'static': return new StaticParser(serviceData);

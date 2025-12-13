@@ -94,11 +94,11 @@ class ToolDetailController {
             return;
         }
 
-        // Check if we need to fetch SARIF data
-        // Condition: No issues parsed, but total_issues > 0, and we have a SARIF file reference
+        // Check if we need to fetch detailed data from API
+        // Condition: No issues parsed locally, but total_issues > 0
+        // This handles cases where issues are in SARIF format or need backend hydration
         if (this.currentToolData.issues.length === 0 && 
-            this.currentToolData.summary.total_issues > 0 && 
-            this.currentToolData.sarif_file) {
+            this.currentToolData.summary.total_issues > 0) {
             
             try {
                 this.renderLoadingState();
@@ -106,7 +106,16 @@ class ToolDetailController {
 
                 const resultId = window.ANALYSIS_DATA.task_id;
                 // Fetch detailed tool data which should include hydrated issues or SARIF content
-                const response = await fetch(`/api/analysis/results/${resultId}/tools/${toolName}?service=${serviceType}`);
+                // Include credentials to ensure session cookies are sent
+                const response = await fetch(`/api/analysis/results/${resultId}/tools/${toolName}?service=${serviceType}`, {
+                    credentials: 'same-origin'
+                });
+                
+                if (!response.ok) {
+                    console.error(`API call failed: ${response.status} ${response.statusText}`);
+                    const errorBody = await response.text();
+                    console.error('Error body:', errorBody);
+                }
                 
                 if (response.ok) {
                     const result = await response.json();
@@ -124,17 +133,18 @@ class ToolDetailController {
                             line: issue.line || issue.line_number || issue.location?.line || 0,
                             raw: issue
                         }));
+                        // Update the summary with actual count
+                        this.currentToolData.summary.total_issues = this.currentToolData.issues.length;
                     } else if (detailedData.sarif_content) {
                         // If backend returned SARIF content
                         const sarifIssues = window.AnalysisParserFactory.SarifParser.parse(detailedData.sarif_content);
                         this.currentToolData.issues = sarifIssues;
-                    } else if (detailedData.sarif_file) {
-                        // If we just got the file path again, maybe we can fetch the file directly?
-                        // This depends on if there is a route to serve raw result files.
-                        // Let's try to fetch the SARIF file content if we can construct a URL.
-                        // Assuming /api/analysis/results/{id}/artifacts/{path} exists?
-                        // For now, we'll leave it as is if we can't get content.
-                        console.warn('Received SARIF file path but no content. Backend hydration needed.');
+                        this.currentToolData.summary.total_issues = sarifIssues.length;
+                    } else if (detailedData.sarif) {
+                        // If we got inline SARIF data, parse it directly
+                        const sarifIssues = window.AnalysisParserFactory.SarifParser.parse(detailedData.sarif);
+                        this.currentToolData.issues = sarifIssues;
+                        this.currentToolData.summary.total_issues = sarifIssues.length;
                     }
                 }
             } catch (e) {
