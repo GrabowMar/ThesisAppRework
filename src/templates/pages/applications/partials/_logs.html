@@ -178,7 +178,10 @@ let currentContainer = 'backend';
 
 // Initialize auto-refresh
 function initLogs() {
-  startAutoRefresh();
+  // Only start auto-refresh if log controls exist (container is running)
+  if (document.getElementById('log-lines')) {
+    startAutoRefresh();
+  }
 }
 
 if (document.readyState === 'loading') {
@@ -242,7 +245,12 @@ function toggleAutoRefresh() {
 }
 
 function refreshLogs() {
-  const lines = document.getElementById('log-lines').value;
+  const linesEl = document.getElementById('log-lines');
+  if (!linesEl) {
+    // No logs UI available (container not running)
+    return;
+  }
+  const lines = linesEl.value;
   
   fetch(`/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/stream?container=${currentContainer}&lines=${lines}`)
     .then(response => response.text())
@@ -266,9 +274,18 @@ function refreshLogs() {
 }
 
 function filterLogs() {
-  const level = document.getElementById('log-level-filter').value;
-  const source = document.getElementById('log-source-filter').value;
-  const search = document.getElementById('log-search').value;
+  const levelEl = document.getElementById('log-level-filter');
+  const sourceEl = document.getElementById('log-source-filter');
+  const searchEl = document.getElementById('log-search');
+  
+  if (!levelEl || !sourceEl || !searchEl) {
+    // Filter UI not available
+    return;
+  }
+  
+  const level = levelEl.value;
+  const source = sourceEl.value;
+  const search = searchEl.value;
   
   const params = new URLSearchParams();
   params.append('container', currentContainer);

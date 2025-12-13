@@ -19,6 +19,7 @@ from app.models import (
     SecurityAnalysis,
     ZAPAnalysis,
 )
+from app.models.analysis_models import AnalysisTask
 from app.routes.shared_utils import _project_root
 from app.utils.helpers import deep_merge_dicts, get_app_directory
 from app.utils.port_resolution import resolve_ports
@@ -374,56 +375,165 @@ def _collect_artifacts(app_path: Path) -> Dict[str, Optional[Path]]:
     }
 
 
-def _collect_app_prompts(app_number: int, model_slug: str = None) -> Tuple[Dict[str, str], Dict[str, str], str]:
+def _collect_app_prompts(app_number: int, model_slug: str = None) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str], str]:
     """
-    Collect prompts from generated/raw/payloads/{model_slug}/app{number}/*.json files
+    Collect FULL prompts and responses from generated/raw/{payloads,responses}/{model_slug}/app{number}/*.json files
     Falls back to misc/app_templates for legacy support
+    Returns: (prompts, responses, template_files, source_dir)
     """
     prompts = {'backend': '', 'frontend': ''}
+    responses = {'backend': '', 'frontend': ''}
     template_files = {'backend_file': '', 'frontend_file': ''}
     
     # Try new location first: generated/raw/payloads/{model_slug}/app{number}/
     if model_slug:
-        raw_dir = _project_root() / 'generated' / 'raw' / 'payloads' / model_slug / f'app{app_number}'
-        current_app.logger.info(f"Looking for prompts in: {raw_dir}, exists: {raw_dir.exists()}")
-        if raw_dir.exists():
+        payloads_dir = _project_root() / 'generated' / 'raw' / 'payloads' / model_slug / f'app{app_number}'
+        responses_dir = _project_root() / 'generated' / 'raw' / 'responses' / model_slug / f'app{app_number}'
+        current_app.logger.info(f"Looking for prompts in: {payloads_dir}, exists: {payloads_dir.exists()}")
+        
+        if payloads_dir.exists():
             try:
                 import json
-                backend_files = sorted(raw_dir.glob(f'*_app{app_number}_backend_*_payload.json'))
-                frontend_files = sorted(raw_dir.glob(f'*_app{app_number}_frontend_*_payload.json'))
+                backend_files = sorted(payloads_dir.glob(f'*_app{app_number}_backend_*_payload.json'))
+                frontend_files = sorted(payloads_dir.glob(f'*_app{app_number}_frontend_*_payload.json'))
                 current_app.logger.info(f"Found backend files: {len(backend_files)}, frontend files: {len(frontend_files)}")
                 
                 if backend_files:
                     template_files['backend_file'] = backend_files[0].name
                     with open(backend_files[0], 'r', encoding='utf-8') as f:
                         data = json.load(f)
-                        # Extract prompt from messages in payload
-                        messages = data.get('payload', {}).get('messages', [])
-                        if messages:
-                            # Combine system and user messages
-                            prompts['backend'] = '\n\n'.join(
-                                f"**{msg.get('role', 'unknown').upper()}:**\n{msg.get('content', '')}"
-                                for msg in messages if msg.get('content')
-                            )
-                            current_app.logger.info(f"Loaded backend prompt, length: {len(prompts['backend'])}")
+                        # Build complete payload representation
+                        payload = data.get('payload', {})
+                        parts = []
+                        parts.append(f"=== REQUEST METADATA ===")
+                        parts.append(f"Timestamp: {data.get('timestamp', 'N/A')}")
+                        parts.append(f"Run ID: {data.get('run_id', 'N/A')}")
+                        parts.append(f"Model: {payload.get('model', 'N/A')}")
+                        parts.append(f"Temperature: {payload.get('temperature', 'N/A')}")
+                        parts.append(f"Max Tokens: {payload.get('max_tokens', 'N/A')}")
+                        provider = payload.get('provider', {})
+                        if provider:
+                            parts.append(f"Provider Settings: allow_fallbacks={provider.get('allow_fallbacks')}, data_collection={provider.get('data_collection')}")
+                        parts.append("")
+                        # Add all messages
+                        messages = payload.get('messages', [])
+                        for msg in messages:
+                            role = msg.get('role', 'unknown').upper()
+                            content = msg.get('content', '')
+                            parts.append(f"=== {role} ===")
+                            parts.append(content)
+                            parts.append("")
+                        prompts['backend'] = '\n'.join(parts)
+                        current_app.logger.info(f"Loaded backend prompt, length: {len(prompts['backend'])}")
                 
                 if frontend_files:
                     template_files['frontend_file'] = frontend_files[0].name
                     with open(frontend_files[0], 'r', encoding='utf-8') as f:
                         data = json.load(f)
-                        messages = data.get('payload', {}).get('messages', [])
-                        if messages:
-                            prompts['frontend'] = '\n\n'.join(
-                                f"**{msg.get('role', 'unknown').upper()}:**\n{msg.get('content', '')}"
-                                for msg in messages if msg.get('content')
-                            )
-                            current_app.logger.info(f"Loaded frontend prompt, length: {len(prompts['frontend'])}")
+                        payload = data.get('payload', {})
+                        parts = []
+                        parts.append(f"=== REQUEST METADATA ===")
+                        parts.append(f"Timestamp: {data.get('timestamp', 'N/A')}")
+                        parts.append(f"Run ID: {data.get('run_id', 'N/A')}")
+                        parts.append(f"Model: {payload.get('model', 'N/A')}")
+                        parts.append(f"Temperature: {payload.get('temperature', 'N/A')}")
+                        parts.append(f"Max Tokens: {payload.get('max_tokens', 'N/A')}")
+                        provider = payload.get('provider', {})
+                        if provider:
+                            parts.append(f"Provider Settings: allow_fallbacks={provider.get('allow_fallbacks')}, data_collection={provider.get('data_collection')}")
+                        parts.append("")
+                        messages = payload.get('messages', [])
+                        for msg in messages:
+                            role = msg.get('role', 'unknown').upper()
+                            content = msg.get('content', '')
+                            parts.append(f"=== {role} ===")
+                            parts.append(content)
+                            parts.append("")
+                        prompts['frontend'] = '\n'.join(parts)
+                        current_app.logger.info(f"Loaded frontend prompt, length: {len(prompts['frontend'])}")
                 
-                if prompts['backend'] or prompts['frontend']:
-                    current_app.logger.info(f"Returning prompts from raw payloads")
-                    return prompts, template_files, str(raw_dir)
             except Exception as err:
                 current_app.logger.warning("Failed to load prompts from raw payloads for %s/app%s: %s", model_slug, app_number, err)
+        
+        # Load responses with full metadata
+        if responses_dir.exists():
+            try:
+                import json
+                backend_resp_files = sorted(responses_dir.glob(f'*_app{app_number}_backend_*_response.json'))
+                frontend_resp_files = sorted(responses_dir.glob(f'*_app{app_number}_frontend_*_response.json'))
+                
+                if backend_resp_files:
+                    with open(backend_resp_files[0], 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        resp = data.get('response', {})
+                        parts = []
+                        parts.append(f"=== RESPONSE METADATA ===")
+                        parts.append(f"Timestamp: {data.get('timestamp', 'N/A')}")
+                        parts.append(f"Run ID: {data.get('run_id', 'N/A')}")
+                        parts.append(f"Response ID: {resp.get('id', 'N/A')}")
+                        parts.append(f"Model: {resp.get('model', 'N/A')}")
+                        parts.append(f"Provider: {resp.get('provider', 'N/A')}")
+                        # Usage stats
+                        usage = resp.get('usage', {})
+                        if usage:
+                            parts.append(f"")
+                            parts.append(f"=== USAGE ===")
+                            parts.append(f"Prompt Tokens: {usage.get('prompt_tokens', 'N/A')}")
+                            parts.append(f"Completion Tokens: {usage.get('completion_tokens', 'N/A')}")
+                            parts.append(f"Total Tokens: {usage.get('total_tokens', 'N/A')}")
+                            parts.append(f"Cost: ${usage.get('cost', 'N/A')}")
+                        # Choice info
+                        choices = resp.get('choices', [])
+                        if choices:
+                            choice = choices[0]
+                            parts.append(f"")
+                            parts.append(f"=== COMPLETION ===")
+                            parts.append(f"Finish Reason: {choice.get('finish_reason', 'N/A')}")
+                            parts.append(f"")
+                            parts.append(f"=== ASSISTANT ===")
+                            content = choice.get('message', {}).get('content', '')
+                            parts.append(content)
+                        responses['backend'] = '\n'.join(parts)
+                        current_app.logger.info(f"Loaded backend response, length: {len(responses['backend'])}")
+                
+                if frontend_resp_files:
+                    with open(frontend_resp_files[0], 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        resp = data.get('response', {})
+                        parts = []
+                        parts.append(f"=== RESPONSE METADATA ===")
+                        parts.append(f"Timestamp: {data.get('timestamp', 'N/A')}")
+                        parts.append(f"Run ID: {data.get('run_id', 'N/A')}")
+                        parts.append(f"Response ID: {resp.get('id', 'N/A')}")
+                        parts.append(f"Model: {resp.get('model', 'N/A')}")
+                        parts.append(f"Provider: {resp.get('provider', 'N/A')}")
+                        usage = resp.get('usage', {})
+                        if usage:
+                            parts.append(f"")
+                            parts.append(f"=== USAGE ===")
+                            parts.append(f"Prompt Tokens: {usage.get('prompt_tokens', 'N/A')}")
+                            parts.append(f"Completion Tokens: {usage.get('completion_tokens', 'N/A')}")
+                            parts.append(f"Total Tokens: {usage.get('total_tokens', 'N/A')}")
+                            parts.append(f"Cost: ${usage.get('cost', 'N/A')}")
+                        choices = resp.get('choices', [])
+                        if choices:
+                            choice = choices[0]
+                            parts.append(f"")
+                            parts.append(f"=== COMPLETION ===")
+                            parts.append(f"Finish Reason: {choice.get('finish_reason', 'N/A')}")
+                            parts.append(f"")
+                            parts.append(f"=== ASSISTANT ===")
+                            content = choice.get('message', {}).get('content', '')
+                            parts.append(content)
+                        responses['frontend'] = '\n'.join(parts)
+                        current_app.logger.info(f"Loaded frontend response, length: {len(responses['frontend'])}")
+                
+            except Exception as err:
+                current_app.logger.warning("Failed to load responses for %s/app%s: %s", model_slug, app_number, err)
+        
+        if prompts['backend'] or prompts['frontend']:
+            current_app.logger.info(f"Returning prompts from raw payloads")
+            return prompts, responses, template_files, str(payloads_dir)
     
     # Fallback to legacy location: misc/app_templates
     tmpl_dir = _project_root() / 'misc' / 'app_templates'
@@ -440,7 +550,7 @@ def _collect_app_prompts(app_number: int, model_slug: str = None) -> Tuple[Dict[
         except Exception as err:
             current_app.logger.warning("Failed to load prompts from templates for app %s: %s", app_number, err)
     
-    return prompts, template_files, str(tmpl_dir)
+    return prompts, responses, template_files, str(tmpl_dir)
 
 
 def _collect_ports(model_slug: str, app_number: int, app: Optional[GeneratedApplication]) -> Tuple[Optional[Dict[str, int]], List[Dict[str, Any]]]:
@@ -539,6 +649,36 @@ def _collect_app_analyses(app: Optional[GeneratedApplication]) -> Tuple[Dict[str
     return analyses, stats, entries
 
 
+def _collect_analysis_tasks(model_slug: str, app_number: int) -> List[AnalysisTask]:
+    """Collect AnalysisTask records from the database for this application.
+    
+    Returns a list of AnalysisTask objects ordered by created_at descending.
+    """
+    try:
+        # Query for tasks matching this model and app number
+        tasks = AnalysisTask.query.filter_by(
+            target_model=model_slug,
+            target_app_number=app_number
+        ).order_by(AnalysisTask.created_at.desc()).all()
+        
+        # Also check for slug variants if no results
+        if not tasks:
+            variants = _slug_variants(model_slug)
+            for variant in variants:
+                if variant != model_slug:
+                    tasks = AnalysisTask.query.filter_by(
+                        target_model=variant,
+                        target_app_number=app_number
+                    ).order_by(AnalysisTask.created_at.desc()).all()
+                    if tasks:
+                        break
+        
+        return tasks
+    except Exception as err:
+        current_app.logger.warning("Failed to collect analysis tasks for %s/app%s: %s", model_slug, app_number, err)
+        return []
+
+
 def _derive_status(container_status: Optional[str], generation_status: Optional[str], exists: bool) -> str:
     container = (container_status or '').lower()
     generation = (generation_status or '').lower()
@@ -613,24 +753,6 @@ def _build_application_actions(app_data: Dict[str, Any], ports: List[Dict[str, A
             'icon': 'fas fa-hammer',
             'classes': 'btn-primary btn-sm',
             'onclick': 'buildApplication()',
-            'visible': exists,
-        },
-        {
-            'key': 'prompts',
-            'type': 'button',
-            'label': 'View Prompts',
-            'icon': 'fas fa-terminal',
-            'classes': 'btn-ghost-primary btn-sm',
-            'onclick': 'openPromptsModal()',
-            'visible': bool(app_number),
-        },
-        {
-            'key': 'analyze',
-            'type': 'button',
-            'label': 'Analyze',
-            'icon': 'fas fa-flask',
-            'classes': 'btn-ghost-info btn-sm',
-            'onclick': "analyzeApplication('full')",
             'visible': exists,
         },
         {
@@ -762,6 +884,7 @@ def _collect_app_logs(model_slug: str, app_number: int, tail: int = 100) -> Tupl
 def _build_application_sections(model_slug: str, app_number: int) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, Any]]]:
     base = [
         ('overview', 'Overview', 'fas fa-info-circle', 'pages/applications/partials/_overview.html'),
+        ('prompts', 'Prompts', 'fas fa-terminal', 'pages/applications/partials/_prompts.html'),
         ('files', 'Files', 'fas fa-folder-open', 'pages/applications/partials/_files.html'),
         ('ports', 'Ports', 'fas fa-network-wired', 'pages/applications/partials/_ports.html'),
         ('container', 'Container', 'fab fa-docker', 'pages/applications/partials/_container.html'),
@@ -822,8 +945,9 @@ def build_application_detail_context(model_slug: str, app_number: int, allow_syn
     ports_raw, ports = _collect_ports(resolved_slug, app_number, app)
     app_data['ports'] = ports
     app_data['ports_count'] = len(ports)
-    prompts, template_files, templates_dir = _collect_app_prompts(app_number, resolved_slug)
+    prompts, responses, template_files, templates_dir = _collect_app_prompts(app_number, resolved_slug)
     analyses, stats, analysis_entries = _collect_app_analyses(app)
+    analysis_tasks = _collect_analysis_tasks(resolved_slug, app_number)
     logs, log_stats = _collect_app_logs(resolved_slug, app_number)
     slug_candidates = {resolved_slug}
     canonical = getattr(model, 'canonical_slug', None)
@@ -885,11 +1009,13 @@ def build_application_detail_context(model_slug: str, app_number: int, allow_syn
         'files': files,
         'file_stats': file_stats,
         'analyses': analyses,
-    'analysis_entries': analysis_entries,
+        'analysis_entries': analysis_entries,
+        'analysis_tasks': analysis_tasks,
         'stats': stats,
         'ports': ports,
         'raw_ports': ports_raw,
         'prompts': prompts,
+        'responses': responses,
         'template_files': template_files,
         'artifacts': artifacts,
         'templates_dir': templates_dir,

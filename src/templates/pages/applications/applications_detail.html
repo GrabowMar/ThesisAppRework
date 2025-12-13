@@ -167,15 +167,6 @@ function analyzeApplication(type) {
   });
 }
 
-function openPromptsModal() {
-  htmx.ajax('GET', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/prompts/modal', {
-    target: '#modal-container',
-    swap: 'innerHTML'
-  }).catch(() => {
-    showToast('Failed to load prompts', 'danger');
-  });
-}
-
 // Listen for HTMX events
 document.body.addEventListener('htmx:afterRequest', function(evt) {
   if (evt.detail.successful) {

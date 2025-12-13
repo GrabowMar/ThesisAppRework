@@ -77,14 +77,14 @@
 
 <!-- File Preview Modal -->
 <div class="modal fade" id="file-preview-modal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-xl">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">File Preview</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
-        <div class="text-center">
+      <div class="modal-body p-0">
+        <div class="text-center p-4">
           <div class="spinner-border" role="status">
             <span class="visually-hidden">Loading...</span>
           </div>
@@ -93,3 +93,33 @@
     </div>
   </div>
 </div>
+
+<style>
+.file-preview {
+  padding: 0;
+}
+.file-preview .file-preview-header {
+  padding: 0.75rem 1rem;
+  background: var(--tblr-bg-surface-secondary);
+  border-bottom: 1px solid var(--tblr-border-color);
+}
+.file-preview pre {
+  margin: 0;
+  padding: 1rem 1.25rem;
+  max-height: 70vh;
+  overflow: auto;
+  font-family: var(--tblr-font-monospace);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background: var(--tblr-bg-surface);
+  color: var(--tblr-body-color);
+  border: none;
+  border-radius: 0;
+}
+:root[data-bs-theme='dark'] .file-preview pre {
+  background: #1e1e2e;
+  color: #cdd6f4;
+}
+</style>

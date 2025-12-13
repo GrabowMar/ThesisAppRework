@@ -1,0 +1,182 @@
+{# Raw Prompts & Responses - Plain text view of what was sent to/received from OpenRouter #}
+<div class="row g-3">
+  {% set has_backend_prompt = prompts.backend %}
+  {% set has_frontend_prompt = prompts.frontend %}
+  {% set has_backend_response = responses.backend if responses is defined else false %}
+  {% set has_frontend_response = responses.frontend if responses is defined else false %}
+  
+  {# Summary #}
+  <div class="col-12">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <span class="text-muted small">Prompts:</span>
+      {% if has_backend_prompt %}
+      <span class="badge bg-success-lt"><i class="fas fa-server me-1"></i>Backend</span>
+      {% endif %}
+      {% if has_frontend_prompt %}
+      <span class="badge bg-info-lt"><i class="fas fa-desktop me-1"></i>Frontend</span>
+      {% endif %}
+      <span class="text-muted small ms-2">Responses:</span>
+      {% if has_backend_response %}
+      <span class="badge bg-success-lt"><i class="fas fa-server me-1"></i>Backend</span>
+      {% endif %}
+      {% if has_frontend_response %}
+      <span class="badge bg-info-lt"><i class="fas fa-desktop me-1"></i>Frontend</span>
+      {% endif %}
+      {% if not has_backend_prompt and not has_frontend_prompt and not has_backend_response and not has_frontend_response %}
+      <span class="badge bg-secondary-lt">No data available</span>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Backend Prompt #}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">
+          <i class="fas fa-server text-success me-2"></i>Backend Prompt
+        </h3>
+        {% if has_backend_prompt %}
+        <div class="card-actions">
+          <button class="btn btn-ghost-primary btn-sm" onclick="copyRawContent('backend-prompt')">
+            <i class="fas fa-copy me-1"></i>Copy
+          </button>
+        </div>
+        {% endif %}
+      </div>
+      {% if has_backend_prompt %}
+      <div class="card-body p-0">
+        <pre id="backend-prompt" class="raw-display" data-raw-content="{{ prompts.backend|e }}">{{ prompts.backend }}</pre>
+      </div>
+      {% else %}
+      <div class="card-body">
+        <div class="text-muted text-center py-3">No backend prompt available</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Frontend Prompt #}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">
+          <i class="fas fa-desktop text-info me-2"></i>Frontend Prompt
+        </h3>
+        {% if has_frontend_prompt %}
+        <div class="card-actions">
+          <button class="btn btn-ghost-primary btn-sm" onclick="copyRawContent('frontend-prompt')">
+            <i class="fas fa-copy me-1"></i>Copy
+          </button>
+        </div>
+        {% endif %}
+      </div>
+      {% if has_frontend_prompt %}
+      <div class="card-body p-0">
+        <pre id="frontend-prompt" class="raw-display" data-raw-content="{{ prompts.frontend|e }}">{{ prompts.frontend }}</pre>
+      </div>
+      {% else %}
+      <div class="card-body">
+        <div class="text-muted text-center py-3">No frontend prompt available</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Backend Response #}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">
+          <i class="fas fa-server text-success me-2"></i>Backend Response
+        </h3>
+        {% if has_backend_response %}
+        <div class="card-actions">
+          <button class="btn btn-ghost-primary btn-sm" onclick="copyRawContent('backend-response')">
+            <i class="fas fa-copy me-1"></i>Copy
+          </button>
+        </div>
+        {% endif %}
+      </div>
+      {% if has_backend_response %}
+      <div class="card-body p-0">
+        <pre id="backend-response" class="raw-display raw-response" data-raw-content="{{ responses.backend|e }}">{{ responses.backend }}</pre>
+      </div>
+      {% else %}
+      <div class="card-body">
+        <div class="text-muted text-center py-3">No backend response available</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# Frontend Response #}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">
+          <i class="fas fa-desktop text-info me-2"></i>Frontend Response
+        </h3>
+        {% if has_frontend_response %}
+        <div class="card-actions">
+          <button class="btn btn-ghost-primary btn-sm" onclick="copyRawContent('frontend-response')">
+            <i class="fas fa-copy me-1"></i>Copy
+          </button>
+        </div>
+        {% endif %}
+      </div>
+      {% if has_frontend_response %}
+      <div class="card-body p-0">
+        <pre id="frontend-response" class="raw-display raw-response" data-raw-content="{{ responses.frontend|e }}">{{ responses.frontend }}</pre>
+      </div>
+      {% else %}
+      <div class="card-body">
+        <div class="text-muted text-center py-3">No frontend response available</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<style>
+/* Raw display - plain monospace text */
+.raw-display {
+  max-height: 60vh;
+  overflow: auto;
+  margin: 0;
+  padding: 1rem;
+  font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background: #0d1117;
+  color: #c9d1d9;
+  border: none;
+  border-radius: 0 0 var(--tblr-border-radius) var(--tblr-border-radius);
+}
+:root:not([data-bs-theme='dark']) .raw-display {
+  background: #f6f8fa;
+  color: #24292f;
+}
+
+/* Slightly different background for responses */
+.raw-response {
+  background: #161b22;
+}
+:root:not([data-bs-theme='dark']) .raw-response {
+  background: #f0f3f6;
+}
+</style>
+
+<script>
+function copyRawContent(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const content = el.dataset.rawContent || el.textContent;
+  const ta = document.createElement('textarea');
+  ta.innerHTML = content;
+  navigator.clipboard.writeText(ta.value).then(() => {
+    if (typeof showToast === 'function') showToast('Copied to clipboard', 'success');
+  });
+}
+</script>

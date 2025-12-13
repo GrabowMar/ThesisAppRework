@@ -11,24 +11,21 @@
     <div class="card card-sm h-100">
       <div class="card-status-top bg-{{ status_color }}"></div>
       <div class="card-body">
-        <div class="d-flex justify-content-between align-items-start">
-          <div>
-            <span class="text-secondary text-uppercase fw-semibold small">Lifecycle state</span>
-            <div class="display-7 fw-semibold mt-1">{{ status_label }}</div>
+        <div>
+          <span class="text-secondary text-uppercase fw-semibold small">Lifecycle state</span>
+          <div class="d-flex align-items-center gap-2 mt-1">
+            <span class="status-dot {% if status == 'running' %}status-dot-animated{% endif %} status-{{ status_color }}"></span>
+            <span class="h3 mb-0">{{ status_label }}</span>
           </div>
-          <span id="container-status-badge" class="badge bg-{{ status_color }}-lt text-{{ status_color }}">
-            <span class="status-indicator {% if status == 'running' %}status-indicator-animated{% endif %} bg-{{ status_color }} me-1"></span>
-            {{ status_label }}
-          </span>
         </div>
         <ul class="list-group list-group-flush list-group-borderless mt-3 small">
           <li class="list-group-item px-0 d-flex justify-content-between">
             <span class="text-secondary">Last change</span>
-            <span class="text-muted">{{ app_data.updated_at or '—' }}</span>
+            <span class="text-muted">{{ app_data.updated_at.strftime('%Y-%m-%d %H:%M') if app_data.updated_at else '—' }}</span>
           </li>
           <li class="list-group-item px-0 d-flex justify-content-between">
             <span class="text-secondary">Container ID</span>
-            <span class="text-muted">{{ app_data.container_id or 'n/a' }}</span>
+            <code class="text-muted small">{{ (app_data.container_id[:12] ~ '…') if app_data.container_id and app_data.container_id|length > 12 else (app_data.container_id or 'n/a') }}</code>
           </li>
         </ul>
       </div>

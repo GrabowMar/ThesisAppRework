@@ -449,7 +449,13 @@ def application_section_overview(model_slug, app_number):
 
 @applications_bp.route('/<model_slug>/<int:app_number>/section/prompts')
 def application_section_prompts(model_slug, app_number):
-    """Return the prompts modal so the UI can lazy load it via HTMX."""
+    """Return the prompts section content for lazy loading via HTMX."""
+    return _render_application_section(model_slug, app_number, 'prompts')
+
+
+@applications_bp.route('/<model_slug>/<int:app_number>/prompts/modal')
+def application_prompts_modal(model_slug, app_number):
+    """Return the prompts modal for the legacy View Prompts button."""
     try:
         context = build_application_detail_context(model_slug, app_number, allow_synthetic=True)
         return render_template('pages/applications/partials/modals/_prompts_modal.html', **context)
@@ -588,7 +594,12 @@ def application_file_preview(model_slug, app_number):
             return '<div class="text-danger">Unable to read file.</div>', 500
         from markupsafe import escape
         escaped = escape(content)
-        return f'<div class="file-preview"><h6 class="small text-muted mb-2">{rel_path}</h6><pre class="small bg-body-tertiary p-2 rounded" style="max-height:480px; overflow:auto; white-space: pre-wrap">{escaped}</pre></div>'
+        return f'''<div class="file-preview">
+  <div class="file-preview-header">
+    <span class="text-muted small">{rel_path}</span>
+  </div>
+  <pre>{escaped}</pre>
+</div>'''
     except Exception as e:
         current_app.logger.error(f"Error previewing file {model_slug}/app{app_number}:{rel_path}: {e}")
         return f'<div class="text-danger">Error: {e}</div>', 500
