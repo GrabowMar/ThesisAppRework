@@ -106,27 +106,27 @@ function copyAdjacentPre(btn) {
 
 async function generateApplication() {
   try {
-    // Get next available app number for this model
-    const response = await fetch('/api/models/{{ model_slug }}/next-app-number');
-    const data = await response.json();
-    const appNumber = data.next_app_number || 1;
+    // Show generating message immediately
+    showToast('Starting application generation...', 'info');
     
+    // Don't pre-fetch app number - let the service auto-allocate atomically
+    // This prevents race conditions when multiple generations happen simultaneously
     htmx.ajax('POST', '/models/applications/generate', {
       target: '#section-applications',
       swap: 'innerHTML',
       values: {
         model_slug: '{{ model_slug }}',
-        app_number: appNumber,
-        app_type: 'web_app'
+        // app_number intentionally omitted - service will auto-allocate
+        template_slug: 'crud_todo_list'  // Default template
       }
     }).then(() => {
-      showToast(`Application ${appNumber} generation started`, 'success');
+      showToast('Application generation completed!', 'success');
     }).catch(() => {
-      showToast('Failed to start generation', 'error');
+      showToast('Failed to generate application', 'error');
     });
   } catch (error) {
-    console.error('Error getting next app number:', error);
-    showToast('Failed to determine app number', 'error');
+    console.error('Error generating application:', error);
+    showToast('Failed to start generation', 'error');
   }
 }
 

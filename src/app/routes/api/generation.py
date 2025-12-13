@@ -269,9 +269,13 @@ def list_apps():
     GET /api/gen/apps
     
     Returns array of apps with metadata:
-    - model_slug, app_num, path
+    - model_slug, app_num, path, template_slug
     - has_docker_compose, has_backend, has_frontend
     - complete (true if has compose + code)
+    
+    Supports both:
+    - New flat structure: {model}/app{N}/
+    - Legacy template structure: {model}/{template}/app{N}/
     """
     try:
         from app.paths import GENERATED_APPS_DIR
@@ -287,29 +291,28 @@ def list_apps():
             
             model_slug = model_dir.name
             
-            for app_dir in model_dir.iterdir():
-                if not app_dir.is_dir() or not app_dir.name.startswith('app'):
+            for subdir in model_dir.iterdir():
+                if not subdir.is_dir():
                     continue
                 
-                try:
-                    app_num = int(app_dir.name.replace('app', ''))
-                except ValueError:
-                    continue
-                
-                # Check for key files
-                has_docker_compose = (app_dir / 'docker-compose.yml').exists()
-                has_backend = (app_dir / 'backend' / 'app.py').exists()
-                has_frontend = (app_dir / 'frontend' / 'src' / 'App.jsx').exists()
-                
-                apps.append({
-                    'model_slug': model_slug,
-                    'app_num': app_num,
-                    'path': str(app_dir),
-                    'has_docker_compose': has_docker_compose,
-                    'has_backend': has_backend,
-                    'has_frontend': has_frontend,
-                    'complete': has_docker_compose and (has_backend or has_frontend)
-                })
+                # Check if this is a direct app directory (flat structure)
+                if subdir.name.startswith('app'):
+                    try:
+                        app_num = int(subdir.name.replace('app', ''))
+                        _add_app_to_list(apps, model_slug, app_num, subdir, template_slug=None)
+                    except ValueError:
+                        continue
+                else:
+                    # This might be a template directory (legacy structure)
+                    # Check for app{N} subdirectories inside it
+                    template_slug = subdir.name
+                    for app_subdir in subdir.iterdir():
+                        if app_subdir.is_dir() and app_subdir.name.startswith('app'):
+                            try:
+                                app_num = int(app_subdir.name.replace('app', ''))
+                                _add_app_to_list(apps, model_slug, app_num, app_subdir, template_slug)
+                            except ValueError:
+                                continue
         
         # Sort by model slug and app num
         apps.sort(key=lambda x: (x['model_slug'], x['app_num']))
@@ -319,6 +322,24 @@ def list_apps():
     except Exception as e:
         logger.exception("Failed to list apps")
         return create_error_response(str(e), code=500)
+
+
+def _add_app_to_list(apps: list, model_slug: str, app_num: int, app_dir, template_slug=None):
+    """Helper to add an app to the list with its metadata."""
+    has_docker_compose = (app_dir / 'docker-compose.yml').exists()
+    has_backend = (app_dir / 'backend' / 'app.py').exists()
+    has_frontend = (app_dir / 'frontend' / 'src' / 'App.jsx').exists()
+    
+    apps.append({
+        'model_slug': model_slug,
+        'app_num': app_num,
+        'path': str(app_dir),
+        'template_slug': template_slug,
+        'has_docker_compose': has_docker_compose,
+        'has_backend': has_backend,
+        'has_frontend': has_frontend,
+        'complete': has_docker_compose and (has_backend or has_frontend)
+    })
 
 
 @gen_bp.route('/apps/<path:model_slug>/<int:app_num>', methods=['GET'])

@@ -198,29 +198,29 @@ class ScaffoldingManager:
             )
     
     def get_app_dir(self, model_slug: str, app_num: int, template_slug: Optional[str] = None) -> Path:
-        """Get app directory path with optional template-based organization.
+        """Get app directory path using flat structure.
+        
+        IMPORTANT: App numbering is global per model. The template_slug is stored
+        in the database but does NOT affect the filesystem path. This ensures:
+        1. Unique app numbers across all templates for a model
+        2. No directory collisions when same app_num used with different templates
+        3. Consistent Docker Compose project naming ({model}-app{N})
         
         Args:
             model_slug: Normalized model slug (e.g., 'openai_gpt-4')
             app_num: App number (1, 2, 3...)
-            template_slug: Optional template slug for organization (e.g., 'url-shortener')
+            template_slug: Ignored for path generation (stored in DB only)
         
         Returns:
-            Path to app directory. If template_slug provided, uses:
-                generated/apps/{model}/{template}/app{N}/
-            Otherwise uses flat structure:
-                generated/apps/{model}/app{N}/
+            Path to app directory: generated/apps/{model}/app{N}/
         """
         safe_model = re.sub(r'[^\w\-.]', '_', model_slug)
         base_path = GENERATED_APPS_DIR / safe_model
         
-        if template_slug:
-            # Template-based path: {model}/{template}/app{N}
-            safe_template = re.sub(r'[^\w\-.]', '_', template_slug)
-            return base_path / safe_template / f"app{app_num}"
-        else:
-            # Flat path: {model}/app{N} (backward compatible)
-            return base_path / f"app{app_num}"
+        # Always use flat path: {model}/app{N}
+        # template_slug is stored in DB but doesn't affect filesystem structure
+        # This prevents collisions when multiple templates generate apps for same model
+        return base_path / f"app{app_num}"
     
     def scaffold(self, model_slug: str, app_num: int, template_slug: Optional[str] = None) -> bool:
         """Copy scaffolding to app directory.

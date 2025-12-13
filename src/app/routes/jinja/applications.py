@@ -376,66 +376,98 @@ def application_detail(model_slug, app_number):
 
 @applications_bp.route('/generate', methods=['POST'])
 def generate_application():
-    """HTMX endpoint: Generate a new application record."""
+    """HTMX endpoint: Generate a new application with actual code generation.
+    
+    This endpoint now calls the full generation service which:
+    1. Atomically reserves the next app number (prevents race conditions)
+    2. Scaffolds Docker infrastructure
+    3. Generates AI code for backend and frontend
+    4. Creates the database record
+    """
     try:
-        from app.services import application_service as app_service
+        import asyncio
+        from app.services.generation import get_generation_service
 
         model_slug = (request.form.get('model_slug') or '').strip()
+        # app_number is now OPTIONAL - service will auto-allocate atomically
         app_number_raw = request.form.get('app_number')
-        app_type = (request.form.get('app_type') or 'web_app').strip() or 'web_app'
-        auto_start = request.form.get('auto_start') == 'on'
+        template_slug = (request.form.get('template_slug') or 'crud_todo_list').strip()
+        
+        # Parse optional flags
+        gen_frontend = request.form.get('generate_frontend', 'true').lower() != 'false'
+        gen_backend = request.form.get('generate_backend', 'true').lower() != 'false'
 
-        if not model_slug or not app_number_raw:
+        if not model_slug:
             return (
-                '<div class="alert alert-danger">Model and app number are required.</div>',
-                400,
-            )
-        try:
-            app_number = int(app_number_raw)
-        except Exception:
-            return (
-                '<div class="alert alert-danger">Invalid app number.</div>',
+                '<div class="alert alert-danger">Model slug is required.</div>',
                 400,
             )
 
+        # Validate model exists
         model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
         if not model:
             return (
                 f'<div class="alert alert-danger">Unknown model: {model_slug}</div>',
                 404,
             )
-
-        payload = {
-            'model_slug': model_slug,
-            'app_number': app_number,
-            'app_type': app_type,
-            'provider': model.provider,
-        }
-
-        created = app_service.create_application(payload)
-
-        if auto_start and created.get('id'):
+        
+        # Parse app_number if provided, otherwise let service auto-allocate
+        app_number = None
+        if app_number_raw:
             try:
-                app_service.start_application(created['id'])
-            except Exception:  # pragma: no cover - non critical
-                current_app.logger.warning("Failed to auto-start application", exc_info=True)
+                app_number = int(app_number_raw)
+            except (ValueError, TypeError):
+                # Invalid app_number provided - let service auto-allocate
+                app_number = None
 
-        detail_url = f"{request.url_root.rstrip('/')}/applications/{model_slug}/{app_number}"
-        resp = Response(
-            '<div class="alert alert-success">'
-            f'Successfully created application for <strong>{model_slug}</strong> '
-            f'(<a href="{detail_url}" target="_blank">open details</a>).</div>'
+        # Generate unique batch ID
+        import uuid
+        from datetime import datetime
+        batch_id = f"htmx_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+
+        current_app.logger.info(
+            f"HTMX generation request: {model_slug}/app{app_number or 'auto'}, template={template_slug}"
         )
-        resp.headers['HX-Trigger'] = 'refresh-grid'
-        return resp
+
+        # Run actual generation (scaffolding + AI code generation)
+        service = get_generation_service()
+        result = asyncio.run(service.generate_full_app(
+            model_slug=model_slug,
+            app_num=app_number,  # None = auto-allocate atomically
+            template_slug=template_slug,
+            generate_frontend=gen_frontend,
+            generate_backend=gen_backend,
+            batch_id=batch_id,
+            version=1
+        ))
+
+        if result.get('success'):
+            allocated_app_num = result.get('app_number', app_number)
+            detail_url = f"{request.url_root.rstrip('/')}/applications/{model_slug}/{allocated_app_num}"
+            resp = Response(
+                '<div class="alert alert-success">'
+                f'Successfully generated application #{allocated_app_num} for <strong>{model_slug}</strong> '
+                f'(<a href="{detail_url}" target="_blank">open details</a>).</div>'
+            )
+            resp.headers['HX-Trigger'] = 'refresh-grid'
+            return resp
+        else:
+            errors = result.get('errors', ['Unknown error'])
+            error_msg = '; '.join(errors) if errors else 'Generation failed'
+            current_app.logger.error(f"Generation failed for {model_slug}: {error_msg}")
+            return (
+                f'<div class="alert alert-danger">Generation failed: {error_msg}</div>',
+                500,
+            )
+
     except Exception as e:
         msg = str(e)
-        if 'unique' in msg.lower() and 'model' in msg.lower():
+        if 'already exists' in msg.lower() or ('unique' in msg.lower() and 'model' in msg.lower()):
             return (
-                '<div class="alert alert-warning">An application for this model and number already exists.</div>',
+                '<div class="alert alert-warning">An application with this configuration already exists.</div>',
                 409,
             )
-        current_app.logger.error(f"Error generating application: {e}")
+        current_app.logger.error(f"Error generating application: {e}", exc_info=True)
         return (
             f'<div class="alert alert-danger">Error generating application: {str(e)}</div>',
             500,
