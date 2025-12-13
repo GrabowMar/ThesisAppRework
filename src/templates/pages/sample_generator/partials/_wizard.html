@@ -66,6 +66,111 @@
                 <i class="fas fa-lightbulb me-2"></i>
                 Scaffolding defines baseline file layout, Docker configuration, and environment defaults. The wizard ships with the flagship React+Flask scaffold.
               </div>
+
+              {# Past Generations Table - inside Step 1 panel #}
+              <div class="card card-table-compact mt-4" id="past-generations-section">
+                <div class="card-header d-flex flex-wrap align-items-center gap-3">
+                  <div class="d-flex flex-wrap align-items-center gap-2">
+                    <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+                      <i class="fas fa-history text-primary"></i>
+                      <span>Past Generations</span>
+                    </h3>
+                    <div class="d-flex flex-wrap align-items-center gap-2 status-indicators">
+                      <span class="badge bg-primary-lt d-inline-flex align-items-center gap-2">
+                        <i class="fas fa-code"></i>
+                        <span id="past-generations-count">{{ recent|length if recent else 0 }}</span>
+                      </span>
+                    </div>
+                  </div>
+                  <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+                    <label class="d-flex align-items-center gap-2 mb-0">
+                      <span class="text-muted small">Limit:</span>
+                      <select id="past-generations-per-page" class="form-select form-select-sm w-auto" onchange="loadPastGenerations(this.value)">
+                        <option value="10" selected>10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                      </select>
+                    </label>
+                    <div class="btn-list">
+                      <button class="btn btn-sm btn-primary" onclick="loadPastGenerations()" title="Refresh past generations" type="button">
+                        <i class="fas fa-sync me-1" aria-hidden="true"></i>Refresh
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-striped table-vcenter table-hover table-sm card-table mb-0">
+                    <thead>
+                      <tr>
+                        <th scope="col">Timestamp</th>
+                        <th scope="col">Application</th>
+                        <th scope="col">Model</th>
+                        <th scope="col" class="text-center">Status</th>
+                        <th scope="col" class="text-end">Duration</th>
+                        <th scope="col" class="w-1"><span class="visually-hidden">Actions</span></th>
+                      </tr>
+                    </thead>
+                    <tbody id="past-generations-tbody">
+                      {% if recent and recent|length %}
+                        {% for r in recent %}
+                          {% set ts = r.timestamp %}
+                          {% if ts is string %}
+                            {% set timestamp = ts %}
+                          {% elif ts and ts.strftime is defined %}
+                            {% set timestamp = ts.strftime('%Y-%m-%d %H:%M:%S') %}
+                          {% else %}
+                            {% set timestamp = '—' %}
+                          {% endif %}
+                          <tr>
+                            <td class="text-muted small text-nowrap">{{ timestamp }}</td>
+                            <td>
+                              <strong>{{ r.app_name or ('App #' ~ (r.app_num or '?')) }}</strong>
+                            </td>
+                            <td>
+                              <span class="badge bg-azure-lt text-azure">{{ r.model or '—' }}</span>
+                            </td>
+                            <td class="text-center">
+                              {% if r.success %}
+                                <span class="badge bg-success-lt text-success">
+                                  <i class="fas fa-check me-1"></i>Success
+                                </span>
+                              {% else %}
+                                <span class="badge bg-warning-lt text-warning">
+                                  <i class="fas fa-clock me-1"></i>Pending
+                                </span>
+                              {% endif %}
+                            </td>
+                            <td class="text-end text-muted small">
+                              {{ '%.1fs'|format(r.duration) if r.duration else '—' }}
+                            </td>
+                            <td>
+                              <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-ghost-primary btn-icon"
+                                        onclick="viewGenerationResult('{{ r.result_id or (r.model ~ '_app' ~ r.app_num) }}')"
+                                        title="View details">
+                                  <i class="fas fa-eye"></i>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        {% endfor %}
+                      {% else %}
+                        <tr id="past-generations-empty">
+                          <td colspan="6" class="text-center py-5">
+                            <div class="empty py-4">
+                              <div class="empty-icon">
+                                <i class="fas fa-history fa-3x text-muted"></i>
+                              </div>
+                              <p class="empty-title h5">No past generations</p>
+                              <p class="empty-subtitle text-muted">Generated applications will appear here</p>
+                            </div>
+                          </td>
+                        </tr>
+                      {% endif %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
         </div>

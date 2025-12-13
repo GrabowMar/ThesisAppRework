@@ -1796,6 +1796,176 @@ function filterModels(searchTerm) {
   });
 }
 
+// ============================================================================
+// Past Generations Table Functions
+// ============================================================================
+
+async function loadPastGenerations(limit = null) {
+  const tbody = document.getElementById('past-generations-tbody');
+  const countEl = document.getElementById('past-generations-count');
+  
+  if (!tbody) return;
+  
+  // Get limit from dropdown if not provided
+  if (!limit) {
+    const limitSelect = document.getElementById('past-generations-per-page');
+    limit = limitSelect ? limitSelect.value : 10;
+  }
+  
+  // Show loading state
+  tbody.innerHTML = `
+    <tr>
+      <td colspan="6" class="text-center py-4">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p class="small text-muted mt-2 mb-0">Loading past generations...</p>
+      </td>
+    </tr>
+  `;
+  
+  try {
+    const response = await fetch(`/sample-generator/api/proxy/recent?limit=${limit}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    const recent = data.data || [];
+    
+    // Update count
+    if (countEl) {
+      countEl.textContent = recent.length;
+    }
+    
+    if (recent.length === 0) {
+      tbody.innerHTML = `
+        <tr id="past-generations-empty">
+          <td colspan="6" class="text-center py-5">
+            <div class="empty py-4">
+              <div class="empty-icon">
+                <i class="fas fa-history fa-3x text-muted"></i>
+              </div>
+              <p class="empty-title h5">No past generations</p>
+              <p class="empty-subtitle text-muted">Generated applications will appear here</p>
+            </div>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+    
+    // Render rows
+    tbody.innerHTML = recent.map(r => {
+      const timestamp = formatTimestamp(r.timestamp);
+      const appName = r.app_name || `App #${r.app_num || '?'}`;
+      const model = r.model || '—';
+      const duration = r.duration ? `${r.duration.toFixed(1)}s` : '—';
+      const statusBadge = r.success
+        ? '<span class="badge bg-success-lt text-success"><i class="fas fa-check me-1"></i>Success</span>'
+        : '<span class="badge bg-warning-lt text-warning"><i class="fas fa-clock me-1"></i>Pending</span>';
+      const resultId = r.result_id || `${r.model}_app${r.app_num}`;
+      
+      return `
+        <tr>
+          <td class="text-muted small text-nowrap">${escapeHtml(timestamp)}</td>
+          <td><strong>${escapeHtml(appName)}</strong></td>
+          <td><span class="badge bg-azure-lt text-azure">${escapeHtml(model)}</span></td>
+          <td class="text-center">${statusBadge}</td>
+          <td class="text-end text-muted small">${escapeHtml(duration)}</td>
+          <td>
+            <div class="btn-group btn-group-sm" role="group">
+              <button type="button" class="btn btn-ghost-primary btn-icon"
+                      onclick="viewGenerationResult('${escapeHtml(resultId)}')"
+                      title="View details">
+                <i class="fas fa-eye"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+    
+  } catch (error) {
+    console.error('[Wizard] Error loading past generations:', error);
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="text-center py-4 text-danger">
+          <i class="fas fa-exclamation-triangle fa-2x mb-2"></i>
+          <p class="fw-bold mb-1">Error loading past generations</p>
+          <p class="small mb-2">${escapeHtml(error.message)}</p>
+          <button class="btn btn-sm btn-outline-primary" onclick="loadPastGenerations()">
+            <i class="fas fa-sync me-1"></i>Retry
+          </button>
+        </td>
+      </tr>
+    `;
+  }
+}
+
+function viewGenerationResult(resultId) {
+  if (!resultId) {
+    showNotification('No result ID available', 'warning');
+    return;
+  }
+  
+  // Navigate to applications page or open detail modal
+  // For now, we'll show a notification and log
+  console.log('[Wizard] View generation result:', resultId);
+  
+  // Try to find an app detail page URL pattern
+  // The result_id typically follows format: template_model
+  const parts = resultId.split('_');
+  if (parts.length >= 2) {
+    // Try to navigate to the generated app
+    showNotification(`Opening result: ${resultId}`, 'info');
+    
+    // Could navigate to applications page with this model
+    // window.location.href = `/applications?search=${encodeURIComponent(resultId)}`;
+  } else {
+    showNotification(`Result ID: ${resultId}`, 'info');
+  }
+}
+
+function formatTimestamp(ts) {
+  if (!ts) return '—';
+  
+  // If it's already a string, return as is
+  if (typeof ts === 'string') {
+    // Try to parse and format
+    try {
+      const date = new Date(ts);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleString('en-US', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        });
+      }
+    } catch (e) {
+      // Return original string if parsing fails
+    }
+    return ts;
+  }
+  
+  // If it's a Date object
+  if (ts instanceof Date) {
+    return ts.toLocaleString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+  }
+  
+  return '—';
+}
+
 // Export functions for global access
 window.nextStep = nextStep;
 window.previousStep = previousStep;
@@ -1822,4 +1992,6 @@ window.editTemplate = editTemplate;
 window.deleteTemplate = deleteTemplate;
 window.saveTemplate = saveTemplate;
 window.initSampleGeneratorWizard = initSampleGeneratorWizard;
+window.loadPastGenerations = loadPastGenerations;
+window.viewGenerationResult = viewGenerationResult;
 })();

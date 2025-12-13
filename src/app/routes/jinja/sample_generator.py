@@ -59,26 +59,28 @@ def _build_status() -> Dict[str, Any]:
 
 
 def _load_recent(limit: int = 10) -> List[Dict[str, Any]]:
-    """Load recent generation results."""
+    """Load recent generation results from GeneratedApplication table."""
     try:
-        from app.models import GeneratedCodeResult
+        from app.models import GeneratedApplication
 
         results = (
-            GeneratedCodeResult.query
-            .order_by(GeneratedCodeResult.timestamp.desc())
+            GeneratedApplication.query
+            .order_by(GeneratedApplication.created_at.desc())
             .limit(limit)
             .all()
         )
 
         return [
             {
-                'timestamp': result.timestamp,
-                'app_name': result.app_name,
-                'app_num': result.app_num,
-                'model': result.model,
-                'success': result.success,
-                'duration': result.duration,
-                'result_id': result.result_id,
+                'timestamp': result.created_at,
+                'app_name': f"{result.template_slug or 'App'} #{result.app_number}",
+                'app_num': result.app_number,
+                'model': result.model_slug,
+                'success': result.generation_status and result.generation_status.value == 'completed',
+                'duration': None,  # Not tracked in GeneratedApplication
+                'result_id': f"{result.model_slug}_app{result.app_number}",
+                'template_slug': result.template_slug,
+                'provider': result.provider,
             }
             for result in results
         ]
@@ -122,5 +124,7 @@ def api_proxy(endpoint):
     if endpoint == 'status':
         return jsonify({'success': True, 'data': _build_status()})
     if endpoint == 'recent':
-        return jsonify({'success': True, 'data': _load_recent(limit=10)})
+        limit = request.args.get('limit', 10, type=int)
+        limit = min(max(limit, 1), 100)  # Clamp between 1 and 100
+        return jsonify({'success': True, 'data': _load_recent(limit=limit)})
     return jsonify({"error": "Endpoint not supported"}), 404
