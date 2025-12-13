@@ -1,26 +1,32 @@
-{# Raw Prompts & Responses - Plain text view of what was sent to/received from OpenRouter #}
+{# Raw Prompts & Responses - Collapsible sections with source highlighting #}
 <div class="row g-3">
   {% set has_backend_prompt = prompts.backend %}
   {% set has_frontend_prompt = prompts.frontend %}
   {% set has_backend_response = responses.backend if responses is defined else false %}
   {% set has_frontend_response = responses.frontend if responses is defined else false %}
   
-  {# Summary #}
+  {# Legend for prompt source colors #}
   <div class="col-12">
+    <div class="d-flex align-items-center gap-3 flex-wrap mb-2">
+      <span class="text-muted small fw-semibold">Source Legend:</span>
+      <span class="badge prompt-source-template"><i class="fas fa-file-code me-1"></i>Template</span>
+      <span class="badge prompt-source-requirements"><i class="fas fa-list-check me-1"></i>Requirements</span>
+      <span class="badge prompt-source-scaffolding"><i class="fas fa-cubes me-1"></i>Scaffolding</span>
+      <span class="badge prompt-source-metadata"><i class="fas fa-info-circle me-1"></i>Metadata</span>
+    </div>
     <div class="d-flex align-items-center gap-2 flex-wrap">
-      <span class="text-muted small">Prompts:</span>
+      <span class="text-muted small">Available:</span>
       {% if has_backend_prompt %}
-      <span class="badge bg-success-lt"><i class="fas fa-server me-1"></i>Backend</span>
+      <span class="badge bg-success-lt"><i class="fas fa-server me-1"></i>Backend Prompt</span>
       {% endif %}
       {% if has_frontend_prompt %}
-      <span class="badge bg-info-lt"><i class="fas fa-desktop me-1"></i>Frontend</span>
+      <span class="badge bg-info-lt"><i class="fas fa-desktop me-1"></i>Frontend Prompt</span>
       {% endif %}
-      <span class="text-muted small ms-2">Responses:</span>
       {% if has_backend_response %}
-      <span class="badge bg-success-lt"><i class="fas fa-server me-1"></i>Backend</span>
+      <span class="badge bg-success-lt"><i class="fas fa-reply me-1"></i>Backend Response</span>
       {% endif %}
       {% if has_frontend_response %}
-      <span class="badge bg-info-lt"><i class="fas fa-desktop me-1"></i>Frontend</span>
+      <span class="badge bg-info-lt"><i class="fas fa-reply me-1"></i>Frontend Response</span>
       {% endif %}
       {% if not has_backend_prompt and not has_frontend_prompt and not has_backend_response and not has_frontend_response %}
       <span class="badge bg-secondary-lt">No data available</span>
@@ -28,116 +34,248 @@
     </div>
   </div>
 
-  {# Backend Prompt #}
+  {# Accordion container for collapsible sections #}
   <div class="col-12">
-    <div class="card">
-      <div class="card-header">
-        <h3 class="card-title">
-          <i class="fas fa-server text-success me-2"></i>Backend Prompt
-        </h3>
-        {% if has_backend_prompt %}
-        <div class="card-actions">
-          <button class="btn btn-ghost-primary btn-sm" onclick="copyRawContent('backend-prompt')">
-            <i class="fas fa-copy me-1"></i>Copy
+    <div class="accordion" id="promptsAccordion">
+      
+      {# Backend Prompt - Collapsible #}
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingBackendPrompt">
+          <button class="accordion-button {% if not has_backend_prompt %}collapsed{% endif %}" type="button" 
+                  data-bs-toggle="collapse" data-bs-target="#collapseBackendPrompt" 
+                  aria-expanded="{{ 'true' if has_backend_prompt else 'false' }}" aria-controls="collapseBackendPrompt">
+            <i class="fas fa-server text-success me-2"></i>
+            <span class="fw-semibold">Backend Prompt</span>
+            {% if has_backend_prompt %}
+            <span class="badge bg-success-lt ms-2">Available</span>
+            {% else %}
+            <span class="badge bg-secondary-lt ms-2">Empty</span>
+            {% endif %}
           </button>
+        </h2>
+        <div id="collapseBackendPrompt" class="accordion-collapse collapse {% if has_backend_prompt %}show{% endif %}" 
+             aria-labelledby="headingBackendPrompt" data-bs-parent="#promptsAccordion">
+          <div class="accordion-body p-0">
+            {% if has_backend_prompt %}
+            <div class="d-flex justify-content-end p-2 border-bottom bg-body-tertiary">
+              <button class="btn btn-ghost-primary btn-sm" onclick="copyRawContent('backend-prompt')">
+                <i class="fas fa-copy me-1"></i>Copy Raw
+              </button>
+            </div>
+            <div id="backend-prompt-formatted" class="prompt-formatted-display" data-raw-content="{{ prompts.backend|e }}"></div>
+            <pre id="backend-prompt" class="d-none">{{ prompts.backend }}</pre>
+            {% else %}
+            <div class="text-muted text-center py-4">No backend prompt available</div>
+            {% endif %}
+          </div>
         </div>
-        {% endif %}
       </div>
-      {% if has_backend_prompt %}
-      <div class="card-body p-0">
-        <pre id="backend-prompt" class="raw-display" data-raw-content="{{ prompts.backend|e }}">{{ prompts.backend }}</pre>
-      </div>
-      {% else %}
-      <div class="card-body">
-        <div class="text-muted text-center py-3">No backend prompt available</div>
-      </div>
-      {% endif %}
-    </div>
-  </div>
 
-  {# Frontend Prompt #}
-  <div class="col-12">
-    <div class="card">
-      <div class="card-header">
-        <h3 class="card-title">
-          <i class="fas fa-desktop text-info me-2"></i>Frontend Prompt
-        </h3>
-        {% if has_frontend_prompt %}
-        <div class="card-actions">
-          <button class="btn btn-ghost-primary btn-sm" onclick="copyRawContent('frontend-prompt')">
-            <i class="fas fa-copy me-1"></i>Copy
+      {# Frontend Prompt - Collapsible #}
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingFrontendPrompt">
+          <button class="accordion-button collapsed" type="button" 
+                  data-bs-toggle="collapse" data-bs-target="#collapseFrontendPrompt" 
+                  aria-expanded="false" aria-controls="collapseFrontendPrompt">
+            <i class="fas fa-desktop text-info me-2"></i>
+            <span class="fw-semibold">Frontend Prompt</span>
+            {% if has_frontend_prompt %}
+            <span class="badge bg-info-lt ms-2">Available</span>
+            {% else %}
+            <span class="badge bg-secondary-lt ms-2">Empty</span>
+            {% endif %}
           </button>
+        </h2>
+        <div id="collapseFrontendPrompt" class="accordion-collapse collapse" 
+             aria-labelledby="headingFrontendPrompt" data-bs-parent="#promptsAccordion">
+          <div class="accordion-body p-0">
+            {% if has_frontend_prompt %}
+            <div class="d-flex justify-content-end p-2 border-bottom bg-body-tertiary">
+              <button class="btn btn-ghost-primary btn-sm" onclick="copyRawContent('frontend-prompt')">
+                <i class="fas fa-copy me-1"></i>Copy Raw
+              </button>
+            </div>
+            <div id="frontend-prompt-formatted" class="prompt-formatted-display" data-raw-content="{{ prompts.frontend|e }}"></div>
+            <pre id="frontend-prompt" class="d-none">{{ prompts.frontend }}</pre>
+            {% else %}
+            <div class="text-muted text-center py-4">No frontend prompt available</div>
+            {% endif %}
+          </div>
         </div>
-        {% endif %}
       </div>
-      {% if has_frontend_prompt %}
-      <div class="card-body p-0">
-        <pre id="frontend-prompt" class="raw-display" data-raw-content="{{ prompts.frontend|e }}">{{ prompts.frontend }}</pre>
-      </div>
-      {% else %}
-      <div class="card-body">
-        <div class="text-muted text-center py-3">No frontend prompt available</div>
-      </div>
-      {% endif %}
-    </div>
-  </div>
 
-  {# Backend Response #}
-  <div class="col-12">
-    <div class="card">
-      <div class="card-header">
-        <h3 class="card-title">
-          <i class="fas fa-server text-success me-2"></i>Backend Response
-        </h3>
-        {% if has_backend_response %}
-        <div class="card-actions">
-          <button class="btn btn-ghost-primary btn-sm" onclick="copyRawContent('backend-response')">
-            <i class="fas fa-copy me-1"></i>Copy
+      {# Backend Response - Collapsible #}
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingBackendResponse">
+          <button class="accordion-button collapsed" type="button" 
+                  data-bs-toggle="collapse" data-bs-target="#collapseBackendResponse" 
+                  aria-expanded="false" aria-controls="collapseBackendResponse">
+            <i class="fas fa-reply text-success me-2"></i>
+            <span class="fw-semibold">Backend Response</span>
+            {% if has_backend_response %}
+            <span class="badge bg-success-lt ms-2">Available</span>
+            {% else %}
+            <span class="badge bg-secondary-lt ms-2">Empty</span>
+            {% endif %}
           </button>
+        </h2>
+        <div id="collapseBackendResponse" class="accordion-collapse collapse" 
+             aria-labelledby="headingBackendResponse" data-bs-parent="#promptsAccordion">
+          <div class="accordion-body p-0">
+            {% if has_backend_response %}
+            <div class="d-flex justify-content-end p-2 border-bottom bg-body-tertiary">
+              <button class="btn btn-ghost-primary btn-sm" onclick="copyRawContent('backend-response')">
+                <i class="fas fa-copy me-1"></i>Copy Raw
+              </button>
+            </div>
+            <pre id="backend-response" class="raw-display raw-response" data-raw-content="{{ responses.backend|e }}">{{ responses.backend }}</pre>
+            {% else %}
+            <div class="text-muted text-center py-4">No backend response available</div>
+            {% endif %}
+          </div>
         </div>
-        {% endif %}
       </div>
-      {% if has_backend_response %}
-      <div class="card-body p-0">
-        <pre id="backend-response" class="raw-display raw-response" data-raw-content="{{ responses.backend|e }}">{{ responses.backend }}</pre>
-      </div>
-      {% else %}
-      <div class="card-body">
-        <div class="text-muted text-center py-3">No backend response available</div>
-      </div>
-      {% endif %}
-    </div>
-  </div>
 
-  {# Frontend Response #}
-  <div class="col-12">
-    <div class="card">
-      <div class="card-header">
-        <h3 class="card-title">
-          <i class="fas fa-desktop text-info me-2"></i>Frontend Response
-        </h3>
-        {% if has_frontend_response %}
-        <div class="card-actions">
-          <button class="btn btn-ghost-primary btn-sm" onclick="copyRawContent('frontend-response')">
-            <i class="fas fa-copy me-1"></i>Copy
+      {# Frontend Response - Collapsible #}
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="headingFrontendResponse">
+          <button class="accordion-button collapsed" type="button" 
+                  data-bs-toggle="collapse" data-bs-target="#collapseFrontendResponse" 
+                  aria-expanded="false" aria-controls="collapseFrontendResponse">
+            <i class="fas fa-reply text-info me-2"></i>
+            <span class="fw-semibold">Frontend Response</span>
+            {% if has_frontend_response %}
+            <span class="badge bg-info-lt ms-2">Available</span>
+            {% else %}
+            <span class="badge bg-secondary-lt ms-2">Empty</span>
+            {% endif %}
           </button>
+        </h2>
+        <div id="collapseFrontendResponse" class="accordion-collapse collapse" 
+             aria-labelledby="headingFrontendResponse" data-bs-parent="#promptsAccordion">
+          <div class="accordion-body p-0">
+            {% if has_frontend_response %}
+            <div class="d-flex justify-content-end p-2 border-bottom bg-body-tertiary">
+              <button class="btn btn-ghost-primary btn-sm" onclick="copyRawContent('frontend-response')">
+                <i class="fas fa-copy me-1"></i>Copy Raw
+              </button>
+            </div>
+            <pre id="frontend-response" class="raw-display raw-response" data-raw-content="{{ responses.frontend|e }}">{{ responses.frontend }}</pre>
+            {% else %}
+            <div class="text-muted text-center py-4">No frontend response available</div>
+            {% endif %}
+          </div>
         </div>
-        {% endif %}
       </div>
-      {% if has_frontend_response %}
-      <div class="card-body p-0">
-        <pre id="frontend-response" class="raw-display raw-response" data-raw-content="{{ responses.frontend|e }}">{{ responses.frontend }}</pre>
-      </div>
-      {% else %}
-      <div class="card-body">
-        <div class="text-muted text-center py-3">No frontend response available</div>
-      </div>
-      {% endif %}
+
     </div>
   </div>
 </div>
 
 <style>
+/* Source badge colors */
+.prompt-source-template {
+  background-color: rgba(66, 153, 225, 0.15);
+  color: #3182ce;
+  border: 1px solid rgba(66, 153, 225, 0.3);
+}
+.prompt-source-requirements {
+  background-color: rgba(72, 187, 120, 0.15);
+  color: #38a169;
+  border: 1px solid rgba(72, 187, 120, 0.3);
+}
+.prompt-source-scaffolding {
+  background-color: rgba(237, 137, 54, 0.15);
+  color: #dd6b20;
+  border: 1px solid rgba(237, 137, 54, 0.3);
+}
+.prompt-source-metadata {
+  background-color: rgba(159, 122, 234, 0.15);
+  color: #805ad5;
+  border: 1px solid rgba(159, 122, 234, 0.3);
+}
+
+/* Dark mode adjustments */
+[data-bs-theme='dark'] .prompt-source-template {
+  background-color: rgba(66, 153, 225, 0.2);
+  color: #63b3ed;
+}
+[data-bs-theme='dark'] .prompt-source-requirements {
+  background-color: rgba(72, 187, 120, 0.2);
+  color: #68d391;
+}
+[data-bs-theme='dark'] .prompt-source-scaffolding {
+  background-color: rgba(237, 137, 54, 0.2);
+  color: #f6ad55;
+}
+[data-bs-theme='dark'] .prompt-source-metadata {
+  background-color: rgba(159, 122, 234, 0.2);
+  color: #b794f4;
+}
+
+/* Formatted prompt display */
+.prompt-formatted-display {
+  max-height: 60vh;
+  overflow: auto;
+  font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.prompt-section {
+  border-left: 4px solid;
+  margin: 0;
+  padding: 0.75rem 1rem;
+  position: relative;
+}
+
+.prompt-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.prompt-section-content {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Section type styling */
+.prompt-section.section-metadata {
+  border-color: #805ad5;
+  background: rgba(159, 122, 234, 0.05);
+}
+.prompt-section.section-template {
+  border-color: #3182ce;
+  background: rgba(66, 153, 225, 0.05);
+}
+.prompt-section.section-requirements {
+  border-color: #38a169;
+  background: rgba(72, 187, 120, 0.05);
+}
+.prompt-section.section-scaffolding {
+  border-color: #dd6b20;
+  background: rgba(237, 137, 54, 0.05);
+}
+
+[data-bs-theme='dark'] .prompt-section.section-metadata {
+  background: rgba(159, 122, 234, 0.1);
+}
+[data-bs-theme='dark'] .prompt-section.section-template {
+  background: rgba(66, 153, 225, 0.1);
+}
+[data-bs-theme='dark'] .prompt-section.section-requirements {
+  background: rgba(72, 187, 120, 0.1);
+}
+[data-bs-theme='dark'] .prompt-section.section-scaffolding {
+  background: rgba(237, 137, 54, 0.1);
+}
+
 /* Raw display - plain monospace text */
 .raw-display {
   max-height: 60vh;
@@ -166,6 +304,11 @@
 :root:not([data-bs-theme='dark']) .raw-response {
   background: #f0f3f6;
 }
+
+/* Accordion styling adjustments */
+.accordion-button:not(.collapsed) {
+  background-color: var(--tblr-bg-surface-secondary);
+}
 </style>
 
 <script>
@@ -179,4 +322,161 @@ function copyRawContent(elementId) {
     if (typeof showToast === 'function') showToast('Copied to clipboard', 'success');
   });
 }
+
+/**
+ * Parse prompt content and identify sections based on their source
+ * Sources: metadata, template, requirements, scaffolding
+ */
+function parsePromptSections(content) {
+  if (!content) return [];
+  
+  const sections = [];
+  const lines = content.split('\n');
+  let currentSection = null;
+  let currentContent = [];
+  
+  // Patterns to identify section sources
+  const sectionPatterns = [
+    // Metadata sections (request info, timestamps, model info)
+    { pattern: /^=== (REQUEST METADATA|SYSTEM|RESPONSE METADATA|USAGE|COMPLETION) ===$/, type: 'metadata', label: null },
+    // Requirements sections (from misc/requirements/*.json)
+    { pattern: /^## Requirements\s*$/, type: 'requirements', label: 'Requirements (from requirements/*.json)' },
+    { pattern: /^## API Endpoints/, type: 'requirements', label: 'API Endpoints (from requirements/*.json)' },
+    // Scaffolding sections (from misc/scaffolding/)
+    { pattern: /^## Technical Reference\s*$/, type: 'scaffolding', label: 'Technical Reference (from scaffolding context)' },
+    { pattern: /^```markdown\s*$/, type: 'scaffolding', label: 'Scaffolding Context' },
+    // Template sections (from misc/templates/)
+    { pattern: /^# Generate .* - (Backend|Frontend)\s*$/, type: 'template', label: 'Template Header' },
+    { pattern: /^## MUST FOLLOW\s*$/, type: 'template', label: 'Template Rules' },
+    { pattern: /^## QUALITY EXPECTATIONS\s*$/, type: 'template', label: 'Template Quality Guidelines' },
+    { pattern: /^## Output\s*$/, type: 'template', label: 'Template Output Instructions' },
+  ];
+  
+  function flushSection() {
+    if (currentSection && currentContent.length > 0) {
+      sections.push({
+        type: currentSection.type,
+        label: currentSection.label,
+        content: currentContent.join('\n')
+      });
+    }
+    currentContent = [];
+  }
+  
+  // Start with metadata section for the preamble
+  currentSection = { type: 'metadata', label: 'Request Metadata' };
+  
+  for (const line of lines) {
+    let matched = false;
+    
+    for (const pattern of sectionPatterns) {
+      if (pattern.pattern.test(line)) {
+        flushSection();
+        currentSection = { type: pattern.type, label: pattern.label || line.replace(/[#=]/g, '').trim() };
+        currentContent.push(line);
+        matched = true;
+        break;
+      }
+    }
+    
+    if (!matched) {
+      currentContent.push(line);
+    }
+  }
+  
+  // Flush final section
+  flushSection();
+  
+  return sections;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function renderFormattedPrompt(containerId, rawContent) {
+  const container = document.getElementById(containerId);
+  if (!container || !rawContent) return;
+  
+  const sections = parsePromptSections(rawContent);
+  
+  if (sections.length === 0) {
+    container.innerHTML = `<pre class="raw-display">${escapeHtml(rawContent)}</pre>`;
+    return;
+  }
+  
+  const typeLabels = {
+    metadata: { icon: 'fas fa-info-circle', badge: 'prompt-source-metadata', name: 'Metadata' },
+    template: { icon: 'fas fa-file-code', badge: 'prompt-source-template', name: 'Template' },
+    requirements: { icon: 'fas fa-list-check', badge: 'prompt-source-requirements', name: 'Requirements' },
+    scaffolding: { icon: 'fas fa-cubes', badge: 'prompt-source-scaffolding', name: 'Scaffolding' },
+  };
+  
+  let html = '';
+  for (const section of sections) {
+    const typeInfo = typeLabels[section.type] || typeLabels.metadata;
+    html += `
+      <div class="prompt-section section-${section.type}">
+        <div class="prompt-section-header">
+          <span class="badge ${typeInfo.badge}">
+            <i class="${typeInfo.icon} me-1"></i>${typeInfo.name}
+          </span>
+          ${section.label ? `<span class="text-muted">${escapeHtml(section.label)}</span>` : ''}
+        </div>
+        <div class="prompt-section-content">${escapeHtml(section.content)}</div>
+      </div>
+    `;
+  }
+  
+  container.innerHTML = html;
+}
+
+// Initialize formatted displays when section is shown
+document.addEventListener('DOMContentLoaded', function() {
+  // Render backend prompt when accordion opens
+  const backendCollapse = document.getElementById('collapseBackendPrompt');
+  if (backendCollapse) {
+    // Render immediately if already expanded
+    if (backendCollapse.classList.contains('show')) {
+      const container = document.getElementById('backend-prompt-formatted');
+      if (container) {
+        renderFormattedPrompt('backend-prompt-formatted', container.dataset.rawContent);
+      }
+    }
+    // Render on expand
+    backendCollapse.addEventListener('shown.bs.collapse', function() {
+      const container = document.getElementById('backend-prompt-formatted');
+      if (container && !container.dataset.rendered) {
+        renderFormattedPrompt('backend-prompt-formatted', container.dataset.rawContent);
+        container.dataset.rendered = 'true';
+      }
+    });
+  }
+  
+  // Render frontend prompt when accordion opens
+  const frontendCollapse = document.getElementById('collapseFrontendPrompt');
+  if (frontendCollapse) {
+    frontendCollapse.addEventListener('shown.bs.collapse', function() {
+      const container = document.getElementById('frontend-prompt-formatted');
+      if (container && !container.dataset.rendered) {
+        renderFormattedPrompt('frontend-prompt-formatted', container.dataset.rawContent);
+        container.dataset.rendered = 'true';
+      }
+    });
+  }
+});
+
+// Also handle HTMX loads
+document.body.addEventListener('htmx:afterSettle', function(evt) {
+  const backendContainer = document.getElementById('backend-prompt-formatted');
+  if (backendContainer && !backendContainer.dataset.rendered) {
+    const backendCollapse = document.getElementById('collapseBackendPrompt');
+    if (backendCollapse && backendCollapse.classList.contains('show')) {
+      renderFormattedPrompt('backend-prompt-formatted', backendContainer.dataset.rawContent);
+      backendContainer.dataset.rendered = 'true';
+    }
+  }
+});
 </script>
