@@ -4,7 +4,11 @@ Pipeline Execution Model
 
 Persists automation pipeline state to the database for reliability.
 Pipelines survive server restarts and can be resumed.
-"""
+Pipeline stages:
+- Generation: Create sample applications from templates
+- Analysis: Run static/dynamic/performance/AI analysis on generated apps
+
+Note: Reports stage was removed (Dec 2025) - use Reports module separately."""
 
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
@@ -70,7 +74,28 @@ class PipelineExecution(db.Model):
     user = db.relationship('User', backref=db.backref('pipeline_executions', lazy='dynamic'))
     
     def __init__(self, user_id: int, config: Dict[str, Any], name: Optional[str] = None):
-        """Initialize a new pipeline execution."""
+        """Initialize a new pipeline execution.
+        
+        Config structure:
+        {
+            'generation': {
+                'mode': 'generate' | 'existing',
+                'models': [...],
+                'templates': [...],
+                'existingApps': [...],  # For existing mode
+            },
+            'analysis': {
+                'enabled': True,
+                'tools': [...],
+                'options': {
+                    'parallel': True,
+                    'maxConcurrentTasks': 3,  # Default parallelism limit
+                    'autoStartContainers': True,
+                    'stopAfterAnalysis': True,
+                },
+            },
+        }
+        """
         self.pipeline_id = f"pipeline_{uuid.uuid4().hex[:12]}"
         self.user_id = user_id
         self.name = name
@@ -91,7 +116,11 @@ class PipelineExecution(db.Model):
             total_generation_jobs = len(models) * len(templates)
         
         analysis_enabled = config.get('analysis', {}).get('enabled', True)
-        reports_enabled = config.get('reports', {}).get('enabled', True)
+        analysis_options = config.get('analysis', {}).get('options', {})
+        
+        # Parallelism configuration (default: 3 concurrent tasks)
+        max_concurrent = analysis_options.get('maxConcurrentTasks', 3)
+        use_parallel = analysis_options.get('parallel', True)  # Default to parallel for batch efficiency
         
         progress = {
             'generation': {
@@ -107,13 +136,9 @@ class PipelineExecution(db.Model):
                 'failed': 0,
                 'status': 'pending' if analysis_enabled else 'skipped',
                 'task_ids': [],
-            },
-            'reports': {
-                'total': 1 if reports_enabled else 0,
-                'completed': 0,
-                'failed': 0,
-                'status': 'pending' if reports_enabled else 'skipped',
-                'report_ids': [],
+                # Parallelism tracking for batch analysis
+                'max_concurrent': max_concurrent if use_parallel else 1,
+                'in_flight': 0,  # Currently running tasks
             },
         }
         self.progress_json = json.dumps(progress)
@@ -190,8 +215,9 @@ class PipelineExecution(db.Model):
             done = progress['analysis']['completed'] + progress['analysis']['failed']
             if done >= total:
                 progress['analysis']['status'] = 'completed'
-                self.current_stage = 'reports'
-                self.current_job_index = 0
+                self.current_stage = 'done'
+                self.status = PipelineExecutionStatus.COMPLETED
+                self.completed_at = datetime.now(timezone.utc)
         else:
             # For real task IDs, track them but don't mark completed yet
             # The pipeline executor will poll for actual completion
@@ -228,36 +254,14 @@ class PipelineExecution(db.Model):
         
         if done >= actual_total and actual_total > 0:
             progress['analysis']['status'] = 'completed'
-            self.current_stage = 'reports'
-            self.current_job_index = 0
+            self.current_stage = 'done'
+            self.status = PipelineExecutionStatus.COMPLETED
+            self.completed_at = datetime.now(timezone.utc)
             self.progress = progress
             return True
         
         self.progress = progress
         return False
-    
-    def add_report_id(self, report_id: str, success: bool = True) -> None:
-        """Record a generated report."""
-        progress = self.progress
-        progress['reports']['report_ids'].append(report_id)
-        
-        if success:
-            progress['reports']['completed'] += 1
-        else:
-            progress['reports']['failed'] += 1
-        
-        # Check if reports are complete
-        total = progress['reports']['total']
-        done = progress['reports']['completed'] + progress['reports']['failed']
-        if done >= total:
-            progress['reports']['status'] = 'completed'
-            self.current_stage = 'done'
-            self.status = PipelineExecutionStatus.COMPLETED
-            self.completed_at = datetime.now(timezone.utc)
-        else:
-            progress['reports']['status'] = 'running'
-        
-        self.progress = progress
     
     def start(self) -> None:
         """Mark pipeline as started."""
@@ -289,12 +293,15 @@ class PipelineExecution(db.Model):
         self.completed_at = datetime.now(timezone.utc)
     
     def get_overall_progress(self) -> float:
-        """Calculate overall progress percentage (0-100)."""
+        """Calculate overall progress percentage (0-100).
+        
+        Progress is split between generation (50%) and analysis (50%).
+        If analysis is disabled, generation is 100%.
+        """
         progress = self.progress
         
         gen = progress.get('generation', {})
         analysis = progress.get('analysis', {})
-        reports = progress.get('reports', {})
         
         gen_total = gen.get('total', 0)
         gen_done = gen.get('completed', 0) + gen.get('failed', 0)
@@ -302,16 +309,18 @@ class PipelineExecution(db.Model):
         analysis_total = analysis.get('total', 0)
         analysis_done = analysis.get('completed', 0) + analysis.get('failed', 0)
         
-        reports_total = reports.get('total', 0)
-        reports_done = reports.get('completed', 0) + reports.get('failed', 0)
-        
-        total_jobs = gen_total + analysis_total + reports_total
-        done_jobs = gen_done + analysis_done + reports_done
-        
-        if total_jobs == 0:
+        # If both stages have 0 jobs, return 0
+        if gen_total == 0 and analysis_total == 0:
             return 0.0
         
-        return round((done_jobs / total_jobs) * 100, 1)
+        # Calculate stage-weighted progress
+        gen_weight = 0.5 if analysis_total > 0 else 1.0
+        analysis_weight = 0.5 if analysis_total > 0 else 0.0
+        
+        gen_progress = (gen_done / gen_total * 100) if gen_total > 0 else 100.0
+        analysis_progress = (analysis_done / analysis_total * 100) if analysis_total > 0 else 0.0
+        
+        return round(gen_progress * gen_weight + analysis_progress * analysis_weight, 1)
     
     def get_next_job(self) -> Optional[Dict[str, Any]]:
         """Get the next job to execute based on current stage and index."""
@@ -379,8 +388,12 @@ class PipelineExecution(db.Model):
                     return None
                 
                 app_ref = existing_apps[job_index]
-                # app_ref is "model_slug:app_number" format
-                model_slug, app_number = app_ref.rsplit(':', 1)
+                # app_ref can be dict {"model": "...", "app": N} or string "model_slug:N"
+                if isinstance(app_ref, dict):
+                    model_slug = app_ref.get('model')
+                    app_number = app_ref.get('app')
+                else:
+                    model_slug, app_number = app_ref.rsplit(':', 1)
                 
                 logger.debug("[get_next_job] Returning analysis job for %s:%s", model_slug, app_number)
                 return {
@@ -408,23 +421,7 @@ class PipelineExecution(db.Model):
                     'success': gen_result.get('success', False),
                 }
         
-        elif self.current_stage == 'reports':
-            reports_config = config.get('reports', {})
-            if not reports_config.get('enabled', True):
-                return None
-            
-            if self.current_job_index > 0:
-                return None
-            
-            gen_results = progress.get('generation', {}).get('results', [])
-            successful_apps = [r for r in gen_results if r.get('success')]
-            
-            return {
-                'stage': 'reports',
-                'job_index': 0,
-                'apps': successful_apps,
-            }
-        
+        # Pipeline only has generation and analysis stages (reports removed Dec 2025)
         return None
     
     def advance_job_index(self) -> None:

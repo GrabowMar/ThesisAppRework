@@ -2,15 +2,20 @@
 ==============================
 
 Background daemon service that processes automation pipelines.
-Similar to TaskExecutionService but handles the multi-stage pipeline workflow:
-Generation → Analysis → Reports
+Handles the two-stage pipeline workflow: Generation → Analysis
 
 Key features:
 - Polls database for running pipelines
-- Executes jobs sequentially within each stage
-- Handles stage transitions automatically
-- Checks analyzer service health before analysis stage
+- Executes generation jobs sequentially
+- Executes analysis jobs with configurable parallelism (default: 3 concurrent)
+- Automatic container management (start at pipeline start, stop on completion)
+- Pre-flight health checks before analysis
 - Emits real-time updates via WebSocket if available
+
+Architecture:
+- Uses main task + subtasks pattern for parallel analysis (like TaskExecutionService)
+- Tracks in-flight task count for parallelism control
+- Respects maxConcurrentTasks config setting
 """
 
 from __future__ import annotations
@@ -19,8 +24,9 @@ import threading
 import time
 import logging
 import asyncio
+from concurrent.futures import ThreadPoolExecutor, Future, as_completed
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Set
 
 from app.utils.logging_config import get_logger
 from app.extensions import db, get_components
@@ -30,6 +36,9 @@ from app.services.service_locator import ServiceLocator
 
 logger = get_logger("pipeline_executor")
 
+# Default parallelism limit for analysis tasks
+DEFAULT_MAX_CONCURRENT_TASKS = 3
+
 
 class PipelineExecutionService:
     """Background service for executing automation pipelines.
@@ -37,8 +46,9 @@ class PipelineExecutionService:
     Lifecycle:
     - Polls DB for pipelines with status='running'
     - For each running pipeline, executes the next pending job
-    - Handles stage transitions (generation → analysis → reports)
-    - Checks analyzer health before analysis stage
+    - Handles stage transitions (generation → analysis → done)
+    - Auto-manages containers (start before analysis, stop after completion)
+    - Supports parallel analysis execution with configurable limits
     """
     
     def __init__(self, poll_interval: float = 3.0, app=None):
@@ -54,10 +64,18 @@ class PipelineExecutionService:
         self._running = False
         self._current_pipeline_id: Optional[str] = None
         
+        # Parallel analysis execution
+        self._analysis_executor: Optional[ThreadPoolExecutor] = None
+        self._analysis_futures: Dict[str, Dict[str, Future]] = {}  # pipeline_id -> {task_id -> Future}
+        self._in_flight_tasks: Dict[str, Set[str]] = {}  # pipeline_id -> set of task_ids
+        
         # Analyzer health cache
         self._analyzer_healthy: Optional[bool] = None
         self._analyzer_check_time: float = 0.0
         self._analyzer_check_interval: float = 60.0  # Re-check every 60 seconds
+        
+        # Container management state
+        self._containers_started_for: Set[str] = set()  # pipeline_ids with auto-started containers
         
         self._log("PipelineExecutionService initialized (poll_interval=%s)", poll_interval)
     
@@ -73,6 +91,13 @@ class PipelineExecutionService:
             return
         
         self._running = True
+        
+        # Initialize thread pool for parallel analysis
+        self._analysis_executor = ThreadPoolExecutor(
+            max_workers=8,  # Allow up to 8 concurrent threads (actual limit controlled per-pipeline)
+            thread_name_prefix="pipeline_analysis"
+        )
+        
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
         self._log("PipelineExecutionService started")
@@ -80,8 +105,15 @@ class PipelineExecutionService:
     def stop(self):
         """Stop the background execution thread."""
         self._running = False
+        
+        # Shutdown thread pool
+        if self._analysis_executor:
+            self._analysis_executor.shutdown(wait=True, cancel_futures=False)
+            self._analysis_executor = None
+        
         if self._thread:
             self._thread.join(timeout=5)
+        
         self._log("PipelineExecutionService stopped")
     
     def _run_loop(self):
@@ -115,6 +147,8 @@ class PipelineExecutionService:
                             try:
                                 pipeline.fail(str(e))
                                 db.session.commit()
+                                # Clean up containers on failure
+                                self._cleanup_pipeline_containers(pipeline.pipeline_id)
                             except Exception:
                                 db.session.rollback()
                         finally:
@@ -126,7 +160,7 @@ class PipelineExecutionService:
                 time.sleep(self.poll_interval)
     
     def _process_pipeline(self, pipeline: PipelineExecution):
-        """Process a single pipeline - execute its next job."""
+        """Process a single pipeline - execute its next job or check completion."""
         # Debug: Log current state before getting next job
         status_val = pipeline.status.value if hasattr(pipeline.status, 'value') else str(pipeline.status)
         self._log(
@@ -135,7 +169,12 @@ class PipelineExecutionService:
             pipeline.current_job_index, status_val
         )
         
-        # Get next job to execute
+        # Handle analysis stage with parallel execution
+        if pipeline.current_stage == 'analysis':
+            self._process_analysis_stage(pipeline)
+            return
+        
+        # Get next job to execute (generation stage)
         job = pipeline.get_next_job()
         
         if job is None:
@@ -152,18 +191,248 @@ class PipelineExecutionService:
             pipeline.pipeline_id, job['stage'], job.get('job_index', 0)
         )
         
-        # Execute based on stage (reports stage removed - pipeline completes after analysis)
+        # Execute generation job
         if job['stage'] == 'generation':
             self._execute_generation_job(pipeline, job)
-        elif job['stage'] == 'analysis':
-            self._execute_analysis_job(pipeline, job)
+            pipeline.advance_job_index()
+            db.session.commit()
+            self._emit_progress_update(pipeline)
+    
+    def _process_analysis_stage(self, pipeline: PipelineExecution):
+        """Process analysis stage with parallel execution.
         
-        # Advance to next job
-        pipeline.advance_job_index()
+        This method:
+        1. Starts containers if needed (first time in analysis stage)
+        2. Submits analysis tasks up to parallelism limit
+        3. Tracks in-flight tasks and polls for completion
+        4. Transitions to done stage when all tasks complete
+        """
+        pipeline_id = pipeline.pipeline_id
+        progress = pipeline.progress
+        config = pipeline.config
+        
+        # Get parallelism settings
+        analysis_opts = config.get('analysis', {}).get('options', {})
+        max_concurrent = progress.get('analysis', {}).get('max_concurrent', DEFAULT_MAX_CONCURRENT_TASKS)
+        
+        # Initialize tracking for this pipeline
+        if pipeline_id not in self._in_flight_tasks:
+            self._in_flight_tasks[pipeline_id] = set()
+        
+        # STEP 1: Start containers if this is the first analysis job
+        if pipeline.current_job_index == 0 and pipeline_id not in self._containers_started_for:
+            auto_start = analysis_opts.get('autoStartContainers', True)  # Default to True for pipelines
+            if auto_start:
+                if not self._ensure_analyzers_healthy(pipeline):
+                    # Failed to start containers - fail pipeline
+                    error_msg = (
+                        "Failed to start analyzer containers. "
+                        "Please check Docker is running and try again."
+                    )
+                    self._log("Failing pipeline %s - container startup failed", pipeline_id, level='error')
+                    pipeline.fail(error_msg)
+                    db.session.commit()
+                    return
+                self._containers_started_for.add(pipeline_id)
+            else:
+                # Auto-start disabled - check if containers are healthy anyway
+                if not self._check_analyzers_running():
+                    error_msg = (
+                        "Analyzer services are not running. Either:\n"
+                        "1. Start containers manually: ./start.ps1 -Mode Start\n"
+                        "2. Or enable 'Auto-start containers' in pipeline settings"
+                    )
+                    self._log("Failing pipeline %s - analyzers not running", pipeline_id, level='error')
+                    pipeline.fail(error_msg)
+                    db.session.commit()
+                    return
+        
+        # STEP 2: Check completed in-flight tasks
+        self._check_completed_analysis_tasks(pipeline)
+        
+        # STEP 3: Submit new tasks up to parallelism limit
+        in_flight_count = len(self._in_flight_tasks.get(pipeline_id, set()))
+        
+        while in_flight_count < max_concurrent:
+            job = pipeline.get_next_job()
+            if job is None:
+                break  # No more jobs to submit
+            
+            # Skip if generation failed for this job
+            if not job.get('success', False):
+                self._log(
+                    "Skipping analysis for %s app %s - generation failed",
+                    job.get('model_slug'), job.get('app_number')
+                )
+                pipeline.add_analysis_task_id('skipped', success=False)
+                pipeline.advance_job_index()
+                continue
+            
+            # Submit analysis task
+            task_id = self._submit_analysis_task(pipeline, job)
+            if task_id and not task_id.startswith('error:') and not task_id.startswith('skipped'):
+                self._in_flight_tasks[pipeline_id].add(task_id)
+                in_flight_count += 1
+            
+            pipeline.advance_job_index()
+        
         db.session.commit()
         
-        # Emit progress update
+        # STEP 4: Check if all analysis is complete
+        if self._check_analysis_tasks_completion(pipeline):
+            # Analysis complete - commit completion status and stop containers
+            db.session.commit()
+            self._cleanup_pipeline_containers(pipeline_id)
+        
         self._emit_progress_update(pipeline)
+    
+    def _submit_analysis_task(self, pipeline: PipelineExecution, job: Dict[str, Any]) -> str:
+        """Create and submit a single analysis task.
+        
+        Returns task_id on success, or error/skipped marker on failure.
+        """
+        model_slug = job['model_slug']
+        app_number = job['app_number']
+        pipeline_id = pipeline.pipeline_id
+        
+        # Check for duplicate task (prevents issues on server restart)
+        progress = pipeline.progress
+        existing_task_ids = progress.get('analysis', {}).get('task_ids', [])
+        
+        for task_id in existing_task_ids:
+            if task_id.startswith('skipped') or task_id.startswith('error:'):
+                continue
+            existing_task = AnalysisTask.query.filter_by(task_id=task_id).first()
+            if (existing_task and 
+                existing_task.target_model == model_slug and 
+                existing_task.target_app_number == app_number):
+                self._log(
+                    "Skipping duplicate analysis task for %s app %d (already have %s)",
+                    model_slug, app_number, task_id
+                )
+                return task_id  # Return existing task ID
+        
+        self._log("Creating analysis task for %s app %d", model_slug, app_number)
+        
+        try:
+            from app.services.task_service import AnalysisTaskService
+            from app.engines.container_tool_registry import get_container_tool_registry
+            
+            # Get analysis config
+            config = pipeline.config
+            analysis_config = config.get('analysis', {})
+            tools = analysis_config.get('tools', [])
+            
+            # Get default tools if none specified
+            if not tools:
+                try:
+                    registry = get_container_tool_registry()
+                    all_tools = registry.get_all_tools()
+                    tools = [t.name for t in all_tools.values() if t.available]
+                except Exception:
+                    tools = []
+            
+            # Create analysis task
+            task = AnalysisTaskService.create_task(
+                model_slug=model_slug,
+                app_number=app_number,
+                tools=tools,
+                priority='normal',
+                custom_options={
+                    'source': 'automation_pipeline',
+                    'pipeline_id': pipeline_id,
+                },
+            )
+            
+            pipeline.add_analysis_task_id(task.task_id, success=True)
+            
+            self._log(
+                "Created analysis task %s for %s app %d",
+                task.task_id, model_slug, app_number
+            )
+            return task.task_id
+            
+        except Exception as e:
+            self._log(
+                "Analysis task creation failed for %s app %d: %s",
+                model_slug, app_number, e,
+                level='error'
+            )
+            error_marker = f'error:{str(e)}'
+            pipeline.add_analysis_task_id(error_marker, success=False)
+            return error_marker
+    
+    def _check_completed_analysis_tasks(self, pipeline: PipelineExecution):
+        """Check which in-flight tasks have completed and update tracking."""
+        pipeline_id = pipeline.pipeline_id
+        in_flight = self._in_flight_tasks.get(pipeline_id, set()).copy()
+        
+        for task_id in in_flight:
+            task = AnalysisTask.query.filter_by(task_id=task_id).first()
+            if not task:
+                # Task not found - remove from tracking
+                self._in_flight_tasks[pipeline_id].discard(task_id)
+                continue
+            
+            if task.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS,
+                              AnalysisStatus.FAILED, AnalysisStatus.CANCELLED):
+                # Task reached terminal state - remove from in-flight
+                self._in_flight_tasks[pipeline_id].discard(task_id)
+                self._log(
+                    "Task %s completed with status %s",
+                    task_id, task.status.value if task.status else 'unknown'
+                )
+    
+    def _check_analyzers_running(self) -> bool:
+        """Quick check if analyzer containers are running (no auto-start)."""
+        try:
+            import sys
+            from pathlib import Path
+            from flask import current_app
+            
+            project_root = Path(current_app.root_path).parent.parent
+            if str(project_root) not in sys.path:
+                sys.path.insert(0, str(project_root))
+            
+            from analyzer.analyzer_manager import AnalyzerManager
+            manager = AnalyzerManager()
+            
+            containers = manager.get_container_status()
+            return all(
+                c.get('state') == 'running'
+                for c in containers.values()
+            ) if containers else False
+            
+        except Exception as e:
+            self._log("Error checking analyzer status: %s", e, level='error')
+            return False
+    
+    def _cleanup_pipeline_containers(self, pipeline_id: str):
+        """Stop containers if they were auto-started for this pipeline."""
+        if pipeline_id not in self._containers_started_for:
+            return
+        
+        try:
+            import sys
+            from pathlib import Path
+            from flask import current_app
+            
+            project_root = Path(current_app.root_path).parent.parent
+            if str(project_root) not in sys.path:
+                sys.path.insert(0, str(project_root))
+            
+            from analyzer.analyzer_manager import AnalyzerManager
+            manager = AnalyzerManager()
+            
+            self._log("Stopping analyzer containers (auto-started for pipeline %s)", pipeline_id)
+            manager.stop_services()
+            
+        except Exception as e:
+            self._log("Error stopping containers: %s", e, level='warning')
+        finally:
+            self._containers_started_for.discard(pipeline_id)
+            # Clean up in-flight tracking
+            self._in_flight_tasks.pop(pipeline_id, None)
     
     def _check_stage_transition(self, pipeline: PipelineExecution):
         """Check if pipeline should transition to next stage or complete."""
@@ -207,22 +476,20 @@ class PipelineExecutionService:
                     self._log("Pipeline %s completed (skipped analysis)", pipeline.pipeline_id)
         
         elif pipeline.current_stage == 'analysis':
-            # Poll actual task completion status from database
+            # This shouldn't normally happen since _process_analysis_stage handles completion
+            # But if called directly, poll actual task completion status
             analysis_done = self._check_analysis_tasks_completion(pipeline)
             
             if analysis_done:
-                # Reports stage removed - complete pipeline after analysis
-                pipeline.status = PipelineExecutionStatus.COMPLETED
-                pipeline.completed_at = datetime.now(timezone.utc)
-                pipeline.current_stage = 'done'
-                self._log("Pipeline %s completed", pipeline.pipeline_id)
+                # Pipeline complete after analysis (reports stage removed)
+                self._cleanup_pipeline_containers(pipeline.pipeline_id)
         
         db.session.commit()
     
     def _check_analysis_tasks_completion(self, pipeline: PipelineExecution) -> bool:
         """Check actual completion status of analysis tasks from DB.
         
-        Returns True if all tasks have reached a terminal state.
+        Returns True if all tasks have reached a terminal state and marks pipeline complete.
         """
         progress = pipeline.progress
         task_ids = progress.get('analysis', {}).get('task_ids', [])
@@ -233,27 +500,29 @@ class PipelineExecutionService:
         generation_mode = gen_config.get('mode', 'generate')
         
         if generation_mode == 'existing':
-            # Existing apps mode - count from existingApps
             expected_jobs = len(gen_config.get('existingApps', []))
         else:
-            # Generate mode - count from generation results
             gen_results = progress.get('generation', {}).get('results', [])
             expected_jobs = len(gen_results)
         
         if not task_ids:
-            # No tasks created yet - but are there jobs to process?
+            # No tasks created yet - check if jobs remain
             if expected_jobs > 0 and pipeline.current_job_index < expected_jobs:
                 self._log(
                     "Pipeline %s: No analysis tasks yet, but %d jobs remaining (index=%d)",
                     pipeline.pipeline_id, expected_jobs - pipeline.current_job_index, pipeline.current_job_index
                 )
-                return False  # Still have jobs to process, don't complete
+                return False
             else:
                 self._log(
                     "Pipeline %s: No analysis tasks to wait for (expected=%d, index=%d)",
                     pipeline.pipeline_id, expected_jobs, pipeline.current_job_index
                 )
-                return True  # No tasks to wait for
+                # Mark as complete
+                pipeline.status = PipelineExecutionStatus.COMPLETED
+                pipeline.completed_at = datetime.now(timezone.utc)
+                pipeline.current_stage = 'done'
+                return True
         
         completed_count = 0
         failed_count = 0
@@ -265,14 +534,10 @@ class PipelineExecutionService:
                 failed_count += 1
                 continue
             
-            # Query actual task status from database
+            # Query actual task status
             task = AnalysisTask.query.filter_by(task_id=task_id).first()
             if not task:
-                # Task not found - treat as failed
-                self._log(
-                    "Analysis task %s not found in database",
-                    task_id, level='warning'
-                )
+                self._log("Analysis task %s not found in database", task_id, level='warning')
                 failed_count += 1
                 continue
             
@@ -283,7 +548,6 @@ class PipelineExecutionService:
             elif task.status in (AnalysisStatus.FAILED, AnalysisStatus.CANCELLED):
                 failed_count += 1
             else:
-                # PENDING, RUNNING, or other active states
                 pending_count += 1
         
         total_tasks = len(task_ids)
@@ -291,12 +555,7 @@ class PipelineExecutionService:
         
         self._log(
             "Pipeline %s analysis status: %d/%d terminal (completed=%d, failed=%d, pending=%d)",
-            pipeline.pipeline_id,
-            terminal_count,
-            total_tasks,
-            completed_count,
-            failed_count,
-            pending_count
+            pipeline.pipeline_id, terminal_count, total_tasks, completed_count, failed_count, pending_count
         )
         
         # Must wait for ALL tasks to reach terminal state
@@ -308,10 +567,7 @@ class PipelineExecutionService:
         
         self._log(
             "Pipeline %s: All %d analysis tasks finished (%d success, %d failed)",
-            pipeline.pipeline_id,
-            total_tasks,
-            completed_count,
-            failed_count
+            pipeline.pipeline_id, total_tasks, completed_count, failed_count
         )
         return True
     
@@ -396,319 +652,11 @@ class PipelineExecutionService:
         # NOTE: Don't commit here - let _process_pipeline commit atomically
         # with advance_job_index() to prevent duplicate jobs on restart
     
-    def _execute_analysis_job(self, pipeline: PipelineExecution, job: Dict[str, Any]):
-        """Execute a single analysis job."""
-        # Skip if generation failed
-        if not job.get('success', False):
-            self._log(
-                "Skipping analysis for %s app %s - generation failed",
-                job.get('model_slug'), job.get('app_number')
-            )
-            pipeline.add_analysis_task_id('skipped', success=False)
-            # NOTE: Don't commit here - let _process_pipeline commit atomically
-            return
-        
-        model_slug = job['model_slug']
-        app_number = job['app_number']
-        
-        # Check if we already created a task for this app in this pipeline
-        # (prevents duplicates on server restart)
-        progress = pipeline.progress
-        existing_task_ids = progress.get('analysis', {}).get('task_ids', [])
-        
-        # Check if any existing task targets this app
-        for task_id in existing_task_ids:
-            if task_id.startswith('skipped') or task_id.startswith('error:'):
-                continue
-            existing_task = AnalysisTask.query.filter_by(task_id=task_id).first()
-            if (existing_task and 
-                existing_task.target_model == model_slug and 
-                existing_task.target_app_number == app_number):
-                self._log(
-                    "Skipping duplicate analysis task for %s app %d (already have %s)",
-                    model_slug, app_number, task_id
-                )
-                return  # Already have a task for this app
-        
-        # Check analyzer health on first analysis job
-        if job['job_index'] == 0:
-            if not self._ensure_analyzers_healthy(pipeline):
-                # Analyzers not available - check if auto-start was disabled
-                config = pipeline.config
-                auto_start = config.get('analysis', {}).get('options', {}).get('autoStartContainers', False)
-                
-                if not auto_start:
-                    # User didn't enable auto-start - fail pipeline with helpful message
-                    error_msg = (
-                        "Analyzer services are not running. Either:\n"
-                        "1. Start containers manually: ./start.ps1 -Mode Start\n"
-                        "2. Or enable 'Auto-start containers' in pipeline settings"
-                    )
-                    self._log(
-                        "Failing pipeline %s - analyzers unavailable and auto-start disabled",
-                        pipeline.pipeline_id,
-                        level='error'
-                    )
-                    pipeline.fail(error_msg)
-                    db.session.commit()
-                    return
-                else:
-                    # Auto-start was enabled but failed
-                    self._log(
-                        "Analyzer services failed to start for pipeline %s - continuing with degraded analysis",
-                        pipeline.pipeline_id,
-                        level='warning'
-                    )
-        
-        self._log(
-            "Creating analysis task for %s app %d",
-            model_slug, app_number
-        )
-        
-        try:
-            from app.services.task_service import AnalysisTaskService
-            from app.engines.container_tool_registry import get_container_tool_registry
-            
-            # Get analysis config
-            config = pipeline.config
-            analysis_config = config.get('analysis', {})
-            profile = analysis_config.get('profile', 'comprehensive')
-            tools = analysis_config.get('tools', [])
-            options = analysis_config.get('options', {})
-            
-            # Get default tools if none specified
-            if not tools:
-                try:
-                    registry = get_container_tool_registry()
-                    all_tools = registry.get_all_tools()
-                    tools = [t.name for t in all_tools.values() if t.available]
-                except Exception:
-                    tools = []
-            
-            # Build container management options
-            # For pipelines, we want to:
-            # 1. Build and start containers before analysis (if autoStartContainers is enabled)
-            # 2. Stop containers after successful analysis (always, to clean up resources)
-            container_management = {}
-            if options.get('autoStartContainers', False):
-                container_management = {
-                    'start_before_analysis': True,
-                    'build_if_missing': True,
-                    'stop_after_analysis': options.get('stopAfterAnalysis', True),  # Default to True for cleanup
-                }
-            
-            # Create analysis task
-            task = AnalysisTaskService.create_task(
-                model_slug=model_slug,
-                app_number=app_number,
-                tools=tools,
-                priority='normal',
-                custom_options={
-                    'source': 'automation_pipeline',
-                    'pipeline_id': pipeline.pipeline_id,
-                    'container_management': container_management,
-                },
-            )
-            
-            pipeline.add_analysis_task_id(task.task_id, success=True)
-            
-            self._log(
-                "Created analysis task %s for %s app %d",
-                task.task_id, model_slug, app_number
-            )
-            
-        except Exception as e:
-            self._log(
-                "Analysis task creation failed for %s app %d: %s",
-                model_slug, app_number, e,
-                level='error'
-            )
-            pipeline.add_analysis_task_id(f'error:{str(e)}', success=False)
-        
-        # NOTE: Don't commit here - let _process_pipeline commit atomically
-        # with advance_job_index() to prevent duplicate jobs on restart
-    
-    def _execute_reports_job(self, pipeline: PipelineExecution, job: Dict[str, Any]):
-        """Execute report generation job."""
-        # Get apps from job - these are apps where generation succeeded
-        generated_apps = job.get('apps', [])
-        
-        if not generated_apps:
-            self._log(
-                "No generated apps to report on for pipeline %s",
-                pipeline.pipeline_id,
-                level='warning'
-            )
-            pipeline.add_report_id('skipped', success=False)
-            db.session.commit()
-            return
-        
-        # Filter to only apps with analysis tasks that exist (completed, failed, or partial)
-        # This supports Option B: including failed analyses with placeholder data
-        progress = pipeline.progress
-        task_ids = progress.get('analysis', {}).get('task_ids', [])
-        
-        # Build mapping of app_number -> analysis status
-        apps_with_analysis = []
-        for app_result in generated_apps:
-            app_number = app_result.get('app_number')
-            model_slug = app_result.get('model_slug')
-            
-            # Find the analysis task for this app
-            has_analysis_task = False
-            for task_id in task_ids:
-                if task_id.startswith('skipped') or task_id.startswith('error:'):
-                    continue
-                task = AnalysisTask.query.filter_by(task_id=task_id).first()
-                if task and task.target_model == model_slug and task.target_app_number == app_number:
-                    # Found analysis task for this app - include regardless of status
-                    # Report generator handles failed analyses with placeholder (Option B)
-                    apps_with_analysis.append({
-                        **app_result,
-                        'analysis_task_id': task_id,
-                        'analysis_status': task.status.value if task.status else 'unknown'
-                    })
-                    has_analysis_task = True
-                    break
-            
-            if not has_analysis_task:
-                self._log(
-                    "No analysis task found for %s app %d, skipping report",
-                    model_slug, app_number,
-                    level='warning'
-                )
-        
-        if not apps_with_analysis:
-            self._log(
-                "No apps with analysis tasks to report on for pipeline %s",
-                pipeline.pipeline_id,
-                level='warning'
-            )
-            pipeline.add_report_id('skipped:no_analyses', success=False)
-            db.session.commit()
-            return
-        
-        self._log(
-            "Generating reports for %d apps in pipeline %s",
-            len(apps_with_analysis), pipeline.pipeline_id
-        )
-        
-        try:
-            from app.services.report_generation_service import ReportGenerationService
-            from flask import current_app
-            
-            report_service = ServiceLocator.get_report_service()
-            if report_service is None:
-                report_service = ReportGenerationService(current_app)
-            
-            config = pipeline.config
-            reports_config = config.get('reports', {})
-            report_types = reports_config.get('types', ['model_analysis'])  # Default to model_analysis
-            report_format = reports_config.get('format', 'html')
-            
-            created_reports = []
-            
-            # Group apps by model for model_analysis reports
-            models_to_apps = {}
-            for app_result in apps_with_analysis:
-                model = app_result.get('model_slug')
-                if model not in models_to_apps:
-                    models_to_apps[model] = []
-                models_to_apps[model].append(app_result.get('app_number'))
-            
-            for report_type in report_types:
-                if report_type == 'model_analysis':
-                    # Generate one report per model (showing all its apps)
-                    for model_slug, app_numbers in models_to_apps.items():
-                        report_config = {
-                            'model_slug': model_slug,
-                            'filter_apps': app_numbers,  # Only include apps from this pipeline
-                        }
-                        
-                        report = report_service.generate_report(
-                            report_type=report_type,
-                            format=report_format,
-                            config=report_config,
-                            title=f"Pipeline Report - {model_slug} ({len(app_numbers)} apps)",
-                            user_id=pipeline.user_id,
-                        )
-                        created_reports.append(report.report_id)
-                        self._log(
-                            "Generated model_analysis report for %s with %d apps",
-                            model_slug, len(app_numbers)
-                        )
-                
-                elif report_type == 'app_analysis':
-                    # Generate cross-model comparison for each template
-                    # Group apps by template_slug
-                    templates_to_models = {}
-                    for r in apps_with_analysis:
-                        template = r.get('template_slug')
-                        if template:
-                            if template not in templates_to_models:
-                                templates_to_models[template] = []
-                            templates_to_models[template].append(r.get('model_slug'))
-                    
-                    for template_slug, models_for_template in templates_to_models.items():
-                        # Deduplicate models
-                        unique_models = list(set(models_for_template))
-                        report_config = {
-                            'template_slug': template_slug,
-                            'filter_models': unique_models,
-                        }
-                        
-                        report = report_service.generate_report(
-                            report_type=report_type,
-                            format=report_format,
-                            config=report_config,
-                            title=f"Pipeline Report - {template_slug} ({len(unique_models)} models)",
-                            user_id=pipeline.user_id,
-                        )
-                        created_reports.append(report.report_id)
-                        self._log(
-                            "Generated template comparison report for %s with %d models",
-                            template_slug, len(unique_models)
-                        )
-                
-                elif report_type == 'tool_analysis':
-                    # Tool effectiveness report across all apps in pipeline
-                    report_config = {
-                        'filter_models': list(models_to_apps.keys()),
-                        'filter_apps': list(set(r.get('app_number') for r in apps_with_analysis)),
-                    }
-                    
-                    report = report_service.generate_report(
-                        report_type=report_type,
-                        format=report_format,
-                        config=report_config,
-                        title=f"Pipeline Tool Analysis ({len(apps_with_analysis)} apps)",
-                        user_id=pipeline.user_id,
-                    )
-                    created_reports.append(report.report_id)
-            
-            # Record reports
-            for report_id in created_reports:
-                pipeline.add_report_id(report_id, success=True)
-            
-            self._log(
-                "Generated %d reports for pipeline %s",
-                len(created_reports), pipeline.pipeline_id
-            )
-            
-        except Exception as e:
-            self._log(
-                "Report generation failed for pipeline %s: %s",
-                pipeline.pipeline_id, e,
-                level='error'
-            )
-            pipeline.add_report_id(f'error:{str(e)}', success=False)
-        
-        db.session.commit()
-    
     def _ensure_analyzers_healthy(self, pipeline: PipelineExecution) -> bool:
         """Check and optionally start analyzer containers.
         
         Returns True if analyzers are healthy or were successfully started.
+        Uses smarter restart logic to avoid unnecessary rebuilds.
         """
         # Check cache first
         current_time = time.time()
@@ -717,8 +665,10 @@ class PipelineExecutionService:
             return self._analyzer_healthy
         
         config = pipeline.config
-        analysis_options = config.get('analysis', {}).get('options', {})
-        auto_start = analysis_options.get('autoStartContainers', False)
+        analysis_config = config.get('analysis', {})
+        # Check both analysis.autoStartContainers and analysis.options.autoStartContainers
+        auto_start = analysis_config.get('autoStartContainers', 
+                                         analysis_config.get('options', {}).get('autoStartContainers', True))
         
         try:
             import sys
@@ -741,11 +691,14 @@ class PipelineExecutionService:
                 for c in containers.values()
             ) if containers else False
             
-            # Check port accessibility
-            all_ports_accessible = all(
-                manager.check_port_accessibility('localhost', service_info.port)
-                for service_info in manager.services.values()
-            )
+            # Check port accessibility with retries (ports can be temporarily unavailable)
+            def check_all_ports():
+                return all(
+                    manager.check_port_accessibility('localhost', service_info.port)
+                    for service_info in manager.services.values()
+                )
+            
+            all_ports_accessible = check_all_ports()
             
             if all_running and all_ports_accessible:
                 self._analyzer_healthy = True
@@ -753,11 +706,35 @@ class PipelineExecutionService:
                 self._log("Analyzer containers healthy")
                 return True
             
-            # Need to start containers if auto_start is enabled
+            # If containers are running but ports not accessible, wait a bit before giving up
+            if all_running and not all_ports_accessible:
+                self._log("Containers running but ports not accessible, waiting...")
+                for _ in range(5):  # Wait up to 15 seconds
+                    time.sleep(3)
+                    if check_all_ports():
+                        self._log("Ports now accessible")
+                        self._analyzer_healthy = True
+                        self._analyzer_check_time = current_time
+                        return True
+                self._log("Ports still not accessible after waiting", level='warning')
+            
+            # Need to start/restart containers if auto_start is enabled
             if auto_start:
-                self._log("Starting analyzer containers...")
+                if all_running:
+                    # Containers are running but unhealthy - use quick restart
+                    self._log("Restarting analyzer containers (quick restart)...")
+                    returncode, stdout, stderr = manager.run_command(
+                        manager._compose_cmd + ['restart'], timeout=60
+                    )
+                    success = returncode == 0
+                else:
+                    # Containers not running - start without rebuild
+                    self._log("Starting analyzer containers...")
+                    returncode, stdout, stderr = manager.run_command(
+                        manager._compose_cmd + ['up', '-d'], timeout=60
+                    )
+                    success = returncode == 0
                 
-                success = manager.start_services()
                 if not success:
                     self._log("Failed to start analyzer containers", level='error')
                     self._analyzer_healthy = False
@@ -765,21 +742,15 @@ class PipelineExecutionService:
                     return False
                 
                 # Wait for containers to become healthy
-                max_wait = 90
+                max_wait = 60  # Reduced from 90
                 start_time = time.time()
                 
                 while time.time() - start_time < max_wait:
-                    all_accessible = all(
-                        manager.check_port_accessibility('localhost', service_info.port)
-                        for service_info in manager.services.values()
-                    )
-                    
-                    if all_accessible:
+                    if check_all_ports():
                         self._log("Analyzer containers started and healthy")
                         self._analyzer_healthy = True
                         self._analyzer_check_time = current_time
                         return True
-                    
                     time.sleep(3)
                 
                 self._log("Timeout waiting for analyzer containers", level='warning')

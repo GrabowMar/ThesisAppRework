@@ -16,9 +16,9 @@ const AutomationWizard = {
         existingApps: [], // for existing apps mode
         analysisTools: [],
         analysisOptions: {
-            waitForCompletion: true,
-            parallel: false,
-            autoStartContainers: false,
+            parallel: true,  // Default to parallel for batch efficiency
+            maxConcurrentTasks: 3,  // Default parallelism limit
+            autoStartContainers: true,  // Auto-start containers by default
             stopAfterAnalysis: true  // Clean up containers after analysis
         },
         pipelineName: ''
@@ -349,10 +349,13 @@ function collectAnalysisConfig() {
     ).map(el => el.value);
     
     // Get analysis options
+    const parallelEnabled = document.getElementById('analysis-parallel')?.checked ?? true;
+    const maxConcurrent = parseInt(document.getElementById('analysis-max-concurrent')?.value || '3', 10);
+    
     wizard.config.analysisOptions = {
-        waitForCompletion: document.getElementById('analysis-wait-complete')?.checked ?? true,
-        parallel: document.getElementById('analysis-parallel')?.checked ?? false,
-        autoStartContainers: document.getElementById('analysis-container-auto')?.checked ?? false,
+        parallel: parallelEnabled,
+        maxConcurrentTasks: parallelEnabled ? Math.min(Math.max(maxConcurrent, 1), 8) : 1,  // Clamp between 1-8
+        autoStartContainers: document.getElementById('analysis-container-auto')?.checked ?? true,  // Default true for pipelines
         stopAfterAnalysis: document.getElementById('analysis-container-stop')?.checked ?? true  // Default cleanup
     };
 }
@@ -444,18 +447,24 @@ function updateReviewSummary() {
     
     // Analysis summary
     setText('summary-tools-count', config.analysisTools.length || 'None selected');
-    setText('summary-analysis-options', 
-        config.analysisOptions.parallel ? 'Parallel' : 'Sequential');
+    
+    // Analysis options - show parallelism details
+    const parallelMode = config.analysisOptions.parallel;
+    const maxConcurrent = config.analysisOptions.maxConcurrentTasks || 3;
+    const optionsText = parallelMode ? `Parallel (max ${maxConcurrent})` : 'Sequential';
+    setText('summary-analysis-options', optionsText);
     
     // Job queue preview
     updateJobQueuePreview();
     
-    // Estimated time
+    // Estimated time - adjust for parallelism
     const totalJobs = config.templates.length * config.models.length;
-    const estMinutes = totalJobs * 3; // Rough estimate: 3 min per job (gen + analysis)
+    const effectiveConcurrency = parallelMode ? Math.min(maxConcurrent, totalJobs) : 1;
+    const estMinutes = Math.ceil(totalJobs / effectiveConcurrency) * 3; // ~3 min per batch
     setText('est-duration', formatDuration(estMinutes * 60));
     setText('total-operations', totalJobs * 2); // gen + analysis
     setText('total-jobs-badge', `${totalJobs} jobs`);
+    setText('parallelism-mode', optionsText);
 }
 
 /**
@@ -1450,9 +1459,9 @@ function resetWizard() {
         existingApps: [],
         analysisTools: [],
         analysisOptions: {
-            waitForCompletion: true,
-            parallel: false,
-            autoStartContainers: false,
+            parallel: true,  // Default to parallel for batch efficiency
+            maxConcurrentTasks: 3,  // Default parallelism limit
+            autoStartContainers: true,  // Auto-start containers by default
             stopAfterAnalysis: true  // Clean up containers after analysis
         },
         pipelineName: ''
@@ -2079,9 +2088,9 @@ function saveCurrentSettings() {
         // Step 2 - Analysis
         analysisTools: wizard.config.analysisTools || [],
         analysisOptions: wizard.config.analysisOptions || {
-            waitForCompletion: true,
-            parallel: false,
-            autoStartContainers: false,
+            parallel: true,
+            maxConcurrentTasks: 3,
+            autoStartContainers: true,
             stopAfterAnalysis: true
         }
     };
@@ -2179,14 +2188,14 @@ function applySettings(config) {
     // Set analysis options
     if (config.analysisOptions) {
         const opts = config.analysisOptions;
-        const waitComplete = document.getElementById('analysis-wait-complete');
         const parallel = document.getElementById('analysis-parallel');
+        const maxConcurrent = document.getElementById('analysis-max-concurrent');
         const autoStart = document.getElementById('analysis-container-auto');
         const stopAfter = document.getElementById('analysis-container-stop');
         
-        if (waitComplete) waitComplete.checked = opts.waitForCompletion ?? true;
-        if (parallel) parallel.checked = opts.parallel ?? false;
-        if (autoStart) autoStart.checked = opts.autoStartContainers ?? false;
+        if (parallel) parallel.checked = opts.parallel ?? true;
+        if (maxConcurrent) maxConcurrent.value = opts.maxConcurrentTasks ?? 3;
+        if (autoStart) autoStart.checked = opts.autoStartContainers ?? true;
         if (stopAfter) stopAfter.checked = opts.stopAfterAnalysis ?? true;
         
         wizard.config.analysisOptions = opts;

@@ -73,29 +73,28 @@
         <h3 class="h6 mb-0">Analysis Options</h3>
       </div>
       <div class="card-body py-2">
-        <div class="row g-3">
+        <div class="row g-3 align-items-center">
           <div class="col-md-4">
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" id="analysis-wait-complete" checked>
-              <label class="form-check-label" for="analysis-wait-complete">
-                Wait for analysis completion
-              </label>
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" id="analysis-parallel">
+              <input class="form-check-input" type="checkbox" id="analysis-parallel" checked>
               <label class="form-check-label" for="analysis-parallel">
                 Run analyses in parallel
               </label>
             </div>
           </div>
+          <div class="col-md-4" id="parallelism-limit-group">
+            <label for="analysis-max-concurrent" class="form-label small mb-1">Max concurrent tasks</label>
+            <input type="number" class="form-control form-control-sm" id="analysis-max-concurrent" 
+                   value="3" min="1" max="8" style="width: 80px;">
+            <small class="text-muted">Default: 3, Max: 8</small>
+          </div>
           <div class="col-md-4">
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" id="analysis-container-auto">
+              <input class="form-check-input" type="checkbox" id="analysis-container-auto" checked>
               <label class="form-check-label" for="analysis-container-auto">
                 Auto-start containers
               </label>
+              <small class="text-muted d-block">Automatically start analyzer containers</small>
             </div>
           </div>
         </div>
@@ -106,7 +105,7 @@
               <label class="form-check-label" for="analysis-container-stop">
                 Stop containers after analysis
               </label>
-              <small class="text-muted d-block">Clean up containers after successful analysis</small>
+              <small class="text-muted d-block">Clean up containers when pipeline completes</small>
             </div>
           </div>
         </div>
@@ -118,6 +117,18 @@
 {# Help Alert #}
 <div class="alert alert-info mt-4">
   <i class="fas fa-lightbulb me-2"></i>
-  Analysis will run automatically after each application is generated. Select the tools you want to use 
-  or click "Select all" for comprehensive analysis. Tools are organized by category for easy selection.
+  <strong>Batch Analysis:</strong> Analysis runs automatically after generation. With parallel mode enabled (default), 
+  multiple apps are analyzed concurrently up to the limit you set. Containers are automatically managed 
+  for seamless operation.
 </div>
+
+<script>
+// Toggle parallelism limit visibility based on parallel checkbox
+document.getElementById('analysis-parallel')?.addEventListener('change', function() {
+    const limitGroup = document.getElementById('parallelism-limit-group');
+    if (limitGroup) {
+        limitGroup.style.opacity = this.checked ? '1' : '0.5';
+        document.getElementById('analysis-max-concurrent').disabled = !this.checked;
+    }
+});
+</script>

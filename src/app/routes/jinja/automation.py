@@ -2,8 +2,9 @@
 =====================================
 
 Web interface routes for the end-to-end automation system that
-orchestrates: Sample Generation → Analysis → Report Generation
-in a single unified workflow.
+orchestrates: Sample Generation → Analysis in a single unified workflow.
+
+Note: Reports stage was removed (Dec 2025) - use Reports module separately.
 """
 
 from __future__ import annotations
@@ -272,7 +273,7 @@ def fragment_pipeline_progress(pipeline_id: str):
 @automation_bp.route('/fragments/stage/<stage_name>')
 def fragment_stage(stage_name: str):
     """Return stage configuration fragment."""
-    valid_stages = ['generation', 'analysis', 'reports']
+    valid_stages = ['generation', 'analysis']  # Reports stage removed Dec 2025
     if stage_name not in valid_stages:
         return '<div class="alert alert-danger">Invalid stage</div>', 400
     
@@ -291,9 +292,6 @@ def fragment_stage(stage_name: str):
             context['tools'] = list(registry.get_all_tools().values())
         except Exception:
             context['tools'] = []
-    elif stage_name == 'reports':
-        context['report_types'] = ['app_analysis', 'model_comparison', 'tool_effectiveness']
-        context['report_formats'] = ['html', 'json']
     
     return render_template(
         f'pages/automation/partials/_stage_{stage_name}.html',
@@ -315,20 +313,19 @@ def api_start_pipeline():
     {
         "config": {
             "generation": {
-                "models": ["openai_gpt-4", ...],
-                "templates": ["crud_todo_list", ...],
+                "mode": "generate" | "existing",
+                "models": ["openai_gpt-4", ...],      // For generate mode
+                "templates": ["crud_todo_list", ...], // For generate mode
+                "existingApps": [{"model": "...", "app": 1}, ...],  // For existing mode
                 "options": {...}
             },
             "analysis": {
                 "enabled": true,
                 "profile": "comprehensive",
                 "tools": [...],
-                "options": {...}
-            },
-            "reports": {
-                "enabled": true,
-                "types": ["app_analysis"],
-                "format": "html",
+                "parallel": true,
+                "maxConcurrentTasks": 3,
+                "autoStartContainers": true,
                 "options": {...}
             }
         },
@@ -756,90 +753,6 @@ def _ensure_analyzer_containers_running() -> Dict[str, Any]:
         
     except Exception as e:
         current_app.logger.exception(f"[CONTAINER] Error managing containers: {e}")
-        return {'success': False, 'error': str(e)}
-
-
-def _execute_reports_job(pipeline_id: str, pipeline: Dict, config: Dict) -> Dict:
-    """Execute report generation job."""
-    reports_config = config.get('reports', {})
-    
-    if not reports_config.get('enabled', True):
-        return {'success': True, 'message': 'Reports skipped'}
-    
-    try:
-        report_service = _get_report_service()
-        
-        report_types = reports_config.get('types', ['app_analysis'])
-        report_format = reports_config.get('format', 'html')
-        
-        # Get app numbers from generation results
-        gen_results = pipeline['progress']['generation'].get('results', [])
-        successful_apps = [
-            r for r in gen_results 
-            if r.get('success') and r.get('app_number')
-        ]
-        
-        if not successful_apps:
-            return {'success': False, 'error': 'No successful generations to report on'}
-        
-        created_reports = []
-        
-        for report_type in report_types:
-            # Create report config based on type
-            if report_type == 'app_analysis':
-                # Generate report for each app
-                for app_result in successful_apps:
-                    report_config = {
-                        'model_slug': app_result.get('model_slug'),
-                        'app_number': app_result.get('app_number'),
-                    }
-                    
-                    report = report_service.generate_report(
-                        report_type=report_type,
-                        format=report_format,
-                        config=report_config,
-                        title=f"Automation Report - {app_result.get('model_slug')} App {app_result.get('app_number')}",
-                        user_id=current_user.id if current_user.is_authenticated else None,
-                    )
-                    created_reports.append(report.report_id)
-            else:
-                # Model comparison or tool effectiveness
-                report_config = {
-                    'filter_models': list(set(r.get('model_slug') for r in successful_apps)),
-                    'filter_apps': list(set(r.get('app_number') for r in successful_apps)),
-                }
-                
-                report = report_service.generate_report(
-                    report_type=report_type,
-                    format=report_format,
-                    config=report_config,
-                    title=f"Automation {report_type.replace('_', ' ').title()}",
-                    user_id=current_user.id if current_user.is_authenticated else None,
-                )
-                created_reports.append(report.report_id)
-        
-        # Update progress
-        progress = pipeline['progress']['reports']
-        progress['completed'] = 1
-        progress['report_ids'] = created_reports
-        progress['status'] = 'completed'
-        
-        pipeline['status'] = 'completed'
-        pipeline['stage'] = 'done'
-        
-        return {
-            'success': True,
-            'message': f'Generated {len(created_reports)} reports',
-            'data': {'report_ids': created_reports},
-        }
-        
-    except Exception as e:
-        progress = pipeline['progress']['reports']
-        progress['failed'] = 1
-        progress['status'] = 'failed'
-        
-        pipeline['status'] = 'failed'
-        
         return {'success': False, 'error': str(e)}
 
 
