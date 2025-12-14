@@ -1,81 +1,44 @@
-{# Ports and networking overview #}
+{# Ports and networking - Compact Layout #}
 {% if ports %}
-<div class="row g-3">
+<div class="row g-2">
   <div class="col-12">
     <div class="card card-sm">
-      <div class="card-header">
-        <div class="d-flex align-items-center justify-content-between">
-          <div class="d-flex align-items-center">
-            <i class="fas fa-network-wired text-primary me-2"></i>
-            <h3 class="card-title mb-0">Published Ports</h3>
-          </div>
-          <div class="btn-list">
-            <button type="button" class="btn btn-sm btn-ghost-primary" data-port-action="test-all">
-              <i class="fas fa-vial me-1"></i>Test All
-            </button>
-            <button type="button" class="btn btn-sm btn-ghost-secondary" data-port-action="refresh">
-              <i class="fas fa-sync me-1"></i>Refresh
-            </button>
-            <button type="button" class="btn btn-sm btn-ghost-info" data-port-action="report">
-              <i class="fas fa-file-alt me-1"></i>Report
-            </button>
-          </div>
+      <div class="card-header py-2 d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-network-wired text-primary me-2"></i>
+          <span class="fw-bold">Ports</span>
+          <span class="badge bg-secondary-lt ms-2">{{ ports|length }}</span>
+        </div>
+        <div class="btn-list gap-1">
+          <button type="button" class="btn btn-sm btn-ghost-primary py-0" data-port-action="test-all"><i class="fas fa-vial me-1"></i>Test</button>
+          <button type="button" class="btn btn-sm btn-ghost-secondary py-0" data-port-action="refresh"><i class="fas fa-sync"></i></button>
         </div>
       </div>
-      <div class="table-responsive">
-        <table class="table table-sm table-vcenter card-table">
-          <thead>
-            <tr>
-              <th>Container</th>
-              <th>Host</th>
-              <th>Protocol</th>
-              <th>Status</th>
-              <th class="text-end">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for port in ports %}
-            <tr>
-              <td><code>{{ port.container_port }}</code></td>
-              <td><code>{{ port.host_port }}</code></td>
-              <td><span class="badge bg-secondary-lt text-secondary">{{ port.protocol|upper }}</span></td>
-              <td>
-                {% if port.accessible %}
-                  <span class="badge bg-success-lt text-success">
-                    <i class="fas fa-check me-1"></i>Reachable
-                  </span>
-                {% else %}
-                  <span class="badge bg-warning-lt text-warning">
-                    <i class="fas fa-times me-1"></i>Unreachable
-                  </span>
-                {% endif %}
-              </td>
-              <td class="text-end">
-                <div class="btn-list justify-content-end">
-                  <button class="btn btn-sm btn-icon btn-ghost-primary"
-                          data-port-action="copy"
-                          data-port="{{ port.host_port }}"
-                          title="Copy URL">
-                    <i class="fas fa-copy"></i>
-                  </button>
-                  <a href="http://localhost:{{ port.host_port }}"
-                     target="_blank"
-                     class="btn btn-sm btn-icon btn-ghost-info"
-                     title="Open in browser">
-                    <i class="fas fa-external-link-alt"></i>
-                  </a>
-                  <button class="btn btn-sm btn-icon btn-ghost-secondary"
-                          data-port-action="test"
-                          data-port="{{ port.host_port }}"
-                          title="Test connection">
-                    <i class="fas fa-vial"></i>
-                  </button>
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm table-vcenter card-table mb-0">
+            <thead><tr><th>Container</th><th>Host</th><th>Proto</th><th>Status</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+              {% for port in ports %}
+              <tr>
+                <td><code class="small">{{ port.container_port }}</code></td>
+                <td><code class="small">{{ port.host_port }}</code></td>
+                <td><span class="badge bg-secondary-lt small">{{ port.protocol|upper }}</span></td>
+                <td>
+                  {% if port.accessible %}<span class="badge bg-success-lt text-success"><i class="fas fa-check"></i></span>
+                  {% else %}<span class="badge bg-warning-lt text-warning"><i class="fas fa-times"></i></span>{% endif %}
+                </td>
+                <td class="text-end">
+                  <div class="btn-list justify-content-end gap-1">
+                    <button class="btn btn-sm btn-icon btn-ghost-primary py-0" data-port-action="copy" data-port="{{ port.host_port }}" title="Copy"><i class="fas fa-copy"></i></button>
+                    <a href="http://localhost:{{ port.host_port }}" target="_blank" class="btn btn-sm btn-icon btn-ghost-info py-0" title="Open"><i class="fas fa-external-link-alt"></i></a>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -83,115 +46,30 @@
 
 <script>
 (function(){
-  const section = document.getElementById('tab-ports');
+  const section = document.querySelector('[data-research-section="ports"]');
   if (!section) return;
-  
   section.addEventListener('click', evt => {
     const btn = evt.target.closest('[data-port-action]');
     if (!btn) return;
-    
     const action = btn.dataset.portAction;
     const port = btn.dataset.port;
-    
     if (action === 'copy' && port) {
-      navigator.clipboard.writeText(`http://localhost:${port}`)
-        .then(() => notify('Copied to clipboard', 'success'))
-        .catch(err => notify('Copy failed', 'danger'));
-      return;
+      navigator.clipboard.writeText(`http://localhost:${port}`).then(() => showToast('Copied', 'success'));
     }
-    
-    if (action === 'test' && port) {
-      setBusy(btn, true);
-      fetch(`/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/test-port/${port}`)
-        .then(r => r.json())
-        .then(data => notify(
-          data.accessible ? `Port ${port} reachable` : `Port ${port} unreachable`,
-          data.accessible ? 'success' : 'warning'
-        ))
-        .catch(err => notify(`Test failed: ${err.message}`, 'danger'))
-        .finally(() => setBusy(btn, false));
-      return;
-    }
-    
-    if (action === 'test-all') {
-      const ports = {{ ports|map(attribute='host_port')|list|tojson if ports else '[]' }};
-      if (!ports.length) return;
-      
-      setBusy(btn, true);
-      Promise.all(
-        ports.map(p =>
-          fetch(`/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/test-port/${p}`)
-            .then(resp => resp.json())
-            .catch(() => ({ accessible: false }))
-        )
-      )
-      .then(results => {
-        const ok = results.filter(r => r.accessible).length;
-        notify(`${ok}/${ports.length} ports reachable`, ok === ports.length ? 'success' : 'warning');
-      })
-      .finally(() => {
-        setBusy(btn, false);
-        refresh();
-      });
-      return;
-    }
-    
     if (action === 'refresh') {
-      refresh();
-      return;
-    }
-    
-    if (action === 'report') {
-      window.open('/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/ports-report', '_blank');
+      htmx.ajax('GET', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/ports', { target: '#section-ports', swap: 'innerHTML' });
     }
   });
-  
-  function setBusy(button, busy) {
-    if (!button) return;
-    if (busy) {
-      button.dataset.original = button.innerHTML;
-      button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-      button.disabled = true;
-    } else {
-      button.innerHTML = button.dataset.original || button.innerHTML;
-      button.disabled = false;
-    }
-  }
-  
-  function refresh() {
-    htmx.ajax('GET', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/ports', {
-      target: '#tab-ports',
-      swap: 'innerHTML'
-    });
-  }
-  
-  function notify(message, tone) {
-    const alert = document.createElement('div');
-    alert.className = `alert alert-${tone || 'info'} alert-dismissible fade show position-fixed`;
-    alert.style.cssText = 'top: 1rem; right: 1rem; z-index: 1100; min-width: 240px;';
-    alert.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
-    document.body.append(alert);
-    setTimeout(() => alert.remove(), 3200);
-  }
 })();
 </script>
 {% else %}
 <div class="card card-sm">
-  <div class="card-body">
-    <div class="empty">
-      <div class="empty-icon">
-        <i class="fas fa-network-wired fa-2x text-muted"></i>
-      </div>
-      <p class="empty-title">No published ports</p>
-      <p class="empty-subtitle text-muted">No ports were detected for this application</p>
-      {% if app_data.container_status != 'running' %}
-      <div class="empty-action">
-        <button class="btn btn-primary" onclick="startApplication()">
-          <i class="fas fa-play me-1"></i>Start container
-        </button>
-      </div>
-      {% endif %}
-    </div>
+  <div class="card-body py-4 text-center">
+    <i class="fas fa-network-wired text-muted fa-2x mb-2"></i>
+    <p class="mb-2 text-muted">No published ports</p>
+    {% if app_data.container_status != 'running' %}
+    <button class="btn btn-primary btn-sm" onclick="startApplication()"><i class="fas fa-play me-1"></i>Start</button>
+    {% endif %}
   </div>
 </div>
 {% endif %}

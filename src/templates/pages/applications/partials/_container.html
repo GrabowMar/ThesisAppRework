@@ -2,141 +2,128 @@
 {% set status_label = status|replace('_', ' ')|title %}
 {% set status_color = 'success' if status == 'running' else ('warning' if status in ['building', 'starting'] else 'secondary') %}
 
-{# Container management overview - redesigned compact layout with real-time updates #}
+{# Container management - Compact layout #}
 <div id="container-management-section" 
      data-model-slug="{{ app_data.model_slug }}" 
      data-app-number="{{ app_data.app_number }}"
-     class="row row-cards g-3 align-items-stretch">
-  <div class="col-sm-6 col-xl-3">
+     class="row g-2">
+  
+  {# Status & Runtime - Combined #}
+  <div class="col-lg-6">
     <div class="card card-sm h-100">
       <div class="card-status-top bg-{{ status_color }}"></div>
-      <div class="card-body">
-        <div>
-          <span class="text-secondary text-uppercase fw-semibold small">Lifecycle state</span>
-          <div class="d-flex align-items-center gap-2 mt-1">
-            <span class="status-dot {% if status == 'running' %}status-dot-animated{% endif %} status-{{ status_color }}"></span>
-            <span class="h3 mb-0">{{ status_label }}</span>
-          </div>
-        </div>
-        <ul class="list-group list-group-flush list-group-borderless mt-3 small">
-          <li class="list-group-item px-0 d-flex justify-content-between">
-            <span class="text-secondary">Last change</span>
-            <span class="text-muted">{{ app_data.updated_at.strftime('%Y-%m-%d %H:%M') if app_data.updated_at else '—' }}</span>
-          </li>
-          <li class="list-group-item px-0 d-flex justify-content-between">
-            <span class="text-secondary">Container ID</span>
-            <code class="text-muted small">{{ (app_data.container_id[:12] ~ '…') if app_data.container_id and app_data.container_id|length > 12 else (app_data.container_id or 'n/a') }}</code>
-          </li>
-        </ul>
-      </div>
-      <div class="card-footer border-top-0 pt-0">
-        <div class="d-grid">
-          <button type="button" id="btn-diagnostics-refresh" class="btn btn-sm btn-ghost-secondary">
-            <i class="fas fa-sync me-1"></i>Refresh status
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-sm-6 col-xl-3">
-    <div class="card card-sm h-100">
-      <div class="card-body">
-        <span class="text-secondary text-uppercase fw-semibold small">Runtime summary</span>
-        <div class="mt-3">
-          <dl class="row row-sm g-2 mb-0 small">
-            <dt class="col-6 text-secondary">Model</dt>
-            <dd class="col-6 text-end text-muted"><code>{{ app_data.model_slug }}</code></dd>
-            <dt class="col-6 text-secondary">Application</dt>
-            <dd class="col-6 text-end text-muted">#{{ app_data.app_number }}</dd>
-            <dt class="col-6 text-secondary">Compose</dt>
-            <dd class="col-6 text-end">
-              {% if app_data.has_docker_compose %}
-                <span class="badge bg-success-lt text-success">Enabled</span>
-              {% else %}
-                <span class="badge bg-secondary-lt text-secondary">Single service</span>
-              {% endif %}
-            </dd>
-            <dt class="col-6 text-secondary">Published ports</dt>
-            <dd class="col-6 text-end text-muted">{{ app_data.ports|length }}</dd>
-          </dl>
-        </div>
-        {% if app_data.ports %}
-          <div class="pt-3 mt-3 border-top">
-            <div class="text-secondary small fw-semibold mb-2">First port</div>
-            <div class="d-flex gap-2 flex-wrap">
-              {% for port in app_data.ports[:2] %}
-                <span class="badge bg-primary-lt text-primary">{{ port }}</span>
-              {% endfor %}
+      <div class="card-body py-2">
+        <div class="row g-3">
+          {# Status Column #}
+          <div class="col-md-6">
+            <div class="d-flex align-items-center mb-2">
+              <i class="fas fa-heartbeat text-{{ status_color }} me-2"></i>
+              <span class="text-muted small text-uppercase fw-bold">Status</span>
+            </div>
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span class="status-dot {% if status == 'running' %}status-dot-animated{% endif %} status-{{ status_color }}"></span>
+              <span class="h4 mb-0">{{ status_label }}</span>
+            </div>
+            <div class="row row-cols-2 g-1 small">
+              <div class="col">
+                <span class="text-muted">Updated:</span>
+                <span class="fw-medium">{{ app_data.updated_at.strftime('%m/%d %H:%M') if app_data.updated_at else '—' }}</span>
+              </div>
+              <div class="col">
+                <span class="text-muted">ID:</span>
+                <code class="small">{{ (app_data.container_id[:8]) if app_data.container_id else 'n/a' }}</code>
+              </div>
             </div>
           </div>
-        {% endif %}
+          {# Runtime Column #}
+          <div class="col-md-6">
+            <div class="d-flex align-items-center mb-2">
+              <i class="fas fa-info-circle text-info me-2"></i>
+              <span class="text-muted small text-uppercase fw-bold">Runtime</span>
+            </div>
+            <div class="row row-cols-2 g-1 small">
+              <div class="col"><span class="text-muted">Compose:</span></div>
+              <div class="col text-end">
+                {% if app_data.has_docker_compose %}<span class="badge bg-success-lt">Yes</span>
+                {% else %}<span class="badge bg-secondary-lt">No</span>{% endif %}
+              </div>
+              <div class="col"><span class="text-muted">Ports:</span></div>
+              <div class="col text-end fw-medium">{{ app_data.ports|length }}</div>
+            </div>
+            {% if app_data.ports %}
+            <div class="d-flex flex-wrap gap-1 mt-2">
+              {% for port in app_data.ports[:3] %}
+                <span class="badge bg-primary-lt text-primary small">{{ port }}</span>
+              {% endfor %}
+              {% if app_data.ports|length > 3 %}<span class="badge bg-secondary-lt small">+{{ app_data.ports|length - 3 }}</span>{% endif %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="col-sm-6 col-xl-3">
+  {# Controls - Compact #}
+  <div class="col-lg-3">
     <div class="card card-sm h-100">
-      <div class="card-body">
-        <span class="text-secondary text-uppercase fw-semibold small">Controls</span>
-        <div class="d-grid gap-2 mt-3">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center mb-2">
+          <i class="fas fa-gamepad text-purple me-2"></i>
+          <span class="text-muted small text-uppercase fw-bold">Controls</span>
+        </div>
+        <div class="d-flex flex-wrap gap-1">
           {% if status == 'running' %}
-            <button type="button" id="btn-container-stop" class="btn btn-sm btn-danger">
-              <i class="fas fa-stop me-1"></i>Stop container
+            <button type="button" id="btn-container-stop" class="btn btn-sm btn-danger py-1">
+              <i class="fas fa-stop me-1"></i>Stop
             </button>
           {% else %}
-            <button type="button" id="btn-container-start" class="btn btn-sm btn-success">
-              <i class="fas fa-play me-1"></i>Start container
+            <button type="button" id="btn-container-start" class="btn btn-sm btn-success py-1">
+              <i class="fas fa-play me-1"></i>Start
             </button>
           {% endif %}
-          <button type="button" id="btn-container-restart" class="btn btn-sm btn-warning">
+          <button type="button" id="btn-container-restart" class="btn btn-sm btn-warning py-1">
             <i class="fas fa-rotate me-1"></i>Restart
           </button>
           {% if app_data.has_docker_compose %}
-            <button type="button" id="btn-container-build" class="btn btn-sm btn-primary">
-              <i class="fas fa-hammer me-1"></i>Build images
-            </button>
-            <button type="button" id="btn-container-rebuild" class="btn btn-sm btn-ghost-primary">
-              <i class="fas fa-hammer me-1"></i>Rebuild (no cache)
+            <button type="button" id="btn-container-build" class="btn btn-sm btn-primary py-1">
+              <i class="fas fa-hammer me-1"></i>Build
             </button>
           {% endif %}
-          <button type="button" id="btn-logs-refresh" class="btn btn-sm btn-ghost-secondary">
-            <i class="fas fa-file-lines me-1"></i>Refresh logs
+        </div>
+        <div class="d-flex flex-wrap gap-1 mt-2">
+          <button type="button" id="btn-diagnostics-refresh" class="btn btn-sm btn-ghost-secondary py-1">
+            <i class="fas fa-sync me-1"></i>Refresh
           </button>
-          <button type="button" id="btn-logs-download" class="btn btn-sm btn-ghost-info">
-            <i class="fas fa-download me-1"></i>Download logs
+          <button type="button" id="btn-logs-refresh" class="btn btn-sm btn-ghost-secondary py-1">
+            <i class="fas fa-file-lines me-1"></i>Logs
           </button>
         </div>
-        <p class="text-secondary small mt-3 mb-0">Real-time updates every 5 seconds. Commands execute asynchronously.</p>
       </div>
     </div>
   </div>
 
-  <div class="col-sm-6 col-xl-3">
+  {# Logs Preview - Compact #}
+  <div class="col-lg-3">
     <div class="card card-sm h-100">
-      <div class="card-body d-flex flex-column">
-        <span class="text-secondary text-uppercase fw-semibold small">Diagnostics & Logs</span>
-        <div id="diagnostics-panel" class="flex-grow-1 mt-3">
-          <div class="alert alert-secondary small mb-0" role="alert">
-            Auto-refreshing diagnostics every 5 seconds...
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="d-flex align-items-center">
+            <i class="fas fa-terminal text-cyan me-2"></i>
+            <span class="text-muted small text-uppercase fw-bold">Logs</span>
           </div>
+          <button class="btn btn-sm btn-ghost-secondary py-0" id="btn-logs-download" title="Download">
+            <i class="fas fa-download"></i>
+          </button>
         </div>
-        <div class="mt-3 pt-3 border-top">
-          <div class="text-secondary small fw-semibold mb-2">Recent log output</div>
-          <div id="logs-panel">
-            {% if container_logs %}
-              <pre class="bg-dark text-white rounded p-2 small mb-2" style="max-height: 7rem; overflow:auto;">
-{{ container_logs|trim|truncate(240, True, '…') }}
-              </pre>
-              <button class="btn btn-sm btn-ghost-secondary" onclick="copyAdjacentPre(this)">
-                <i class="fas fa-copy me-1"></i>Copy snippet
-              </button>
-            {% else %}
-              <div class="alert alert-info small mb-0" role="alert">
-                Logs become available once the container has produced output.
-              </div>
-            {% endif %}
-          </div>
+        <div id="logs-panel">
+          {% if container_logs %}
+            <pre class="bg-dark text-white rounded p-2 small mb-0" style="max-height: 5rem; overflow:auto; font-size: 0.7rem;">{{ container_logs|trim|truncate(180, True, '…') }}</pre>
+          {% else %}
+            <div class="text-muted small text-center py-2">
+              <i class="fas fa-info-circle me-1"></i>No logs yet
+            </div>
+          {% endif %}
         </div>
       </div>
     </div>

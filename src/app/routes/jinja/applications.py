@@ -628,9 +628,7 @@ def application_file_preview(model_slug, app_number):
         from markupsafe import escape
         escaped = escape(content)
         return f'''<div class="file-preview">
-  <div class="file-preview-header">
-    <span class="text-muted small">{rel_path}</span>
-  </div>
+  <div class="file-preview-header"><span>{rel_path}</span></div>
   <pre>{escaped}</pre>
 </div>'''
     except Exception as e:

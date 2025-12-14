@@ -1,391 +1,136 @@
-{# Application logs partial #}
-<div class="card">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <h3 class="card-title mb-0">
-      <i class="fas fa-file-lines me-2"></i>Application Logs
-    </h3>
-    <div class="card-actions">
-      <div class="btn-group" role="group">
-        <button class="btn btn-ghost-secondary btn-sm" 
-                hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/logs"
-                hx-target="#section-logs"
-                hx-swap="innerHTML"
-                title="Refresh logs">
-          <i class="fas fa-sync"></i>
-        </button>
-        <button class="btn btn-ghost-primary btn-sm" onclick="toggleAutoRefresh()" id="auto-refresh-btn" title="Toggle auto-refresh">
-          <i class="fas fa-pause"></i>
-        </button>
-        <button class="btn btn-ghost-info btn-sm" onclick="clearLogs()" title="Clear logs">
-          <i class="fas fa-trash"></i>
-        </button>
+{# Application logs - Compact Layout #}
+<div class="row g-2">
+  {% if logs %}
+  {# Controls Row - Compact Inline #}
+  <div class="col-12">
+    <div class="card card-sm">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center flex-wrap gap-2">
+          <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-primary active" id="btn-backend" onclick="switchContainer('backend')">
+              <i class="fas fa-server"></i>
+            </button>
+            <button type="button" class="btn btn-outline-primary" id="btn-frontend" onclick="switchContainer('frontend')">
+              <i class="fas fa-desktop"></i>
+            </button>
+          </div>
+          <select class="form-select form-select-sm" style="width: auto;" id="log-level-filter" onchange="filterLogs()">
+            <option value="">All</option>
+            <option value="ERROR">Error</option>
+            <option value="WARN">Warn</option>
+            <option value="INFO">Info</option>
+          </select>
+          <select class="form-select form-select-sm" style="width: auto;" id="log-lines" onchange="changeLinesCount()">
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="250">250</option>
+          </select>
+          <input type="text" class="form-control form-control-sm" style="width: 150px;" id="log-search" placeholder="Search..." onkeyup="filterLogs()">
+          <div class="btn-group btn-group-sm ms-auto">
+            <button class="btn btn-ghost-secondary" hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/logs" hx-target="#section-logs" hx-swap="innerHTML" title="Refresh"><i class="fas fa-sync"></i></button>
+            <button class="btn btn-ghost-secondary" onclick="toggleAutoRefresh()" id="auto-refresh-btn" title="Auto"><i class="fas fa-pause"></i></button>
+            <button class="btn btn-ghost-secondary" onclick="copyLogs()" title="Copy"><i class="fas fa-copy"></i></button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
-  <div class="card-body">
-    <!-- DEBUG: logs length = {{ logs|length if logs else 'None' }}, log_stats = {{ log_stats }}, app_data.container_status = {{ app_data.container_status if app_data else 'No app_data' }} -->
-    {% if logs %}
-      <!-- Log Controls -->
-      <div class="row g-2 mb-3">
-        <div class="col-md-2">
-          <label class="form-label small">Container</label>
-          <div class="btn-group w-100" role="group">
-            <button type="button" class="btn btn-sm btn-primary active" id="btn-backend" onclick="switchContainer('backend')">
-              <i class="fas fa-server me-1"></i>Backend
-            </button>
-            <button type="button" class="btn btn-sm btn-outline-primary" id="btn-frontend" onclick="switchContainer('frontend')">
-              <i class="fas fa-desktop me-1"></i>Frontend
-            </button>
-          </div>
-        </div>
-        <div class="col-md-2">
-          <label class="form-label small">Log Level</label>
-          <select class="form-select form-select-sm" id="log-level-filter" onchange="filterLogs()">
-            <option value="">All Levels</option>
-            <option value="ERROR">Error</option>
-            <option value="WARN">Warning</option>
-            <option value="INFO">Info</option>
-            <option value="DEBUG">Debug</option>
-          </select>
-        </div>
-        <div class="col-md-2">
-          <label class="form-label small">Source</label>
-          <select class="form-select form-select-sm" id="log-source-filter" onchange="filterLogs()">
-            <option value="">All Sources</option>
-            <option value="container">Container</option>
-            <option value="build">Build</option>
-            <option value="system">System</option>
-          </select>
-        </div>
-        <div class="col-md-2">
-          <label class="form-label small">Lines</label>
-          <select class="form-select form-select-sm" id="log-lines" onchange="changeLinesCount()">
-            <option value="50">50 lines</option>
-            <option value="100" selected>100 lines</option>
-            <option value="250">250 lines</option>
-            <option value="500">500 lines</option>
-            <option value="1000">1000 lines</option>
-          </select>
-        </div>
-        <div class="col-md-4">
-          <label class="form-label small">Search</label>
-          <input type="text" class="form-control form-control-sm" id="log-search" placeholder="Search logs..." onkeyup="filterLogs()">
+
+  {# Log Display - Compact #}
+  <div class="col-12">
+    <div class="card card-sm">
+      <div class="card-header py-1 d-flex justify-content-between align-items-center">
+        <span class="fw-bold small" id="current-container-label">Backend Logs</span>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-ghost-secondary py-0" onclick="scrollToTop()"><i class="fas fa-arrow-up"></i></button>
+          <button class="btn btn-ghost-secondary py-0" onclick="scrollToBottom()"><i class="fas fa-arrow-down"></i></button>
         </div>
       </div>
-      
-      <!-- Log Display -->
-      <div class="card card-sm">
-        <div class="card-header py-2 d-flex justify-content-between align-items-center">
-          <h5 class="card-title mb-0">
-            <span id="current-container-label">Backend Logs</span>
-          </h5>
-          <div class="btn-group btn-group-sm" role="group">
-            <button class="btn btn-ghost-secondary" onclick="scrollToTop()" title="Scroll to top">
-              <i class="fas fa-arrow-up"></i>
-            </button>
-            <button class="btn btn-ghost-secondary" onclick="scrollToBottom()" title="Scroll to bottom">
-              <i class="fas fa-arrow-down"></i>
-            </button>
-            <button class="btn btn-ghost-secondary" onclick="copyLogs()" title="Copy logs">
-              <i class="fas fa-copy"></i>
-            </button>
-          </div>
+      <div class="card-body p-0">
+        <div id="log-container" style="height: 50vh; overflow-y: auto; background: #1e1e2e;">
+          <pre id="log-content" class="mb-0 p-2" style="font-size: 0.75rem; line-height: 1.4; font-family: 'Consolas', monospace; color: #cdd6f4;">{{ logs }}</pre>
         </div>
-        <div class="card-body p-0">
-          <div id="log-container" style="height: 70vh; overflow-y: auto; background: #f8f9fa;">
-            <pre id="log-content" class="log-content mb-0 p-3" style="font-size: 0.875rem; line-height: 1.5; font-family: 'Consolas', 'Monaco', 'Courier New', monospace;">{{ logs }}</pre>
+      </div>
+    </div>
+  </div>
+
+  {# Stats Row - Compact Inline #}
+  <div class="col-12">
+    <div class="card card-sm">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center flex-wrap gap-3">
+          <span class="text-muted small"><i class="fas fa-chart-bar me-1"></i>Stats:</span>
+          <span class="badge bg-danger-lt" id="error-count"><i class="fas fa-times me-1"></i>{{ log_stats.error_count|default(0) }} Errors</span>
+          <span class="badge bg-warning-lt" id="warning-count"><i class="fas fa-exclamation me-1"></i>{{ log_stats.warning_count|default(0) }} Warnings</span>
+          <span class="badge bg-info-lt" id="info-count"><i class="fas fa-info me-1"></i>{{ log_stats.info_count|default(0) }} Info</span>
+          <span class="badge bg-secondary-lt" id="total-lines"><i class="fas fa-list me-1"></i>{{ log_stats.total_lines|default(0) }} Lines</span>
+          <div class="ms-auto btn-list gap-1">
+            <a href="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/download?format=txt" class="btn btn-sm btn-ghost-primary py-0"><i class="fas fa-download me-1"></i>TXT</a>
+            <a href="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/download?format=json" class="btn btn-sm btn-ghost-info py-0"><i class="fas fa-code me-1"></i>JSON</a>
           </div>
         </div>
       </div>
-      
-      <!-- Log Statistics -->
-      <div class="row g-2 mt-3">
-        <div class="col-md-3">
-          <div class="card card-sm bg-danger-lt">
-            <div class="card-body text-center">
-              <div class="h4 m-0 text-danger" id="error-count">{{ log_stats.error_count|default(0) }}</div>
-              <div class="text-muted small">Errors</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-3">
-          <div class="card card-sm bg-warning-lt">
-            <div class="card-body text-center">
-              <div class="h4 m-0 text-warning" id="warning-count">{{ log_stats.warning_count|default(0) }}</div>
-              <div class="text-muted small">Warnings</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-3">
-          <div class="card card-sm bg-info-lt">
-            <div class="card-body text-center">
-              <div class="h4 m-0 text-info" id="info-count">{{ log_stats.info_count|default(0) }}</div>
-              <div class="text-muted small">Info</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-3">
-          <div class="card card-sm bg-secondary-lt">
-            <div class="card-body text-center">
-              <div class="h4 m-0 text-secondary" id="total-lines">{{ log_stats.total_lines|default(0) }}</div>
-              <div class="text-muted small">Total Lines</div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Download Options -->
-      <div class="mt-3">
-        <h5>Download Logs</h5>
-        <div class="btn-list">
-          <a href="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/download?format=txt" 
-             class="btn btn-ghost-primary">
-            <i class="fas fa-file-alt me-1"></i>Download as TXT
-          </a>
-          <a href="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/download?format=json" 
-             class="btn btn-ghost-info">
-            <i class="fas fa-file-code me-1"></i>Download as JSON
-          </a>
-          <a href="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/download?format=csv" 
-             class="btn btn-ghost-success">
-            <i class="fas fa-file-csv me-1"></i>Download as CSV
-          </a>
-        </div>
-      </div>
-      
-    {% else %}
-      <div class="text-center text-muted py-4">
-        <i class="fas fa-file-lines fa-3x mb-3"></i>
-        <h4>No Logs Available</h4>
-        <p>The application container is not running or has not generated any logs yet.</p>
+    </div>
+  </div>
+  {% else %}
+  <div class="col-12">
+    <div class="card card-sm">
+      <div class="card-body py-4 text-center">
+        <i class="fas fa-file-lines text-muted fa-2x mb-2"></i>
+        <p class="mb-2 text-muted">No logs available</p>
         {% if app_data.container_status != 'running' %}
-        <button class="btn btn-primary" 
-                hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/start"
-                hx-target="#section-container"
-                hx-swap="innerHTML">
-          <i class="fas fa-play me-1"></i>Start Application
+        <button class="btn btn-primary btn-sm" hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/start" hx-target="#section-container" hx-swap="innerHTML">
+          <i class="fas fa-play me-1"></i>Start
         </button>
         {% endif %}
       </div>
-    {% endif %}
+    </div>
   </div>
+  {% endif %}
 </div>
 
 <script>
-let autoRefreshInterval;
-let isAutoRefreshing = true;
-let currentContainer = 'backend';
+let autoRefreshInterval, isAutoRefreshing = true, currentContainer = 'backend';
+function initLogs() { if (document.getElementById('log-lines')) startAutoRefresh(); }
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initLogs); else initLogs();
 
-// Initialize auto-refresh
-function initLogs() {
-  // Only start auto-refresh if log controls exist (container is running)
-  if (document.getElementById('log-lines')) {
-    startAutoRefresh();
-  }
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initLogs);
-} else {
-  initLogs();
-}
-
-function switchContainer(containerType) {
-  currentContainer = containerType;
-  
-  // Update button states
-  const backendBtn = document.getElementById('btn-backend');
-  const frontendBtn = document.getElementById('btn-frontend');
-  
-  if (containerType === 'backend') {
-    backendBtn.classList.add('btn-primary', 'active');
-    backendBtn.classList.remove('btn-outline-primary');
-    frontendBtn.classList.remove('btn-primary', 'active');
-    frontendBtn.classList.add('btn-outline-primary');
-    document.getElementById('current-container-label').textContent = 'Backend Logs';
-  } else {
-    frontendBtn.classList.add('btn-primary', 'active');
-    frontendBtn.classList.remove('btn-outline-primary');
-    backendBtn.classList.remove('btn-primary', 'active');
-    backendBtn.classList.add('btn-outline-primary');
-    document.getElementById('current-container-label').textContent = 'Frontend Logs';
-  }
-  
-  // Refresh logs for the new container
+function switchContainer(type) {
+  currentContainer = type;
+  document.getElementById('btn-backend').className = type === 'backend' ? 'btn btn-primary active' : 'btn btn-outline-primary';
+  document.getElementById('btn-frontend').className = type === 'frontend' ? 'btn btn-primary active' : 'btn btn-outline-primary';
+  document.getElementById('current-container-label').textContent = type === 'backend' ? 'Backend Logs' : 'Frontend Logs';
   refreshLogs();
 }
-
-function startAutoRefresh() {
-  if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-  
-  autoRefreshInterval = setInterval(function() {
-    if (isAutoRefreshing) {
-      refreshLogs();
-    }
-  }, 5000); // Refresh every 5 seconds
-}
-
+function startAutoRefresh() { if (autoRefreshInterval) clearInterval(autoRefreshInterval); autoRefreshInterval = setInterval(() => { if (isAutoRefreshing) refreshLogs(); }, 5000); }
 function toggleAutoRefresh() {
-  const btn = document.getElementById('auto-refresh-btn');
-  const icon = btn.querySelector('i');
-  
+  const btn = document.getElementById('auto-refresh-btn'), icon = btn.querySelector('i');
   isAutoRefreshing = !isAutoRefreshing;
-  
-  if (isAutoRefreshing) {
-    icon.className = 'fas fa-pause';
-    btn.title = 'Pause auto-refresh';
-    btn.classList.remove('btn-ghost-danger');
-    btn.classList.add('btn-ghost-primary');
-  } else {
-    icon.className = 'fas fa-play';
-    btn.title = 'Resume auto-refresh';
-    btn.classList.remove('btn-ghost-primary');
-    btn.classList.add('btn-ghost-danger');
-  }
+  icon.className = isAutoRefreshing ? 'fas fa-pause' : 'fas fa-play';
 }
-
 function refreshLogs() {
-  const linesEl = document.getElementById('log-lines');
-  if (!linesEl) {
-    // No logs UI available (container not running)
-    return;
-  }
-  const lines = linesEl.value;
-  
-  fetch(`/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/stream?container=${currentContainer}&lines=${lines}`)
-    .then(response => response.text())
-    .then(data => {
-      document.getElementById('log-content').textContent = data;
-      
-      // Auto-scroll to bottom if user is at bottom
-      const container = document.getElementById('log-container');
-      const isAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 10;
-      
-      if (isAtBottom) {
-        scrollToBottom();
-      }
-      
-      // Update statistics
-      updateLogStats(data);
-    })
-    .catch(error => {
-      console.error('Failed to refresh logs:', error);
-    });
+  const linesEl = document.getElementById('log-lines'); if (!linesEl) return;
+  fetch(`/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/stream?container=${currentContainer}&lines=${linesEl.value}`)
+    .then(r => r.text()).then(data => { document.getElementById('log-content').textContent = data; updateLogStats(data); });
 }
-
 function filterLogs() {
-  const levelEl = document.getElementById('log-level-filter');
-  const sourceEl = document.getElementById('log-source-filter');
-  const searchEl = document.getElementById('log-search');
-  
-  if (!levelEl || !sourceEl || !searchEl) {
-    // Filter UI not available
-    return;
-  }
-  
-  const level = levelEl.value;
-  const source = sourceEl.value;
-  const search = searchEl.value;
-  
-  const params = new URLSearchParams();
-  params.append('container', currentContainer);
-  if (level) params.append('level', level);
-  if (source) params.append('source', source);
-  if (search) params.append('search', search);
-  
-  fetch(`/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/filter?${params.toString()}`)
-    .then(response => response.text())
-    .then(data => {
-      document.getElementById('log-content').textContent = data;
-      updateLogStats(data);
-    });
+  const level = document.getElementById('log-level-filter')?.value || '';
+  const search = document.getElementById('log-search')?.value || '';
+  const params = new URLSearchParams(); params.append('container', currentContainer);
+  if (level) params.append('level', level); if (search) params.append('search', search);
+  fetch(`/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/filter?${params}`)
+    .then(r => r.text()).then(data => { document.getElementById('log-content').textContent = data; updateLogStats(data); });
 }
-
-function changeLinesCount() {
-  refreshLogs();
+function changeLinesCount() { refreshLogs(); }
+function scrollToTop() { document.getElementById('log-container').scrollTop = 0; }
+function scrollToBottom() { const c = document.getElementById('log-container'); c.scrollTop = c.scrollHeight; }
+function copyLogs() { navigator.clipboard.writeText(document.getElementById('log-content').textContent).then(() => showToast('Copied', 'success')); }
+function updateLogStats(content) {
+  const lines = content.split('\n').filter(l => l.trim());
+  document.getElementById('error-count').innerHTML = `<i class="fas fa-times me-1"></i>${lines.filter(l => l.includes('ERROR')).length} Errors`;
+  document.getElementById('warning-count').innerHTML = `<i class="fas fa-exclamation me-1"></i>${lines.filter(l => l.includes('WARN')).length} Warnings`;
+  document.getElementById('info-count').innerHTML = `<i class="fas fa-info me-1"></i>${lines.filter(l => l.includes('INFO')).length} Info`;
+  document.getElementById('total-lines').innerHTML = `<i class="fas fa-list me-1"></i>${lines.length} Lines`;
 }
-
-function scrollToTop() {
-  document.getElementById('log-container').scrollTop = 0;
-}
-
-function scrollToBottom() {
-  const container = document.getElementById('log-container');
-  container.scrollTop = container.scrollHeight;
-}
-
-function copyLogs() {
-  const logContent = document.getElementById('log-content').textContent;
-  navigator.clipboard.writeText(logContent).then(() => {
-    showLogNotification('Logs copied to clipboard', 'success');
-  }).catch(() => {
-    // Fallback for browsers that don't support clipboard API
-    const textarea = document.createElement('textarea');
-    textarea.value = logContent;
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textarea);
-    showLogNotification('Logs copied to clipboard', 'success');
-  });
-}
-
-function clearLogs() {
-  if (confirm('Are you sure you want to clear all logs? This action cannot be undone.')) {
-    fetch(`/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/logs/clear?container=${currentContainer}`, {
-      method: 'POST'
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        document.getElementById('log-content').textContent = '';
-        updateLogStats('');
-        showLogNotification('Logs cleared successfully', 'success');
-      } else {
-        showLogNotification('Failed to clear logs', 'danger');
-      }
-    });
-  }
-}
-
-function updateLogStats(logContent) {
-  const lines = logContent.split('\n').filter(line => line.trim());
-  const errorCount = lines.filter(line => line.includes('ERROR')).length;
-  const warningCount = lines.filter(line => line.includes('WARN')).length;
-  const infoCount = lines.filter(line => line.includes('INFO')).length;
-  
-  document.getElementById('error-count').textContent = errorCount;
-  document.getElementById('warning-count').textContent = warningCount;
-  document.getElementById('info-count').textContent = infoCount;
-  document.getElementById('total-lines').textContent = lines.length;
-}
-
-function showLogNotification(message, type = 'info') {
-  // Simple notification system
-  const notification = document.createElement('div');
-  notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-  notification.style.top = '20px';
-  notification.style.right = '20px';
-  notification.style.zIndex = '9999';
-  notification.innerHTML = `
-    ${message}
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-  `;
-  
-  document.body.appendChild(notification);
-  
-  setTimeout(() => {
-    if (notification.parentNode) {
-      notification.parentNode.removeChild(notification);
-    }
-  }, 3000);
-}
-
-// Cleanup interval on page unload
-window.addEventListener('beforeunload', function() {
-  if (autoRefreshInterval) {
-    clearInterval(autoRefreshInterval);
-  }
-});
+window.addEventListener('beforeunload', () => { if (autoRefreshInterval) clearInterval(autoRefreshInterval); });
 </script>
 

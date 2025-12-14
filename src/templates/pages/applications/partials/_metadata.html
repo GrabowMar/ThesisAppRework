@@ -1,306 +1,174 @@
-{# Application metadata partial #}
-<div class="card">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <h3 class="card-title mb-0">
-      <i class="fas fa-database me-2"></i>Metadata & Configuration
-    </h3>
-    <div class="card-actions">
-      <button class="btn btn-ghost-secondary btn-sm" 
-              hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/metadata"
-              hx-target="#section-metadata"
-              hx-swap="innerHTML"
-              title="Refresh metadata">
-        <i class="fas fa-sync"></i>
-      </button>
+{# Application metadata - Compact Layout #}
+<div class="row g-2">
+  {# Combined App Info & Generation Details #}
+  <div class="col-12">
+    <div class="card card-sm">
+      <div class="card-header py-2 d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-database text-primary me-2"></i>
+          <span class="fw-bold">Metadata</span>
+        </div>
+        <button class="btn btn-ghost-secondary btn-sm py-0" 
+                hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/metadata"
+                hx-target="#section-metadata" hx-swap="innerHTML" title="Refresh">
+          <i class="fas fa-sync"></i>
+        </button>
+      </div>
+      <div class="card-body py-2">
+        <div class="row g-3">
+          {# App Info Column #}
+          <div class="col-md-6">
+            <div class="d-flex align-items-center mb-2">
+              <i class="fas fa-info-circle text-info me-2"></i>
+              <span class="text-muted small text-uppercase fw-bold">Application</span>
+            </div>
+            <div class="row row-cols-2 g-2 small">
+              <div class="col"><span class="text-muted">Model:</span> <span class="fw-medium">{{ app_data.model_slug }}</span></div>
+              <div class="col"><span class="text-muted">Provider:</span> <span class="badge bg-primary-lt text-primary">{{ app_data.provider or model.provider }}</span></div>
+              <div class="col"><span class="text-muted">Number:</span> <span class="fw-medium">#{{ app_data.app_number }}</span></div>
+              <div class="col"><span class="text-muted">Type:</span> <span class="fw-medium">{{ app_data.app_type|default('unknown') }}</span></div>
+              <div class="col"><span class="text-muted">Created:</span> <span class="fw-medium">{% if app_data.created_at %}{{ app_data.created_at.strftime('%m/%d %H:%M') }}{% else %}—{% endif %}</span></div>
+              <div class="col"><span class="text-muted">Updated:</span> <span class="fw-medium">{% if app_data.updated_at %}{{ app_data.updated_at.strftime('%m/%d %H:%M') }}{% else %}—{% endif %}</span></div>
+            </div>
+          </div>
+          {# Generation Details Column #}
+          <div class="col-md-6">
+            <div class="d-flex align-items-center mb-2">
+              <i class="fas fa-cogs text-success me-2"></i>
+              <span class="text-muted small text-uppercase fw-bold">Generation</span>
+            </div>
+            <div class="row row-cols-2 g-2 small">
+              <div class="col"><span class="text-muted">Backend:</span> {% if app_data.backend_framework %}<span class="badge bg-success-lt">{{ app_data.backend_framework }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</div>
+              <div class="col"><span class="text-muted">Frontend:</span> {% if app_data.frontend_framework %}<span class="badge bg-info-lt">{{ app_data.frontend_framework }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</div>
+              <div class="col"><span class="text-muted">Database:</span> {% if app_data.database_type %}<span class="badge bg-warning-lt">{{ app_data.database_type }}</span>{% else %}<span class="text-muted">—</span>{% endif %}</div>
+              <div class="col"><span class="text-muted">Duration:</span> <span class="fw-medium">{% if app_data.generation_duration %}{{ app_data.generation_duration }}s{% else %}—{% endif %}</span></div>
+              <div class="col"><span class="text-muted">Template:</span> {% if app_data.prompt_template %}<code class="small">{{ app_data.prompt_template }}</code>{% else %}<span class="text-muted">—</span>{% endif %}</div>
+              <div class="col"><span class="text-muted">Tokens:</span> <span class="fw-medium">{% if app_data.token_usage %}{{ app_data.token_usage }}{% else %}—{% endif %}</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
-  <div class="card-body">
-    <div class="row g-3">
-      <!-- Application Metadata -->
-      <div class="col-md-6">
-        <h4>Application Information</h4>
-        <div class="datagrid">
-          <div class="datagrid-item">
-            <div class="datagrid-title">Model</div>
-            <div class="datagrid-content">{{ app_data.model_slug }}</div>
-          </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">Provider</div>
-            <div class="datagrid-content">
-              <span class="badge bg-primary-lt text-primary">{{ app_data.provider or model.provider }}</span>
-            </div>
-          </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">Application Number</div>
-            <div class="datagrid-content">{{ app_data.app_number }}</div>
-          </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">Type</div>
-            <div class="datagrid-content">{{ app_data.app_type|default('unknown') }}</div>
-          </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">Created</div>
-            <div class="datagrid-content">
-              {% if app_data.created_at %}
-                {{ app_data.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
-              {% else %}
-                <span class="text-muted">—</span>
-              {% endif %}
-            </div>
-          </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">Last Updated</div>
-            <div class="datagrid-content">
-              {% if app_data.updated_at %}
-                {{ app_data.updated_at.strftime('%Y-%m-%d %H:%M:%S') }}
-              {% else %}
-                <span class="text-muted">—</span>
-              {% endif %}
-            </div>
-          </div>
+
+  {# Environment Variables - Compact #}
+  {% if environment_variables %}
+  <div class="col-12">
+    <div class="card card-sm">
+      <div class="card-header py-2">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-key text-warning me-2"></i>
+          <span class="fw-bold">Environment</span>
+          <span class="badge bg-secondary-lt ms-2">{{ environment_variables|length }}</span>
         </div>
       </div>
-      
-      <!-- Generation Details -->
-      <div class="col-md-6">
-        <h4>Generation Details</h4>
-        <div class="datagrid">
-          <div class="datagrid-item">
-            <div class="datagrid-title">Backend Framework</div>
-            <div class="datagrid-content">
-              {% if app_data.backend_framework %}
-                <span class="badge bg-success-lt text-success">{{ app_data.backend_framework }}</span>
-              {% else %}
-                <span class="text-muted">—</span>
-              {% endif %}
-            </div>
-          </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">Frontend Framework</div>
-            <div class="datagrid-content">
-              {% if app_data.frontend_framework %}
-                <span class="badge bg-info-lt text-info">{{ app_data.frontend_framework }}</span>
-              {% else %}
-                <span class="text-muted">—</span>
-              {% endif %}
-            </div>
-          </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">Database</div>
-            <div class="datagrid-content">
-              {% if app_data.database_type %}
-                <span class="badge bg-warning-lt text-warning">{{ app_data.database_type }}</span>
-              {% else %}
-                <span class="text-muted">—</span>
-              {% endif %}
-            </div>
-          </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">Generation Time</div>
-            <div class="datagrid-content">
-              {% if app_data.generation_duration %}
-                {{ app_data.generation_duration }}s
-              {% else %}
-                <span class="text-muted">—</span>
-              {% endif %}
-            </div>
-          </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">Prompt Template</div>
-            <div class="datagrid-content">
-              {% if app_data.prompt_template %}
-                <code>{{ app_data.prompt_template }}</code>
-              {% else %}
-                <span class="text-muted">—</span>
-              {% endif %}
-            </div>
-          </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">Token Usage</div>
-            <div class="datagrid-content">
-              {% if app_data.token_usage %}
-                {{ app_data.token_usage }} tokens
-              {% else %}
-                <span class="text-muted">—</span>
-              {% endif %}
-            </div>
-          </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm card-table mb-0">
+            <thead><tr><th>Variable</th><th>Value</th><th>Source</th></tr></thead>
+            <tbody>
+              {% for var in environment_variables[:8] %}
+              <tr>
+                <td><code class="small">{{ var.name }}</code></td>
+                <td>
+                  {% if var.is_secret %}<span class="text-muted">••••</span>
+                  {% else %}<code class="small">{{ var.value|truncate(30) }}</code>{% endif %}
+                </td>
+                <td><span class="badge bg-{{ 'warning' if var.source == 'dockerfile' else ('info' if var.source == 'compose' else 'secondary') }}-lt small">{{ var.source|title }}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
         </div>
+        {% if environment_variables|length > 8 %}
+        <div class="text-center py-1 border-top"><span class="text-muted small">+{{ environment_variables|length - 8 }} more</span></div>
+        {% endif %}
       </div>
     </div>
-    
-    <!-- Environment Variables -->
-    {% if environment_variables %}
-    <div class="mt-4">
-      <h4>Environment Variables</h4>
-      <div class="table-responsive">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th>Variable</th>
-              <th>Value</th>
-              <th>Source</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for var in environment_variables %}
-            <tr>
-              <td><code>{{ var.name }}</code></td>
-              <td>
-                {% if var.is_secret %}
-                  <span class="text-muted">••••••••</span>
-                  <button class="btn btn-ghost-secondary btn-sm ms-1" onclick="toggleSecret(this)" title="Show/Hide">
-                    <i class="fas fa-eye"></i>
-                  </button>
-                  <span class="d-none">{{ var.value }}</span>
-                {% else %}
-                  <code>{{ var.value|truncate(50) }}</code>
-                {% endif %}
-              </td>
-              <td>
-                <span class="badge bg-{{ 'warning' if var.source == 'dockerfile' else ('info' if var.source == 'compose' else 'secondary') }}-lt text-{{ 'warning' if var.source == 'dockerfile' else ('info' if var.source == 'compose' else 'secondary') }}">
-                  {{ var.source|title }}
-                </span>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    {% endif %}
-    
-    <!-- Dependencies -->
-    {% if dependencies %}
-    <div class="mt-4">
-      <h4>Dependencies</h4>
-      <div class="row g-3">
-        {% for dep_type, deps in dependencies.items() %}
-        <div class="col-md-6">
-          <h5>{{ dep_type|title }} Dependencies</h5>
-          <div class="list-group list-group-flush">
-            {% for dep in deps[:10] %}
-            <div class="list-group-item d-flex justify-content-between align-items-center px-0">
-              <div>
-                <strong>{{ dep.name }}</strong>
-                {% if dep.description %}
-                  <div class="text-muted small">{{ dep.description|truncate(60) }}</div>
-                {% endif %}
-              </div>
-              <span class="badge bg-secondary">{{ dep.version|default('latest') }}</span>
-            </div>
-            {% endfor %}
-            {% if deps|length > 10 %}
-            <div class="list-group-item px-0 text-center">
-              <small class="text-muted">And {{ deps|length - 10 }} more dependencies...</small>
-            </div>
-            {% endif %}
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
-    
-    <!-- Configuration Files -->
-    {% if config_files %}
-    <div class="mt-4">
-      <h4>Configuration Files</h4>
-      <div class="table-responsive">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th>File</th>
-              <th>Type</th>
-              <th>Size</th>
-              <th>Last Modified</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for file in config_files %}
-            <tr>
-              <td><code>{{ file.name }}</code></td>
-              <td>
-                <span class="badge bg-info-lt text-info">{{ file.type|default('config') }}</span>
-              </td>
-              <td>{{ file.size|default('—') }}</td>
-              <td>
-                {% if file.modified_at %}
-                  {{ file.modified_at.strftime('%Y-%m-%d %H:%M') }}
-                {% else %}
-                  <span class="text-muted">—</span>
-                {% endif %}
-              </td>
-              <td>
-                <button class="btn btn-ghost-primary btn-sm" 
-                        onclick="viewConfigFile('{{ file.path }}')"
-                        title="View file">
-                  <i class="fas fa-eye"></i>
-                </button>
-                <button class="btn btn-ghost-secondary btn-sm"
-                        onclick="downloadConfigFile('{{ file.path }}')"
-                        title="Download file">
-                  <i class="fas fa-download"></i>
-                </button>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    {% endif %}
   </div>
+  {% endif %}
+
+  {# Dependencies - Compact #}
+  {% if dependencies %}
+  <div class="col-12">
+    <div class="card card-sm">
+      <div class="card-header py-2">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-box text-purple me-2"></i>
+          <span class="fw-bold">Dependencies</span>
+        </div>
+      </div>
+      <div class="card-body py-2">
+        <div class="row g-2">
+          {% for dep_type, deps in dependencies.items() %}
+          <div class="col-md-6">
+            <div class="d-flex align-items-center mb-1">
+              <span class="text-muted small text-uppercase fw-bold">{{ dep_type|title }}</span>
+              <span class="badge bg-secondary-lt ms-2 small">{{ deps|length }}</span>
+            </div>
+            <div class="d-flex flex-wrap gap-1">
+              {% for dep in deps[:6] %}
+              <span class="badge bg-secondary-lt small">{{ dep.name }} {{ dep.version|default('') }}</span>
+              {% endfor %}
+              {% if deps|length > 6 %}<span class="badge bg-secondary-lt small">+{{ deps|length - 6 }}</span>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Config Files - Compact #}
+  {% if config_files %}
+  <div class="col-12">
+    <div class="card card-sm">
+      <div class="card-header py-2">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-file-code text-cyan me-2"></i>
+          <span class="fw-bold">Config Files</span>
+          <span class="badge bg-secondary-lt ms-2">{{ config_files|length }}</span>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm card-table mb-0">
+            <thead><tr><th>File</th><th>Type</th><th>Size</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+              {% for file in config_files[:6] %}
+              <tr>
+                <td><code class="small">{{ file.name }}</code></td>
+                <td><span class="badge bg-info-lt small">{{ file.type|default('config') }}</span></td>
+                <td class="small">{{ file.size|default('—') }}</td>
+                <td class="text-end">
+                  <button class="btn btn-ghost-primary btn-sm py-0" onclick="viewConfigFile('{{ file.path }}')" title="View"><i class="fas fa-eye"></i></button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
-<!-- Config File Modal -->
 <div class="modal fade" id="configFileModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">Configuration File</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" title="Close"></button>
-      </div>
-      <div class="modal-body">
-        <div id="config-file-content">
-          <!-- Content loaded dynamically -->
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-      </div>
+      <div class="modal-header py-2"><h6 class="modal-title">Config File</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body"><div id="config-file-content"></div></div>
     </div>
   </div>
 </div>
 
 <script>
-function toggleSecret(btn) {
-  const hiddenSpan = btn.nextElementSibling;
-  const icon = btn.querySelector('i');
-  
-  if (hiddenSpan.classList.contains('d-none')) {
-    hiddenSpan.classList.remove('d-none');
-    hiddenSpan.previousElementSibling.classList.add('d-none');
-    icon.className = 'fas fa-eye-slash';
-  } else {
-    hiddenSpan.classList.add('d-none');
-    hiddenSpan.previousElementSibling.classList.remove('d-none');
-    icon.className = 'fas fa-eye';
-  }
-}
-
 function viewConfigFile(filePath) {
   htmx.ajax('GET', `/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/config-file?path=${encodeURIComponent(filePath)}`, {
-    target: '#config-file-content',
-    swap: 'innerHTML'
+    target: '#config-file-content', swap: 'innerHTML'
   });
-  
-  const modal = new bootstrap.Modal(document.getElementById('configFileModal'));
-  modal.show();
-}
-
-function downloadConfigFile(filePath) {
-  window.open(`/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/download-config?path=${encodeURIComponent(filePath)}`, '_blank');
+  new bootstrap.Modal(document.getElementById('configFileModal')).show();
 }
 </script>

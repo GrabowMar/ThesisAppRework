@@ -1,49 +1,53 @@
-{# Application files explorer - grid layout with file browser and metrics #}
+{# Application files explorer - Compact Layout #}
 {% if files %}
-<div class="row g-3">
+<div class="row g-2">
+  {# Stats Row - Inline #}
   <div class="col-12">
     <div class="card card-sm">
-      <div class="card-body">
-        <div class="d-flex align-items-center mb-3">
-          <div class="me-2">
-            <i class="fas fa-folder-open text-primary"></i>
-          </div>
-          <h3 class="card-title mb-0">File Explorer</h3>
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center flex-wrap gap-3">
+          <span class="text-muted small"><i class="fas fa-folder-open text-primary me-1"></i>File Stats:</span>
+          <span class="badge bg-primary-lt"><i class="fas fa-file me-1"></i>{{ file_stats.total_files }} Files</span>
+          <span class="badge bg-success-lt"><i class="fas fa-hdd me-1"></i>{{ file_stats.total_size }}</span>
+          <span class="badge bg-info-lt"><i class="fas fa-code me-1"></i>{{ file_stats.code_files }} Code</span>
+          <span class="badge bg-warning-lt"><i class="fas fa-cog me-1"></i>{{ file_stats.config_files }} Config</span>
         </div>
+      </div>
+    </div>
+  </div>
+
+  {# File Browser - Compact #}
+  <div class="col-12">
+    <div class="card card-sm">
+      <div class="card-header py-2 d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-folder-tree text-primary me-2"></i>
+          <span class="fw-bold">Explorer</span>
+        </div>
+      </div>
+      <div class="card-body p-0">
         <div class="row g-0">
-          <div class="col-md-5 border-end pe-3">
-            <div class="list-group list-group-flush" id="app-file-tree" style="max-height: 400px; overflow-y: auto;">
+          <div class="col-md-4 border-end" style="max-height: 350px; overflow-y: auto;">
+            <div class="list-group list-group-flush" id="app-file-tree">
               {% for file in files %}
                 {% if file.is_directory %}
-                  <div class="list-group-item list-group-item-action disabled" data-file-path="{{ file.path }}" title="{{ file.path }}">
-                    <i class="fas fa-folder me-2 text-warning"></i>
-                    <span>{{ file.name }}/</span>
+                  <div class="list-group-item py-1 px-2 disabled small" data-file-path="{{ file.path }}">
+                    <i class="fas fa-folder me-1 text-warning"></i>{{ file.name }}/
                   </div>
                 {% else %}
-                  <button type="button"
-                          class="list-group-item list-group-item-action"
-                          data-file-path="{{ file.path }}"
-                          title="{{ file.path }}">
-                    <div class="d-flex justify-content-between align-items-center">
-                      <span>
-                        <i class="fas fa-file-code me-2 text-info"></i>
-                        <span class="text-truncate">{{ file.name }}</span>
-                      </span>
-                      <small class="text-muted">{{ file.size }}</small>
-                    </div>
+                  <button type="button" class="list-group-item list-group-item-action py-1 px-2 d-flex justify-content-between align-items-center small" data-file-path="{{ file.path }}">
+                    <span><i class="fas fa-file-code me-1 text-info"></i>{{ file.name|truncate(20) }}</span>
+                    <span class="text-muted" style="font-size: 0.7rem;">{{ file.size }}</span>
                   </button>
                 {% endif %}
               {% endfor %}
             </div>
           </div>
-          <div class="col-md-7 ps-3">
-            <div id="file-details">
-              <div class="empty">
-                <div class="empty-icon">
-                  <i class="fas fa-mouse-pointer fa-2x text-muted"></i>
-                </div>
-                <p class="empty-title">No file selected</p>
-                <p class="empty-subtitle text-muted">Click a file to preview its contents</p>
+          <div class="col-md-8">
+            <div id="file-details" class="file-preview-container">
+              <div class="text-center py-5" style="color: #6c7a8a;">
+                <i class="fas fa-mouse-pointer fa-2x mb-2"></i>
+                <p class="mb-0 small">Click a file to preview</p>
               </div>
             </div>
           </div>
@@ -52,81 +56,29 @@
     </div>
   </div>
 
-  <div class="col-md-3">
-    <div class="card card-sm">
-      <div class="card-body">
-        <div class="mb-3">
-          <div class="text-muted small text-uppercase">Files</div>
-          <div class="h3 mb-0 text-primary">{{ file_stats.total_files }}</div>
-          <div class="small text-muted">Including assets &amp; configs</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-md-3">
-    <div class="card card-sm">
-      <div class="card-body">
-        <div class="mb-3">
-          <div class="text-muted small text-uppercase">Total Size</div>
-          <div class="h3 mb-0 text-success">{{ file_stats.total_size }}</div>
-          <div class="small text-muted">On disk</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-md-3">
-    <div class="card card-sm">
-      <div class="card-body">
-        <div class="mb-3">
-          <div class="text-muted small text-uppercase">Code Files</div>
-          <div class="h3 mb-0 text-info">{{ file_stats.code_files }}</div>
-          <div class="small text-muted">Source files</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-md-3">
-    <div class="card card-sm">
-      <div class="card-body">
-        <div class="mb-3">
-          <div class="text-muted small text-uppercase">Config Files</div>
-          <div class="h3 mb-0 text-warning">{{ file_stats.config_files }}</div>
-          <div class="small text-muted">Environment</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
+  {# File Types - Compact Table #}
   {% if file_stats.by_extension %}
   <div class="col-12">
     <div class="card card-sm">
-      <div class="card-body">
-        <div class="d-flex align-items-center mb-3">
-          <div class="me-2">
-            <i class="fas fa-layer-group text-info"></i>
-          </div>
-          <h3 class="card-title mb-0">File Types</h3>
+      <div class="card-header py-2">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-layer-group text-info me-2"></i>
+          <span class="fw-bold">By Extension</span>
         </div>
+      </div>
+      <div class="card-body p-0">
         <div class="table-responsive">
-          <table class="table table-sm card-table">
+          <table class="table table-sm card-table mb-0">
             <thead>
-              <tr>
-                <th>Extension</th>
-                <th class="text-end">Files</th>
-                <th class="text-end">Size</th>
-                <th class="text-end">Share</th>
-              </tr>
+              <tr><th>Ext</th><th class="text-end">Files</th><th class="text-end">Size</th><th class="text-end">%</th></tr>
             </thead>
             <tbody>
               {% for ext, stats in file_stats.by_extension.items() %}
               <tr>
-                <td><span class="badge bg-secondary-lt text-secondary">{{ ext or '∅' }}</span></td>
+                <td><span class="badge bg-secondary-lt">{{ ext or '∅' }}</span></td>
                 <td class="text-end">{{ stats.count }}</td>
                 <td class="text-end">{{ stats.size }}</td>
-                <td class="text-end">{{ "%.1f"|format(stats.percentage) }}%</td>
+                <td class="text-end">{{ "%.0f"|format(stats.percentage) }}%</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -138,72 +90,40 @@
   {% endif %}
 </div>
 
+<style>
+.file-preview-container { height: 350px; overflow: auto; background: #1e1e2e; }
+.file-preview-container .file-preview { background: transparent; }
+.file-preview-container .file-preview pre { margin: 0; padding: 0.5rem; background: transparent; color: #cdd6f4; }
+.file-preview-container .file-preview-header { padding: 0.25rem 0.5rem; background: #2d2d3a; border-bottom: 1px solid #3d3d4a; }
+.file-preview-container .file-preview-header span { color: #a0a0b0 !important; }
+</style>
+
 <script>
 (function(){
   const tree = document.getElementById('app-file-tree');
   if (!tree) return;
-  
   tree.addEventListener('click', evt => {
     const node = evt.target.closest('.list-group-item:not(.disabled)');
     if (!node) return;
-    
     const path = node.dataset.filePath;
     if (!path) return;
-    
     tree.querySelectorAll('.list-group-item.active').forEach(el => el.classList.remove('active'));
     node.classList.add('active');
-    
     htmx.ajax('GET', `/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/file?path=${encodeURIComponent(path)}`, {
-      target: '#file-details',
-      swap: 'innerHTML'
+      target: '#file-details', swap: 'innerHTML'
     });
   });
 })();
 </script>
 {% else %}
 <div class="card card-sm">
-  <div class="card-body">
-    <div class="empty">
-      <div class="empty-icon">
-        <i class="fas fa-folder-open fa-2x text-muted"></i>
-      </div>
-      <p class="empty-title">No files discovered</p>
-      <p class="empty-subtitle text-muted">No files were found for this application</p>
-      <div class="empty-action">
-        <button class="btn btn-primary"
-                hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/scan-files"
-                hx-target="#tab-files"
-                hx-swap="innerHTML">
-          <i class="fas fa-search me-1"></i>Scan again
-        </button>
-      </div>
-    </div>
+  <div class="card-body py-4 text-center">
+    <i class="fas fa-folder-open text-muted fa-2x mb-2"></i>
+    <p class="mb-2 text-muted">No files discovered</p>
+    <button class="btn btn-primary btn-sm" hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/scan-files" hx-target="#section-files" hx-swap="innerHTML">
+      <i class="fas fa-search me-1"></i>Scan
+    </button>
   </div>
 </div>
 {% endif %}
-
-<script>
-(function(){
-  const tree = document.getElementById('app-file-tree');
-  if (!tree) {
-    return;
-  }
-  tree.addEventListener('click', evt => {
-    const node = evt.target.closest('.detail-file-node');
-    if (!node || node.classList.contains('is-directory')) {
-      return;
-    }
-    const path = node.dataset.filePath;
-    if (!path) {
-      return;
-    }
-    tree.querySelectorAll('.detail-file-node.is-active').forEach(el => el.classList.remove('is-active'));
-    node.classList.add('is-active');
-    htmx.ajax('GET', `/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/file?path=${encodeURIComponent(path)}`, {
-      target: '#file-details',
-      swap: 'innerHTML'
-    });
-  });
-})();
-</script>
 
