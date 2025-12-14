@@ -290,18 +290,45 @@ docker compose restart
 # Rebuild specific container
 docker compose up -d --build static-analyzer
 
-# Clean rebuild (no cache)
-docker compose build --no-cache
+# Fast incremental rebuild (30-90s, uses cache)
+./start.ps1 -Mode Rebuild
+
+# Clean rebuild (12-18min, no cache)
+./start.ps1 -Mode CleanRebuild
 
 # Fix stuck tasks
 python scripts/fix_task_statuses.py
 
-# Maintenance cleanup
+# Maintenance cleanup (7-day grace period for orphan apps)
 ./start.ps1 -Mode Maintenance
+
+# Full wipeout (WARNING: removes all data)
+./start.ps1 -Mode Wipeout
+
+# Reset admin password
+./start.ps1 -Mode Password
 ```
+
+## Orchestrator Commands Reference
+
+| Mode | Description |
+|------|-------------|
+| `Start` | Full stack: Flask + Analyzer containers |
+| `Stop` | Stop all services |
+| `Dev` | Development mode (Flask only) |
+| `Status` | Show status dashboard |
+| `Logs` | Tail Flask and analyzer logs |
+| `Rebuild` | Fast incremental container rebuild |
+| `CleanRebuild` | Full rebuild without cache |
+| `Maintenance` | Run manual cleanup (7-day orphan grace period) |
+| `Reload` | Hot reload for code changes |
+| `Wipeout` | Full reset (WARNING: data loss) |
+| `Password` | Reset admin password |
 
 ## Related
 
-- [Architecture](./architecture.md)
+- [Architecture](./ARCHITECTURE.md)
+- [Background Services](./BACKGROUND_SERVICES.md)
 - [API Reference](./api-reference.md)
 - [Development Guide](./development-guide.md)
+- [Troubleshooting](./TROUBLESHOOTING.md)

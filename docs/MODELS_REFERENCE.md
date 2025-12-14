@@ -21,6 +21,21 @@ Examples:
 - `anthropic_claude-3-opus`
 - `google_gemini-pro`
 
+### Slug Normalization
+
+The system automatically normalizes model slugs to handle variants:
+
+```python
+from app.utils.slug_utils import normalize_model_slug
+
+# These all normalize to the same slug:
+normalize_model_slug("openai/gpt-4")      # "openai_gpt-4"
+normalize_model_slug("OpenAI_GPT-4")      # "openai_gpt-4"
+normalize_model_slug("openai_gpt-4:free") # "openai_gpt-4" (strips :free suffix)
+```
+
+The analyzer manager also tries variant lookups (see `_normalize_and_validate_app` in [analyzer/analyzer_manager.py](../analyzer/analyzer_manager.py)).
+
 ## Model Capabilities
 
 ### Code Generation
@@ -57,6 +72,16 @@ generated/apps/{model_slug}/app{N}/
 ├── docker-compose.yml
 └── README.md
 ```
+
+### Application Tracking
+
+Generated apps are tracked in the database (`GeneratedApplication` model) with:
+- `model_slug` - Normalized model identifier
+- `app_number` - Sequence number
+- `container_status` - Current Docker state
+- `missing_since` - Timestamp when filesystem directory went missing (7-day grace period before deletion)
+
+> **Note**: If an app's filesystem directory is deleted, it's marked with `missing_since` but not removed from DB for 7 days, allowing recovery.
 
 ## Port Allocation
 
@@ -120,5 +145,7 @@ Available application templates in `misc/requirements/`:
 ## Related
 
 - [Architecture](ARCHITECTURE.md)
+- [Background Services](BACKGROUND_SERVICES.md)
 - [API Reference](api-reference.md)
 - [Analyzer Guide](ANALYZER_GUIDE.md)
+- [Development Guide](development-guide.md)

@@ -65,7 +65,23 @@ python src/init_db.py
 ./start.ps1
 ```
 
-This opens an interactive menu with options to start, stop, and manage services.
+This opens an interactive menu with options:
+
+| Mode | Description |
+|------|-------------|
+| `Start` | Full stack (Flask + Analyzers) |
+| `Stop` | Stop all services |
+| `Dev` | Development mode (Flask only, debug on) |
+| `Status` | Status dashboard |
+| `Logs` | Tail all logs |
+| `Rebuild` | Fast incremental container rebuild |
+| `CleanRebuild` | Full rebuild without cache |
+| `Maintenance` | Manual cleanup (7-day orphan grace) |
+| `Reload` | Hot reload for code changes |
+| `Wipeout` | Full reset (WARNING: data loss) |
+| `Password` | Reset admin password |
+
+> **Note**: Maintenance is now manual by default (as of Nov 2025). Orphan apps get a 7-day grace period before deletion.
 
 ### Quick Commands
 
@@ -75,6 +91,7 @@ This opens an interactive menu with options to start, stop, and manage services.
 | `./start.ps1 -Mode Dev` | Start Flask only (fast) |
 | `./start.ps1 -Mode Stop` | Stop all services |
 | `./start.ps1 -Mode Status` | View dashboard |
+| `./start.ps1 -Mode Maintenance` | Run cleanup manually |
 
 ### Direct Python
 
@@ -150,5 +167,7 @@ If AI analysis fails, verify `OPENROUTER_API_KEY` is set in `.env`.
 ## Next Steps
 
 - [Architecture Overview](ARCHITECTURE.md) - Understand the system design
+- [Background Services](BACKGROUND_SERVICES.md) - Task execution and maintenance
 - [API Reference](api-reference.md) - REST API documentation
 - [Development Guide](development-guide.md) - Contributing and testing
+- [Troubleshooting](TROUBLESHOOTING.md) - Common issues and solutions

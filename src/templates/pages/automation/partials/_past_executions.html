@@ -126,14 +126,21 @@
 
 <script>
   // Helper function to view a running pipeline
+  // Note: These functions rely on AutomationWizard which is loaded in the scripts block
   function viewPipeline(pipelineId) {
+    // Wait for AutomationWizard to be available
+    if (typeof window.AutomationWizard === 'undefined') {
+      console.warn('AutomationWizard not ready, retrying...');
+      setTimeout(() => viewPipeline(pipelineId), 100);
+      return;
+    }
     // Set pipeline ID and navigate to execution panel
     document.getElementById('pipeline-id').value = pipelineId;
-    AutomationWizard.state.pipelineId = pipelineId;
-    AutomationWizard.state.status = 'running';
-    goToStep(4);
-    startStatusPolling();
-    startElapsedTimer();
+    window.AutomationWizard.state.pipelineId = pipelineId;
+    window.AutomationWizard.state.status = 'running';
+    if (typeof goToStep === 'function') goToStep(4);
+    if (typeof startStatusPolling === 'function') startStatusPolling();
+    if (typeof startElapsedTimer === 'function') startElapsedTimer();
   }
   
   // Cancel a pipeline by ID
@@ -147,13 +154,17 @@
     .then(response => response.json())
     .then(data => {
       if (data.success) {
-        showNotification('Pipeline cancelled', 'success');
+        if (typeof showNotification === 'function') showNotification('Pipeline cancelled', 'success');
         location.reload();
       } else {
-        showNotification(data.error || 'Failed to cancel', 'error');
+        if (typeof showNotification === 'function') showNotification(data.error || 'Failed to cancel', 'error');
+        else alert(data.error || 'Failed to cancel');
       }
     })
-    .catch(err => showNotification('Error cancelling pipeline', 'error'));
+    .catch(err => {
+      if (typeof showNotification === 'function') showNotification('Error cancelling pipeline', 'error');
+      else alert('Error cancelling pipeline');
+    });
   }
   
   // View pipeline error details

@@ -77,6 +77,9 @@ class PipelineExecutionService:
         # Container management state
         self._containers_started_for: Set[str] = set()  # pipeline_ids with auto-started containers
         
+        # App container tracking (model_slug, app_number) tuples started per pipeline
+        self._app_containers_started: Dict[str, Set[tuple]] = {}  # pipeline_id -> {(model, app_num), ...}
+        
         self._log("PipelineExecutionService initialized (poll_interval=%s)", poll_interval)
     
     def _log(self, msg: str, *args, level: str = 'info', **kwargs):
@@ -148,6 +151,7 @@ class PipelineExecutionService:
                                 pipeline.fail(str(e))
                                 db.session.commit()
                                 # Clean up containers on failure
+                                self._stop_all_app_containers_for_pipeline(pipeline)
                                 self._cleanup_pipeline_containers(pipeline.pipeline_id)
                             except Exception:
                                 db.session.rollback()
@@ -282,6 +286,7 @@ class PipelineExecutionService:
         if self._check_analysis_tasks_completion(pipeline):
             # Analysis complete - commit completion status and stop containers
             db.session.commit()
+            self._stop_all_app_containers_for_pipeline(pipeline)
             self._cleanup_pipeline_containers(pipeline_id)
         
         self._emit_progress_update(pipeline)
@@ -311,6 +316,34 @@ class PipelineExecutionService:
                     model_slug, app_number, task_id
                 )
                 return task_id  # Return existing task ID
+        
+        # STEP 1: Validate app exists before attempting analysis
+        exists, app_path, validation_msg = self._validate_app_exists(model_slug, app_number)
+        if not exists:
+            self._log(
+                "Skipping analysis for %s app %d: %s",
+                model_slug, app_number, validation_msg,
+                level='warning'
+            )
+            skip_marker = f'skipped:app_missing:{validation_msg}'
+            pipeline.add_analysis_task_id(skip_marker, success=False)
+            return skip_marker
+        
+        # STEP 2: Start app containers if autoStartContainers is enabled
+        config = pipeline.config
+        analysis_config = config.get('analysis', {})
+        auto_start = analysis_config.get('autoStartContainers', 
+                                         analysis_config.get('options', {}).get('autoStartContainers', True))
+        
+        if auto_start:
+            start_result = self._start_app_containers(pipeline_id, model_slug, app_number)
+            if not start_result.get('success'):
+                # Log warning but continue - analysis might still work (e.g., static analysis)
+                self._log(
+                    "App container startup failed for %s app %d, continuing with analysis anyway: %s",
+                    model_slug, app_number, start_result.get('error', 'Unknown'),
+                    level='warning'
+                )
         
         self._log("Creating analysis task for %s app %d", model_slug, app_number)
         
@@ -433,6 +466,170 @@ class PipelineExecutionService:
             self._containers_started_for.discard(pipeline_id)
             # Clean up in-flight tracking
             self._in_flight_tasks.pop(pipeline_id, None)
+            # Clean up app containers tracking
+            self._app_containers_started.pop(pipeline_id, None)
+    
+    def _start_app_containers(
+        self, 
+        pipeline_id: str, 
+        model_slug: str, 
+        app_number: int
+    ) -> Dict[str, Any]:
+        """Start containers for a generated app before analysis.
+        
+        Args:
+            pipeline_id: Pipeline ID for tracking
+            model_slug: The model slug (e.g., 'openai_gpt-4')
+            app_number: The app number
+            
+        Returns:
+            Dict with 'success' and optional 'error' or 'message' fields
+        """
+        try:
+            from app.services.docker_manager import DockerManager
+            
+            manager = DockerManager()
+            
+            self._log(
+                "Starting containers for %s app %d (pipeline %s)",
+                model_slug, app_number, pipeline_id
+            )
+            
+            result = manager.start_containers(model_slug, app_number)
+            
+            if result.get('success'):
+                # Track that we started these containers
+                if pipeline_id not in self._app_containers_started:
+                    self._app_containers_started[pipeline_id] = set()
+                self._app_containers_started[pipeline_id].add((model_slug, app_number))
+                
+                self._log(
+                    "Successfully started containers for %s app %d",
+                    model_slug, app_number
+                )
+            else:
+                self._log(
+                    "Failed to start containers for %s app %d: %s",
+                    model_slug, app_number, result.get('error', 'Unknown error'),
+                    level='warning'
+                )
+            
+            return result
+            
+        except Exception as e:
+            self._log(
+                "Error starting app containers for %s app %d: %s",
+                model_slug, app_number, e,
+                level='error'
+            )
+            return {'success': False, 'error': str(e)}
+    
+    def _stop_app_containers(
+        self, 
+        pipeline_id: str, 
+        model_slug: str, 
+        app_number: int
+    ) -> Dict[str, Any]:
+        """Stop containers for a generated app after analysis.
+        
+        Args:
+            pipeline_id: Pipeline ID for tracking
+            model_slug: The model slug
+            app_number: The app number
+            
+        Returns:
+            Dict with 'success' and optional 'error' fields
+        """
+        try:
+            from app.services.docker_manager import DockerManager
+            
+            manager = DockerManager()
+            
+            self._log(
+                "Stopping containers for %s app %d (pipeline %s)",
+                model_slug, app_number, pipeline_id
+            )
+            
+            result = manager.stop_containers(model_slug, app_number)
+            
+            if result.get('success'):
+                # Remove from tracking
+                if pipeline_id in self._app_containers_started:
+                    self._app_containers_started[pipeline_id].discard((model_slug, app_number))
+                
+                self._log(
+                    "Successfully stopped containers for %s app %d",
+                    model_slug, app_number
+                )
+            else:
+                self._log(
+                    "Failed to stop containers for %s app %d: %s",
+                    model_slug, app_number, result.get('error', 'Unknown error'),
+                    level='warning'
+                )
+            
+            return result
+            
+        except Exception as e:
+            self._log(
+                "Error stopping app containers for %s app %d: %s",
+                model_slug, app_number, e,
+                level='error'
+            )
+            return {'success': False, 'error': str(e)}
+    
+    def _stop_all_app_containers_for_pipeline(self, pipeline: PipelineExecution):
+        """Stop all app containers that were started for a pipeline.
+        
+        Called when pipeline analysis stage completes and stopAfterAnalysis is True.
+        """
+        pipeline_id = pipeline.pipeline_id
+        started_apps = self._app_containers_started.get(pipeline_id, set()).copy()
+        
+        if not started_apps:
+            return
+        
+        config = pipeline.config
+        analysis_config = config.get('analysis', {})
+        stop_after = analysis_config.get('stopAfterAnalysis', 
+                                         analysis_config.get('options', {}).get('stopAfterAnalysis', True))
+        
+        if not stop_after:
+            self._log("stopAfterAnalysis disabled - keeping app containers running for pipeline %s", pipeline_id)
+            return
+        
+        self._log("Stopping %d app container sets for pipeline %s", len(started_apps), pipeline_id)
+        
+        for model_slug, app_number in started_apps:
+            self._stop_app_containers(pipeline_id, model_slug, app_number)
+    
+    def _validate_app_exists(self, model_slug: str, app_number: int) -> tuple:
+        """Check if an app directory exists on the filesystem.
+        
+        Args:
+            model_slug: The model slug
+            app_number: The app number
+            
+        Returns:
+            Tuple of (exists: bool, app_path: Path or None, message: str)
+        """
+        try:
+            from app.utils.helpers import get_app_directory
+            
+            app_dir = get_app_directory(model_slug, app_number)
+            
+            if not app_dir.exists():
+                return (False, app_dir, f"App directory not found: {app_dir}")
+            
+            # Check for docker-compose.yml (needed for container operations)
+            compose_file = app_dir / 'docker-compose.yml'
+            if not compose_file.exists():
+                return (False, app_dir, f"No docker-compose.yml found in {app_dir}")
+            
+            return (True, app_dir, "App exists and has docker-compose.yml")
+            
+        except Exception as e:
+            return (False, None, f"Error checking app existence: {e}")
     
     def _check_stage_transition(self, pipeline: PipelineExecution):
         """Check if pipeline should transition to next stage or complete."""
@@ -482,6 +679,7 @@ class PipelineExecutionService:
             
             if analysis_done:
                 # Pipeline complete after analysis (reports stage removed)
+                self._stop_all_app_containers_for_pipeline(pipeline)
                 self._cleanup_pipeline_containers(pipeline.pipeline_id)
         
         db.session.commit()
@@ -573,13 +771,28 @@ class PipelineExecutionService:
     
     def _execute_generation_job(self, pipeline: PipelineExecution, job: Dict[str, Any]):
         """Execute a single generation job."""
+        job_index = job.get('job_index', pipeline.current_job_index)
         model_slug = job['model_slug']
         template_slug = job['template_slug']
         
-        # Check if we already generated an app for this model+template in this pipeline
-        # (prevents duplicates on server restart)
+        # ROBUST DUPLICATE DETECTION:
+        # 1. Check by job_index: if result already exists at this index, skip
+        # 2. Check by model+template: fallback for edge cases
+        # This prevents duplicates on server restart and race conditions
         progress = pipeline.progress
         existing_results = progress.get('generation', {}).get('results', [])
+        
+        # Check 1: Job-index-based detection (most reliable)
+        if job_index < len(existing_results):
+            existing = existing_results[job_index]
+            self._log(
+                "Skipping job %d: result already exists (model=%s, template=%s, app=%d)",
+                job_index, existing.get('model_slug'), existing.get('template_slug'),
+                existing.get('app_number', -1)
+            )
+            return
+        
+        # Check 2: Model+template combination (handles out-of-order edge cases)
         for existing_result in existing_results:
             if (existing_result.get('model_slug') == model_slug and
                 existing_result.get('template_slug') == template_slug):
@@ -621,8 +834,9 @@ class PipelineExecutionService:
             finally:
                 loop.close()
             
-            # Record result
+            # Record result with job_index for tracking
             result = {
+                'job_index': job_index,
                 'model_slug': model_slug,
                 'template_slug': template_slug,
                 'app_number': gen_result.get('app_number', app_num),
@@ -631,17 +845,18 @@ class PipelineExecutionService:
             pipeline.add_generation_result(result)
             
             self._log(
-                "Generated %s app %d with template %s",
-                model_slug, result['app_number'], template_slug
+                "Generated %s app %d with template %s (job %d)",
+                model_slug, result['app_number'], template_slug, job_index
             )
             
         except Exception as e:
             self._log(
-                "Generation failed for %s with %s: %s",
-                model_slug, template_slug, e,
+                "Generation failed for %s with %s (job %d): %s",
+                model_slug, template_slug, job_index, e,
                 level='error'
             )
             result = {
+                'job_index': job_index,
                 'model_slug': model_slug,
                 'template_slug': template_slug,
                 'success': False,

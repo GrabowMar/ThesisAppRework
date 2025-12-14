@@ -100,11 +100,15 @@ flowchart LR
 
 ### Background Services
 
-| Service | Purpose | Polling |
-|---------|---------|---------|
-| TaskExecutionService | Executes PENDING analysis tasks | 2-10s |
-| MaintenanceService | Cleanup orphans, stuck tasks | Manual/hourly |
-| PipelineExecutionService | Automation pipelines | Event-driven |
+| Service | Purpose | Polling | Default |
+|---------|---------|---------|---------|
+| TaskExecutionService | Executes PENDING analysis tasks | 2-10s | Auto-start |
+| MaintenanceService | Cleanup orphans, stuck tasks | Manual/hourly | **Manual** |
+| PipelineExecutionService | Automation pipelines | Event-driven | Auto-start |
+
+> **Note**: MaintenanceService is manual by default as of Nov 2025. Run via `./start.ps1 -Mode Maintenance` or set `MAINTENANCE_AUTO_START=true`.
+
+See [BACKGROUND_SERVICES.md](./BACKGROUND_SERVICES.md) for detailed configuration and debugging.
 
 ## Data Flow
 
@@ -223,6 +227,47 @@ Analyzer services communicate via WebSocket using a shared protocol defined in [
 | `*_analysis_result` | Service→Client | Final result |
 | `error` | Service→Client | Error details |
 
+### Connection Resilience (Dec 2025)
+
+The system implements robust connection handling for analyzer services:
+
+```mermaid
+flowchart TB
+    subgraph PreFlight["Pre-flight Checks"]
+        Check["TCP Port Check"]
+        WS["WebSocket Handshake"]
+    end
+    
+    subgraph Retry["Retry Logic"]
+        R1["Attempt 1"]
+        R2["Attempt 2 (2s delay)"]
+        R3["Attempt 3 (4s delay)"]
+        R4["Final (8s delay)"]
+    end
+    
+    subgraph Circuit["Circuit Breaker"]
+        Open["OPEN (5min cooldown)"]
+        Closed["CLOSED (normal)"]
+        HalfOpen["HALF-OPEN (test)"]
+    end
+    
+    Check -->|success| WS
+    Check -->|fail| R1
+    R1 -->|fail| R2
+    R2 -->|fail| R3
+    R3 -->|fail| R4
+    R4 -->|3 failures| Open
+    Open -->|5min| HalfOpen
+    HalfOpen -->|success| Closed
+```
+
+| Feature | Behavior |
+|---------|----------|
+| Pre-flight checks | TCP port + WebSocket handshake before starting subtasks |
+| Exponential backoff | 2s → 4s → 8s delays between retries |
+| Circuit breaker | 3 consecutive failures → 5-minute cooldown |
+| Auto-recovery | Services available again after cooldown or first success |
+
 ### REST API Authentication
 
 Bearer token authentication via `Authorization: Bearer <token>` header. Tokens managed through User → API Access in the web UI.
@@ -301,9 +346,55 @@ See [analyzer/README.md](../analyzer/README.md) for detailed result format docum
 | `OPENROUTER_API_KEY` | AI analyzer authentication | Required |
 | `ANALYZER_ENABLED` | Enable analyzer integration | `true` |
 | `ANALYZER_AUTO_START` | Auto-start containers | `false` |
-| `MAINTENANCE_AUTO_START` | Auto-start cleanup | `false` |
+| `MAINTENANCE_AUTO_START` | Auto-start cleanup service | `false` |
+| `USE_CELERY_ANALYSIS` | Use Celery instead of ThreadPoolExecutor | `false` |
+| `TASK_POLL_INTERVAL` | Task polling interval (seconds) | `10` (prod), `2` (test) |
 | `LOG_LEVEL` | Logging verbosity | `INFO` |
-| `STATIC_ANALYSIS_TIMEOUT` | Tool timeout (seconds) | `300` |
+| `STATIC_ANALYSIS_TIMEOUT` | Static tool timeout (seconds) | `300` |
+| `SECURITY_ANALYSIS_TIMEOUT` | Security tool timeout (seconds) | `600` |
+| `PERFORMANCE_TIMEOUT` | Performance test timeout (seconds) | `300` |
+| `TASK_TIMEOUT` | Overall task timeout (seconds) | `1800` |
+
+## Task Execution
+
+The system uses **ThreadPoolExecutor** by default (8 workers) for parallel task execution. Celery is available as an optional alternative for distributed workloads.
+
+```mermaid
+flowchart LR
+    subgraph Executor["Default: ThreadPoolExecutor"]
+        Pool["8 Worker Threads"]
+        Queue["Task Queue"]
+    end
+    
+    subgraph Optional["Optional: Celery"]
+        Redis["Redis Broker"]
+        Workers["Celery Workers"]
+    end
+    
+    Flask["Flask App"] --> Pool
+    Pool --> Queue
+    Flask -.->|USE_CELERY_ANALYSIS=true| Redis
+    Redis --> Workers
+```
+
+| Mode | Environment | Use Case |
+|------|-------------|----------|
+| ThreadPoolExecutor | Default | Single-server, development |
+| Celery + Redis | `USE_CELERY_ANALYSIS=true` | Multi-server, production scale |
+
+## Container Management
+
+### Rebuild Strategies
+
+| Command | Time | Cache | Use Case |
+|---------|------|-------|----------|
+| `./start.ps1 -Mode Rebuild` | 30-90s | BuildKit cache | Code changes, dependency updates |
+| `./start.ps1 -Mode CleanRebuild` | 12-18min | No cache | Dockerfile changes, cache corruption |
+
+BuildKit optimizations used:
+- `--mount=type=cache,target=/root/.cache/pip` - Persistent pip cache
+- `--mount=type=cache,target=/root/.npm` - Persistent npm cache
+- Shared base image across analyzer services
 
 ## Quick Reference
 
@@ -322,13 +413,28 @@ python analyzer/analyzer_manager.py health
 # Run analysis
 python analyzer/analyzer_manager.py analyze openai_gpt-4 1 comprehensive
 
+# Container rebuilds
+./start.ps1 -Mode Rebuild        # Fast (cached)
+./start.ps1 -Mode CleanRebuild   # Full rebuild
+
+# Maintenance (manual)
+./start.ps1 -Mode Maintenance
+
+# Other utilities
+./start.ps1 -Mode Wipeout        # Full reset
+./start.ps1 -Mode Password       # Reset admin password
+./start.ps1 -Mode Reload         # Hot reload
+
 # Tests
 pytest -m "not integration and not slow and not analyzer"
 ```
 
 ## Related Documentation
 
-- [API Reference](./api-reference.md)
-- [Development Guide](./development-guide.md)
-- [Deployment Guide](./deployment-guide.md)
-- [Analyzer README](../analyzer/README.md)
+- [Background Services](./BACKGROUND_SERVICES.md) - TaskExecution, Maintenance, Pipeline services
+- [API Reference](./api-reference.md) - REST API and WebSocket documentation
+- [Analyzer Guide](./ANALYZER_GUIDE.md) - Analyzer services and tools
+- [Development Guide](./development-guide.md) - Contributing and testing
+- [Deployment Guide](./deployment-guide.md) - Production deployment
+- [Troubleshooting](./TROUBLESHOOTING.md) - Common issues and recovery
+- [Analyzer README](../analyzer/README.md) - Detailed result formats

@@ -84,11 +84,52 @@ Starts Flask + all analyzer containers.
 ./start.ps1
 ```
 
+Available modes:
+| Mode | Description |
+|------|-------------|
+| `Start` | Full stack (Flask + Analyzers) |
+| `Stop` | Stop all services |
+| `Dev` | Development mode (Flask only, debug on) |
+| `Status` | Status dashboard |
+| `Logs` | Tail all logs |
+| `Rebuild` | Fast incremental container rebuild |
+| `CleanRebuild` | Full rebuild without cache |
+| `Maintenance` | Manual cleanup (7-day orphan grace) |
+| `Reload` | Hot reload for code changes |
+| `Wipeout` | Full reset (WARNING: data loss) |
+| `Password` | Reset admin password |
+
 ## Running Tests
 
 ### VS Code Test Explorer
 
 Open **Testing** panel (Ctrl+Shift+T) for interactive test discovery and debugging.
+
+### VS Code Tasks
+
+Use "Terminal → Run Task" for common operations:
+
+**Testing Tasks:**
+- `pytest: unit tests only` ⭐ (default, ~5s)
+- `pytest: smoke tests` (~10s)
+- `pytest: integration tests`
+- `pytest: api integration`
+- `pytest: websocket integration`
+- `pytest: analyzer integration` (requires Docker)
+- `pytest: web ui integration`
+- `pytest: all tests` (full suite, ~2-5 min)
+
+**Analysis Tasks:**
+- `analyzer: start services`
+- `analyzer: stop services`
+- `analyzer: service status`
+- `analyzer: service health`
+
+**Maintenance Tasks:**
+- `flask: run dev server`
+- `db: run migrations`
+- `scripts: sync generated apps`
+- `scripts: fix task statuses`
 
 ### Command Line
 
@@ -264,6 +305,9 @@ Commit prefixes: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`
 
 ## Related
 
-- [Architecture](./architecture.md)
+- [Architecture](./ARCHITECTURE.md)
+- [Background Services](./BACKGROUND_SERVICES.md)
 - [API Reference](./api-reference.md)
+- [Analyzer Guide](./ANALYZER_GUIDE.md)
 - [Deployment Guide](./deployment-guide.md)
+- [Troubleshooting](./TROUBLESHOOTING.md)

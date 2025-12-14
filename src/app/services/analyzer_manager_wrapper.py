@@ -115,9 +115,11 @@ class AnalyzerManagerWrapper:
             
             for attempt in range(max_retries):
                 if task_dir.exists():
-                    # Pattern: {model}_app{num}_{task_folder_name}_{timestamp}.json
+                    # Pattern: {model}_app{num}_{task_folder_name}.json OR {model}_app{num}_{task_folder_name}_{timestamp}.json
+                    # Try both patterns (with and without timestamp)
                     json_files = sorted(
-                        task_dir.glob(f"{safe_slug}_app{app_number}_{task_folder_name}_*.json"),
+                        list(task_dir.glob(f"{safe_slug}_app{app_number}_{task_folder_name}.json")) +
+                        list(task_dir.glob(f"{safe_slug}_app{app_number}_{task_folder_name}_*.json")),
                         key=lambda p: p.stat().st_mtime,
                         reverse=True
                     )

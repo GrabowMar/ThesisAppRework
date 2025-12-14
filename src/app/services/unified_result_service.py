@@ -421,10 +421,14 @@ class UnifiedResultService:
         app_number: int
     ) -> Path:
         """Write results to JSON file (atomic operation)."""
+        from app.utils.analysis_utils import normalize_task_folder_name
+        
         # Build path: results/{model}/app{N}/task_{task_id}/
+        # Use normalize_task_folder_name to prevent double "task_" prefix
         model_dir = Path(RESULTS_DIR) / model_slug.replace('/', '_')
         app_dir = model_dir / f"app{app_number}"
-        task_dir = app_dir / f"task_{task_id}"
+        task_folder = normalize_task_folder_name(task_id)
+        task_dir = app_dir / task_folder
         
         # Create directories
         task_dir.mkdir(parents=True, exist_ok=True)
@@ -451,7 +455,8 @@ class UnifiedResultService:
             logger.warning(f"Failed to write manifest for {task_id}: {e}")
 
         # 4. Write main consolidated file
-        file_path = task_dir / f"{model_slug}_app{app_number}_task_{task_id}.json"
+        # Use task_folder (already normalized) for filename to match directory name
+        file_path = task_dir / f"{model_slug}_app{app_number}_{task_folder}.json"
         temp_path = task_dir / f".{file_path.name}.tmp"
         
         try:

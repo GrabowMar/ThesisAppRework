@@ -330,6 +330,32 @@ with app.app_context(): get_maintenance_service()._run_maintenance()"
 
 Keep contributions aligned with these patterns and prefer citing concrete files from above in your outputs.
 
+## Documentation architecture
+
+The repository maintains two documentation tiers:
+
+1. **This file (`.github/copilot-instructions.md`)**: Authoritative source of truth for AI assistants and developers. Contains detailed implementation specifics, gotchas, and code-level guidance. Updated with each feature change.
+
+2. **Public docs (`docs/` folder)**: User-facing documentation for setup, API reference, and conceptual architecture. Derived from this file but simplified for readability.
+
+**When updating documentation**:
+- Update this file FIRST with implementation details
+- Then propagate changes to relevant files in `docs/`
+- Keep `docs/` focused on "how to use" rather than "how it works internally"
+
+**Documentation files in `docs/`**:
+| File | Purpose |
+|------|---------|
+| [QUICKSTART.md](../docs/QUICKSTART.md) | Getting started, prerequisites, first run |
+| [ARCHITECTURE.md](../docs/ARCHITECTURE.md) | System design, data flow, component overview |
+| [api-reference.md](../docs/api-reference.md) | REST API endpoints, WebSocket events, authentication |
+| [ANALYZER_GUIDE.md](../docs/ANALYZER_GUIDE.md) | Analyzer services, tools, CLI usage |
+| [BACKGROUND_SERVICES.md](../docs/BACKGROUND_SERVICES.md) | TaskExecution, Maintenance, Pipeline services |
+| [TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) | Common issues, recovery procedures |
+| [deployment-guide.md](../docs/deployment-guide.md) | Production deployment, Docker, environment |
+| [development-guide.md](../docs/development-guide.md) | Contributing, testing, code style |
+| [MODELS_REFERENCE.md](../docs/MODELS_REFERENCE.md) | Model slugs, providers, templates |
+
 ## Repository organization (clean state)
 - **Root directory**: Only essential files (README.md, requirements.txt, pytest.ini, docker-compose.yml, start.ps1)
 - **No temporary files**: Status markdown files and debug scripts have been cleaned up (Nov 2025)

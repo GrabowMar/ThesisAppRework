@@ -111,6 +111,59 @@ docker network ls
 docker network inspect thesisapprework_default
 ```
 
+### Circuit Breaker Triggered
+
+**Symptoms:** Requests to a service fail immediately with "Service in cooldown"
+
+**Cause:** After 3 consecutive connection failures, the circuit breaker opens for 5 minutes.
+
+**Solutions:**
+1. Wait for cooldown to expire (5 minutes)
+2. Fix the underlying service issue and restart:
+```bash
+# Check service health
+python analyzer/analyzer_manager.py health
+
+# Restart problematic service
+docker restart static-analyzer
+
+# Force rebuild if needed
+./start.ps1 -Mode Rebuild
+```
+
+**Recovery:** After cooldown, the circuit breaker enters "half-open" state and tests the connection. If successful, normal operation resumes.
+
+### Pre-flight Check Failed
+
+**Symptoms:** Analysis fails before starting with "Services unavailable"
+
+**Cause:** System performs TCP port checks and WebSocket handshake before analysis.
+
+**Diagnosis:**
+```bash
+# Check which services are down
+python analyzer/analyzer_manager.py health
+
+# Check individual ports
+# Windows
+Test-NetConnection -ComputerName localhost -Port 2001
+Test-NetConnection -ComputerName localhost -Port 2002
+Test-NetConnection -ComputerName localhost -Port 2003
+Test-NetConnection -ComputerName localhost -Port 2004
+```
+
+**Solution:**
+```bash
+# Start all services
+python analyzer/analyzer_manager.py start
+
+# Wait a few seconds for startup
+Start-Sleep 5
+
+# Verify
+python analyzer/analyzer_manager.py health
+```
+
 ### Analysis Timeout
 
 **Symptoms:** `Task exceeded timeout`
@@ -138,12 +191,14 @@ python analyzer/analyzer_manager.py analyze model 1 static --verbose
 
 **Symptoms:** Tasks remain in `RUNNING` state indefinitely
 
-**Solution:**
+**Automatic Recovery:** Tasks stuck >2 hours are automatically marked as FAILED by maintenance. Tasks stuck >15 minutes get up to 3 retry attempts.
+
+**Manual Solution:**
 ```bash
 # Fix stuck tasks
 python scripts/fix_task_statuses.py
 
-# Or run maintenance
+# Or run maintenance cleanup
 ./start.ps1 -Mode Maintenance
 ```
 
@@ -156,11 +211,36 @@ python scripts/fix_task_statuses.py
 2. Verify analyzer services are healthy
 
 ```bash
-# In Flask shell
+# Check service status
+python -c "
+from app.factory import create_app
 from app.services.service_locator import ServiceLocator
-service = ServiceLocator.get_task_execution_service()
-print(f"Running: {service._running}")
+app = create_app()
+with app.app_context():
+    service = ServiceLocator.get_task_execution_service()
+    print(f'TaskExecutionService running: {service._running}')
+    print(f'Current task: {service._current_task_id}')
+"
 ```
+
+**Solutions:**
+1. Restart Flask application
+2. Check for database lock issues
+3. Verify poll interval: default is 10s (production) or 2s (test)
+
+### PARTIAL_SUCCESS Status
+
+**Symptoms:** Task shows PARTIAL_SUCCESS instead of COMPLETED
+
+**Meaning:** Some subtasks succeeded, some failed. Common with multi-service analyses.
+
+**Diagnosis:**
+```bash
+# Check subtask results in database
+# Look for error_message on failed subtasks
+```
+
+**Action:** Review the failed subtasks and re-run specific tools if needed.
 
 ### Lost Results
 
@@ -251,6 +331,15 @@ docker system prune -f
 ./start.ps1 -Mode CleanRebuild
 ./start.ps1 -Mode Start
 
+# Manual maintenance cleanup (7-day grace period for orphan apps)
+./start.ps1 -Mode Maintenance
+
+# Full wipeout (WARNING: removes all data)
+./start.ps1 -Mode Wipeout
+
+# Reset admin password
+./start.ps1 -Mode Password
+
 # Reset database (WARNING: data loss)
 rm src/data/thesis_app.db
 python src/init_db.py
@@ -258,16 +347,56 @@ python src/init_db.py
 # Fix task statuses
 python scripts/fix_task_statuses.py
 
-# Sync generated apps
+# Sync generated apps to database
 python scripts/sync_generated_apps.py
+
+# Add missing_since column (one-time migration)
+python scripts/add_missing_since_column.py
+```
+
+## Maintenance Service
+
+### Understanding the 7-Day Grace Period
+
+As of Nov 2025, orphan apps (database records without filesystem directories) are not immediately deleted:
+
+1. **First detection**: App marked with `missing_since` timestamp
+2. **Grace period**: 7 days to restore the directory
+3. **Auto-restore**: If directory reappears, `missing_since` is cleared
+4. **Deletion**: Only after 7 days of being missing
+
+### Running Maintenance Manually
+
+```bash
+# Recommended: Use orchestrator
+./start.ps1 -Mode Maintenance
+
+# This performs:
+# - Marks newly missing apps
+# - Restores apps whose directories reappeared
+# - Deletes apps missing >7 days
+# - Cancels orphan tasks
+# - Marks stuck tasks as FAILED
+# - Deletes old completed tasks (>30 days)
+```
+
+### Maintenance Logs
+
+Check `logs/app.log` for maintenance output:
+```
+[MaintenanceService] Marked 2 apps as missing (grace period: 7 days)
+[MaintenanceService] Restored 1 apps (filesystem directories reappeared)
+[MaintenanceService] Found 1 orphan apps ready for deletion (missing for >7 days)
 ```
 
 ## Getting Help
 
 1. Check logs first: `./start.ps1 -Mode Logs`
-2. Review [Architecture](ARCHITECTURE.md) for component relationships
-3. Search existing issues on GitHub
-4. Create new issue with:
+2. Run health check: `python analyzer/analyzer_manager.py health`
+3. Review [Architecture](ARCHITECTURE.md) for component relationships
+4. Check [Background Services](BACKGROUND_SERVICES.md) for service-specific debugging
+5. Search existing issues on GitHub
+6. Create new issue with:
    - Error message
    - Steps to reproduce
    - Environment details (OS, Python version, Docker version)

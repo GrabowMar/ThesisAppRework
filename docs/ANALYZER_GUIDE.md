@@ -276,8 +276,91 @@ STATIC_ANALYSIS_TIMEOUT=600
 SECURITY_ANALYSIS_TIMEOUT=900
 ```
 
+## Connection Resilience
+
+The analyzer system implements robust connection handling (Dec 2025):
+
+### Pre-flight Health Checks
+
+Before starting analysis, the system verifies all required services are accessible:
+
+```bash
+# Manual health check
+python analyzer/analyzer_manager.py health
+```
+
+### Retry with Exponential Backoff
+
+WebSocket connections retry automatically:
+
+| Attempt | Delay |
+|---------|-------|
+| 1 | Immediate |
+| 2 | 2 seconds |
+| 3 | 4 seconds |
+| 4 | 8 seconds |
+
+### Circuit Breaker
+
+After 3 consecutive failures to a service, it enters a 5-minute cooldown:
+
+| State | Behavior |
+|-------|----------|
+| CLOSED | Normal operation |
+| OPEN | Requests fail immediately (cooldown) |
+| HALF-OPEN | Test connection after cooldown |
+
+Services automatically recover after cooldown or on first successful connection.
+
+### Clear Error Messages
+
+If services are down, errors clearly indicate:
+- Which services are inaccessible
+- How to start them: `python analyzer/analyzer_manager.py start`
+
+## Container Rebuild Strategies
+
+### Fast Incremental Rebuild
+
+```bash
+./start.ps1 -Mode Rebuild
+```
+
+- Uses BuildKit cache mounts
+- Preserves pip/npm caches between builds
+- Rebuilds only changed layers
+- **Time**: 30-90 seconds
+
+**Use for**: Code changes, minor dependency updates
+
+### Clean Rebuild
+
+```bash
+./start.ps1 -Mode CleanRebuild
+```
+
+- No cache, full rebuild
+- Pulls fresh base images
+- Reinstalls all dependencies
+- **Time**: 12-18 minutes
+
+**Use for**: Major dependency changes, Dockerfile modifications, cache corruption
+
+### BuildKit Optimizations
+
+The analyzer Dockerfile uses cache mounts for faster rebuilds:
+
+```dockerfile
+# Persistent pip cache
+RUN --mount=type=cache,target=/root/.cache/pip pip install ...
+
+# Persistent npm cache
+RUN --mount=type=cache,target=/root/.npm npm install ...
+```
+
 ## Related
 
 - [Architecture](ARCHITECTURE.md)
+- [Background Services](BACKGROUND_SERVICES.md)
 - [Development Guide](development-guide.md)
-- [Deployment Guide](deployment-guide.md)
+- [Troubleshooting](TROUBLESHOOTING.md)

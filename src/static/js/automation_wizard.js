@@ -7,7 +7,12 @@
 // State Management
 // ============================================================================
 
-const AutomationWizard = {
+// Guard against duplicate declarations (can happen with browser caching/hot reload)
+if (typeof window.AutomationWizard !== 'undefined') {
+    console.warn('AutomationWizard already defined, skipping re-initialization');
+} else {
+
+window.AutomationWizard = {
     // Pipeline configuration state
     config: {
         generationMode: 'generate', // 'generate' or 'existing'
@@ -111,8 +116,11 @@ function goToStep(step) {
  * Move to next step
  */
 function nextStep() {
-    const wizard = AutomationWizard;
+    const wizard = window.AutomationWizard;
     const current = wizard.state.currentStep;
+    
+    // Collect config from current step BEFORE validating
+    collectStepConfig(current);
     
     // Validate current step before proceeding
     if (!validateStep(current)) return;
@@ -1302,18 +1310,50 @@ function clearActivityLog() {
  * Load available analysis tools
  */
 async function loadAnalysisTools() {
-    const wizard = AutomationWizard;
+    const wizard = window.AutomationWizard;
     
     try {
+        console.log('[AutomationWizard] Loading analysis tools from:', wizard.endpoints.getTools);
         const response = await fetch(wizard.endpoints.getTools);
+        
+        if (!response.ok) {
+            console.error('[AutomationWizard] Failed to load tools:', response.status, response.statusText);
+            renderToolsError('Failed to load analysis tools');
+            return;
+        }
+        
         const data = await response.json();
+        console.log('[AutomationWizard] Tools loaded:', data);
+        
+        if (data.success === false) {
+            console.error('[AutomationWizard] Tools API error:', data.error);
+            renderToolsError(data.error || 'Error loading tools');
+            return;
+        }
         
         if (data.tools) {
             renderToolLists(data.tools);
+        } else {
+            console.warn('[AutomationWizard] No tools in response');
+            renderToolsError('No analysis tools available');
         }
     } catch (error) {
-        console.error('Failed to load tools:', error);
+        console.error('[AutomationWizard] Failed to load tools:', error);
+        renderToolsError('Network error loading tools');
     }
+}
+
+/**
+ * Render error state in tool lists
+ */
+function renderToolsError(message) {
+    const categories = ['static-tools-list', 'dynamic-tools-list', 'performance-tools-list', 'ai-tools-list'];
+    categories.forEach(elementId => {
+        const container = document.getElementById(elementId);
+        if (container) {
+            container.innerHTML = `<div class="p-2 text-danger small"><i class="fas fa-exclamation-triangle me-1"></i>${message}</div>`;
+        }
+    });
 }
 
 /**
@@ -1495,16 +1535,16 @@ function resetWizard() {
 /**
  * Initialize wizard on page load
  */
-document.addEventListener('DOMContentLoaded', function() {
-    // Check for active pipeline first
-    checkAndRestoreActivePipeline();
+document.addEventListener('DOMContentLoaded', async function() {
+    // Check for active pipeline first (await to avoid race condition)
+    await checkAndRestoreActivePipeline();
     
-    // Initialize at step 1 (if no active pipeline)
+    // Initialize at step 1 (if no active pipeline was restored)
     if (!AutomationWizard.state.pipelineId) {
         goToStep(1);
     }
     
-    // Load analysis tools
+    // Load analysis tools (don't await - let it load in background)
     loadAnalysisTools();
     
     // Setup event listeners for selection changes (using event delegation for dynamic content)
@@ -2283,3 +2323,8 @@ window.showSaveSettingsModal = showSaveSettingsModal;
 window.showLoadSettingsModal = showLoadSettingsModal;
 window.showManageSettingsModal = showManageSettingsModal;
 window.loadPipelineSettingsAndClose = loadPipelineSettingsAndClose;
+
+} // End of AutomationWizard guard block
+
+// Alias for backward compatibility (scripts that use AutomationWizard directly)
+const AutomationWizard = window.AutomationWizard;
