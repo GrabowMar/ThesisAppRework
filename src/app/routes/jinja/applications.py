@@ -199,6 +199,15 @@ def build_applications_context():
         template_name = template_info.get('name', r.template_slug) if r.template_slug else None
         template_category = template_info.get('category', '') if r.template_slug else ''
         
+        # Get failure tracking info
+        is_generation_failed = getattr(r, 'is_generation_failed', False) or False
+        failure_stage = getattr(r, 'failure_stage', None)
+        error_message = getattr(r, 'error_message', None)
+        
+        # Override status to 'failed' if generation failed
+        if is_generation_failed:
+            status = 'generation_failed'
+        
         applications_all.append({
             'model_slug': r.model_slug,
             'model_provider': model_provider,
@@ -214,7 +223,11 @@ def build_applications_context():
             'container_size': None,
             'analysis_status': 'none',
             'status_details': status_details,
-            'created_at': r.created_at
+            'created_at': r.created_at,
+            # Generation failure tracking
+            'is_generation_failed': is_generation_failed,
+            'failure_stage': failure_stage,
+            'error_message': error_message
         })
 
     # Apply in-memory filters that depend on enriched fields
@@ -360,6 +373,11 @@ def applications_index():
 def application_detail(model_slug, app_number):
     """Detailed view for a specific application using the unified detail context."""
     try:
+        # Check if app is a failed generation - redirect to failure page
+        app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number).first()
+        if app and app.is_generation_failed:
+            return redirect(url_for('applications.application_failure', model_slug=model_slug, app_number=app_number))
+        
         context = build_application_detail_context(model_slug, app_number, allow_synthetic=True)
         return render_template('pages/applications/applications_detail.html', **context)
     except HTTPException:
@@ -373,6 +391,70 @@ def application_detail(model_slug, app_number):
             error_title='Application Not Found',
             error_message=f"Application '{model_slug}/app{app_number}' not found"
         )
+
+
+@applications_bp.route('/<model_slug>/<int:app_number>/failure')
+def application_failure(model_slug, app_number):
+    """Failure detail view for a failed generation."""
+    try:
+        app = GeneratedApplication.query.filter_by(model_slug=model_slug, app_number=app_number).first()
+        
+        if not app:
+            flash(f"Application '{model_slug}/app{app_number}' not found.", "error")
+            return redirect(url_for('applications.applications_index'))
+        
+        # If app is not actually failed, redirect to normal detail page
+        if not app.is_generation_failed:
+            return redirect(url_for('applications.application_detail', model_slug=model_slug, app_number=app_number))
+        
+        # Read error log file if it exists
+        from pathlib import Path
+        error_log_content = None
+        app_dir = Path('generated') / 'apps' / model_slug / f'app{app_number}'
+        error_log_path = app_dir / 'generation_error.txt'
+        
+        if error_log_path.exists():
+            try:
+                error_log_content = error_log_path.read_text(encoding='utf-8')
+            except Exception as e:
+                current_app.logger.warning(f"Failed to read error log: {e}")
+                error_log_content = f"Error reading log file: {e}"
+        
+        # Get model info for display
+        try:
+            model = ModelCapability.query.filter_by(canonical_slug=model_slug).first()
+            model_display_name = getattr(model, 'display_name', None) or getattr(model, 'model_name', None) or model_slug
+            model_provider = getattr(model, 'provider', None) or app.provider or 'local'
+        except Exception:
+            model_display_name = model_slug
+            model_provider = app.provider or 'local'
+        
+        context = {
+            'app': app,
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'model_display_name': model_display_name,
+            'model_provider': model_provider,
+            'failure_stage': app.failure_stage,
+            'error_message': app.error_message,
+            'last_error_at': app.last_error_at,
+            'generation_attempts': app.generation_attempts or 1,
+            'error_log_content': error_log_content,
+            'app_dir_exists': app_dir.exists(),
+            'template_slug': app.template_slug,
+            'created_at': app.created_at,
+            'metadata': app.get_metadata() if hasattr(app, 'get_metadata') else {},
+            'active_page': 'applications',
+        }
+        
+        return render_template('pages/applications/applications_failure.html', **context)
+        
+    except HTTPException:
+        raise
+    except Exception as exc:
+        current_app.logger.error("Error loading failure details for %s/app%s: %s", model_slug, app_number, exc)
+        flash(f"Error loading failure details: {exc}", "error")
+        return redirect(url_for('applications.applications_index'))
 
 
 @applications_bp.route('/generate', methods=['POST'])

@@ -2356,8 +2356,27 @@ class GenerationService:
                                 result['backend_generated'] = True
                             else:
                                 result['errors'].append("Backend merge failed")
+                                # Mark generation as failed immediately
+                                self._mark_generation_failed(
+                                    app_record=app_record,
+                                    failure_stage='backend',
+                                    error_message='Backend merge failed - code could not be merged into scaffolding',
+                                    model_slug=model_slug,
+                                    app_num=app_num,
+                                    template_slug=template_slug,
+                                    errors=result['errors']
+                                )
                         else:
                             result['errors'].append(f"Backend generation failed: {error}")
+                            self._mark_generation_failed(
+                                app_record=app_record,
+                                failure_stage='backend',
+                                error_message=f'Backend generation failed: {error}',
+                                model_slug=model_slug,
+                                app_num=app_num,
+                                template_slug=template_slug,
+                                errors=result['errors']
+                            )
                     
                     if generate_frontend:
                         logger.info("Step 3: Generating frontend (unguarded mode)...")
@@ -2378,8 +2397,27 @@ class GenerationService:
                                 result['frontend_generated'] = True
                             else:
                                 result['errors'].append("Frontend merge failed")
+                                # Mark generation as failed immediately
+                                self._mark_generation_failed(
+                                    app_record=app_record,
+                                    failure_stage='frontend',
+                                    error_message='Frontend merge failed - code could not be merged into scaffolding',
+                                    model_slug=model_slug,
+                                    app_num=app_num,
+                                    template_slug=template_slug,
+                                    errors=result['errors']
+                                )
                         else:
                             result['errors'].append(f"Frontend generation failed: {error}")
+                            self._mark_generation_failed(
+                                app_record=app_record,
+                                failure_stage='frontend',
+                                error_message=f'Frontend generation failed: {error}',
+                                model_slug=model_slug,
+                                app_num=app_num,
+                                template_slug=template_slug,
+                                errors=result['errors']
+                            )
                 
                 else:
                     # GUARDED MODE: 4-Query System
@@ -2412,8 +2450,27 @@ class GenerationService:
                                 models_summary = self._extract_models_summary(app_dir)
                             else:
                                 result['errors'].append("Backend user merge failed")
+                                # Mark generation as failed immediately
+                                self._mark_generation_failed(
+                                    app_record=app_record,
+                                    failure_stage='backend',
+                                    error_message='Backend user merge failed - code could not be merged into scaffolding',
+                                    model_slug=model_slug,
+                                    app_num=app_num,
+                                    template_slug=template_slug,
+                                    errors=result['errors']
+                                )
                         else:
                             result['errors'].append(f"Backend user generation failed: {error}")
+                            self._mark_generation_failed(
+                                app_record=app_record,
+                                failure_stage='backend',
+                                error_message=f'Backend user generation failed: {error}',
+                                model_slug=model_slug,
+                                app_num=app_num,
+                                template_slug=template_slug,
+                                errors=result['errors']
+                            )
                         
                         # Step 2b: Generate Backend Admin (Query 2) - only if user succeeded
                         if result.get('backend_user_generated'):
@@ -2436,8 +2493,27 @@ class GenerationService:
                                     result['backend_admin_generated'] = True
                                 else:
                                     result['errors'].append("Backend admin merge failed")
+                                    # Mark generation as failed immediately
+                                    self._mark_generation_failed(
+                                        app_record=app_record,
+                                        failure_stage='backend',
+                                        error_message='Backend admin merge failed - code could not be merged into scaffolding',
+                                        model_slug=model_slug,
+                                        app_num=app_num,
+                                        template_slug=template_slug,
+                                        errors=result['errors']
+                                    )
                             else:
                                 result['errors'].append(f"Backend admin generation failed: {error}")
+                                self._mark_generation_failed(
+                                    app_record=app_record,
+                                    failure_stage='backend',
+                                    error_message=f'Backend admin generation failed: {error}',
+                                    model_slug=model_slug,
+                                    app_num=app_num,
+                                    template_slug=template_slug,
+                                    errors=result['errors']
+                                )
                         
                         # Overall backend success
                         result['backend_generated'] = result.get('backend_user_generated', False) and result.get('backend_admin_generated', False)
@@ -2462,8 +2538,27 @@ class GenerationService:
                                 result['frontend_user_generated'] = True
                             else:
                                 result['errors'].append("Frontend user merge failed")
+                                # Mark generation as failed immediately
+                                self._mark_generation_failed(
+                                    app_record=app_record,
+                                    failure_stage='frontend',
+                                    error_message='Frontend user merge failed - code could not be merged into scaffolding',
+                                    model_slug=model_slug,
+                                    app_num=app_num,
+                                    template_slug=template_slug,
+                                    errors=result['errors']
+                                )
                         else:
                             result['errors'].append(f"Frontend user generation failed: {error}")
+                            self._mark_generation_failed(
+                                app_record=app_record,
+                                failure_stage='frontend',
+                                error_message=f'Frontend user generation failed: {error}',
+                                model_slug=model_slug,
+                                app_num=app_num,
+                                template_slug=template_slug,
+                                errors=result['errors']
+                            )
                         
                         # Step 3b: Generate Frontend Admin (Query 4) - only if user succeeded
                         if result.get('frontend_user_generated'):
@@ -2485,8 +2580,27 @@ class GenerationService:
                                     result['frontend_admin_generated'] = True
                                 else:
                                     result['errors'].append("Frontend admin merge failed")
+                                    # Mark generation as failed immediately
+                                    self._mark_generation_failed(
+                                        app_record=app_record,
+                                        failure_stage='frontend',
+                                        error_message='Frontend admin merge failed - code could not be merged into scaffolding',
+                                        model_slug=model_slug,
+                                        app_num=app_num,
+                                        template_slug=template_slug,
+                                        errors=result['errors']
+                                    )
                             else:
                                 result['errors'].append(f"Frontend admin generation failed: {error}")
+                                self._mark_generation_failed(
+                                    app_record=app_record,
+                                    failure_stage='frontend',
+                                    error_message=f'Frontend admin generation failed: {error}',
+                                    model_slug=model_slug,
+                                    app_num=app_num,
+                                    template_slug=template_slug,
+                                    errors=result['errors']
+                                )
                         
                         # Overall frontend success
                         result['frontend_generated'] = result.get('frontend_user_generated', False) and result.get('frontend_admin_generated', False)
@@ -2570,6 +2684,82 @@ class GenerationService:
         logger.info(f"=== Generation complete: {result['success']} ===")
         return result
 
+    def _write_generation_error_log(
+        self,
+        app_dir: Path,
+        model_slug: str,
+        app_num: int,
+        failure_stage: str,
+        error_message: str,
+        errors: List[str] = None
+    ) -> Optional[Path]:
+        """Write a generation_error.txt file documenting the failure.
+        
+        Args:
+            app_dir: Path to the application directory
+            model_slug: The model slug
+            app_num: The application number
+            failure_stage: Where generation failed (scaffold/backend/frontend/finalization)
+            error_message: Human-readable error description
+            errors: List of error messages from the generation result
+            
+        Returns:
+            Path to the error log file if created successfully, None otherwise
+        """
+        try:
+            error_log_path = app_dir / 'generation_error.txt'
+            timestamp = utc_now().isoformat()
+            
+            content_lines = [
+                "=" * 60,
+                "GENERATION FAILURE LOG",
+                "=" * 60,
+                f"",
+                f"Timestamp: {timestamp}",
+                f"Model: {model_slug}",
+                f"App Number: {app_num}",
+                f"Failure Stage: {failure_stage}",
+                f"",
+                "=" * 60,
+                "ERROR MESSAGE",
+                "=" * 60,
+                f"{error_message}",
+                f"",
+            ]
+            
+            if errors:
+                content_lines.extend([
+                    "=" * 60,
+                    "DETAILED ERRORS",
+                    "=" * 60,
+                ])
+                for i, err in enumerate(errors, 1):
+                    content_lines.append(f"{i}. {err}")
+                content_lines.append("")
+            
+            content_lines.extend([
+                "=" * 60,
+                "NOTES",
+                "=" * 60,
+                "This application failed during generation and is marked as 'dead'.",
+                "It will be skipped by all analyzers.",
+                "The files in this directory may be incomplete or corrupted.",
+                "",
+                "To retry generation, use the 'Retry Generation' feature in the UI.",
+                "=" * 60,
+            ])
+            
+            # Ensure directory exists
+            app_dir.mkdir(parents=True, exist_ok=True)
+            error_log_path.write_text('\n'.join(content_lines), encoding='utf-8')
+            
+            logger.info(f"Written generation error log to: {error_log_path}")
+            return error_log_path
+            
+        except Exception as e:
+            logger.warning(f"Failed to write generation error log: {e}")
+            return None
+
     def _mark_generation_failed(
         self,
         *,
@@ -2579,7 +2769,9 @@ class GenerationService:
         cleanup_files: bool = False,
         model_slug: Optional[str] = None,
         app_num: Optional[int] = None,
-        template_slug: Optional[str] = None
+        template_slug: Optional[str] = None,
+        errors: List[str] = None,
+        write_error_log: bool = True
     ) -> None:
         """Mark a generation as failed and optionally cleanup partial files.
         
@@ -2620,6 +2812,25 @@ class GenerationService:
         except SQLAlchemyError as exc:
             logger.error(f"Failed to update failure status in database: {exc}")
             db.session.rollback()
+        
+        # Write error log file (unless we're cleaning up files)
+        if write_error_log and not cleanup_files and model_slug and app_num is not None:
+            try:
+                app_dir = self.scaffolding.get_app_dir(
+                    model_slug,
+                    app_num,
+                    template_slug
+                )
+                self._write_generation_error_log(
+                    app_dir=app_dir,
+                    model_slug=model_slug,
+                    app_num=app_num,
+                    failure_stage=failure_stage,
+                    error_message=error_message,
+                    errors=errors
+                )
+            except Exception as log_err:
+                logger.warning(f"Failed to write error log: {log_err}")
         
         # Cleanup partial files if requested
         if cleanup_files and model_slug and app_num is not None:

@@ -106,6 +106,10 @@
                   <input type="checkbox" class="form-check-input" id="filter-status-not-created" value="not_created" onchange="updateApplicationsAdvancedFilters()">
                   <span class="form-check-label">Not Created</span>
                 </label>
+                <label class="form-check">
+                  <input type="checkbox" class="form-check-input" id="filter-status-generation-failed" value="generation_failed" onchange="updateApplicationsAdvancedFilters()">
+                  <span class="form-check-label text-danger"><i class="fas fa-skull-crossbones me-1"></i>Dead (Failed)</span>
+                </label>
               </div>
             </div>
             <div class="col-12">
@@ -159,9 +163,9 @@
           </span>
           <select class="form-select form-select-sm" style="min-width: 120px;" id="status-filter" onchange="applyApplicationFilters()" aria-label="Filter by status">
             <option value="">All Statuses</option>
-            {% set status_options = ['running','stopped','error','pending','not_created'] %}
+            {% set status_options = ['running','stopped','error','pending','not_created', 'generation_failed'] %}
             {% for status in status_options %}
-            <option value="{{ status }}" {% if status in selected_statuses %}selected{% endif %}>{{ status.replace('_',' ')|title }}</option>
+            <option value="{{ status }}" {% if status in selected_statuses %}selected{% endif %}>{% if status == 'generation_failed' %}Dead (Failed){% else %}{{ status.replace('_',' ')|title }}{% endif %}</option>
             {% endfor %}
           </select>
         </label>
@@ -209,10 +213,11 @@
 			</thead>
 			<tbody id="applications-table-body">
 				{% for app in applications %}
-				<tr data-model="{{ app.model_slug }}" data-app="{{ app.app_number }}" {% if app.id %}data-app-id="{{ app.id }}"{% endif %}>
-					<td><input type="checkbox" class="form-check-input m-0 app-checkbox" value="{{ app.model_slug }}-{{ app.app_number }}" aria-label="Select {{ app.model_display_name }} App {{ app.app_number }}"></td>
+				{% set is_failed = app.is_generation_failed|default(false) %}
+				<tr data-model="{{ app.model_slug }}" data-app="{{ app.app_number }}" {% if app.id %}data-app-id="{{ app.id }}"{% endif %} {% if is_failed %}class="table-danger opacity-75"{% endif %}>
+					<td><input type="checkbox" class="form-check-input m-0 app-checkbox" value="{{ app.model_slug }}-{{ app.app_number }}" aria-label="Select {{ app.model_display_name }} App {{ app.app_number }}" {% if is_failed %}disabled title="Cannot select failed apps"{% endif %}></td>
 					<td>
-						<div class="text-truncate">{{ app.model_display_name }}</div>
+						<div class="text-truncate {% if is_failed %}text-decoration-line-through text-muted{% endif %}">{{ app.model_display_name }}</div>
 					</td>
 					<td>
 						<span class="badge bg-azure-lt text-azure">{{ app.model_provider }}</span>
@@ -248,7 +253,11 @@
 					</td>
 					<td class="text-center">
 						{% set status_lower = app.status|lower|replace('_', ' ')|replace('?', '')|trim %}
-            {% if status_lower == 'running' %}
+						{% if app.is_generation_failed|default(false) %}
+              <span class="badge bg-danger text-white" data-role="status-badge" title="{{ app.error_message|default('Generation failed')|truncate(100) }}">
+                <i class="fas fa-skull-crossbones fa-xs me-1" aria-hidden="true"></i>Dead
+              </span>
+            {% elif status_lower == 'running' %}
               <span class="badge bg-success-lt text-success" data-role="status-badge"><i class="fas fa-play fa-xs me-1" aria-hidden="true"></i>Running</span>
             {% elif status_lower == 'stopped' %}
               <span class="badge bg-secondary-lt text-secondary" data-role="status-badge"><i class="fas fa-stop fa-xs me-1" aria-hidden="true"></i>Stopped</span>
@@ -285,6 +294,22 @@
 					</td>
 					<td>
 						<div class="btn-group btn-group-sm" role="group" aria-label="Application actions">
+							{% if app.is_generation_failed|default(false) %}
+							{# Failed app - show only View Failure and Retry options #}
+							<button class="btn btn-ghost-danger" 
+								onclick="window.location.href='/applications/{{ app.model_slug }}/{{ app.app_number }}/failure'" 
+								aria-label="View failure details for {{ app.model_display_name }} App {{ app.app_number }}"
+								title="View failure details">
+								<i class="fas fa-exclamation-triangle"></i>
+							</button>
+							<button class="btn btn-ghost-warning" 
+								onclick="retryGeneration('{{ app.model_slug }}', {{ app.app_number }})"
+								aria-label="Retry generation for {{ app.model_display_name }} App {{ app.app_number }}"
+								title="Retry generation">
+								<i class="fas fa-redo"></i>
+							</button>
+							{% else %}
+							{# Normal app - show regular actions #}
 							{# View Details Button #}
 							<button class="btn btn-ghost-primary" 
 								onclick="window.location.href='/applications/{{ app.model_slug }}/{{ app.app_number }}'" 
@@ -336,6 +361,7 @@
 								title="Rebuild containers (no cache)">
 								<i class="fas fa-sync"></i>
 							</button>
+							{% endif %}{# end is_generation_failed check #}
 						</div>
 					</td>
 				</tr>
@@ -541,6 +567,45 @@ if (!window.__appsStatusInterval) {
 // ---- Application Management Functions (Consolidated) ----
 function getSelectedApplications() {
   return Array.from(document.querySelectorAll('.app-checkbox:checked')).map(cb => cb.value);
+}
+
+function retryGeneration(modelSlug, appNumber) {
+  if (!confirm(`Retry generation for ${modelSlug} App ${appNumber}? This will attempt to regenerate the failed application.`)) {
+    return;
+  }
+  
+  const button = event.target.closest('button');
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  }
+  
+  fetch(`/api/app/${modelSlug}/${appNumber}/retry-generation`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      showNotification('Generation retry started. Check back shortly.', 'success');
+      setTimeout(() => {
+        if (typeof refreshApplications === 'function') {
+          refreshApplications();
+        }
+      }, 2000);
+    } else {
+      showNotification(`Retry failed: ${data.error || 'Unknown error'}`, 'danger');
+    }
+  })
+  .catch(error => {
+    showNotification(`Retry failed: ${error.message}`, 'danger');
+  })
+  .finally(() => {
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = '<i class="fas fa-redo"></i>';
+    }
+  });
 }
 
 function performAppAction(modelSlug, appNumber, action) {

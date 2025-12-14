@@ -1,0 +1,262 @@
+{# Failed Application Detail Page #}
+{% extends 'layouts/base.html' %}
+{% set active_page = 'applications' %}
+{% set page_title = 'Generation Failed' %}
+
+{% block content %}
+<div class="research-detail-shell">
+  {# Compact Header Bar #}
+  <div class="research-header">
+    <div class="research-header-left">
+      <a href="{{ url_for('applications.applications_index') }}" class="btn btn-ghost-secondary btn-sm me-3">
+        <i class="fas fa-arrow-left me-1"></i>Back
+      </a>
+      <div class="research-header-title">
+        <span class="avatar avatar-sm bg-danger-lt me-2">
+          <i class="fas fa-skull-crossbones text-danger"></i>
+        </span>
+        <div>
+          <h1 class="h3 mb-0">{{ model_display_name }} #{{ app_number }}</h1>
+          <small class="text-danger fw-medium">Generation Failed</small>
+        </div>
+      </div>
+    </div>
+    <div class="research-header-right">
+      <span class="badge bg-danger me-2">
+        <i class="fas fa-skull-crossbones me-1"></i>Dead
+      </span>
+      <button class="btn btn-warning btn-sm" onclick="retryGeneration('{{ model_slug }}', {{ app_number }})">
+        <i class="fas fa-redo me-1"></i>Retry
+      </button>
+    </div>
+  </div>
+
+  {# Compact Alert #}
+  <div class="alert alert-danger py-2 mb-3" role="alert">
+    <i class="fas fa-exclamation-circle me-2"></i>
+    This application failed during generation and is marked as dead. It will be skipped by all analyzers.
+  </div>
+
+  <div class="row g-3">
+    {# Left Column - Details #}
+    <div class="col-lg-8">
+      {# Quick Info Grid #}
+      <div class="card mb-3">
+        <div class="card-body py-3">
+          <div class="row g-3">
+            <div class="col-6 col-md-3">
+              <div class="text-muted small">Model</div>
+              <div class="fw-medium">{{ model_display_name }}</div>
+              <span class="badge bg-azure-lt">{{ model_provider }}</span>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="text-muted small">Template</div>
+              <div class="fw-medium">
+                {% if template_slug %}
+                  <span class="badge bg-indigo-lt">{{ template_slug }}</span>
+                {% else %}
+                  <span class="text-muted">—</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="text-muted small">Failure Stage</div>
+              <div>
+                {% if failure_stage %}
+                  <span class="badge bg-danger">{{ failure_stage|title }}</span>
+                {% else %}
+                  <span class="badge bg-secondary">Unknown</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="text-muted small">Attempts</div>
+              <div>
+                <span class="badge bg-warning-lt">{{ generation_attempts }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Error Message Card #}
+      <div class="card mb-3">
+        <div class="card-header py-2">
+          <h3 class="card-title h5 mb-0">
+            <i class="fas fa-exclamation-triangle text-danger me-2"></i>Error Message
+          </h3>
+        </div>
+        <div class="card-body py-2">
+          {% if error_message %}
+            <div class="bg-danger-lt rounded p-3">
+              <code class="text-danger" style="white-space: pre-wrap; word-wrap: break-word;">{{ error_message }}</code>
+            </div>
+          {% else %}
+            <div class="text-muted">No error message recorded.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      {# Error Log File Card #}
+      {% if error_log_content %}
+      <div class="card mb-3">
+        <div class="card-header py-2 d-flex justify-content-between align-items-center">
+          <h3 class="card-title h5 mb-0">
+            <i class="fas fa-file-alt me-2"></i>Error Log
+          </h3>
+          <button class="btn btn-sm btn-ghost-secondary" onclick="copyErrorLog()">
+            <i class="fas fa-copy me-1"></i>Copy
+          </button>
+        </div>
+        <div class="card-body p-0">
+          <pre id="error-log-content" class="mb-0 p-3 bg-dark text-light" style="max-height: 400px; overflow: auto; font-size: 0.8em; border-radius: 0 0 var(--tblr-card-border-radius) var(--tblr-card-border-radius);">{{ error_log_content }}</pre>
+        </div>
+      </div>
+      {% endif %}
+
+      {# Generation Errors List #}
+      {% if metadata and metadata.errors %}
+      <div class="card">
+        <div class="card-header py-2">
+          <h3 class="card-title h5 mb-0">
+            <i class="fas fa-list-ol me-2"></i>Generation Errors ({{ metadata.errors|length }})
+          </h3>
+        </div>
+        <div class="card-body py-2">
+          <ol class="mb-0 ps-3">
+            {% for err in metadata.errors %}
+              <li class="text-danger small py-1">{{ err }}</li>
+            {% endfor %}
+          </ol>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    {# Right Column - Status & Info #}
+    <div class="col-lg-4">
+      {# Compact Status Card #}
+      <div class="card mb-3">
+        <div class="card-body text-center py-3">
+          <span class="avatar avatar-lg bg-danger-lt mb-2">
+            <i class="fas fa-skull-crossbones fa-lg text-danger"></i>
+          </span>
+          <h4 class="text-danger mb-1">Dead Application</h4>
+          <p class="text-muted small mb-2">Cannot be analyzed or started</p>
+          <button class="btn btn-warning btn-sm w-100" onclick="retryGeneration('{{ model_slug }}', {{ app_number }})">
+            <i class="fas fa-redo me-1"></i>Retry Generation
+          </button>
+        </div>
+      </div>
+
+      {# Timestamps Card #}
+      <div class="card mb-3">
+        <div class="card-header py-2">
+          <h3 class="card-title h5 mb-0">
+            <i class="fas fa-clock me-2"></i>Timeline
+          </h3>
+        </div>
+        <div class="card-body py-2">
+          <div class="d-flex justify-content-between py-1 border-bottom">
+            <span class="text-muted small">Created</span>
+            <span class="small">{% if created_at %}{{ created_at.strftime('%Y-%m-%d %H:%M') }}{% else %}—{% endif %}</span>
+          </div>
+          <div class="d-flex justify-content-between py-1 border-bottom">
+            <span class="text-muted small">Failed</span>
+            <span class="small text-danger">{% if last_error_at %}{{ last_error_at.strftime('%Y-%m-%d %H:%M') }}{% else %}—{% endif %}</span>
+          </div>
+          <div class="d-flex justify-content-between py-1">
+            <span class="text-muted small">Files</span>
+            <span class="small">
+              {% if app_dir_exists %}
+                <i class="fas fa-folder text-warning me-1"></i>Partial
+              {% else %}
+                <i class="fas fa-folder-minus text-muted me-1"></i>None
+              {% endif %}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {# What This Means Card #}
+      <div class="card">
+        <div class="card-header py-2">
+          <h3 class="card-title h5 mb-0">
+            <i class="fas fa-info-circle me-2"></i>Impact
+          </h3>
+        </div>
+        <div class="card-body py-2">
+          <div class="d-flex align-items-start py-1">
+            <i class="fas fa-times text-danger me-2 mt-1" style="width: 14px;"></i>
+            <span class="small">Skipped by analyzers</span>
+          </div>
+          <div class="d-flex align-items-start py-1">
+            <i class="fas fa-times text-danger me-2 mt-1" style="width: 14px;"></i>
+            <span class="small">Cannot start containers</span>
+          </div>
+          <div class="d-flex align-items-start py-1">
+            <i class="fas fa-times text-danger me-2 mt-1" style="width: 14px;"></i>
+            <span class="small">Files may be incomplete</span>
+          </div>
+          <div class="d-flex align-items-start py-1">
+            <i class="fas fa-check text-success me-2 mt-1" style="width: 14px;"></i>
+            <span class="small">Errors preserved for debug</span>
+          </div>
+          <div class="d-flex align-items-start py-1">
+            <i class="fas fa-check text-success me-2 mt-1" style="width: 14px;"></i>
+            <span class="small">Retry available anytime</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function retryGeneration(modelSlug, appNumber) {
+  if (!confirm(`Retry generation for ${modelSlug} App ${appNumber}?`)) return;
+  
+  const buttons = document.querySelectorAll('button[onclick*="retryGeneration"]');
+  buttons.forEach(btn => {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>...';
+  });
+  
+  fetch(`/api/app/${modelSlug}/${appNumber}/retry-generation`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      window.location.href = '/applications';
+    } else {
+      alert(`Failed: ${data.error || 'Unknown error'}`);
+      resetButtons(buttons);
+    }
+  })
+  .catch(e => {
+    alert(`Failed: ${e.message}`);
+    resetButtons(buttons);
+  });
+}
+
+function resetButtons(buttons) {
+  buttons.forEach(btn => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-redo me-1"></i>Retry';
+  });
+}
+
+function copyErrorLog() {
+  const el = document.getElementById('error-log-content');
+  if (el) {
+    navigator.clipboard.writeText(el.textContent)
+      .then(() => alert('Copied!'))
+      .catch(() => alert('Copy failed'));
+  }
+}
+</script>
+{% endblock %}
