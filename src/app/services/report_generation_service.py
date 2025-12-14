@@ -214,8 +214,9 @@ class ReportGenerationService:
             # HTML using Jinja2 template
             template_name = f"pages/reports/{generator.get_template_name()}"
             
-            # Add report_id to data for template links
+            # Add report_id and report object to data for template links
             data['report_id'] = report.report_id
+            data['report'] = report
             
             try:
                 # Render template in a test request context so url_for() works
