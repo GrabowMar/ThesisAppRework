@@ -5,8 +5,24 @@ from flask_cors import CORS
 import os
 import logging
 
+
+# Suppress health check spam in logs
+class HealthCheckFilter(logging.Filter):
+    """Filter out health check requests from logs."""
+    def filter(self, record):
+        msg = record.getMessage()
+        # Filter out health check and favicon requests
+        if '/api/health' in msg or '/health' in msg or 'favicon.ico' in msg:
+            return False
+        return True
+
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Apply filter to werkzeug logger to suppress health check logs
+werkzeug_logger = logging.getLogger('werkzeug')
+werkzeug_logger.addFilter(HealthCheckFilter())
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)

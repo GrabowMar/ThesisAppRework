@@ -20,8 +20,8 @@ services:
       - backend-data:/app/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:{{backend_port|5000}}/health || curl -f http://localhost:{{backend_port|5000}}/ || exit 1"]
-      interval: 30s
+      test: ["CMD-SHELL", "curl -sf http://localhost:{{backend_port|5000}}/api/health || curl -sf http://localhost:{{backend_port|5000}}/health || exit 1"]
+      interval: 120s
       timeout: 10s
       retries: 3
       start_period: 60s
@@ -42,11 +42,11 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/"]
-      interval: 30s
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 120s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
     networks:
       - app-network
 

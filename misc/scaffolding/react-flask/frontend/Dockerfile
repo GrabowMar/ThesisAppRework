@@ -124,12 +124,11 @@ RUN nginx -t 2>&1 | grep -q "syntax is ok" && echo "✓ Nginx configuration synt
 # Expose port
 EXPOSE 80
 
-# Enhanced health check with multiple fallbacks
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost/ 2>/dev/null || \
-        curl -f http://localhost/ 2>/dev/null || \
-        curl -f http://127.0.0.1/ 2>/dev/null || \
-        (echo "Health check failed" && exit 1)
+# Enhanced health check (silent, 120s interval to reduce log spam)
+HEALTHCHECK --interval=120s --timeout=10s --start-period=60s --retries=5 \
+    CMD wget -q --spider http://localhost/health 2>/dev/null || \
+        curl -sf http://localhost/health 2>/dev/null || \
+        exit 1
 
 # Start nginx with enhanced logging
 CMD echo "=== Starting Nginx ===" && \

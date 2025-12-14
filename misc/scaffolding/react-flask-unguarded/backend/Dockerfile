@@ -44,8 +44,8 @@ USER appuser
 
 EXPOSE 5000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
-    CMD curl -f http://localhost:${FLASK_RUN_PORT:-5000}/health 2>/dev/null || \
-        curl -f http://localhost:${FLASK_RUN_PORT:-5000}/ 2>/dev/null || exit 1
+HEALTHCHECK --interval=120s --timeout=10s --start-period=60s --retries=5 \
+    CMD curl -sf http://localhost:${FLASK_RUN_PORT:-5000}/api/health 2>/dev/null || \
+        curl -sf http://localhost:${FLASK_RUN_PORT:-5000}/health 2>/dev/null || exit 1
 
 CMD python app.py

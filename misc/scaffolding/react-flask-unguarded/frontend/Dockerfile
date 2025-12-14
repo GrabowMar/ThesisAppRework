@@ -28,17 +28,17 @@ RUN apk add --no-cache curl wget
 # Copy built assets
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copy nginx config if exists, else create default
+# Copy nginx config if exists, else create default with health endpoint
 COPY . /tmp/frontend-context/
 RUN if [ -f /tmp/frontend-context/nginx.conf ]; then \
         cp /tmp/frontend-context/nginx.conf /etc/nginx/conf.d/default.conf; \
     else \
-        echo 'server { listen 80; root /usr/share/nginx/html; index index.html; location / { try_files $uri $uri/ /index.html; } location /api { proxy_pass http://backend:5000; } }' > /etc/nginx/conf.d/default.conf; \
+        echo 'server { listen 80; root /usr/share/nginx/html; index index.html; location / { try_files $uri $uri/ /index.html; } location /api { proxy_pass http://backend:5000; } location /health { access_log off; return 200 "healthy\\n"; add_header Content-Type text/plain; } }' > /etc/nginx/conf.d/default.conf; \
     fi && rm -rf /tmp/frontend-context
 
 EXPOSE 80
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost/ || exit 1
+HEALTHCHECK --interval=120s --timeout=10s --start-period=60s --retries=3 \
+    CMD wget -q --spider http://localhost/health || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

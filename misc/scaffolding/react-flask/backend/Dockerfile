@@ -77,13 +77,13 @@ USER appuser
 # Expose Flask port (configurable via environment)
 EXPOSE 5000
 
-# Enhanced health check with multiple fallbacks
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
-    CMD curl -f http://localhost:${FLASK_RUN_PORT:-5000}/health 2>/dev/null || \
-        curl -f http://localhost:${FLASK_RUN_PORT:-5000}/ 2>/dev/null || \
-        curl -f http://localhost:5000/health 2>/dev/null || \
-        curl -f http://localhost:5000/ 2>/dev/null || \
-        (echo "Health check failed" && exit 1)
+# Enhanced health check with multiple fallbacks (silent, 120s interval to reduce log spam)
+HEALTHCHECK --interval=120s --timeout=10s --start-period=60s --retries=5 \
+    CMD curl -sf http://localhost:${FLASK_RUN_PORT:-5000}/api/health 2>/dev/null || \
+        curl -sf http://localhost:${FLASK_RUN_PORT:-5000}/health 2>/dev/null || \
+        curl -sf http://localhost:5000/api/health 2>/dev/null || \
+        curl -sf http://localhost:5000/health 2>/dev/null || \
+        exit 1
 
 # Run with environment-based port and enhanced error handling
 CMD export PORT=${FLASK_RUN_PORT:-5000} && \
