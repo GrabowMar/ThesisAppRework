@@ -6,6 +6,21 @@
 
 {% block content %}
 <div class="research-detail-shell">
+  {# Warning banner for container build failures #}
+  {% set container_status_lower = (app_data.container_status|default(''))|lower %}
+  {% set is_container_unhealthy = app_data.is_container_unhealthy|default(false) %}
+  {% if container_status_lower in ['error', 'failed', 'exited'] or is_container_unhealthy %}
+  <div class="alert alert-warning py-2 mb-3" role="alert">
+    <div class="d-flex align-items-center">
+      <i class="fas fa-exclamation-triangle text-orange me-2"></i>
+      <div>
+        <strong>Container Issue Detected</strong> — This application's containers may have failed to build, start, or are unhealthy. 
+        Try rebuilding with <button class="btn btn-sm btn-warning ms-2" onclick="buildApplication()"><i class="fas fa-hammer me-1"></i>Rebuild</button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   {# Compact header bar with inline metrics and all actions #}
   {% set container_metric = metrics|selectattr('label', 'equalto', 'Container')|first if metrics else None %}
   {% set status_badge = {

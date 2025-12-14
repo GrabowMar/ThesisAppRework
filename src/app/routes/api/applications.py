@@ -90,6 +90,20 @@ def start_app_container(model_slug, app_number):
                 # If check fails, continue anyway (fallback to old behavior)
                 pass
         
+        # Helper to update container status in DB
+        def _update_container_status(status: str):
+            try:
+                from app.models import GeneratedApplication
+                from app.extensions import db
+                app_record = GeneratedApplication.query.filter_by(
+                    model_slug=model_slug, app_number=app_number
+                ).first()
+                if app_record:
+                    app_record.container_status = status
+                    db.session.commit()
+            except Exception as e:
+                current_app.logger.warning(f"Failed to update container status: {e}")
+        
         # If images don't exist, auto-build first
         if not images_exist and missing_images:
             build_result = docker_mgr.build_containers(model_slug, app_number, no_cache=False, start_after=True)
@@ -98,10 +112,13 @@ def start_app_container(model_slug, app_number):
             if status_cache:
                 status_cache.invalidate(model_slug, app_number)
             if build_result.get('success'):
-                # Build and start succeeded
+                # Build and start succeeded - update DB status
+                _update_container_status('running')
                 build_result['status_summary'] = docker_mgr.container_status_summary(model_slug, app_number)
                 return api_success(build_result, message=f'Built and started containers for {model_slug}/app{app_number}')
             else:
+                # Build/start failed - mark as build_failed in DB
+                _update_container_status('build_failed')
                 return api_error(f'Failed to build containers: {build_result.get("error", "Unknown error")}', status=500, details=build_result)
         
         # Images exist, just start them
@@ -113,8 +130,12 @@ def start_app_container(model_slug, app_number):
             status_cache.invalidate(model_slug, app_number)
         result['preflight'] = pre
         if result.get('success'):
+            # Start succeeded - update DB status
+            _update_container_status('running')
             result['status_summary'] = docker_mgr.container_status_summary(model_slug, app_number)
             return api_success(result, message=f'Started containers for {model_slug}/app{app_number}')
+        # Start failed - mark as build_failed in DB
+        _update_container_status('build_failed')
         return api_error(f'Failed to start containers: {result.get("error", "Unknown error")}', status=500, details=result)
     except Exception as e:
         return api_error(f'Error starting containers: {e}', status=500)
@@ -170,6 +191,9 @@ def build_app_container(model_slug, app_number):
     """Build a specific app container."""
     try:
         from app.services.service_locator import ServiceLocator
+        from app.models import GeneratedApplication
+        from app.extensions import db
+        
         docker_mgr = ServiceLocator.get_docker_manager()
         if not docker_mgr:
             return api_error("Docker manager unavailable", status=503)
@@ -184,6 +208,21 @@ def build_app_container(model_slug, app_number):
         if status_cache:
             status_cache.invalidate(model_slug, app_number)
         result['preflight'] = pre
+        
+        # Update container status in DB based on result
+        try:
+            app_record = GeneratedApplication.query.filter_by(
+                model_slug=model_slug, app_number=app_number
+            ).first()
+            if app_record:
+                if result.get('success'):
+                    app_record.container_status = 'running' if start_after else 'stopped'
+                else:
+                    app_record.container_status = 'build_failed'
+                db.session.commit()
+        except Exception as e:
+            current_app.logger.warning(f"Failed to update container status: {e}")
+        
         if result.get('success'):
             result['status_summary'] = docker_mgr.container_status_summary(model_slug, app_number)
             return api_success(result, message=f'Built containers for {model_slug}/app{app_number}')

@@ -214,7 +214,8 @@
 			<tbody id="applications-table-body">
 				{% for app in applications %}
 				{% set is_failed = app.is_generation_failed|default(false) %}
-				<tr data-model="{{ app.model_slug }}" data-app="{{ app.app_number }}" {% if app.id %}data-app-id="{{ app.id }}"{% endif %} {% if is_failed %}class="table-danger opacity-75"{% endif %}>
+				{% set is_container_failed = app.is_container_unhealthy|default(false) and not is_failed %}
+				<tr data-model="{{ app.model_slug }}" data-app="{{ app.app_number }}" {% if app.id %}data-app-id="{{ app.id }}"{% endif %} {% if is_failed %}class="table-danger opacity-75"{% elif is_container_failed %}class="table-warning opacity-85"{% endif %}>
 					<td><input type="checkbox" class="form-check-input m-0 app-checkbox" value="{{ app.model_slug }}-{{ app.app_number }}" aria-label="Select {{ app.model_display_name }} App {{ app.app_number }}" {% if is_failed %}disabled title="Cannot select failed apps"{% endif %}></td>
 					<td>
 						<div class="text-truncate {% if is_failed %}text-decoration-line-through text-muted{% endif %}">{{ app.model_display_name }}</div>
@@ -256,6 +257,10 @@
 						{% if app.is_generation_failed|default(false) %}
               <span class="badge bg-danger text-white" data-role="status-badge" title="{{ app.error_message|default('Generation failed')|truncate(100) }}">
                 <i class="fas fa-skull-crossbones fa-xs me-1" aria-hidden="true"></i>Dead
+              </span>
+            {% elif is_container_failed %}
+              <span class="badge bg-orange text-white" data-role="status-badge" title="Container failed to build or start">
+                <i class="fas fa-exclamation-triangle fa-xs me-1" aria-hidden="true"></i>Build Failed
               </span>
             {% elif status_lower == 'running' %}
               <span class="badge bg-success-lt text-success" data-role="status-badge"><i class="fas fa-play fa-xs me-1" aria-hidden="true"></i>Running</span>

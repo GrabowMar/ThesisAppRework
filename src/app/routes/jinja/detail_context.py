@@ -943,6 +943,13 @@ def build_application_detail_context(model_slug: str, app_number: int, allow_syn
     app_data['container_status_display'] = (app_data.get('container_status') or 'unknown').replace('_', ' ').title()
     app_data['status'] = _derive_status(app_data.get('container_status'), app_data.get('generation_status'), app_data['exists_in_db'])
     app_data['status_display'] = app_data['status'].replace('_', ' ').title()
+    
+    # Check for unhealthy container status (status is 'failed' from _derive_status or explicit error states)
+    container_status_raw = (app_data.get('container_status') or '').lower()
+    app_data['is_container_unhealthy'] = (
+        app_data['status'] == 'failed' or 
+        container_status_raw in ('error', 'failed', 'exited', 'dead', 'unhealthy')
+    )
 
     app_path = get_app_directory(resolved_slug, app_number)
     files_info, code_stats, files, file_stats = _collect_app_files(app_path)

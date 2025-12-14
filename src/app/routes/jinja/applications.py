@@ -208,12 +208,64 @@ def build_applications_context():
         if is_generation_failed:
             status = 'generation_failed'
         
+        # Get raw container status for template
+        raw_container_status = getattr(r, 'container_status', None) or ''
+        
+        # Check for unhealthy containers:
+        # 1. DB status is 'build_failed' (persisted when start/build fails)
+        # 2. Or detected from Docker status_details
+        is_container_unhealthy = False
+        
+        # Primary check: DB container_status field
+        raw_status_lower = raw_container_status.lower() if raw_container_status else ''
+        if raw_status_lower in ('build_failed', 'error', 'failed', 'unhealthy'):
+            is_container_unhealthy = True
+        
+        # Secondary check: Docker status_details (when Docker checks are enabled)
+        if not is_container_unhealthy and status_details:
+            states = [s.lower() for s in status_details.get('states', []) if s]
+            containers = status_details.get('containers', [])
+            
+            # Check if any container exited or is dead
+            if any(s in ('exited', 'dead', 'error', 'failed') for s in states):
+                is_container_unhealthy = True
+            
+            # Check for error in status_details
+            if status_details.get('error'):
+                is_container_unhealthy = True
+            
+            # Check containers for exit codes != 0 or unhealthy status
+            for container in containers:
+                c_status = (container.get('status') or '').lower()
+                c_state = (container.get('State', {}) if isinstance(container.get('State'), dict) else {})
+                exit_code = c_state.get('ExitCode', 0) if c_state else 0
+                health = (container.get('health', '') or '').lower()
+                
+                if c_status in ('exited', 'dead', 'error'):
+                    is_container_unhealthy = True
+                if exit_code != 0:
+                    is_container_unhealthy = True
+                if health == 'unhealthy':
+                    is_container_unhealthy = True
+        
+        # Also mark as unhealthy if status is 'stopped' but was never successfully running
+        # (detected by having no live port bindings despite having port config)
+        if status == 'stopped' and not is_container_unhealthy:
+            # If there's status_details but status is stopped, containers likely crashed
+            if status_details and status_details.get('compose_exists', False):
+                states = [s.lower() for s in status_details.get('states', []) if s]
+                if states and all(s != 'running' for s in states):
+                    # All containers stopped - might be a failure
+                    is_container_unhealthy = True
+        
         applications_all.append({
             'model_slug': r.model_slug,
             'model_provider': model_provider,
             'model_display_name': display_name,
             'app_number': r.app_number,
             'status': status,
+            'container_status': raw_container_status,
+            'is_container_unhealthy': is_container_unhealthy,
             'id': r.id,
             'template_slug': r.template_slug,
             'template_name': template_name,
