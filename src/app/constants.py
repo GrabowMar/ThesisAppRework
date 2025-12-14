@@ -113,6 +113,21 @@ class JobPriority(BaseEnum):
     URGENT = "urgent"
 
 
+class GenerationMode(BaseEnum):
+    """Generation mode for AI-generated applications.
+    
+    GUARDED: Structured scaffolding with pre-built auth, fixed file structure.
+             AI generates business logic within controlled architecture.
+             Best for: Comparing code quality across models.
+    
+    UNGUARDED: Minimal scaffolding (Docker only). AI has full creative control
+               over architecture, file structure, dependencies, patterns.
+               Best for: Studying model architectural preferences.
+    """
+    GUARDED = "guarded"
+    UNGUARDED = "unguarded"
+
+
 # (Pruned legacy enum: ToolCategory)
 
 

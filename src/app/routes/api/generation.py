@@ -166,6 +166,14 @@ def generate():
         gen_frontend = data.get('generate_frontend', True)
         gen_backend = data.get('generate_backend', True)
         
+        # Generation mode: 'guarded' (default) or 'unguarded'
+        generation_mode = data.get('generation_mode', 'guarded')
+        if generation_mode not in ('guarded', 'unguarded'):
+            return create_error_response(
+                f"Invalid generation_mode '{generation_mode}'. Must be 'guarded' or 'unguarded'.",
+                code=400
+            )
+        
         # Versioning and batch tracking
         batch_id = data.get('batch_id')  # Optional batch ID from wizard
         if not batch_id:
@@ -181,6 +189,7 @@ def generate():
         logger.info(f"  OpenRouter model_id: {model.model_id}")
         logger.info(f"  Frontend: {gen_frontend}, Backend: {gen_backend}")
         logger.info(f"  Template: {template_slug}")
+        logger.info(f"  Generation mode: {generation_mode}")
         logger.info(f"  Batch ID: {batch_id}")
         
         # Run generation with atomic reservation
@@ -193,7 +202,8 @@ def generate():
             generate_backend=gen_backend,
             batch_id=batch_id,
             parent_app_id=parent_app_id,
-            version=version
+            version=version,
+            generation_mode=generation_mode
         ))
         
         if result['success']:

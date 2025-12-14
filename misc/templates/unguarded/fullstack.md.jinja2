@@ -1,0 +1,107 @@
+````jinja
+# {{ name }} - Full Stack Application (Unguarded Mode)
+
+{{ description }}
+
+## YOUR MISSION
+Design and implement a **complete full-stack application** with full creative control over architecture, patterns, and implementation details.
+
+## Functional Requirements
+{% for req in backend_requirements %}
+- {{ req }}
+{% endfor %}
+
+{% for req in frontend_requirements %}
+- {{ req }}
+{% endfor %}
+
+{% if admin_requirements %}
+## Admin Requirements
+{% for req in admin_requirements %}
+- {{ req }}
+{% endfor %}
+{% endif %}
+
+{% if api_endpoints %}
+## Suggested API Endpoints (you may modify/extend)
+{{ api_endpoints }}
+{% endif %}
+
+## Technical Constraints
+- **Backend**: Python with Flask (required framework)
+- **Frontend**: React with Vite (required framework)
+- **Database**: SQLite at `/app/data/app.db` (required)
+- **Must run in Docker containers**
+
+## What You Decide
+You have full control over:
+
+### Architecture
+- File/folder structure (flat, modular, layered - your choice)
+- Module organization and separation of concerns
+- Design patterns (MVC, Clean Architecture, Repository, etc.)
+
+### Backend
+- Project structure (single file vs modular)
+- ORM patterns (Active Record, Repository, raw queries)
+- Authentication design (JWT, sessions, API keys - if needed)
+- API response format and error handling
+- Middleware choices and Flask extensions
+- Validation approach
+
+### Frontend  
+- Component library (Material UI, Chakra, Ant Design, Tailwind, plain CSS)
+- State management (Context, Redux, Zustand, React Query, etc.)
+- Routing structure and patterns
+- Form handling approach
+- API client design and error handling
+
+### Dependencies
+- Choose ALL packages/libraries
+- Version specifications
+
+## Output Format
+
+Generate complete files. Use this format for EACH file:
+
+```python:path/to/file.py
+# Your code here
+```
+
+```javascript:path/to/file.jsx
+// Your code here
+```
+
+```json:package.json
+{
+  "dependencies": { ... }
+}
+```
+
+```text:requirements.txt
+package==version
+```
+
+### Required Files (minimum)
+1. `backend/app.py` - Main application entry
+2. `backend/requirements.txt` - Python dependencies
+3. `frontend/src/main.jsx` - React entry point
+4. `frontend/src/App.jsx` - Main application component
+5. `frontend/package.json` - Node dependencies
+
+### Recommended (optional)
+- `backend/models.py` - Database models
+- `backend/routes/` - API routes (if you prefer modular structure)
+- `frontend/src/components/` - Reusable components
+- `frontend/src/services/api.js` - API client
+- `frontend/src/App.css` or styling solution
+
+## Quality Expectations
+- Complete, runnable code (no placeholders)
+- Proper error handling
+- Clean, documented code
+- Security best practices
+- Responsive UI
+
+Generate the COMPLETE application now.
+````

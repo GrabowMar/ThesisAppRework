@@ -10,6 +10,7 @@ let currentStep = 1;
 let selectedScaffolding = null;
 let selectedTemplates = [];
 let selectedModels = [];
+let selectedGenerationMode = 'guarded';  // Default to guarded mode
 
 // Cache for templates and models
 let templatesCache = null;
@@ -33,6 +34,7 @@ function initSampleGeneratorWizard() {
   selectedScaffolding = null;
   selectedTemplates = [];
   selectedModels = [];
+  selectedGenerationMode = 'guarded';
   isGenerating = false;
   
   initializeWizard();
@@ -375,6 +377,68 @@ function showScaffoldingPreview() {
   const preview = document.getElementById('scaffolding-preview');
   if (preview) {
     preview.classList.remove('d-none');
+  }
+}
+
+// ============================================================================
+// Generation Mode Selection
+// ============================================================================
+
+function selectGenerationMode(mode) {
+  selectedGenerationMode = mode;
+  
+  // Update hidden input
+  const input = document.getElementById('input-generation-mode');
+  if (input) {
+    input.value = mode;
+  }
+  
+  // Update card selection UI
+  const guardedCard = document.getElementById('mode-card-guarded');
+  const unguardedCard = document.getElementById('mode-card-unguarded');
+  const guardedBadge = document.getElementById('mode-selected-guarded');
+  const unguardedBadge = document.getElementById('mode-selected-unguarded');
+  const warningAlert = document.getElementById('unguarded-warning');
+  
+  if (mode === 'guarded') {
+    guardedCard?.classList.add('selected');
+    unguardedCard?.classList.remove('selected');
+    guardedBadge?.classList.remove('d-none');
+    unguardedBadge?.classList.add('d-none');
+    if (warningAlert) warningAlert.style.display = 'none';
+  } else {
+    guardedCard?.classList.remove('selected');
+    unguardedCard?.classList.add('selected');
+    guardedBadge?.classList.add('d-none');
+    unguardedBadge?.classList.remove('d-none');
+    if (warningAlert) warningAlert.style.display = 'block';
+  }
+  
+  // Update sidebar
+  updateGenerationModeSidebar();
+  updateNavigationButtons();
+}
+
+function updateGenerationModeSidebar() {
+  const modeBadge = document.getElementById('sidebar-mode-badge');
+  const modeDescription = document.getElementById('sidebar-mode-description');
+  
+  if (modeBadge) {
+    if (selectedGenerationMode === 'guarded') {
+      modeBadge.className = 'badge bg-success-lt';
+      modeBadge.textContent = 'Guarded';
+    } else {
+      modeBadge.className = 'badge bg-warning-lt';
+      modeBadge.textContent = 'Unguarded';
+    }
+  }
+  
+  if (modeDescription) {
+    if (selectedGenerationMode === 'guarded') {
+      modeDescription.textContent = 'Pre-defined architecture (4-query system)';
+    } else {
+      modeDescription.textContent = 'Model-driven architecture (research mode)';
+    }
   }
 }
 
@@ -1223,11 +1287,13 @@ async function startGeneration() {
     // CRITICAL: Freeze selections to prevent mid-generation changes
     const templatesToGenerate = [...selectedTemplates];
     const modelsToUse = [...selectedModels];
+    const generationMode = selectedGenerationMode;  // Freeze generation mode too
     
     console.log(`[Wizard] LOCKED GENERATION PLAN:`);
     console.log(`  - Batch ID: ${batchId}`);
     console.log(`  - Models: ${modelsToUse.join(', ')}`);
     console.log(`  - Templates: ${templatesToGenerate.join(', ')}`);
+    console.log(`  - Generation Mode: ${generationMode}`);
     console.log(`  - Total apps: ${totalGenerations}`);
     
     for (const modelSlug of modelsToUse) {
@@ -1247,7 +1313,8 @@ async function startGeneration() {
                 generate_backend: true,
                 scaffold: true,
                 batch_id: batchId,  // Track batch operations together
-                version: 1  // New generation, version 1
+                version: 1,  // New generation, version 1
+                generation_mode: generationMode  // Include generation mode
               })
             });
             
@@ -1929,21 +1996,23 @@ function viewGenerationResult(resultId) {
     return;
   }
   
-  // Navigate to applications page or open detail modal
-  // For now, we'll show a notification and log
   console.log('[Wizard] View generation result:', resultId);
   
-  // Try to find an app detail page URL pattern
-  // The result_id typically follows format: template_model
-  const parts = resultId.split('_');
-  if (parts.length >= 2) {
-    // Try to navigate to the generated app
-    showNotification(`Opening result: ${resultId}`, 'info');
+  // Parse the result ID to extract model slug and app number
+  // Format is typically: {model_slug}_app{app_num} e.g., "anthropic_claude-3-5-haiku-20241022_app1"
+  const appMatch = resultId.match(/^(.+)_app(\d+)$/);
+  
+  if (appMatch) {
+    const modelSlug = appMatch[1];
+    const appNum = appMatch[2];
     
-    // Could navigate to applications page with this model
-    // window.location.href = `/applications?search=${encodeURIComponent(resultId)}`;
+    // Navigate to the application detail page
+    window.location.href = `/applications/${encodeURIComponent(modelSlug)}/${appNum}`;
   } else {
-    showNotification(`Result ID: ${resultId}`, 'info');
+    // Fallback: try to use the whole resultId as model slug with app 1
+    // or show the applications page with a search filter
+    showNotification(`Navigating to applications with result: ${resultId}`, 'info');
+    window.location.href = `/applications?search=${encodeURIComponent(resultId)}`;
   }
 }
 
@@ -1993,6 +2062,7 @@ window.nextStep = nextStep;
 window.previousStep = previousStep;
 window.goToStep = goToStep;
 window.selectScaffolding = selectScaffolding;
+window.selectGenerationMode = selectGenerationMode;
 window.toggleTemplateSelection = toggleTemplateSelection;
 window.selectAllTemplates = selectAllTemplates;
 window.clearAllTemplates = clearAllTemplates;

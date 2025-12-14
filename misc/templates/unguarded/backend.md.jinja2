@@ -1,0 +1,112 @@
+````jinja
+# {{ name }} - Backend Application (Unguarded Mode)
+
+{{ description }}
+
+## YOUR MISSION
+Design and implement a **complete backend API** with full creative control over architecture, patterns, and implementation details.
+
+## Functional Requirements
+{% for req in backend_requirements %}
+- {{ req }}
+{% endfor %}
+
+{% if admin_requirements %}
+## Admin Requirements
+{% for req in admin_requirements %}
+- {{ req }}
+{% endfor %}
+{% endif %}
+
+{% if api_endpoints %}
+## Suggested API Endpoints (you may modify/extend)
+{{ api_endpoints }}
+{% endif %}
+
+## Technical Constraints
+- **Language**: Python
+- **Framework**: Flask (required)
+- **Database**: SQLite at `/app/data/app.db`
+- **Must run in Docker container**
+- **Must expose port from FLASK_RUN_PORT env (default 5000)**
+
+## What You Decide
+
+### Architecture
+- File/folder structure (flat vs modular vs layered)
+- Design patterns (MVC, Clean Architecture, etc.)
+- Layer separation (routes, services, repositories)
+
+### Implementation
+- SQLAlchemy patterns (Active Record, Repository, Unit of Work)
+- Authentication design (JWT, sessions, API keys - if needed)
+- Validation approach (marshmallow, pydantic, manual)
+- Error handling and response format
+- Logging and debugging strategy
+- Flask extensions selection
+
+### Dependencies
+- All packages and versions
+- Development dependencies
+
+## Output Format
+
+Generate complete files using this format:
+
+```python:app.py
+# Main entry point
+```
+
+```python:path/to/module.py
+# Additional modules
+```
+
+```text:requirements.txt
+package==version
+```
+
+### Required Files (minimum)
+1. `app.py` - Main application entry with routes or route registration
+2. `requirements.txt` - All Python dependencies
+
+### Recommended Structure (your choice)
+Option A - Flat:
+```
+app.py (everything in one file)
+requirements.txt
+```
+
+Option B - Modular:
+```
+app.py (entry point)
+models.py
+routes.py or routes/
+services.py
+config.py
+requirements.txt
+```
+
+Option C - Domain-Driven:
+```
+app.py
+domain/
+  models.py
+  services.py
+infrastructure/
+  database.py
+  repositories.py
+api/
+  routes.py
+requirements.txt
+```
+
+## Quality Expectations
+- Complete, runnable code
+- Proper HTTP status codes
+- Input validation
+- Error responses
+- Health check endpoint at `/health`
+- CORS support for frontend integration
+
+Generate the COMPLETE backend now.
+````

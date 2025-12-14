@@ -64,7 +64,7 @@ from app.paths import (
 from app.services.port_allocation_service import get_port_allocation_service
 from app.services.openrouter_chat_service import get_openrouter_chat_service
 from app.extensions import db
-from app.models import GeneratedApplication, ModelCapability, AnalysisStatus
+from app.models import GeneratedApplication, ModelCapability, AnalysisStatus, GenerationMode
 from app.utils.time import utc_now
 from app.utils.slug_utils import auto_correct_model_id
 
@@ -148,6 +148,7 @@ class GenerationConfig:
     template_slug: str
     component: str  # 'frontend' or 'backend'
     query_type: str = 'user'  # 'user' or 'admin' - determines which requirements/routes to generate
+    generation_mode: str = 'guarded'  # 'guarded' or 'unguarded' - determines scaffolding and prompts
     temperature: float = 0.3
     max_tokens: int = 64000  # Increased from 32000 for longer, more complete code generation
     requirements: Optional[Dict] = None  # Requirements from JSON file
@@ -159,9 +160,16 @@ class ScaffoldingManager:
     
     def __init__(self):
         self.scaffolding_source = SCAFFOLDING_DIR / 'react-flask'
+        self.scaffolding_source_unguarded = SCAFFOLDING_DIR / 'react-flask-unguarded'
         self.base_backend_port = 5001
         self.base_frontend_port = 8001
         self._port_service = get_port_allocation_service()
+    
+    def get_scaffolding_source(self, generation_mode: str = 'guarded') -> Path:
+        """Get the appropriate scaffolding source based on generation mode."""
+        if generation_mode == 'unguarded':
+            return self.scaffolding_source_unguarded
+        return self.scaffolding_source
 
     def _build_project_names(self, model_slug: str, app_num: int) -> Tuple[str, str]:
         """Create sanitized project identifiers for Docker Compose."""
@@ -224,24 +232,31 @@ class ScaffoldingManager:
         # This prevents collisions when multiple templates generate apps for same model
         return base_path / f"app{app_num}"
     
-    def scaffold(self, model_slug: str, app_num: int, template_slug: Optional[str] = None) -> bool:
+    def scaffold(self, model_slug: str, app_num: int, template_slug: Optional[str] = None, 
+                 generation_mode: str = 'guarded') -> bool:
         """Copy scaffolding to app directory.
         
-        This creates the IMMUTABLE base structure that AI never touches.
+        This creates the base structure. For guarded mode, this is IMMUTABLE.
+        For unguarded mode, AI has more freedom to modify structure.
         
         Args:
             model_slug: Normalized model slug
             app_num: App number
             template_slug: Optional template slug for path organization
+            generation_mode: 'guarded' or 'unguarded'
         """
         app_dir = self.get_app_dir(model_slug, app_num, template_slug)
         backend_port, frontend_port = self.get_ports(model_slug, app_num)
         
-        logger.info(f"Scaffolding {model_slug}/app{app_num} → {app_dir}")
-        logger.info(f"Ports: backend={backend_port}, frontend={frontend_port}")
+        # Select scaffolding source based on mode
+        scaffolding_source = self.get_scaffolding_source(generation_mode)
         
-        if not self.scaffolding_source.exists():
-            logger.error(f"Scaffolding source missing: {self.scaffolding_source}")
+        logger.info(f"Scaffolding {model_slug}/app{app_num} → {app_dir} (mode={generation_mode})")
+        logger.info(f"Ports: backend={backend_port}, frontend={frontend_port}")
+        logger.info(f"Scaffolding source: {scaffolding_source}")
+        
+        if not scaffolding_source.exists():
+            logger.error(f"Scaffolding source missing: {scaffolding_source}")
             return False
         
         # Create app directory
@@ -263,15 +278,15 @@ class ScaffoldingManager:
         
         # Dynamically discover all files in the scaffolding directory
         files_to_copy = []
-        for path in self.scaffolding_source.rglob('*'):
+        for path in scaffolding_source.rglob('*'):
             if path.is_file():
-                files_to_copy.append(str(path.relative_to(self.scaffolding_source)))
+                files_to_copy.append(str(path.relative_to(scaffolding_source)))
         
         logger.info(f"Found {len(files_to_copy)} files to copy from scaffolding source.")
         
         copied = 0
         for rel_path in files_to_copy:
-            src = self.scaffolding_source / rel_path
+            src = scaffolding_source / rel_path
             dest = app_dir / rel_path
 
             # Rename .env.example to .env
@@ -319,7 +334,9 @@ class ScaffoldingManager:
                 logger.error(f"  ✗ {rel_path}: {e}")
         
         logger.info(f"Scaffolded {copied}/{len(files_to_copy)} files")
-        return copied >= 10  # Must have at least core files
+        # Unguarded scaffolding has fewer files, so lower threshold
+        min_files = 5 if generation_mode == 'unguarded' else 10
+        return copied >= min_files
 
 
 class CodeGenerator:
@@ -377,9 +394,10 @@ class CodeGenerator:
         if effective_max_tokens < config.max_tokens:
             logger.info(f"Capping max_tokens to {effective_max_tokens} (model limit) from {config.max_tokens} (config)")
         
-        # Get system prompt with query_type for 4-query system
+        # Get system prompt with query_type and generation_mode
         query_type = config.query_type if hasattr(config, 'query_type') and config.query_type else 'user'
-        system_prompt = self._get_system_prompt(config.component, query_type)
+        generation_mode = config.generation_mode if hasattr(config, 'generation_mode') and config.generation_mode else 'guarded'
+        system_prompt = self._get_system_prompt(config.component, query_type, generation_mode)
         
         messages = [
             {"role": "system", "content": system_prompt},
@@ -724,13 +742,16 @@ class CodeGenerator:
             logger.warning(f"Failed to save metadata: {e}")
     
     def _build_prompt(self, config: GenerationConfig) -> str:
-        """Build generation prompt based on 4-query template system.
+        """Build generation prompt based on template system.
         
-        4-Query System:
+        Guarded Mode (4-Query System):
         - Query 1: backend_user - Models + User routes + Services
         - Query 2: backend_admin - Admin routes (uses models from Query 1)
         - Query 3: frontend_user - UserPage + API service + Hooks
         - Query 4: frontend_admin - AdminPage + Admin API functions
+        
+        Unguarded Mode (Simplified):
+        - Single fullstack or backend/frontend template with more freedom
         """
         from jinja2 import Environment, FileSystemLoader
 
@@ -740,26 +761,32 @@ class CodeGenerator:
         
         reqs = config.requirements
         query_type = config.query_type  # 'user' or 'admin'
+        generation_mode = config.generation_mode  # 'guarded' or 'unguarded'
         
-        # Determine template directory (prefer four-query)
-        four_query_dir = self.template_dir / 'four-query'
-        two_query_dir = self.template_dir / 'two-query'
+        # Determine template directory based on mode
+        if generation_mode == 'unguarded':
+            template_dir = self.template_dir / 'unguarded'
+            # Unguarded uses simpler templates (backend.md.jinja2, frontend.md.jinja2)
+            template_name = f"{config.component}.md.jinja2"
+        else:
+            # Guarded mode uses 4-query templates
+            template_dir = self.template_dir / 'four-query'
+            template_name = f"{config.component}_{query_type}.md.jinja2"
         
         template = None
-        template_name = None
         
-        # Try 4-query templates first
-        if four_query_dir.exists():
-            template_name = f"{config.component}_{query_type}.md.jinja2"
-            env = Environment(loader=FileSystemLoader(four_query_dir))
+        # Try primary template directory
+        if template_dir.exists():
+            env = Environment(loader=FileSystemLoader(template_dir))
             try:
                 template = env.get_template(template_name)
-                logger.info(f"Using 4-query template: {template_name}")
+                logger.info(f"Using {generation_mode} template: {template_dir.name}/{template_name}")
             except Exception:
                 template = None
         
-        # Fall back to 2-query for user queries only
-        if not template and query_type == 'user':
+        # Guarded mode fallback to 2-query for user queries
+        if not template and generation_mode == 'guarded' and query_type == 'user':
+            two_query_dir = self.template_dir / 'two-query'
             template_name = f"{config.component}.md.jinja2"
             env = Environment(loader=FileSystemLoader(two_query_dir))
             try:
@@ -970,17 +997,30 @@ Generate the React component code:"""
         
         return content
 
-    def _get_system_prompt(self, component: str, query_type: str = 'user') -> str:
-        """Get system prompt from external file for 4-query system.
+    def _get_system_prompt(self, component: str, query_type: str = 'user', 
+                          generation_mode: str = 'guarded') -> str:
+        """Get system prompt from external file.
         
         Args:
             component: 'backend' or 'frontend'
             query_type: 'user' or 'admin'
+            generation_mode: 'guarded' or 'unguarded'
             
         Returns:
             System prompt string
         """
         prompts_dir = MISC_DIR / 'prompts' / 'system'
+        
+        # For unguarded mode, use unguarded prompts
+        if generation_mode == 'unguarded':
+            unguarded_file = prompts_dir / f'{component}_unguarded.md'
+            if unguarded_file.exists():
+                try:
+                    content = unguarded_file.read_text(encoding='utf-8')
+                    logger.info(f"Loaded unguarded system prompt from {unguarded_file}")
+                    return content
+                except Exception as e:
+                    logger.warning(f"Failed to load unguarded prompt from {unguarded_file}: {e}")
         
         # Try 4-query specific prompt first (e.g., backend_user.md)
         four_query_file = prompts_dir / f'{component}_{query_type}.md'
@@ -1111,9 +1151,12 @@ class CodeMerger:
     
     Philosophy: LLM generates complete, working files. We just extract from fences,
     validate syntax, fix Docker networking, and write. No AST merging complexity.
+    
+    In unguarded mode, the merger is more permissive - allows any file path.
     """
 
-    def __init__(self):
+    def __init__(self, generation_mode: str = 'guarded'):
+        self.generation_mode = generation_mode
         # Keep dependency inference for requirements.txt updates
         try:
             self._stdlib_modules = set(sys.stdlib_module_names)
@@ -1637,10 +1680,6 @@ class CodeMerger:
         return True
     
     def _merge_frontend_admin(self, app_dir: Path, all_blocks: List[Dict]) -> bool:
-        
-        return True
-    
-    def _merge_frontend_admin(self, app_dir: Path, all_blocks: List[Dict]) -> bool:
         """Handle frontend merge for 'admin' query - restricted to admin files only."""
         frontend_src_dir = app_dir / 'frontend' / 'src'
         files_written = 0
@@ -2103,7 +2142,8 @@ class GenerationService:
         template_slug: str,
         batch_id: Optional[str] = None,
         parent_app_id: Optional[int] = None,
-        version: int = 1
+        version: int = 1,
+        generation_mode: str = 'guarded'
     ) -> GeneratedApplication:
         """Atomically reserve an app number by creating DB record immediately.
         
@@ -2118,6 +2158,7 @@ class GenerationService:
             batch_id: Optional batch ID for grouping
             parent_app_id: Optional parent app ID for regenerations
             version: Version number (default 1)
+            generation_mode: 'guarded' or 'unguarded'
             
         Returns:
             GeneratedApplication record in PENDING status
@@ -2126,7 +2167,7 @@ class GenerationService:
             RuntimeError: If app number already reserved (race condition detected)
         """
         from ..models.core import GeneratedApplication, ModelCapability
-        from ..constants import AnalysisStatus
+        from ..constants import AnalysisStatus, GenerationMode
         
         # Auto-allocate app number if not provided
         if app_num is None:
@@ -2156,6 +2197,9 @@ class GenerationService:
                 f"This indicates a race condition in app number allocation."
             )
         
+        # Convert string mode to enum
+        mode_enum = GenerationMode.UNGUARDED if generation_mode == 'unguarded' else GenerationMode.GUARDED
+        
         # Create new record in PENDING status
         app_record = GeneratedApplication(
             model_slug=model_slug,
@@ -2166,6 +2210,7 @@ class GenerationService:
             app_type='web_application',
             provider=provider,
             template_slug=template_slug,
+            generation_mode=mode_enum,
             generation_status=AnalysisStatus.PENDING,
             container_status='unknown',
             has_backend=False,
@@ -2199,7 +2244,8 @@ class GenerationService:
         generate_backend: bool = True,
         batch_id: Optional[str] = None,  # For tracking batch operations
         parent_app_id: Optional[int] = None,  # For regenerations
-        version: int = 1  # Version number (1 for new, incremented for regenerations)
+        version: int = 1,  # Version number (1 for new, incremented for regenerations)
+        generation_mode: str = 'guarded'  # 'guarded' or 'unguarded'
     ) -> dict:
         """Generate complete application with atomic app number reservation.
         
@@ -2220,6 +2266,7 @@ class GenerationService:
             batch_id: Optional batch ID for grouping related generations
             parent_app_id: Optional parent app ID if this is a regeneration
             version: Version number (1 for new, incremented for regenerations)
+            generation_mode: 'guarded' (structured) or 'unguarded' (architectural freedom)
         """
         # Step 0: Atomic app reservation - create DB record immediately
         app_record = await self._reserve_app_number(
@@ -2228,7 +2275,8 @@ class GenerationService:
             template_slug=template_slug,
             batch_id=batch_id,
             parent_app_id=parent_app_id,
-            version=version
+            version=version,
+            generation_mode=generation_mode
         )
         
         # Use the allocated app_num from DB record (may differ if input was None)
@@ -2242,6 +2290,7 @@ class GenerationService:
             'scaffolded': False,
             'backend_generated': False,
             'frontend_generated': False,
+            'generation_mode': generation_mode,
             'errors': []
         }
         
@@ -2252,127 +2301,192 @@ class GenerationService:
                 return result
             
             try:
-                # Create per-request CodeMerger instance
-                merger = CodeMerger()
+                # Create per-request CodeMerger instance with mode
+                merger = CodeMerger(generation_mode=generation_mode)
                 
                 # Step 1: Scaffold
-                logger.info(f"=== Generating {model_slug}/app{app_num} (v{version}) ===")
+                logger.info(f"=== Generating {model_slug}/app{app_num} (v{version}, mode={generation_mode}) ===")
                 logger.info("Step 1: Scaffolding...")
                 
-                if not self.scaffolding.scaffold(model_slug, app_num, template_slug):
+                if not self.scaffolding.scaffold(model_slug, app_num, template_slug, generation_mode):
                     result['errors'].append("Scaffolding failed")
-                    # Update DB record to FAILED status
-                    app_record.generation_status = AnalysisStatus.FAILED
-                    db.session.commit()
+                    # Update DB record with failure details
+                    self._mark_generation_failed(
+                        app_record=app_record,
+                        failure_stage='scaffold',
+                        error_message='Scaffolding failed - could not create base Docker infrastructure',
+                        cleanup_files=True,  # Cleanup any partial scaffolding files
+                        model_slug=model_slug,
+                        app_num=app_num,
+                        template_slug=template_slug
+                    )
                     return result
                 
                 result['scaffolded'] = True
                 app_dir = self.scaffolding.get_app_dir(model_slug, app_num, template_slug)
                 
-                # 4-Query System:
-                # Query 1: backend_user - Models + User routes + Services
-                # Query 2: backend_admin - Admin routes (uses models from Query 1)
-                # Query 3: frontend_user - UserPage + API service + Hooks
-                # Query 4: frontend_admin - AdminPage + Admin API additions
+                # Generation strategy depends on mode:
+                # - Guarded: 4-Query System (user/admin split)
+                # - Unguarded: Single query per component (more freedom)
                 
-                models_summary = "No models defined yet."
-                
-                # Step 2: Generate Backend User (Query 1)
-                if generate_backend:
-                    logger.info("Step 2a: Generating backend user components...")
+                if generation_mode == 'unguarded':
+                    # UNGUARDED MODE: Single query per component
+                    # AI has full architectural freedom
                     
-                    config = GenerationConfig(
-                        model_slug=model_slug,
-                        app_num=app_num,
-                        template_slug=template_slug,
-                        component='backend',
-                        query_type='user'
-                    )
-                    
-                    success, content, error = await self.generator.generate(config)
-                    
-                    if success:
-                        if merger.merge_backend(app_dir, content, query_type='user'):
-                            result['backend_user_generated'] = True
-                            # Extract models summary for admin query
-                            models_summary = self._extract_models_summary(app_dir)
-                        else:
-                            result['errors'].append("Backend user merge failed")
-                    else:
-                        result['errors'].append(f"Backend user generation failed: {error}")
-                    
-                    # Step 2b: Generate Backend Admin (Query 2) - only if user succeeded
-                    if result.get('backend_user_generated'):
-                        logger.info("Step 2b: Generating backend admin components...")
+                    if generate_backend:
+                        logger.info("Step 2: Generating backend (unguarded mode)...")
                         
                         config = GenerationConfig(
                             model_slug=model_slug,
                             app_num=app_num,
                             template_slug=template_slug,
                             component='backend',
-                            query_type='admin',
-                            existing_models_summary=models_summary
+                            query_type='user',  # Single query covers everything
+                            generation_mode='unguarded'
                         )
                         
                         success, content, error = await self.generator.generate(config)
                         
                         if success:
-                            if merger.merge_backend(app_dir, content, query_type='admin'):
-                                result['backend_admin_generated'] = True
+                            # Unguarded mode: more permissive merge
+                            if merger.merge_backend(app_dir, content, query_type='user'):
+                                result['backend_generated'] = True
                             else:
-                                result['errors'].append("Backend admin merge failed")
+                                result['errors'].append("Backend merge failed")
                         else:
-                            result['errors'].append(f"Backend admin generation failed: {error}")
+                            result['errors'].append(f"Backend generation failed: {error}")
                     
-                    # Overall backend success
-                    result['backend_generated'] = result.get('backend_user_generated', False) and result.get('backend_admin_generated', False)
-                
-                # Step 3: Generate Frontend User (Query 3)
-                if generate_frontend:
-                    logger.info("Step 3a: Generating frontend user components...")
-                    
-                    config = GenerationConfig(
-                        model_slug=model_slug,
-                        app_num=app_num,
-                        template_slug=template_slug,
-                        component='frontend',
-                        query_type='user'
-                    )
-                    
-                    success, content, error = await self.generator.generate(config)
-                    
-                    if success:
-                        if merger.merge_frontend(app_dir, content, query_type='user'):
-                            result['frontend_user_generated'] = True
-                        else:
-                            result['errors'].append("Frontend user merge failed")
-                    else:
-                        result['errors'].append(f"Frontend user generation failed: {error}")
-                    
-                    # Step 3b: Generate Frontend Admin (Query 4) - only if user succeeded
-                    if result.get('frontend_user_generated'):
-                        logger.info("Step 3b: Generating frontend admin components...")
+                    if generate_frontend:
+                        logger.info("Step 3: Generating frontend (unguarded mode)...")
                         
                         config = GenerationConfig(
                             model_slug=model_slug,
                             app_num=app_num,
                             template_slug=template_slug,
                             component='frontend',
-                            query_type='admin'
+                            query_type='user',  # Single query covers everything
+                            generation_mode='unguarded'
                         )
                         
                         success, content, error = await self.generator.generate(config)
                         
                         if success:
-                            if merger.merge_frontend(app_dir, content, query_type='admin'):
-                                result['frontend_admin_generated'] = True
+                            if merger.merge_frontend(app_dir, content, query_type='user'):
+                                result['frontend_generated'] = True
                             else:
-                                result['errors'].append("Frontend admin merge failed")
+                                result['errors'].append("Frontend merge failed")
                         else:
-                            result['errors'].append(f"Frontend admin generation failed: {error}")
+                            result['errors'].append(f"Frontend generation failed: {error}")
+                
+                else:
+                    # GUARDED MODE: 4-Query System
+                    # Query 1: backend_user - Models + User routes + Services
+                    # Query 2: backend_admin - Admin routes (uses models from Query 1)
+                    # Query 3: frontend_user - UserPage + API service + Hooks
+                    # Query 4: frontend_admin - AdminPage + Admin API additions
                     
-                    # Overall frontend success
-                    result['frontend_generated'] = result.get('frontend_user_generated', False) and result.get('frontend_admin_generated', False)
+                    models_summary = "No models defined yet."
+                    
+                    # Step 2: Generate Backend User (Query 1)
+                    if generate_backend:
+                        logger.info("Step 2a: Generating backend user components...")
+                        
+                        config = GenerationConfig(
+                            model_slug=model_slug,
+                            app_num=app_num,
+                            template_slug=template_slug,
+                            component='backend',
+                            query_type='user',
+                            generation_mode='guarded'
+                        )
+                        
+                        success, content, error = await self.generator.generate(config)
+                        
+                        if success:
+                            if merger.merge_backend(app_dir, content, query_type='user'):
+                                result['backend_user_generated'] = True
+                                # Extract models summary for admin query
+                                models_summary = self._extract_models_summary(app_dir)
+                            else:
+                                result['errors'].append("Backend user merge failed")
+                        else:
+                            result['errors'].append(f"Backend user generation failed: {error}")
+                        
+                        # Step 2b: Generate Backend Admin (Query 2) - only if user succeeded
+                        if result.get('backend_user_generated'):
+                            logger.info("Step 2b: Generating backend admin components...")
+                            
+                            config = GenerationConfig(
+                                model_slug=model_slug,
+                                app_num=app_num,
+                                template_slug=template_slug,
+                                component='backend',
+                                query_type='admin',
+                                generation_mode='guarded',
+                                existing_models_summary=models_summary
+                            )
+                            
+                            success, content, error = await self.generator.generate(config)
+                            
+                            if success:
+                                if merger.merge_backend(app_dir, content, query_type='admin'):
+                                    result['backend_admin_generated'] = True
+                                else:
+                                    result['errors'].append("Backend admin merge failed")
+                            else:
+                                result['errors'].append(f"Backend admin generation failed: {error}")
+                        
+                        # Overall backend success
+                        result['backend_generated'] = result.get('backend_user_generated', False) and result.get('backend_admin_generated', False)
+                    
+                    # Step 3: Generate Frontend User (Query 3)
+                    if generate_frontend:
+                        logger.info("Step 3a: Generating frontend user components...")
+                        
+                        config = GenerationConfig(
+                            model_slug=model_slug,
+                            app_num=app_num,
+                            template_slug=template_slug,
+                            component='frontend',
+                            query_type='user',
+                            generation_mode='guarded'
+                        )
+                        
+                        success, content, error = await self.generator.generate(config)
+                        
+                        if success:
+                            if merger.merge_frontend(app_dir, content, query_type='user'):
+                                result['frontend_user_generated'] = True
+                            else:
+                                result['errors'].append("Frontend user merge failed")
+                        else:
+                            result['errors'].append(f"Frontend user generation failed: {error}")
+                        
+                        # Step 3b: Generate Frontend Admin (Query 4) - only if user succeeded
+                        if result.get('frontend_user_generated'):
+                            logger.info("Step 3b: Generating frontend admin components...")
+                            
+                            config = GenerationConfig(
+                                model_slug=model_slug,
+                                app_num=app_num,
+                                template_slug=template_slug,
+                                component='frontend',
+                                query_type='admin',
+                                generation_mode='guarded'
+                            )
+                            
+                            success, content, error = await self.generator.generate(config)
+                            
+                            if success:
+                                if merger.merge_frontend(app_dir, content, query_type='admin'):
+                                    result['frontend_admin_generated'] = True
+                                else:
+                                    result['errors'].append("Frontend admin merge failed")
+                            else:
+                                result['errors'].append(f"Frontend admin generation failed: {error}")
+                        
+                        # Overall frontend success
+                        result['frontend_generated'] = result.get('frontend_user_generated', False) and result.get('frontend_admin_generated', False)
             finally:
                 # Always release the lock
                 app_lock.release()
@@ -2396,6 +2510,30 @@ class GenerationService:
         backend_port, frontend_port = self.scaffolding.get_ports(model_slug, app_num)
         result['backend_port'] = backend_port
         result['frontend_port'] = frontend_port
+
+        # Step 5: Post-generation healing - fix common dependency/export issues
+        if result['success']:
+            try:
+                from app.services.dependency_healer import heal_generated_app
+                logger.info("Step 5: Running dependency healer...")
+                healing_result = heal_generated_app(app_dir, auto_fix=True)
+                result['healing'] = {
+                    'success': healing_result.success,
+                    'issues_found': healing_result.issues_found,
+                    'issues_fixed': healing_result.issues_fixed,
+                    'changes_made': healing_result.changes_made,
+                    'frontend_issues': healing_result.frontend_issues,
+                    'backend_issues': healing_result.backend_issues,
+                    'errors': healing_result.errors
+                }
+                if healing_result.issues_found > 0:
+                    logger.info(
+                        f"[DependencyHealer] Healed {healing_result.issues_fixed}/{healing_result.issues_found} "
+                        f"issues in {model_slug}/app{app_num}"
+                    )
+            except Exception as healing_error:
+                logger.warning(f"Dependency healing failed (non-fatal): {healing_error}")
+                result['healing'] = {'error': str(healing_error)}
 
         try:
             persist_summary = self._persist_generation_result(
@@ -2423,6 +2561,76 @@ class GenerationService:
 
         logger.info(f"=== Generation complete: {result['success']} ===")
         return result
+
+    def _mark_generation_failed(
+        self,
+        *,
+        app_record: GeneratedApplication,
+        failure_stage: str,
+        error_message: str,
+        cleanup_files: bool = False,
+        model_slug: Optional[str] = None,
+        app_num: Optional[int] = None,
+        template_slug: Optional[str] = None
+    ) -> None:
+        """Mark a generation as failed and optionally cleanup partial files.
+        
+        This method should be called whenever generation fails at any stage.
+        It updates the database record with failure details and can remove
+        partial files that were created before the failure.
+        
+        Args:
+            app_record: The GeneratedApplication database record
+            failure_stage: Where generation failed (scaffold/backend/frontend/finalization)
+            error_message: Human-readable error description
+            cleanup_files: Whether to remove partial generated files
+            model_slug: Model slug (required if cleanup_files is True)
+            app_num: App number (required if cleanup_files is True)
+            template_slug: Template slug (optional, for file cleanup path resolution)
+        """
+        logger.warning(
+            f"Marking generation as failed: {app_record.model_slug}/app{app_record.app_number} "
+            f"at stage '{failure_stage}': {error_message}"
+        )
+        
+        # Update database record with failure details
+        app_record.generation_status = AnalysisStatus.FAILED
+        app_record.is_generation_failed = True
+        app_record.failure_stage = failure_stage
+        app_record.error_message = error_message
+        app_record.last_error_at = utc_now()
+        
+        # Increment generation attempts if this is a retry
+        if app_record.generation_attempts is None:
+            app_record.generation_attempts = 1
+        # Note: generation_attempts is incremented externally for retries
+        
+        app_record.updated_at = utc_now()
+        
+        try:
+            db.session.commit()
+        except SQLAlchemyError as exc:
+            logger.error(f"Failed to update failure status in database: {exc}")
+            db.session.rollback()
+        
+        # Cleanup partial files if requested
+        if cleanup_files and model_slug and app_num is not None:
+            try:
+                app_dir = self.scaffolding.get_app_dir(
+                    model_slug, 
+                    app_num, 
+                    template_slug
+                )
+                
+                if app_dir.exists():
+                    logger.info(f"Cleaning up partial files at: {app_dir}")
+                    shutil.rmtree(app_dir)
+                    logger.info(f"Successfully removed partial files for failed generation")
+            except Exception as cleanup_err:
+                logger.warning(
+                    f"Failed to cleanup partial files at {app_dir}: {cleanup_err}. "
+                    f"Files may need manual cleanup."
+                )
 
     def _persist_generation_result(
         self,
@@ -2452,9 +2660,38 @@ class GenerationService:
         app_record.has_docker_compose = app_features['has_docker_compose']
         app_record.backend_framework = app_features['backend_framework']
         app_record.frontend_framework = app_features['frontend_framework']
+        
+        is_success = result_snapshot.get('success', False)
         app_record.generation_status = (
-            AnalysisStatus.COMPLETED if result_snapshot.get('success') else AnalysisStatus.FAILED
+            AnalysisStatus.COMPLETED if is_success else AnalysisStatus.FAILED
         )
+        
+        # Set failure tracking fields for failed generations
+        if not is_success:
+            app_record.is_generation_failed = True
+            app_record.last_error_at = utc_now()
+            
+            # Determine failure stage based on what succeeded
+            errors = result_snapshot.get('errors', [])
+            if not result_snapshot.get('scaffolded'):
+                app_record.failure_stage = 'scaffold'
+            elif not result_snapshot.get('backend_generated') and generate_backend:
+                app_record.failure_stage = 'backend'
+            elif not result_snapshot.get('frontend_generated') and generate_frontend:
+                app_record.failure_stage = 'frontend'
+            else:
+                app_record.failure_stage = 'finalization'
+            
+            # Combine errors into error_message
+            if errors:
+                app_record.error_message = '; '.join(str(e) for e in errors)
+            else:
+                app_record.error_message = 'Generation failed (unknown reason)'
+        else:
+            # Clear failure flags on successful generation
+            app_record.is_generation_failed = False
+            app_record.failure_stage = None
+            app_record.error_message = None
 
         metadata = app_record.get_metadata() or {}
         metadata_updates = {

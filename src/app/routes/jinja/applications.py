@@ -209,6 +209,7 @@ def build_applications_context():
             'template_slug': r.template_slug,
             'template_name': template_name,
             'template_category': template_category,
+            'generation_mode': r.generation_mode.value if r.generation_mode else 'guarded',
             'ports': derived_ports,
             'container_size': None,
             'analysis_status': 'none',

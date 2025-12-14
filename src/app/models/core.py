@@ -3,7 +3,7 @@ import json
 from typing import Dict, Any
 from sqlalchemy import Enum
 from ..extensions import db
-from ..constants import AnalysisStatus
+from ..constants import AnalysisStatus, GenerationMode
 from ..utils.time import utc_now
 
 class ModelCapability(db.Model):
@@ -111,6 +111,7 @@ class GeneratedApplication(db.Model):
     app_type = db.Column(db.String(50), nullable=False)
     provider = db.Column(db.String(100), nullable=False, index=True)
     template_slug = db.Column(db.String(100), nullable=True, index=True)  # Tracks which requirement template was used
+    generation_mode = db.Column(Enum(GenerationMode), default=GenerationMode.GUARDED, index=True)  # guarded vs unguarded generation
     generation_status = db.Column(Enum(AnalysisStatus), default=AnalysisStatus.PENDING)
     has_backend = db.Column(db.Boolean, default=False)
     has_frontend = db.Column(db.Boolean, default=False)
@@ -120,6 +121,14 @@ class GeneratedApplication(db.Model):
     container_status = db.Column(db.String(50), default='stopped')
     last_status_check = db.Column(db.DateTime(timezone=True))
     missing_since = db.Column(db.DateTime(timezone=True), nullable=True)  # Track when filesystem directory went missing (for 7-day grace period)
+    
+    # Generation failure tracking
+    is_generation_failed = db.Column(db.Boolean, default=False, index=True)  # True if generation failed at any stage
+    failure_stage = db.Column(db.String(50), nullable=True)  # scaffold/backend/frontend/finalization
+    error_message = db.Column(db.Text, nullable=True)  # Human-readable error message
+    generation_attempts = db.Column(db.Integer, default=1)  # Number of generation attempts (for retry tracking)
+    last_error_at = db.Column(db.DateTime(timezone=True), nullable=True)  # When the last error occurred
+    
     metadata_json = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
     updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
@@ -189,6 +198,7 @@ class GeneratedApplication(db.Model):
             'app_type': self.app_type,
             'provider': self.provider,
             'template_slug': self.template_slug,
+            'generation_mode': self.generation_mode.value if self.generation_mode else 'guarded',
             'generation_status': self.generation_status.value if self.generation_status else None,
             'has_backend': self.has_backend,
             'has_frontend': self.has_frontend,
@@ -197,6 +207,12 @@ class GeneratedApplication(db.Model):
             'frontend_framework': self.frontend_framework,
             'container_status': self.container_status,
             'last_status_check': self.last_status_check.isoformat() if self.last_status_check else None,
+            # Failure tracking fields
+            'is_generation_failed': self.is_generation_failed,
+            'failure_stage': self.failure_stage,
+            'error_message': self.error_message,
+            'generation_attempts': self.generation_attempts,
+            'last_error_at': self.last_error_at.isoformat() if self.last_error_at else None,
             'metadata': self.get_metadata(),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None

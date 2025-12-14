@@ -1,10 +1,18 @@
 import React from 'react';
 
-export class ErrorBoundary extends React.Component {
+/**
+ * Error boundary component that catches JavaScript errors in child components
+ * Displays a fallback UI instead of crashing the whole app
+ */
+class ErrorBoundary extends React.Component {
   state = { hasError: false, error: null };
   
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
+  }
+  
+  componentDidCatch(error, errorInfo) {
+    console.error('ErrorBoundary caught an error:', error, errorInfo);
   }
   
   render() {
@@ -13,9 +21,17 @@ export class ErrorBoundary extends React.Component {
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
           <h2 className="text-red-800 font-semibold">Something went wrong</h2>
           <p className="text-red-600 text-sm">{this.state.error?.message}</p>
+          <button 
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="mt-2 text-sm text-blue-600 hover:underline"
+          >
+            Try again
+          </button>
         </div>
       );
     }
     return this.props.children;
   }
 }
+
+export default ErrorBoundary;

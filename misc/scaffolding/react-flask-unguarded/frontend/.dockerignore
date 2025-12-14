@@ -1,0 +1,10 @@
+# Docker ignore for unguarded frontend
+node_modules/
+dist/
+build/
+.git
+.gitignore
+*.md
+.env
+.env.*
+!.env.example

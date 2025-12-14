@@ -43,12 +43,36 @@ UPDATABLE_FIELDS = REQUIRED_CREATE_FIELDS + OPTIONAL_FIELDS + ['generation_statu
 # Core Operations
 # ---------------------------------------------------------------------------
 
-def list_applications(*, status: Optional[str]=None, app_type: Optional[str]=None) -> Query:
+def list_applications(
+    *, 
+    status: Optional[str] = None, 
+    app_type: Optional[str] = None,
+    exclude_failed: bool = False,
+    only_failed: bool = False
+) -> Query:
+    """List generated applications with optional filters.
+    
+    Args:
+        status: Filter by generation_status
+        app_type: Filter by app_type
+        exclude_failed: If True, exclude apps where is_generation_failed=True
+        only_failed: If True, only include apps where is_generation_failed=True
+    """
     query = GeneratedApplication.query
     if status:
         query = query.filter(GeneratedApplication.generation_status == status)
     if app_type:
         query = query.filter(GeneratedApplication.app_type == app_type)
+    
+    # Failed generation filters
+    if exclude_failed:
+        query = query.filter(
+            (GeneratedApplication.is_generation_failed == False) | 
+            (GeneratedApplication.is_generation_failed.is_(None))
+        )
+    elif only_failed:
+        query = query.filter(GeneratedApplication.is_generation_failed == True)
+        
     return query.order_by(GeneratedApplication.created_at.desc())
 
 def create_application(data: Dict[str, Any]) -> Dict[str, Any]:

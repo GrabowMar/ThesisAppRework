@@ -292,7 +292,7 @@ class MaintenanceService:
             return 0
     
     def _cleanup_orphan_tasks(self) -> int:
-        """Remove tasks targeting non-existent apps."""
+        """Remove tasks targeting non-existent apps or apps with failed generation."""
         try:
             # Get all pending/running tasks
             active_tasks = AnalysisTask.query.filter(
@@ -303,15 +303,22 @@ class MaintenanceService:
             ).all()
             
             orphan_tasks = []
+            failed_app_tasks = []
+            
             for task in active_tasks:
                 # Check if target app exists in database
-                app_exists = GeneratedApplication.query.filter_by(
+                app_record = GeneratedApplication.query.filter_by(
                     model_slug=task.target_model,
                     app_number=task.target_app_number
                 ).first()
                 
-                if not app_exists:
+                if not app_record:
                     orphan_tasks.append(task)
+                elif app_record.is_generation_failed or app_record.generation_status == AnalysisStatus.FAILED:
+                    # App exists but generation failed - can't analyze
+                    failed_app_tasks.append((task, app_record))
+            
+            cancelled_count = 0
             
             if orphan_tasks:
                 self._log(
@@ -327,11 +334,35 @@ class MaintenanceService:
                     task.status = AnalysisStatus.CANCELLED
                     task.error_message = "Target app no longer exists - cancelled by maintenance service"
                     task.completed_at = datetime.now(timezone.utc)
-                
-                db.session.commit()
-                self._log(f"Cancelled {len(orphan_tasks)} orphan tasks")
+                    cancelled_count += 1
             
-            return len(orphan_tasks)
+            if failed_app_tasks:
+                self._log(
+                    f"Found {len(failed_app_tasks)} tasks targeting failed-generation apps"
+                )
+                
+                for task, app_record in failed_app_tasks:
+                    failure_stage = app_record.failure_stage or 'unknown'
+                    error_msg = app_record.error_message or 'Unknown error'
+                    self._log(
+                        f"  Cancelling task: {task.task_id} "
+                        f"(target: {task.target_model}/app{task.target_app_number} "
+                        f"generation failed at '{failure_stage}')",
+                        level='debug'
+                    )
+                    task.status = AnalysisStatus.CANCELLED
+                    task.error_message = (
+                        f"Target app generation failed at stage '{failure_stage}': {error_msg}. "
+                        f"Cancelled by maintenance service."
+                    )
+                    task.completed_at = datetime.now(timezone.utc)
+                    cancelled_count += 1
+            
+            if cancelled_count > 0:
+                db.session.commit()
+                self._log(f"Cancelled {cancelled_count} tasks (orphan + failed-generation apps)")
+            
+            return cancelled_count
             
         except Exception as e:
             self._log(f"Error cleaning up orphan tasks: {e}", level='error', exc_info=True)

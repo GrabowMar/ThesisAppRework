@@ -19,7 +19,7 @@ Models include:
 from __future__ import annotations
 
 # Import centralized constants and enums so they can be accessed from app.models
-from ..constants import AnalysisStatus, JobStatus, ContainerState, AnalysisType, JobPriority, SeverityLevel
+from ..constants import AnalysisStatus, JobStatus, ContainerState, AnalysisType, JobPriority, SeverityLevel, GenerationMode
 
 # Import the database instance
 from ..extensions import db
@@ -46,7 +46,7 @@ from ..utils.time import utc_now
 # Define what gets imported with a 'from app.models import *'
 __all__ = [
     # Enums & Constants
-    'AnalysisStatus', 'JobStatus', 'ContainerState', 'AnalysisType', 'JobPriority', 'SeverityLevel',
+    'AnalysisStatus', 'JobStatus', 'ContainerState', 'AnalysisType', 'JobPriority', 'SeverityLevel', 'GenerationMode',
     
     # DB instance
     'db',

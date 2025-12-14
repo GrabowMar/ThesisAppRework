@@ -13,7 +13,10 @@
     "react-router-dom": "^6.21.0",
     "axios": "^1.6.0",
     "@heroicons/react": "^2.1.0",
-    "react-hot-toast": "^2.4.1"
+    "react-hot-toast": "^2.4.1",
+    "date-fns": "^3.0.0",
+    "clsx": "^2.1.0",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",

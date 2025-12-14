@@ -187,6 +187,7 @@
 					<th scope="col" class="text-center sortable" data-column="app_number">App</th>
 					<th scope="col" class="text-center sortable" data-column="created_at">Generated</th>
 					<th scope="col" class="sortable" data-column="template_slug">Template</th>
+					<th scope="col" class="text-center sortable" data-column="generation_mode">Mode</th>
 					<th scope="col" class="text-center sortable" data-column="container_status">Status</th>
 					<th scope="col">Ports</th>
 					<th scope="col" class="text-end sortable" data-column="container_size">Size</th>
@@ -222,6 +223,18 @@
 							{% endif %}
 						{% else %}
 							<span class="text-muted small">—</span>
+						{% endif %}
+					</td>
+					<td class="text-center">
+						{% set mode = app.generation_mode|default('guarded') %}
+						{% if mode == 'unguarded' %}
+							<span class="badge bg-warning-lt text-warning" title="Model-driven architecture (research mode)">
+								<i class="fas fa-unlock-alt me-1"></i>Unguarded
+							</span>
+						{% else %}
+							<span class="badge bg-success-lt text-success" title="Pre-defined architecture (4-query system)">
+								<i class="fas fa-shield-alt me-1"></i>Guarded
+							</span>
 						{% endif %}
 					</td>
 					<td class="text-center">

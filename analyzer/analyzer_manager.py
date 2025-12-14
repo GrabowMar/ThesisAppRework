@@ -45,7 +45,7 @@ except Exception:  # pragma: no cover - optional path
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 import websockets
 from websockets.exceptions import ConnectionClosed
@@ -406,18 +406,32 @@ class AnalyzerManager:
         
         return self._port_config_cache
 
-    def _normalize_and_validate_app(self, model_slug: str, app_number: int) -> Optional[Tuple[str, Path]]:
+    def _normalize_and_validate_app(self, model_slug: str, app_number: int, include_failed: bool = False) -> Union[Tuple[str, Path], Dict[str, Any]]:
         """Normalize model slug and validate app exists.
         
         Searches for apps in both flat and template-based directory structures:
         - generated/apps/{model}/app{N}/  (flat, backward compatible)
         - generated/apps/{model}/{template}/app{N}/  (template-based)
         
+        Also checks the database to verify the app generation didn't fail.
+        
+        Args:
+            model_slug: Model slug to normalize and validate
+            app_number: App number to validate
+            include_failed: If True, allow analyzing apps with failed generation status
+        
         Returns:
-            Tuple of (normalized_slug, app_path) if app exists, None otherwise
+            Tuple of (normalized_slug, app_path) if app exists and is valid
+            Dict with error details if validation fails
         """
         # Normalize slug to canonical format (provider_model-name)
         normalized_slug = normalize_model_slug(model_slug)
+        
+        # Check database for generation failure status
+        if not include_failed:
+            failure_check = self._check_generation_failed(normalized_slug, app_number)
+            if failure_check:
+                return failure_check  # Return error dict
         
         # Check if app exists in filesystem
         root = Path(__file__).parent.parent  # project root
@@ -459,7 +473,99 @@ class AnalyzerManager:
         
         logger.error(f"App does not exist: {base_path}/app{app_number} (tried flat and template structures)")
         logger.error(f"Cannot analyze non-existent app. Generate it first or check model slug.")
-        return None
+        return {
+            'status': 'error',
+            'error': f'App does not exist: {model_slug} app{app_number}',
+            'message': 'Generate the app first before running analysis'
+        }
+
+    def _check_generation_failed(self, model_slug: str, app_number: int) -> Optional[dict]:
+        """Check if an app's generation failed in the database.
+        
+        This is called before attempting analysis to prevent analyzing
+        incomplete or broken apps.
+        
+        Args:
+            model_slug: Normalized model slug
+            app_number: App number
+            
+        Returns:
+            Error dict if generation failed, None if app is valid for analysis
+        """
+        try:
+            # Try to import Flask app context for DB access
+            # This may fail if running standalone (CLI mode without Flask)
+            try:
+                import sys
+                src_path = Path(__file__).parent.parent / 'src'
+                if str(src_path) not in sys.path:
+                    sys.path.insert(0, str(src_path))
+                
+                from app.factory import create_app
+                from app.models import GeneratedApplication
+                from app.constants import AnalysisStatus
+            except ImportError:
+                # Running in standalone mode without Flask - skip DB check
+                logger.debug("Flask not available - skipping generation failure check")
+                return None
+            
+            # Create minimal app context if needed
+            try:
+                from flask import current_app
+                app = current_app._get_current_object()
+            except RuntimeError:
+                # No app context - create one
+                app = create_app()
+            
+            with app.app_context():
+                # Query for the app record
+                app_record = GeneratedApplication.query.filter_by(
+                    model_slug=model_slug,
+                    app_number=app_number
+                ).first()
+                
+                if not app_record:
+                    # No database record - allow filesystem-only apps (backward compatibility)
+                    logger.debug(f"No database record for {model_slug}/app{app_number} - allowing analysis")
+                    return None
+                
+                # Check if generation is still in progress
+                if app_record.generation_status == AnalysisStatus.RUNNING:
+                    logger.warning(
+                        f"Cannot analyze {model_slug}/app{app_number}: "
+                        f"generation is still in progress"
+                    )
+                    return {
+                        'status': 'error',
+                        'error': f"Generation in progress for {model_slug}/app{app_number}",
+                        'message': "Wait for generation to complete before running analysis"
+                    }
+                
+                # Check if generation failed
+                if app_record.is_generation_failed or app_record.generation_status == AnalysisStatus.FAILED:
+                    failure_stage = app_record.failure_stage or 'unknown'
+                    error_msg = app_record.error_message or 'Unknown error'
+                    
+                    logger.error(
+                        f"Cannot analyze {model_slug}/app{app_number}: "
+                        f"generation failed at stage '{failure_stage}': {error_msg}"
+                    )
+                    return {
+                        'status': 'error',
+                        'error': f"Generation failed for {model_slug}/app{app_number}",
+                        'message': f"Generation failed at stage '{failure_stage}': {error_msg}. "
+                                   f"Fix the generation issues or regenerate the app before analysis.",
+                        'failure_stage': failure_stage,
+                        'error_details': error_msg
+                    }
+                
+                # App is valid for analysis
+                return None
+                
+        except Exception as e:
+            # Log but don't block analysis on DB check failure
+            logger.warning(f"Could not check generation status for {model_slug}/app{app_number}: {e}")
+            return None
 
     def _resolve_app_ports(self, model_slug: str, app_number: int) -> Optional[Tuple[int, int]]:
         """Resolve backend & frontend ports for a model/app.
@@ -1037,12 +1143,9 @@ class AnalyzerManager:
         
         # Validate app exists and normalize slug
         validation = self._normalize_and_validate_app(model_slug, app_number)
-        if not validation:
-            return {
-                'status': 'error',
-                'error': f'App does not exist: {model_slug} app{app_number}',
-                'message': 'Generate the app first before running analysis'
-            }
+        if isinstance(validation, dict):
+            # Validation returned an error dict
+            return validation
         normalized_slug, app_path = validation
         
         resolved_urls: List[str] = []
@@ -1086,12 +1189,9 @@ class AnalyzerManager:
         
         # Validate app exists and normalize slug
         validation = self._normalize_and_validate_app(model_slug, app_number)
-        if not validation:
-            return {
-                'status': 'error',
-                'error': f'App does not exist: {model_slug} app{app_number}',
-                'message': 'Generate the app first before running analysis'
-            }
+        if isinstance(validation, dict):
+            # Validation returned an error dict
+            return validation
         normalized_slug, app_path = validation
         
         # New behavior: send explicit target_urls list derived from port config when available.

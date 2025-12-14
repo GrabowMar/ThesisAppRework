@@ -1,0 +1,128 @@
+````jinja
+# {{ name }} - Frontend Application (Unguarded Mode)
+
+{{ description }}
+
+## YOUR MISSION
+Design and implement a **complete React frontend** with full creative control over architecture, patterns, and implementation details.
+
+## Functional Requirements
+{% for req in frontend_requirements %}
+- {{ req }}
+{% endfor %}
+
+{% if admin_requirements %}
+## Admin Panel Requirements
+{% for req in admin_requirements %}
+- {{ req }}
+{% endfor %}
+{% endif %}
+
+{% if api_endpoints %}
+## Backend API Available
+{{ api_endpoints }}
+{% endif %}
+
+## Technical Constraints
+- **Framework**: React 18+ (required)
+- **Build Tool**: Vite (pre-configured)
+- **Must work in Docker container**
+- **API calls to**: `/api` proxy (recommended) or direct backend URL
+
+## What You Decide
+
+### Architecture
+- Component organization (feature-based, type-based, atomic design)
+- State management (Context, Redux, Zustand, Jotai, React Query)
+- Routing approach (React Router, TanStack Router)
+
+### UI/UX
+- Component library (Material UI, Chakra, Ant Design, shadcn/ui, plain CSS)
+- Styling solution (CSS modules, Tailwind, styled-components, emotion)
+- Responsive design approach
+- Loading/error states
+- Form handling (React Hook Form, Formik, native)
+
+### Code Organization
+- Custom hooks strategy
+- API client design
+- Error boundary placement
+- Type checking (TypeScript optional)
+
+### Dependencies
+- All npm packages
+- Dev dependencies
+
+## Output Format
+
+Generate complete files using this format:
+
+```jsx:src/App.jsx
+// Main application
+```
+
+```jsx:src/path/to/Component.jsx
+// Component code
+```
+
+```javascript:src/services/api.js
+// API client
+```
+
+```css:src/App.css
+/* Styles */
+```
+
+```json:package.json
+{
+  "dependencies": { ... }
+}
+```
+
+### Required Files (minimum)
+1. `src/main.jsx` - React entry point
+2. `src/App.jsx` - Main application component
+3. `package.json` - Updated with your chosen dependencies
+
+### Recommended Structure (your choice)
+Option A - Flat:
+```
+src/
+  main.jsx
+  App.jsx
+  App.css
+```
+
+Option B - Feature-Based:
+```
+src/
+  main.jsx
+  App.jsx
+  features/
+    todos/
+      TodoList.jsx
+      TodoItem.jsx
+      useTodos.js
+```
+
+Option C - Type-Based:
+```
+src/
+  main.jsx
+  App.jsx
+  components/
+  hooks/
+  services/
+  pages/
+```
+
+## Quality Expectations
+- Complete, runnable code
+- Responsive design
+- Loading states
+- Error handling
+- Clean component composition
+- Accessible markup
+
+Generate the COMPLETE frontend now.
+````

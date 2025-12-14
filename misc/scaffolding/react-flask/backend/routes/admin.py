@@ -1,55 +1,101 @@
-# Admin Routes - Administrative API endpoints with basic auth protection
+# Admin Routes - Administrative API endpoints with JWT auth protection
 # All routes use the admin_bp blueprint with /api/admin prefix
 # These routes provide administrative functionality (view all, delete, toggle states, stats)
-from functools import wraps
 from flask import jsonify, request
 from routes import admin_bp
-from models import db
+from routes.auth import admin_required, token_required
+from models import db, User
 
 # ============================================================================
-# ADMIN AUTH DECORATOR - Basic authentication for admin endpoints
+# ADMIN AUTH - Uses JWT token from routes/auth.py
 # ============================================================================
 #
-# This is a rudimentary auth check. The LLM should:
-# 1. Customize the password validation logic below
-# 2. Optionally implement proper JWT/session-based auth
-# 3. Add rate limiting for production use
+# Admin routes are protected by the @admin_required decorator, which:
+# 1. Validates the JWT token in Authorization header
+# 2. Checks that the user has is_admin=True
+# 3. Passes the current_user to the route function
 #
 # Usage:
 #   @admin_bp.route('/items', methods=['GET'])
-#   @require_admin
-#   def admin_get_items():
+#   @admin_required
+#   def admin_get_items(current_user):
 #       ...
 
-def require_admin(f):
-    """Decorator to require admin authentication for a route.
+
+# ============================================================================
+# USER MANAGEMENT ENDPOINTS (Built-in admin functionality)
+# ============================================================================
+
+@admin_bp.route('/users', methods=['GET'])
+@admin_required
+def get_all_users(current_user):
+    """Get all users (admin only)."""
+    users = User.query.order_by(User.created_at.desc()).all()
+    return jsonify([user.to_dict() for user in users])
+
+
+@admin_bp.route('/users/<int:user_id>', methods=['GET'])
+@admin_required
+def get_user(current_user, user_id):
+    """Get a specific user by ID."""
+    user = User.query.get_or_404(user_id)
+    return jsonify(user.to_dict())
+
+
+@admin_bp.route('/users/<int:user_id>/toggle-active', methods=['POST'])
+@admin_required
+def toggle_user_active(current_user, user_id):
+    """Toggle user active status."""
+    user = User.query.get_or_404(user_id)
     
-    Checks for 'X-Admin-Password' header or 'admin_password' query param.
-    LLM should customize the password validation logic.
-    """
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        # Get password from header or query param
-        password = request.headers.get('X-Admin-Password') or request.args.get('admin_password')
-        
-        # ====================================================================
-        # IMPLEMENT: Customize password validation here
-        # The LLM should modify this to match the application's requirements
-        # For example:
-        #   - Check against environment variable: os.getenv('ADMIN_PASSWORD')
-        #   - Validate against database user
-        #   - Implement JWT token validation
-        # ====================================================================
-        if not password:
-            return jsonify({'error': 'Admin authentication required'}), 401
-        
-        # TODO: LLM should implement proper password validation
-        # For now, accept any non-empty password (LLM will customize)
-        # Example: if password != os.getenv('ADMIN_PASSWORD', 'admin123'):
-        #              return jsonify({'error': 'Invalid admin password'}), 403
-        
-        return f(*args, **kwargs)
-    return decorated_function
+    # Prevent admin from deactivating themselves
+    if user.id == current_user.id:
+        return jsonify({'error': 'Cannot deactivate your own account'}), 400
+    
+    user.is_active = not user.is_active
+    db.session.commit()
+    return jsonify(user.to_dict())
+
+
+@admin_bp.route('/users/<int:user_id>/toggle-admin', methods=['POST'])
+@admin_required
+def toggle_user_admin(current_user, user_id):
+    """Toggle user admin status."""
+    user = User.query.get_or_404(user_id)
+    
+    # Prevent admin from removing their own admin status
+    if user.id == current_user.id:
+        return jsonify({'error': 'Cannot modify your own admin status'}), 400
+    
+    user.is_admin = not user.is_admin
+    db.session.commit()
+    return jsonify(user.to_dict())
+
+
+@admin_bp.route('/users/<int:user_id>', methods=['DELETE'])
+@admin_required
+def delete_user(current_user, user_id):
+    """Delete a user account."""
+    user = User.query.get_or_404(user_id)
+    
+    # Prevent admin from deleting themselves
+    if user.id == current_user.id:
+        return jsonify({'error': 'Cannot delete your own account'}), 400
+    
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({'message': 'User deleted successfully'})
+
+
+@admin_bp.route('/stats', methods=['GET'])
+@admin_required
+def get_admin_stats(current_user):
+    """Get admin dashboard statistics."""
+    return jsonify({
+        'total_users': User.query.count(),
+        'active_users': User.query.filter_by(is_active=True).count(),
+        'admin_users': User.query.filter_by(is_admin=True).count(),
+    })
 
 
 # ============================================================================
@@ -58,27 +104,28 @@ def require_admin(f):
 #
 # These routes are for administrative functions.
 # All routes are prefixed with /api/admin/ (defined in __init__.py)
-# Use @require_admin decorator on routes that need protection.
+# Use @admin_required decorator on routes that need admin protection.
+# Use @token_required for routes that just need any authenticated user.
 #
 # Admin routes typically include:
 # - View ALL items (including inactive/deleted)
 # - Bulk operations (delete multiple, export)
 # - Toggle states (activate/deactivate)
 # - Statistics and dashboard data
-# - User management (if applicable)
+# - User management (built-in above)
 #
 # Example routes:
 #
 # @admin_bp.route('/items', methods=['GET'])
-# @require_admin
-# def admin_get_all_items():
+# @admin_required
+# def admin_get_all_items(current_user):
 #     """Get all items including inactive ones for admin."""
 #     items = Item.query.order_by(Item.created_at.desc()).all()
 #     return jsonify([item.to_dict() for item in items])
 #
 # @admin_bp.route('/items/<int:item_id>/toggle', methods=['POST'])
-# @require_admin
-# def toggle_item_status(item_id):
+# @admin_required
+# def toggle_item_status(current_user, item_id):
 #     """Toggle item active status."""
 #     item = Item.query.get_or_404(item_id)
 #     item.is_active = not item.is_active
@@ -86,24 +133,14 @@ def require_admin(f):
 #     return jsonify(item.to_dict())
 #
 # @admin_bp.route('/items/bulk-delete', methods=['POST'])
-# @require_admin
-# def bulk_delete_items():
+# @admin_required
+# def bulk_delete_items(current_user):
 #     """Delete multiple items at once."""
 #     data = request.get_json()
 #     ids = data.get('ids', [])
 #     Item.query.filter(Item.id.in_(ids)).delete(synchronize_session=False)
 #     db.session.commit()
 #     return jsonify({'message': f'Deleted {len(ids)} items'})
-#
-# @admin_bp.route('/stats', methods=['GET'])
-# @require_admin
-# def get_stats():
-#     """Get dashboard statistics."""
-#     return jsonify({
-#         'total_items': Item.query.count(),
-#         'active_items': Item.query.filter_by(is_active=True).count(),
-#         'inactive_items': Item.query.filter_by(is_active=False).count()
-#     })
 #
 # IMPLEMENT YOUR ADMIN ROUTES BELOW:
 # ============================================================================

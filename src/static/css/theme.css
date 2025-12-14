@@ -870,3 +870,37 @@ body.sidebar-collapsed footer.footer {
 	0%, 100% { box-shadow: 0 0 0 0 rgba(var(--tblr-warning-rgb), 0.5); }
 	50% { box-shadow: 0 0 0 0.5rem rgba(var(--tblr-warning-rgb), 0); }
 }
+
+/* ========================================
+   Generation Mode Selectable Cards
+   ======================================== */
+
+.selectable-card {
+	cursor: pointer;
+	transition: all 0.2s ease;
+	border: 2px solid transparent;
+}
+
+.selectable-card:hover {
+	border-color: var(--tblr-border-color);
+	background-color: var(--tblr-bg-surface-secondary);
+}
+
+.selectable-card.selected {
+	border-color: var(--tblr-primary);
+	box-shadow: 0 0 0 0.15rem rgba(var(--tblr-primary-rgb), 0.25);
+}
+
+.selectable-card.selected .avatar {
+	transform: scale(1.05);
+}
+
+/* Mode warning badge animation */
+#unguarded-warning {
+	animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+	from { opacity: 0; transform: translateY(-5px); }
+	to { opacity: 1; transform: translateY(0); }
+}
