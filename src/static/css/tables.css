@@ -901,6 +901,241 @@ td.text-truncate {
 }
 
 /* ========================================
+   Models Table Specific Improvements
+   ======================================== */
+
+/* Consistent badge sizing for model badges */
+#models-table .badge {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  padding: 0.2rem 0.4rem;
+  line-height: 1.3;
+  vertical-align: middle;
+}
+
+/* Badge outline style for subtle indicators */
+#models-table .badge-outline {
+  background-color: transparent;
+  border: 1px solid currentColor;
+  padding: 0.15rem 0.35rem;
+}
+
+/* Smaller icons inside badges */
+#models-table .badge .fa-xs {
+  font-size: 0.65rem;
+}
+
+/* Model name column - limit width and show ellipsis */
+#models-table td:nth-child(2) {
+  max-width: 220px;
+}
+
+#models-table td:nth-child(2) > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+#models-table td:nth-child(2) strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+/* Provider column consistent width */
+#models-table td:nth-child(3) {
+  white-space: nowrap;
+}
+
+/* Modality column - compact badges */
+#models-table td:nth-child(4) .badge {
+  padding: 0.15rem 0.3rem;
+}
+
+/* Price column right-align with fixed width */
+#models-table td:nth-child(7) {
+  min-width: 100px;
+}
+
+/* Context & Max Output columns */
+#models-table td:nth-child(8),
+#models-table td:nth-child(9) {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cost Efficiency column */
+#models-table td:nth-child(10) {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Features column - wrap if needed */
+#models-table td:nth-child(11) {
+  min-width: 80px;
+}
+
+#models-table td:nth-child(11) .d-flex {
+  flex-wrap: wrap;
+  gap: 0.25rem !important;
+}
+
+/* Actions column - fixed width */
+#models-table td:last-child {
+  width: 80px;
+}
+
+/* Lighter table row hover */
+#models-table tbody tr:hover {
+  background-color: rgba(var(--tblr-primary-rgb), 0.03);
+}
+
+/* Cursor pointer for clickable badges */
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.cursor-pointer:hover {
+  opacity: 0.85;
+}
+
+/* Additional Tabler color utilities */
+.text-orange {
+  color: var(--tblr-orange, #f76707) !important;
+}
+
+.text-cyan {
+  color: var(--tblr-cyan, #17a2b8) !important;
+}
+
+.text-green {
+  color: var(--tblr-green, #2fb344) !important;
+}
+
+.text-pink {
+  color: var(--tblr-pink, #d63384) !important;
+}
+
+.text-purple {
+  color: var(--tblr-purple, #ae3ec9) !important;
+}
+
+.text-yellow {
+  color: var(--tblr-yellow, #f59f00) !important;
+}
+
+.bg-green {
+  background-color: var(--tblr-green, #2fb344) !important;
+}
+
+.bg-cyan-lt {
+  background-color: rgba(var(--tblr-cyan-rgb, 23, 162, 184), 0.1) !important;
+}
+
+.bg-green-lt {
+  background-color: rgba(var(--tblr-green-rgb, 47, 179, 68), 0.1) !important;
+}
+
+.bg-yellow-lt {
+  background-color: rgba(var(--tblr-yellow-rgb, 245, 159, 0), 0.1) !important;
+}
+
+.bg-orange-lt {
+  background-color: rgba(var(--tblr-orange-rgb, 247, 103, 7), 0.1) !important;
+}
+
+.bg-pink-lt {
+  background-color: rgba(var(--tblr-pink-rgb, 214, 51, 132), 0.1) !important;
+}
+
+.bg-purple-lt {
+  background-color: rgba(var(--tblr-purple-rgb, 174, 62, 201), 0.1) !important;
+}
+
+/* ========================================
+   Applications Table Specific Styles
+   ======================================== */
+
+#applications-table .badge {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  padding: 0.2rem 0.4rem;
+  line-height: 1.3;
+}
+
+#applications-table .badge .fa-xs {
+  font-size: 0.65rem;
+}
+
+/* Model name column truncation */
+#applications-table td:nth-child(2) {
+  max-width: 180px;
+}
+
+#applications-table td:nth-child(2) .text-truncate {
+  max-width: 100%;
+  display: block;
+}
+
+/* Template column */
+#applications-table td:nth-child(6) {
+  max-width: 150px;
+}
+
+/* Ports column - compact */
+#applications-table td:nth-child(9) {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Size column */
+#applications-table td:nth-child(10) {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ========================================
+   Analysis Tasks Table Specific Styles
+   ======================================== */
+
+/* Task ID column - monospace */
+[id*="tasks-table"] td:first-child .font-monospace,
+.analysis-tasks-table td:first-child .font-monospace {
+  font-size: 0.75rem;
+}
+
+/* Tools column - truncate long tool lists */
+[id*="tasks-table"] td:nth-child(4),
+.analysis-tasks-table td:nth-child(4) {
+  max-width: 200px;
+}
+
+/* Findings badges - compact severity display */
+.severity-badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  min-width: 1.5rem;
+  text-align: center;
+}
+
+/* Progress column */
+[id*="tasks-table"] .progress-sm,
+.analysis-tasks-table .progress-sm {
+  height: 0.375rem;
+}
+
+/* ========================================
+   Indigo color for templates
+   ======================================== */
+.text-indigo {
+  color: var(--tblr-indigo, #4263eb) !important;
+}
+
+.bg-indigo-lt {
+  background-color: rgba(var(--tblr-indigo-rgb, 66, 99, 235), 0.1) !important;
+}
+
+/* ========================================
    Search Input Group - Unified
    ======================================== */
 .input-group-flat {

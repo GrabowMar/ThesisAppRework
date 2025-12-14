@@ -13,14 +13,26 @@
   <div class="card-header d-flex flex-wrap align-items-center gap-3">
     <div class="d-flex flex-wrap align-items-center gap-2">
       <h3 class="card-title d-flex align-items-center gap-2 mb-0">
-        <i class="fas fa-laptop-code"></i>
+        <i class="fas fa-laptop-code text-primary"></i>
         <span>Applications</span>
       </h3>
-      <div class="d-flex flex-wrap align-items-center gap-2 status-indicators">
-        <span class="badge bg-primary-lt d-inline-flex align-items-center gap-2"><i class="fas fa-laptop-code"></i><span id="total-applications">{{ applications_stats.total_applications if applications_stats is defined else applications|length }}</span></span>
-        <span class="badge bg-success-lt d-inline-flex align-items-center gap-2"><i class="fas fa-check-circle"></i><span id="running-applications">{{ applications_stats.running_applications if applications_stats is defined else 0 }}</span></span>
-        <span class="badge bg-info-lt d-inline-flex align-items-center gap-2"><i class="fas fa-chart-line"></i><span id="analyzed-applications">{{ applications_stats.analyzed_applications if applications_stats is defined else 0 }}</span></span>
-        <span class="badge bg-warning-lt d-inline-flex align-items-center gap-2 text-dark"><i class="fas fa-brain"></i><span id="unique-models">{{ applications_stats.unique_models if applications_stats is defined else 0 }}</span></span>
+      <div class="d-flex flex-wrap align-items-center gap-1 status-indicators ms-2">
+        <span class="badge bg-primary-lt text-primary d-inline-flex align-items-center gap-1" title="Total applications">
+          <i class="fas fa-laptop-code fa-xs"></i>
+          <span id="total-applications">{{ applications_stats.total_applications if applications_stats is defined else applications|length }}</span>
+        </span>
+        <span class="badge bg-success-lt text-success d-inline-flex align-items-center gap-1" title="Running applications">
+          <i class="fas fa-play fa-xs"></i>
+          <span id="running-applications">{{ applications_stats.running_applications if applications_stats is defined else 0 }}</span>
+        </span>
+        <span class="badge bg-info-lt text-info d-inline-flex align-items-center gap-1" title="Analyzed applications">
+          <i class="fas fa-chart-line fa-xs"></i>
+          <span id="analyzed-applications">{{ applications_stats.analyzed_applications if applications_stats is defined else 0 }}</span>
+        </span>
+        <span class="badge bg-warning-lt text-orange d-inline-flex align-items-center gap-1" title="Unique models used">
+          <i class="fas fa-brain fa-xs"></i>
+          <span id="unique-models">{{ applications_stats.unique_models if applications_stats is defined else 0 }}</span>
+        </span>
       </div>
     </div>
     <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
@@ -203,7 +215,7 @@
 						<div class="text-truncate">{{ app.model_display_name }}</div>
 					</td>
 					<td>
-						<span class="badge bg-primary-lt text-primary">{{ app.model_provider }}</span>
+						<span class="badge bg-azure-lt text-azure">{{ app.model_provider }}</span>
 					</td>
 					<td class="text-center">
 						<strong>{{ app.app_number }}</strong>
@@ -217,38 +229,35 @@
 					</td>
 					<td>
 						{% if app.template_slug %}
-							<span class="badge bg-indigo-lt" title="{{ app.template_slug }}">{{ app.template_name or app.template_slug }}</span>
-							{% if app.template_category %}
-							<span class="text-muted small d-block">{{ app.template_category }}</span>
-							{% endif %}
+							<span class="badge bg-indigo-lt text-indigo" title="{{ app.template_slug }}">{{ app.template_name or app.template_slug }}</span>
 						{% else %}
-							<span class="text-muted small">—</span>
+							<span class="text-muted">—</span>
 						{% endif %}
 					</td>
 					<td class="text-center">
 						{% set mode = app.generation_mode|default('guarded') %}
 						{% if mode == 'unguarded' %}
-							<span class="badge bg-warning-lt text-warning" title="Model-driven architecture (research mode)">
-								<i class="fas fa-unlock-alt me-1"></i>Unguarded
+							<span class="badge badge-outline text-orange" title="Model-driven architecture (research mode)">
+								<i class="fas fa-unlock-alt fa-xs me-1"></i>Unguarded
 							</span>
 						{% else %}
-							<span class="badge bg-success-lt text-success" title="Pre-defined architecture (4-query system)">
-								<i class="fas fa-shield-alt me-1"></i>Guarded
+							<span class="badge badge-outline text-green" title="Pre-defined architecture (4-query system)">
+								<i class="fas fa-shield-alt fa-xs me-1"></i>Guarded
 							</span>
 						{% endif %}
 					</td>
 					<td class="text-center">
 						{% set status_lower = app.status|lower|replace('_', ' ')|replace('?', '')|trim %}
             {% if status_lower == 'running' %}
-              <span class="badge bg-success-lt text-success" data-role="status-badge"><i class="fas fa-play me-1" aria-hidden="true"></i>Running</span>
+              <span class="badge bg-success-lt text-success" data-role="status-badge"><i class="fas fa-play fa-xs me-1" aria-hidden="true"></i>Running</span>
             {% elif status_lower == 'stopped' %}
-              <span class="badge bg-secondary-lt text-secondary" data-role="status-badge"><i class="fas fa-stop me-1" aria-hidden="true"></i>Stopped</span>
+              <span class="badge bg-secondary-lt text-secondary" data-role="status-badge"><i class="fas fa-stop fa-xs me-1" aria-hidden="true"></i>Stopped</span>
             {% elif status_lower == 'error' or status_lower == 'failed' %}
-              <span class="badge bg-danger-lt text-danger" data-role="status-badge"><i class="fas fa-exclamation-circle me-1" aria-hidden="true"></i>Error</span>
+              <span class="badge bg-danger-lt text-danger" data-role="status-badge"><i class="fas fa-exclamation-circle fa-xs me-1" aria-hidden="true"></i>Error</span>
             {% elif status_lower == 'building' %}
-              <span class="badge bg-warning-lt text-warning" data-role="status-badge"><i class="fas fa-hammer me-1" aria-hidden="true"></i>Building</span>
+              <span class="badge bg-warning-lt text-warning" data-role="status-badge"><i class="fas fa-hammer fa-xs me-1" aria-hidden="true"></i>Building</span>
             {% elif 'no compose' in status_lower or status_lower == 'not created' %}
-              <span class="badge bg-secondary-lt text-secondary" data-role="status-badge"><i class="fas fa-plus me-1" aria-hidden="true"></i>Not Created</span>
+              <span class="badge bg-secondary-lt text-secondary" data-role="status-badge"><i class="fas fa-plus fa-xs me-1" aria-hidden="true"></i>Not Created</span>
             {% else %}
               <span class="badge bg-secondary-lt text-secondary" data-role="status-badge">{{ status_lower|title }}</span>
             {% endif %}
@@ -265,13 +274,13 @@
 					</td>
 					<td class="text-center">
 						{% if app.analysis_status == 'completed' %}
-							<span class="badge bg-success-lt text-success">Done</span>
+							<span class="badge bg-success-lt text-success"><i class="fas fa-check fa-xs"></i></span>
 						{% elif app.analysis_status == 'running' %}
-							<span class="badge bg-warning-lt text-warning">Running</span>
+							<span class="badge bg-warning-lt text-warning"><i class="fas fa-spinner fa-spin fa-xs"></i></span>
 						{% elif app.analysis_status == 'failed' %}
-							<span class="badge bg-danger-lt text-danger">Failed</span>
+							<span class="badge bg-danger-lt text-danger"><i class="fas fa-times fa-xs"></i></span>
 						{% else %}
-							<span class="text-muted small">—</span>
+							<span class="text-muted">—</span>
 						{% endif %}
 					</td>
 					<td>

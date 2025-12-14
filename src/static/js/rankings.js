@@ -212,10 +212,7 @@ if (window.__RANKINGS_JS_LOADED__) {
           </td>
           <td class="text-muted">${rank}</td>
           <td>
-            <div class="d-flex flex-column">
-              <span class="fw-medium">${escapeHtml(model.model_name || model.name || '')}</span>
-              <small class="text-muted">${escapeHtml(model.provider || '')}</small>
-            </div>
+            <span class="fw-medium">${escapeHtml(model.model_name || model.name || '')}</span>
           </td>
           <td class="fw-bold ${getScoreClass(model.composite_score, 70, 50)}">
             ${formatScore(model.composite_score)}

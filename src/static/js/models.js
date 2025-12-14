@@ -622,11 +622,11 @@ function renderModelsTable(models) {
     const hasApps = m.has_applications || false;
     const isInstalled = m.installed || false;
     
-    // Build badges - more compact
+    // Build badges - compact with consistent sizing
     const badges = [];
-    if (isFree) badges.push('<span class="badge bg-success ms-2" title="Free"><i class="fas fa-gift"></i></span>');
-    if (hasApps) badges.push('<span class="badge bg-info ms-1" title="Has Apps"><i class="fas fa-box"></i></span>');
-    if (isInstalled) badges.push('<span class="badge bg-primary ms-1" title="Used"><i class="fas fa-check"></i></span>');
+    if (isFree) badges.push('<span class="badge bg-success-lt text-success ms-2" title="Free tier available"><i class="fas fa-gift fa-xs"></i></span>');
+    if (hasApps) badges.push('<span class="badge bg-info-lt text-info ms-1" title="Has generated apps"><i class="fas fa-box fa-xs"></i></span>');
+    if (isInstalled) badges.push('<span class="badge bg-primary-lt text-primary ms-1" title="Used in project"><i class="fas fa-check fa-xs"></i></span>');
     
     // Modality - show all available input types from capabilities
     const caps_raw = m.capabilities_raw || {};
@@ -634,106 +634,103 @@ function renderModelsTable(models) {
     const modality_str = arch.modality || '';
     const modalities = [];
     
-    // Parse modality string (e.g., "text+image->text")
+    // Parse modality string (e.g., "text+image->text") - use subtle badges
     if (modality_str.toLowerCase().includes('text')) {
-      modalities.push('<span class="badge bg-azure text-white me-1" title="Text"><i class="fas fa-font"></i></span>');
+      modalities.push('<span class="badge bg-azure-lt text-azure" title="Text"><i class="fas fa-font fa-xs"></i></span>');
     }
     if (modality_str.toLowerCase().includes('image') || m.supports_vision) {
-      modalities.push('<span class="badge bg-info text-white me-1" title="Image/Vision"><i class="fas fa-eye"></i></span>');
+      modalities.push('<span class="badge bg-cyan-lt text-cyan" title="Image/Vision"><i class="fas fa-eye fa-xs"></i></span>');
     }
     if (modality_str.toLowerCase().includes('audio')) {
-      modalities.push('<span class="badge bg-purple text-white me-1" title="Audio"><i class="fas fa-microphone"></i></span>');
+      modalities.push('<span class="badge bg-purple-lt text-purple" title="Audio"><i class="fas fa-microphone fa-xs"></i></span>');
     }
     if (modality_str.toLowerCase().includes('video')) {
-      modalities.push('<span class="badge bg-pink text-white me-1" title="Video"><i class="fas fa-video"></i></span>');
+      modalities.push('<span class="badge bg-pink-lt text-pink" title="Video"><i class="fas fa-video fa-xs"></i></span>');
     }
     
-    const modalityHtml = modalities.length > 0 ? modalities.join('') : '<span class="badge bg-azure text-white"><i class="fas fa-font"></i></span>';
+    const modalityHtml = modalities.length > 0 ? `<div class="d-flex gap-1 justify-content-center">${modalities.join('')}</div>` : '<span class="badge bg-azure-lt text-azure"><i class="fas fa-font fa-xs"></i></span>';
     
-    // All available features - comprehensive display
+    // All available features - compact icon display
     const features = [];
-    if (m.supports_function_calling) features.push('<i class="fas fa-code text-primary fs-5" title="Function Calling"></i>');
-    if (m.supports_vision) features.push('<i class="fas fa-eye text-info fs-5" title="Vision"></i>');
-    if (m.supports_json_mode) features.push('<i class="fas fa-brackets-curly text-success fs-5" title="JSON Mode"></i>');
-    if (m.supports_streaming) features.push('<i class="fas fa-stream text-warning fs-5" title="Streaming"></i>');
+    if (m.supports_function_calling) features.push('<span class="badge bg-primary-lt text-primary" title="Function Calling"><i class="fas fa-code fa-xs"></i></span>');
+    if (m.supports_vision) features.push('<span class="badge bg-cyan-lt text-cyan" title="Vision"><i class="fas fa-eye fa-xs"></i></span>');
+    if (m.supports_json_mode) features.push('<span class="badge bg-green-lt text-green" title="JSON Mode"><i class="fas fa-file-code fa-xs"></i></span>');
+    if (m.supports_streaming) features.push('<span class="badge bg-yellow-lt text-yellow" title="Streaming"><i class="fas fa-stream fa-xs"></i></span>');
     
-    const featuresHtml = features.length ? '<div class="d-flex gap-2 justify-content-center">' + features.join('') + '</div>' : '<span class="text-muted">—</span>';
+    const featuresHtml = features.length ? '<div class="d-flex gap-1 justify-content-center flex-wrap">' + features.join('') + '</div>' : '<span class="text-muted small">—</span>';
     
-    // Tokenizer type
+    // Tokenizer type - consistent badge styling
     const tokenizer = arch.tokenizer || '';
-    let tokenizerHtml = '<span class="text-muted small">—</span>';
+    let tokenizerHtml = '<span class="text-muted">—</span>';
     if (tokenizer) {
       const tokLower = tokenizer.toLowerCase();
       if (tokLower.includes('gpt') || tokLower.includes('claude')) {
-        tokenizerHtml = '<span class="badge bg-primary-lt text-dark">GPT</span>';
+        tokenizerHtml = '<span class="badge badge-outline text-primary">GPT</span>';
       } else if (tokLower.includes('llama')) {
-        tokenizerHtml = '<span class="badge bg-success-lt text-dark">Llama</span>';
+        tokenizerHtml = '<span class="badge badge-outline text-green">Llama</span>';
       } else if (tokLower.includes('qwen')) {
-        tokenizerHtml = '<span class="badge bg-warning-lt text-dark">Qwen</span>';
+        tokenizerHtml = '<span class="badge badge-outline text-orange">Qwen</span>';
       } else if (tokLower.includes('mistral')) {
-        tokenizerHtml = '<span class="badge bg-info-lt text-dark">Mistral</span>';
+        tokenizerHtml = '<span class="badge badge-outline text-cyan">Mistral</span>';
       } else {
-        tokenizerHtml = `<span class="badge bg-secondary-lt text-dark" title="${tokenizer}">${tokenizer.substring(0, 6)}</span>`;
+        tokenizerHtml = `<span class="badge badge-outline text-muted" title="${tokenizer}">${tokenizer.substring(0, 6)}</span>`;
       }
     }
     
     // Instruction type - treat null/undefined as "base" model
     const instructType = arch.instruct_type;
-    let instructHtml = '<span class="text-muted small">—</span>';
+    let instructHtml = '<span class="text-muted">—</span>';
     if (instructType === null || instructType === undefined || instructType === '') {
       // No instruct_type means it's a base model (not instruction-tuned)
-      instructHtml = '<span class="badge bg-secondary-lt text-dark">Base</span>';
+      instructHtml = '<span class="badge badge-outline text-secondary">Base</span>';
     } else {
       const instLower = instructType.toLowerCase();
       if (instLower === 'none' || instLower === 'base') {
-        instructHtml = '<span class="badge bg-secondary-lt text-dark">Base</span>';
+        instructHtml = '<span class="badge badge-outline text-secondary">Base</span>';
       } else if (instLower.includes('chat')) {
-        instructHtml = '<span class="badge bg-info-lt text-dark"><i class="fas fa-comments"></i></span>';
+        instructHtml = '<span class="badge badge-outline text-info" title="Chat model"><i class="fas fa-comments fa-xs"></i> Chat</span>';
       } else if (instLower.includes('instruct')) {
-        instructHtml = '<span class="badge bg-primary-lt text-dark"><i class="fas fa-terminal"></i></span>';
+        instructHtml = '<span class="badge badge-outline text-primary" title="Instruction-tuned"><i class="fas fa-terminal fa-xs"></i> Inst</span>';
       } else {
-        instructHtml = `<span class="badge bg-secondary-lt text-dark">${instructType.substring(0, 4)}</span>`;
+        instructHtml = `<span class="badge badge-outline text-muted">${instructType.substring(0, 4)}</span>`;
       }
     }
     
-    // Cost efficiency display
+    // Cost efficiency display - cleaner percentage
     const costEff = m.cost_efficiency || 0;
     let costEffHtml = '<span class="text-muted">—</span>';
     if (costEff > 0) {
       const effPercent = (costEff * 100).toFixed(0);
-      let effColor = 'danger';
-      let effIcon = 'fa-arrow-down';
-      if (costEff >= 0.7) { effColor = 'success'; effIcon = 'fa-arrow-up'; }
-      else if (costEff >= 0.4) { effColor = 'warning'; effIcon = 'fa-minus'; }
-      costEffHtml = `<span class="badge bg-${effColor}-lt text-dark" title="Cost Efficiency: ${effPercent}%">
-        <i class="fas ${effIcon}"></i> ${effPercent}%
-      </span>`;
+      let effClass = 'text-danger';
+      if (costEff >= 0.7) { effClass = 'text-green'; }
+      else if (costEff >= 0.4) { effClass = 'text-orange'; }
+      costEffHtml = `<span class="fw-medium ${effClass}" title="Cost Efficiency Score">${effPercent}%</span>`;
     }
     
-    // Format prices per 1M tokens
+    // Format prices per 1M tokens - cleaner layout
     const inputPrice = ((m.input_price_per_1k || 0) * 1000).toFixed(2);
     const outputPrice = ((m.output_price_per_1k || 0) * 1000).toFixed(2);
     const priceHtml = isFree 
-      ? '<span class="badge bg-success text-white fw-bold">Free</span>' 
-      : `<div class="text-nowrap"><span class="text-dark fw-semibold">$${inputPrice}</span><span class="text-muted mx-1">/</span><span class="text-dark fw-semibold">$${outputPrice}</span></div>`;
+      ? '<span class="badge bg-green text-white">Free</span>' 
+      : `<div class="text-nowrap small"><span class="text-muted">$${inputPrice}</span> <span class="text-muted opacity-50">/</span> <span class="text-muted">$${outputPrice}</span></div>`;
     
-    // Context and max output - use dark badges for visibility
-    const contextHtml = m.context_length ? `<span class="badge bg-light text-dark fw-bold">${(m.context_length / 1000).toFixed(0)}K</span>` : '<span class="text-muted">—</span>';
-    const maxOutputHtml = m.max_output_tokens ? `<span class="badge bg-light text-dark fw-bold">${(m.max_output_tokens / 1000).toFixed(0)}K</span>` : '<span class="text-muted">—</span>';
+    // Context and max output - simple text display
+    const contextHtml = m.context_length ? `<span class="text-muted small">${(m.context_length / 1000).toFixed(0)}K</span>` : '<span class="text-muted">—</span>';
+    const maxOutputHtml = m.max_output_tokens ? `<span class="text-muted small">${(m.max_output_tokens / 1000).toFixed(0)}K</span>` : '<span class="text-muted">—</span>';
     
-    // Provider with count badge - more compact
+    // Provider with count badge - clean minimal style
     const providerCount = m.provider_count || 0;
     const providerHtml = providerCount > 1 
-      ? `<span class="badge bg-azure cursor-pointer text-white" onclick="showProviderDropdown('${m.slug}', this)" title="${providerCount} providers">
-           ${m.provider || ''} <span class="badge badge-sm bg-white text-azure ms-1">${providerCount}</span>
+      ? `<span class="badge bg-azure-lt text-azure cursor-pointer" onclick="showProviderDropdown('${m.slug}', this)" title="${providerCount} providers available">
+           ${m.provider || ''} <span class="opacity-75">+${providerCount - 1}</span>
          </span>`
-      : `<span class="badge bg-azure text-white">${m.provider || ''}</span>`;
+      : `<span class="badge bg-azure-lt text-azure">${m.provider || ''}</span>`;
     
-    // Variant count badge (if multiple pricing tiers exist) - more visible
+    // Variant count badge (if multiple pricing tiers exist) - subtle indicator
     const variantCount = m.variant_count || 0;
     const variantBadge = variantCount > 1
-      ? `<span class="badge bg-purple cursor-pointer text-white ms-1" onclick="showVariantDropdown('${m.slug}', this)" title="${variantCount} pricing tiers">
-           <i class="fas fa-tags me-1"></i>${variantCount}
+      ? `<span class="badge bg-purple-lt text-purple cursor-pointer ms-1" onclick="showVariantDropdown('${m.slug}', this)" title="${variantCount} pricing tiers available">
+           <i class="fas fa-layer-group fa-xs"></i>
          </span>`
       : '';
     

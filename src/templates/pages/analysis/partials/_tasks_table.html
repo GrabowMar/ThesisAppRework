@@ -13,24 +13,24 @@
   <div class="card-header d-flex flex-wrap align-items-center gap-3">
     <div class="d-flex flex-wrap align-items-center gap-2">
       <h3 class="card-title d-flex align-items-center gap-2 mb-0">
-        <i class="fas fa-microscope"></i>
+        <i class="fas fa-microscope text-primary"></i>
         <span>Analysis Tasks</span>
       </h3>
-      <div class="d-flex flex-wrap align-items-center gap-2 status-indicators">
-        <span class="badge bg-primary-lt d-inline-flex align-items-center gap-2">
-          <i class="fas fa-tasks"></i>
+      <div class="d-flex flex-wrap align-items-center gap-1 status-indicators ms-2">
+        <span class="badge bg-primary-lt text-primary d-inline-flex align-items-center gap-1" title="Total tasks">
+          <i class="fas fa-tasks fa-xs"></i>
           <span>{{ pagination.total if pagination else 0 }}</span>
         </span>
         {% if pagination and pagination.active_count > 0 %}
-        <span class="badge bg-warning-lt d-inline-flex align-items-center gap-2">
-          <i class="fas fa-spinner fa-pulse"></i>
+        <span class="badge bg-warning-lt text-warning d-inline-flex align-items-center gap-1" title="Active tasks">
+          <i class="fas fa-spinner fa-pulse fa-xs"></i>
           <span>{{ pagination.active_count }} active</span>
         </span>
         {% endif %}
         {% if pagination and pagination.total_completed > 0 %}
-        <span class="badge bg-success-lt d-inline-flex align-items-center gap-2">
-          <i class="fas fa-check-circle"></i>
-          <span>{{ pagination.total_completed }} completed</span>
+        <span class="badge bg-success-lt text-success d-inline-flex align-items-center gap-1" title="Completed tasks">
+          <i class="fas fa-check-circle fa-xs"></i>
+          <span>{{ pagination.total_completed }} done</span>
         </span>
         {% endif %}
       </div>
@@ -180,35 +180,35 @@
               <td class="text-center">
                 {% if item.status == 'running' %}
                   <span class="badge bg-warning-lt text-warning">
-                    <i class="fas fa-spinner fa-spin me-1"></i>Running
+                    <i class="fas fa-spinner fa-spin fa-xs me-1"></i>Running
                   </span>
                 {% elif item.status == 'pending' %}
                   <span class="badge bg-secondary-lt text-secondary">
-                    <i class="fas fa-clock me-1"></i>Pending
+                    <i class="fas fa-clock fa-xs me-1"></i>Pending
                   </span>
                 {% elif item.status in ['completed', 'success'] %}
                   <span class="badge bg-success-lt text-success">
-                    <i class="fas fa-check me-1"></i>Completed
+                    <i class="fas fa-check fa-xs me-1"></i>Done
                   </span>
                 {% elif item.status == 'partial_success' %}
                   <span class="badge bg-warning-lt text-warning">
-                    <i class="fas fa-check-circle me-1"></i>Partial Success
+                    <i class="fas fa-check-circle fa-xs me-1"></i>Partial
                   </span>
                 {% elif item.status in ['failed', 'error'] %}
                   <span class="badge bg-danger-lt text-danger">
-                    <i class="fas fa-times me-1"></i>Failed
+                    <i class="fas fa-times fa-xs me-1"></i>Failed
                   </span>
                 {% elif item.status == 'cancelled' %}
                   <span class="badge bg-secondary-lt text-secondary">
-                    <i class="fas fa-ban me-1"></i>Cancelled
+                    <i class="fas fa-ban fa-xs me-1"></i>Cancelled
                   </span>
                 {% elif item.status == 'unknown' or not item.status %}
                   <span class="badge bg-secondary-lt text-secondary">
-                    <i class="fas fa-question me-1"></i>Unknown
+                    <i class="fas fa-question fa-xs me-1"></i>Unknown
                   </span>
                 {% else %}
                   <span class="badge bg-info-lt text-info">
-                    <i class="fas fa-info-circle me-1"></i>{{ item.status|title }}
+                    <i class="fas fa-info-circle fa-xs me-1"></i>{{ item.status|title }}
                   </span>
                 {% endif %}
               </td>
@@ -334,31 +334,31 @@
                   <td class="text-center">
                     {% if subtask.status == 'running' %}
                       <span class="badge bg-warning-lt text-warning">
-                        <i class="fas fa-spinner fa-spin me-1"></i>Running
+                        <i class="fas fa-spinner fa-spin fa-xs me-1"></i>Running
                       </span>
                     {% elif subtask.status == 'pending' %}
                       <span class="badge bg-secondary-lt text-secondary">
-                        <i class="fas fa-clock me-1"></i>Pending
+                        <i class="fas fa-clock fa-xs me-1"></i>Pending
                       </span>
                     {% elif subtask.status in ['completed', 'success'] %}
                       <span class="badge bg-success-lt text-success">
-                        <i class="fas fa-check me-1"></i>Completed
+                        <i class="fas fa-check fa-xs me-1"></i>Done
                       </span>
                     {% elif subtask.status in ['failed', 'error'] %}
                       <span class="badge bg-danger-lt text-danger">
-                        <i class="fas fa-times me-1"></i>Failed
+                        <i class="fas fa-times fa-xs me-1"></i>Failed
                       </span>
                     {% elif subtask.status == 'cancelled' %}
                       <span class="badge bg-secondary-lt text-secondary">
-                        <i class="fas fa-ban me-1"></i>Cancelled
+                        <i class="fas fa-ban fa-xs me-1"></i>Cancelled
                       </span>
                     {% elif subtask.status == 'unknown' or not subtask.status %}
                       <span class="badge bg-secondary-lt text-secondary">
-                        <i class="fas fa-question me-1"></i>Unknown
+                        <i class="fas fa-question fa-xs me-1"></i>Unknown
                       </span>
                     {% else %}
                       <span class="badge bg-info-lt text-info">
-                        <i class="fas fa-info-circle me-1"></i>{{ subtask.status|title }}
+                        <i class="fas fa-info-circle fa-xs me-1"></i>{{ subtask.status|title }}
                       </span>
                     {% endif %}
                   </td>
