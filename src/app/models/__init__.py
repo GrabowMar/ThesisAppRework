@@ -31,7 +31,7 @@ from .analysis_models import AnalyzerConfiguration, AnalysisTask, AnalysisResult
 from .core import ModelCapability, PortConfiguration, GeneratedApplication, GeneratedCodeResult
 from .analysis import SecurityAnalysis, PerformanceTest, ZAPAnalysis, OpenRouterAnalysis
 from .container import ContainerizedTest
-from .cache import OpenRouterModelCache, ExternalModelInfoCache
+from .cache import OpenRouterModelCache, ExternalModelInfoCache, ModelBenchmarkCache
 from .batch import BatchAnalysis
 from .process import ProcessTracking
 from .results_cache import AnalysisResultsCache
@@ -57,7 +57,7 @@ __all__ = [
     'ModelCapability', 'PortConfiguration', 'GeneratedApplication', 'GeneratedCodeResult',
     'SecurityAnalysis', 'PerformanceTest', 'ZAPAnalysis', 'OpenRouterAnalysis',
     'ContainerizedTest',
-    'OpenRouterModelCache', 'ExternalModelInfoCache',
+    'OpenRouterModelCache', 'ExternalModelInfoCache', 'ModelBenchmarkCache',
     'BatchAnalysis',
     'ProcessTracking',
     'AnalysisResultsCache',

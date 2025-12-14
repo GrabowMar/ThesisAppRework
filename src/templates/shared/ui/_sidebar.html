@@ -75,6 +75,14 @@
         'title': 'End-to-End Automation Pipeline'
       },
       {
+        'label': 'Model Rankings',
+        'url': url_for('rankings.rankings_index'),
+        'icon': 'fa-solid fa-trophy',
+        'nav_target': 'rankings',
+        'is_active': ep.startswith('rankings.'),
+        'title': 'AI Model Rankings & Selection'
+      },
+      {
         'label': 'Sample Generator',
         'url': url_for('sample_generator.index'),
         'icon': 'fa-solid fa-code',

@@ -12,6 +12,7 @@ from .docs import docs_bp
 from .sample_generator import sample_generator_bp
 from .auth import auth_bp
 from .automation import automation_bp
+from .rankings import rankings_bp
 
 __all__ = [
     'main_bp',
@@ -23,4 +24,5 @@ __all__ = [
     'sample_generator_bp',
     'auth_bp',
     'automation_bp',
+    'rankings_bp',
 ]

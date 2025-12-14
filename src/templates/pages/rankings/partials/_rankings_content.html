@@ -1,0 +1,313 @@
+{# Rankings table content - matches models page structure #}
+{% set per_page_val = request.args.get('per_page','25') if request else '25' %}
+{% set search_term = request.args.get('search','') if request else '' %}
+
+{# External Benchmark Links Panel #}
+<div class="card card-sm mb-3">
+	<div class="card-body py-2">
+		<div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+			<span class="text-muted small fw-bold">
+				<i class="fas fa-external-link-alt me-1"></i>External Leaderboards:
+			</span>
+			<div class="d-flex flex-wrap gap-2">
+				<a href="https://evalplus.github.io/leaderboard.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
+					<i class="fas fa-code me-1"></i>EvalPlus (HumanEval+/MBPP+)
+				</a>
+				<a href="https://www.swebench.com/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success">
+					<i class="fas fa-bug me-1"></i>SWE-bench
+				</a>
+				<a href="https://bigcode-bench.github.io/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info">
+					<i class="fas fa-database me-1"></i>BigCodeBench
+				</a>
+				<a href="https://livebench.ai/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-warning">
+					<i class="fas fa-chart-line me-1"></i>LiveBench
+				</a>
+				<a href="https://livecodebench.github.io/leaderboard.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-danger">
+					<i class="fas fa-laptop-code me-1"></i>LiveCodeBench
+				</a>
+				<a href="https://aider.chat/docs/leaderboards/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
+					<i class="fas fa-terminal me-1"></i>Aider Leaderboard
+				</a>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div class="card card-table-compact mb-3">
+	<div class="card-header d-flex flex-wrap align-items-center gap-3">
+		<div class="d-flex flex-wrap align-items-center gap-2">
+			<h3 class="card-title d-flex align-items-center gap-2 mb-0">
+				<i class="fas fa-trophy text-warning"></i>
+				<span>Coding Rankings</span>
+			</h3>
+			<div class="d-flex flex-wrap align-items-center gap-2 status-indicators">
+				<span class="badge bg-primary-lt d-inline-flex align-items-center gap-2"><i class="fas fa-list-ol"></i><span id="total-models">{{ rankings|length if rankings else 0 }}</span></span>
+				<span class="badge bg-success-lt d-inline-flex align-items-center gap-2"><i class="fas fa-chart-bar"></i><span id="models-with-benchmarks">0</span> benchmarked</span>
+				<span class="badge bg-info-lt d-inline-flex align-items-center gap-2"><i class="fas fa-building"></i><span id="unique-providers">0</span> providers</span>
+			</div>
+		</div>
+		<div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+			<label class="d-flex align-items-center gap-2 mb-0">
+				<span class="text-muted">Limit</span>
+				<select id="rankings-per-page" class="form-select form-select-sm w-auto" onchange="changePerPage(this.value)">
+					<option value="25" {% if per_page_val|string == '25' %}selected{% endif %}>25</option>
+					<option value="50" {% if per_page_val|string == '50' %}selected{% endif %}>50</option>
+					<option value="100" {% if per_page_val|string == '100' %}selected{% endif %}>100</option>
+				</select>
+			</label>
+			<div class="btn-list">
+				<button class="btn btn-sm btn-primary" onclick="selectTopModels(10)" title="Select top 10 models" type="button">
+					<i class="fas fa-star me-1"></i>Select Top 10
+				</button>
+				<form action="{{ url_for('rankings.refresh_rankings') }}" method="POST" class="d-inline">
+					<button type="submit" class="btn btn-sm btn-warning" title="Refresh from OpenRouter">
+						<i class="fas fa-sync-alt me-1"></i>Refresh
+					</button>
+				</form>
+				<div class="btn-group btn-group-sm">
+					<button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+						<i class="fas fa-download me-1"></i>Export
+					</button>
+					<ul class="dropdown-menu">
+						<li><a class="dropdown-item" href="{{ url_for('rankings.export_rankings') }}"><i class="fas fa-file-code me-2"></i>JSON</a></li>
+						<li><a class="dropdown-item" href="#" onclick="exportRankingsCSV(); return false;"><i class="fas fa-file-csv me-2"></i>CSV</a></li>
+					</ul>
+				</div>
+				<a href="{{ url_for('models.models_overview') }}" class="btn btn-sm btn-outline-info" title="View full model catalog">
+					<i class="fas fa-brain me-1"></i>All Models
+				</a>
+			</div>
+			<div class="d-flex align-items-center gap-2">
+				<span class="text-primary small fw-bold" id="rankings-selection-indicator"></span>
+				<button class="btn btn-sm btn-ghost-danger" onclick="clearRankingSelection()" title="Clear selection" type="button" id="clear-selection-btn" style="display: none;">
+					<i class="fas fa-times"></i>
+				</button>
+			</div>
+		</div>
+	</div>
+	<div class="card-body border-top py-3">
+		{# Search Bar Row #}
+		<div class="row g-2 mb-3">
+			<div class="col-12">
+				<div class="input-group input-group-flat">
+					<span class="input-group-text"><i class="fas fa-search"></i></span>
+					<input type="text" id="ranking-search" class="form-control" placeholder="Search by model name, provider, or ID..." value="{{ search_term }}" onkeyup="debounceRankingSearch()" />
+					<button class="btn btn-outline-secondary" onclick="clearRankingSearch()" type="button" title="Clear search"><i class="fas fa-xmark"></i></button>
+					<button class="btn btn-outline-primary" onclick="toggleAdvancedFilters()" type="button" title="Advanced filters">
+						<i class="fas fa-sliders-h me-1"></i>
+						<span class="d-none d-md-inline">Weights & Filters</span>
+						<span class="badge bg-primary ms-1" id="active-filters-count" style="display: none;">0</span>
+					</button>
+				</div>
+			</div>
+		</div>
+
+		{# Quick Filters Row #}
+		<div class="row g-2 align-items-center">
+			<div class="col-auto">
+				<label class="d-flex align-items-center gap-2 mb-0">
+					<span class="text-muted d-flex align-items-center gap-1">
+						<i class="fas fa-building"></i>
+						<span>Provider</span>
+					</span>
+					<select class="form-select form-select-sm" style="min-width: 140px;" id="provider-filter" onchange="applyRankingFilters()">
+						<option value="">All Providers</option>
+						{% for provider in providers %}
+						<option value="{{ provider }}">{{ provider }}</option>
+						{% endfor %}
+					</select>
+				</label>
+			</div>
+			<div class="col-auto">
+				<label class="d-flex align-items-center gap-2 mb-0">
+					<span class="text-muted d-flex align-items-center gap-1">
+						<i class="fas fa-dollar-sign"></i>
+						<span>Max Price</span>
+					</span>
+					<select class="form-select form-select-sm" style="min-width: 140px;" id="price-filter" onchange="applyRankingFilters()">
+						<option value="">No Limit</option>
+						<option value="0">Free Only</option>
+						<option value="1">≤ $1/1M</option>
+						<option value="5">≤ $5/1M</option>
+						<option value="10">≤ $10/1M</option>
+						<option value="25">≤ $25/1M</option>
+					</select>
+				</label>
+			</div>
+			<div class="col-auto">
+				<label class="d-flex align-items-center gap-2 mb-0">
+					<span class="text-muted d-flex align-items-center gap-1">
+						<i class="fas fa-memory"></i>
+						<span>Context</span>
+					</span>
+					<select class="form-select form-select-sm" style="min-width: 120px;" id="context-filter" onchange="applyRankingFilters()">
+						<option value="">Any Size</option>
+						<option value="8192">8K+</option>
+						<option value="32768">32K+</option>
+						<option value="65536">64K+</option>
+						<option value="131072">128K+</option>
+					</select>
+				</label>
+			</div>
+			<div class="col-auto">
+				<label class="form-check mb-0">
+					<input class="form-check-input" type="checkbox" id="filter-has-benchmarks" onchange="applyRankingFilters()" checked>
+					<span class="form-check-label">Has Benchmarks Only</span>
+				</label>
+			</div>
+			<div class="col-auto">
+				<label class="form-check mb-0">
+					<input class="form-check-input" type="checkbox" id="filter-include-free" onchange="applyRankingFilters()" checked>
+					<span class="form-check-label">Include Free</span>
+				</label>
+			</div>
+			<div class="col-auto ms-auto">
+				<button class="btn btn-sm btn-ghost-secondary" onclick="clearAllRankingFilters()" type="button">
+					<i class="fas fa-times-circle me-1"></i>Clear Filters
+				</button>
+			</div>
+		</div>
+
+		{# Advanced Filters / Weights Panel (Collapsible) #}
+		<div id="advanced-filters-panel" class="mt-3" style="display: none;">
+			<div class="card">
+				<div class="card-header">
+					<h4 class="card-title mb-0"><i class="fas fa-balance-scale me-2"></i>Composite Score Weights</h4>
+				</div>
+				<div class="card-body">
+					<p class="text-muted small mb-3">Adjust benchmark weights to customize the composite ranking. Total should equal 100%.</p>
+					<div class="row g-4">
+						{# Weight Sliders #}
+						<div class="col-md-6">
+							<div class="mb-3">
+								<label class="form-label d-flex justify-content-between">
+									<span><i class="fas fa-code text-primary me-1"></i>HumanEval+</span>
+									<span class="badge bg-primary" id="weight_humaneval_val">{{ default_weights.humaneval_plus }}%</span>
+								</label>
+								<input type="range" class="form-range weight-input" id="weight_humaneval" min="0" max="100" value="{{ default_weights.humaneval_plus }}" oninput="updateWeightDisplay(this)">
+							</div>
+							<div class="mb-3">
+								<label class="form-label d-flex justify-content-between">
+									<span><i class="fas fa-bug text-success me-1"></i>SWE-bench Verified</span>
+									<span class="badge bg-success" id="weight_swebench_val">{{ default_weights.swe_bench_verified }}%</span>
+								</label>
+								<input type="range" class="form-range weight-input" id="weight_swebench" min="0" max="100" value="{{ default_weights.swe_bench_verified }}" oninput="updateWeightDisplay(this)">
+							</div>
+							<div class="mb-3">
+								<label class="form-label d-flex justify-content-between">
+									<span><i class="fas fa-database text-info me-1"></i>BigCodeBench Hard</span>
+									<span class="badge bg-info" id="weight_bigcode_val">{{ default_weights.bigcodebench_hard }}%</span>
+								</label>
+								<input type="range" class="form-range weight-input" id="weight_bigcode" min="0" max="100" value="{{ default_weights.bigcodebench_hard }}" oninput="updateWeightDisplay(this)">
+							</div>
+						</div>
+						<div class="col-md-6">
+							<div class="mb-3">
+								<label class="form-label d-flex justify-content-between">
+									<span><i class="fas fa-chart-line text-warning me-1"></i>LiveBench Coding</span>
+									<span class="badge bg-warning text-dark" id="weight_livebench_val">{{ default_weights.livebench_coding }}%</span>
+								</label>
+								<input type="range" class="form-range weight-input" id="weight_livebench" min="0" max="100" value="{{ default_weights.livebench_coding }}" oninput="updateWeightDisplay(this)">
+							</div>
+							<div class="mb-3">
+								<label class="form-label d-flex justify-content-between">
+									<span><i class="fas fa-tasks text-secondary me-1"></i>MBPP+</span>
+									<span class="badge bg-secondary" id="weight_mbpp_val">{{ default_weights.mbpp_plus }}%</span>
+								</label>
+								<input type="range" class="form-range weight-input" id="weight_mbpp" min="0" max="100" value="{{ default_weights.mbpp_plus }}" oninput="updateWeightDisplay(this)">
+							</div>
+							<div class="d-flex justify-content-between align-items-center border-top pt-3 mt-2">
+								<span class="fw-bold">Total:</span>
+								<span id="weightTotal" class="badge bg-primary fs-5">100%</span>
+							</div>
+						</div>
+					</div>
+					{# Filter Actions #}
+					<div class="row mt-4">
+						<div class="col-12">
+							<div class="d-flex justify-content-between align-items-center">
+								<button class="btn btn-outline-secondary btn-sm" onclick="resetWeights()" type="button">
+									<i class="fas fa-undo me-1"></i>Reset Defaults
+								</button>
+								<button class="btn btn-primary btn-sm" onclick="recalculateComposite()" type="button">
+									<i class="fas fa-calculator me-1"></i>Recalculate & Sort
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-striped table-vcenter table-hover table-sm card-table mb-0" id="rankings-table">
+			<thead>
+				<tr>
+					<th class="w-1">
+						<label class="form-check">
+							<input type="checkbox" id="select-all-rankings" class="form-check-input" onchange="toggleSelectAllRankings()" />
+						</label>
+					</th>
+					<th class="text-nowrap">#</th>
+					<th class="text-nowrap sortable" data-column="name" data-type="string">Model</th>
+					<th class="text-nowrap sortable active sort-desc" data-column="composite" data-type="number" title="Weighted Composite Score">Composite</th>
+					<th class="text-nowrap sortable" data-column="humaneval" data-type="number" title="HumanEval+ Pass@1">HE+</th>
+					<th class="text-nowrap sortable" data-column="swebench" data-type="number" title="SWE-bench Verified">SWE-V</th>
+					<th class="text-nowrap sortable" data-column="bigcode" data-type="number" title="BigCodeBench Hard">BCB-H</th>
+					<th class="text-nowrap sortable" data-column="livebench" data-type="number" title="LiveBench Coding">Live</th>
+					<th class="text-nowrap sortable" data-column="mbpp" data-type="number" title="MBPP+">MBPP+</th>
+					<th class="text-nowrap sortable" data-column="livecodebench" data-type="number" title="LiveCodeBench">LCB</th>
+					<th class="text-nowrap sortable" data-column="context" data-type="number" title="Context Window">Context</th>
+					<th class="text-nowrap sortable" data-column="price" data-type="number" title="Price per 1M input tokens">$/1M In</th>
+					<th class="w-1 text-nowrap">Actions</th>
+				</tr>
+			</thead>
+			<tbody id="rankings-table-body">
+				{# Populated via JavaScript #}
+			</tbody>
+		</table>
+	</div>
+	<div class="card-footer d-flex align-items-center gap-2 justify-content-between" id="rankings-pagination-bar">
+		<div id="rankings-page-summary" class="text-muted">Loading...</div>
+		<nav aria-label="Rankings pagination">
+			<ul class="pagination pagination-sm mb-0" id="rankings-pagination"></ul>
+		</nav>
+	</div>
+</div>
+
+{# Selection Summary (Fixed Bottom) #}
+<div class="selection-summary card card-sm mt-3" id="selectionSummary" style="display: none;">
+	<div class="card-body py-2">
+		<div class="d-flex justify-content-between align-items-center">
+			<div>
+				<strong><i class="fas fa-check-square text-primary me-2"></i><span id="selectedCount">0</span> / 10 models selected</strong>
+				<span class="text-muted ms-3" id="selectedModelsList"></span>
+			</div>
+			<div class="btn-list">
+				<button class="btn btn-sm btn-outline-secondary" onclick="clearRankingSelection()">
+					<i class="fas fa-times me-1"></i>Clear
+				</button>
+				<button class="btn btn-sm btn-primary" onclick="saveSelectionForPipeline()">
+					<i class="fas fa-save me-1"></i>Save for Pipeline
+				</button>
+				<button class="btn btn-sm btn-success" onclick="goToComparison()">
+					<i class="fas fa-balance-scale me-1"></i>Compare Selected
+				</button>
+			</div>
+		</div>
+	</div>
+</div>
+
+<div id="loading-spinner" class="text-center py-4" style="display: none;">
+	<div class="spinner-border text-primary" role="status">
+		<span class="visually-hidden">Loading...</span>
+	</div>
+	<p class="text-muted mt-2">Loading rankings...</p>
+</div>
+
+{# Pass initial data to JavaScript #}
+<script>
+window.RANKINGS_INITIAL_DATA = {{ rankings | tojson | safe }};
+window.RANKINGS_SELECTED = {{ selected_models | tojson | safe }};
+window.RANKINGS_DEFAULT_WEIGHTS = {{ default_weights | tojson | safe }};
+</script>

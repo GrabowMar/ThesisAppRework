@@ -42,6 +42,9 @@
 			<span class="text-muted small" id="models-source-indicator"></span>
 			<div class="btn-list">
 				<button class="btn btn-sm btn-primary" onclick="compareSelectedModels()" title="Compare selected models" type="button" id="compare-models-btn" disabled><i class="fas fa-balance-scale me-1" aria-hidden="true"></i>Compare</button>
+				<a href="{{ url_for('rankings.rankings_index') }}" class="btn btn-sm btn-outline-warning" title="View coding benchmark rankings">
+					<i class="fas fa-trophy me-1" aria-hidden="true"></i>Rankings
+				</a>
 				<div class="btn-group btn-group-sm">
 					<button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
 						<i class="fas fa-download me-1"></i>Export

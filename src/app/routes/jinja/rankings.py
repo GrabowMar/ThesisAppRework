@@ -1,0 +1,336 @@
+"""
+Rankings Routes
+===============
+
+Routes for AI model rankings aggregation and selection page.
+Provides leaderboard with coding benchmarks and filtering capabilities.
+"""
+
+import json
+import logging
+from typing import Dict, Any, List
+
+from flask import Blueprint, request, jsonify, session, flash, redirect, url_for
+from flask_login import current_user, login_required
+
+from app.utils.template_paths import render_template_compat as render_template
+from app.services.model_rankings_service import get_rankings_service
+
+logger = logging.getLogger(__name__)
+
+# Blueprint for rankings routes
+rankings_bp = Blueprint('rankings', __name__, url_prefix='/rankings')
+
+
+@rankings_bp.before_request
+def require_authentication():
+    """Require authentication for all rankings endpoints."""
+    if not current_user.is_authenticated:
+        flash('Please log in to access model rankings.', 'info')
+        return redirect(url_for('auth.login', next=request.url))
+
+
+@rankings_bp.route('/')
+def rankings_index():
+    """Main rankings page with filterable leaderboard."""
+    service = get_rankings_service()
+    
+    # Get rankings (from cache or fresh)
+    rankings = service.aggregate_rankings(force_refresh=False)
+    
+    # Get unique providers for filter dropdown
+    providers = sorted(set(r.get('provider', 'unknown') for r in rankings if r.get('provider')))
+    
+    # Get fetch status
+    fetch_status = service.get_fetch_status()
+    
+    # Default weights for composite score
+    default_weights = {
+        'humaneval_plus': 25,
+        'swe_bench_verified': 25,
+        'bigcodebench_hard': 20,
+        'livebench_coding': 15,
+        'mbpp_plus': 15
+    }
+    
+    # Get selected models from session
+    selected_models = session.get('selected_ranking_models', [])
+    
+    return render_template(
+        'pages/rankings/rankings_main.html',
+        rankings=rankings,
+        providers=providers,
+        fetch_status=fetch_status,
+        default_weights=default_weights,
+        selected_models=selected_models,
+        page_title='AI Model Rankings - Coding Benchmarks'
+    )
+
+
+@rankings_bp.route('/refresh', methods=['POST'])
+def refresh_rankings():
+    """Force refresh rankings from all sources."""
+    service = get_rankings_service()
+    
+    try:
+        # Clear cache and fetch fresh data
+        service.clear_cache()
+        rankings = service.aggregate_rankings(force_refresh=True)
+        
+        flash(f'Successfully refreshed rankings for {len(rankings)} models.', 'success')
+        
+    except Exception as e:
+        logger.error(f"Error refreshing rankings: {e}")
+        flash(f'Error refreshing rankings: {str(e)}', 'error')
+    
+    return redirect(url_for('rankings.rankings_index'))
+
+
+@rankings_bp.route('/api/rankings')
+def api_get_rankings():
+    """API endpoint to get filtered rankings with pagination and search."""
+    service = get_rankings_service()
+    
+    # Get rankings
+    rankings = service.aggregate_rankings(force_refresh=False)
+    
+    # Parse filter parameters
+    max_price = request.args.get('max_price', type=float)
+    min_context = request.args.get('min_context', type=int)
+    provider = request.args.get('provider')  # Single provider from dropdown
+    providers = request.args.getlist('providers') or ([provider] if provider else [])
+    include_free = request.args.get('exclude_free', 'false').lower() != 'true'
+    min_composite = request.args.get('min_composite', type=float)
+    has_benchmarks = request.args.get('has_benchmarks', 'false').lower() == 'true'
+    
+    # Search term
+    search = request.args.get('search', '').strip().lower()
+    
+    # Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 25, type=int)
+    per_page = min(max(per_page, 10), 100)  # Limit between 10 and 100
+    
+    # Sorting
+    sort_by = request.args.get('sort_by', 'composite')
+    sort_dir = request.args.get('sort_dir', 'desc')
+    
+    # Apply filters
+    filtered = service.filter_rankings(
+        rankings,
+        max_price=max_price,
+        min_context=min_context,
+        providers=providers if providers else None,
+        include_free=include_free,
+        min_composite=min_composite,
+        has_benchmarks=has_benchmarks
+    )
+    
+    # Apply search
+    if search:
+        filtered = [
+            r for r in filtered
+            if search in (r.get('model_name', '') or '').lower()
+            or search in (r.get('model_id', '') or '').lower()
+            or search in (r.get('provider', '') or '').lower()
+        ]
+    
+    # Apply sorting
+    sort_key_map = {
+        'composite': 'composite_score',
+        'humaneval': 'humaneval_plus',
+        'swebench': 'swe_bench_verified',
+        'bigcode': 'bigcodebench_hard',
+        'livebench': 'livebench_coding',
+        'mbpp': 'mbpp_plus',
+        'livecodebench': 'livecodebench',
+        'context': 'context_length',
+        'price': 'price_per_million_input',
+        'name': 'model_name'
+    }
+    sort_key = sort_key_map.get(sort_by, 'composite_score')
+    reverse = sort_dir == 'desc'
+    
+    def get_sort_value(item):
+        val = item.get(sort_key)
+        if val is None:
+            return float('-inf') if reverse else float('inf')
+        return val
+    
+    filtered.sort(key=get_sort_value, reverse=reverse)
+    
+    # Calculate pagination
+    total = len(filtered)
+    total_pages = (total + per_page - 1) // per_page
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated = filtered[start:end]
+    
+    # Statistics
+    unique_providers = set(r.get('provider') for r in filtered if r.get('provider'))
+    with_benchmarks = sum(1 for r in filtered if r.get('composite_score') is not None)
+    
+    return jsonify({
+        'success': True,
+        'count': len(paginated),
+        'rankings': paginated,
+        'pagination': {
+            'page': page,
+            'per_page': per_page,
+            'total': total,
+            'total_pages': total_pages,
+            'has_next': page < total_pages,
+            'has_prev': page > 1
+        },
+        'statistics': {
+            'total': total,
+            'with_benchmarks': with_benchmarks,
+            'unique_providers': len(unique_providers)
+        }
+    })
+
+
+@rankings_bp.route('/api/top-models')
+def api_get_top_models():
+    """API endpoint to get top N models with custom weights."""
+    service = get_rankings_service()
+    
+    # Parse parameters
+    count = request.args.get('count', 10, type=int)
+    count = min(max(count, 1), 50)  # Limit between 1 and 50
+    
+    # Parse weights (percentages 0-100)
+    weights = {}
+    weight_keys = ['humaneval_plus', 'swe_bench_verified', 'bigcodebench_hard', 
+                   'livebench_coding', 'mbpp_plus', 'livecodebench']
+    
+    for key in weight_keys:
+        weight = request.args.get(f'weight_{key}', type=float)
+        if weight is not None and weight > 0:
+            weights[key] = weight / 100  # Convert percentage to decimal
+    
+    # Normalize weights to sum to 1.0
+    if weights:
+        total = sum(weights.values())
+        if total > 0:
+            weights = {k: v / total for k, v in weights.items()}
+    else:
+        weights = None  # Use defaults
+    
+    # Parse filters
+    max_price = request.args.get('max_price', type=float)
+    min_context = request.args.get('min_context', type=int)
+    providers = request.args.getlist('providers')
+    include_free = request.args.get('include_free', 'true').lower() == 'true'
+    has_benchmarks = request.args.get('has_benchmarks', 'true').lower() == 'true'
+    
+    # Get top models
+    top_models = service.get_top_models(
+        count=count,
+        weights=weights,
+        max_price=max_price,
+        min_context=min_context,
+        providers=providers if providers else None,
+        include_free=include_free,
+        has_benchmarks=has_benchmarks
+    )
+    
+    return jsonify({
+        'success': True,
+        'count': len(top_models),
+        'weights_used': weights,
+        'models': top_models
+    })
+
+
+@rankings_bp.route('/api/select-models', methods=['POST'])
+def api_select_models():
+    """Save selected models to session for pipeline use."""
+    try:
+        data = request.get_json() or {}
+        model_ids = data.get('model_ids', [])
+        
+        # Validate and limit to 10 models
+        if len(model_ids) > 10:
+            model_ids = model_ids[:10]
+        
+        # Store in session
+        session['selected_ranking_models'] = model_ids
+        
+        return jsonify({
+            'success': True,
+            'selected_count': len(model_ids),
+            'model_ids': model_ids
+        })
+        
+    except Exception as e:
+        logger.error(f"Error selecting models: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 400
+
+
+@rankings_bp.route('/api/selected-models')
+def api_get_selected_models():
+    """Get currently selected models."""
+    selected = session.get('selected_ranking_models', [])
+    return jsonify({
+        'success': True,
+        'model_ids': selected,
+        'count': len(selected)
+    })
+
+
+@rankings_bp.route('/export')
+def export_rankings():
+    """Export filtered rankings as JSON."""
+    service = get_rankings_service()
+    
+    # Get rankings
+    rankings = service.aggregate_rankings(force_refresh=False)
+    
+    # Parse filter parameters
+    max_price = request.args.get('max_price', type=float)
+    min_context = request.args.get('min_context', type=int)
+    providers = request.args.getlist('providers')
+    include_free = request.args.get('include_free', 'true').lower() == 'true'
+    has_benchmarks = request.args.get('has_benchmarks', 'false').lower() == 'true'
+    
+    # Apply filters
+    filtered = service.filter_rankings(
+        rankings,
+        max_price=max_price,
+        min_context=min_context,
+        providers=providers if providers else None,
+        include_free=include_free,
+        has_benchmarks=has_benchmarks
+    )
+    
+    # Return as downloadable JSON
+    response = jsonify({
+        'exported_at': __import__('datetime').datetime.now().isoformat(),
+        'filter_applied': {
+            'max_price': max_price,
+            'min_context': min_context,
+            'providers': providers,
+            'include_free': include_free,
+            'has_benchmarks': has_benchmarks
+        },
+        'count': len(filtered),
+        'models': filtered
+    })
+    response.headers['Content-Disposition'] = 'attachment; filename=model_rankings.json'
+    return response
+
+
+@rankings_bp.route('/status')
+def rankings_status():
+    """Get status of rankings data sources."""
+    service = get_rankings_service()
+    fetch_status = service.get_fetch_status()
+    
+    return jsonify({
+        'success': True,
+        'status': fetch_status
+    })
