@@ -67,31 +67,3 @@ def api_tool_registry_tools():
         })
 
     return api_success(tools_list)
-
-
-@tool_registry_bp.route('/tool-registry/profiles')
-def api_tool_registry_profiles():
-    """Return analysis profiles derived from the container tools endpoint."""
-    try:
-        payload, status_code = _call_container_endpoint('get_profiles')
-    except LookupError as err:
-        current_app.logger.error(f"Container profiles endpoint not available: {err}")
-        return api_error("Container tool profiles are not available", status=503)
-    except Exception as err:  # pragma: no cover - unexpected failure
-        current_app.logger.exception("Unexpected error invoking container profiles endpoint", exc_info=err)
-        return api_error("Failed to load profiles", status=500)
-
-    if status_code >= 400 or not payload.get('success', True):
-        message = payload.get('error') or 'Failed to load profiles'
-        return api_error(message, status=status_code)
-
-    profiles = []
-    for idx, profile in enumerate(payload.get('data', [])):
-        profiles.append({
-            'id': idx + 1,
-            'name': profile.get('name'),
-            'description': profile.get('description'),
-            'enabled': True
-        })
-
-    return api_success(profiles)

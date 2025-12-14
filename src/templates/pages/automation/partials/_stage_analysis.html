@@ -1,58 +1,7 @@
 {# Stage 2: Analysis Configuration #}
 <div class="row g-4">
-  {# Analysis Profile Selection #}
+  {# Tool Selection #}
   <div class="col-12">
-    <label class="form-label fw-medium">Analysis Profile</label>
-    <div class="row g-3">
-      <div class="col-md-3 col-sm-6">
-        <div class="card card-sm h-100 m-0">
-          <div class="card-body py-2 d-flex align-items-start gap-2">
-            <input class="form-check-input mt-1" type="radio" name="analysis_profile" id="profile-comprehensive" value="comprehensive" checked>
-            <label class="form-check-label d-block" for="profile-comprehensive">
-              <span class="fw-semibold d-block">Comprehensive</span>
-              <span class="text-muted small">All available tools</span>
-            </label>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3 col-sm-6">
-        <div class="card card-sm h-100 m-0">
-          <div class="card-body py-2 d-flex align-items-start gap-2">
-            <input class="form-check-input mt-1" type="radio" name="analysis_profile" id="profile-security" value="security">
-            <label class="form-check-label d-block" for="profile-security">
-              <span class="fw-semibold d-block">Security</span>
-              <span class="text-muted small">Vulnerability scanning</span>
-            </label>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3 col-sm-6">
-        <div class="card card-sm h-100 m-0">
-          <div class="card-body py-2 d-flex align-items-start gap-2">
-            <input class="form-check-input mt-1" type="radio" name="analysis_profile" id="profile-quality" value="quality">
-            <label class="form-check-label d-block" for="profile-quality">
-              <span class="fw-semibold d-block">Quality</span>
-              <span class="text-muted small">Code quality checks</span>
-            </label>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-3 col-sm-6">
-        <div class="card card-sm h-100 m-0">
-          <div class="card-body py-2 d-flex align-items-start gap-2">
-            <input class="form-check-input mt-1" type="radio" name="analysis_profile" id="profile-custom" value="custom">
-            <label class="form-check-label d-block" for="profile-custom">
-              <span class="fw-semibold d-block">Custom</span>
-              <span class="text-muted small">Select specific tools</span>
-            </label>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  {# Custom Tool Selection (shown when custom profile selected) #}
-  <div class="col-12" id="custom-tools-section" style="display: none;">
     <div class="card">
       <div class="card-header d-flex justify-content-between align-items-center">
         <h3 class="h6 mb-0">Select Analysis Tools</h3>
@@ -169,6 +118,6 @@
 {# Help Alert #}
 <div class="alert alert-info mt-4">
   <i class="fas fa-lightbulb me-2"></i>
-  Analysis will run automatically after each application is generated. Choose a profile for quick setup
-  or select custom to pick specific tools. The Comprehensive profile runs all available analyzers.
+  Analysis will run automatically after each application is generated. Select the tools you want to use 
+  or click "Select all" for comprehensive analysis. Tools are organized by category for easy selection.
 </div>

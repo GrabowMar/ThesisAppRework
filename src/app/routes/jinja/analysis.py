@@ -260,8 +260,6 @@ def analysis_create():
         form = request.form
         model_slug = (form.get('model_slug') or '').strip()
         app_number_raw = form.get('app_number') or ''
-        analysis_mode = (form.get('analysis_mode') or '').strip()
-        analysis_profile = (form.get('analysis_profile') or '').strip()
         selected_tools = form.getlist('selected_tools[]')
         priority = (form.get('priority') or 'normal').strip()
         
@@ -272,11 +270,9 @@ def analysis_create():
 
         try:
             current_app.logger.debug(
-                "analysis_create POST: model=%s app=%s mode=%s profile=%s selected_tools=%s",
+                "analysis_create POST: model=%s app=%s selected_tools=%s",
                 model_slug,
                 app_number_raw,
-                analysis_mode,
-                analysis_profile,
                 selected_tools,
             )
         except Exception:
@@ -328,14 +324,9 @@ def analysis_create():
                 errors.append('Model is required')
             errors.append('Valid application number required')
 
-        if analysis_mode == 'profile':
-            if not analysis_profile:
-                errors.append('Analysis profile is required when using profile mode')
-        elif analysis_mode == 'custom':
-            if not selected_tools:
-                errors.append('At least one tool must be selected for custom analysis')
-        else:
-            errors.append('Analysis mode (profile or custom) is required')
+        # Validation: at least one tool must be selected
+        if not selected_tools:
+            errors.append('At least one tool must be selected')
 
         if errors:
             for message in errors:
@@ -449,102 +440,56 @@ def analysis_create():
             created_tasks: List[AnalysisTask] = []
             total_subtasks = 0
 
-            if analysis_mode == 'custom':
-                canonical_selection, invalid_entries = canonicalize_inputs(selected_tools)
-                if invalid_entries:
-                    for message in invalid_entries:
-                        flash(message, 'danger')
-                    return render_template('pages/analysis/analysis_create.html'), 400
+            # Process selected tools
+            canonical_selection, invalid_entries = canonicalize_inputs(selected_tools)
+            if invalid_entries:
+                for message in invalid_entries:
+                    flash(message, 'danger')
+                return render_template('pages/analysis/analysis_create.html'), 400
 
-                if not canonical_selection:
-                    flash('No valid tools selected after validation.', 'danger')
-                    return render_template('pages/analysis/analysis_create.html'), 400
+            if not canonical_selection:
+                flash('No valid tools selected after validation.', 'danger')
+                return render_template('pages/analysis/analysis_create.html'), 400
 
-                tool_ids, tool_names, tool_display_names, tools_by_service = build_tool_payload(canonical_selection)
-                if not tools_by_service:
-                    flash('No valid tools selected after validation.', 'danger')
-                    return render_template('pages/analysis/analysis_create.html'), 400
+            tool_ids, tool_names, tool_display_names, tools_by_service = build_tool_payload(canonical_selection)
+            if not tools_by_service:
+                flash('No valid tools selected after validation.', 'danger')
+                return render_template('pages/analysis/analysis_create.html'), 400
 
-                try:
-                    current_app.logger.debug(
-                        "analysis_create custom selection: services=%s tool_names=%s",
-                        list(tools_by_service.keys()),
-                        tool_names,
-                    )
-                except Exception:
-                    pass
-
-                base_options: Dict[str, Any] = {
-                    'selected_tools': tool_ids,
-                    'selected_tool_names': tool_names,
-                    'selected_tool_display_names': tool_display_names,
-                    'tools_by_service': tools_by_service,
-                    'source': 'wizard_custom',
-                    'analysis_type': 'custom',
-                    # Container management options
-                    'container_management': {
-                        'start_before_analysis': container_auto_start,
-                        'build_if_missing': container_build_if_missing,
-                        'stop_after_analysis': container_stop_after,
-                    },
-                }
-
-                new_tasks, subtask_count = enqueue_for_targets(
-                    selection_pairs,
+            try:
+                current_app.logger.debug(
+                    "analysis_create selection: services=%s tool_names=%s",
+                    list(tools_by_service.keys()),
                     tool_names,
-                    tool_ids,
-                    tools_by_service,
-                    priority,
-                    base_options,
                 )
-                created_tasks.extend(new_tasks)
-                total_subtasks += subtask_count
+            except Exception:
+                pass
 
-            else:
-                profile_key = analysis_profile.lower()
-                canonical_profile: List[str] = []
-                for name, tool in registry_tools.items():
-                    if not tool.available:
-                        continue
-                    tags_lower = {tag.lower() for tag in tool.tags}
-                    if profile_key in ('comprehensive', 'unified') or profile_key in tags_lower:
-                        canonical_profile.append(name)
+            base_options: Dict[str, Any] = {
+                'selected_tools': tool_ids,
+                'selected_tool_names': tool_names,
+                'selected_tool_display_names': tool_display_names,
+                'tools_by_service': tools_by_service,
+                'source': 'wizard_custom',
+                'analysis_type': 'custom',
+                # Container management options
+                'container_management': {
+                    'start_before_analysis': container_auto_start,
+                    'build_if_missing': container_build_if_missing,
+                    'stop_after_analysis': container_stop_after,
+                },
+            }
 
-                if not canonical_profile:
-                    flash(f"Unknown or empty analysis profile: {analysis_profile}", 'danger')
-                    return render_template('pages/analysis/analysis_create.html'), 400
-
-                tool_ids, tool_names, tool_display_names, tools_by_service = build_tool_payload(canonical_profile)
-                if not tool_names:
-                    flash(f"No available tools for profile {analysis_profile}", 'danger')
-                    return render_template('pages/analysis/analysis_create.html'), 400
-
-                base_options: Dict[str, Any] = {
-                    'selected_tools': tool_ids,
-                    'selected_tool_names': tool_names,
-                    'selected_tool_display_names': tool_display_names,
-                    'tools_by_service': tools_by_service,
-                    'source': f'wizard_profile_{profile_key}',
-                    'analysis_type': profile_key,
-                    'selected_profile': profile_key,
-                    # Container management options
-                    'container_management': {
-                        'start_before_analysis': container_auto_start,
-                        'build_if_missing': container_build_if_missing,
-                        'stop_after_analysis': container_stop_after,
-                    },
-                }
-
-                new_tasks, subtask_count = enqueue_for_targets(
-                    selection_pairs,
-                    tool_names,
-                    tool_ids,
-                    tools_by_service,
-                    priority,
-                    base_options,
-                )
-                created_tasks.extend(new_tasks)
-                total_subtasks += subtask_count
+            new_tasks, subtask_count = enqueue_for_targets(
+                selection_pairs,
+                tool_names,
+                tool_ids,
+                tools_by_service,
+                priority,
+                base_options,
+            )
+            created_tasks.extend(new_tasks)
+            total_subtasks += subtask_count
 
             if not created_tasks:
                 flash('No analysis tasks were created.', 'warning')

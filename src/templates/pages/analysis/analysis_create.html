@@ -10,8 +10,7 @@
 <form id="analysis-wizard-form" method="POST" action="/analysis/create">
   <input type="hidden" name="model_slug" id="input-model-slug" />
   <input type="hidden" name="app_number" id="input-app-number" />
-  <input type="hidden" name="analysis_mode" id="input-analysis-mode" />
-  <input type="hidden" name="analysis_profile" id="input-analysis-profile" />
+  <input type="hidden" name="analysis_mode" id="input-analysis-mode" value="custom" />
   <div id="batch-model-inputs" class="d-none"></div>
   <div id="batch-app-inputs" class="d-none"></div>
   <div id="selected-tools-inputs" class="d-none"></div>
@@ -151,69 +150,9 @@
 
               <div id="step3-inline-error" class="alert alert-danger py-2 d-none mt-3" role="alert"></div>
 
-              <div id="profile-load-error" class="alert alert-warning d-none mt-3" role="alert">
-                <div class="d-flex align-items-start">
-                  <i class="fas fa-exclamation-triangle text-warning me-2 mt-1"></i>
-                  <div>
-                    <div class="fw-semibold">Could not load analysis profiles.</div>
-                    <div class="small text-muted" id="profile-error-message">You can still configure the analysis by selecting tools manually.</div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="mt-3">
-                <label class="form-label fw-medium">Quick Profiles</label>
-                <div class="row g-3">
-                  <div class="col-md-3 col-sm-6">
-                    <div class="card card-sm h-100 m-0">
-                      <div class="card-body py-2 d-flex align-items-start gap-2">
-                        <input class="form-check-input mt-1" type="radio" name="profile_type" id="profile-security" value="security" checked>
-                        <label class="form-check-label d-block" for="profile-security">
-                          <span class="fw-semibold d-block">Security</span>
-                          <span class="text-muted small">Static &amp; dependency checks</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="col-md-3 col-sm-6">
-                    <div class="card card-sm h-100 m-0">
-                      <div class="card-body py-2 d-flex align-items-start gap-2">
-                        <input class="form-check-input mt-1" type="radio" name="profile_type" id="profile-performance" value="performance">
-                        <label class="form-check-label d-block" for="profile-performance">
-                          <span class="fw-semibold d-block">Performance</span>
-                          <span class="text-muted small">Load &amp; stress tools</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="col-md-3 col-sm-6">
-                    <div class="card card-sm h-100 m-0">
-                      <div class="card-body py-2 d-flex align-items-start gap-2">
-                        <input class="form-check-input mt-1" type="radio" name="profile_type" id="profile-quality" value="quality">
-                        <label class="form-check-label d-block" for="profile-quality">
-                          <span class="fw-semibold d-block">Quality</span>
-                          <span class="text-muted small">Static analysis focus</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="col-md-3 col-sm-6">
-                    <div class="card card-sm h-100 m-0">
-                      <div class="card-body py-2 d-flex align-items-start gap-2">
-                        <input class="form-check-input mt-1" type="radio" name="profile_type" id="profile-custom" value="custom">
-                        <label class="form-check-label d-block" for="profile-custom">
-                          <span class="fw-semibold d-block">Custom</span>
-                          <span class="text-muted small">Pick tools manually</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div id="custom-tool-picker" class="alert alert-info d-none mt-3 mb-0" role="alert">
+              <div class="alert alert-info mt-3 mb-0" role="alert">
                 <i class="fas fa-hand-pointer me-2"></i>
-                Select tools from the categories below to build a custom analysis run.
+                Select the analysis tools you want to run from the categories below.
               </div>
 
               <!-- Tool Containers -->
@@ -468,7 +407,7 @@
             <div id="step3-error" class="alert alert-danger d-none mt-3">
               <div class="d-flex align-items-center">
                 <i class="fas fa-exclamation-triangle me-2"></i>
-                <div>Please select an analysis profile or custom tools to continue.</div>
+                <div>Please select at least one analysis tool to continue.</div>
               </div>
             </div>
           </div>
@@ -736,15 +675,14 @@
                 <div class="help-content" data-help="3">
                   <h6 class="mb-2">Analysis Configuration</h6>
                   <ul class="small mb-3">
-                    <li><strong>Quick Profiles:</strong> Pre-configured tool sets for common analysis needs</li>
-                    <li><strong>Custom Selection:</strong> Pick individual tools from categories</li>
+                    <li><strong>Tool Selection:</strong> Pick individual tools from categories</li>
                     <li><strong>Security Tools:</strong> Vulnerability scanners, dependency checkers</li>
                     <li><strong>Performance Tools:</strong> Load testing, resource monitoring</li>
                     <li><strong>Quality Tools:</strong> Static analysis, linters, complexity metrics</li>
                   </ul>
                   <div class="alert alert-success alert-sm">
                     <i class="fas fa-check me-1"></i>
-                    <strong>Tip:</strong> Start with a profile and customize with additional tools as needed.
+                    <strong>Tip:</strong> Use "Select All" for comprehensive analysis or pick specific tools.
                   </div>
                 </div>
 
@@ -803,9 +741,7 @@
 let currentStep = 1;
 let selectedModel = null;
 let selectedApp = null;
-let selectedAnalysisProfile = null;
-let selectedTools = []; // Array of tool IDs for custom analysis
-let analysisMode = 'profile'; // 'profile' or 'custom'
+let selectedTools = []; // Array of tool names for analysis
 // Batch selection support
 let modelSelectionMode = 'single'; // 'single' | 'batch'
 let selectedModels = []; // array of {slug,name}
@@ -815,48 +751,7 @@ let appSelectionMode = 'single'; // 'single' | 'batch'
 const modelAppsCache = {};
 // Tool registry cache
 let allTools = [];
-let analysisProfiles = [];
 let toolsLoadPromise = null;
-let selectedAnalysisProfileDisplay = null;
-const profileLoadErrorAlert = document.getElementById('profile-load-error');
-const profileErrorMessage = document.getElementById('profile-error-message');
-
-const KNOWN_PROFILE_KEYS = ['security', 'performance', 'quality', 'comprehensive'];
-
-function normalizeProfileKey(value) {
-  if (!value) return null;
-  const lower = String(value).toLowerCase();
-  if (KNOWN_PROFILE_KEYS.includes(lower)) {
-    return lower;
-  }
-  const fuzzy = KNOWN_PROFILE_KEYS.find(key => lower.includes(key));
-  return fuzzy || null;
-}
-
-function resolveProfileDisplayName(defaultValue) {
-  if (selectedAnalysisProfileDisplay) {
-    return selectedAnalysisProfileDisplay;
-  }
-  if (!defaultValue) return '';
-  const lower = defaultValue.toLowerCase();
-  if (lower === defaultValue) {
-    return defaultValue.charAt(0).toUpperCase() + defaultValue.slice(1);
-  }
-  return defaultValue;
-}
-
-function showProfileLoadError(message) {
-  if (!profileLoadErrorAlert) return;
-  if (profileErrorMessage && message) {
-    profileErrorMessage.textContent = message;
-  }
-  profileLoadErrorAlert.classList.remove('d-none');
-}
-
-function hideProfileLoadError() {
-  if (!profileLoadErrorAlert) return;
-  profileLoadErrorAlert.classList.add('d-none');
-}
 
 // Wizard navigation functions
 function nextStep() {
@@ -972,23 +867,6 @@ function updateWizardStep() {
   // If entering Step 2, refresh batch aggregate if needed
   if (currentStep === 2) {
     refreshBatchApplicationsAggregate();
-  }
-
-  // If entering Step 3 and no analysis option is chosen yet, default to 'security' profile
-  if (currentStep === 3) {
-    try {
-      if (analysisMode === 'profile' && !selectedAnalysisProfile) {
-        // Check the security radio and load the profile
-        const secRadio = document.querySelector('input[name="profile_type"][value="security"]');
-        if (secRadio) {
-          secRadio.checked = true;
-        }
-        // This updates estimates and enables navigation
-        loadAnalysisProfile('security');
-      }
-    } catch (e) {
-      console.warn('Default profile selection failed:', e);
-    }
   }
 }
 
@@ -1125,7 +1003,7 @@ function isStepValid(step) {
         case 2:
             return appSelectionMode === 'single' ? !!selectedApp : selectedApps.length > 0;
         case 3:
-            return analysisMode === 'profile' ? !!selectedAnalysisProfile : selectedTools.length > 0;
+            return selectedTools.length > 0;
         case 4:
             return true; // Review step is always valid
         default:
@@ -1140,9 +1018,7 @@ function getValidationMessage(step) {
         case 2:
             return 'Please select an application to analyze.';
         case 3:
-            return analysisMode === 'profile' 
-                ? 'Please choose an analysis profile to proceed.'
-                : 'Please select at least one analysis tool to proceed.';
+            return 'Please select at least one analysis tool to proceed.';
         default:
             return 'Please complete this step to continue.';
     }
@@ -1433,135 +1309,6 @@ function refreshBatchApplicationsAggregate() {
 
 // (Removed older placeholder buildAggregatedAppsList; unified async version used above)
 
-// Analysis configuration functions
-function loadAnalysisProfile(profileName) {
-    const normalized = normalizeProfileKey(profileName) || 'security';
-    analysisMode = 'profile';
-    selectedAnalysisProfile = normalized;
-    selectedAnalysisProfileDisplay = null;
-
-  // For performance profile, populate selectedTools with performance tool IDs
-  if (normalized === 'performance') {
-    const applyPerformanceTools = () => {
-      const performanceTools = allTools
-        .filter(t => (t.category || '').toLowerCase() === 'performance')
-        .filter(t => t.available !== false);
-      selectedTools = performanceTools.map(t => t.name);
-      console.log('Performance profile: selected tool names:', selectedTools);
-
-      syncToolCheckboxesWithSelection();
-      updateSelectedToolsSummary();
-      updateSidebarToolDisplay();
-      updateCustomAnalysisEstimate();
-      updateNavigationButtons();
-    };
-
-    if (allTools.length === 0) {
-      console.log('Loading tools for performance profile...');
-      loadAnalysisTools()
-        .then(applyPerformanceTools)
-        .catch(error => console.warn('Unable to preselect performance tools:', error));
-    } else {
-      applyPerformanceTools();
-    }
-  } else {
-    selectedTools = []; // Clear custom tools for other profiles
-    syncToolCheckboxesWithSelection();
-    updateSelectedToolsSummary();
-    updateSidebarToolDisplay();
-    updateCustomAnalysisEstimate();
-  }
-    
-    // Hide custom tool picker
-    const customPicker = document.getElementById('custom-tool-picker');
-    if (customPicker) {
-      customPicker.classList.add('d-none');
-    }
-    
-    // Show configuration options
-    document.getElementById('analysis-config-options').style.display = 'block';
-    document.getElementById('live-estimate').style.display = 'block';
-    
-    // Find the actual profile from loaded data
-    const profile = analysisProfiles.find(p => {
-      const name = String(p.name || '').toLowerCase();
-      return name === normalized || name.includes(normalized);
-    });
-    
-    if (profile) {
-        // Calculate estimates based on actual profile tools
-        const toolCount = profile.tool_ids ? profile.tool_ids.length : 0;
-        const estimatedTime = Math.max(3, toolCount * 2) + '-' + (toolCount * 4 + 5);
-        const estimatedCost = (toolCount * 0.02 + 0.01).toFixed(3) + '-' + (toolCount * 0.05 + 0.03).toFixed(3);
-        
-        document.getElementById('estimate-time').textContent = estimatedTime + ' minutes';
-        document.getElementById('estimate-cost').textContent = '$' + estimatedCost;
-        
-      selectedAnalysisProfileDisplay = profile.name;
-    } else {
-        // Fallback estimates for unknown profiles
-        const estimates = {
-            security: { time: '5-10 minutes', cost: '$0.05-$0.15' },
-            performance: { time: '3-8 minutes', cost: '$0.03-$0.12' },
-            quality: { time: '4-7 minutes', cost: '$0.04-$0.10' }
-        };
-        
-      if (estimates[normalized]) {
-        document.getElementById('estimate-time').textContent = estimates[normalized].time;
-        document.getElementById('estimate-cost').textContent = estimates[normalized].cost;
-        }
-
-      selectedAnalysisProfileDisplay = normalized.charAt(0).toUpperCase() + normalized.slice(1);
-    }
-    
-    // Store selection
-    try {
-      sessionStorage.setItem('analysis_selected_profile', selectedAnalysisProfile);
-      sessionStorage.setItem('analysis_mode', 'profile');
-        sessionStorage.removeItem('analysis_selected_tools'); // Clear custom tools
-    } catch (e) {
-        console.warn('Could not store analysis profile in sessionStorage:', e);
-    }
-    
-    // Update navigation state after selection
-  updateNavigationButtons();
-}
-
-function enableCustomToolPicker() {
-    analysisMode = 'custom';
-    selectedAnalysisProfile = null;
-  selectedAnalysisProfileDisplay = null;
-    
-    // Show custom tool picker
-    const customPicker = document.getElementById('custom-tool-picker');
-    if (customPicker) {
-      customPicker.classList.remove('d-none');
-    }
-    
-    // Load tools by category if not already loaded
-    if (allTools.length === 0) {
-        loadAnalysisTools();
-    }
-    
-    // Show configuration options
-    document.getElementById('analysis-config-options').style.display = 'block';
-    document.getElementById('live-estimate').style.display = 'block';
-    
-    // Update estimates based on selected tools
-    updateCustomAnalysisEstimate();
-  updateSelectedToolsSummary();
-    
-    // Store selection
-    try {
-        sessionStorage.setItem('analysis_mode', 'custom');
-        sessionStorage.removeItem('analysis_selected_profile'); // Clear profile
-    } catch (e) {
-        console.warn('Could not store analysis mode in sessionStorage:', e);
-    }
-    
-    updateNavigationButtons();
-}
-
 async function loadAnalysisTools(force = false) {
   if (toolsLoadPromise && !force) {
     return toolsLoadPromise;
@@ -1577,7 +1324,6 @@ async function loadAnalysisTools(force = false) {
 
   toolsLoadPromise = (async () => {
     console.log('Loading container-based analysis tools...');
-    hideProfileLoadError();
 
     try {
       const toolsResponse = await fetch('/api/container-tools/all');
@@ -1625,22 +1371,6 @@ async function loadAnalysisTools(force = false) {
         }
       }
 
-      try {
-        const profilesResponse = await fetch('/api/tool-registry/profiles');
-        if (profilesResponse.ok) {
-          const profilesData = await profilesResponse.json();
-          analysisProfiles = profilesData.data || [];
-          console.log('Loaded profiles:', analysisProfiles.length);
-          hideProfileLoadError();
-        } else {
-          console.warn('Failed to load analysis profiles:', profilesResponse.status);
-          showProfileLoadError('Automatic profiles are unavailable right now. Select tools manually below.');
-        }
-      } catch (profileError) {
-        console.warn('Error fetching analysis profiles:', profileError);
-        showProfileLoadError('Automatic profiles are unavailable right now. Select tools manually below.');
-      }
-
       const toolsByContainer = {
         'static-analyzer': [],
         'dynamic-analyzer': [],
@@ -1672,15 +1402,12 @@ async function loadAnalysisTools(force = false) {
       updateContainerStatus('performance', 'running', toolsByContainer['performance-tester'].length);
       updateContainerStatus('ai', 'running', toolsByContainer['ai-analyzer'].length);
 
-      console.log('Tool registry loaded:', allTools.length, 'tools,', analysisProfiles.length, 'profiles');
+      console.log('Tool registry loaded:', allTools.length, 'tools');
       syncToolCheckboxesWithSelection();
       updateSelectedToolsSummary();
       updateSidebarToolDisplay();
       updateCustomAnalysisEstimate();
       updateNavigationButtons();
-      if (analysisMode === 'profile' && selectedAnalysisProfile) {
-        loadAnalysisProfile(selectedAnalysisProfile);
-      }
       return allTools;
     } catch (error) {
       console.error('Error loading analysis tools:', error);
@@ -2038,31 +1765,6 @@ function toggleTool(toolName, toolDisplayName, container) {
         if (!selectedTools.includes(toolName)) {
             selectedTools.push(toolName);
         }
-        
-        // Auto-switch to custom mode when user selects individual tools
-        if (analysisMode !== 'custom') {
-            analysisMode = 'custom';
-            selectedAnalysisProfile = null;
-          selectedAnalysisProfileDisplay = null;
-            
-            // Check the custom radio button
-            const customRadio = document.querySelector('input[name="profile_type"][value="custom"]');
-            if (customRadio) {
-                customRadio.checked = true;
-            }
-            
-            // Uncheck profile radio buttons
-            const profileRadios = document.querySelectorAll('input[name="profile_type"]:not([value="custom"])');
-            profileRadios.forEach(radio => radio.checked = false);
-            
-            console.log('Auto-switched to custom mode due to tool selection');
-            try {
-              sessionStorage.setItem('analysis_mode', 'custom');
-              sessionStorage.removeItem('analysis_selected_profile');
-            } catch (storageErr) {
-              console.warn('Could not persist custom mode switch:', storageErr);
-            }
-        }
     } else {
         // Remove tool from selection
         selectedTools = selectedTools.filter(name => name !== toolName);
@@ -2188,17 +1890,15 @@ function proceedWithFormSubmission() {
         console.log('Serializing form state and submitting form');
         // Ensure hidden inputs mirror current wizard state before direct submit
         try {
-          // Mode and profile
+          // Mode is always 'custom' now
           const modeInput = document.getElementById('input-analysis-mode');
-          const profileInput = document.getElementById('input-analysis-profile');
-          if (modeInput) modeInput.value = analysisMode;
-          if (profileInput) profileInput.value = selectedAnalysisProfile || '';
+          if (modeInput) modeInput.value = 'custom';
 
           // Tools
           const toolsInputsWrapper = document.getElementById('selected-tools-inputs');
           if (toolsInputsWrapper) {
             toolsInputsWrapper.innerHTML = '';
-            if (analysisMode === 'custom' && Array.isArray(selectedTools) && selectedTools.length > 0) {
+            if (Array.isArray(selectedTools) && selectedTools.length > 0) {
               selectedTools.forEach(toolId => {
                 const inp = document.createElement('input');
                 inp.type = 'hidden';
@@ -2433,7 +2133,7 @@ function syncToolCheckboxesWithSelection() {
 }
 
 function updateCustomAnalysisEstimate() {
-    if (analysisMode !== 'custom' || selectedTools.length === 0) {
+    if (selectedTools.length === 0) {
         document.getElementById('estimate-time').textContent = '-';
         document.getElementById('estimate-cost').textContent = '-';
         return;
@@ -2482,14 +2182,10 @@ function updateAnalysisSummary() {
     }
   }
   
-  // Analysis type/tools summary
+  // Analysis tools summary
   const summaryTypeElement = document.getElementById('summary-type');
   if (summaryTypeElement) {
-    if (analysisMode === 'profile' && selectedAnalysisProfile) {
-      const displaySource = selectedAnalysisProfileDisplay || selectedAnalysisProfile;
-      const profileDisplayName = resolveProfileDisplayName(displaySource);
-      summaryTypeElement.textContent = profileDisplayName ? `${profileDisplayName} Profile` : 'Profile';
-    } else if (analysisMode === 'custom' && selectedTools.length > 0) {
+    if (selectedTools.length > 0) {
       // Compute per-container grouping
       const toolsByContainer = {};
       selectedTools.forEach(toolName => {
@@ -2672,20 +2368,6 @@ function initAnalysisWizard() {
             }
         });
     }
-
-    // Analysis profile radio handlers
-    const profileRadios = document.querySelectorAll('input[name="profile_type"]');
-    profileRadios.forEach(radio => {
-      radio.addEventListener('change', (event) => {
-        if (!event.target.checked) return;
-        const value = event.target.value;
-        if (value === 'custom') {
-          enableCustomToolPicker();
-        } else {
-          loadAnalysisProfile(value);
-        }
-      });
-    });
     
     // Advanced options toggle
     const advToggle = document.getElementById('advanced-options-toggle');
@@ -2719,20 +2401,17 @@ function initAnalysisWizard() {
         form.addEventListener('submit', (e) => {
       try { window.__analysisSubmitEventFired = true; } catch (_) {}
             console.log('Form submit event triggered!');
-            console.log('analysisMode:', analysisMode);
             console.log('selectedTools:', selectedTools);
             
             // Serialize form data first
             const modeInput = document.getElementById('input-analysis-mode');
-            const profileInput = document.getElementById('input-analysis-profile');
             const toolsInputsWrapper = document.getElementById('selected-tools-inputs');
             
-            if (modeInput) modeInput.value = analysisMode;
-            if (profileInput) profileInput.value = selectedAnalysisProfile || '';
+            if (modeInput) modeInput.value = 'custom';
             if (toolsInputsWrapper) toolsInputsWrapper.innerHTML = '';
             
             // Add selected tools as hidden inputs
-            if (analysisMode === 'custom' && selectedTools.length > 0 && toolsInputsWrapper) {
+            if (selectedTools.length > 0 && toolsInputsWrapper) {
                 selectedTools.forEach(toolId => {
                     const inp = document.createElement('input');
                     inp.type = 'hidden';
@@ -2787,8 +2466,6 @@ function initAnalysisWizard() {
           sessionStorage.removeItem('analysis_selected_model');
           sessionStorage.removeItem('analysis_selected_app');
           sessionStorage.removeItem('analysis_selected_tools');
-          sessionStorage.removeItem('analysis_selected_profile');
-          sessionStorage.removeItem('analysis_mode');
           sessionStorage.removeItem('analysis_selected_model_batch');
           sessionStorage.removeItem('analysis_selected_app_batch');
         } catch (e) { /* no-op */ }
@@ -2803,9 +2480,9 @@ function initAnalysisWizard() {
                 return; // Let the form submit naturally
             }
 
-      // Show confirmation dialog for custom tool selection
-            if (analysisMode === 'custom' && selectedTools.length > 0) {
-                console.log('Custom mode with tools - showing confirmation');
+      // Show confirmation dialog for tool selection
+            if (selectedTools.length > 0) {
+                console.log('Tools selected - showing confirmation');
                 try {
                     // Ensure allTools is loaded
                     if (!allTools || allTools.length === 0) {
@@ -2837,8 +2514,6 @@ function initAnalysisWizard() {
     try {
         const savedModel = sessionStorage.getItem('analysis_selected_model');
         const savedApp = sessionStorage.getItem('analysis_selected_app');
-        const savedProfile = sessionStorage.getItem('analysis_selected_profile');
-        const savedMode = sessionStorage.getItem('analysis_mode');
         const savedTools = sessionStorage.getItem('analysis_selected_tools');
         
         if (savedModel) {
@@ -2847,20 +2522,7 @@ function initAnalysisWizard() {
         }
         if (savedApp) {
             selectedApp = JSON.parse(savedApp);
-            console.log('Restored app selection:', selectedApp);
-        }
-        if (savedProfile) {
-          const normalizedProfile = normalizeProfileKey(savedProfile) || savedProfile;
-          selectedAnalysisProfile = normalizedProfile;
-          if (normalizedProfile !== savedProfile) {
-            console.log('Normalized saved profile value', savedProfile, '->', normalizedProfile);
-          } else {
-            console.log('Restored analysis profile:', selectedAnalysisProfile);
-          }
-        }
-        if (savedMode) {
-            analysisMode = savedMode;
-            console.log('Restored analysis mode:', analysisMode);
+            console.log('Restored app selection:', savedApp);
         }
         if (savedTools) {
             selectedTools = JSON.parse(savedTools);
@@ -2868,22 +2530,6 @@ function initAnalysisWizard() {
         }
     } catch (e) {
         console.warn('Could not restore selections from sessionStorage:', e);
-    }
-
-    // Ensure profile radio state matches restored mode
-    if (analysisMode === 'custom') {
-      const customRadio = document.getElementById('profile-custom');
-      if (customRadio) customRadio.checked = true;
-      enableCustomToolPicker();
-    } else {
-      let profileValue = selectedAnalysisProfile || 'security';
-      const normalizedForRadio = normalizeProfileKey(profileValue) || 'security';
-      profileValue = normalizedForRadio;
-      const profileRadio = document.querySelector(`input[name="profile_type"][value="${profileValue}"]`);
-      if (profileRadio) {
-        profileRadio.checked = true;
-      }
-      loadAnalysisProfile(profileValue);
     }
 
       refreshModelSelectionsUI();

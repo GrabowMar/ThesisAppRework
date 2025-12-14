@@ -368,38 +368,3 @@ def get_tools_by_tags():
             'success': False,
             'error': str(e)
         }), 500
-
-
-@container_tools_bp.route('/profiles', methods=['GET'])
-def get_profiles():
-    """Get analysis profiles derived from container information."""
-    try:
-        registry = get_container_tool_registry()
-        container_info = registry.get_container_info()
-
-        profiles = []
-        for container_name, info in container_info.items():
-            display_name = info.get('display_name') or container_name.replace('-', ' ').title()
-            description = info.get('description') or container_name
-
-            profiles.append({
-                'id': f"{container_name}-profile",
-                'name': f"{display_name} Analysis",
-                'description': f"Profile for {description}",
-                'container': container_name,
-                'tools': info.get('tools', []),
-                'builtin': True
-            })
-
-        return jsonify({
-            'success': True,
-            'data': profiles,
-            'total': len(profiles)
-        })
-
-    except Exception as e:
-        logger.error(f"Error getting analysis profiles: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500

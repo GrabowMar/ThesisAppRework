@@ -14,7 +14,6 @@ const AutomationWizard = {
         templates: [],
         models: [],
         existingApps: [], // for existing apps mode
-        analysisProfile: 'comprehensive',
         analysisTools: [],
         analysisOptions: {
             waitForCompletion: true,
@@ -272,10 +271,9 @@ function validateStep(step) {
             return true;
             
         case 2: // Analysis
-            if (wizard.config.analysisProfile === 'custom' && 
-                wizard.config.analysisTools.length === 0) {
+            if (wizard.config.analysisTools.length === 0) {
                 showNotification('Please select at least one analysis tool', 'warning');
-                highlightElement('#custom-tools-section', true);
+                highlightElement('#tools-grid', true);
                 return false;
             }
             return true;
@@ -345,17 +343,10 @@ function collectGenerationConfig() {
 function collectAnalysisConfig() {
     const wizard = AutomationWizard;
     
-    // Get analysis profile
-    wizard.config.analysisProfile = document.querySelector(
-        'input[name="analysis_profile"]:checked'
-    )?.value || 'comprehensive';
-    
-    // Get custom tools if applicable
-    if (wizard.config.analysisProfile === 'custom') {
-        wizard.config.analysisTools = Array.from(
-            document.querySelectorAll('input[name="analysis_tool"]:checked')
-        ).map(el => el.value);
-    }
+    // Get selected tools
+    wizard.config.analysisTools = Array.from(
+        document.querySelectorAll('input[name="analysis_tool"]:checked')
+    ).map(el => el.value);
     
     // Get analysis options
     wizard.config.analysisOptions = {
@@ -452,10 +443,7 @@ function updateReviewSummary() {
     setText('summary-gen-jobs', config.templates.length * config.models.length);
     
     // Analysis summary
-    setText('summary-analysis-profile', 
-        config.analysisProfile.charAt(0).toUpperCase() + config.analysisProfile.slice(1));
-    setText('summary-tools-count', 
-        config.analysisProfile === 'custom' ? config.analysisTools.length : 'All');
+    setText('summary-tools-count', config.analysisTools.length || 'None selected');
     setText('summary-analysis-options', 
         config.analysisOptions.parallel ? 'Parallel' : 'Sequential');
     
@@ -488,13 +476,14 @@ function updateJobQueuePreview() {
             jobNum++;
             const templateName = template.replace(/_/g, ' ').replace('.json', '');
             const modelName = model.split('/').pop().replace(/_/g, ' ');
+            const toolsCount = config.analysisTools.length || 0;
             
             html += `
                 <tr>
                     <td>${jobNum}</td>
                     <td><span class="badge bg-azure-lt text-azure">${templateName}</span></td>
                     <td>${modelName}</td>
-                    <td><span class="badge bg-green-lt text-green">${config.analysisProfile}</span></td>
+                    <td><span class="badge bg-green-lt text-green">${toolsCount} tools</span></td>
                     <td class="text-end text-muted">~3 min</td>
                 </tr>
             `;
@@ -546,8 +535,7 @@ async function launchPipeline() {
             },
             analysis: {
                 enabled: true,
-                profile: wizard.config.analysisProfile,
-                tools: wizard.config.analysisProfile === 'custom' ? wizard.config.analysisTools : [],
+                tools: wizard.config.analysisTools,
                 options: wizard.config.analysisOptions
             }
         },
@@ -928,7 +916,7 @@ async function checkAndRestoreActivePipeline() {
                 ...wizard.config,
                 models: pipeline.config.models || [],
                 templates: pipeline.config.templates || [],
-                analysisProfile: pipeline.config.analysis_profile || 'comprehensive',
+                analysisTools: pipeline.config.analysis_tools || [],
                 enableGeneration: pipeline.config.stages?.generation ?? true,
                 enableAnalysis: pipeline.config.stages?.analysis ?? true
             };
@@ -1460,7 +1448,6 @@ function resetWizard() {
         templates: [],
         models: [],
         existingApps: [],
-        analysisProfile: 'comprehensive',
         analysisTools: [],
         analysisOptions: {
             waitForCompletion: true,
@@ -1526,14 +1513,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Existing apps checkboxes
         if (e.target.matches('input[name="existing_app"]')) {
             updateExistingAppsSummary();
-        }
-        
-        // Analysis profile toggle
-        if (e.target.matches('input[name="analysis_profile"]')) {
-            const customSection = document.getElementById('custom-tools-section');
-            if (customSection) {
-                customSection.style.display = e.target.value === 'custom' ? 'block' : 'none';
-            }
         }
         
         // Stage enable/disable toggles
@@ -1933,7 +1912,7 @@ function renderLoadSettingsList(settings) {
         const templatesCount = (config.templates || []).length;
         const modelsCount = (config.models || []).length;
         const existingAppsCount = (config.existingApps || []).length;
-        const analysisProfile = config.analysisProfile || 'comprehensive';
+        const toolsCount = (config.analysisTools || []).length;
         const mode = config.mode || 'generate';
         
         return `
@@ -1974,8 +1953,8 @@ function renderLoadSettingsList(settings) {
                     <div class="col-6 col-md-3"></div>
                     `}
                     <div class="col-6 col-md-3">
-                        <div class="text-muted">Analysis</div>
-                        <div class="fw-medium text-capitalize">${analysisProfile}</div>
+                        <div class="text-muted">Analysis Tools</div>
+                        <div class="fw-medium">${toolsCount}</div>
                     </div>
                 </div>
                 <div class="mt-2 small">
@@ -2098,7 +2077,6 @@ function saveCurrentSettings() {
         existingApps: wizard.config.existingApps || [],
         
         // Step 2 - Analysis
-        analysisProfile: wizard.config.analysisProfile || 'comprehensive',
         analysisTools: wizard.config.analysisTools || [],
         analysisOptions: wizard.config.analysisOptions || {
             waitForCompletion: true,
@@ -2190,21 +2168,7 @@ function applySettings(config) {
     
     // === Step 2: Analysis Settings ===
     
-    // Set analysis profile
-    if (config.analysisProfile) {
-        const profileRadio = document.querySelector(`input[name="analysis_profile"][value="${config.analysisProfile}"]`);
-        if (profileRadio) {
-            profileRadio.checked = true;
-            // Show/hide custom tools section
-            const customSection = document.getElementById('custom-tools-section');
-            if (customSection) {
-                customSection.style.display = config.analysisProfile === 'custom' ? 'block' : 'none';
-            }
-        }
-        wizard.config.analysisProfile = config.analysisProfile;
-    }
-    
-    // Set custom analysis tools
+    // Set analysis tools
     if (config.analysisTools) {
         document.querySelectorAll('input[name="analysis_tool"]').forEach(cb => {
             cb.checked = config.analysisTools.includes(cb.value);
@@ -2234,9 +2198,9 @@ function applySettings(config) {
     
     // Update sidebar analysis summary
     const analysisSummaryEl = document.getElementById('sidebar-analysis-summary');
-    if (analysisSummaryEl && config.analysisProfile) {
-        const profileName = config.analysisProfile.charAt(0).toUpperCase() + config.analysisProfile.slice(1);
-        analysisSummaryEl.innerHTML = `Profile: <strong>${profileName}</strong>`;
+    if (analysisSummaryEl && config.analysisTools) {
+        const toolsCount = config.analysisTools.length || 0;
+        analysisSummaryEl.innerHTML = `Tools: <strong>${toolsCount} selected</strong>`;
     }
 }
 
