@@ -819,6 +819,55 @@ def application_logs_modal(model_slug, app_number):
                 '</div></div></div>'), 500
 
 
+@applications_bp.route('/<model_slug>/<int:app_number>/logs/stream')
+def application_logs_stream(model_slug, app_number):
+    """Stream container logs for a specific container (backend/frontend)."""
+    container = request.args.get('container', 'backend')
+    lines = int(request.args.get('lines', 100))
+    
+    try:
+        from app.services.docker_manager import DockerManager
+        docker_mgr = DockerManager()
+        logs = docker_mgr.get_container_logs(model_slug, app_number, container_type=container, tail=lines)
+        return logs or f'No {container} logs available'
+    except Exception as e:
+        current_app.logger.error(f"Error streaming logs for {model_slug}/app{app_number}/{container}: {e}")
+        return f'Error fetching logs: {e}'
+
+
+@applications_bp.route('/<model_slug>/<int:app_number>/logs/filter')
+def application_logs_filter(model_slug, app_number):
+    """Filter container logs by level and search term."""
+    container = request.args.get('container', 'backend')
+    level = request.args.get('level', '').upper()
+    search = request.args.get('search', '').lower()
+    lines = int(request.args.get('lines', 100))
+    
+    try:
+        from app.services.docker_manager import DockerManager
+        docker_mgr = DockerManager()
+        logs = docker_mgr.get_container_logs(model_slug, app_number, container_type=container, tail=lines)
+        
+        if not logs:
+            return f'No {container} logs available'
+        
+        # Filter logs
+        filtered_lines = []
+        for line in logs.split('\n'):
+            # Level filter
+            if level and level not in line.upper():
+                continue
+            # Search filter  
+            if search and search not in line.lower():
+                continue
+            filtered_lines.append(line)
+        
+        return '\n'.join(filtered_lines) if filtered_lines else 'No matching log entries'
+    except Exception as e:
+        current_app.logger.error(f"Error filtering logs for {model_slug}/app{app_number}/{container}: {e}")
+        return f'Error filtering logs: {e}'
+
+
 @applications_bp.route('/<model_slug>/<int:app_number>/diagnostics/ports')
 def application_ports_diagnostics(model_slug, app_number):
     """Lightweight preformatted diagnostics for port resolution attempts."""

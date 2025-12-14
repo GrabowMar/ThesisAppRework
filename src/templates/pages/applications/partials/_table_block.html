@@ -218,7 +218,7 @@
 				<tr data-model="{{ app.model_slug }}" data-app="{{ app.app_number }}" {% if app.id %}data-app-id="{{ app.id }}"{% endif %} {% if is_failed %}class="table-danger opacity-75"{% elif is_container_failed %}class="table-warning opacity-85"{% endif %}>
 					<td><input type="checkbox" class="form-check-input m-0 app-checkbox" value="{{ app.model_slug }}-{{ app.app_number }}" aria-label="Select {{ app.model_display_name }} App {{ app.app_number }}" {% if is_failed %}disabled title="Cannot select failed apps"{% endif %}></td>
 					<td>
-						<div class="text-truncate {% if is_failed %}text-decoration-line-through text-muted{% endif %}">{{ app.model_display_name }}</div>
+						<a href="/models/{{ app.model_slug }}" class="text-truncate d-block {% if is_failed %}text-decoration-line-through text-muted{% else %}text-reset{% endif %}" title="View {{ app.model_display_name }} details">{{ app.model_display_name }}</a>
 					</td>
 					<td>
 						<span class="badge bg-azure-lt text-azure">{{ app.model_provider }}</span>

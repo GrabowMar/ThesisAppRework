@@ -47,7 +47,8 @@
     {% if view.subtitle or inline_metrics %}
     <div class="research-header-subtitle">
       {% if view.subtitle %}
-        <span>{{ view.subtitle }}</span>
+        {# Allow HTML in subtitle for links #}
+        <span>{{ view.subtitle | safe }}</span>
       {% endif %}
       {% for metric in inline_metrics %}
         <span>

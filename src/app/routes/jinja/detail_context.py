@@ -1003,7 +1003,7 @@ def build_application_detail_context(model_slug: str, app_number: int, allow_syn
         'pretitle': 'Application Detail',
         'icon': 'fas fa-cube',
         'title': f"Application #{app_number}",
-        'subtitle': f"{model_dict.get('display_name') or resolved_slug} · {resolved_slug}",
+        'subtitle': f'<a href="/models/{resolved_slug}" class="text-reset">{model_dict.get("display_name") or resolved_slug}</a> · {resolved_slug}',
         'badges': badges,
         'actions': actions,
     }

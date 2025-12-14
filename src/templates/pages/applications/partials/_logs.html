@@ -79,7 +79,7 @@
         <i class="fas fa-file-lines text-muted fa-2x mb-2"></i>
         <p class="mb-2 text-muted">No logs available</p>
         {% if app_data.container_status != 'running' %}
-        <button class="btn btn-primary btn-sm" hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/start" hx-target="#section-container" hx-swap="innerHTML">
+        <button class="btn btn-primary btn-sm" hx-post="/api/app/{{ app_data.model_slug }}/{{ app_data.app_number }}/start" hx-swap="none" onclick="setTimeout(() => htmx.ajax('GET', '/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/section/logs', {target: '#section-logs', swap: 'innerHTML'}), 3000)">
           <i class="fas fa-play me-1"></i>Start
         </button>
         {% endif %}
@@ -132,5 +132,21 @@ function updateLogStats(content) {
   document.getElementById('total-lines').innerHTML = `<i class="fas fa-list me-1"></i>${lines.length} Lines`;
 }
 window.addEventListener('beforeunload', () => { if (autoRefreshInterval) clearInterval(autoRefreshInterval); });
+
+// Also stop auto-refresh when section is replaced or user navigates away from logs
+document.addEventListener('htmx:beforeSwap', function(evt) {
+  if (evt.detail.target && evt.detail.target.id === 'section-logs') {
+    if (autoRefreshInterval) { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
+  }
+});
+
+// Stop auto-refresh if we navigate away from logs section via nav click
+document.querySelectorAll('.research-nav a').forEach(link => {
+  link.addEventListener('click', function() {
+    if (!this.getAttribute('href')?.includes('logs')) {
+      if (autoRefreshInterval) { clearInterval(autoRefreshInterval); autoRefreshInterval = null; }
+    }
+  });
+});
 </script>
 
