@@ -214,6 +214,9 @@ class ReportGenerationService:
             # HTML using Jinja2 template
             template_name = f"pages/reports/{generator.get_template_name()}"
             
+            # Add report_id to data for template links
+            data['report_id'] = report.report_id
+            
             try:
                 # Render template in a test request context so url_for() works
                 from flask import current_app

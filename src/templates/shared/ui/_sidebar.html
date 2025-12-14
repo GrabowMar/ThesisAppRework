@@ -75,14 +75,6 @@
         'title': 'End-to-End Automation Pipeline'
       },
       {
-        'label': 'Model Rankings',
-        'url': url_for('rankings.rankings_index'),
-        'icon': 'fa-solid fa-trophy',
-        'nav_target': 'rankings',
-        'is_active': ep.startswith('rankings.'),
-        'title': 'AI Model Rankings & Selection'
-      },
-      {
         'label': 'Sample Generator',
         'url': url_for('sample_generator.index'),
         'icon': 'fa-solid fa-code',
@@ -97,6 +89,19 @@
         'nav_target': 'reports',
         'is_active': ep.startswith('reports.'),
         'title': 'Reports'
+      }
+    ]
+  },
+  {
+    'title': 'Insights',
+    'items': [
+      {
+        'label': 'Model Rankings',
+        'url': url_for('rankings.rankings_index'),
+        'icon': 'fa-solid fa-trophy',
+        'nav_target': 'rankings',
+        'is_active': ep.startswith('rankings.'),
+        'title': 'AI Model Rankings & Selection'
       },
       {
         'label': 'Statistics',
@@ -105,12 +110,7 @@
         'nav_target': 'stats',
         'is_active': ep.startswith('stats.'),
         'title': 'Statistics'
-      }
-    ]
-  },
-  {
-    'title': 'Support',
-    'items': [
+      },
       {
         'label': 'Documentation',
         'url': url_for('docs.docs_index'),

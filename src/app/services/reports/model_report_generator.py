@@ -301,14 +301,59 @@ class ModelReportGenerator(BaseReportGenerator):
     # HELPER METHODS - Data Extraction from Nested Structures
     # ==========================================================================
     
+    # Known tools by category for proper classification
+    KNOWN_TOOLS = {
+        # Static Analysis - Python
+        'bandit': {'category': 'security', 'language': 'python'},
+        'pylint': {'category': 'quality', 'language': 'python'},
+        'semgrep': {'category': 'security', 'language': 'multi'},
+        'mypy': {'category': 'type-check', 'language': 'python'},
+        'safety': {'category': 'dependency', 'language': 'python'},
+        'pip-audit': {'category': 'dependency', 'language': 'python'},
+        'vulture': {'category': 'metrics', 'language': 'python'},
+        'ruff': {'category': 'quality', 'language': 'python'},
+        'flake8': {'category': 'quality', 'language': 'python'},
+        'radon': {'category': 'metrics', 'language': 'python'},
+        'detect-secrets': {'category': 'security', 'language': 'multi'},
+        
+        # Static Analysis - JavaScript
+        'eslint': {'category': 'quality', 'language': 'javascript'},
+        'jshint': {'category': 'quality', 'language': 'javascript'},
+        'npm-audit': {'category': 'dependency', 'language': 'javascript'},
+        'snyk': {'category': 'security', 'language': 'multi'},
+        
+        # Static Analysis - CSS/HTML
+        'stylelint': {'category': 'quality', 'language': 'css'},
+        'html-validator': {'category': 'quality', 'language': 'html'},
+        
+        # Dynamic Security
+        'zap': {'category': 'security', 'language': 'web'},
+        'curl': {'category': 'connectivity', 'language': 'web'},
+        'nmap': {'category': 'security', 'language': 'network'},
+        
+        # Performance Testing
+        'ab': {'category': 'performance', 'language': 'http'},
+        'aiohttp': {'category': 'performance', 'language': 'http'},
+        'locust': {'category': 'performance', 'language': 'http'},
+        'artillery': {'category': 'performance', 'language': 'http'},
+        
+        # AI Analysis
+        'requirements-checker': {'category': 'ai', 'language': 'multi'},
+        'code-quality-analyzer': {'category': 'ai', 'language': 'multi'},
+        'gpt4all-requirements': {'category': 'ai', 'language': 'multi'},
+        'openrouter-requirements': {'category': 'ai', 'language': 'multi'},
+    }
+    
     def _extract_tools_from_services(self, services: Dict[str, Any]) -> Dict[str, Any]:
         """
         Extract tool execution data from nested services structure.
         
-        Flattens the nested structure:
-        services -> {service_type} -> analysis -> results -> {language} -> {tool}
+        Supports multiple nesting patterns:
+        - services -> {service_type} -> payload -> results -> {language} -> {tool}
+        - services -> {service_type} -> analysis -> results -> {language} -> {tool}
+        - services -> {service_type} -> payload -> tools_used (list of tool names)
         
-        Returns a flat dict: {tool_name: {status, total_issues, duration_seconds}}
+        Returns a flat dict: {tool_name: {status, total_issues, duration_seconds, service, language}}
         """
         tools = {}
         
@@ -316,38 +361,91 @@ class ModelReportGenerator(BaseReportGenerator):
             if not isinstance(service_data, dict):
                 continue
             
-            analysis = service_data.get('analysis', {})
-            if not isinstance(analysis, dict):
-                continue
+            # Try multiple paths to find results
+            # Pattern 1: payload -> results (new format from analyzer manager)
+            payload = service_data.get('payload', {})
+            results = payload.get('results', {}) if isinstance(payload, dict) else {}
             
-            results = analysis.get('results', {})
+            # Pattern 2: analysis -> results (old format)
+            if not results:
+                analysis = service_data.get('analysis', {})
+                results = analysis.get('results', {}) if isinstance(analysis, dict) else {}
+            
+            # Pattern 3: direct results (fallback)
+            if not results:
+                results = service_data.get('results', {})
+            
             if not isinstance(results, dict):
                 continue
             
-            # Handle language-specific nesting (python, javascript, etc.)
+            # Handle language-specific nesting (python, javascript, css, html, structure)
             for lang_or_tool, lang_data in results.items():
+                # Skip metadata fields
+                if lang_or_tool.startswith('_') or lang_or_tool in ('status', 'message'):
+                    continue
+                
                 if isinstance(lang_data, dict):
                     # Check if it's a language wrapper (contains tool results)
+                    # or a direct tool entry
+                    has_tool_children = False
                     for tool_name, tool_data in lang_data.items():
-                        if isinstance(tool_data, dict) and 'status' in tool_data:
-                            tools[tool_name] = {
-                                'status': tool_data.get('status', 'unknown'),
-                                'total_issues': tool_data.get('total_issues', 0),
-                                'duration_seconds': tool_data.get('duration_seconds', 0.0),
-                                'service': service_type,
-                                'language': lang_or_tool
-                            }
-                elif isinstance(lang_or_tool, str):
-                    # Direct tool entry (no language wrapper)
-                    if isinstance(results.get(lang_or_tool), dict):
-                        tool_data = results[lang_or_tool]
-                        if 'status' in tool_data:
-                            tools[lang_or_tool] = {
-                                'status': tool_data.get('status', 'unknown'),
-                                'total_issues': tool_data.get('total_issues', 0),
-                                'duration_seconds': tool_data.get('duration_seconds', 0.0),
-                                'service': service_type
-                            }
+                        # Skip metadata/status fields
+                        if tool_name.startswith('_') or tool_name in ('status', 'message'):
+                            continue
+                            
+                        if isinstance(tool_data, dict):
+                            # Check if this looks like a tool result (has status or executed fields)
+                            if 'status' in tool_data or 'executed' in tool_data:
+                                has_tool_children = True
+                                # Extract tool data
+                                tool_status = tool_data.get('status', 'unknown')
+                                # Normalize success statuses
+                                if tool_status in ('success', 'completed', 'no_issues'):
+                                    tool_status = 'success'
+                                elif tool_data.get('executed') == False:
+                                    tool_status = 'skipped'
+                                
+                                tools[tool_name] = {
+                                    'status': tool_status,
+                                    'total_issues': tool_data.get('total_issues') or tool_data.get('issue_count') or 0,
+                                    'duration_seconds': tool_data.get('duration_seconds') or 0.0,
+                                    'service': service_type,
+                                    'language': lang_or_tool,
+                                    'executed': tool_data.get('executed', True),
+                                    'category': self.KNOWN_TOOLS.get(tool_name, {}).get('category', 'other')
+                                }
+                    
+                    # If no tool children found, lang_or_tool might be the tool itself
+                    if not has_tool_children and ('status' in lang_data or 'executed' in lang_data):
+                        tool_status = lang_data.get('status', 'unknown')
+                        if tool_status in ('success', 'completed', 'no_issues'):
+                            tool_status = 'success'
+                        elif lang_data.get('executed') == False:
+                            tool_status = 'skipped'
+                        
+                        tools[lang_or_tool] = {
+                            'status': tool_status,
+                            'total_issues': lang_data.get('total_issues') or lang_data.get('issue_count') or 0,
+                            'duration_seconds': lang_data.get('duration_seconds') or 0.0,
+                            'service': service_type,
+                            'language': self.KNOWN_TOOLS.get(lang_or_tool, {}).get('language', 'unknown'),
+                            'executed': lang_data.get('executed', True),
+                            'category': self.KNOWN_TOOLS.get(lang_or_tool, {}).get('category', 'other')
+                        }
+            
+            # Also extract from tools_used list in payload if available
+            tools_used = payload.get('tools_used', []) if isinstance(payload, dict) else []
+            for tool_name in tools_used:
+                if tool_name not in tools:
+                    tools[tool_name] = {
+                        'status': 'success',
+                        'total_issues': 0,
+                        'duration_seconds': 0.0,
+                        'service': service_type,
+                        'language': self.KNOWN_TOOLS.get(tool_name, {}).get('language', 'unknown'),
+                        'executed': True,
+                        'category': self.KNOWN_TOOLS.get(tool_name, {}).get('category', 'other')
+                    }
         
         return tools
     

@@ -5,28 +5,76 @@
 {# External Benchmark Links Panel #}
 <div class="card card-sm mb-3">
 	<div class="card-body py-2">
-		<div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-			<span class="text-muted small fw-bold">
-				<i class="fas fa-external-link-alt me-1"></i>External Leaderboards:
-			</span>
-			<div class="d-flex flex-wrap gap-2">
-				<a href="https://evalplus.github.io/leaderboard.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary">
-					<i class="fas fa-code me-1"></i>EvalPlus (HumanEval+/MBPP+)
+		<div class="d-flex flex-column gap-2">
+			<div class="d-flex flex-wrap align-items-center gap-2">
+				<span class="text-muted small fw-bold">
+					<i class="fas fa-star text-warning me-1"></i>Featured:
+				</span>
+				<a href="https://huggingface.co/collections/open-llm-leaderboard/the-big-benchmarks-collection" target="_blank" rel="noopener" class="btn btn-sm btn-warning" title="HuggingFace Big Benchmarks Collection">
+					<i class="fas fa-trophy me-1"></i>HF Big Benchmarks
 				</a>
-				<a href="https://www.swebench.com/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success">
+				<a href="https://openrouter.ai/rankings" target="_blank" rel="noopener" class="btn btn-sm btn-primary" title="OpenRouter Model Rankings">
+					<i class="fas fa-route me-1"></i>OpenRouter
+				</a>
+				<a href="https://huggingface.co/spaces/lmarena-ai/lmarena-leaderboard" target="_blank" rel="noopener" class="btn btn-sm btn-success" title="LM Arena - Chatbot Arena Leaderboard">
+					<i class="fas fa-comments me-1"></i>LM Arena
+				</a>
+				<a href="https://scale.com/leaderboard" target="_blank" rel="noopener" class="btn btn-sm btn-info" title="Scale AI Leaderboard">
+					<i class="fas fa-balance-scale me-1"></i>Scale AI
+				</a>
+			</div>
+			<div class="d-flex flex-wrap align-items-center gap-2">
+				<span class="text-muted small fw-bold">
+					<i class="fas fa-code me-1"></i>Coding:
+				</span>
+				<a href="https://evalplus.github.io/leaderboard.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="EvalPlus - HumanEval+ & MBPP+">
+					<i class="fas fa-check-double me-1"></i>EvalPlus
+				</a>
+				<a href="https://www.swebench.com/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" title="SWE-bench - Software Engineering">
 					<i class="fas fa-bug me-1"></i>SWE-bench
 				</a>
-				<a href="https://bigcode-bench.github.io/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info">
+				<a href="https://bigcode-bench.github.io/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info" title="BigCodeBench">
 					<i class="fas fa-database me-1"></i>BigCodeBench
 				</a>
-				<a href="https://livebench.ai/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-warning">
-					<i class="fas fa-chart-line me-1"></i>LiveBench
-				</a>
-				<a href="https://livecodebench.github.io/leaderboard.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-danger">
+				<a href="https://livecodebench.github.io/leaderboard.html" target="_blank" rel="noopener" class="btn btn-sm btn-outline-danger" title="LiveCodeBench">
 					<i class="fas fa-laptop-code me-1"></i>LiveCodeBench
 				</a>
-				<a href="https://aider.chat/docs/leaderboards/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
-					<i class="fas fa-terminal me-1"></i>Aider Leaderboard
+				<a href="https://aider.chat/docs/leaderboards/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="Aider Coding Assistant Leaderboard">
+					<i class="fas fa-terminal me-1"></i>Aider
+				</a>
+			</div>
+			<div class="d-flex flex-wrap align-items-center gap-2">
+				<span class="text-muted small fw-bold">
+					<i class="fas fa-brain me-1"></i>Reasoning:
+				</span>
+				<a href="https://livebench.ai/#/" target="_blank" rel="noopener" class="btn btn-sm btn-outline-warning" title="LiveBench - Contamination-Free Benchmark">
+					<i class="fas fa-chart-line me-1"></i>LiveBench
+				</a>
+				<a href="https://arcprize.org/blog/openai-o1-results-arc-prize" target="_blank" rel="noopener" class="btn btn-sm btn-outline-purple" title="ARC Prize - Abstract Reasoning">
+					<i class="fas fa-lightbulb me-1"></i>ARC Prize
+				</a>
+				<a href="https://simple-bench.com" target="_blank" rel="noopener" class="btn btn-sm btn-outline-dark" title="SimpleBench">
+					<i class="fas fa-cube me-1"></i>SimpleBench
+				</a>
+				<a href="https://lmcouncil.ai/benchmarks" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="LM Council Benchmarks">
+					<i class="fas fa-users me-1"></i>LM Council
+				</a>
+			</div>
+			<div class="d-flex flex-wrap align-items-center gap-2">
+				<span class="text-muted small fw-bold">
+					<i class="fas fa-chart-bar me-1"></i>Analytics:
+				</span>
+				<a href="https://artificialanalysis.ai/leaderboards/providers" target="_blank" rel="noopener" class="btn btn-sm btn-outline-primary" title="Artificial Analysis - Provider Comparison">
+					<i class="fas fa-microscope me-1"></i>Artificial Analysis
+				</a>
+				<a href="https://llm-stats.com" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success" title="LLM Stats">
+					<i class="fas fa-chart-pie me-1"></i>LLM Stats
+				</a>
+				<a href="https://ai-stats.phaseo.app" target="_blank" rel="noopener" class="btn btn-sm btn-outline-info" title="AI Stats by Phaseo">
+					<i class="fas fa-robot me-1"></i>AI Stats
+				</a>
+				<a href="https://www.vellum.ai/llm-leaderboard" target="_blank" rel="noopener" class="btn btn-sm btn-outline-warning" title="Vellum LLM Leaderboard">
+					<i class="fas fa-scroll me-1"></i>Vellum
 				</a>
 			</div>
 		</div>
