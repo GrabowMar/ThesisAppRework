@@ -258,7 +258,7 @@
         </div>
 
         {# System Status #}
-        <div class="card card-sm" id="status-card" hx-get="/automation/fragments/status" hx-trigger="load, every 10s" hx-swap="innerHTML">
+        <div id="status-card" hx-get="/automation/fragments/status" hx-trigger="load, every 10s" hx-swap="innerHTML">
           {% include 'pages/automation/partials/_status_metrics.html' %}
         </div>
       </div>

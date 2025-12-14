@@ -904,3 +904,83 @@ body.sidebar-collapsed footer.footer {
 	from { opacity: 0; transform: translateY(-5px); }
 	to { opacity: 1; transform: translateY(0); }
 }
+
+/* ========================================
+   Pipeline Status Panel Styles
+   ======================================== */
+
+/* Status header with gradient background */
+.pipeline-status-header {
+	background: linear-gradient(135deg, rgba(var(--tblr-primary-rgb), 0.04) 0%, transparent 100%);
+}
+
+.pipeline-status-header.status-running {
+	background: linear-gradient(135deg, rgba(var(--tblr-success-rgb), 0.08) 0%, transparent 100%);
+}
+
+.pipeline-status-header.status-paused {
+	background: linear-gradient(135deg, rgba(var(--tblr-warning-rgb), 0.08) 0%, transparent 100%);
+}
+
+.pipeline-status-header.status-failed {
+	background: linear-gradient(135deg, rgba(var(--tblr-danger-rgb), 0.08) 0%, transparent 100%);
+}
+
+.pipeline-status-header.status-completed {
+	background: linear-gradient(135deg, rgba(var(--tblr-success-rgb), 0.08) 0%, transparent 100%);
+}
+
+/* Status dot styles */
+.status-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	display: inline-block;
+	flex-shrink: 0;
+}
+
+.status-dot-animated {
+	animation: statusPulse 2s ease-in-out infinite;
+}
+
+@keyframes statusPulse {
+	0%, 100% { opacity: 1; transform: scale(1); }
+	50% { opacity: 0.6; transform: scale(0.9); }
+}
+
+/* Metrics grid styling */
+.pipeline-metrics-grid .metric-row {
+	background: rgba(var(--tblr-primary-rgb), 0.02);
+}
+
+.pipeline-metrics-grid .row > [class*="col-"] {
+	transition: background-color 0.15s ease;
+}
+
+.pipeline-metrics-grid .row > [class*="col-"]:hover {
+	background-color: rgba(var(--tblr-primary-rgb), 0.03);
+}
+
+.pipeline-metrics-grid .h4,
+.pipeline-metrics-grid .h5 {
+	margin-bottom: 0.125rem;
+}
+
+/* Progress bar improvements */
+.progress-sm {
+	height: 4px;
+	border-radius: 2px;
+}
+
+/* Dark mode adjustments */
+:root[data-bs-theme='dark'] .pipeline-status-header {
+	background: linear-gradient(135deg, rgba(var(--tblr-primary-rgb), 0.08) 0%, transparent 100%);
+}
+
+:root[data-bs-theme='dark'] .pipeline-metrics-grid .metric-row {
+	background: rgba(255, 255, 255, 0.02);
+}
+
+:root[data-bs-theme='dark'] .pipeline-metrics-grid .row > [class*="col-"]:hover {
+	background-color: rgba(255, 255, 255, 0.03);
+}

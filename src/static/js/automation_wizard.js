@@ -1160,6 +1160,37 @@ function updateMetricsPanel(data) {
         statusText.textContent = wizard.state.status.charAt(0).toUpperCase() + wizard.state.status.slice(1);
     }
     
+    // Update status badge and header styling
+    const statusBadge = document.getElementById('metrics-status-badge');
+    const statusIcon = document.getElementById('metrics-status-icon');
+    const statusHeader = document.getElementById('pipeline-status-header');
+    const statusDot = document.getElementById('status-dot');
+    const currentStageRow = document.getElementById('current-stage-row');
+    
+    if (statusBadge && statusIcon) {
+        const statusConfig = {
+            'ready': { badge: 'bg-primary-lt text-primary', icon: 'fa-play', dot: 'bg-primary', label: 'Idle' },
+            'running': { badge: 'bg-success-lt text-success', icon: 'fa-spinner fa-spin', dot: 'bg-success', label: 'Running' },
+            'paused': { badge: 'bg-warning-lt text-warning', icon: 'fa-pause', dot: 'bg-warning', label: 'Paused' },
+            'completed': { badge: 'bg-success', icon: 'fa-check', dot: 'bg-success', label: 'Done' },
+            'failed': { badge: 'bg-danger-lt text-danger', icon: 'fa-times', dot: 'bg-danger', label: 'Failed' },
+            'cancelled': { badge: 'bg-secondary-lt text-secondary', icon: 'fa-ban', dot: 'bg-secondary', label: 'Cancelled' }
+        };
+        const config = statusConfig[wizard.state.status] || statusConfig['ready'];
+        statusBadge.className = `badge ${config.badge}`;
+        statusIcon.className = `fas ${config.icon} fa-xs me-1`;
+        statusBadge.innerHTML = `<i class="fas ${config.icon} fa-xs me-1" id="metrics-status-icon"></i>${config.label}`;
+        if (statusDot) statusDot.className = `status-dot status-dot-animated ${config.dot}`;
+        if (statusHeader) {
+            statusHeader.className = `pipeline-status-header px-3 py-2 border-bottom status-${wizard.state.status}`;
+        }
+    }
+    
+    // Show/hide current stage row when running
+    if (currentStageRow) {
+        currentStageRow.style.display = wizard.state.status === 'running' ? 'block' : 'none';
+    }
+    
     // Current stage
     const stageText = document.getElementById('metrics-current-stage');
     if (stageText && data.current_stage) {
@@ -1172,10 +1203,23 @@ function updateMetricsPanel(data) {
     if (completedEl) completedEl.textContent = data.completed_count || 0;
     if (totalEl) totalEl.textContent = data.total_count || 0;
     
-    // Success rate
-    const successRateEl = document.getElementById('metrics-success-rate');
+    // Update progress bar
+    const progressBar = document.getElementById('metrics-progress-bar');
+    if (progressBar && data.total_count > 0) {
+        const pct = Math.round((data.completed_count / data.total_count) * 100);
+        progressBar.style.width = `${pct}%`;
+        progressBar.setAttribute('aria-valuenow', pct);
+    }
+    
+    // Success rate (using the new element ID)
+    const successRateEl = document.getElementById('metrics-success-rate-value');
     if (successRateEl && data.success_rate !== undefined) {
-        successRateEl.textContent = `${Math.round(data.success_rate)}%`;
+        const rate = Math.round(data.success_rate);
+        successRateEl.textContent = `${rate}%`;
+        // Color coding
+        if (rate >= 80) successRateEl.className = 'h4 mb-0 text-success';
+        else if (rate >= 50) successRateEl.className = 'h4 mb-0 text-warning';
+        else successRateEl.className = 'h4 mb-0 text-danger';
     }
     
     // Failures
