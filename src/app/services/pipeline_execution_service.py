@@ -356,32 +356,93 @@ class PipelineExecutionService:
             analysis_config = config.get('analysis', {})
             tools = analysis_config.get('tools', [])
             
-            # Get default tools if none specified
-            if not tools:
-                try:
-                    registry = get_container_tool_registry()
-                    all_tools = registry.get_all_tools()
-                    tools = [t.name for t in all_tools.values() if t.available]
-                except Exception:
-                    tools = []
+            # Get tool registry
+            registry = get_container_tool_registry()
+            all_tools = registry.get_all_tools()
             
-            # Create analysis task
-            task = AnalysisTaskService.create_task(
-                model_slug=model_slug,
-                app_number=app_number,
-                tools=tools,
-                priority='normal',
-                custom_options={
-                    'source': 'automation_pipeline',
-                    'pipeline_id': pipeline_id,
-                },
-            )
+            # Get default tools if none specified (same as API)
+            if not tools:
+                tools = [t.name for t in all_tools.values() if t.available]
+            
+            # ========== MATCH API BEHAVIOR: Resolve tools and group by service ==========
+            # Build lookup: name (case-insensitive) -> tool object
+            tools_lookup = {t.name.lower(): t for t in all_tools.values()}
+            name_to_idx = {t.name.lower(): idx + 1 for idx, t in enumerate(all_tools.values())}
+            
+            tool_ids = []
+            valid_tool_names = []
+            tools_by_service = {}
+            
+            for tool_name in tools:
+                tool_name_lower = tool_name.lower()
+                tool_obj = tools_lookup.get(tool_name_lower)
+                
+                if tool_obj and tool_obj.available:
+                    tool_id = name_to_idx.get(tool_name_lower)
+                    if tool_id:
+                        tool_ids.append(tool_id)
+                        valid_tool_names.append(tool_obj.name)
+                        service = tool_obj.container.value
+                        tools_by_service.setdefault(service, []).append(tool_id)
+                else:
+                    self._log("Tool '%s' not found or unavailable", tool_name, level='warning')
+            
+            if not tools_by_service or not valid_tool_names:
+                self._log(
+                    "No valid tools found for %s app %d",
+                    model_slug, app_number, level='error'
+                )
+                error_marker = 'error:no_valid_tools'
+                pipeline.add_analysis_task_id(error_marker, success=False)
+                return error_marker
+            
+            # Get container management options from pipeline config (matching API format)
+            stop_after = analysis_config.get('stopAfterAnalysis',
+                                             analysis_config.get('options', {}).get('stopAfterAnalysis', True))
+            container_management = {
+                'start_before_analysis': auto_start,  # Use the auto_start we already computed
+                'build_if_missing': False,  # Pipeline handles building separately
+                'stop_after_analysis': stop_after
+            }
+            
+            # Build custom options matching API format EXACTLY
+            custom_options = {
+                'selected_tools': tool_ids,
+                'selected_tool_names': valid_tool_names,
+                'tools_by_service': tools_by_service,
+                'source': 'automation_pipeline',
+                'pipeline_id': pipeline_id,
+                'container_management': container_management
+            }
+            
+            # Create task - use multi-service if multiple containers involved (MATCHING API!)
+            if len(tools_by_service) > 1:
+                custom_options['unified_analysis'] = True
+                task = AnalysisTaskService.create_main_task_with_subtasks(
+                    model_slug=model_slug,
+                    app_number=app_number,
+                    tools=valid_tool_names,
+                    priority='normal',
+                    custom_options=custom_options,
+                    task_name=f"pipeline:{model_slug}:{app_number}"
+                )
+            else:
+                custom_options['unified_analysis'] = False
+                task = AnalysisTaskService.create_task(
+                    model_slug=model_slug,
+                    app_number=app_number,
+                    tools=valid_tool_names,
+                    priority='normal',
+                    custom_options=custom_options
+                )
+            # ========== END MATCHING API BEHAVIOR ==========
             
             pipeline.add_analysis_task_id(task.task_id, success=True)
             
             self._log(
-                "Created analysis task %s for %s app %d",
-                task.task_id, model_slug, app_number
+                "Created analysis task %s for %s app %d (unified=%s, services=%d, tools=%d)",
+                task.task_id, model_slug, app_number,
+                len(tools_by_service) > 1, len(tools_by_service), len(valid_tool_names)
             )
             return task.task_id
             
@@ -770,7 +831,13 @@ class PipelineExecutionService:
         return True
     
     def _execute_generation_job(self, pipeline: PipelineExecution, job: Dict[str, Any]):
-        """Execute a single generation job."""
+        """Execute a single generation job.
+        
+        Uses the same parameters as the Sample Generator API to ensure 100% parity:
+        - generation_mode='guarded' (4-query mode)
+        - app_num=None (let service handle atomic allocation)
+        - All other standard parameters
+        """
         job_index = job.get('job_index', pipeline.current_job_index)
         model_slug = job['model_slug']
         template_slug = job['template_slug']
@@ -803,8 +870,8 @@ class PipelineExecutionService:
                 return  # Already generated this model+template combo
         
         self._log(
-            "Generating app for %s with template %s",
-            model_slug, template_slug
+            "Generating app for %s with template %s (job %d)",
+            model_slug, template_slug, job_index
         )
         
         try:
@@ -812,41 +879,59 @@ class PipelineExecutionService:
             from app.services.generation import get_generation_service
             svc = get_generation_service()
             
-            # Get next app number for this model
-            max_app = GeneratedApplication.query.filter_by(
-                model_slug=model_slug
-            ).order_by(
-                GeneratedApplication.app_number.desc()
-            ).first()
-            app_num = (max_app.app_number + 1) if max_app else 1
+            # Use pipeline_id as batch_id for grouping related generations
+            batch_id = pipeline.pipeline_id
             
-            # Run generation (async wrapper)
+            # Get generation config options (if any future options are added)
+            gen_config = pipeline.config.get('generation', {})
+            use_auto_fix = gen_config.get('use_auto_fix', False)
+            
+            # Run generation with SAME parameters as Sample Generator API
+            # Key: app_num=None lets service handle atomic reservation (prevents race conditions)
+            # Key: generation_mode='guarded' uses the 4-query system for quality output
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
                 gen_result = loop.run_until_complete(
                     svc.generate_full_app(
                         model_slug=model_slug,
-                        app_num=app_num,
+                        app_num=None,  # Let service handle atomic allocation
                         template_slug=template_slug,
+                        generate_frontend=True,
+                        generate_backend=True,
+                        batch_id=batch_id,
+                        parent_app_id=None,
+                        version=1,
+                        generation_mode='guarded',  # Always use 4-query mode for quality
+                        use_auto_fix=use_auto_fix,
                     )
                 )
             finally:
                 loop.close()
+            
+            # Get actual app_number from result (service allocated it atomically)
+            app_number = gen_result.get('app_number')
+            if app_number is None:
+                # Fallback: try to get from app_id or other fields
+                app_number = gen_result.get('app_id') or gen_result.get('app_num') or -1
+                self._log(
+                    "Warning: app_number not in result, using fallback: %d",
+                    app_number, level='warning'
+                )
             
             # Record result with job_index for tracking
             result = {
                 'job_index': job_index,
                 'model_slug': model_slug,
                 'template_slug': template_slug,
-                'app_number': gen_result.get('app_number', app_num),
+                'app_number': app_number,
                 'success': gen_result.get('success', True),
             }
             pipeline.add_generation_result(result)
             
             self._log(
                 "Generated %s app %d with template %s (job %d)",
-                model_slug, result['app_number'], template_slug, job_index
+                model_slug, app_number, template_slug, job_index
             )
             
         except Exception as e:
