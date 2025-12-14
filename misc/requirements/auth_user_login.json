@@ -4,7 +4,7 @@
   "category": "Authentication",
   "description": "Basic authentication system",
   "backend_requirements": [
-    "1. User model: id, username (unique, required), password_hash, email, created_at",
+    "1. User model: id, username (unique, required), password_hash, email, is_active (default True), created_at",
     "2. POST /api/auth/register - validate input, hash password with bcrypt, save user, return user object",
     "3. POST /api/auth/login - verify credentials, return JWT token with 24h expiry and user info",
     "4. GET /api/auth/me - validate JWT from Authorization header, return user info (no password)",
@@ -16,6 +16,13 @@
     "3. Display logged-in username in header",
     "4. Logout button that clears token",
     "5. Show error messages for invalid credentials"
+  ],
+  "admin_requirements": [
+    "1. Admin dashboard showing total users, active users, and registrations this week",
+    "2. Table listing ALL users with status badges (active/inactive)",
+    "3. Toggle button to enable/disable user accounts",
+    "4. Checkbox selection with bulk disable action",
+    "5. Search users by username or email"
   ],
   "api_endpoints": [
     {
@@ -83,6 +90,36 @@
       }
     }
   ],
+  "admin_api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/admin/users",
+      "description": "List ALL users including inactive",
+      "request": null,
+      "response": {"items": [{"id": 1, "username": "string", "email": "string", "is_active": true, "created_at": "ISO8601"}], "total": 1}
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/users/:id/toggle",
+      "description": "Toggle user active status",
+      "request": null,
+      "response": {"id": 1, "username": "string", "is_active": false}
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/users/bulk-disable",
+      "description": "Disable multiple users",
+      "request": {"ids": [1, 2, 3]},
+      "response": {"disabled": 3}
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stats",
+      "description": "Get user statistics",
+      "request": null,
+      "response": {"total_users": 100, "active_users": 95, "new_this_week": 10}
+    }
+  ],
   "data_model": {
     "name": "User",
     "fields": {
@@ -90,6 +127,7 @@
       "username": "string (unique, required, 3-20 chars)",
       "password_hash": "string (never exposed in responses)",
       "email": "string (optional)",
+      "is_active": "boolean (default: true)",
       "created_at": "datetime (auto, ISO 8601 format in JSON)"
     }
   }

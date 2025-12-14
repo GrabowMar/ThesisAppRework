@@ -4,9 +4,9 @@
   "category": "E-commerce",
   "description": "Add products to cart and checkout",
   "backend_requirements": [
-    "1. Product model: id, name, price (decimal), description, image_url",
+    "1. Product model: id, name, price (decimal), description, image_url, is_active (default True), stock_quantity",
     "2. Cart stored in session or database: product_id, quantity",
-    "3. POST /api/cart/add - add item to cart",
+    "3. POST /api/cart/add - add item to cart (check stock)",
     "4. PUT /api/cart/:id - update quantity, DELETE /api/cart/:id - remove item",
     "5. GET /api/cart/total - calculate total price"
   ],
@@ -17,11 +17,18 @@
     "4. Remove item button for each cart item",
     "5. Empty cart message when no items"
   ],
+  "admin_requirements": [
+    "1. Admin dashboard with total products, total revenue, low stock alerts",
+    "2. Product management table with ALL products including inactive",
+    "3. Toggle product availability (active/inactive)",
+    "4. Edit stock quantity inline",
+    "5. Bulk delete products with confirmation"
+  ],
   "api_endpoints": [
     {
       "method": "GET",
       "path": "/api/products",
-      "description": "List all products",
+      "description": "List all active products",
       "request": null,
       "response": {
         "items": [
@@ -111,6 +118,43 @@
       }
     }
   ],
+  "admin_api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/admin/products",
+      "description": "List ALL products including inactive",
+      "request": null,
+      "response": {"items": [{"id": 1, "name": "string", "price": 29.99, "stock_quantity": 100, "is_active": true}], "total": 1}
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/products/:id/toggle",
+      "description": "Toggle product availability",
+      "request": null,
+      "response": {"id": 1, "name": "string", "is_active": false}
+    },
+    {
+      "method": "PUT",
+      "path": "/api/admin/products/:id/stock",
+      "description": "Update product stock quantity",
+      "request": {"stock_quantity": 50},
+      "response": {"id": 1, "stock_quantity": 50}
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/products/bulk-delete",
+      "description": "Delete multiple products",
+      "request": {"ids": [1, 2, 3]},
+      "response": {"deleted": 3}
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stats",
+      "description": "Get admin dashboard statistics",
+      "request": null,
+      "response": {"total_products": 50, "active_products": 45, "low_stock_count": 5, "total_cart_value": 1250.00}
+    }
+  ],
   "data_model": {
     "name": "Product & CartItem",
     "fields": {
@@ -119,6 +163,8 @@
       "Product.price": "decimal (required)",
       "Product.description": "text",
       "Product.image_url": "string",
+      "Product.is_active": "boolean (default: true)",
+      "Product.stock_quantity": "integer (default: 0)",
       "CartItem.id": "integer (primary key)",
       "CartItem.product_id": "integer (foreign key)",
       "CartItem.quantity": "integer (default: 1)"

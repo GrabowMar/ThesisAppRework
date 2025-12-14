@@ -1,9 +1,7 @@
-# Flask Backend Scaffold - Minimal Blueprint
-# Model implements all application logic based on requirements
-from flask import Flask, jsonify, request
+# Flask Backend Scaffold - Modular Architecture
+# Application entry point - imports models and routes from separate modules
+from flask import Flask, jsonify
 from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
 import os
 import logging
 
@@ -18,35 +16,19 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////app/data/app.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
 
-db = SQLAlchemy()
+# Initialize database with app
+from models import db
+db.init_app(app)
 
-# ============================================================================
-# MODELS - Define your database models here
-# ============================================================================
-# Example:
-# class Item(db.Model):
-#     id = db.Column(db.Integer, primary_key=True)
-#     name = db.Column(db.String(255), nullable=False)
-#     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-#     
-#     def to_dict(self):
-#         return {'id': self.id, 'name': self.name, 'created_at': self.created_at.isoformat()}
-
-
-# ============================================================================
-# ROUTES - Define your API endpoints here
-# ============================================================================
-# All routes should start with /api/
-# Example:
-# @app.route('/api/items', methods=['GET'])
-# def get_items():
-#     items = Item.query.all()
-#     return jsonify([item.to_dict() for item in items])
+# Register route blueprints
+from routes import user_bp, admin_bp
+app.register_blueprint(user_bp)
+app.register_blueprint(admin_bp)
 
 
 @app.route('/api/health')
 def health():
-    """Health check endpoint."""
+    """Health check endpoint - DO NOT MODIFY."""
     return jsonify({'status': 'healthy', 'service': 'backend'})
 
 
@@ -55,10 +37,12 @@ def health():
 # ============================================================================
 def init_app():
     """Initialize database and create tables."""
-    db.init_app(app)
     with app.app_context():
         db.create_all()
         logger.info("Database initialized")
+        # Seed data function can be called here if defined in services.py
+        # from services import seed_data
+        # seed_data()
 
 init_app()
 

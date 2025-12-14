@@ -147,9 +147,11 @@ class GenerationConfig:
     app_num: int
     template_slug: str
     component: str  # 'frontend' or 'backend'
+    query_type: str = 'user'  # 'user' or 'admin' - determines which requirements/routes to generate
     temperature: float = 0.3
     max_tokens: int = 64000  # Increased from 32000 for longer, more complete code generation
     requirements: Optional[Dict] = None  # Requirements from JSON file
+    existing_models_summary: Optional[str] = None  # Summary of models from user query (for admin)
 
 
 class ScaffoldingManager:
@@ -375,8 +377,12 @@ class CodeGenerator:
         if effective_max_tokens < config.max_tokens:
             logger.info(f"Capping max_tokens to {effective_max_tokens} (model limit) from {config.max_tokens} (config)")
         
+        # Get system prompt with query_type for 4-query system
+        query_type = config.query_type if hasattr(config, 'query_type') and config.query_type else 'user'
+        system_prompt = self._get_system_prompt(config.component, query_type)
+        
         messages = [
-            {"role": "system", "content": self._get_system_prompt(config.component)},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt}
         ]
 
@@ -507,28 +513,58 @@ class CodeGenerator:
             logger.error(f"Failed to load scaffolding info: {e}")
             return ""
     
-    def _load_prompt_template(self, component: str, model_slug: Optional[str] = None) -> str:
-        """Load prompt template for component."""
-        # Use standard template
-        template_file = self.template_dir / 'two-query' / f"{component}.md.jinja2"
+    def _load_prompt_template(self, component: str, query_type: str = 'user', model_slug: Optional[str] = None) -> str:
+        """Load prompt template for component and query type.
         
-        if not template_file.exists():
-            logger.warning(f"Template not found: {template_file}")
-            return ""
+        Args:
+            component: 'frontend' or 'backend'
+            query_type: 'user' or 'admin'
+            model_slug: Optional model-specific override
+            
+        Returns:
+            Template content or empty string if not found
+        """
+        # Build template filename based on query system (4-query vs 2-query)
+        four_query_dir = self.template_dir / 'four-query'
+        two_query_dir = self.template_dir / 'two-query'
         
-        try:
-            with open(template_file, 'r', encoding='utf-8') as f:
-                return f.read()
-        except Exception as e:
-            logger.error(f"Failed to load template: {e}")
-            return ""
+        # Try 4-query templates first
+        if four_query_dir.exists():
+            template_name = f"{component}_{query_type}.md.jinja2"
+            template_file = four_query_dir / template_name
+            if template_file.exists():
+                logger.info(f"Using 4-query template: {template_name}")
+                try:
+                    return template_file.read_text(encoding='utf-8')
+                except Exception as e:
+                    logger.error(f"Failed to load 4-query template: {e}")
+        
+        # Fall back to 2-query templates (for backward compatibility)
+        if query_type == 'user':  # Only user query maps to 2-query
+            template_file = two_query_dir / f"{component}.md.jinja2"
+            if template_file.exists():
+                logger.info(f"Falling back to 2-query template: {component}.md.jinja2")
+                try:
+                    return template_file.read_text(encoding='utf-8')
+                except Exception as e:
+                    logger.error(f"Failed to load 2-query template: {e}")
+        
+        logger.warning(f"No template found for {component}/{query_type}")
+        return ""
 
-    def _format_api_endpoints(self, requirements: Optional[Dict[str, Any]]) -> str:
-        """Format API endpoint definitions for inclusion in prompts."""
+    def _format_api_endpoints(self, requirements: Optional[Dict[str, Any]], admin: bool = False) -> str:
+        """Format API endpoint definitions for inclusion in prompts.
+        
+        Args:
+            requirements: Requirements dict containing api_endpoints or admin_api_endpoints
+            admin: If True, format admin_api_endpoints instead
+        """
         if not requirements:
             return "No explicit API endpoints provided."
 
-        endpoints = requirements.get('api_endpoints') or []
+        # Choose endpoint key based on admin flag
+        endpoint_key = 'admin_api_endpoints' if admin else 'api_endpoints'
+        endpoints = requirements.get(endpoint_key) or []
         if not endpoints:
             return "No explicit API endpoints provided."
 
@@ -688,7 +724,14 @@ class CodeGenerator:
             logger.warning(f"Failed to save metadata: {e}")
     
     def _build_prompt(self, config: GenerationConfig) -> str:
-        """Build generation prompt based on template + scaffolding + requirements."""
+        """Build generation prompt based on 4-query template system.
+        
+        4-Query System:
+        - Query 1: backend_user - Models + User routes + Services
+        - Query 2: backend_admin - Admin routes (uses models from Query 1)
+        - Query 3: frontend_user - UserPage + API service + Hooks
+        - Query 4: frontend_admin - AdminPage + Admin API functions
+        """
         from jinja2 import Environment, FileSystemLoader
 
         # Load requirements if not already loaded
@@ -696,30 +739,54 @@ class CodeGenerator:
             config.requirements = self._load_requirements(config.template_slug)
         
         reqs = config.requirements
+        query_type = config.query_type  # 'user' or 'admin'
         
-        # Set up Jinja2 environment
-        env = Environment(loader=FileSystemLoader(self.template_dir / 'two-query'))
+        # Determine template directory (prefer four-query)
+        four_query_dir = self.template_dir / 'four-query'
+        two_query_dir = self.template_dir / 'two-query'
         
-        # Always use standard template
-        template_name = f"{config.component}.md.jinja2"
+        template = None
+        template_name = None
         
-        try:
-            template = env.get_template(template_name)
-        except Exception as e:
-            logger.error(f"Template not found: {e}")
-            template = None
+        # Try 4-query templates first
+        if four_query_dir.exists():
+            template_name = f"{config.component}_{query_type}.md.jinja2"
+            env = Environment(loader=FileSystemLoader(four_query_dir))
+            try:
+                template = env.get_template(template_name)
+                logger.info(f"Using 4-query template: {template_name}")
+            except Exception:
+                template = None
+        
+        # Fall back to 2-query for user queries only
+        if not template and query_type == 'user':
+            template_name = f"{config.component}.md.jinja2"
+            env = Environment(loader=FileSystemLoader(two_query_dir))
+            try:
+                template = env.get_template(template_name)
+                logger.info(f"Falling back to 2-query template: {template_name}")
+            except Exception as e:
+                logger.error(f"Template not found: {e}")
+                template = None
 
         # If template exists, use it
         if template and reqs:
             app_name = reqs.get('name', 'Application')
             app_description = reqs.get('description', 'web application')
             
-            if config.component == 'backend':
-                req_list = reqs.get('backend_requirements', [])
+            # Select requirements based on query type
+            if query_type == 'admin':
+                req_list = reqs.get('admin_requirements', [])
+                endpoint_text = self._format_api_endpoints(reqs, admin=True)
             else:
-                req_list = reqs.get('frontend_requirements', [])
-
-            endpoint_text = self._format_api_endpoints(reqs)
+                if config.component == 'backend':
+                    req_list = reqs.get('backend_requirements', [])
+                else:
+                    req_list = reqs.get('frontend_requirements', [])
+                endpoint_text = self._format_api_endpoints(reqs, admin=False)
+            
+            # Also provide user endpoints for admin context
+            admin_endpoint_text = self._format_api_endpoints(reqs, admin=True) if query_type == 'admin' else ''
             
             # Load scaffolding content
             scaffolding_content = self._load_scaffolding_files(config.model_slug, config.app_num, config.template_slug)
@@ -728,21 +795,27 @@ class CodeGenerator:
             context = {
                 'name': app_name,
                 'description': app_description,
-                'backend_requirements': req_list if config.component == 'backend' else [],
-                'frontend_requirements': req_list if config.component == 'frontend' else [],
+                'backend_requirements': reqs.get('backend_requirements', []) if config.component == 'backend' and query_type == 'user' else [],
+                'frontend_requirements': reqs.get('frontend_requirements', []) if config.component == 'frontend' and query_type == 'user' else [],
+                'admin_requirements': reqs.get('admin_requirements', []) if query_type == 'admin' else [],
                 'api_endpoints': endpoint_text,
+                'admin_api_endpoints': admin_endpoint_text,
+                'existing_models_summary': config.existing_models_summary or 'No models defined yet.',
                 **scaffolding_content
             }
             
             # Render the prompt
             prompt = template.render(context)
             
-            logger.info(f"Built prompt using Jinja2 template: {len(prompt)} chars")
+            logger.info(f"Built {query_type} prompt using Jinja2 template: {len(prompt)} chars")
             return prompt
         
         # Fallback to old format if template/requirements not found
         logger.warning("Jinja2 template or requirements not found, using fallback")
-
+        return self._build_fallback_prompt(config, reqs)
+    
+    def _build_fallback_prompt(self, config: GenerationConfig, reqs: Optional[Dict]) -> str:
+        """Build fallback prompt when templates are not available."""
         endpoint_text = self._format_api_endpoints(reqs)
 
         if config.component == 'backend':
@@ -897,69 +970,138 @@ Generate the React component code:"""
         
         return content
 
-    def _get_system_prompt(self, component: str) -> str:
-        """Get system prompt from external file or fallback to embedded prompt."""
-        # Try to load from external file first
-        prompts_dir = MISC_DIR / 'prompts' / 'system'
-        prompt_file = prompts_dir / f'{component}.md'
+    def _get_system_prompt(self, component: str, query_type: str = 'user') -> str:
+        """Get system prompt from external file for 4-query system.
         
-        if prompt_file.exists():
+        Args:
+            component: 'backend' or 'frontend'
+            query_type: 'user' or 'admin'
+            
+        Returns:
+            System prompt string
+        """
+        prompts_dir = MISC_DIR / 'prompts' / 'system'
+        
+        # Try 4-query specific prompt first (e.g., backend_user.md)
+        four_query_file = prompts_dir / f'{component}_{query_type}.md'
+        if four_query_file.exists():
             try:
-                content = prompt_file.read_text(encoding='utf-8')
-                logger.info(f"Loaded system prompt from {prompt_file}")
+                content = four_query_file.read_text(encoding='utf-8')
+                logger.info(f"Loaded 4-query system prompt from {four_query_file}")
                 return content
             except Exception as e:
-                logger.warning(f"Failed to load prompt from {prompt_file}: {e}, using fallback")
+                logger.warning(f"Failed to load prompt from {four_query_file}: {e}")
+        
+        # Fallback to component-only prompt (e.g., backend.md) for user queries
+        if query_type == 'user':
+            fallback_file = prompts_dir / f'{component}.md'
+            if fallback_file.exists():
+                try:
+                    content = fallback_file.read_text(encoding='utf-8')
+                    logger.info(f"Loaded fallback system prompt from {fallback_file}")
+                    return content
+                except Exception as e:
+                    logger.warning(f"Failed to load prompt from {fallback_file}: {e}, using embedded")
         
         # Fallback to embedded prompts
+        return self._get_fallback_system_prompt(component, query_type)
+    
+    def _get_fallback_system_prompt(self, component: str, query_type: str) -> str:
+        """Get embedded fallback system prompts for 4-query system."""
         if component == 'frontend':
-            return """You are an expert React developer specializing in production-ready web applications.
+            if query_type == 'admin':
+                return """You are an expert React developer creating the ADMIN interface.
 
-Your task is to generate complete, working React frontend code based on the given requirements.
+Your task is to generate the AdminPage component and admin API functions.
 
-## What You CAN Generate
-- Main App component (App.jsx)
-- Additional React components (create new files as needed)
-- Custom CSS styles (App.css or additional CSS files)
-- Additional npm dependencies (mention them clearly)
-- Utility functions and hooks
+## What You MUST Generate
+- AdminPage.jsx: Admin dashboard with data management interface
+- api.js additions: Admin-specific API functions (fetchAllItems, toggleStatus, bulkDelete, fetchStats)
+
+## Technical Guidelines
+- Use simple hardcoded admin check (no full auth system)
+- Admin pages should display all data with management controls
+- Include toggle status, bulk delete, and statistics features
+- Use existing hooks/useData.js patterns
+
+## Output Format
+Return your code wrapped in markdown code blocks:
+- AdminPage: ```jsx:src/pages/AdminPage.jsx
+- API additions: ```jsx:src/services/api.js
+
+Generate complete, working code - no placeholders or TODOs."""
+            else:  # user
+                return """You are an expert React developer specializing in production-ready web applications.
+
+Your task is to generate the USER-facing React frontend code.
+
+## What You MUST Generate
+- UserPage.jsx: Main user interface component
+- api.js: API service with user endpoints
+- useData.js: Custom hooks for data management
 
 ## Technical Guidelines
 - Use modern React patterns (functional components, hooks)
-- Include all necessary imports
-- Add proper error handling, loading states, and user feedback
+- Include proper error handling, loading states, and user feedback
 - Use Tailwind CSS or custom CSS for styling
+- Connect to backend API endpoints
 
 ## Output Format
-Return your code wrapped in appropriate markdown code blocks:
-- JSX/React code: ```jsx or ```javascript
-- CSS code: ```css or ```css:filename.css
-- Additional components: ```jsx:components/ComponentName.jsx
+Return your code wrapped in markdown code blocks:
+- UserPage: ```jsx:src/pages/UserPage.jsx
+- API service: ```jsx:src/services/api.js
+- Hooks: ```jsx:src/hooks/useData.js
 
 Generate complete, working code - no placeholders or TODOs."""
         
         else:  # backend
-            return """You are an expert Flask developer specializing in production-ready REST APIs.
+            if query_type == 'admin':
+                return """You are an expert Flask developer creating ADMIN routes.
 
-Your task is to generate complete, working Flask backend code based on the given requirements.
+Your task is to generate admin-specific routes using the models from Query 1.
 
-## What You CAN Generate
-- Main application code (app.py with routes, models, business logic)
-- Additional Python modules (models.py, routes.py, utils.py, etc.)
-- Additional requirements for requirements.txt
+## What You MUST Generate
+- routes/admin.py: Admin routes with the admin_bp Blueprint (/api/admin prefix)
+
+## Admin Endpoints Pattern
+- GET /api/admin/items - Fetch all items with filters
+- POST /api/admin/items/<id>/toggle - Toggle item status
+- POST /api/admin/items/bulk-delete - Bulk delete items
+- GET /api/admin/stats - Get statistics
+
+## Technical Guidelines
+- Use simple hardcoded admin check (SECRET_ADMIN_KEY header)
+- Import models from models.py (already generated)
+- Import services from services.py (already generated)
+- Use the db instance from app.py
+
+## Output Format
+Return your code wrapped in markdown code blocks:
+- Admin routes: ```python:routes/admin.py
+
+Generate complete, working code - no placeholders or TODOs."""
+            else:  # user
+                return """You are an expert Flask developer specializing in production-ready REST APIs.
+
+Your task is to generate the USER-facing Flask backend code.
+
+## What You MUST Generate
+- models.py: SQLAlchemy models
+- routes/user.py: User routes with the user_bp Blueprint (/api prefix)
+- services.py: Business logic services
 
 ## Technical Guidelines
 - Use Flask best practices and proper project structure
-- Use SQLAlchemy for database models when needed
+- Use SQLAlchemy for database models
 - Database path: sqlite:////app/data/app.db
 - Include CORS configuration for frontend integration
 - Add proper error handling, validation, and logging
 
 ## Output Format
-Return your code wrapped in appropriate markdown code blocks:
-- Python code: ```python
-- Additional files: ```python:filename.py
-- Requirements: ```requirements
+Return your code wrapped in markdown code blocks:
+- Models: ```python:models.py
+- User routes: ```python:routes/user.py
+- Services: ```python:services.py
 
 Generate complete, working code - no placeholders or TODOs."""
 
@@ -1063,102 +1205,357 @@ class CodeMerger:
         is_valid = len(errors) == 0
         return is_valid, errors
 
-    def merge_backend(self, app_dir: Path, generated_content: str) -> bool:
-        """
-        Replace backend app.py with LLM-generated code and handle additional files.
-        """
-        logger.info("Starting backend merge...")
-        app_py_path = app_dir / 'backend' / 'app.py'
-        if not app_py_path.exists():
-            logger.error(f"Target app.py missing at {app_py_path}!")
-            return False
+    # File whitelists for query_type filtering
+    # 'user' queries can write to any file (they set up the base structure)
+    # 'admin' queries should only write to admin-specific files
+    BACKEND_ADMIN_WHITELIST = {
+        'routes/admin.py',
+        'admin.py',  # Legacy fallback
+    }
+    
+    # Files that admin queries can APPEND to (not overwrite)
+    BACKEND_ADMIN_APPEND_FILES = {
+        'services.py',  # Admin may add service functions
+    }
+    
+    FRONTEND_ADMIN_WHITELIST = {
+        'pages/adminpage.jsx',
+        'adminpage.jsx',  # Legacy fallback
+        'pages/admin.jsx',
+        'admin.jsx',
+    }
+    
+    # Files that admin queries can APPEND to (not overwrite)
+    FRONTEND_ADMIN_APPEND_FILES = {
+        'services/api.js',
+        'api.js',  # Legacy fallback
+    }
 
+    def merge_backend(self, app_dir: Path, generated_content: str, query_type: str = 'user') -> bool:
+        """
+        Replace backend files with LLM-generated code.
+        
+        Args:
+            app_dir: Path to the app directory
+            generated_content: LLM response with code blocks
+            query_type: 'user' or 'admin' - controls which files can be written
+                       'user' queries can write any file
+                       'admin' queries are restricted to admin-specific files
+        """
+        logger.info(f"Starting backend merge (query_type={query_type})...")
+        
+        backend_dir = app_dir / 'backend'
+        
         # Extract all code blocks from the response
         all_blocks = self._extract_all_code_blocks(generated_content)
         
-        # Find main Python code (no filename specified or app.py)
-        main_code = None
+        if query_type == 'user':
+            # User query: standard behavior - write main app.py and all additional files
+            return self._merge_backend_user(app_dir, all_blocks, generated_content)
+        else:
+            # Admin query: restricted to admin-specific files only
+            return self._merge_backend_admin(app_dir, all_blocks)
+    
+    def _merge_backend_user(self, app_dir: Path, all_blocks: List[Dict], generated_content: str) -> bool:
+        """Handle backend merge for 'user' query - writes to models.py, services.py, routes/user.py.
+        
+        NOTE: Does NOT overwrite app.py unless the LLM explicitly outputs app.py content with Flask app setup.
+        The scaffolding's app.py already has proper Flask factory pattern.
+        """
+        backend_dir = app_dir / 'backend'
+        models_path = backend_dir / 'models.py'
+        services_path = backend_dir / 'services.py'
+        user_routes_path = backend_dir / 'routes' / 'user.py'
+        
+        files_written = 0
+        
+        # Process each code block and route to appropriate file
         for block in all_blocks:
             lang = block.get('language', '').lower()
-            filename = block.get('filename', '').lower()
-            if lang in {'python', 'py'} and (not filename or filename == 'app.py'):
-                main_code = block['code']
-                break
+            filename = block.get('filename', '').lower() if block.get('filename') else ''
+            code = block.get('code', '')
+            
+            if not code or lang not in {'python', 'py'}:
+                # Handle requirements separately
+                if lang == 'requirements' or filename == 'requirements.txt':
+                    self._append_requirements(app_dir, code)
+                continue
+            
+            # Determine target file based on filename or content analysis
+            target_path = None
+            
+            if filename:
+                # Explicit filename given
+                if filename == 'models.py':
+                    target_path = models_path
+                elif filename == 'services.py':
+                    target_path = services_path
+                elif 'routes/user' in filename or filename == 'user.py':
+                    target_path = user_routes_path
+                elif filename == 'app.py':
+                    # Only write to app.py if it's actual Flask app code (has Flask import and app setup)
+                    if 'from flask import' in code and ('Flask(' in code or 'create_app' in code):
+                        target_path = backend_dir / 'app.py'
+                        logger.info("Found explicit app.py with Flask setup")
+                    else:
+                        # This is probably models being output as app.py - redirect to models.py
+                        logger.warning("Block named app.py appears to be models, redirecting to models.py")
+                        target_path = models_path
+                else:
+                    # Other Python file
+                    target_path = backend_dir / block.get('filename', filename)
+            else:
+                # No filename - analyze content to determine destination
+                if 'db.Model' in code or 'class ' in code and 'db.Column' in code:
+                    target_path = models_path
+                    logger.info("Unnamed block appears to be models, writing to models.py")
+                elif '@user_bp.route' in code or 'from routes import user_bp' in code:
+                    target_path = user_routes_path
+                    logger.info("Unnamed block appears to be user routes, writing to routes/user.py")
+                elif 'def ' in code and ('validate' in code or 'get_' in code or 'create_' in code):
+                    target_path = services_path
+                    logger.info("Unnamed block appears to be services, writing to services.py")
+                elif 'from flask import' in code and ('Flask(' in code or 'create_app' in code):
+                    target_path = backend_dir / 'app.py'
+                    logger.info("Unnamed block appears to be Flask app, writing to app.py")
+                else:
+                    # Default to models.py for class definitions
+                    if 'class ' in code:
+                        target_path = models_path
+                        logger.info("Unnamed block with class, defaulting to models.py")
+                    else:
+                        logger.warning(f"Could not determine target for unnamed block, skipping")
+                        continue
+            
+            if target_path:
+                # Validate Python syntax
+                is_valid, errors = self.validate_generated_code(code, 'backend')
+                if not is_valid:
+                    logger.warning(f"Backend code validation warnings for {target_path.name}:")
+                    for err in errors[:3]:  # Limit error output
+                        logger.warning(f"  - {err}")
+                
+                # Create parent directory if needed
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                target_path.write_text(code, encoding='utf-8')
+                logger.info(f"✓ Wrote {len(code)} chars to {target_path.name}")
+                files_written += 1
+
+        # Infer and update dependencies from written files
+        for path in [models_path, services_path, user_routes_path]:
+            if path.exists():
+                code = path.read_text(encoding='utf-8')
+                inferred_deps = self._infer_backend_dependencies(code)
+                if inferred_deps:
+                    self._update_backend_requirements(app_dir, inferred_deps)
         
-        if not main_code:
-            # Fall back to old method
-            main_code = self._select_code_block(generated_content, {'python', 'py'})
-        
-        if not main_code:
-            logger.error(f"Code extraction failed: No Python code found in LLM response")
-            logger.error(f"Response preview: {generated_content[:500]}...")
-            return False
-
-        logger.info(f"Extracted {len(main_code)} chars of Python code from LLM response")
-
-        # Validate Python syntax
-        is_valid, errors = self.validate_generated_code(main_code, 'backend')
-        if not is_valid:
-            logger.error(f"Backend code validation failed with {len(errors)} error(s):")
-            for i, error in enumerate(errors, 1):
-                logger.error(f"  {i}. {error}")
-            logger.error("Writing code anyway - Docker build will catch critical errors")
-
-        # Write main app.py
-        app_py_path.write_text(main_code, encoding='utf-8')
-        logger.info(f"✓ Wrote {len(main_code)} chars to {app_py_path}")
-
-        # Handle additional Python files
+        logger.info(f"Backend user merge complete: {files_written} files written")
+        return files_written > 0
+    
+    def _merge_backend_admin(self, app_dir: Path, all_blocks: List[Dict]) -> bool:
+        """Handle backend merge for 'admin' query - restricted to admin files only."""
         backend_dir = app_dir / 'backend'
+        files_written = 0
+        files_skipped = 0
+        
         for block in all_blocks:
             lang = block.get('language', '').lower()
             filename = block.get('filename', '')
             code = block.get('code', '')
             
-            if not filename or filename.lower() == 'app.py':
+            if not code:
                 continue
-                
-            # Handle additional Python files
-            if lang in {'python', 'py'} and filename.endswith('.py'):
+            
+            # Handle requirements additions (always allowed)
+            if lang == 'requirements' or filename == 'requirements.txt':
+                self._append_requirements(app_dir, code)
+                continue
+            
+            # Only process Python files
+            if lang not in {'python', 'py'}:
+                continue
+            
+            filename_lower = filename.lower() if filename else ''
+            
+            # Check if file is in admin whitelist
+            if self._is_backend_admin_allowed(filename_lower):
                 target_path = backend_dir / filename
                 target_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Validate Python syntax
+                is_valid, errors = self.validate_generated_code(code, 'backend')
+                if not is_valid:
+                    logger.warning(f"Admin backend code validation warnings for {filename}:")
+                    for err in errors:
+                        logger.warning(f"  - {err}")
+                
                 target_path.write_text(code, encoding='utf-8')
-                logger.info(f"✓ Wrote additional file: {filename}")
+                logger.info(f"✓ [ADMIN] Wrote {len(code)} chars to {filename}")
+                files_written += 1
             
-            # Handle requirements additions
-            elif lang == 'requirements' or filename == 'requirements.txt':
-                self._append_requirements(app_dir, code)
-
-        # Infer and update dependencies from main code
-        inferred_deps = self._infer_backend_dependencies(main_code)
-        if inferred_deps:
-            logger.info(f"Inferred {len(inferred_deps)} backend dependencies: {sorted(inferred_deps)}")
-            self._update_backend_requirements(app_dir, inferred_deps)
+            # Check if file can be appended to
+            elif self._is_backend_append_allowed(filename_lower):
+                target_path = backend_dir / filename
+                if target_path.exists():
+                    self._smart_append_python(target_path, code)
+                    logger.info(f"✓ [ADMIN] Appended functions to {filename}")
+                    files_written += 1
+                else:
+                    logger.warning(f"[ADMIN] Cannot append to non-existent file: {filename}")
+                    files_skipped += 1
             
-        return True
-
-    def merge_frontend(self, app_dir: Path, generated_content: str) -> bool:
-        """
-        Replace frontend App.jsx with LLM-generated code and handle additional files.
-        """
-        logger.info("Starting frontend merge...")
-        app_jsx = app_dir / 'frontend' / 'src' / 'App.jsx'
-        if not app_jsx.exists():
-            logger.error(f"Target App.jsx missing at {app_jsx}!")
+            else:
+                # File not allowed for admin query - log warning but continue
+                logger.warning(
+                    f"[ADMIN] Skipping unauthorized file: {filename} "
+                    f"(admin queries can only write to: {', '.join(self.BACKEND_ADMIN_WHITELIST)})"
+                )
+                files_skipped += 1
+        
+        if files_written == 0 and files_skipped > 0:
+            logger.warning(
+                f"[ADMIN] No admin files were written! "
+                f"LLM generated {files_skipped} files outside admin whitelist. "
+                f"This may indicate a prompt issue."
+            )
+        
+        logger.info(f"[ADMIN] Backend merge complete: {files_written} files written, {files_skipped} skipped")
+        return files_written > 0 or files_skipped == 0  # Success if we wrote something OR nothing was generated
+    
+    def _is_backend_admin_allowed(self, filename: str) -> bool:
+        """Check if filename is allowed for admin backend query."""
+        if not filename:
             return False
+        filename = filename.lower().replace('\\', '/')
+        return filename in self.BACKEND_ADMIN_WHITELIST or filename.endswith('/admin.py')
+    
+    def _is_backend_append_allowed(self, filename: str) -> bool:
+        """Check if filename can be appended to during admin query."""
+        if not filename:
+            return False
+        filename = filename.lower().replace('\\', '/')
+        return filename in self.BACKEND_ADMIN_APPEND_FILES
+    
+    def _smart_append_python(self, file_path: Path, new_code: str) -> None:
+        """Intelligently append new Python functions/classes to existing file.
+        
+        Extracts function and class definitions from new_code and appends
+        only those that don't already exist in the target file.
+        """
+        try:
+            existing_content = file_path.read_text(encoding='utf-8')
+            
+            # Parse existing file to find defined names
+            existing_names = set()
+            try:
+                tree = ast.parse(existing_content)
+                for node in ast.walk(tree):
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                        existing_names.add(node.name)
+                    elif isinstance(node, ast.ClassDef):
+                        existing_names.add(node.name)
+            except SyntaxError:
+                logger.warning(f"Could not parse {file_path} for duplicate detection")
+            
+            # Parse new code to extract definitions
+            new_definitions = []
+            try:
+                new_tree = ast.parse(new_code)
+                for node in ast.iter_child_nodes(new_tree):
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                        if node.name not in existing_names:
+                            # Extract the source lines for this definition
+                            start_line = node.lineno - 1
+                            end_line = node.end_lineno if hasattr(node, 'end_lineno') else start_line + 1
+                            lines = new_code.splitlines()[start_line:end_line]
+                            new_definitions.append('\n'.join(lines))
+                            logger.info(f"  Adding new definition: {node.name}")
+                        else:
+                            logger.info(f"  Skipping duplicate: {node.name}")
+            except SyntaxError:
+                logger.warning(f"Could not parse new code for {file_path}, appending raw")
+                new_definitions = [new_code]
+            
+            if new_definitions:
+                with file_path.open('a', encoding='utf-8') as f:
+                    f.write('\n\n# === Admin additions ===\n')
+                    f.write('\n\n'.join(new_definitions))
+                    f.write('\n')
+                logger.info(f"Appended {len(new_definitions)} definitions to {file_path}")
+            else:
+                logger.info(f"No new definitions to append to {file_path}")
+                
+        except Exception as e:
+            logger.error(f"Failed to append to {file_path}: {e}")
+
+    def merge_frontend(self, app_dir: Path, generated_content: str, query_type: str = 'user') -> bool:
+        """
+        Replace frontend files with LLM-generated code.
+        
+        Args:
+            app_dir: Path to the app directory
+            generated_content: LLM response with code blocks
+            query_type: 'user' or 'admin' - controls which files can be written
+                       'user' queries can write any file
+                       'admin' queries are restricted to admin-specific files
+        """
+        logger.info(f"Starting frontend merge (query_type={query_type})...")
         
         # Extract all code blocks from the response
         all_blocks = self._extract_all_code_blocks(generated_content)
         
-        # Find main JSX code (no filename specified or App.jsx)
+        if query_type == 'user':
+            # User query: standard behavior - write main App.jsx and all additional files
+            return self._merge_frontend_user(app_dir, all_blocks, generated_content)
+        else:
+            # Admin query: restricted to admin-specific files only
+            return self._merge_frontend_admin(app_dir, all_blocks)
+    
+    def _merge_frontend_user(self, app_dir: Path, all_blocks: List[Dict], generated_content: str) -> bool:
+        """Handle frontend merge for 'user' query - writes to pages/UserPage.jsx and services/api.js.
+        
+        NOTE: Does NOT overwrite App.jsx - the scaffolding's App.jsx already has routing.
+        The LLM generates UserPage content which goes to pages/UserPage.jsx.
+        """
+        frontend_src_dir = app_dir / 'frontend' / 'src'
+        user_page_path = frontend_src_dir / 'pages' / 'UserPage.jsx'
+        
+        if not user_page_path.exists():
+            logger.warning(f"Target UserPage.jsx missing at {user_page_path}, creating...")
+            user_page_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Find main JSX code (the user page content)
+        # Priority: explicit pages/UserPage.jsx > UserPage.jsx > unnamed block
         main_code = None
         for block in all_blocks:
             lang = block.get('language', '').lower()
             filename = block.get('filename', '').lower()
             if lang in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}:
-                if not filename or filename == 'app.jsx' or filename == 'src/app.jsx':
+                # Explicit UserPage reference
+                if 'userpage' in filename:
                     main_code = block['code']
+                    logger.info(f"Found explicit UserPage.jsx block")
                     break
+        
+        # If no explicit UserPage, look for unnamed block (assume it's UserPage content)
+        if not main_code:
+            for block in all_blocks:
+                lang = block.get('language', '').lower()
+                filename = block.get('filename', '').lower()
+                if lang in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}:
+                    # Unnamed block - assume it's page content
+                    if not filename:
+                        main_code = block['code']
+                        logger.info(f"Using unnamed JSX block as UserPage content")
+                        break
+                    # Also accept app.jsx if it looks like page content (has function UserPage or similar)
+                    elif filename in {'app.jsx', 'src/app.jsx'}:
+                        code = block['code']
+                        # Check if this looks like page content (single component, not router)
+                        if 'Routes' not in code and 'BrowserRouter' not in code:
+                            main_code = code
+                            logger.info(f"Block named app.jsx appears to be page content (no router)")
+                            break
         
         if not main_code:
             # Fall back to old method
@@ -1181,55 +1578,197 @@ class CodeMerger:
                 flags=re.IGNORECASE
             )
 
-        # Validate frontend code (warnings only)
-        is_valid, errors = self.validate_generated_code(main_code, 'frontend')
-        if errors:
-            logger.warning(f"Frontend validation warnings ({len(errors)}):")
-            for i, error in enumerate(errors, 1):
-                logger.warning(f"  {i}. {error}")
-
-        # Ensure export default exists
+        # Ensure export default exists (should export UserPage, not App)
         if 'export default' not in main_code:
-            logger.info("Adding missing 'export default App;'")
-            main_code += "\n\nexport default App;"
+            # Detect the function name
+            func_match = re.search(r'function\s+(\w+)', main_code)
+            export_name = func_match.group(1) if func_match else 'UserPage'
+            logger.info(f"Adding missing 'export default {export_name};'")
+            main_code += f"\n\nexport default {export_name};"
 
-        # Write main App.jsx
-        app_jsx.write_text(main_code, encoding='utf-8')
-        logger.info(f"✓ Wrote {len(main_code)} chars to {app_jsx}")
+        # Write to pages/UserPage.jsx (NOT App.jsx)
+        user_page_path.write_text(main_code, encoding='utf-8')
+        logger.info(f"✓ Wrote {len(main_code)} chars to {user_page_path}")
         
-        # Handle additional frontend files
-        frontend_src_dir = app_dir / 'frontend' / 'src'
+        # Handle additional frontend files (api.js, hooks, components)
+        files_written = 1  # UserPage counts as 1
         for block in all_blocks:
             lang = block.get('language', '').lower()
             filename = block.get('filename', '')
             code = block.get('code', '')
             
-            if not filename:
+            if not filename or not code:
                 continue
             
             # Normalize filename
             filename_lower = filename.lower()
+            
+            # Skip if this was the main UserPage content we already handled
+            if 'userpage' in filename_lower:
+                continue
             if filename_lower in {'app.jsx', 'src/app.jsx'}:
-                continue  # Already handled
+                # Check if this is routing code (should go to App.jsx)
+                if 'Routes' in code or 'BrowserRouter' in code:
+                    app_jsx_path = frontend_src_dir / 'App.jsx'
+                    app_jsx_path.write_text(code, encoding='utf-8')
+                    logger.info(f"✓ Wrote router code to App.jsx")
+                    files_written += 1
+                # Otherwise skip - we already used it as UserPage content or it's duplicate
+                continue
             
             # Handle CSS files
             if lang == 'css' or filename.endswith('.css'):
-                # Default to App.css if no specific filename
                 target_filename = filename if filename.endswith('.css') else 'App.css'
                 target_path = frontend_src_dir / target_filename
                 target_path.parent.mkdir(parents=True, exist_ok=True)
                 target_path.write_text(code, encoding='utf-8')
                 logger.info(f"✓ Wrote CSS file: {target_filename}")
+                files_written += 1
             
             # Handle additional JSX/JS files
             elif lang in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}:
-                # Handle paths like components/TrackList.jsx
                 target_path = frontend_src_dir / filename
                 target_path.parent.mkdir(parents=True, exist_ok=True)
                 target_path.write_text(code, encoding='utf-8')
                 logger.info(f"✓ Wrote additional component: {filename}")
+                files_written += 1
+        
+        logger.info(f"Frontend user merge complete: {files_written} files written")
+        return True
+    
+    def _merge_frontend_admin(self, app_dir: Path, all_blocks: List[Dict]) -> bool:
         
         return True
+    
+    def _merge_frontend_admin(self, app_dir: Path, all_blocks: List[Dict]) -> bool:
+        """Handle frontend merge for 'admin' query - restricted to admin files only."""
+        frontend_src_dir = app_dir / 'frontend' / 'src'
+        files_written = 0
+        files_skipped = 0
+        
+        for block in all_blocks:
+            lang = block.get('language', '').lower()
+            filename = block.get('filename', '')
+            code = block.get('code', '')
+            
+            if not code:
+                continue
+            
+            filename_lower = filename.lower() if filename else ''
+            
+            # Handle CSS files (always allowed for styling)
+            if lang == 'css' or (filename and filename.endswith('.css')):
+                target_filename = filename if filename.endswith('.css') else 'Admin.css'
+                target_path = frontend_src_dir / target_filename
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                target_path.write_text(code, encoding='utf-8')
+                logger.info(f"✓ [ADMIN] Wrote CSS file: {target_filename}")
+                files_written += 1
+                continue
+            
+            # Only process JS/JSX files
+            if lang not in {'jsx', 'javascript', 'js', 'tsx', 'typescript', 'ts'}:
+                continue
+            
+            # Check if file is in admin whitelist
+            if self._is_frontend_admin_allowed(filename_lower):
+                # Fix Docker networking
+                if 'localhost:5000' in code:
+                    code = re.sub(r'http://localhost:5000', '', code, flags=re.IGNORECASE)
+                
+                target_path = frontend_src_dir / filename
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                target_path.write_text(code, encoding='utf-8')
+                logger.info(f"✓ [ADMIN] Wrote {len(code)} chars to {filename}")
+                files_written += 1
+            
+            # Check if file can be appended to (api.js)
+            elif self._is_frontend_append_allowed(filename_lower):
+                target_path = frontend_src_dir / filename
+                if target_path.exists():
+                    self._smart_append_javascript(target_path, code)
+                    logger.info(f"✓ [ADMIN] Appended exports to {filename}")
+                    files_written += 1
+                else:
+                    logger.warning(f"[ADMIN] Cannot append to non-existent file: {filename}")
+                    files_skipped += 1
+            
+            else:
+                # File not allowed for admin query - log warning but continue
+                logger.warning(
+                    f"[ADMIN] Skipping unauthorized file: {filename} "
+                    f"(admin queries can only write to: {', '.join(self.FRONTEND_ADMIN_WHITELIST)})"
+                )
+                files_skipped += 1
+        
+        if files_written == 0 and files_skipped > 0:
+            logger.warning(
+                f"[ADMIN] No admin files were written! "
+                f"LLM generated {files_skipped} files outside admin whitelist. "
+                f"This may indicate a prompt issue."
+            )
+        
+        logger.info(f"[ADMIN] Frontend merge complete: {files_written} files written, {files_skipped} skipped")
+        return files_written > 0 or files_skipped == 0
+    
+    def _is_frontend_admin_allowed(self, filename: str) -> bool:
+        """Check if filename is allowed for admin frontend query."""
+        if not filename:
+            return False
+        filename = filename.lower().replace('\\', '/')
+        return filename in self.FRONTEND_ADMIN_WHITELIST or 'admin' in filename.lower()
+    
+    def _is_frontend_append_allowed(self, filename: str) -> bool:
+        """Check if filename can be appended to during admin query."""
+        if not filename:
+            return False
+        filename = filename.lower().replace('\\', '/')
+        return filename in self.FRONTEND_ADMIN_APPEND_FILES
+    
+    def _smart_append_javascript(self, file_path: Path, new_code: str) -> None:
+        """Intelligently append new JavaScript exports to existing file.
+        
+        Extracts export statements from new_code and appends only those
+        that don't already exist in the target file.
+        """
+        try:
+            existing_content = file_path.read_text(encoding='utf-8')
+            
+            # Find existing exported names (simplified regex approach)
+            existing_exports = set(re.findall(
+                r'export\s+(?:const|let|var|function|async\s+function)\s+(\w+)',
+                existing_content
+            ))
+            
+            # Find new exports to add
+            new_exports = []
+            # Match export statements
+            export_pattern = re.compile(
+                r'(export\s+(?:const|let|var|function|async\s+function)\s+(\w+)[^;]*(?:;|\{[^}]*\}))',
+                re.MULTILINE | re.DOTALL
+            )
+            
+            for match in export_pattern.finditer(new_code):
+                full_export = match.group(1)
+                export_name = match.group(2)
+                
+                if export_name not in existing_exports:
+                    new_exports.append(full_export)
+                    logger.info(f"  Adding new export: {export_name}")
+                else:
+                    logger.info(f"  Skipping duplicate export: {export_name}")
+            
+            if new_exports:
+                with file_path.open('a', encoding='utf-8') as f:
+                    f.write('\n\n// === Admin API additions ===\n')
+                    f.write('\n\n'.join(new_exports))
+                    f.write('\n')
+                logger.info(f"Appended {len(new_exports)} exports to {file_path}")
+            else:
+                logger.info(f"No new exports to append to {file_path}")
+                
+        except Exception as e:
+            logger.error(f"Failed to append to {file_path}: {e}")
     
     def _extract_all_code_blocks(self, content: str) -> List[Dict[str, str]]:
         """Extract all code blocks from content, including filename annotations.
@@ -1410,6 +1949,39 @@ class GenerationService:
             if app_key not in self.active_generations:
                 self.active_generations[app_key] = threading.Lock()
             return self.active_generations[app_key]
+
+    def _extract_models_summary(self, app_dir: Path) -> str:
+        """Extract summary of models from generated models.py file.
+        
+        Used to pass model context from backend_user (Query 1) to backend_admin (Query 2).
+        """
+        models_file = app_dir / 'backend' / 'models.py'
+        if not models_file.exists():
+            return "No models.py file found."
+        
+        try:
+            content = models_file.read_text(encoding='utf-8')
+            
+            # Extract class definitions and their fields
+            classes = re.findall(r'class\s+(\w+)\([^)]*\):', content)
+            
+            if not classes:
+                return "No model classes found in models.py."
+            
+            summary_parts = ["Available models from models.py:"]
+            for cls in classes:
+                if cls not in ('db', 'SQLAlchemy'):  # Skip non-model classes
+                    summary_parts.append(f"- {cls}")
+            
+            # Also include column definitions if found
+            columns = re.findall(r'(\w+)\s*=\s*db\.Column\([^)]+\)', content)
+            if columns:
+                summary_parts.append("\nDefined columns include: " + ", ".join(set(columns[:10])))
+            
+            return '\n'.join(summary_parts)
+        except Exception as e:
+            logger.warning(f"Failed to extract models summary: {e}")
+            return f"Error reading models.py: {str(e)}"
 
     def _queue_worker(self):
         """Background worker that processes generation tasks from the queue."""
@@ -1697,47 +2269,110 @@ class GenerationService:
                 result['scaffolded'] = True
                 app_dir = self.scaffolding.get_app_dir(model_slug, app_num, template_slug)
                 
-                # Step 2: Generate Backend
-                if generate_backend:
-                    logger.info("Step 2: Generating backend...")
-                    
-                    config = GenerationConfig(
-                        model_slug=model_slug,
-                        app_num=app_num,
-                        template_slug=template_slug,
-                        component='backend'
-                    )
-                    
-                    success, content, error = await self.generator.generate(config)
-                    
-                    if success:
-                        if merger.merge_backend(app_dir, content):
-                            result['backend_generated'] = True
-                        else:
-                            result['errors'].append("Backend merge failed")
-                    else:
-                        result['errors'].append(f"Backend generation failed: {error}")
+                # 4-Query System:
+                # Query 1: backend_user - Models + User routes + Services
+                # Query 2: backend_admin - Admin routes (uses models from Query 1)
+                # Query 3: frontend_user - UserPage + API service + Hooks
+                # Query 4: frontend_admin - AdminPage + Admin API additions
                 
-                # Step 3: Generate Frontend
-                if generate_frontend:
-                    logger.info("Step 3: Generating frontend...")
+                models_summary = "No models defined yet."
+                
+                # Step 2: Generate Backend User (Query 1)
+                if generate_backend:
+                    logger.info("Step 2a: Generating backend user components...")
                     
                     config = GenerationConfig(
                         model_slug=model_slug,
                         app_num=app_num,
                         template_slug=template_slug,
-                        component='frontend'
+                        component='backend',
+                        query_type='user'
                     )
                     
                     success, content, error = await self.generator.generate(config)
                     
                     if success:
-                        if merger.merge_frontend(app_dir, content):
-                            result['frontend_generated'] = True
+                        if merger.merge_backend(app_dir, content, query_type='user'):
+                            result['backend_user_generated'] = True
+                            # Extract models summary for admin query
+                            models_summary = self._extract_models_summary(app_dir)
                         else:
-                            result['errors'].append("Frontend merge failed")
+                            result['errors'].append("Backend user merge failed")
                     else:
-                        result['errors'].append(f"Frontend generation failed: {error}")
+                        result['errors'].append(f"Backend user generation failed: {error}")
+                    
+                    # Step 2b: Generate Backend Admin (Query 2) - only if user succeeded
+                    if result.get('backend_user_generated'):
+                        logger.info("Step 2b: Generating backend admin components...")
+                        
+                        config = GenerationConfig(
+                            model_slug=model_slug,
+                            app_num=app_num,
+                            template_slug=template_slug,
+                            component='backend',
+                            query_type='admin',
+                            existing_models_summary=models_summary
+                        )
+                        
+                        success, content, error = await self.generator.generate(config)
+                        
+                        if success:
+                            if merger.merge_backend(app_dir, content, query_type='admin'):
+                                result['backend_admin_generated'] = True
+                            else:
+                                result['errors'].append("Backend admin merge failed")
+                        else:
+                            result['errors'].append(f"Backend admin generation failed: {error}")
+                    
+                    # Overall backend success
+                    result['backend_generated'] = result.get('backend_user_generated', False) and result.get('backend_admin_generated', False)
+                
+                # Step 3: Generate Frontend User (Query 3)
+                if generate_frontend:
+                    logger.info("Step 3a: Generating frontend user components...")
+                    
+                    config = GenerationConfig(
+                        model_slug=model_slug,
+                        app_num=app_num,
+                        template_slug=template_slug,
+                        component='frontend',
+                        query_type='user'
+                    )
+                    
+                    success, content, error = await self.generator.generate(config)
+                    
+                    if success:
+                        if merger.merge_frontend(app_dir, content, query_type='user'):
+                            result['frontend_user_generated'] = True
+                        else:
+                            result['errors'].append("Frontend user merge failed")
+                    else:
+                        result['errors'].append(f"Frontend user generation failed: {error}")
+                    
+                    # Step 3b: Generate Frontend Admin (Query 4) - only if user succeeded
+                    if result.get('frontend_user_generated'):
+                        logger.info("Step 3b: Generating frontend admin components...")
+                        
+                        config = GenerationConfig(
+                            model_slug=model_slug,
+                            app_num=app_num,
+                            template_slug=template_slug,
+                            component='frontend',
+                            query_type='admin'
+                        )
+                        
+                        success, content, error = await self.generator.generate(config)
+                        
+                        if success:
+                            if merger.merge_frontend(app_dir, content, query_type='admin'):
+                                result['frontend_admin_generated'] = True
+                            else:
+                                result['errors'].append("Frontend admin merge failed")
+                        else:
+                            result['errors'].append(f"Frontend admin generation failed: {error}")
+                    
+                    # Overall frontend success
+                    result['frontend_generated'] = result.get('frontend_user_generated', False) and result.get('frontend_admin_generated', False)
             finally:
                 # Always release the lock
                 app_lock.release()

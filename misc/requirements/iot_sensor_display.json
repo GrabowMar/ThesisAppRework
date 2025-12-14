@@ -102,7 +102,63 @@
       "Reading.id": "integer (primary key)",
       "Reading.sensor_id": "integer (foreign key)",
       "Reading.value": "decimal",
-      "Reading.timestamp": "datetime (auto, ISO 8601)"
+      "Reading.timestamp": "datetime (auto, ISO 8601)",
+      "Sensor.is_active": "boolean (default: true, for soft delete)"
     }
-  }
+  },
+  "admin_requirements": [
+    "1. Admin dashboard showing key statistics (total count, active count, etc.)",
+    "2. Table listing ALL items including inactive/deleted with status badges",
+    "3. Toggle button to activate/deactivate items",
+    "4. Checkbox selection for bulk operations (delete, status change)",
+    "5. Search and filter functionality"
+  ],
+  "admin_api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/admin/sensors",
+      "description": "List ALL sensors including inactive",
+      "request": null,
+      "response": {
+        "items": [],
+        "total": 0
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/sensors/:id/toggle",
+      "description": "Toggle sensor active status",
+      "request": null,
+      "response": {
+        "id": 1,
+        "is_active": true
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/sensors/bulk-delete",
+      "description": "Delete multiple sensors",
+      "request": {
+        "ids": [
+          1,
+          2,
+          3
+        ]
+      },
+      "response": {
+        "deleted": 3
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stats",
+      "description": "Get dashboard statistics",
+      "request": null,
+      "response": {
+        "total": 0,
+        "active": 0,
+        "inactive": 0
+      }
+    }
+  ]
 }

@@ -116,7 +116,63 @@
       "description": "text (optional)",
       "status": "string (todo, in_progress, done - default: todo)",
       "priority": "string (low, medium, high - default: medium)",
-      "created_at": "datetime (auto, ISO 8601 format in JSON)"
+      "created_at": "datetime (auto, ISO 8601 format in JSON)",
+      "is_active": "boolean (default: true, for soft delete)"
     }
-  }
+  },
+  "admin_requirements": [
+    "1. Admin dashboard showing key statistics (total count, active count, etc.)",
+    "2. Table listing ALL items including inactive/deleted with status badges",
+    "3. Toggle button to activate/deactivate items",
+    "4. Checkbox selection for bulk operations (delete, status change)",
+    "5. Search and filter functionality"
+  ],
+  "admin_api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/admin/tasks",
+      "description": "List ALL tasks including inactive",
+      "request": null,
+      "response": {
+        "items": [],
+        "total": 0
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/tasks/:id/toggle",
+      "description": "Toggle task active status",
+      "request": null,
+      "response": {
+        "id": 1,
+        "is_active": true
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/tasks/bulk-delete",
+      "description": "Delete multiple tasks",
+      "request": {
+        "ids": [
+          1,
+          2,
+          3
+        ]
+      },
+      "response": {
+        "deleted": 3
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stats",
+      "description": "Get dashboard statistics",
+      "request": null,
+      "response": {
+        "total": 0,
+        "active": 0,
+        "inactive": 0
+      }
+    }
+  ]
 }

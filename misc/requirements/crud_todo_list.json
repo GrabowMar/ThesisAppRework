@@ -4,8 +4,8 @@
   "category": "CRUD",
   "description": "Simple task management - add, complete, and delete todos",
   "backend_requirements": [
-    "1. Todo model with SQLAlchemy: id, title (string, required), completed (boolean, default False), created_at",
-    "2. REST API endpoints: GET /api/todos (list all), POST /api/todos (create), PUT /api/todos/:id (update), DELETE /api/todos/:id",
+    "1. Todo model with SQLAlchemy: id, title (string, required), completed (boolean, default False), created_at, is_active (boolean, default True)",
+    "2. REST API endpoints: GET /api/todos (list active only), POST /api/todos (create), PUT /api/todos/:id (update), DELETE /api/todos/:id (soft delete)",
     "3. Filter support: ?completed=true/false query parameter",
     "4. JSON responses with proper status codes (200, 201, 404)",
     "5. Input validation: title is required and cannot be empty"
@@ -17,11 +17,18 @@
     "4. Delete button per todo with confirmation",
     "5. Show empty state when no todos exist"
   ],
+  "admin_requirements": [
+    "1. Admin dashboard showing total todos, completed count, and deleted count statistics",
+    "2. Table listing ALL todos including deleted/inactive ones with status badges",
+    "3. Toggle button to activate/deactivate todos (soft delete restore)",
+    "4. Checkbox selection for multiple todos with bulk delete action",
+    "5. Search/filter by title and status"
+  ],
   "api_endpoints": [
     {
       "method": "GET",
       "path": "/api/todos",
-      "description": "List all todos (supports ?completed=true/false filter)",
+      "description": "List all active todos (supports ?completed=true/false filter)",
       "request": null,
       "response": {"items": [{"id": 1, "title": "string", "completed": false, "created_at": "ISO8601"}], "total": 1}
     },
@@ -42,7 +49,7 @@
     {
       "method": "DELETE",
       "path": "/api/todos/:id",
-      "description": "Delete todo",
+      "description": "Soft delete todo (set is_active=false)",
       "request": null,
       "response": {}
     },
@@ -54,12 +61,43 @@
       "response": {"status": "healthy", "service": "backend"}
     }
   ],
+  "admin_api_endpoints": [
+    {
+      "method": "GET",
+      "path": "/api/admin/todos",
+      "description": "List ALL todos including inactive",
+      "request": null,
+      "response": {"items": [{"id": 1, "title": "string", "completed": false, "is_active": true, "created_at": "ISO8601"}], "total": 1}
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/todos/:id/toggle",
+      "description": "Toggle todo active status",
+      "request": null,
+      "response": {"id": 1, "title": "string", "is_active": true}
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/todos/bulk-delete",
+      "description": "Permanently delete multiple todos",
+      "request": {"ids": [1, 2, 3]},
+      "response": {"deleted": 3}
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/stats",
+      "description": "Get dashboard statistics",
+      "request": null,
+      "response": {"total": 10, "completed": 5, "active": 8, "inactive": 2}
+    }
+  ],
   "data_model": {
     "name": "Todo",
     "fields": {
       "id": "integer (primary key, auto-increment)",
       "title": "string (required, max 255 chars)",
       "completed": "boolean (default: false)",
+      "is_active": "boolean (default: true, for soft delete)",
       "created_at": "datetime (auto, ISO 8601 format in JSON)"
     }
   }
