@@ -296,3 +296,150 @@ class TestHealGeneratedApp:
         
         assert result is not None
         assert result.app_path == str(tmp_path)
+
+
+class TestJSXExtensionFix:
+    """Tests for JSX file extension validation and fixing."""
+
+    @pytest.fixture
+    def healer(self):
+        """Create a DependencyHealer instance."""
+        from app.services.dependency_healer import DependencyHealer
+        return DependencyHealer(auto_fix=True)
+
+    def test_detect_jsx_in_js_file(self, healer, tmp_path):
+        """Test detection of JSX syntax in .js files."""
+        src_dir = tmp_path / "frontend" / "src"
+        src_dir.mkdir(parents=True)
+        
+        # Create a .js file containing JSX
+        jsx_file = src_dir / "hooks" / "useAuth.js"
+        jsx_file.parent.mkdir(parents=True)
+        jsx_file.write_text("""
+import { createContext, useContext, useState } from 'react';
+
+const AuthContext = createContext(null);
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  
+  return (
+    <AuthContext.Provider value={{ user, setUser }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+        """)
+        
+        issues = healer._find_jsx_extension_issues(src_dir)
+        
+        assert len(issues) == 1
+        assert issues[0]['file'] == jsx_file
+        assert issues[0]['new_file'].suffix == '.jsx'
+
+    def test_no_false_positive_for_pure_js(self, healer, tmp_path):
+        """Test that pure JS files are not flagged."""
+        src_dir = tmp_path / "frontend" / "src"
+        src_dir.mkdir(parents=True)
+        
+        # Create a pure .js file without JSX
+        pure_js = src_dir / "services" / "api.js"
+        pure_js.parent.mkdir(parents=True)
+        pure_js.write_text("""
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: '/api',
+});
+
+export const getUsers = () => api.get('/users');
+export const createUser = (data) => api.post('/users', data);
+        """)
+        
+        issues = healer._find_jsx_extension_issues(src_dir)
+        
+        assert len(issues) == 0
+
+    def test_fix_jsx_extension(self, healer, tmp_path):
+        """Test automatic renaming of .js files with JSX to .jsx."""
+        from app.services.dependency_healer import HealingResult
+        
+        src_dir = tmp_path / "frontend" / "src"
+        hooks_dir = src_dir / "hooks"
+        hooks_dir.mkdir(parents=True)
+        
+        # Create a .js file containing JSX
+        jsx_file = hooks_dir / "useAuth.js"
+        jsx_file.write_text("""
+export function AuthProvider({ children }) {
+  return <div>{children}</div>;
+}
+        """)
+        
+        result = HealingResult(success=True, app_path=str(tmp_path))
+        issues = healer._find_jsx_extension_issues(src_dir)
+        healer._fix_jsx_extensions(issues, result)
+        
+        # Original file should be gone
+        assert not jsx_file.exists()
+        # New .jsx file should exist
+        assert (hooks_dir / "useAuth.jsx").exists()
+        assert result.issues_fixed == 1
+        assert any("Renamed" in change for change in result.changes_made)
+
+    def test_full_heal_includes_jsx_fix(self, healer, tmp_path):
+        """Test that heal_app includes JSX extension fix."""
+        # Create app structure
+        frontend_dir = tmp_path / "frontend"
+        src_dir = frontend_dir / "src" / "hooks"
+        src_dir.mkdir(parents=True)
+        
+        (frontend_dir / "package.json").write_text('{"dependencies": {"react": "^18.0.0"}}')
+        
+        # Create problematic file
+        jsx_file = src_dir / "useAuth.js"
+        jsx_file.write_text("""
+import { createContext } from 'react';
+export function Provider({ children }) {
+  return <AuthContext.Provider>{children}</AuthContext.Provider>;
+}
+        """)
+        
+        # Create backend structure (required)
+        backend_dir = tmp_path / "backend"
+        backend_dir.mkdir()
+        (backend_dir / "requirements.txt").write_text("Flask==3.0.0\n")
+        
+        result = healer.heal_app(tmp_path)
+        
+        # Should have fixed the JSX extension
+        assert not jsx_file.exists()
+        assert (src_dir / "useAuth.jsx").exists()
+        assert result.issues_fixed >= 1
+
+    def test_jsx_patterns_comprehensive(self, healer, tmp_path):
+        """Test that various JSX patterns are detected."""
+        src_dir = tmp_path / "frontend" / "src"
+        src_dir.mkdir(parents=True)
+        
+        test_cases = [
+            ("component.js", "<MyComponent />", True),
+            ("fragment.js", "return <><div>Test</div></>", True),
+            ("html.js", "return <div className='test'>Hello</div>", True),
+            ("closing.js", "return <Component>text</Component>", True),
+            ("plain.js", "const x = 1; // <Component>", False),  # Comment only
+            ("template.js", "const html = `<div>not jsx</div>`", False),  # Template literal
+        ]
+        
+        for filename, content, should_detect in test_cases:
+            file_path = src_dir / filename
+            file_path.write_text(f"function Test() {{ {content} }}")
+        
+        issues = healer._find_jsx_extension_issues(src_dir)
+        detected_files = {i['file'].name for i in issues}
+        
+        for filename, _, should_detect in test_cases:
+            if should_detect:
+                assert filename in detected_files, f"Should detect JSX in {filename}"
+            else:
+                assert filename not in detected_files, f"False positive for {filename}"

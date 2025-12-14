@@ -129,6 +129,12 @@ class GeneratedApplication(db.Model):
     generation_attempts = db.Column(db.Integer, default=1)  # Number of generation attempts (for retry tracking)
     last_error_at = db.Column(db.DateTime(timezone=True), nullable=True)  # When the last error occurred
     
+    # Fixes applied tracking
+    retry_fixes = db.Column(db.Integer, default=0)  # Number of retry attempts during generation
+    automatic_fixes = db.Column(db.Integer, default=0)  # Script-based automatic fixes during generation
+    llm_fixes = db.Column(db.Integer, default=0)  # LLM-based fixes applied during generation
+    manual_fixes = db.Column(db.Integer, default=0)  # Manual fixes applied post-generation
+    
     metadata_json = db.Column(db.Text)
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now)
     updated_at = db.Column(db.DateTime(timezone=True), default=utc_now, onupdate=utc_now)
@@ -213,6 +219,11 @@ class GeneratedApplication(db.Model):
             'error_message': self.error_message,
             'generation_attempts': self.generation_attempts,
             'last_error_at': self.last_error_at.isoformat() if self.last_error_at else None,
+            # Fixes applied tracking
+            'retry_fixes': self.retry_fixes or 0,
+            'automatic_fixes': self.automatic_fixes or 0,
+            'llm_fixes': self.llm_fixes or 0,
+            'manual_fixes': self.manual_fixes or 0,
             'metadata': self.get_metadata(),
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None

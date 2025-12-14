@@ -269,6 +269,16 @@ class DependencyHealer:
             logger.warning(f"[DependencyHealer] Frontend src/ not found: {src_dir}")
             return
         
+        # 0. Fix JSX files with wrong .js extension (MUST run first - prevents Vite build failures)
+        jsx_issues = self._find_jsx_extension_issues(src_dir)
+        if jsx_issues:
+            for issue in jsx_issues:
+                result.frontend_issues.append(issue['message'])
+                result.issues_found += 1
+            
+            if self.auto_fix:
+                self._fix_jsx_extensions(jsx_issues, result)
+        
         # 1. Scan for missing npm dependencies
         missing_deps = self._find_missing_npm_deps(src_dir, package_json_path)
         if missing_deps:
@@ -288,6 +298,95 @@ class DependencyHealer:
             
             if self.auto_fix:
                 self._fix_frontend_exports(export_issues, result)
+
+    def _find_jsx_extension_issues(self, src_dir: Path) -> List[Dict]:
+        """Find .js files that contain JSX syntax and should be .jsx.
+        
+        Vite/Rollup requires JSX code to be in files with .jsx extension.
+        This catches the common AI generation mistake of using .js for files
+        containing React JSX syntax like <Component />.
+        """
+        issues = []
+        
+        # JSX pattern: matches typical JSX elements like <Component>, <div>, etc.
+        # More comprehensive patterns to catch various JSX forms
+        jsx_patterns = [
+            re.compile(r'<[A-Z][a-zA-Z0-9]*[\s/>]'),           # <ComponentName or <ComponentName>
+            re.compile(r'<[a-z]+[\s/>]'),                      # HTML elements: <div>, <span>, etc.
+            re.compile(r'</[A-Za-z][a-zA-Z0-9]*>'),            # Closing tags: </Component>
+            re.compile(r'<>\s*'),                              # Fragment: <>
+            re.compile(r'</>\s*'),                             # Fragment closing: </>
+            re.compile(r'\breturn\s*\(\s*<'),                  # return (<Element)
+            re.compile(r'\breturn\s+<[A-Za-z]'),               # return <Element
+        ]
+        
+        for js_file in src_dir.rglob('*.js'):
+            # Skip node_modules and other irrelevant directories
+            if 'node_modules' in str(js_file):
+                continue
+            
+            try:
+                content = js_file.read_text(encoding='utf-8')
+                
+                # Check for JSX patterns
+                has_jsx = any(pattern.search(content) for pattern in jsx_patterns)
+                
+                if has_jsx:
+                    # Double-check: remove comments, strings, and template literals
+                    # to avoid false positives from HTML in strings
+                    content_cleaned = content
+                    
+                    # Remove single-line comments
+                    content_cleaned = re.sub(r'//.*$', '', content_cleaned, flags=re.MULTILINE)
+                    # Remove multi-line comments
+                    content_cleaned = re.sub(r'/\*.*?\*/', '', content_cleaned, flags=re.DOTALL)
+                    # Remove template literals (backtick strings) - can contain HTML
+                    content_cleaned = re.sub(r'`[^`]*`', '""', content_cleaned, flags=re.DOTALL)
+                    # Remove regular strings - can contain HTML
+                    content_cleaned = re.sub(r'"[^"\\]*(?:\\.[^"\\]*)*"', '""', content_cleaned)
+                    content_cleaned = re.sub(r"'[^'\\]*(?:\\.[^'\\]*)*'", "''", content_cleaned)
+                    
+                    has_jsx_real = any(pattern.search(content_cleaned) for pattern in jsx_patterns)
+                    
+                    if has_jsx_real:
+                        jsx_path = js_file.with_suffix('.jsx')
+                        issues.append({
+                            'file': js_file,
+                            'new_file': jsx_path,
+                            'message': f"File contains JSX but has .js extension: {js_file.relative_to(src_dir.parent)}"
+                        })
+                        logger.debug(f"[DependencyHealer] JSX in .js file: {js_file}")
+                        
+            except Exception as e:
+                logger.debug(f"[DependencyHealer] Failed to check {js_file}: {e}")
+        
+        return issues
+    
+    def _fix_jsx_extensions(self, issues: List[Dict], result: HealingResult) -> None:
+        """Rename .js files containing JSX to .jsx extension."""
+        for issue in issues:
+            old_path: Path = issue['file']
+            new_path: Path = issue['new_file']
+            
+            try:
+                # Check if new path already exists
+                if new_path.exists():
+                    logger.warning(
+                        f"[DependencyHealer] Cannot rename {old_path.name} to {new_path.name}: "
+                        f"target already exists"
+                    )
+                    result.errors.append(f"Cannot rename {old_path.name}: {new_path.name} already exists")
+                    continue
+                
+                # Rename the file
+                old_path.rename(new_path)
+                result.changes_made.append(f"Renamed {old_path.name} → {new_path.name}")
+                result.issues_fixed += 1
+                logger.info(f"[DependencyHealer] Renamed {old_path.name} → {new_path.name}")
+                
+            except Exception as e:
+                result.errors.append(f"Failed to rename {old_path.name}: {e}")
+                logger.error(f"[DependencyHealer] Failed to rename {old_path}: {e}")
 
     def _find_missing_npm_deps(self, src_dir: Path, package_json_path: Path) -> Set[str]:
         """Find npm packages imported in code but not in package.json."""

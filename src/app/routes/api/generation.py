@@ -185,11 +185,15 @@ def generate():
         version = data.get('version', 1)  # Default to version 1
         parent_app_id = data.get('parent_app_id')  # For regenerations
         
+        # Auto-fix option (default False - must be explicitly enabled)
+        use_auto_fix = data.get('use_auto_fix', False)
+        
         logger.info(f"Generation request: {model_slug}/app{app_num or 'auto'} v{version}")
         logger.info(f"  OpenRouter model_id: {model.model_id}")
         logger.info(f"  Frontend: {gen_frontend}, Backend: {gen_backend}")
         logger.info(f"  Template: {template_slug}")
         logger.info(f"  Generation mode: {generation_mode}")
+        logger.info(f"  Use auto-fix: {use_auto_fix}")
         logger.info(f"  Batch ID: {batch_id}")
         
         # Run generation with atomic reservation
@@ -203,7 +207,8 @@ def generate():
             batch_id=batch_id,
             parent_app_id=parent_app_id,
             version=version,
-            generation_mode=generation_mode
+            generation_mode=generation_mode,
+            use_auto_fix=use_auto_fix
         ))
         
         if result['success']:

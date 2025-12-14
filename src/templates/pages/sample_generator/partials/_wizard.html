@@ -5,6 +5,9 @@
       <div class="row row-cards g-3">
         <input type="hidden" id="input-scaffolding-id" value="default">
         <input type="hidden" id="input-generation-mode" value="guarded">
+        <input type="hidden" id="input-rerun-on-failure" value="false">
+        <input type="hidden" id="input-use-auto-fix" value="false">
+        <input type="hidden" id="input-max-retries" value="1">
         <div class="col-12 wizard-panel active" data-panel="1">
           <div class="card card-table-compact">
             <div class="card-header d-flex flex-wrap align-items-center gap-3 py-2">
@@ -136,6 +139,54 @@
                     <i class="fas fa-exclamation-triangle me-2"></i>
                     <strong>Research Mode:</strong> Unguarded generation gives the AI model more freedom in architectural decisions. 
                     Results may vary significantly between models and may require manual adjustments.
+                  </div>
+                </div>
+              </div>
+
+              {# Advanced Options Section #}
+              <div class="card mt-4" id="advanced-options-section">
+                <div class="card-header d-flex align-items-center justify-content-between" data-bs-toggle="collapse" data-bs-target="#advanced-options-collapse" role="button" aria-expanded="false" aria-controls="advanced-options-collapse">
+                  <h3 class="h6 mb-0 d-flex align-items-center gap-2">
+                    <i class="fas fa-cogs text-primary"></i>
+                    <span>Advanced Options</span>
+                  </h3>
+                  <span class="collapse-indicator text-muted small" id="advanced-options-indicator">Show</span>
+                </div>
+                <div id="advanced-options-collapse" class="collapse">
+                  <div class="card-body">
+                    <p class="text-muted small mb-3">Configure retry behavior and post-generation processing.</p>
+                    <div class="row g-3">
+                      <div class="col-md-6">
+                        <div class="form-check form-switch mb-2">
+                          <input class="form-check-input" type="checkbox" id="option-rerun-on-failure" onchange="updateAdvancedOption('rerun-on-failure', this.checked)">
+                          <label class="form-check-label" for="option-rerun-on-failure">
+                            <strong>Rerun failed generations</strong>
+                          </label>
+                        </div>
+                        <small class="text-muted d-block ms-4">Automatically retry generation if it fails</small>
+                        <div class="ms-4 mt-2" id="max-retries-container" style="display: none;">
+                          <label class="form-label small text-muted" for="option-max-retries">Max retry attempts:</label>
+                          <select class="form-select form-select-sm w-auto" id="option-max-retries" onchange="updateAdvancedOption('max-retries', this.value)">
+                            <option value="1" selected>1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div class="col-md-6">
+                        <div class="form-check form-switch mb-2">
+                          <input class="form-check-input" type="checkbox" id="option-use-auto-fix" onchange="updateAdvancedOption('use-auto-fix', this.checked)">
+                          <label class="form-check-label" for="option-use-auto-fix">
+                            <strong>Use automatic fix service</strong>
+                          </label>
+                        </div>
+                        <small class="text-muted d-block ms-4">Run dependency healer after generation to fix common issues (imports, exports, dependencies)</small>
+                      </div>
+                    </div>
+                    <div class="alert alert-info mt-3 mb-0 small">
+                      <i class="fas fa-info-circle me-2"></i>
+                      <strong>Note:</strong> Both options are off by default. Enable them for higher success rates at the cost of additional processing time.
+                    </div>
                   </div>
                 </div>
               </div>

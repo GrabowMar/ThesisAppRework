@@ -2245,7 +2245,8 @@ class GenerationService:
         batch_id: Optional[str] = None,  # For tracking batch operations
         parent_app_id: Optional[int] = None,  # For regenerations
         version: int = 1,  # Version number (1 for new, incremented for regenerations)
-        generation_mode: str = 'guarded'  # 'guarded' or 'unguarded'
+        generation_mode: str = 'guarded',  # 'guarded' or 'unguarded'
+        use_auto_fix: bool = False  # Whether to run dependency healer after generation
     ) -> dict:
         """Generate complete application with atomic app number reservation.
         
@@ -2256,6 +2257,7 @@ class GenerationService:
         3. Generate frontend (if requested)
         4. Merge generated code with scaffolding
         5. Update DB record with final status
+        6. Post-generation healing (if use_auto_fix is True)
         
         Args:
             model_slug: Normalized model slug
@@ -2267,6 +2269,7 @@ class GenerationService:
             parent_app_id: Optional parent app ID if this is a regeneration
             version: Version number (1 for new, incremented for regenerations)
             generation_mode: 'guarded' (structured) or 'unguarded' (architectural freedom)
+            use_auto_fix: Whether to run dependency healer after generation (default False)
         """
         # Step 0: Atomic app reservation - create DB record immediately
         app_record = await self._reserve_app_number(
@@ -2512,10 +2515,11 @@ class GenerationService:
         result['frontend_port'] = frontend_port
 
         # Step 5: Post-generation healing - fix common dependency/export issues
-        if result['success']:
+        # Only runs if use_auto_fix is True (default False - must be explicitly enabled)
+        if result['success'] and use_auto_fix:
             try:
                 from app.services.dependency_healer import heal_generated_app
-                logger.info("Step 5: Running dependency healer...")
+                logger.info("Step 5: Running dependency healer (auto-fix enabled)...")
                 healing_result = heal_generated_app(app_dir, auto_fix=True)
                 result['healing'] = {
                     'success': healing_result.success,
@@ -2534,6 +2538,10 @@ class GenerationService:
             except Exception as healing_error:
                 logger.warning(f"Dependency healing failed (non-fatal): {healing_error}")
                 result['healing'] = {'error': str(healing_error)}
+        elif result['success']:
+            # Auto-fix disabled, skip healing
+            logger.info("Step 5: Skipping dependency healer (auto-fix disabled)")
+            result['healing'] = {'skipped': True, 'reason': 'auto-fix disabled'}
 
         try:
             persist_summary = self._persist_generation_result(

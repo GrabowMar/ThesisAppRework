@@ -11,6 +11,9 @@ let selectedScaffolding = null;
 let selectedTemplates = [];
 let selectedModels = [];
 let selectedGenerationMode = 'guarded';  // Default to guarded mode
+let rerunOnFailure = false;  // Default to false
+let useAutoFix = false;  // Default to false
+let maxRetries = 1;  // Default to 1 retry
 
 // Cache for templates and models
 let templatesCache = null;
@@ -35,6 +38,9 @@ function initSampleGeneratorWizard() {
   selectedTemplates = [];
   selectedModels = [];
   selectedGenerationMode = 'guarded';
+  rerunOnFailure = false;
+  useAutoFix = false;
+  maxRetries = 1;
   isGenerating = false;
   
   initializeWizard();
@@ -65,6 +71,7 @@ document.addEventListener('htmx:historyRestore', function(evt) {
 function initializeWizard() {
   updateWizardStep();
   updateNavigationButtons();
+  initAdvancedOptionsCollapse();
   
   // Auto-select default scaffolding
   selectScaffolding('default');
@@ -439,6 +446,45 @@ function updateGenerationModeSidebar() {
     } else {
       modeDescription.textContent = 'Model-driven architecture (research mode)';
     }
+  }
+}
+
+// ============================================================================
+// Advanced Options Management
+// ============================================================================
+
+function updateAdvancedOption(option, value) {
+  console.log('[Wizard] Advanced option changed:', option, '=', value);
+  
+  switch (option) {
+    case 'rerun-on-failure':
+      rerunOnFailure = !!value;
+      document.getElementById('input-rerun-on-failure').value = rerunOnFailure ? 'true' : 'false';
+      // Show/hide max retries selector
+      const maxRetriesContainer = document.getElementById('max-retries-container');
+      if (maxRetriesContainer) {
+        maxRetriesContainer.style.display = rerunOnFailure ? 'block' : 'none';
+      }
+      break;
+    case 'use-auto-fix':
+      useAutoFix = !!value;
+      document.getElementById('input-use-auto-fix').value = useAutoFix ? 'true' : 'false';
+      break;
+    case 'max-retries':
+      maxRetries = parseInt(value, 10) || 1;
+      document.getElementById('input-max-retries').value = maxRetries;
+      break;
+  }
+  
+  console.log('[Wizard] Current advanced options:', { rerunOnFailure, useAutoFix, maxRetries });
+}
+
+function initAdvancedOptionsCollapse() {
+  const advancedCollapse = document.getElementById('advanced-options-collapse');
+  const advancedIndicator = document.getElementById('advanced-options-indicator');
+  if (advancedCollapse && advancedIndicator) {
+    advancedCollapse.addEventListener('shown.bs.collapse', () => { advancedIndicator.textContent = 'Hide'; });
+    advancedCollapse.addEventListener('hidden.bs.collapse', () => { advancedIndicator.textContent = 'Show'; });
   }
 }
 
@@ -1289,18 +1335,37 @@ async function startGeneration() {
     const modelsToUse = [...selectedModels];
     const generationMode = selectedGenerationMode;  // Freeze generation mode too
     
+    // Freeze advanced options
+    const frozenRerunOnFailure = rerunOnFailure;
+    const frozenUseAutoFix = useAutoFix;
+    const frozenMaxRetries = maxRetries;
+    
     console.log(`[Wizard] LOCKED GENERATION PLAN:`);
     console.log(`  - Batch ID: ${batchId}`);
     console.log(`  - Models: ${modelsToUse.join(', ')}`);
     console.log(`  - Templates: ${templatesToGenerate.join(', ')}`);
     console.log(`  - Generation Mode: ${generationMode}`);
+    console.log(`  - Rerun on Failure: ${frozenRerunOnFailure} (max ${frozenMaxRetries} retries)`);
+    console.log(`  - Use Auto-Fix: ${frozenUseAutoFix}`);
     console.log(`  - Total apps: ${totalGenerations}`);
     
     for (const modelSlug of modelsToUse) {
       for (const templateSlug of templatesToGenerate) {
         console.log(`[Wizard] Generating: template ${templateSlug}, model ${modelSlug}`);
         
-        try {
+        // Retry loop with configurable max attempts
+        const maxAttempts = frozenRerunOnFailure ? (frozenMaxRetries + 1) : 1;
+        let attemptNumber = 0;
+        let lastError = null;
+        let generationSucceeded = false;
+        
+        while (attemptNumber < maxAttempts && !generationSucceeded) {
+          attemptNumber++;
+          if (attemptNumber > 1) {
+            console.log(`[Wizard] Retry attempt ${attemptNumber}/${maxAttempts} for ${templateSlug} + ${modelSlug}`);
+          }
+          
+          try {
             // No need to pre-fetch app number - generation service handles atomic reservation
             const response = await fetch('/api/gen/generate', {
               method: 'POST',
@@ -1314,40 +1379,48 @@ async function startGeneration() {
                 scaffold: true,
                 batch_id: batchId,  // Track batch operations together
                 version: 1,  // New generation, version 1
-                generation_mode: generationMode  // Include generation mode
+                generation_mode: generationMode,  // Include generation mode
+                use_auto_fix: frozenUseAutoFix  // Include auto-fix option
               })
             });
             
             const result = await response.json();
             
             if (response.ok && result.success) {
+              generationSucceeded = true;
               completed++;
               results.push({
                 success: true,
                 template_slug: templateSlug,
                 model: modelSlug,
                 result_id: `${templateSlug}_${modelSlug.replace(/\//g, '_')}`,
-                message: 'Generated successfully',
-                batch_id: batchId
+                message: attemptNumber > 1 ? `Generated successfully (attempt ${attemptNumber})` : 'Generated successfully',
+                batch_id: batchId,
+                attempts: attemptNumber
               });
             } else {
-              failed++;
-              results.push({
-                success: false,
-                template_slug: templateSlug,
-                model: modelSlug,
-                error: result.message || result.error || 'Generation failed'
-              });
+              lastError = result.message || result.error || 'Generation failed';
+              // Continue to next attempt if retries enabled
             }
           } catch (error) {
-            failed++;
-            results.push({
-              success: false,
-              template_slug: templateSlug,
-              model: modelSlug,
-              error: error.message
-            });
+            lastError = error.message;
+            // Continue to next attempt if retries enabled
           }
+        }
+        
+        // If all attempts failed, record the failure
+        if (!generationSucceeded) {
+          failed++;
+          results.push({
+            success: false,
+            template_slug: templateSlug,
+            model: modelSlug,
+            error: frozenRerunOnFailure 
+              ? `Failed after ${attemptNumber} attempt(s): ${lastError}`
+              : lastError,
+            attempts: attemptNumber
+          });
+        }
           
         // Update progress
         const progressCompleted = completed + failed;
@@ -2063,6 +2136,7 @@ window.previousStep = previousStep;
 window.goToStep = goToStep;
 window.selectScaffolding = selectScaffolding;
 window.selectGenerationMode = selectGenerationMode;
+window.updateAdvancedOption = updateAdvancedOption;
 window.toggleTemplateSelection = toggleTemplateSelection;
 window.selectAllTemplates = selectAllTemplates;
 window.clearAllTemplates = clearAllTemplates;

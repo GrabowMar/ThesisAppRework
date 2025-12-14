@@ -933,6 +933,11 @@ def build_application_detail_context(model_slug: str, app_number: int, allow_syn
         'updated_at': getattr(app, 'updated_at', None),
         'metadata': app.get_metadata() if app and hasattr(app, 'get_metadata') else {},
         'last_status_check': getattr(app, 'last_status_check', None),
+        # Fixes applied tracking
+        'retry_fixes': getattr(app, 'retry_fixes', 0) or 0,
+        'automatic_fixes': getattr(app, 'automatic_fixes', 0) or 0,
+        'llm_fixes': getattr(app, 'llm_fixes', 0) or 0,
+        'manual_fixes': getattr(app, 'manual_fixes', 0) or 0,
     }
     app_data['app_type'] = app_data['app_type'] or 'unknown'
     app_data['container_status_display'] = (app_data.get('container_status') or 'unknown').replace('_', ' ').title()

@@ -1,7 +1,7 @@
 {# Application overview - Compact Layout #}
 <div class="row g-2">
   {# Combined Identity & Lifecycle #}
-  <div class="col-lg-7">
+  <div class="col-lg-6">
     <div class="card card-sm h-100">
       <div class="card-body py-2">
         <div class="row g-3">
@@ -65,7 +65,7 @@
   </div>
 
   {# Code Footprint - Compact #}
-  <div class="col-lg-5">
+  <div class="col-lg-3 col-md-6">
     <div class="card card-sm h-100">
       <div class="card-body py-2">
         <div class="d-flex align-items-center mb-2">
@@ -87,6 +87,69 @@
           {% for lang, data in code_stats.by_language.items() %}
             <span class="badge bg-secondary-lt small">{{ lang }}: {{ data.loc }}</span>
           {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# Fixes Applied - Compact #}
+  {% set total_fixes = (app_data.retry_fixes|default(0)) + (app_data.automatic_fixes|default(0)) + (app_data.llm_fixes|default(0)) + (app_data.manual_fixes|default(0)) %}
+  <div class="col-lg-3 col-md-6">
+    <div class="card card-sm h-100">
+      <div class="card-body py-2">
+        <div class="d-flex align-items-center mb-2">
+          <i class="fas fa-wrench text-orange me-2" aria-hidden="true"></i>
+          <span class="text-muted small text-uppercase fw-bold">Fixes Applied</span>
+          {% if total_fixes > 0 %}
+          <span class="badge bg-orange-lt text-orange ms-2">{{ total_fixes }}</span>
+          {% endif %}
+        </div>
+        <div class="row row-cols-2 g-2">
+          <div class="col">
+            <div class="d-flex align-items-center justify-content-between">
+              <span class="text-muted small" title="Retry attempts during generation">
+                <i class="fas fa-redo me-1"></i>Retry
+              </span>
+              <span class="fw-medium {{ 'text-orange' if app_data.retry_fixes|default(0) > 0 else 'text-muted' }}">
+                {{ app_data.retry_fixes|default(0) }}
+              </span>
+            </div>
+          </div>
+          <div class="col">
+            <div class="d-flex align-items-center justify-content-between">
+              <span class="text-muted small" title="Script-based automatic fixes during generation">
+                <i class="fas fa-magic me-1"></i>Auto
+              </span>
+              <span class="fw-medium {{ 'text-info' if app_data.automatic_fixes|default(0) > 0 else 'text-muted' }}">
+                {{ app_data.automatic_fixes|default(0) }}
+              </span>
+            </div>
+          </div>
+          <div class="col">
+            <div class="d-flex align-items-center justify-content-between">
+              <span class="text-muted small" title="LLM-based fixes applied during generation">
+                <i class="fas fa-robot me-1"></i>LLM
+              </span>
+              <span class="fw-medium {{ 'text-purple' if app_data.llm_fixes|default(0) > 0 else 'text-muted' }}">
+                {{ app_data.llm_fixes|default(0) }}
+              </span>
+            </div>
+          </div>
+          <div class="col">
+            <div class="d-flex align-items-center justify-content-between">
+              <span class="text-muted small" title="Manual fixes applied post-generation">
+                <i class="fas fa-user-edit me-1"></i>Manual
+              </span>
+              <span class="fw-medium {{ 'text-success' if app_data.manual_fixes|default(0) > 0 else 'text-muted' }}">
+                {{ app_data.manual_fixes|default(0) }}
+              </span>
+            </div>
+          </div>
+        </div>
+        {% if total_fixes == 0 %}
+        <div class="text-center text-muted small mt-1">
+          <i class="fas fa-check-circle text-success me-1"></i>No fixes
         </div>
         {% endif %}
       </div>
