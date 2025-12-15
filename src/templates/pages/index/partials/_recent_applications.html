@@ -1,78 +1,50 @@
 {% if applications %}
-<table class="table table-striped table-vcenter table-hover table-sm card-table mb-0">
+<table class="table table-vcenter table-sm card-table table-ultra-compact mb-0">
   <thead>
     <tr>
-      <th class="text-nowrap">Application</th>
-      <th class="text-nowrap">Model</th>
-      <th class="text-nowrap">Type</th>
-      <th class="text-nowrap">Status</th>
-      <th class="text-nowrap">Created</th>
-      <th class="w-1 text-nowrap">Actions</th>
+      <th style="width: 50px">App</th>
+      <th>Model / Type</th>
+      <th style="width: 70px">Status</th>
+      <th style="width: 70px" class="text-end">Actions</th>
     </tr>
   </thead>
   <tbody>
     {% for app in applications %}
     <tr>
-      <td class="text-nowrap">
-        <div class="d-flex align-items-center gap-2">
-          <span class="avatar avatar-sm bg-primary-lt">{{ app.app_number }}</span>
-          <div class="flex-fill">
-            <strong>App #{{ app.app_number }}</strong>
-          </div>
-        </div>
-      </td>
-      <td class="text-nowrap">
-        <div class="d-flex align-items-center gap-2">
-          <span class="badge bg-azure-lt text-uppercase">{{ app.model_provider|upper if app.model_provider else '?' }}</span>
-          <span class="text-truncate">{{ app.model_display_name|truncate(20) if app.model_display_name else app.model_slug or '—' }}</span>
-        </div>
+      <td>
+        <span class="badge bg-primary-lt" style="font-size: 0.75rem;">#{{ app.app_number }}</span>
       </td>
       <td>
-        {% if app.app_type %}
-          <span class="badge bg-info-lt">{{ app.app_type|replace('_', ' ')|title }}</span>
-        {% else %}
-          <span class="text-muted">—</span>
-        {% endif %}
+        <div class="d-flex align-items-center gap-2">
+          <span class="text-truncate" style="max-width: 120px; font-size: 0.8rem;">{{ (app.model_display_name|truncate(18)) if app.model_display_name else (app.model_slug|truncate(18) if app.model_slug else '—') }}</span>
+          {% if app.app_type %}
+            <span class="badge bg-secondary-lt" style="font-size: 0.65rem; padding: 1px 4px;">{{ (app.app_type|replace('_', ' ')|truncate(10, true, '')) }}</span>
+          {% endif %}
+          <span class="text-muted ms-auto" style="font-size: 0.75rem;">{{ app.created_at.strftime('%m/%d') if app.created_at else '' }}</span>
+        </div>
       </td>
       <td>
         {% if app.status == 'running' %}
-          <span class="badge bg-success-lt text-success">
-            <i class="fas fa-play me-1"></i>Running
-          </span>
+          <span class="badge bg-success-lt text-success" style="font-size: 0.7rem;">Up</span>
         {% elif app.status == 'stopped' %}
-          <span class="badge bg-secondary-lt text-secondary">
-            <i class="fas fa-stop me-1"></i>Stopped
-          </span>
+          <span class="badge bg-secondary-lt" style="font-size: 0.7rem;">Off</span>
         {% elif app.status == 'error' %}
-          <span class="badge bg-danger-lt text-danger">
-            <i class="fas fa-exclamation-triangle me-1"></i>Error
-          </span>
+          <span class="badge bg-danger-lt text-danger" style="font-size: 0.7rem;">Err</span>
         {% elif app.status == 'building' %}
-          <span class="badge bg-warning-lt text-warning">
-            <i class="fas fa-hammer me-1"></i>Building
-          </span>
+          <span class="badge bg-warning-lt text-warning" style="font-size: 0.7rem;"><i class="fas fa-spinner fa-spin"></i></span>
         {% else %}
-          <span class="badge bg-secondary-lt text-secondary">
-            <i class="fas fa-question me-1"></i>{{ app.status|title if app.status else 'Unknown' }}
-          </span>
+          <span class="badge bg-secondary-lt" style="font-size: 0.7rem;">{{ (app.status|truncate(3, true, '')|title) if app.status else '?' }}</span>
         {% endif %}
       </td>
-      <td class="text-nowrap text-muted">
-        {% if app.created_at %}{{ app.created_at.strftime('%m/%d %H:%M') }}{% else %}—{% endif %}
-      </td>
       <td class="text-end">
-        <div class="btn-list justify-content-end">
-          <a href="/applications/{{ app.model_slug }}/{{ app.app_number }}" class="btn btn-sm btn-ghost-primary" title="View details">
-            <i class="fas fa-eye"></i>
+        <div class="btn-list justify-content-end gap-0">
+          <a href="/applications/{{ app.model_slug }}/{{ app.app_number }}" class="btn btn-sm btn-icon btn-ghost-primary py-0" title="View">
+            <i class="fas fa-eye" style="font-size: 0.75rem;"></i>
           </a>
           {% if app.status == 'running' and app.ports %}
-            <a href="http://localhost:{{ app.ports[0].host_port }}" target="_blank" rel="noopener" class="btn btn-sm btn-ghost-success" title="Visit application">
-              <i class="fas fa-external-link-alt"></i>
+            <a href="http://localhost:{{ app.ports[0].host_port }}" target="_blank" class="btn btn-sm btn-icon btn-ghost-success py-0" title="Open">
+              <i class="fas fa-external-link-alt" style="font-size: 0.75rem;"></i>
             </a>
-          {% else %}
-            <button class="btn btn-sm btn-ghost-success" onclick="startApplication('{{ app.model_slug }}', '{{ app.app_number }}')" title="Start application" {% if app.status == 'running' %}disabled{% endif %}>
-              <i class="fas fa-play"></i>
-            </button>
           {% endif %}
         </div>
       </td>
@@ -81,19 +53,9 @@
   </tbody>
 </table>
 {% else %}
-<div class="empty">
-  <div class="empty-icon">
-    <i class="fas fa-cubes text-muted"></i>
-  </div>
-  <p class="empty-title">No applications yet</p>
-  <p class="empty-subtitle text-muted">
-    Generate your first application to see it here.
-  </p>
-  <div class="empty-action">
-    <a href="{{ url_for('applications.applications_index') if 'applications.applications_index' in current_app.view_functions else '/applications' }}" class="btn btn-primary">
-      <i class="fas fa-plus me-2"></i>
-      Generate Application
-    </a>
-  </div>
+<div class="text-center py-3">
+  <i class="fas fa-cubes text-muted mb-2" style="font-size: 1.5rem;"></i>
+  <p class="text-muted mb-2" style="font-size: 0.85rem;">No applications yet</p>
+  <a href="{{ url_for('applications.applications_index') if 'applications.applications_index' in current_app.view_functions else '/applications' }}" class="btn btn-sm btn-primary">Generate App</a>
 </div>
 {% endif %}

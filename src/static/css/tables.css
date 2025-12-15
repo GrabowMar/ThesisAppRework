@@ -15,6 +15,44 @@
   --table-stripe-bg: rgba(0, 0, 0, 0.02);
 }
 
+/* ========================================
+   Ultra Compact Table - Dashboard Use
+   ======================================== */
+.table-ultra-compact {
+  font-size: 0.8rem;
+}
+
+.table-ultra-compact thead th {
+  padding: 0.4rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted, #626976);
+  background-color: var(--table-header-bg);
+  border-bottom: 1px solid var(--table-border-color);
+}
+
+.table-ultra-compact tbody td {
+  padding: 0.35rem 0.5rem;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--table-border-color);
+}
+
+.table-ultra-compact tbody tr:hover {
+  background-color: var(--table-hover-bg);
+}
+
+.table-ultra-compact tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table-ultra-compact .btn-icon {
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+}
+
 /* Base table enhancements */
 .table-enhanced {
   --table-border-color: var(--color-border);

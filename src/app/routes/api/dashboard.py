@@ -300,6 +300,7 @@ def dashboard_fragment(fragment_name: str):
       - recent-activity
       - recent-applications
       - recent-analyses
+      - activity-feed
       - stats
       - system-health
     """
@@ -317,6 +318,10 @@ def dashboard_fragment(fragment_name: str):
         elif fragment_name == 'recent-activity':
             activity = get_recent_activity_entries()
             return render_template('pages/index/partials/recent_activity.html', activity=activity)
+            
+        elif fragment_name == 'activity-feed':
+            activity = get_recent_activity_entries(limit=10)
+            return render_template('pages/index/partials/_activity_feed.html', activity=activity)
             
         elif fragment_name == 'recent-applications':
             applications = get_recent_applications()

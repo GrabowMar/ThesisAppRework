@@ -1,4 +1,5 @@
 {% extends "layouts/base.html" %}
+{% set active_page = 'settings' %}
 
 {% block title %}Settings - {{ super() }}{% endblock %}
 
@@ -8,108 +9,540 @@
         <h1 class="h3 mb-0">Settings</h1>
         <p class="text-muted mb-0">Configure your preferences and application settings</p>
     </div>
+    <div class="btn-list">
+        <a href="{{ url_for('profile.index') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-user me-2"></i>Back to Profile
+        </a>
+    </div>
 </div>
 {% endblock %}
 
 {% block content %}
 <div class="row">
     <div class="col-lg-8 mx-auto">
-        <!-- Preferences -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Preferences</h5>
+        <!-- Appearance Preferences -->
+        <div class="card card-table-compact mb-3">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="fas fa-palette text-muted"></i>
+                <h3 class="card-title mb-0">Appearance</h3>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('profile.update_settings') }}">
-                    <div class="mb-3">
-                        <label for="theme" class="form-label">Theme</label>
-                        <select class="form-select" id="theme" name="theme">
-                            <option value="light" selected>Light</option>
-                            <option value="dark">Dark</option>
-                            <option value="auto">Auto (System)</option>
-                        </select>
-                        <small class="form-text text-muted">Theme preference (not yet implemented)</small>
+                <div class="mb-4">
+                    <label class="form-label">Theme</label>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button type="button" class="btn theme-option" data-theme="light" onclick="setTheme('light')">
+                            <i class="fas fa-sun me-2"></i>Light
+                        </button>
+                        <button type="button" class="btn theme-option" data-theme="dark" onclick="setTheme('dark')">
+                            <i class="fas fa-moon me-2"></i>Dark
+                        </button>
+                        <button type="button" class="btn theme-option" data-theme="auto" onclick="setTheme('auto')">
+                            <i class="fas fa-circle-half-stroke me-2"></i>System
+                        </button>
                     </div>
+                    <small class="form-text text-muted">Choose how the interface appears</small>
+                </div>
 
-                    <div class="mb-3">
+                <div class="mb-4">
+                    <label class="form-label">Accent Color</label>
+                    <div class="d-flex gap-2 flex-wrap" id="accent-color-options">
+                        <!-- Populated by JS -->
+                    </div>
+                    <small class="form-text text-muted">Personalize your interface accent color</small>
+                </div>
+
+                <div class="mb-0">
+                    <label class="form-label">Sidebar Behavior</label>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="sidebar-collapsed" onchange="toggleSidebarPreference()">
+                        <label class="form-check-label" for="sidebar-collapsed">
+                            Start with collapsed sidebar
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Display Preferences -->
+        <div class="card card-table-compact mb-3">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="fas fa-table text-muted"></i>
+                <h3 class="card-title mb-0">Display</h3>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
                         <label for="items_per_page" class="form-label">Items per page</label>
-                        <select class="form-select" id="items_per_page" name="items_per_page">
+                        <select class="form-select" id="items_per_page" onchange="setItemsPerPage(this.value)">
                             <option value="10">10</option>
-                            <option value="25" selected>25</option>
+                            <option value="25">25</option>
                             <option value="50">50</option>
                             <option value="100">100</option>
                         </select>
-                        <small class="form-text text-muted">Default pagination size (not yet implemented)</small>
+                        <small class="form-text text-muted">Default pagination size for tables</small>
                     </div>
-
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="email_notifications" name="email_notifications">
-                        <label class="form-check-label" for="email_notifications">
-                            Email notifications
-                        </label>
-                        <small class="form-text text-muted d-block">Receive email updates about analysis results (not yet implemented)</small>
+                    <div class="col-md-6">
+                        <label for="date_format" class="form-label">Date format</label>
+                        <select class="form-select" id="date_format" onchange="setDateFormat(this.value)">
+                            <option value="relative">Relative (2 hours ago)</option>
+                            <option value="absolute">Absolute (Dec 15, 2025)</option>
+                            <option value="iso">ISO (2025-12-15)</option>
+                        </select>
+                        <small class="form-text text-muted">How dates are displayed</small>
                     </div>
+                </div>
 
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="show_advanced" name="show_advanced">
-                        <label class="form-check-label" for="show_advanced">
-                            Show advanced options
-                        </label>
-                        <small class="form-text text-muted d-block">Display advanced configuration options (not yet implemented)</small>
-                    </div>
+                <hr class="my-3">
 
-                    <button type="submit" class="btn btn-primary" disabled>Save Preferences</button>
-                    <small class="text-muted ms-2">Settings coming soon</small>
-                </form>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="compact_tables" onchange="toggleCompactTables()">
+                    <label class="form-check-label" for="compact_tables">
+                        Compact table rows
+                    </label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="show_advanced" onchange="toggleAdvancedOptions()">
+                    <label class="form-check-label" for="show_advanced">
+                        Show advanced options
+                    </label>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="auto_refresh" onchange="toggleAutoRefresh()">
+                    <label class="form-check-label" for="auto_refresh">
+                        Enable auto-refresh on dashboards
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notifications (Future) -->
+        <div class="card card-table-compact mb-3">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="fas fa-bell text-muted"></i>
+                <h3 class="card-title mb-0">Notifications</h3>
+                <span class="badge bg-secondary-lt ms-auto">Coming Soon</span>
+            </div>
+            <div class="card-body">
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="browser_notifications" disabled>
+                    <label class="form-check-label text-muted" for="browser_notifications">
+                        Browser notifications for completed analyses
+                    </label>
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="email_notifications" disabled>
+                    <label class="form-check-label text-muted" for="email_notifications">
+                        Email notifications for important events
+                    </label>
+                </div>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="sound_notifications" disabled>
+                    <label class="form-check-label text-muted" for="sound_notifications">
+                        Sound alerts for task completions
+                    </label>
+                </div>
             </div>
         </div>
 
         <!-- Session Information -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Session Information</h5>
+        <div class="card card-table-compact mb-3">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="fas fa-clock text-muted"></i>
+                <h3 class="card-title mb-0">Session Information</h3>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>Current Session</strong>
+                            <small class="text-muted d-block">Started {{ current_user.last_login.strftime('%B %d, %Y at %I:%M %p') if current_user.last_login else 'recently' }}</small>
+                        </div>
+                        <span class="badge bg-success-lt text-success">
+                            <i class="fas fa-circle me-1" style="font-size: 0.5rem;"></i>Active
+                        </span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Login method</span>
+                        <span>
+                            <i class="fas fa-key me-1 text-muted"></i>Username & Password
+                        </span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Session timeout</span>
+                        <span>24 hours</span>
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Browser</span>
+                        <span id="browser-info">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Management -->
+        <div class="card card-table-compact mb-3">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="fas fa-database text-muted"></i>
+                <h3 class="card-title mb-0">Data Management</h3>
             </div>
             <div class="card-body">
-                <div class="row mb-2">
-                    <div class="col-sm-4">
-                        <strong>Session timeout</strong>
+                <div class="row g-2">
+                    <div class="col-sm-6">
+                        <button type="button" class="btn btn-outline-secondary w-100" onclick="exportSettings()">
+                            <i class="fas fa-download me-2"></i>Export Settings
+                        </button>
                     </div>
-                    <div class="col-sm-8">
-                        24 hours
+                    <div class="col-sm-6">
+                        <button type="button" class="btn btn-outline-secondary w-100" onclick="importSettings()">
+                            <i class="fas fa-upload me-2"></i>Import Settings
+                        </button>
                     </div>
-                </div>
-                <div class="row mb-2">
-                    <div class="col-sm-4">
-                        <strong>Last login</strong>
-                    </div>
-                    <div class="col-sm-8">
-                        {{ current_user.last_login.strftime('%B %d, %Y %I:%M %p') if current_user.last_login else 'N/A' }}
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-sm-4">
-                        <strong>Login method</strong>
-                    </div>
-                    <div class="col-sm-8">
-                        Username & Password
+                    <div class="col-12">
+                        <button type="button" class="btn btn-outline-warning w-100" onclick="resetSettings()">
+                            <i class="fas fa-undo me-2"></i>Reset to Defaults
+                        </button>
                     </div>
                 </div>
+                <small class="form-text text-muted mt-2 d-block">Settings are stored locally in your browser</small>
             </div>
         </div>
 
         <!-- Danger Zone -->
         {% if not current_user.is_admin %}
         <div class="card border-danger">
-            <div class="card-header bg-danger text-white">
-                <h5 class="card-title mb-0">Danger Zone</h5>
+            <div class="card-header bg-danger-lt d-flex align-items-center gap-2">
+                <i class="fas fa-exclamation-triangle text-danger"></i>
+                <h3 class="card-title mb-0 text-danger">Danger Zone</h3>
             </div>
             <div class="card-body">
-                <p class="text-muted">Once you delete your account, there is no going back. Please be certain.</p>
-                <button type="button" class="btn btn-ghost-danger" disabled>Delete Account</button>
-                <small class="text-muted ms-2">Feature not yet available</small>
+                <p class="text-muted mb-3">Permanently delete your account and all associated data. This action cannot be undone.</p>
+                <button type="button" class="btn btn-outline-danger" onclick="confirmDeleteAccount()" disabled>
+                    <i class="fas fa-trash me-2"></i>Delete Account
+                </button>
+                <small class="text-muted ms-2">Feature coming soon</small>
             </div>
         </div>
         {% endif %}
     </div>
 </div>
+
+<!-- Import Settings Modal -->
+<div class="modal fade" id="importSettingsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-upload me-2"></i>Import Settings</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted">Paste your exported settings JSON below:</p>
+                <textarea class="form-control" id="import-settings-json" rows="6" placeholder='{"theme":"dark","items_per_page":"25",...}'></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="doImportSettings()">Import</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.theme-option {
+    min-width: 100px;
+    border: 2px solid transparent;
+}
+.theme-option.active {
+    border-color: var(--tblr-primary);
+    background-color: var(--tblr-primary-lt);
+}
+.accent-color-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: transform 0.15s;
+}
+.accent-color-btn:hover {
+    transform: scale(1.1);
+}
+.accent-color-btn.active {
+    border-color: #000;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px currentColor;
+}
+</style>
+
+<script>
+// Settings defaults
+const defaultSettings = {
+    theme: 'light',
+    accent_color: '#206bc4',
+    sidebar_collapsed: false,
+    items_per_page: '25',
+    date_format: 'relative',
+    compact_tables: false,
+    show_advanced: false,
+    auto_refresh: true
+};
+
+// Accent colors
+const accentColors = [
+    { name: 'Blue', value: '#206bc4' },
+    { name: 'Azure', value: '#4299e1' },
+    { name: 'Indigo', value: '#4263eb' },
+    { name: 'Purple', value: '#ae3ec9' },
+    { name: 'Pink', value: '#d6336c' },
+    { name: 'Red', value: '#d63939' },
+    { name: 'Orange', value: '#f76707' },
+    { name: 'Green', value: '#2fb344' },
+    { name: 'Teal', value: '#0ca678' },
+    { name: 'Cyan', value: '#17a2b8' }
+];
+
+// Initialize settings on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadSettings();
+    populateAccentColors();
+    detectBrowser();
+});
+
+function loadSettings() {
+    // Theme
+    const theme = localStorage.getItem('app_theme') || defaultSettings.theme;
+    const themeAuto = localStorage.getItem('app_theme_auto') === 'true';
+    updateThemeUI(themeAuto ? 'auto' : theme);
+    
+    // Accent color
+    const accent = localStorage.getItem('accent_color') || defaultSettings.accent_color;
+    updateAccentColorUI(accent);
+    
+    // Sidebar
+    const sidebarCollapsed = localStorage.getItem('sidebar_collapsed') === 'true';
+    document.getElementById('sidebar-collapsed').checked = sidebarCollapsed;
+    
+    // Items per page
+    const itemsPerPage = localStorage.getItem('items_per_page') || defaultSettings.items_per_page;
+    document.getElementById('items_per_page').value = itemsPerPage;
+    
+    // Date format
+    const dateFormat = localStorage.getItem('date_format') || defaultSettings.date_format;
+    document.getElementById('date_format').value = dateFormat;
+    
+    // Toggles
+    document.getElementById('compact_tables').checked = localStorage.getItem('compact_tables') === 'true';
+    document.getElementById('show_advanced').checked = localStorage.getItem('show_advanced') === 'true';
+    document.getElementById('auto_refresh').checked = localStorage.getItem('auto_refresh') !== 'false';
+}
+
+function populateAccentColors() {
+    const container = document.getElementById('accent-color-options');
+    const currentAccent = localStorage.getItem('accent_color') || defaultSettings.accent_color;
+    
+    accentColors.forEach(color => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'accent-color-btn' + (currentAccent === color.value ? ' active' : '');
+        btn.style.backgroundColor = color.value;
+        btn.title = color.name;
+        btn.onclick = () => setAccentColor(color.value);
+        container.appendChild(btn);
+    });
+}
+
+function detectBrowser() {
+    const ua = navigator.userAgent;
+    let browser = 'Unknown';
+    
+    if (ua.includes('Firefox/')) browser = 'Firefox';
+    else if (ua.includes('Edg/')) browser = 'Edge';
+    else if (ua.includes('Chrome/')) browser = 'Chrome';
+    else if (ua.includes('Safari/')) browser = 'Safari';
+    
+    document.getElementById('browser-info').textContent = browser;
+}
+
+// Theme functions
+function setTheme(theme) {
+    if (theme === 'auto') {
+        localStorage.setItem('app_theme_auto', 'true');
+        localStorage.removeItem('app_theme');
+        // Let system preference take over
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (window.ThesisTheme) {
+            window.ThesisTheme.set(prefersDark ? 'dark' : 'light');
+        }
+    } else {
+        localStorage.removeItem('app_theme_auto');
+        localStorage.setItem('app_theme', theme);
+        if (window.ThesisTheme) {
+            window.ThesisTheme.set(theme);
+        }
+    }
+    updateThemeUI(theme);
+    showSettingsNotification('Theme updated', 'success');
+}
+
+function updateThemeUI(theme) {
+    document.querySelectorAll('.theme-option').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.theme === theme);
+    });
+}
+
+// Accent color
+function setAccentColor(color) {
+    localStorage.setItem('accent_color', color);
+    document.documentElement.style.setProperty('--tblr-primary', color);
+    updateAccentColorUI(color);
+    showSettingsNotification('Accent color updated', 'success');
+}
+
+function updateAccentColorUI(color) {
+    document.querySelectorAll('.accent-color-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.style.backgroundColor === color || 
+            rgbToHex(btn.style.backgroundColor) === color.toLowerCase());
+    });
+}
+
+function rgbToHex(rgb) {
+    if (rgb.startsWith('#')) return rgb.toLowerCase();
+    const match = rgb.match(/\d+/g);
+    if (!match) return rgb;
+    return '#' + match.slice(0, 3).map(x => parseInt(x).toString(16).padStart(2, '0')).join('');
+}
+
+// Sidebar preference
+function toggleSidebarPreference() {
+    const collapsed = document.getElementById('sidebar-collapsed').checked;
+    localStorage.setItem('sidebar_collapsed', collapsed);
+    showSettingsNotification('Sidebar preference saved', 'success');
+}
+
+// Display settings
+function setItemsPerPage(value) {
+    localStorage.setItem('items_per_page', value);
+    showSettingsNotification('Items per page updated', 'success');
+}
+
+function setDateFormat(value) {
+    localStorage.setItem('date_format', value);
+    showSettingsNotification('Date format updated', 'success');
+}
+
+function toggleCompactTables() {
+    const enabled = document.getElementById('compact_tables').checked;
+    localStorage.setItem('compact_tables', enabled);
+    showSettingsNotification('Compact tables ' + (enabled ? 'enabled' : 'disabled'), 'success');
+}
+
+function toggleAdvancedOptions() {
+    const enabled = document.getElementById('show_advanced').checked;
+    localStorage.setItem('show_advanced', enabled);
+    showSettingsNotification('Advanced options ' + (enabled ? 'shown' : 'hidden'), 'success');
+}
+
+function toggleAutoRefresh() {
+    const enabled = document.getElementById('auto_refresh').checked;
+    localStorage.setItem('auto_refresh', enabled);
+    showSettingsNotification('Auto-refresh ' + (enabled ? 'enabled' : 'disabled'), 'success');
+}
+
+// Data management
+function exportSettings() {
+    const settings = {};
+    Object.keys(defaultSettings).forEach(key => {
+        settings[key] = localStorage.getItem(key) || defaultSettings[key];
+    });
+    settings.avatar_color = localStorage.getItem('avatar_color') || '#206bc4';
+    
+    const dataStr = JSON.stringify(settings, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `thesis_app_settings_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showSettingsNotification('Settings exported', 'success');
+}
+
+function importSettings() {
+    const modal = new bootstrap.Modal(document.getElementById('importSettingsModal'));
+    modal.show();
+}
+
+function doImportSettings() {
+    try {
+        const json = document.getElementById('import-settings-json').value;
+        const settings = JSON.parse(json);
+        
+        Object.keys(settings).forEach(key => {
+            if (typeof settings[key] === 'boolean') {
+                localStorage.setItem(key, settings[key].toString());
+            } else {
+                localStorage.setItem(key, settings[key]);
+            }
+        });
+        
+        bootstrap.Modal.getInstance(document.getElementById('importSettingsModal')).hide();
+        showSettingsNotification('Settings imported! Reloading...', 'success');
+        
+        setTimeout(() => window.location.reload(), 1000);
+    } catch (e) {
+        showSettingsNotification('Invalid JSON format', 'danger');
+    }
+}
+
+function resetSettings() {
+    if (!confirm('Reset all settings to defaults? This cannot be undone.')) return;
+    
+    Object.keys(defaultSettings).forEach(key => {
+        localStorage.removeItem(key);
+    });
+    localStorage.removeItem('avatar_color');
+    localStorage.removeItem('app_theme_auto');
+    
+    showSettingsNotification('Settings reset! Reloading...', 'success');
+    setTimeout(() => window.location.reload(), 1000);
+}
+
+function confirmDeleteAccount() {
+    // Future implementation
+    showSettingsNotification('Account deletion is not yet available', 'warning');
+}
+
+// Notification helper
+function showSettingsNotification(message, type = 'info') {
+    const toastContainer = document.getElementById('toast-container') || createToastContainer();
+    
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast, { autohide: true, delay: 2500 });
+    bsToast.show();
+    toast.addEventListener('hidden.bs.toast', () => toast.remove());
+}
+
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-container position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+    return container;
+}
+</script>
 {% endblock %}

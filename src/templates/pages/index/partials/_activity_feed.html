@@ -1,0 +1,48 @@
+{% if activity and activity|length > 0 %}
+<div class="list-group list-group-flush">
+  {% for item in activity[:10] %}
+  <div class="list-group-item px-3 py-2">
+    <div class="d-flex align-items-start gap-2">
+      <div class="avatar avatar-xs 
+        {% if item.type == 'analysis' %}bg-info-lt text-info
+        {% elif item.type == 'app' %}bg-success-lt text-success
+        {% elif item.type == 'model' %}bg-primary-lt text-primary
+        {% elif item.type == 'error' %}bg-danger-lt text-danger
+        {% else %}bg-secondary-lt text-secondary{% endif %}"
+        style="flex-shrink: 0;">
+        {% if item.type == 'analysis' %}
+          <i class="fas fa-flask" style="font-size: 0.65rem;"></i>
+        {% elif item.type == 'app' %}
+          <i class="fas fa-cube" style="font-size: 0.65rem;"></i>
+        {% elif item.type == 'model' %}
+          <i class="fas fa-brain" style="font-size: 0.65rem;"></i>
+        {% elif item.type == 'error' %}
+          <i class="fas fa-exclamation" style="font-size: 0.65rem;"></i>
+        {% else %}
+          <i class="fas fa-clock" style="font-size: 0.65rem;"></i>
+        {% endif %}
+      </div>
+      <div class="flex-grow-1 min-width-0">
+        <div class="d-flex justify-content-between align-items-start">
+          <span class="text-truncate d-block small" style="max-width: 160px;" title="{{ item.description }}">
+            {{ item.description|truncate(35) }}
+          </span>
+        </div>
+        <small class="text-muted">
+          {% if item.timestamp %}
+            {{ item.timestamp.strftime('%H:%M') if item.timestamp.strftime else item.timestamp }}
+          {% else %}
+            Just now
+          {% endif %}
+        </small>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-muted py-4">
+  <i class="fas fa-clock fa-2x mb-2 opacity-50"></i>
+  <p class="mb-0 small">No recent activity</p>
+</div>
+{% endif %}

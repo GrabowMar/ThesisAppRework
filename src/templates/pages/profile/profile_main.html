@@ -1,4 +1,5 @@
 {% extends "layouts/base.html" %}
+{% set active_page = 'profile' %}
 
 {% block title %}Profile - {{ super() }}{% endblock %}
 
@@ -8,71 +9,142 @@
         <h1 class="h3 mb-0">Profile</h1>
         <p class="text-muted mb-0">Manage your account settings and preferences</p>
     </div>
+    <div class="btn-list">
+        <a href="{{ url_for('profile.settings') }}" class="btn btn-outline-secondary">
+            <i class="fas fa-cog me-2"></i>Settings
+        </a>
+    </div>
 </div>
 {% endblock %}
 
 {% block content %}
 <div class="row">
     <div class="col-lg-4">
-        <div class="card mb-4">
-            <div class="card-body text-center">
+        <!-- User Avatar Card -->
+        <div class="card card-table-compact mb-3">
+            <div class="card-body text-center py-4">
                 <div class="mb-3">
-                    <div class="avatar avatar-xl bg-primary text-white d-inline-flex align-items-center justify-content-center rounded-circle" style="width: 100px; height: 100px; font-size: 2.5rem;">
+                    <div id="user-avatar" 
+                         class="avatar avatar-xl text-white d-inline-flex align-items-center justify-content-center rounded-circle" 
+                         style="width: 100px; height: 100px; font-size: 2.5rem; cursor: pointer;"
+                         onclick="showAvatarColorPicker()"
+                         title="Click to change avatar color">
                         {{ current_user.username[0]|upper }}
                     </div>
                 </div>
                 <h5 class="mb-1">{{ current_user.full_name or current_user.username }}</h5>
-                <p class="text-muted mb-1">{{ current_user.email }}</p>
+                <p class="text-muted mb-2">{{ current_user.email }}</p>
                 {% if current_user.is_admin %}
-                <span class="badge bg-danger">Administrator</span>
+                <span class="badge bg-danger-lt text-danger">
+                    <i class="fas fa-shield-alt me-1"></i>Administrator
+                </span>
                 {% else %}
-                <span class="badge bg-secondary">User</span>
+                <span class="badge bg-secondary-lt text-secondary">
+                    <i class="fas fa-user me-1"></i>User
+                </span>
                 {% endif %}
-                <hr class="my-3">
-                <div class="text-start">
-                    <small class="text-muted d-block">Member since</small>
-                    <strong>{{ current_user.created_at.strftime('%B %d, %Y') if current_user.created_at else 'N/A' }}</strong>
+            </div>
+            <div class="card-footer bg-transparent">
+                <div class="row text-center g-2">
+                    <div class="col-6 border-end">
+                        <small class="text-muted d-block">Member since</small>
+                        <strong class="text-dark">{{ current_user.created_at.strftime('%b %d, %Y') if current_user.created_at else 'N/A' }}</strong>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted d-block">Last login</small>
+                        <strong class="text-dark">{{ current_user.last_login.strftime('%b %d, %Y') if current_user.last_login else 'N/A' }}</strong>
+                    </div>
                 </div>
-                {% if current_user.last_login %}
-                <div class="text-start mt-2">
-                    <small class="text-muted d-block">Last login</small>
-                    <strong>{{ current_user.last_login.strftime('%B %d, %Y %I:%M %p') }}</strong>
+            </div>
+        </div>
+
+        <!-- Account Status Card -->
+        <div class="card card-table-compact">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="fas fa-info-circle text-muted"></i>
+                <h3 class="card-title mb-0">Account Status</h3>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush">
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Status</span>
+                        {% if current_user.is_active %}
+                        <span class="badge bg-success-lt text-success">
+                            <i class="fas fa-check-circle me-1"></i>Active
+                        </span>
+                        {% else %}
+                        <span class="badge bg-danger-lt text-danger">
+                            <i class="fas fa-times-circle me-1"></i>Inactive
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Role</span>
+                        {% if current_user.is_admin %}
+                        <span class="badge bg-danger-lt text-danger">Administrator</span>
+                        {% else %}
+                        <span class="badge bg-secondary-lt text-secondary">User</span>
+                        {% endif %}
+                    </div>
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <span class="text-muted">Email verified</span>
+                        <span class="badge bg-success-lt text-success">
+                            <i class="fas fa-check me-1"></i>Yes
+                        </span>
+                    </div>
                 </div>
-                {% endif %}
             </div>
         </div>
     </div>
 
     <div class="col-lg-8">
         <!-- Account Information -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Account Information</h5>
+        <div class="card card-table-compact mb-3">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="fas fa-user-edit text-muted"></i>
+                <h3 class="card-title mb-0">Account Information</h3>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('profile.update_profile') }}">
+                <form id="profile-form"
+                      hx-post="{{ url_for('profile.update_profile') }}"
+                      hx-swap="none"
+                      hx-indicator="#profile-submit-indicator">
                     <div class="row mb-3">
                         <label for="username" class="col-sm-3 col-form-label">Username</label>
                         <div class="col-sm-9">
-                            <input type="text" class="form-control" id="username" value="{{ current_user.username }}" disabled>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-at"></i></span>
+                                <input type="text" class="form-control" id="username" value="{{ current_user.username }}" disabled>
+                            </div>
                             <small class="form-text text-muted">Username cannot be changed</small>
                         </div>
                     </div>
                     <div class="row mb-3">
                         <label for="email" class="col-sm-3 col-form-label">Email</label>
                         <div class="col-sm-9">
-                            <input type="email" class="form-control" id="email" name="email" value="{{ current_user.email }}" required>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-envelope"></i></span>
+                                <input type="email" class="form-control" id="email" name="email" value="{{ current_user.email }}" required>
+                            </div>
                         </div>
                     </div>
                     <div class="row mb-3">
                         <label for="full_name" class="col-sm-3 col-form-label">Full Name</label>
                         <div class="col-sm-9">
-                            <input type="text" class="form-control" id="full_name" name="full_name" value="{{ current_user.full_name or '' }}">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-id-card"></i></span>
+                                <input type="text" class="form-control" id="full_name" name="full_name" value="{{ current_user.full_name or '' }}" placeholder="Enter your full name">
+                            </div>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-sm-9 offset-sm-3">
-                            <button type="submit" class="btn btn-primary">Update Profile</button>
+                            <button type="submit" class="btn btn-primary">
+                                <span id="profile-submit-indicator" class="htmx-indicator">
+                                    <i class="fas fa-spinner fa-spin me-2"></i>
+                                </span>
+                                <i class="fas fa-save me-2 profile-btn-icon"></i>Update Profile
+                            </button>
                         </div>
                     </div>
                 </form>
@@ -80,75 +152,465 @@
         </div>
 
         <!-- Change Password -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Change Password</h5>
+        <div class="card card-table-compact mb-3">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="fas fa-key text-muted"></i>
+                <h3 class="card-title mb-0">Change Password</h3>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('profile.change_password') }}">
+                <form id="password-form"
+                      hx-post="{{ url_for('profile.change_password') }}"
+                      hx-swap="none"
+                      hx-indicator="#password-submit-indicator">
                     <div class="row mb-3">
                         <label for="current_password" class="col-sm-3 col-form-label">Current Password</label>
                         <div class="col-sm-9">
-                            <input type="password" class="form-control" id="current_password" name="current_password" required>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                                <input type="password" class="form-control" id="current_password" name="current_password" required>
+                                <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('current_password')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                     <div class="row mb-3">
                         <label for="new_password" class="col-sm-3 col-form-label">New Password</label>
                         <div class="col-sm-9">
-                            <input type="password" class="form-control" id="new_password" name="new_password" required minlength="8">
-                            <small class="form-text text-muted">At least 8 characters</small>
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-key"></i></span>
+                                <input type="password" class="form-control" id="new_password" name="new_password" required minlength="8" oninput="checkPasswordStrength(this.value)">
+                                <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('new_password')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <div class="mt-2">
+                                <div class="progress" style="height: 4px;">
+                                    <div id="password-strength-bar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                </div>
+                                <small id="password-strength-text" class="form-text text-muted">At least 8 characters</small>
+                            </div>
                         </div>
                     </div>
                     <div class="row mb-3">
                         <label for="confirm_password" class="col-sm-3 col-form-label">Confirm Password</label>
                         <div class="col-sm-9">
-                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required minlength="8">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-check-double"></i></span>
+                                <input type="password" class="form-control" id="confirm_password" name="confirm_password" required minlength="8" oninput="checkPasswordMatch()">
+                                <button type="button" class="btn btn-outline-secondary" onclick="togglePassword('confirm_password')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                            <small id="password-match-text" class="form-text"></small>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-sm-9 offset-sm-3">
-                            <button type="submit" class="btn btn-warning">Change Password</button>
+                            <button type="submit" class="btn btn-warning">
+                                <span id="password-submit-indicator" class="htmx-indicator">
+                                    <i class="fas fa-spinner fa-spin me-2"></i>
+                                </span>
+                                <i class="fas fa-sync-alt me-2 password-btn-icon"></i>Change Password
+                            </button>
                         </div>
                     </div>
                 </form>
             </div>
         </div>
 
-        <!-- Account Status -->
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Account Status</h5>
+        <!-- Quick Links -->
+        <div class="card card-table-compact">
+            <div class="card-header d-flex align-items-center gap-2">
+                <i class="fas fa-link text-muted"></i>
+                <h3 class="card-title mb-0">Quick Links</h3>
             </div>
             <div class="card-body">
-                <div class="row">
-                    <div class="col-sm-3">
-                        <strong>Status</strong>
+                <div class="row g-2">
+                    <div class="col-sm-6">
+                        <a href="{{ url_for('profile.settings') }}" class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-start">
+                            <i class="fas fa-cog me-2 text-primary"></i> Preferences & Settings
+                        </a>
                     </div>
-                    <div class="col-sm-9">
-                        {% if current_user.is_active %}
-                        <span class="badge bg-success">Active</span>
-                        {% else %}
-                        <span class="badge bg-danger">Inactive</span>
-                        {% endif %}
+                    <div class="col-sm-6">
+                        <button type="button" class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-start" data-bs-toggle="modal" data-bs-target="#apiTokenModal">
+                            <i class="fas fa-key me-2 text-success"></i> API Access Tokens
+                        </button>
                     </div>
-                </div>
-                <hr>
-                <div class="row">
-                    <div class="col-sm-3">
-                        <strong>Role</strong>
+                    <div class="col-sm-6">
+                        <a href="{{ url_for('analysis.analysis_index') }}" class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-start">
+                            <i class="fas fa-flask me-2 text-info"></i> My Analyses
+                        </a>
                     </div>
-                    <div class="col-sm-9">
-                        {% if current_user.is_admin %}
-                        <span class="badge bg-danger">Administrator</span>
-                        <small class="text-muted d-block mt-1">Full access to all features</small>
-                        {% else %}
-                        <span class="badge bg-secondary">User</span>
-                        <small class="text-muted d-block mt-1">Standard user access</small>
-                        {% endif %}
+                    <div class="col-sm-6">
+                        <a href="{{ url_for('applications.applications_index') }}" class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-start">
+                            <i class="fas fa-cubes me-2 text-warning"></i> My Applications
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Avatar Color Picker Modal -->
+<div class="modal fade" id="avatarColorModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-palette me-2"></i>Avatar Color</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">Select a color for your avatar</p>
+                <div class="d-flex flex-wrap gap-2 justify-content-center" id="avatar-color-options">
+                    <!-- Colors populated by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- API Token Modal -->
+<div class="modal fade" id="apiTokenModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-key me-2 text-success"></i>API Access Token</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="token-status-section">
+                    <div class="d-flex align-items-center justify-content-center py-3">
+                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                        <span class="text-muted">Checking token status...</span>
+                    </div>
+                </div>
+                <div id="token-display-section" class="d-none">
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>Token Generated!</strong>
+                        <p class="mb-2 mt-2 text-muted small">Save this token now - it won't be shown again.</p>
+                        <div class="input-group">
+                            <input type="text" id="new-token-value" class="form-control font-monospace" readonly>
+                            <button class="btn btn-outline-secondary" type="button" onclick="copyToken()">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div id="token-info-section" class="d-none">
+                    <div class="alert alert-info mb-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        API tokens provide programmatic access to the ThesisApp API.
+                    </div>
+                    <div id="has-token-info" class="d-none">
+                        <p><i class="fas fa-check text-success me-2"></i>You have an active API token.</p>
+                        <p class="text-muted small">Created: <span id="token-created-date">-</span></p>
+                    </div>
+                    <div id="no-token-info" class="d-none">
+                        <p class="text-muted"><i class="fas fa-times text-danger me-2"></i>You don't have an active API token.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" id="revoke-token-btn" class="btn btn-danger d-none" onclick="revokeToken()">
+                    <i class="fas fa-trash me-2"></i>Revoke Token
+                </button>
+                <button type="button" id="generate-token-btn" class="btn btn-success" onclick="generateToken()">
+                    <i class="fas fa-plus me-2"></i>Generate Token
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Avatar colors
+const avatarColors = [
+    { name: 'Blue', value: '#206bc4' },
+    { name: 'Azure', value: '#4299e1' },
+    { name: 'Indigo', value: '#4263eb' },
+    { name: 'Purple', value: '#ae3ec9' },
+    { name: 'Pink', value: '#d6336c' },
+    { name: 'Red', value: '#d63939' },
+    { name: 'Orange', value: '#f76707' },
+    { name: 'Yellow', value: '#f59f00' },
+    { name: 'Lime', value: '#74b816' },
+    { name: 'Green', value: '#2fb344' },
+    { name: 'Teal', value: '#0ca678' },
+    { name: 'Cyan', value: '#17a2b8' }
+];
+
+// Initialize avatar color
+document.addEventListener('DOMContentLoaded', function() {
+    const savedColor = localStorage.getItem('avatar_color') || '#206bc4';
+    document.getElementById('user-avatar').style.backgroundColor = savedColor;
+    
+    // Populate color picker
+    const colorOptions = document.getElementById('avatar-color-options');
+    avatarColors.forEach(color => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-icon rounded-circle';
+        btn.style.cssText = `width: 40px; height: 40px; background-color: ${color.value}; border: 2px solid transparent;`;
+        btn.title = color.name;
+        btn.onclick = () => setAvatarColor(color.value);
+        if (savedColor === color.value) {
+            btn.style.borderColor = '#000';
+            btn.innerHTML = '<i class="fas fa-check text-white"></i>';
+        }
+        colorOptions.appendChild(btn);
+    });
+});
+
+function showAvatarColorPicker() {
+    const modal = new bootstrap.Modal(document.getElementById('avatarColorModal'));
+    modal.show();
+}
+
+function setAvatarColor(color) {
+    localStorage.setItem('avatar_color', color);
+    document.getElementById('user-avatar').style.backgroundColor = color;
+    
+    // Update color picker UI
+    const buttons = document.querySelectorAll('#avatar-color-options button');
+    buttons.forEach(btn => {
+        btn.style.borderColor = 'transparent';
+        btn.innerHTML = '';
+    });
+    event.target.closest('button').style.borderColor = '#000';
+    event.target.closest('button').innerHTML = '<i class="fas fa-check text-white"></i>';
+    
+    bootstrap.Modal.getInstance(document.getElementById('avatarColorModal')).hide();
+    showProfileNotification('Avatar color updated!', 'success');
+}
+
+// Password visibility toggle
+function togglePassword(inputId) {
+    const input = document.getElementById(inputId);
+    const icon = event.target.closest('button').querySelector('i');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.replace('fa-eye', 'fa-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.replace('fa-eye-slash', 'fa-eye');
+    }
+}
+
+// Password strength checker
+function checkPasswordStrength(password) {
+    const bar = document.getElementById('password-strength-bar');
+    const text = document.getElementById('password-strength-text');
+    
+    let strength = 0;
+    if (password.length >= 8) strength += 25;
+    if (password.length >= 12) strength += 15;
+    if (/[a-z]/.test(password)) strength += 15;
+    if (/[A-Z]/.test(password)) strength += 15;
+    if (/[0-9]/.test(password)) strength += 15;
+    if (/[^a-zA-Z0-9]/.test(password)) strength += 15;
+    
+    bar.style.width = strength + '%';
+    
+    if (strength < 30) {
+        bar.className = 'progress-bar bg-danger';
+        text.textContent = 'Weak password';
+        text.className = 'form-text text-danger';
+    } else if (strength < 60) {
+        bar.className = 'progress-bar bg-warning';
+        text.textContent = 'Fair password';
+        text.className = 'form-text text-warning';
+    } else if (strength < 80) {
+        bar.className = 'progress-bar bg-info';
+        text.textContent = 'Good password';
+        text.className = 'form-text text-info';
+    } else {
+        bar.className = 'progress-bar bg-success';
+        text.textContent = 'Strong password';
+        text.className = 'form-text text-success';
+    }
+    
+    checkPasswordMatch();
+}
+
+// Password match checker
+function checkPasswordMatch() {
+    const newPass = document.getElementById('new_password').value;
+    const confirmPass = document.getElementById('confirm_password').value;
+    const text = document.getElementById('password-match-text');
+    
+    if (!confirmPass) {
+        text.textContent = '';
+        return;
+    }
+    
+    if (newPass === confirmPass) {
+        text.textContent = '✓ Passwords match';
+        text.className = 'form-text text-success';
+    } else {
+        text.textContent = '✗ Passwords do not match';
+        text.className = 'form-text text-danger';
+    }
+}
+
+// Toast notification helper
+function showProfileNotification(message, type = 'info') {
+    const toastContainer = document.getElementById('toast-container') || createToastContainer();
+    
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    
+    toastContainer.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast, { autohide: true, delay: 3000 });
+    bsToast.show();
+    toast.addEventListener('hidden.bs.toast', () => toast.remove());
+}
+
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-container position-fixed top-0 end-0 p-3';
+    container.style.zIndex = '9999';
+    document.body.appendChild(container);
+    return container;
+}
+
+// HTMX event handlers for form responses
+document.body.addEventListener('htmx:afterRequest', function(evt) {
+    if (evt.detail.target.id === 'profile-form' || evt.detail.target.id === 'password-form') {
+        const xhr = evt.detail.xhr;
+        let message = 'Operation completed';
+        let type = 'success';
+        
+        try {
+            const response = JSON.parse(xhr.responseText);
+            message = response.message || message;
+            type = response.success ? 'success' : 'danger';
+        } catch(e) {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                message = evt.detail.target.id === 'profile-form' ? 'Profile updated successfully!' : 'Password changed successfully!';
+                type = 'success';
+            } else {
+                message = 'An error occurred';
+                type = 'danger';
+            }
+        }
+        
+        showProfileNotification(message, type);
+        
+        // Clear password fields on success
+        if (type === 'success' && evt.detail.target.id === 'password-form') {
+            document.getElementById('current_password').value = '';
+            document.getElementById('new_password').value = '';
+            document.getElementById('confirm_password').value = '';
+            document.getElementById('password-strength-bar').style.width = '0%';
+            document.getElementById('password-strength-text').textContent = 'At least 8 characters';
+            document.getElementById('password-strength-text').className = 'form-text text-muted';
+            document.getElementById('password-match-text').textContent = '';
+        }
+    }
+});
+
+// API Token Management
+const apiTokenModal = document.getElementById('apiTokenModal');
+if (apiTokenModal) {
+    apiTokenModal.addEventListener('show.bs.modal', checkTokenStatus);
+}
+
+async function checkTokenStatus() {
+    const statusSection = document.getElementById('token-status-section');
+    const infoSection = document.getElementById('token-info-section');
+    const displaySection = document.getElementById('token-display-section');
+    
+    statusSection.classList.remove('d-none');
+    infoSection.classList.add('d-none');
+    displaySection.classList.add('d-none');
+    
+    try {
+        const response = await fetch('/api/tokens/status');
+        const data = await response.json();
+        
+        statusSection.classList.add('d-none');
+        infoSection.classList.remove('d-none');
+        
+        if (data.has_token) {
+            document.getElementById('has-token-info').classList.remove('d-none');
+            document.getElementById('no-token-info').classList.add('d-none');
+            document.getElementById('revoke-token-btn').classList.remove('d-none');
+            document.getElementById('generate-token-btn').textContent = 'Regenerate Token';
+            if (data.created_at) {
+                document.getElementById('token-created-date').textContent = new Date(data.created_at).toLocaleString();
+            }
+        } else {
+            document.getElementById('has-token-info').classList.add('d-none');
+            document.getElementById('no-token-info').classList.remove('d-none');
+            document.getElementById('revoke-token-btn').classList.add('d-none');
+            document.getElementById('generate-token-btn').innerHTML = '<i class="fas fa-plus me-2"></i>Generate Token';
+        }
+    } catch (error) {
+        statusSection.innerHTML = '<div class="alert alert-danger">Failed to check token status</div>';
+    }
+}
+
+async function generateToken() {
+    const displaySection = document.getElementById('token-display-section');
+    const infoSection = document.getElementById('token-info-section');
+    
+    try {
+        const response = await fetch('/api/tokens/generate', { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.success) {
+            infoSection.classList.add('d-none');
+            displaySection.classList.remove('d-none');
+            document.getElementById('new-token-value').value = data.token;
+            document.getElementById('revoke-token-btn').classList.remove('d-none');
+            showProfileNotification('API token generated successfully!', 'success');
+        } else {
+            showProfileNotification(data.error || 'Failed to generate token', 'danger');
+        }
+    } catch (error) {
+        showProfileNotification('Failed to generate token', 'danger');
+    }
+}
+
+async function revokeToken() {
+    if (!confirm('Are you sure you want to revoke your API token? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/tokens/revoke', { method: 'POST' });
+        const data = await response.json();
+        
+        if (data.success) {
+            showProfileNotification('API token revoked successfully!', 'success');
+            checkTokenStatus();
+        } else {
+            showProfileNotification(data.error || 'Failed to revoke token', 'danger');
+        }
+    } catch (error) {
+        showProfileNotification('Failed to revoke token', 'danger');
+    }
+}
+
+function copyToken() {
+    const tokenInput = document.getElementById('new-token-value');
+    tokenInput.select();
+    document.execCommand('copy');
+    showProfileNotification('Token copied to clipboard!', 'success');
+}
+</script>
 {% endblock %}

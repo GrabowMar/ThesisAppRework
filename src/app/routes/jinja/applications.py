@@ -1339,18 +1339,23 @@ def application_tools_cmd(model_slug, app_number, cmd):
     from markupsafe import escape
     
     # Map command shortcuts to actual commands
+    # Format: cmd -> (container_type, shell_cmd, fallback_cmd_or_None)
     cmd_map = {
-        'pip-list': ('backend', 'pip list --format=columns'),
-        'npm-list': ('frontend', 'npm list --depth=0'),
-        'health': ('backend', 'curl -s http://localhost:5000/api/health || echo "Health check failed"'),
-        'routes': ('backend', 'flask routes 2>/dev/null || python -c "from app import app; print(app.url_map)"'),
-        'ps': ('backend', 'ps aux --sort=-%mem | head -10'),
+        'pip-list': ('backend', 'pip list --format=columns', None),
+        'npm-list': ('frontend', 
+                     'npm list --depth=0 2>/dev/null || (cat /app/package.json 2>/dev/null | head -50) || echo "npm not available (production container)"',
+                     None),
+        'health': ('backend', 'curl -s http://localhost:5000/api/health || wget -qO- http://localhost:5000/api/health || echo "Health endpoint not responding"', None),
+        'routes': ('backend', 'flask routes 2>/dev/null || python -c "from app import app; print(app.url_map)" 2>/dev/null || echo "Could not list routes"', None),
+        'ps': ('backend', 'ps aux --sort=-%mem 2>/dev/null | head -10 || ps aux | head -10 || echo "ps command not available"', None),
+        'env': ('backend', 'env | sort | head -30', None),
+        'disk': ('backend', 'df -h 2>/dev/null || echo "df not available"', None),
     }
     
     if cmd not in cmd_map:
         return f'<span class="text-danger">Unknown command: {escape(cmd)}</span>'
     
-    container_type, shell_cmd = cmd_map[cmd]
+    container_type, shell_cmd, _ = cmd_map[cmd]
     
     # Build container name - Docker Compose uses format: {project_name}_{service}
     # Project name: model slug with underscores/dots replaced by hyphens + -app{N}
@@ -1365,10 +1370,23 @@ def application_tools_cmd(model_slug, app_number, cmd):
             text=True,
             timeout=30
         )
-        output = result.stdout or result.stderr or 'No output'
-        if result.returncode != 0 and result.stderr:
-            return f'<span class="text-warning">$ {escape(shell_cmd)}</span>\n<span class="text-danger">{escape(result.stderr)}</span>'
-        return f'<span class="text-success">$ {escape(shell_cmd)}</span>\n{escape(output)}'
+        output = result.stdout.strip() if result.stdout else ''
+        stderr = result.stderr.strip() if result.stderr else ''
+        
+        if not output and not stderr:
+            output = 'No output'
+        elif not output and stderr:
+            # Some commands output to stderr
+            output = stderr
+            stderr = ''
+        
+        # Format output
+        cmd_display = shell_cmd.split('||')[0].strip()  # Show just the primary command
+        if result.returncode != 0 and stderr and 'not found' in stderr.lower():
+            return f'<span class="text-muted">$ {escape(cmd_display)}</span>\n<span class="text-warning">{escape(output or stderr)}</span>'
+        elif result.returncode != 0 and stderr:
+            return f'<span class="text-warning">$ {escape(cmd_display)}</span>\n{escape(output)}\n<span class="text-danger">{escape(stderr)}</span>'
+        return f'<span class="text-success">$ {escape(cmd_display)}</span>\n{escape(output)}'
     except subprocess.TimeoutExpired:
         return '<span class="text-warning">Command timed out after 30s</span>'
     except FileNotFoundError:

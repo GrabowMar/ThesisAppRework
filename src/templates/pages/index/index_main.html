@@ -6,117 +6,246 @@
 
 {% block content %}
 <div id="dashboard-wrapper" class="w-100">
-  <!-- Page content -->
-    <div id="summary-region"
-         hx-get="/api/dashboard/fragments/summary-cards"
-         hx-trigger="load, every 60s, refresh"
-         hx-target="this"
-         hx-swap="outerHTML">
-      <!-- Loading placeholders -->
-      <div class="row row-cards g-2 mb-3">
-        {% for _ in range(4) %}
-        <div class="col-6 col-lg-3">
-          <div class="card card-sm">
-            <div class="card-body">
-              <div class="placeholder-glow">
-                <div class="placeholder col-4"></div>
-                <div class="placeholder col-6"></div>
-                <div class="placeholder col-8"></div>
+  <!-- Summary Cards Region -->
+  <div id="summary-region"
+       hx-get="/api/dashboard/fragments/summary-cards"
+       hx-trigger="load, every 60s, refresh"
+       hx-target="this"
+       hx-swap="outerHTML">
+    <!-- Loading placeholders -->
+    <div class="row row-cards g-2 mb-3">
+      {% for _ in range(4) %}
+      <div class="col-6 col-lg-3">
+        <div class="card card-sm">
+          <div class="card-body">
+            <div class="placeholder-glow">
+              <div class="placeholder col-4 mb-2"></div>
+              <div class="placeholder col-6 mb-1"></div>
+              <div class="placeholder col-8"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Main Content Grid -->
+  <div class="row row-cards g-2">
+    <!-- Left Column - Main Content -->
+    <div class="col-lg-8">
+      <div class="row row-cards g-2">
+        <!-- System Status -->
+        <div class="col-12">
+          <div class="card card-table-compact">
+            <div class="card-header d-flex flex-wrap align-items-center gap-3">
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+                  <i class="fas fa-server"></i>
+                  <span>System Status</span>
+                </h3>
+              </div>
+              <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+                <div class="btn-list">
+                  <button class="btn btn-sm btn-ghost-primary btn-icon" 
+                          _="on click send refresh to #system-status-region" 
+                          aria-label="Refresh system status"
+                          title="Refresh system status">
+                    <i class="fas fa-sync" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="table-responsive" id="system-status-region"
+                 hx-get="/api/dashboard/fragments/system-status"
+                 hx-trigger="load, every 45s, refresh"
+                 hx-target="this"
+                 hx-swap="outerHTML">
+              <div class="text-center text-muted py-4">
+                <i class="fas fa-spinner fa-spin me-2"></i>Checking services…
               </div>
             </div>
           </div>
         </div>
-        {% endfor %}
+
+        <!-- Recent Analyses -->
+        <div class="col-12">
+          <div class="card card-table-compact">
+            <div class="card-header d-flex flex-wrap align-items-center gap-3">
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+                  <i class="fas fa-flask"></i>
+                  <span>Recent Analyses</span>
+                </h3>
+              </div>
+              <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+                <div class="btn-list">
+                  <a href="{{ url_for('analysis.analysis_index') }}" class="btn btn-sm btn-ghost-secondary">
+                    View All
+                  </a>
+                  <button class="btn btn-sm btn-ghost-primary btn-icon" 
+                          _="on click send refresh to #analyses-region" 
+                          aria-label="Refresh analyses"
+                          title="Refresh analyses">
+                    <i class="fas fa-sync" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="table-responsive" id="analyses-region"
+                 hx-get="/api/dashboard/fragments/recent-analyses"
+                 hx-trigger="load, every 30s, refresh"
+                 hx-target="this"
+                 hx-swap="outerHTML">
+              <div class="text-center text-muted py-4">
+                <i class="fas fa-spinner fa-spin me-2"></i>Loading analyses…
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Applications -->
+        <div class="col-12">
+          <div class="card card-table-compact">
+            <div class="card-header d-flex flex-wrap align-items-center gap-3">
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+                  <i class="fas fa-cubes"></i>
+                  <span>Recent Applications</span>
+                </h3>
+              </div>
+              <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+                <div class="btn-list">
+                  <a href="{{ url_for('applications.applications_index') }}" class="btn btn-sm btn-ghost-secondary">
+                    View All
+                  </a>
+                  <button class="btn btn-sm btn-ghost-primary btn-icon" 
+                          _="on click send refresh to #apps-region" 
+                          aria-label="Refresh applications"
+                          title="Refresh applications">
+                    <i class="fas fa-sync" aria-hidden="true"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="table-responsive" id="apps-region"
+                 hx-get="/api/dashboard/fragments/recent-applications"
+                 hx-trigger="load, every 45s, refresh"
+                 hx-target="this"
+                 hx-swap="outerHTML">
+              <div class="text-center text-muted py-4">
+                <i class="fas fa-spinner fa-spin me-2"></i>Loading applications…
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="row row-cards g-2">
-      <div class="col-lg-8">
-        <div class="row row-cards g-2">
-          <div class="col-12">
-            <div class="card card-table-compact">
-              <div class="card-header d-flex flex-wrap align-items-center gap-3">
-                <div class="d-flex flex-wrap align-items-center gap-2">
-                  <h3 class="card-title d-flex align-items-center gap-2 mb-0">
-                    <i class="fas fa-server"></i>
-                    <span>System Status</span>
-                  </h3>
+    <!-- Right Column - Quick Actions & Admin -->
+    <div class="col-lg-4">
+      <div class="row row-cards g-2">
+        <!-- Quick Actions -->
+        <div class="col-12">
+          <div class="card card-table-compact">
+            <div class="card-header d-flex align-items-center gap-2">
+              <i class="fas fa-bolt text-warning"></i>
+              <h3 class="card-title mb-0">Quick Actions</h3>
+            </div>
+            <div class="card-body p-2">
+              <div class="row g-2">
+                <div class="col-6">
+                  <a href="{{ url_for('analysis.analysis_create') }}" class="btn btn-sm w-100 btn-primary d-flex align-items-center justify-content-center">
+                    <i class="fas fa-plus me-2"></i>New Analysis
+                  </a>
                 </div>
-                <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
-                  <div class="btn-list">
-                    <button class="btn btn-sm btn-ghost-primary btn-icon" 
-                            _="on click send refresh to #system-status-region" 
-                            aria-label="Refresh system status"
-                            title="Refresh system status">
-                      <i class="fas fa-sync" aria-hidden="true"></i>
-                    </button>
-                  </div>
+                <div class="col-6">
+                  <a href="{{ url_for('applications.applications_index') }}" class="btn btn-sm w-100 btn-outline-primary d-flex align-items-center justify-content-center">
+                    <i class="fas fa-rocket me-2"></i>Generate App
+                  </a>
                 </div>
-              </div>
-              <div class="table-responsive" id="system-status-region"
-                   hx-get="/api/dashboard/fragments/system-status"
-                   hx-trigger="load, every 45s, refresh"
-                   hx-target="this"
-                   hx-swap="outerHTML">
-                <div class="text-center text-muted py-4">Checking services…</div>
+                <div class="col-6">
+                  <a href="{{ url_for('models.models_index') }}" class="btn btn-sm w-100 btn-outline-secondary d-flex align-items-center justify-content-center">
+                    <i class="fas fa-brain me-2"></i>Models
+                  </a>
+                </div>
+                <div class="col-6">
+                  <a href="{{ url_for('rankings.rankings_index') }}" class="btn btn-sm w-100 btn-outline-secondary d-flex align-items-center justify-content-center">
+                    <i class="fas fa-trophy me-2"></i>Rankings
+                  </a>
+                </div>
               </div>
             </div>
           </div>
-
-
         </div>
-      </div>
 
-      <div class="col-lg-4">
-        <div class="row row-cards g-2">
-          <div class="col-12">
-            <div class="card card-table-compact">
-              <div class="card-header d-flex flex-wrap align-items-center gap-3">
-                <div class="d-flex flex-wrap align-items-center gap-2">
-                  <h3 class="card-title d-flex align-items-center gap-2 mb-0">
-                    <i class="fas fa-cogs"></i>
-                    <span>System Administration</span>
-                  </h3>
-                </div>
-                <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
-                  <div class="btn-list">
-                    <button class="btn btn-sm btn-ghost-primary btn-icon" 
-                            onclick="refreshSystemInfo()" 
-                            aria-label="Refresh system information"
-                            title="Refresh system information">
-                      <i class="fas fa-sync" aria-hidden="true"></i>
-                    </button>
-                  </div>
+        <!-- System Administration -->
+        <div class="col-12">
+          <div class="card card-table-compact">
+            <div class="card-header d-flex flex-wrap align-items-center gap-3">
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <h3 class="card-title d-flex align-items-center gap-2 mb-0">
+                  <i class="fas fa-cogs"></i>
+                  <span>System Administration</span>
+                </h3>
+              </div>
+              <div class="card-actions d-flex flex-wrap align-items-center gap-2 ms-auto">
+                <div class="btn-list">
+                  <button class="btn btn-sm btn-ghost-primary btn-icon" 
+                          onclick="refreshSystemInfo()" 
+                          aria-label="Refresh system information"
+                          title="Refresh system information">
+                    <i class="fas fa-sync" aria-hidden="true"></i>
+                  </button>
                 </div>
               </div>
-              <div class="card-body p-2">
-                <div class="row g-2">
-                  <div class="col-6">
-                    <button class="btn btn-sm w-100 btn-ghost-secondary d-flex align-items-center justify-content-start" onclick="refreshAllData()" title="Refresh All Data">
-                      <i class="fas fa-sync text-info me-2"></i> Refresh
-                    </button>
-                  </div>
-                  <div class="col-6">
-                    <button class="btn btn-sm w-100 btn-ghost-secondary d-flex align-items-center justify-content-start" onclick="syncModels()" title="Sync Models">
-                      <i class="fas fa-cloud-download-alt text-primary me-2"></i> Sync Models
-                    </button>
-                  </div>
-                  <div class="col-6">
-                    <button class="btn btn-sm w-100 btn-ghost-secondary d-flex align-items-center justify-content-start" onclick="clearLocalStorage()" title="Clear Cache">
-                      <i class="fas fa-eraser text-warning me-2"></i> Clear Cache
-                    </button>
-                  </div>
-                  <div class="col-6">
-                    <button class="btn btn-sm w-100 btn-ghost-secondary d-flex align-items-center justify-content-start" onclick="downloadSystemInfo()" title="System Info">
-                      <i class="fas fa-download text-success me-2"></i> System Info
-                    </button>
-                  </div>
-                  <div class="col-12">
-                    <button class="btn btn-sm w-100 btn-ghost-secondary d-flex align-items-center justify-content-start" onclick="showKeyboardShortcuts()" title="Keyboard Shortcuts">
-                      <i class="fas fa-keyboard text-secondary me-2"></i> Keyboard Shortcuts
-                    </button>
-                  </div>
+            </div>
+            <div class="card-body p-2">
+              <div class="row g-2">
+                <div class="col-6">
+                  <button class="btn btn-sm w-100 btn-ghost-secondary d-flex align-items-center justify-content-start" onclick="refreshAllData()" title="Refresh All Data">
+                    <i class="fas fa-sync text-info me-2"></i> Refresh
+                  </button>
                 </div>
+                <div class="col-6">
+                  <button class="btn btn-sm w-100 btn-ghost-secondary d-flex align-items-center justify-content-start" onclick="syncModels()" title="Sync Models">
+                    <i class="fas fa-cloud-download-alt text-primary me-2"></i> Sync Models
+                  </button>
+                </div>
+                <div class="col-6">
+                  <button class="btn btn-sm w-100 btn-ghost-secondary d-flex align-items-center justify-content-start" onclick="clearLocalStorage()" title="Clear Cache">
+                    <i class="fas fa-eraser text-warning me-2"></i> Clear Cache
+                  </button>
+                </div>
+                <div class="col-6">
+                  <button class="btn btn-sm w-100 btn-ghost-secondary d-flex align-items-center justify-content-start" onclick="downloadSystemInfo()" title="System Info">
+                    <i class="fas fa-download text-success me-2"></i> System Info
+                  </button>
+                </div>
+                <div class="col-12">
+                  <button class="btn btn-sm w-100 btn-ghost-secondary d-flex align-items-center justify-content-start" onclick="showKeyboardShortcuts()" title="Keyboard Shortcuts">
+                    <i class="fas fa-keyboard text-secondary me-2"></i> Keyboard Shortcuts
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Activity Feed -->
+        <div class="col-12">
+          <div class="card card-table-compact">
+            <div class="card-header d-flex align-items-center gap-2">
+              <i class="fas fa-clock text-muted"></i>
+              <h3 class="card-title mb-0">Recent Activity</h3>
+            </div>
+            <div class="card-body p-0" id="activity-feed-region"
+                 hx-get="/api/dashboard/fragments/activity-feed"
+                 hx-trigger="load, every 60s, refresh"
+                 hx-target="this"
+                 hx-swap="innerHTML">
+              <div class="text-center text-muted py-4">
+                <i class="fas fa-spinner fa-spin me-2"></i>Loading activity…
               </div>
             </div>
           </div>
@@ -132,7 +261,10 @@
 <script type="text/hyperscript">
   def refreshDashboardSections()
     send refresh to #summary-region
-    send refresh to #system-status-region  
+    send refresh to #system-status-region
+    send refresh to #analyses-region
+    send refresh to #apps-region
+    send refresh to #activity-feed-region
   end
 </script>
 
@@ -192,28 +324,34 @@ function startApplication(modelSlug, appNumber) {
     });
 }
 
-// Simple Administration Functions (Minimal Backend Integration)
+// Simple Administration Functions
 
-// Quick Actions
+function refreshSystemInfo() {
+  showDashboardNotification('Refreshing system info...', 'info');
+  htmx.trigger('#system-status-region', 'refresh');
+}
+
 function refreshAllData() {
   showDashboardNotification('Refreshing all dashboard data...', 'info');
-  // Use existing HTMX refresh functionality
   htmx.trigger('#summary-region', 'refresh');
   htmx.trigger('#system-status-region', 'refresh');
-  showDashboardNotification('Dashboard data refreshed', 'success');
+  htmx.trigger('#analyses-region', 'refresh');
+  htmx.trigger('#apps-region', 'refresh');
+  htmx.trigger('#activity-feed-region', 'refresh');
+  setTimeout(() => {
+    showDashboardNotification('Dashboard refreshed', 'success');
+  }, 500);
 }
 
 function syncModels() {
   const btn = event.target.closest('button');
   const originalHTML = btn.innerHTML;
   
-  // Show loading state
   btn.disabled = true;
   btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Syncing...';
   
   showDashboardNotification('Syncing models from OpenRouter...', 'info');
   
-  // Use existing API endpoint
   fetch('/api/models/load-openrouter', { method: 'POST' })
     .then(response => {
       if (!response.ok) {
@@ -227,12 +365,8 @@ function syncModels() {
       if (data.success || data.upserted !== undefined) {
         const upserted = data.upserted || 0;
         const fetched = data.fetched || 0;
-        showDashboardNotification(`✓ Models synced successfully: ${upserted} updated from ${fetched} fetched`, 'success');
-        
-        // Refresh relevant dashboard sections
-        if (window.refreshAllSections) {
-          setTimeout(() => refreshAllSections(), 1000);
-        }
+        showDashboardNotification(`✓ Models synced: ${upserted} updated from ${fetched} fetched`, 'success');
+        htmx.trigger('#summary-region', 'refresh');
       } else {
         showDashboardNotification(`Sync failed: ${data.error || 'Unknown error'}`, 'danger');
       }
@@ -242,7 +376,6 @@ function syncModels() {
       showDashboardNotification(`Sync failed: ${error.message}`, 'danger');
     })
     .finally(() => {
-      // Restore button state
       btn.disabled = false;
       btn.innerHTML = originalHTML;
     });
@@ -250,18 +383,11 @@ function syncModels() {
 
 function clearLocalStorage() {
   if (confirm('Clear all browser cache and UI settings? This will reset your interface preferences.')) {
-    // Clear localStorage
     try {
       localStorage.clear();
-      showDashboardNotification('Browser cache cleared successfully', 'success');
-      
-      // Optional: Also clear sessionStorage
       sessionStorage.clear();
-      
-      // Refresh page to reset UI state
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      showDashboardNotification('Browser cache cleared. Reloading...', 'success');
+      setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
       showDashboardNotification('Failed to clear browser cache', 'warning');
     }
@@ -269,7 +395,6 @@ function clearLocalStorage() {
 }
 
 function downloadSystemInfo() {
-  // Collect system information that's already available
   const systemInfo = {
     timestamp: new Date().toISOString(),
     url: window.location.href,
@@ -288,12 +413,11 @@ function downloadSystemInfo() {
       keys: Object.keys(localStorage)
     },
     performance: {
-      timing: performance.timing,
-      navigation: performance.navigation
+      loadTime: performance.timing.loadEventEnd - performance.timing.navigationStart,
+      domReady: performance.timing.domContentLoadedEventEnd - performance.timing.navigationStart
     }
   };
   
-  // Create and download JSON file
   const dataStr = JSON.stringify(systemInfo, null, 2);
   const dataBlob = new Blob([dataStr], { type: 'application/json' });
   
@@ -311,16 +435,14 @@ function downloadSystemInfo() {
 
 function showKeyboardShortcuts() {
   const shortcuts = [
-    { keys: 'Ctrl + /', description: 'Toggle this help' },
-    { keys: 'Ctrl + R', description: 'Refresh page' },
-    { keys: 'Ctrl + Shift + R', description: 'Hard refresh (clear cache)' },
-    { keys: 'F5', description: 'Refresh page' },
-    { keys: 'Ctrl + F', description: 'Search on page' },
-    { keys: 'Ctrl + D', description: 'Bookmark page' },
-    { keys: 'Ctrl + T', description: 'New tab' },
-    { keys: 'Ctrl + W', description: 'Close tab' },
-    { keys: 'Ctrl + Tab', description: 'Switch tabs' },
-    { keys: 'F12', description: 'Developer tools' }
+    { keys: 'G D', description: 'Go to Dashboard' },
+    { keys: 'G A', description: 'Go to Analyses' },
+    { keys: 'G M', description: 'Go to Models' },
+    { keys: 'G P', description: 'Go to Applications' },
+    { keys: 'R', description: 'Refresh current view' },
+    { keys: '?', description: 'Show this help' },
+    { keys: 'Ctrl + K', description: 'Quick search' },
+    { keys: 'Esc', description: 'Close modals/dialogs' }
   ];
   
   let shortcutsHtml = '<div class="modal fade" id="keyboardShortcutsModal" tabindex="-1">';
@@ -328,14 +450,14 @@ function showKeyboardShortcuts() {
   shortcutsHtml += '<div class="modal-header">';
   shortcutsHtml += '<h5 class="modal-title"><i class="fas fa-keyboard me-2"></i>Keyboard Shortcuts</h5>';
   shortcutsHtml += '<button type="button" class="btn-close" data-bs-dismiss="modal"></button>';
-  shortcutsHtml += '</div><div class="modal-body">';
+  shortcutsHtml += '</div><div class="modal-body p-0">';
   shortcutsHtml += '<div class="list-group list-group-flush">';
   
   shortcuts.forEach(shortcut => {
     shortcutsHtml += `
       <div class="list-group-item d-flex justify-content-between align-items-center">
         <span>${shortcut.description}</span>
-        <kbd class="bg-muted">${shortcut.keys}</kbd>
+        <kbd class="bg-secondary-lt">${shortcut.keys}</kbd>
       </div>
     `;
   });
@@ -345,35 +467,37 @@ function showKeyboardShortcuts() {
   shortcutsHtml += '<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>';
   shortcutsHtml += '</div></div></div></div>';
   
-  // Remove existing modal if any
   const existing = document.getElementById('keyboardShortcutsModal');
   if (existing) existing.remove();
   
-  // Add new modal
   document.body.insertAdjacentHTML('beforeend', shortcutsHtml);
   
-  // Show modal
   const modal = new bootstrap.Modal(document.getElementById('keyboardShortcutsModal'));
   modal.show();
 }
 
 // Notification helper
 function showDashboardNotification(message, type = 'info') {
-  console.log(`[${type.toUpperCase()}] ${message}`);
-  
-  // Create a toast notification
   const toastContainer = document.getElementById('toast-container') || createToastContainer();
   
+  const iconMap = {
+    success: 'fas fa-check-circle',
+    danger: 'fas fa-exclamation-circle',
+    warning: 'fas fa-exclamation-triangle',
+    info: 'fas fa-info-circle'
+  };
+  
   const toast = document.createElement('div');
-  toast.className = `toast align-items-center text-white bg-${type === 'danger' ? 'danger' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'info'} border-0`;
+  toast.className = `toast align-items-center text-white bg-${type} border-0`;
   toast.setAttribute('role', 'alert');
   toast.setAttribute('aria-live', 'assertive');
   toast.setAttribute('aria-atomic', 'true');
   
   toast.innerHTML = `
     <div class="d-flex">
-      <div class="toast-body">
-        ${message}
+      <div class="toast-body d-flex align-items-center gap-2">
+        <i class="${iconMap[type] || iconMap.info}"></i>
+        <span>${message}</span>
       </div>
       <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
     </div>
@@ -387,10 +511,7 @@ function showDashboardNotification(message, type = 'info') {
   });
   bsToast.show();
   
-  // Remove from DOM after hidden
-  toast.addEventListener('hidden.bs.toast', () => {
-    toast.remove();
-  });
+  toast.addEventListener('hidden.bs.toast', () => toast.remove());
 }
 
 function createToastContainer() {
@@ -401,5 +522,25 @@ function createToastContainer() {
   document.body.appendChild(container);
   return container;
 }
+
+// Keyboard shortcuts listener
+document.addEventListener('keydown', function(e) {
+  // Only handle if not in input/textarea
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  
+  // ? for help
+  if (e.key === '?') {
+    e.preventDefault();
+    showKeyboardShortcuts();
+  }
+  
+  // R for refresh
+  if (e.key === 'r' || e.key === 'R') {
+    if (!e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      refreshAllData();
+    }
+  }
+});
 </script>
 {% endblock %}

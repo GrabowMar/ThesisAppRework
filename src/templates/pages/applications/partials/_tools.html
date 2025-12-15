@@ -286,6 +286,24 @@
             </button>
           </div>
           <div class="col-auto">
+            <button type="button" class="btn btn-outline-secondary btn-sm"
+                    hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/cmd/env"
+                    hx-target="#cmd-output"
+                    hx-swap="innerHTML"
+                    {% if app_data.container_status != 'running' %}disabled{% endif %}>
+              <i class="fas fa-cog me-1"></i>Environment
+            </button>
+          </div>
+          <div class="col-auto">
+            <button type="button" class="btn btn-outline-secondary btn-sm"
+                    hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/cmd/disk"
+                    hx-target="#cmd-output"
+                    hx-swap="innerHTML"
+                    {% if app_data.container_status != 'running' %}disabled{% endif %}>
+              <i class="fas fa-hdd me-1"></i>Disk
+            </button>
+          </div>
+          <div class="col-auto">
             <button type="button" class="btn btn-outline-info btn-sm"
                     hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/structure"
                     hx-target="#cmd-output"
