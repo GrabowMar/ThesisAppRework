@@ -259,6 +259,9 @@ class ToolReportGenerator(BaseReportGenerator):
             }
         }
         
+        # Add tool categories from registry for template rendering
+        data = self.add_tool_context(data)
+        
         self.data = data
         return data
     

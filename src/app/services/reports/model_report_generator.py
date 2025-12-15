@@ -284,6 +284,9 @@ class ModelReportGenerator(BaseReportGenerator):
             'generation_metadata': generation_metadata
         }
         
+        # Add tool categories from registry for template rendering
+        data = self.add_tool_context(data)
+        
         self.data = data
         return data
     
