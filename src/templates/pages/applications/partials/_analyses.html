@@ -56,12 +56,13 @@
             </thead>
             <tbody>
               {% for task in analysis_tasks %}
+              {% if task.is_main_task %}
               <tr>
                 <td>
                   <a href="{{ url_for('analysis.analysis_result_detail', result_id=task.task_id) }}" class="text-decoration-none">
                     <code class="small">{{ task.task_id[:8] }}...</code>
                   </a>
-                  {% if task.is_main_task %}<span class="badge bg-primary-lt ms-1">Main</span>{% endif %}
+                  <span class="badge bg-primary-lt ms-1">Main</span>
                   {% if task.task_name %}<div class="small text-muted">{{ task.task_name|truncate(25) }}</div>{% endif %}
                 </td>
                 <td>
@@ -92,6 +93,7 @@
                   </div>
                 </td>
               </tr>
+              {% endif %}
               {% endfor %}
             </tbody>
           </table>

@@ -904,3 +904,521 @@ def bulk_operations():
     except Exception as e:
         current_app.logger.error(f"Error loading bulk operations: {e}")
         return f'<div class="alert alert-danger">Error loading bulk operations: {str(e)}</div>'
+
+
+# ==================== Developer Tools Section ====================
+
+@applications_bp.route('/<model_slug>/<int:app_number>/section/tools')
+def application_section_tools(model_slug, app_number):
+    """Developer tools section with DB browser, env viewer, API tester, etc."""
+    return _render_application_section(model_slug, app_number, 'tools')
+
+
+def _collect_developer_tools_context(model_slug: str, app_number: int) -> dict:
+    """Collect context data for developer tools section."""
+    from pathlib import Path
+    import json
+    import sqlite3
+    
+    app_path = get_app_directory(model_slug, app_number)
+    result = {
+        'env_vars': {},
+        'db_info': {'exists': False, 'path': None, 'tables': [], 'size_display': '0 B'},
+        'backend_deps': [],
+        'frontend_deps': [],
+    }
+    
+    # Load .env file
+    env_paths = [
+        app_path / '.env',
+        app_path / 'backend' / '.env',
+    ]
+    for env_path in env_paths:
+        if env_path.exists():
+            try:
+                content = env_path.read_text(encoding='utf-8', errors='ignore')
+                for line in content.splitlines():
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, _, value = line.partition('=')
+                        key = key.strip()
+                        value = value.strip().strip('"').strip("'")
+                        if key:
+                            result['env_vars'][key] = value
+                break
+            except Exception as e:
+                current_app.logger.warning(f"Failed to read .env: {e}")
+    
+    # Find SQLite database
+    db_paths = [
+        app_path / 'backend' / 'app.db',
+        app_path / 'backend' / 'data.db',
+        app_path / 'backend' / 'database.db',
+        app_path / 'backend' / 'instance' / 'app.db',
+        app_path / 'backend' / 'instance' / 'data.db',
+        app_path / 'app.db',
+        app_path / 'data.db',
+    ]
+    for db_path in db_paths:
+        if db_path.exists() and db_path.is_file():
+            try:
+                size = db_path.stat().st_size
+                size_display = f"{size:,} B" if size < 1024 else f"{size/1024:.1f} KB" if size < 1024*1024 else f"{size/1024/1024:.1f} MB"
+                result['db_info'] = {
+                    'exists': True,
+                    'path': str(db_path.relative_to(app_path)),
+                    'full_path': str(db_path),
+                    'size': size,
+                    'size_display': size_display,
+                    'tables': [],
+                }
+                # Get table info
+                conn = sqlite3.connect(str(db_path))
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+                tables = cursor.fetchall()
+                for (table_name,) in tables:
+                    cursor.execute(f"SELECT COUNT(*) FROM [{table_name}]")
+                    row_count = cursor.fetchone()[0]
+                    result['db_info']['tables'].append({
+                        'name': table_name,
+                        'row_count': row_count,
+                    })
+                conn.close()
+                break
+            except Exception as e:
+                current_app.logger.warning(f"Failed to read database {db_path}: {e}")
+    
+    # Load backend dependencies (requirements.txt)
+    req_paths = [
+        app_path / 'backend' / 'requirements.txt',
+        app_path / 'requirements.txt',
+    ]
+    for req_path in req_paths:
+        if req_path.exists():
+            try:
+                content = req_path.read_text(encoding='utf-8', errors='ignore')
+                for line in content.splitlines():
+                    line = line.strip()
+                    if line and not line.startswith('#') and not line.startswith('-'):
+                        # Parse package==version or package>=version etc.
+                        for sep in ['==', '>=', '<=', '~=', '!=', '>',  '<']:
+                            if sep in line:
+                                name, version = line.split(sep, 1)
+                                result['backend_deps'].append({'name': name.strip(), 'version': version.strip()})
+                                break
+                        else:
+                            result['backend_deps'].append({'name': line, 'version': None})
+                break
+            except Exception as e:
+                current_app.logger.warning(f"Failed to read requirements.txt: {e}")
+    
+    # Load frontend dependencies (package.json)
+    pkg_paths = [
+        app_path / 'frontend' / 'package.json',
+        app_path / 'package.json',
+    ]
+    for pkg_path in pkg_paths:
+        if pkg_path.exists():
+            try:
+                data = json.loads(pkg_path.read_text(encoding='utf-8'))
+                deps = data.get('dependencies', {})
+                for name, version in deps.items():
+                    result['frontend_deps'].append({'name': name, 'version': version})
+                break
+            except Exception as e:
+                current_app.logger.warning(f"Failed to read package.json: {e}")
+    
+    return result
+
+
+@applications_bp.route('/<model_slug>/<int:app_number>/tools/env/edit')
+def application_tools_env_edit(model_slug, app_number):
+    """Return an editable form for .env variables."""
+    from markupsafe import escape
+    tools_ctx = _collect_developer_tools_context(model_slug, app_number)
+    env_vars = tools_ctx.get('env_vars', {})
+    
+    if not env_vars:
+        return '''
+        <div class="alert alert-info small mb-2">
+            <i class="fas fa-info-circle me-1"></i>No .env file exists yet
+        </div>
+        <form hx-post="/applications/{}/{}/tools/env/save" hx-target="#env-editor-container" hx-swap="innerHTML">
+            <div class="mb-2">
+                <textarea name="env_content" class="form-control form-control-sm font-monospace" rows="6" 
+                    placeholder="KEY=value&#10;ANOTHER_KEY=another_value"></textarea>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="fas fa-save me-1"></i>Save
+                </button>
+                <button type="button" class="btn btn-ghost-secondary btn-sm"
+                        hx-get="/applications/{}/{}/section/tools"
+                        hx-target="#section-tools"
+                        hx-swap="innerHTML">
+                    Cancel
+                </button>
+            </div>
+        </form>
+        '''.format(model_slug, app_number, model_slug, app_number)
+    
+    env_content = '\n'.join(f"{k}={v}" for k, v in env_vars.items())
+    return f'''
+    <form hx-post="/applications/{model_slug}/{app_number}/tools/env/save" hx-target="#env-editor-container" hx-swap="innerHTML">
+        <div class="mb-2">
+            <textarea name="env_content" class="form-control form-control-sm font-monospace" rows="6">{escape(env_content)}</textarea>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary btn-sm">
+                <i class="fas fa-save me-1"></i>Save
+            </button>
+            <button type="button" class="btn btn-ghost-secondary btn-sm"
+                    hx-get="/applications/{model_slug}/{app_number}/section/tools"
+                    hx-target="#section-tools"
+                    hx-swap="innerHTML">
+                Cancel
+            </button>
+        </div>
+    </form>
+    '''
+
+
+@applications_bp.route('/<model_slug>/<int:app_number>/tools/env/save', methods=['POST'])
+def application_tools_env_save(model_slug, app_number):
+    """Save .env file content."""
+    from pathlib import Path
+    app_path = get_app_directory(model_slug, app_number)
+    env_content = request.form.get('env_content', '').strip()
+    
+    # Try to save to backend/.env first, then root .env
+    env_paths = [
+        app_path / 'backend' / '.env',
+        app_path / '.env',
+    ]
+    
+    saved = False
+    for env_path in env_paths:
+        if env_path.parent.exists():
+            try:
+                env_path.write_text(env_content, encoding='utf-8')
+                saved = True
+                break
+            except Exception as e:
+                current_app.logger.error(f"Failed to save .env to {env_path}: {e}")
+    
+    if saved:
+        return '''
+        <div class="alert alert-success small mb-2">
+            <i class="fas fa-check me-1"></i>Environment variables saved successfully
+        </div>
+        <script>setTimeout(() => htmx.ajax('GET', '/applications/{}/{}/section/tools', {{target: '#section-tools', swap: 'innerHTML'}}), 1500);</script>
+        '''.format(model_slug, app_number)
+    else:
+        return '<div class="alert alert-danger small">Failed to save .env file</div>', 500
+
+
+@applications_bp.route('/<model_slug>/<int:app_number>/tools/env/create', methods=['POST'])
+def application_tools_env_create(model_slug, app_number):
+    """Create a new .env file."""
+    return application_tools_env_edit(model_slug, app_number)
+
+
+@applications_bp.route('/<model_slug>/<int:app_number>/tools/db/table')
+def application_tools_db_table(model_slug, app_number):
+    """Return table preview with data rows."""
+    import sqlite3
+    from markupsafe import escape
+    
+    table_name = request.args.get('db-table-select', '').strip()
+    if not table_name:
+        return '<div class="text-muted small">Select a table</div>'
+    
+    tools_ctx = _collect_developer_tools_context(model_slug, app_number)
+    db_info = tools_ctx.get('db_info', {})
+    
+    if not db_info.get('exists') or not db_info.get('full_path'):
+        return '<div class="alert alert-warning small">Database not found</div>'
+    
+    try:
+        conn = sqlite3.connect(db_info['full_path'])
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Get column names
+        cursor.execute(f"PRAGMA table_info([{table_name}])")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        # Get first 20 rows
+        cursor.execute(f"SELECT * FROM [{table_name}] LIMIT 20")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        if not rows:
+            return f'''
+            <div class="text-center text-muted small py-2">
+                <i class="fas fa-inbox me-1"></i>Table "{escape(table_name)}" is empty
+            </div>
+            <div class="small text-muted">Columns: {", ".join(escape(c) for c in columns)}</div>
+            '''
+        
+        # Build HTML table
+        html = ['<div class="table-responsive"><table class="table table-sm table-striped table-hover mb-0">']
+        html.append('<thead><tr>')
+        for col in columns[:8]:  # Limit columns shown
+            html.append(f'<th class="small text-muted">{escape(col)}</th>')
+        if len(columns) > 8:
+            html.append('<th class="small text-muted">...</th>')
+        html.append('</tr></thead><tbody>')
+        
+        for row in rows:
+            html.append('<tr>')
+            for i, col in enumerate(columns[:8]):
+                value = row[i]
+                if value is None:
+                    display = '<span class="text-muted">NULL</span>'
+                elif isinstance(value, (bytes,)):
+                    display = '<span class="text-muted">[BLOB]</span>'
+                else:
+                    str_val = str(value)
+                    display = escape(str_val[:50] + '...' if len(str_val) > 50 else str_val)
+                html.append(f'<td class="small">{display}</td>')
+            if len(columns) > 8:
+                html.append('<td class="small text-muted">...</td>')
+            html.append('</tr>')
+        
+        html.append('</tbody></table></div>')
+        
+        # Add row count info
+        total_rows = next((t['row_count'] for t in db_info['tables'] if t['name'] == table_name), len(rows))
+        html.append(f'<div class="small text-muted mt-1">Showing {len(rows)} of {total_rows} rows</div>')
+        
+        return ''.join(html)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error querying table {table_name}: {e}")
+        return f'<div class="alert alert-danger small">Error: {escape(str(e))}</div>'
+
+
+@applications_bp.route('/<model_slug>/<int:app_number>/tools/deps/backend')
+def application_tools_deps_backend(model_slug, app_number):
+    """Return backend dependencies list."""
+    from markupsafe import escape
+    tools_ctx = _collect_developer_tools_context(model_slug, app_number)
+    deps = tools_ctx.get('backend_deps', [])
+    
+    if not deps:
+        return '''
+        <div class="text-center text-muted py-3">
+            <i class="fas fa-box-open fa-2x mb-2 opacity-50"></i>
+            <p class="mb-0 small">No requirements.txt found</p>
+        </div>
+        '''
+    
+    html = ['<table class="table table-sm table-vcenter mb-0"><thead><tr>']
+    html.append('<th class="small text-muted">Package</th>')
+    html.append('<th class="small text-muted text-end">Version</th>')
+    html.append('</tr></thead><tbody>')
+    
+    for dep in deps:
+        html.append(f'''<tr>
+            <td><code class="small">{escape(dep["name"])}</code></td>
+            <td class="text-end"><span class="badge bg-secondary-lt">{escape(dep["version"] or "latest")}</span></td>
+        </tr>''')
+    
+    html.append('</tbody></table>')
+    return ''.join(html)
+
+
+@applications_bp.route('/<model_slug>/<int:app_number>/tools/deps/frontend')
+def application_tools_deps_frontend(model_slug, app_number):
+    """Return frontend dependencies list."""
+    from markupsafe import escape
+    tools_ctx = _collect_developer_tools_context(model_slug, app_number)
+    deps = tools_ctx.get('frontend_deps', [])
+    
+    if not deps:
+        return '''
+        <div class="text-center text-muted py-3">
+            <i class="fas fa-box-open fa-2x mb-2 opacity-50"></i>
+            <p class="mb-0 small">No package.json found</p>
+        </div>
+        '''
+    
+    html = ['<table class="table table-sm table-vcenter mb-0"><thead><tr>']
+    html.append('<th class="small text-muted">Package</th>')
+    html.append('<th class="small text-muted text-end">Version</th>')
+    html.append('</tr></thead><tbody>')
+    
+    for dep in deps:
+        html.append(f'''<tr>
+            <td><code class="small">{escape(dep["name"])}</code></td>
+            <td class="text-end"><span class="badge bg-info-lt">{escape(dep["version"] or "latest")}</span></td>
+        </tr>''')
+    
+    html.append('</tbody></table>')
+    return ''.join(html)
+
+
+@applications_bp.route('/<model_slug>/<int:app_number>/tools/api/test', methods=['POST'])
+def application_tools_api_test(model_slug, app_number):
+    """Test an API endpoint on the running application."""
+    import requests
+    import json
+    from markupsafe import escape
+    from app.utils.port_resolution import resolve_ports
+    
+    method = request.form.get('method', 'GET').upper()
+    endpoint = request.form.get('endpoint', '/').strip()
+    body = request.form.get('body', '').strip()
+    
+    # Resolve backend port
+    ports = resolve_ports(model_slug, app_number)
+    if not ports or not ports.get('backend'):
+        return '<div class="alert alert-warning small"><i class="fas fa-exclamation-triangle me-1"></i>Could not resolve backend port</div>'
+    
+    backend_port = ports['backend']
+    url = f"http://localhost:{backend_port}{endpoint}"
+    
+    try:
+        # Parse body as JSON if provided
+        json_body = None
+        if body:
+            try:
+                json_body = json.loads(body)
+            except json.JSONDecodeError:
+                return '<div class="alert alert-danger small"><i class="fas fa-times me-1"></i>Invalid JSON body</div>'
+        
+        # Make request
+        start_time = __import__('time').time()
+        if method == 'GET':
+            resp = requests.get(url, timeout=10)
+        elif method == 'POST':
+            resp = requests.post(url, json=json_body, timeout=10)
+        elif method == 'PUT':
+            resp = requests.put(url, json=json_body, timeout=10)
+        elif method == 'DELETE':
+            resp = requests.delete(url, timeout=10)
+        elif method == 'PATCH':
+            resp = requests.patch(url, json=json_body, timeout=10)
+        else:
+            return '<div class="alert alert-warning small">Unsupported method</div>'
+        
+        elapsed = (__import__('time').time() - start_time) * 1000
+        
+        # Format response
+        status_class = 'success' if 200 <= resp.status_code < 300 else 'warning' if 300 <= resp.status_code < 400 else 'danger'
+        
+        try:
+            resp_json = resp.json()
+            resp_body = json.dumps(resp_json, indent=2)
+        except Exception:
+            resp_body = resp.text[:2000]
+        
+        return f'''
+        <div class="mb-1">
+            <span class="badge bg-{status_class}">{resp.status_code}</span>
+            <span class="small text-muted ms-2">{elapsed:.0f}ms</span>
+            <code class="small ms-2">{escape(url)}</code>
+        </div>
+        <pre class="bg-dark text-light rounded p-2 small mb-0" style="max-height: 150px; overflow: auto;">{escape(resp_body)}</pre>
+        '''
+        
+    except requests.exceptions.ConnectionError:
+        return '<div class="alert alert-danger small"><i class="fas fa-plug me-1"></i>Connection refused - is the container running?</div>'
+    except requests.exceptions.Timeout:
+        return '<div class="alert alert-warning small"><i class="fas fa-clock me-1"></i>Request timed out</div>'
+    except Exception as e:
+        return f'<div class="alert alert-danger small"><i class="fas fa-times me-1"></i>Error: {escape(str(e))}</div>'
+
+
+@applications_bp.route('/<model_slug>/<int:app_number>/tools/cmd/<cmd>', methods=['POST'])
+def application_tools_cmd(model_slug, app_number, cmd):
+    """Execute a quick command in the container."""
+    import subprocess
+    from markupsafe import escape
+    
+    # Map command shortcuts to actual commands
+    cmd_map = {
+        'pip-list': ('backend', 'pip list --format=columns'),
+        'npm-list': ('frontend', 'npm list --depth=0'),
+        'health': ('backend', 'curl -s http://localhost:5000/api/health || echo "Health check failed"'),
+        'routes': ('backend', 'flask routes 2>/dev/null || python -c "from app import app; print(app.url_map)"'),
+        'ps': ('backend', 'ps aux --sort=-%mem | head -10'),
+    }
+    
+    if cmd not in cmd_map:
+        return f'<span class="text-danger">Unknown command: {escape(cmd)}</span>'
+    
+    container_type, shell_cmd = cmd_map[cmd]
+    
+    # Build container name - Docker Compose uses format: {project_name}_{service}
+    # Project name: model slug with underscores/dots replaced by hyphens + -app{N}
+    safe_model = model_slug.replace('_', '-').replace('.', '-')
+    project_name = f"{safe_model}-app{app_number}"
+    container_name = f"{project_name}_{container_type}"
+    
+    try:
+        result = subprocess.run(
+            ['docker', 'exec', container_name, 'sh', '-c', shell_cmd],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        output = result.stdout or result.stderr or 'No output'
+        if result.returncode != 0 and result.stderr:
+            return f'<span class="text-warning">$ {escape(shell_cmd)}</span>\n<span class="text-danger">{escape(result.stderr)}</span>'
+        return f'<span class="text-success">$ {escape(shell_cmd)}</span>\n{escape(output)}'
+    except subprocess.TimeoutExpired:
+        return '<span class="text-warning">Command timed out after 30s</span>'
+    except FileNotFoundError:
+        return '<span class="text-danger">Docker not found. Is Docker installed?</span>'
+    except Exception as e:
+        return f'<span class="text-danger">Error: {escape(str(e))}</span>'
+
+
+@applications_bp.route('/<model_slug>/<int:app_number>/tools/structure')
+def application_tools_structure(model_slug, app_number):
+    """Return project directory structure as a tree."""
+    from pathlib import Path
+    from markupsafe import escape
+    
+    app_path = get_app_directory(model_slug, app_number)
+    
+    if not app_path.exists():
+        return '<span class="text-warning">Application directory not found</span>'
+    
+    def build_tree(path: Path, prefix: str = '', max_depth: int = 3, current_depth: int = 0) -> list:
+        if current_depth >= max_depth:
+            return []
+        
+        lines = []
+        try:
+            items = sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
+            items = [i for i in items if not i.name.startswith('.') and i.name not in ('node_modules', '__pycache__', '.git', 'venv', '.venv')]
+            
+            for i, item in enumerate(items[:30]):  # Limit items
+                is_last = i == len(items) - 1 or i == 29
+                connector = '└── ' if is_last else '├── '
+                
+                if item.is_dir():
+                    lines.append(f'{prefix}{connector}<span class="text-info">{escape(item.name)}/</span>')
+                    extension = '    ' if is_last else '│   '
+                    lines.extend(build_tree(item, prefix + extension, max_depth, current_depth + 1))
+                else:
+                    size = item.stat().st_size
+                    size_str = f'{size}B' if size < 1024 else f'{size//1024}K'
+                    lines.append(f'{prefix}{connector}<span class="text-light">{escape(item.name)}</span> <span class="text-muted">({size_str})</span>')
+            
+            if len(items) > 30:
+                lines.append(f'{prefix}... and {len(items) - 30} more items')
+                
+        except PermissionError:
+            lines.append(f'{prefix}[Permission denied]')
+        
+        return lines
+    
+    tree_lines = [f'<span class="text-primary">{escape(app_path.name)}/</span>']
+    tree_lines.extend(build_tree(app_path))
+    
+    return '\n'.join(tree_lines)

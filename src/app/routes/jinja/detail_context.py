@@ -881,6 +881,128 @@ def _collect_app_logs(model_slug: str, app_number: int, tail: int = 100) -> Tupl
         return '', {'error_count': 0, 'warning_count': 0, 'info_count': 0, 'total_lines': 0}
 
 
+def _collect_developer_tools_context(app_path: Path, model_slug: str, app_number: int) -> Dict[str, Any]:
+    """Collect context data for developer tools section (DB browser, env vars, deps)."""
+    import json
+    import sqlite3
+    
+    result: Dict[str, Any] = {
+        'env_vars': {},
+        'db_info': {'exists': False, 'path': None, 'tables': [], 'size_display': '0 B'},
+        'backend_deps': [],
+        'frontend_deps': [],
+    }
+    
+    if not app_path.exists():
+        return result
+    
+    # Load .env file
+    env_paths = [
+        app_path / '.env',
+        app_path / 'backend' / '.env',
+    ]
+    for env_path in env_paths:
+        if env_path.exists():
+            try:
+                content = env_path.read_text(encoding='utf-8', errors='ignore')
+                for line in content.splitlines():
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, _, value = line.partition('=')
+                        key = key.strip()
+                        value = value.strip().strip('"').strip("'")
+                        if key:
+                            result['env_vars'][key] = value
+                break
+            except Exception as e:
+                current_app.logger.warning(f"Failed to read .env: {e}")
+    
+    # Find SQLite database
+    db_paths = [
+        app_path / 'backend' / 'app.db',
+        app_path / 'backend' / 'data.db',
+        app_path / 'backend' / 'database.db',
+        app_path / 'backend' / 'instance' / 'app.db',
+        app_path / 'backend' / 'instance' / 'data.db',
+        app_path / 'app.db',
+        app_path / 'data.db',
+    ]
+    for db_path in db_paths:
+        if db_path.exists() and db_path.is_file():
+            try:
+                size = db_path.stat().st_size
+                size_display = f"{size:,} B" if size < 1024 else f"{size/1024:.1f} KB" if size < 1024*1024 else f"{size/1024/1024:.1f} MB"
+                result['db_info'] = {
+                    'exists': True,
+                    'path': str(db_path.relative_to(app_path)),
+                    'full_path': str(db_path),
+                    'size': size,
+                    'size_display': size_display,
+                    'tables': [],
+                }
+                # Get table info
+                conn = sqlite3.connect(str(db_path))
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+                tables = cursor.fetchall()
+                for (table_name,) in tables:
+                    try:
+                        cursor.execute(f"SELECT COUNT(*) FROM [{table_name}]")
+                        row_count = cursor.fetchone()[0]
+                    except Exception:
+                        row_count = 0
+                    result['db_info']['tables'].append({
+                        'name': table_name,
+                        'row_count': row_count,
+                    })
+                conn.close()
+                break
+            except Exception as e:
+                current_app.logger.warning(f"Failed to read database {db_path}: {e}")
+    
+    # Load backend dependencies (requirements.txt)
+    req_paths = [
+        app_path / 'backend' / 'requirements.txt',
+        app_path / 'requirements.txt',
+    ]
+    for req_path in req_paths:
+        if req_path.exists():
+            try:
+                content = req_path.read_text(encoding='utf-8', errors='ignore')
+                for line in content.splitlines():
+                    line = line.strip()
+                    if line and not line.startswith('#') and not line.startswith('-'):
+                        # Parse package==version or package>=version etc.
+                        for sep in ['==', '>=', '<=', '~=', '!=', '>', '<']:
+                            if sep in line:
+                                name, version = line.split(sep, 1)
+                                result['backend_deps'].append({'name': name.strip(), 'version': version.strip()})
+                                break
+                        else:
+                            result['backend_deps'].append({'name': line, 'version': None})
+                break
+            except Exception as e:
+                current_app.logger.warning(f"Failed to read requirements.txt: {e}")
+    
+    # Load frontend dependencies (package.json)
+    pkg_paths = [
+        app_path / 'frontend' / 'package.json',
+        app_path / 'package.json',
+    ]
+    for pkg_path in pkg_paths:
+        if pkg_path.exists():
+            try:
+                data = json.loads(pkg_path.read_text(encoding='utf-8'))
+                deps = data.get('dependencies', {})
+                for name, version in deps.items():
+                    result['frontend_deps'].append({'name': name, 'version': version})
+                break
+            except Exception as e:
+                current_app.logger.warning(f"Failed to read package.json: {e}")
+    
+    return result
+
+
 def _build_application_sections(model_slug: str, app_number: int) -> Tuple[List[Dict[str, Any]], Dict[str, Dict[str, Any]]]:
     base = [
         ('overview', 'Overview', 'fas fa-info-circle', 'pages/applications/partials/_overview.html'),
@@ -888,6 +1010,7 @@ def _build_application_sections(model_slug: str, app_number: int) -> Tuple[List[
         ('files', 'Files', 'fas fa-folder-open', 'pages/applications/partials/_files.html'),
         ('ports', 'Ports', 'fas fa-network-wired', 'pages/applications/partials/_ports.html'),
         ('container', 'Container', 'fab fa-docker', 'pages/applications/partials/_container.html'),
+        ('tools', 'Dev Tools', 'fas fa-toolbox', 'pages/applications/partials/_tools.html'),
         ('analyses', 'Analyses', 'fas fa-flask', 'pages/applications/partials/_analyses.html'),
         ('metadata', 'Metadata', 'fas fa-database', 'pages/applications/partials/_metadata.html'),
         ('artifacts', 'Artifacts', 'fas fa-book', 'pages/applications/partials/_artifacts.html'),
@@ -961,6 +1084,7 @@ def build_application_detail_context(model_slug: str, app_number: int, allow_syn
     analyses, stats, analysis_entries = _collect_app_analyses(app)
     analysis_tasks = _collect_analysis_tasks(resolved_slug, app_number)
     logs, log_stats = _collect_app_logs(resolved_slug, app_number)
+    dev_tools_ctx = _collect_developer_tools_context(app_path, resolved_slug, app_number)
     slug_candidates = {resolved_slug}
     canonical = getattr(model, 'canonical_slug', None)
     if canonical:
@@ -1036,6 +1160,11 @@ def build_application_detail_context(model_slug: str, app_number: int, allow_syn
         'active_page': 'applications',
         'logs': logs,
         'log_stats': log_stats,
+        # Developer tools context
+        'env_vars': dev_tools_ctx.get('env_vars', {}),
+        'db_info': dev_tools_ctx.get('db_info', {'exists': False}),
+        'backend_deps': dev_tools_ctx.get('backend_deps', []),
+        'frontend_deps': dev_tools_ctx.get('frontend_deps', []),
     }
 
 

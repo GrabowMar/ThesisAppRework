@@ -1,0 +1,309 @@
+{# Developer Tools Section - Database, Environment, API Testing, Dependencies #}
+<div class="row g-3">
+  {# Environment Variables #}
+  <div class="col-lg-6">
+    <div class="card card-sm h-100">
+      <div class="card-header py-2">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-key text-warning me-2"></i>
+          <span class="fw-bold">Environment Variables</span>
+          <button type="button" class="btn btn-ghost-primary btn-sm ms-auto" 
+                  hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/env/edit"
+                  hx-target="#env-editor-container"
+                  hx-swap="innerHTML">
+            <i class="fas fa-edit me-1"></i>Edit
+          </button>
+        </div>
+      </div>
+      <div class="card-body py-2">
+        <div id="env-editor-container">
+          {% if env_vars %}
+          <div class="env-vars-list" style="max-height: 200px; overflow-y: auto;">
+            <table class="table table-sm table-vcenter mb-0">
+              <tbody>
+                {% for key, value in env_vars.items() %}
+                <tr>
+                  <td class="text-muted small" style="width: 40%;">
+                    <code>{{ key }}</code>
+                  </td>
+                  <td class="small">
+                    {% if 'KEY' in key or 'SECRET' in key or 'PASSWORD' in key %}
+                      <span class="text-muted">••••••••</span>
+                      <button type="button" class="btn btn-ghost-secondary btn-sm py-0 px-1" 
+                              onclick="this.previousElementSibling.textContent = '{{ value }}'">
+                        <i class="fas fa-eye"></i>
+                      </button>
+                    {% else %}
+                      <code class="text-primary">{{ value }}</code>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="text-center text-muted py-3">
+            <i class="fas fa-file-alt fa-2x mb-2 opacity-50"></i>
+            <p class="mb-0 small">No .env file found</p>
+            <button type="button" class="btn btn-outline-primary btn-sm mt-2"
+                    hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/env/create"
+                    hx-target="#env-editor-container"
+                    hx-swap="innerHTML">
+              <i class="fas fa-plus me-1"></i>Create .env
+            </button>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Database Browser #}
+  <div class="col-lg-6">
+    <div class="card card-sm h-100">
+      <div class="card-header py-2">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-database text-info me-2"></i>
+          <span class="fw-bold">Database Browser</span>
+          <span class="badge bg-{{ 'success' if db_info.exists else 'secondary' }}-lt ms-2">
+            {{ 'Available' if db_info.exists else 'No Database' }}
+          </span>
+        </div>
+      </div>
+      <div class="card-body py-2">
+        {% if db_info.exists %}
+        <div class="mb-2">
+          <small class="text-muted">
+            <i class="fas fa-file me-1"></i>{{ db_info.path }}
+            <span class="ms-2">Size: {{ db_info.size_display }}</span>
+          </small>
+        </div>
+        {% if db_info.tables %}
+        <div class="mb-2">
+          <label class="form-label small text-muted mb-1">Select Table</label>
+          <select class="form-select form-select-sm" id="db-table-select"
+                  hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/db/table"
+                  hx-target="#db-table-preview"
+                  hx-trigger="change"
+                  hx-include="this">
+            <option value="">Select a table...</option>
+            {% for table in db_info.tables %}
+            <option value="{{ table.name }}">
+              {{ table.name }} ({{ table.row_count }} rows)
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div id="db-table-preview" class="mt-2" style="max-height: 180px; overflow: auto;">
+          <div class="text-center text-muted small py-2">
+            <i class="fas fa-table me-1"></i>Select a table to preview data
+          </div>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-2">
+          <i class="fas fa-database fa-2x mb-2 opacity-50"></i>
+          <p class="mb-0 small">Database exists but no tables found</p>
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="text-center text-muted py-3">
+          <i class="fas fa-database fa-2x mb-2 opacity-50"></i>
+          <p class="mb-0 small">No SQLite database detected</p>
+          <p class="mb-0 small text-muted">Expected: backend/app.db or backend/data.db</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# API Endpoint Tester #}
+  <div class="col-lg-6">
+    <div class="card card-sm h-100">
+      <div class="card-header py-2">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-plug text-success me-2"></i>
+          <span class="fw-bold">API Tester</span>
+          {% if app_data.container_status == 'running' %}
+          <span class="badge bg-success-lt ms-2">Ready</span>
+          {% else %}
+          <span class="badge bg-warning-lt ms-2">Container Stopped</span>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-body py-2">
+        <form id="api-test-form" 
+              hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/api/test"
+              hx-target="#api-test-result"
+              hx-swap="innerHTML">
+          <div class="row g-2 mb-2">
+            <div class="col-3">
+              <select name="method" class="form-select form-select-sm">
+                <option value="GET" selected>GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
+                <option value="PATCH">PATCH</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <input type="text" name="endpoint" class="form-control form-control-sm" 
+                     placeholder="/api/..." value="/api/health">
+            </div>
+            <div class="col-3">
+              <button type="submit" class="btn btn-primary btn-sm w-100" 
+                      {% if app_data.container_status != 'running' %}disabled{% endif %}>
+                <i class="fas fa-paper-plane me-1"></i>Send
+              </button>
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small text-muted mb-1">Request Body (JSON)</label>
+            <textarea name="body" class="form-control form-control-sm font-monospace" rows="2" 
+                      placeholder='{"key": "value"}'></textarea>
+          </div>
+        </form>
+        <div id="api-test-result" class="mt-2">
+          <div class="text-center text-muted small py-2">
+            <i class="fas fa-terminal me-1"></i>Response will appear here
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Dependencies Viewer #}
+  <div class="col-lg-6">
+    <div class="card card-sm h-100">
+      <div class="card-header py-2">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-cubes text-purple me-2"></i>
+          <span class="fw-bold">Dependencies</span>
+        </div>
+        <div class="btn-group btn-group-sm ms-auto" role="group">
+          <input type="radio" class="btn-check" name="deps-view" id="deps-backend" checked
+                 hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/deps/backend"
+                 hx-target="#deps-list"
+                 hx-trigger="change">
+          <label class="btn btn-ghost-secondary" for="deps-backend">
+            <i class="fab fa-python me-1"></i>Backend
+          </label>
+          <input type="radio" class="btn-check" name="deps-view" id="deps-frontend"
+                 hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/deps/frontend"
+                 hx-target="#deps-list"
+                 hx-trigger="change">
+          <label class="btn btn-ghost-secondary" for="deps-frontend">
+            <i class="fab fa-js me-1"></i>Frontend
+          </label>
+        </div>
+      </div>
+      <div class="card-body py-2">
+        <div id="deps-list" style="max-height: 200px; overflow-y: auto;">
+          {% if backend_deps %}
+          <table class="table table-sm table-vcenter mb-0">
+            <thead>
+              <tr>
+                <th class="small text-muted">Package</th>
+                <th class="small text-muted text-end">Version</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for dep in backend_deps %}
+              <tr>
+                <td><code class="small">{{ dep.name }}</code></td>
+                <td class="text-end">
+                  <span class="badge bg-secondary-lt">{{ dep.version or 'latest' }}</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}
+          <div class="text-center text-muted py-3">
+            <i class="fas fa-box-open fa-2x mb-2 opacity-50"></i>
+            <p class="mb-0 small">No requirements.txt found</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {# Quick Actions / Terminal #}
+  <div class="col-12">
+    <div class="card card-sm">
+      <div class="card-header py-2">
+        <div class="d-flex align-items-center">
+          <i class="fas fa-terminal text-dark me-2"></i>
+          <span class="fw-bold">Quick Commands</span>
+        </div>
+      </div>
+      <div class="card-body py-2">
+        <div class="row g-2">
+          <div class="col-auto">
+            <button type="button" class="btn btn-outline-secondary btn-sm"
+                    hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/cmd/pip-list"
+                    hx-target="#cmd-output"
+                    hx-swap="innerHTML"
+                    {% if app_data.container_status != 'running' %}disabled{% endif %}>
+              <i class="fab fa-python me-1"></i>pip list
+            </button>
+          </div>
+          <div class="col-auto">
+            <button type="button" class="btn btn-outline-secondary btn-sm"
+                    hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/cmd/npm-list"
+                    hx-target="#cmd-output"
+                    hx-swap="innerHTML"
+                    {% if app_data.container_status != 'running' %}disabled{% endif %}>
+              <i class="fab fa-npm me-1"></i>npm list
+            </button>
+          </div>
+          <div class="col-auto">
+            <button type="button" class="btn btn-outline-secondary btn-sm"
+                    hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/cmd/health"
+                    hx-target="#cmd-output"
+                    hx-swap="innerHTML"
+                    {% if app_data.container_status != 'running' %}disabled{% endif %}>
+              <i class="fas fa-heartbeat me-1"></i>Health Check
+            </button>
+          </div>
+          <div class="col-auto">
+            <button type="button" class="btn btn-outline-secondary btn-sm"
+                    hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/cmd/routes"
+                    hx-target="#cmd-output"
+                    hx-swap="innerHTML"
+                    {% if app_data.container_status != 'running' %}disabled{% endif %}>
+              <i class="fas fa-route me-1"></i>Flask Routes
+            </button>
+          </div>
+          <div class="col-auto">
+            <button type="button" class="btn btn-outline-secondary btn-sm"
+                    hx-post="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/cmd/ps"
+                    hx-target="#cmd-output"
+                    hx-swap="innerHTML"
+                    {% if app_data.container_status != 'running' %}disabled{% endif %}>
+              <i class="fas fa-microchip me-1"></i>Processes
+            </button>
+          </div>
+          <div class="col-auto">
+            <button type="button" class="btn btn-outline-info btn-sm"
+                    hx-get="/applications/{{ app_data.model_slug }}/{{ app_data.app_number }}/tools/structure"
+                    hx-target="#cmd-output"
+                    hx-swap="innerHTML">
+              <i class="fas fa-sitemap me-1"></i>Project Structure
+            </button>
+          </div>
+          <div class="col-auto ms-auto">
+            <button type="button" class="btn btn-ghost-secondary btn-sm" onclick="document.getElementById('cmd-output').innerHTML = ''">
+              <i class="fas fa-eraser me-1"></i>Clear
+            </button>
+          </div>
+        </div>
+        <div id="cmd-output" class="mt-2 bg-dark text-light rounded p-2 font-monospace small" 
+             style="max-height: 200px; overflow-y: auto; min-height: 50px;">
+          <span class="text-muted">Output will appear here...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

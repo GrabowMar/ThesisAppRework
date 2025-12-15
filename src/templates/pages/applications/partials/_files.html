@@ -56,33 +56,32 @@
     </div>
   </div>
 
-  {# File Types - Compact Table #}
+  {# File Types - Compact Table (3 per row) #}
   {% if file_stats.by_extension %}
   <div class="col-12">
     <div class="card card-sm">
-      <div class="card-header py-2">
+      <div class="card-header py-1">
         <div class="d-flex align-items-center">
-          <i class="fas fa-layer-group text-info me-2"></i>
-          <span class="fw-bold">By Extension</span>
+          <i class="fas fa-layer-group text-info me-1" style="font-size: 0.75rem;"></i>
+          <span class="fw-bold small">By Extension</span>
         </div>
       </div>
-      <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-sm card-table mb-0">
-            <thead>
-              <tr><th>Ext</th><th class="text-end">Files</th><th class="text-end">Size</th><th class="text-end">%</th></tr>
-            </thead>
-            <tbody>
-              {% for ext, stats in file_stats.by_extension.items() %}
-              <tr>
-                <td><span class="badge bg-secondary-lt">{{ ext or '∅' }}</span></td>
-                <td class="text-end">{{ stats.count }}</td>
-                <td class="text-end">{{ stats.size }}</td>
-                <td class="text-end">{{ "%.0f"|format(stats.percentage) }}%</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+      <div class="card-body p-1">
+        <div class="row g-1">
+          {% for ext, stats in file_stats.by_extension.items() %}
+          <div class="col-4">
+            <div class="border rounded px-2 py-1 d-flex justify-content-between align-items-center" style="font-size: 0.7rem; min-height: 24px;">
+              <code class="text-primary fw-bold me-2" style="font-size: 0.7rem; min-width: 45px;">{{ ext or '(none)' }}</code>
+              <div class="d-flex align-items-center gap-2 flex-grow-1">
+                <span class="text-muted"><i class="fas fa-file me-1" style="font-size: 0.6rem;"></i>{{ stats.count }}</span>
+                <span class="text-muted" style="font-size: 0.65rem;">{{ stats.size }}</span>
+              </div>
+              <span class="badge {% if stats.percentage > 30 %}bg-primary{% elif stats.percentage > 10 %}bg-info{% else %}bg-secondary-lt{% endif %}" style="font-size: 0.6rem; padding: 0.15rem 0.4rem; min-width: 35px; text-align: center;">
+                {{ "%.0f"|format(stats.percentage) }}%
+              </span>
+            </div>
+          </div>
+          {% endfor %}
         </div>
       </div>
     </div>
