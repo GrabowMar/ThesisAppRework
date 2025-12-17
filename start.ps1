@@ -324,14 +324,33 @@ class LogAggregator {
 
 function Write-Banner {
     param([string]$Text, [string]$Color = 'Cyan')
-    
-    $width = 80
-    $padding = [Math]::Max(0, ($width - $Text.Length - 4) / 2)
-    $line = "═" * $width
-    
+
+    # Use a dynamic width to avoid line-wrapping in narrower terminals.
+    $defaultInnerWidth = 80
+    $innerWidth = $defaultInnerWidth
+    try {
+        $windowWidth = $Host.UI.RawUI.WindowSize.Width
+        if ($windowWidth -gt 0) {
+            # Leave a small safety margin; wrapping at the right edge looks like a broken box.
+            $innerWidth = [Math]::Min($defaultInnerWidth, [Math]::Max(20, $windowWidth - 4))
+        }
+    } catch {
+        $innerWidth = $defaultInnerWidth
+    }
+
+    $line = "═" * $innerWidth
+    $content = " $Text "
+    if ($content.Length -gt $innerWidth) {
+        $content = $content.Substring(0, $innerWidth)
+    }
+
+    $leftPad = [int][Math]::Floor(($innerWidth - $content.Length) / 2)
+    $rightPad = $innerWidth - $content.Length - $leftPad
+    $middle = (" " * $leftPad) + $content + (" " * $rightPad)
+
     Write-Host ""
     Write-Host "╔$line╗" -ForegroundColor $Color
-    Write-Host "║$(' ' * $padding) $Text $(' ' * $padding)║" -ForegroundColor $Color
+    Write-Host "║$middle║" -ForegroundColor $Color
     Write-Host "╚$line╝" -ForegroundColor $Color
     Write-Host ""
 }

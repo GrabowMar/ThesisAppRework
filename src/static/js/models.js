@@ -754,10 +754,10 @@ function renderModelsTable(models) {
       <td class="text-center">${featuresHtml}</td>
       <td>
         <div class="btn-group btn-group-sm" role="group">
-          <button class="btn btn-ghost-primary" onclick="viewModelDetails('${m.slug}')" title="View details">
+          <button type="button" class="btn btn-icon btn-ghost-primary" onclick="viewModelDetails('${m.slug}')" title="View details" aria-label="View details">
             <i class="fas fa-eye"></i>
           </button>
-          <button class="btn btn-ghost-info" onclick="openOnOpenRouter('${m.model_id || m.slug}')" title="View on OpenRouter">
+          <button type="button" class="btn btn-icon btn-ghost-info" onclick="openOnOpenRouter('${m.model_id || m.slug}')" title="View on OpenRouter" aria-label="View on OpenRouter">
             <i class="fas fa-external-link-alt"></i>
           </button>
         </div>

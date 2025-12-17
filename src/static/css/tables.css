@@ -1025,6 +1025,22 @@ td.text-truncate {
   width: 80px;
 }
 
+/* Icon-only badges in the models table: remove default icon right-margin */
+#models-table .badge i,
+#models-table .badge .fa,
+#models-table .badge .fas,
+#models-table .badge .fa-solid {
+  margin-right: 0 !important;
+}
+
+/* Icon-only buttons in the models table: ensure no extra icon spacing */
+#models-table .btn-icon i,
+#models-table .btn-icon .fa,
+#models-table .btn-icon .fas,
+#models-table .btn-icon .fa-solid {
+  margin-right: 0 !important;
+}
+
 /* Lighter table row hover */
 #models-table tbody tr:hover {
   background-color: rgba(var(--tblr-primary-rgb), 0.03);
