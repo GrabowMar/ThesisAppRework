@@ -1,5 +1,5 @@
 {# AI Model Rankings - Coding Benchmarks Leaderboard #}
-{% extends 'layouts/base.html' %}
+{% extends 'layouts/base_smart.html' %}
 {% set has_right_sidebar = false %}
 {% set page_title = 'Rankings' %}
 {% set page_icon = 'fa-solid fa-trophy' %}
@@ -12,3 +12,4 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/rankings.js') }}"></script>
 {% endblock %}
+

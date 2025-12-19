@@ -1,7 +1,21 @@
 // Sample Generator Wizard JavaScript
 // Handles wizard navigation, form validation, and generation management
+// HTMX-safe: Uses window namespace and guards against duplicate initialization
 
 (function() {
+// ============================================================================
+// HTMX Safety Guard - Prevent duplicate initialization
+// ============================================================================
+
+// If already loaded, just re-initialize without adding more listeners
+if (window._sampleGeneratorWizardLoaded) {
+  if (document.getElementById('wizard-progress-bar')) {
+    window.initSampleGeneratorWizard();
+  }
+  return;
+}
+window._sampleGeneratorWizardLoaded = true;
+
 // ============================================================================
 // State Management
 // ============================================================================
@@ -30,7 +44,7 @@ function initSampleGeneratorWizard() {
   // Only run if wizard elements exist
   if (!document.getElementById('wizard-progress-bar')) return;
   
-  console.log('Sample Generator Wizard initialized');
+  console.log('[Wizard] Sample Generator Wizard initialized');
   
   // Reset State
   currentStep = 1;
@@ -53,14 +67,14 @@ if (document.readyState === 'loading') {
   initSampleGeneratorWizard();
 }
 
-document.addEventListener('htmx:afterSwap', function(evt) {
+document.body.addEventListener('htmx:afterSwap', function(evt) {
   // Re-initialize if wizard content was swapped in
   if (document.getElementById('wizard-progress-bar')) {
     initSampleGeneratorWizard();
   }
 });
 
-document.addEventListener('htmx:historyRestore', function(evt) {
+document.body.addEventListener('htmx:historyRestore', function(evt) {
   // Re-initialize if wizard content was restored from history
   if (document.getElementById('wizard-progress-bar')) {
     console.log('[Wizard] History restore detected, re-initializing...');

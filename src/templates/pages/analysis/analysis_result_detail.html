@@ -1,5 +1,5 @@
 {# Analysis Result Detail - Compact Report Design #}
-{% extends 'layouts/base.html' %}
+{% extends 'layouts/base_smart.html' %}
 {% set active_page = 'analysis' %}
 {% set page_title = descriptor.model_slug ~ ' · App #' ~ descriptor.app_number %}
 {% set page_icon = 'fa-solid fa-chart-bar' %}
@@ -256,3 +256,4 @@
 <script src="{{ url_for('static', filename='js/analysis-parsers.js') }}"></script>
 <script src="{{ url_for('static', filename='js/tool-detail.js') }}"></script>
 {% endblock %}
+

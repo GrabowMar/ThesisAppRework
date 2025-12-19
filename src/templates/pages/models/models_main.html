@@ -1,5 +1,5 @@
 {# AI Models Overview - layout refactored: actions moved to right sidebar #}
-{% extends 'layouts/base.html' %}
+{% extends 'layouts/base_smart.html' %}
 {% set has_right_sidebar = false %}
 {% set page_title = 'Models' %}
 {% set page_icon = 'fa-solid fa-brain' %}
@@ -26,3 +26,4 @@
   <script src="{{ url_for('static', filename='js/models.js') }}" defer></script>
   
 {% endblock %}
+

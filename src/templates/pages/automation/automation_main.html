@@ -1,5 +1,5 @@
 {# Automation Pipeline - End-to-End Workflow Interface #}
-{% extends 'layouts/base.html' %}
+{% extends 'layouts/base_smart.html' %}
 {% set page_title = 'Automation Pipeline' %}
 {% set page_icon = 'fa-solid fa-wand-magic-sparkles' %}
 {% set page_subtitle = 'End-to-end workflow: Generation → Analysis' %}
@@ -346,3 +346,4 @@
 {{ super() }}
 <script src="{{ url_for('static', filename='js/automation_wizard.js') }}"></script>
 {% endblock %}
+

@@ -1,5 +1,5 @@
 {# Template/App Comparison Report - Cross-Model Analysis #}
-{% extends 'layouts/base.html' %}
+{% extends 'layouts/base_smart.html' %}
 {% from 'shared/macros/detail_macros.html' import research_detail_header, research_metric_grid, research_section_nav, research_section, research_empty_state, research_scroll_spy_script %}
 
 {% set page_title = 'Template Comparison: ' + template_slug %}
@@ -519,3 +519,4 @@
 
 {{ research_scroll_spy_script() }}
 {% endblock %}
+

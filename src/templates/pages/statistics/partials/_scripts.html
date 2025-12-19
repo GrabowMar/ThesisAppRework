@@ -4,9 +4,17 @@
 <script>
 /**
  * Statistics Dashboard - Client-side rendering module
+ * HTMX-safe: Uses window namespace to prevent re-declaration errors
  */
-const StatsDashboard = (function() {
+(function() {
     'use strict';
+    
+    // Prevent re-initialization on HTMX navigation
+    if (window.StatsDashboard && window.StatsDashboard._initialized) {
+        // Already initialized, just reload the data
+        window.StatsDashboard.load();
+        return;
+    }
     
     // Chart instances
     let trendsChart = null;
@@ -55,6 +63,7 @@ const StatsDashboard = (function() {
      */
     async function refresh() {
         const btn = document.getElementById('refreshBtn');
+        if (!btn) return;
         const originalHtml = btn.innerHTML;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Refreshing...';
         btn.disabled = true;
@@ -82,6 +91,22 @@ const StatsDashboard = (function() {
     }
     
     /**
+     * Cleanup function for HTMX navigation away
+     */
+    function cleanup() {
+        // Destroy chart instances to prevent memory leaks
+        if (trendsChart) {
+            trendsChart.destroy();
+            trendsChart = null;
+        }
+        if (severityChart) {
+            severityChart.destroy();
+            severityChart = null;
+        }
+        currentData = null;
+    }
+    
+    /**
      * Render all dashboard sections
      */
     function render(data) {
@@ -102,22 +127,27 @@ const StatsDashboard = (function() {
         const colorClass = status === 'healthy' ? 'success' : 
                           status === 'degraded' ? 'warning' : 'danger';
         
-        document.getElementById('healthDot').className = 
-            `status-dot status-dot-animated bg-${colorClass}`;
+        const healthDot = document.getElementById('healthDot');
+        if (healthDot) {
+            healthDot.className = `status-dot status-dot-animated bg-${colorClass}`;
+        }
         
         const statusEl = document.getElementById('healthStatus');
-        statusEl.className = `text-${colorClass}`;
-        statusEl.textContent = capitalize(status);
+        if (statusEl) {
+            statusEl.className = `text-${colorClass}`;
+            statusEl.textContent = capitalize(status);
+        }
         
-        document.getElementById('servicesUpBadge').textContent = 
-            `${health.services_up || 0}/${health.services_total || 4} Services`;
+        setText('servicesUpBadge', `${health.services_up || 0}/${health.services_total || 4} Services`);
         
         const queueBadge = document.getElementById('queueBadge');
-        if (health.queue_depth > 0) {
-            queueBadge.textContent = `${health.queue_depth} Queued`;
-            queueBadge.classList.remove('d-none');
-        } else {
-            queueBadge.classList.add('d-none');
+        if (queueBadge) {
+            if (health.queue_depth > 0) {
+                queueBadge.textContent = `${health.queue_depth} Queued`;
+                queueBadge.classList.remove('d-none');
+            } else {
+                queueBadge.classList.add('d-none');
+            }
         }
     }
     
@@ -145,12 +175,14 @@ const StatsDashboard = (function() {
         setText('kpiHighSeverity', severity.high || 0);
         
         const criticalIndicator = document.getElementById('kpiCriticalIndicator');
-        if (severity.critical > 0) {
-            criticalIndicator.innerHTML = 
-                `<span class="text-red d-inline-flex align-items-center lh-1">${severity.critical} critical</span>`;
-        } else {
-            criticalIndicator.innerHTML = 
-                `<span class="text-green d-inline-flex align-items-center lh-1">No critical</span>`;
+        if (criticalIndicator) {
+            if (severity.critical > 0) {
+                criticalIndicator.innerHTML = 
+                    `<span class="text-red d-inline-flex align-items-center lh-1">${severity.critical} critical</span>`;
+            } else {
+                criticalIndicator.innerHTML = 
+                    `<span class="text-green d-inline-flex align-items-center lh-1">No critical</span>`;
+            }
         }
         
         if (totalFindings > 0) {
@@ -403,8 +435,10 @@ const StatsDashboard = (function() {
         setText('quickPendingBadge', quick.pending_count || 0);
         
         const failedBadge = document.getElementById('quickFailedBadge');
-        failedBadge.textContent = quick.failed_24h || 0;
-        failedBadge.className = `badge bg-${quick.failed_24h > 0 ? 'red' : 'green'}-lt`;
+        if (failedBadge) {
+            failedBadge.textContent = quick.failed_24h || 0;
+            failedBadge.className = `badge bg-${quick.failed_24h > 0 ? 'red' : 'green'}-lt`;
+        }
         
         setText('quickMostActiveModel', quick.most_active_model || 'N/A');
         setText('quickLastAnalysis', quick.last_analysis_ago || 'Never');
@@ -419,26 +453,36 @@ const StatsDashboard = (function() {
     // === UI State Helpers ===
     
     function showLoading() {
-        document.getElementById('statisticsLoading').classList.remove('d-none');
-        document.getElementById('statisticsContent').classList.add('d-none');
-        document.getElementById('statisticsError').classList.add('d-none');
+        const loading = document.getElementById('statisticsLoading');
+        const content = document.getElementById('statisticsContent');
+        const error = document.getElementById('statisticsError');
+        if (loading) loading.classList.remove('d-none');
+        if (content) content.classList.add('d-none');
+        if (error) error.classList.add('d-none');
     }
     
     function showContent() {
-        document.getElementById('statisticsLoading').classList.add('d-none');
-        document.getElementById('statisticsContent').classList.remove('d-none');
-        document.getElementById('statisticsError').classList.add('d-none');
+        const loading = document.getElementById('statisticsLoading');
+        const content = document.getElementById('statisticsContent');
+        const error = document.getElementById('statisticsError');
+        if (loading) loading.classList.add('d-none');
+        if (content) content.classList.remove('d-none');
+        if (error) error.classList.add('d-none');
     }
     
     function showError(message) {
-        document.getElementById('statisticsLoading').classList.add('d-none');
-        document.getElementById('statisticsContent').classList.add('d-none');
-        document.getElementById('statisticsError').classList.remove('d-none');
-        document.getElementById('statisticsErrorMessage').textContent = message || 'An error occurred';
+        const loading = document.getElementById('statisticsLoading');
+        const content = document.getElementById('statisticsContent');
+        const error = document.getElementById('statisticsError');
+        const errorMsg = document.getElementById('statisticsErrorMessage');
+        if (loading) loading.classList.add('d-none');
+        if (content) content.classList.add('d-none');
+        if (error) error.classList.remove('d-none');
+        if (errorMsg) errorMsg.textContent = message || 'An error occurred';
     }
     
     function updateLastCheck() {
-        document.getElementById('lastCheck').textContent = 'just now';
+        setText('lastCheck', 'just now');
     }
     
     // === Utility Helpers ===
@@ -509,18 +553,24 @@ const StatsDashboard = (function() {
         console.log(`[${type.toUpperCase()}] ${message}`);
     }
     
-    // Initialize on DOM ready
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
-    
-    // Public API
-    return {
+    // Export to window for HTMX-safe access
+    window.StatsDashboard = {
         load: load,
         refresh: refresh,
-        getData: () => currentData
+        getData: () => currentData,
+        cleanup: cleanup,
+        _initialized: true
     };
+    
+    // Listen for HTMX navigation away to cleanup
+    document.body.addEventListener('htmx:beforeSwap', function(evt) {
+        // If navigating away from statistics page, cleanup charts
+        if (!evt.detail.target.querySelector || !evt.detail.target.querySelector('#statisticsContent')) {
+            cleanup();
+        }
+    });
+    
+    // Initialize
+    init();
 })();
 </script>

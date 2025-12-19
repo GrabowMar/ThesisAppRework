@@ -42,7 +42,7 @@
               {% for item in _bs %}
                 <li class="breadcrumb-item {% if loop.last %}active text-primary{% endif %}" {% if loop.last %}aria-current="page"{% endif %}>
                   {% if not loop.last and item.url %}
-                    <a href="{{ item.url }}" class="text-decoration-none text-muted hover-text-primary" hx-boost="true">{{ item.label }}</a>
+                    <a href="{{ item.url }}" class="text-decoration-none text-muted hover-text-primary" hx-boost="true" hx-target="#main-content" hx-swap="innerHTML show:window:top" hx-push-url="true">{{ item.label }}</a>
                   {% else %}
                     {{ item.label }}
                   {% endif %}

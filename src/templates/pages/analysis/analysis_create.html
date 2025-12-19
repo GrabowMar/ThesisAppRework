@@ -1,5 +1,5 @@
 {# Analysis Creation Wizard Page #}
-{% extends 'layouts/base.html' %}
+{% extends 'layouts/base_smart.html' %}
 {% set active_page = 'analysis' %}
 {% set page_title = 'Create Analysis' %}
 {% set page_icon = 'fa-solid fa-flask' %}
@@ -737,27 +737,40 @@
   {{ super() }}
   
   <script>
-// Analysis Wizard JavaScript
-let currentStep = 1;
-let selectedModel = null;
-let selectedApp = null;
-let selectedTools = []; // Array of tool names for analysis
+// Analysis Wizard JavaScript - HTMX-safe version
+(function() {
+'use strict';
+
+// HTMX safety guard - prevent duplicate initialization and variable re-declaration
+if (window._analysisWizardLoaded) {
+  if (document.getElementById('wizard-progress-bar')) {
+    window.AnalysisWizard.init();
+  }
+  return;
+}
+window._analysisWizardLoaded = true;
+
+// Module-scoped state variables
+var currentStep = 1;
+var selectedModel = null;
+var selectedApp = null;
+var selectedTools = []; // Array of tool names for analysis
 // Batch selection support
-let modelSelectionMode = 'single'; // 'single' | 'batch'
-let selectedModels = []; // array of {slug,name}
-let selectedApps = []; // array of {number, info, modelSlug}
-let appSelectionMode = 'single'; // 'single' | 'batch'
+var modelSelectionMode = 'single'; // 'single' | 'batch'
+var selectedModels = []; // array of {slug,name}
+var selectedApps = []; // array of {number, info, modelSlug}
+var appSelectionMode = 'single'; // 'single' | 'batch'
 // Cache of modelSlug -> array of app objects {number, name, modelSlug}
-const modelAppsCache = {};
+var modelAppsCache = {};
 // Tool registry cache
-let allTools = [];
-let toolsLoadPromise = null;
+var allTools = [];
+var toolsLoadPromise = null;
 
 // Wizard navigation functions
 function nextStep() {
     if (validateCurrentStep() && currentStep < 4) {
         // Mark current step as completed
-        const currentStepEl = document.querySelector(`.step-item[data-step="${currentStep}"]`);
+        var currentStepEl = document.querySelector('.step-item[data-step="'+currentStep+'"]');
         if (currentStepEl) {
             currentStepEl.classList.remove('active');
             currentStepEl.classList.add('completed');
@@ -773,7 +786,7 @@ function nextStep() {
 function previousStep() {
     if (currentStep > 1) {
         // Mark current step as not active
-        const currentStepEl = document.querySelector(`.step-item[data-step="${currentStep}"]`);
+        var currentStepEl = document.querySelector('.step-item[data-step="'+currentStep+'"]');
         if (currentStepEl) {
             currentStepEl.classList.remove('active');
         }
@@ -781,7 +794,7 @@ function previousStep() {
         currentStep--;
         
         // Mark previous step as active again (remove completed status)
-        const prevStepEl = document.querySelector(`.step-item[data-step="${currentStep}"]`);
+        var prevStepEl = document.querySelector('.step-item[data-step="'+currentStep+'"]');
         if (prevStepEl) {
             prevStepEl.classList.remove('completed');
             prevStepEl.classList.add('active');
@@ -795,8 +808,8 @@ function previousStep() {
 function goToStep(stepNumber) {
     if (stepNumber >= 1 && stepNumber <= 4) {
         // Validate all previous steps
-        let canProceed = true;
-        for (let i = 1; i < stepNumber; i++) {
+        var canProceed = true;
+        for (var i = 1; i < stepNumber; i++) {
             if (!isStepValid(i)) {
                 canProceed = false;
                 break;
@@ -805,7 +818,7 @@ function goToStep(stepNumber) {
         
         if (canProceed || stepNumber <= currentStep) {
             // Update step classes for new Tabler.io structure
-            document.querySelectorAll('.step-item').forEach((step, index) => {
+            document.querySelectorAll('.step-item').forEach(function(step, index) {
                 step.classList.remove('active', 'completed');
                 if (index + 1 < stepNumber) {
                     step.classList.add('completed');
@@ -823,12 +836,12 @@ function goToStep(stepNumber) {
 
 function updateWizardStep() {
     // Update progress bar with smooth animation
-    const progressPercent = (currentStep / 4) * 100;
-    const progressBar = document.getElementById('wizard-progress-bar');
-    progressBar.style.width = progressPercent + '%';
+    var progressPercent = (currentStep / 4) * 100;
+    var progressBar = document.getElementById('wizard-progress-bar');
+    if(progressBar) progressBar.style.width = progressPercent + '%';
     
     // Hide all panels first
-    document.querySelectorAll('.wizard-panel').forEach(panel => {
+    document.querySelectorAll('.wizard-panel').forEach(function(panel) {
         panel.classList.remove('active');
     });
     
@@ -2578,10 +2591,10 @@ function initAnalysisWizard() {
     // Remove application from sidebar list
     const removeAppBtn = e.target.closest('button[data-remove-app]');
     if (removeAppBtn) {
-      const num = removeAppBtn.getAttribute('data-remove-app');
-      const mSlug = removeAppBtn.getAttribute('data-remove-app-model');
+      var num = removeAppBtn.getAttribute('data-remove-app');
+      var mSlug = removeAppBtn.getAttribute('data-remove-app-model');
       if (num) {
-        selectedApps = selectedApps.filter(a => !(String(a.number) === String(num) && (!mSlug || a.modelSlug === mSlug)) );
+        selectedApps = selectedApps.filter(function(a) { return !(String(a.number) === String(num) && (!mSlug || a.modelSlug === mSlug)); });
         if (selectedApp && String(selectedApp.number) === String(num) && (!mSlug || selectedApp.modelSlug === mSlug)) {
           selectedApp = selectedApps[0] || null;
         }
@@ -2593,24 +2606,24 @@ function initAnalysisWizard() {
   });
 
   // Batch aggregated search filter
-  const batchSearch = document.getElementById('batch-app-search');
+  var batchSearch = document.getElementById('batch-app-search');
   if (batchSearch) {
-    batchSearch.addEventListener('input', () => buildAggregatedAppsList());
+    batchSearch.addEventListener('input', function() { buildAggregatedAppsList(); });
   }
 
   // Clear-all buttons (models/apps)
-  const clearModelsBtn = document.getElementById('clear-models-btn');
+  var clearModelsBtn = document.getElementById('clear-models-btn');
   if (clearModelsBtn) {
-    clearModelsBtn.addEventListener('click', () => {
+    clearModelsBtn.addEventListener('click', function() {
       selectedModels = [];
       selectedModel = null;
       refreshModelSelectionsUI();
       updateNavigationButtons();
     });
   }
-  const clearAppsBtn = document.getElementById('clear-apps-btn');
+  var clearAppsBtn = document.getElementById('clear-apps-btn');
   if (clearAppsBtn) {
-    clearAppsBtn.addEventListener('click', () => {
+    clearAppsBtn.addEventListener('click', function() {
       selectedApps = [];
       selectedApp = null;
       refreshAppSelectionsUI();
@@ -2619,10 +2632,42 @@ function initAnalysisWizard() {
   }
 }
 
+// Export for onclick handlers and re-initialization
+window.AnalysisWizard = {
+  init: initAnalysisWizard,
+  nextStep: nextStep,
+  previousStep: previousStep,
+  goToStep: goToStep
+};
+
+// Also export to global for onclick handlers
+window.nextStep = nextStep;
+window.previousStep = previousStep;
+window.goToStep = goToStep;
+window.toggleModel = typeof toggleModel !== 'undefined' ? toggleModel : function(){};
+window.selectModel = typeof selectModel !== 'undefined' ? selectModel : function(){};
+window.selectApp = typeof selectApp !== 'undefined' ? selectApp : function(){};
+window.toggleApp = typeof toggleApp !== 'undefined' ? toggleApp : function(){};
+window.toggleTool = typeof toggleTool !== 'undefined' ? toggleTool : function(){};
+window.toggleToolCategory = typeof toggleToolCategory !== 'undefined' ? toggleToolCategory : function(){};
+window.toggleAllTools = typeof toggleAllTools !== 'undefined' ? toggleAllTools : function(){};
+window.startAnalysis = typeof startAnalysis !== 'undefined' ? startAnalysis : function(){};
+window.initAnalysisWizard = initAnalysisWizard;
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initAnalysisWizard);
 } else {
   initAnalysisWizard();
 }
+
+// Listen for HTMX swaps to re-initialize
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+  if (document.getElementById('wizard-progress-bar')) {
+    initAnalysisWizard();
+  }
+});
+
+})();
   </script>
 {% endblock %}
+

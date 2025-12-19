@@ -68,13 +68,39 @@
     writePref(next? 'collapsed':'expanded');
   }
 
+  // Map URL path segments to nav targets (for routes where they differ)
+  var PATH_TO_NAV = {
+    'statistics': 'stats',
+    'sample-generator': 'sample-generator',
+    'models_overview': 'models'
+  };
+
   function highlight(){
     try {
       var path = window.location.pathname.replace(/\/$/, '');
       var primary = path.split('/').filter(Boolean)[0] || 'dashboard';
+      // Normalize path segment to nav target
+      var navTarget = PATH_TO_NAV[primary] || primary;
       document.querySelectorAll('.sidebar .nav-link[data-nav-target]').forEach(function(a){
         var target = a.getAttribute('data-nav-target');
-        a.classList.toggle('active', target === primary);
+        var isActive = target === navTarget;
+        a.classList.toggle('active', isActive);
+        a.classList.toggle('bg-primary', isActive);
+        a.classList.toggle('text-white', isActive);
+        a.classList.toggle('shadow-sm', isActive);
+        a.classList.toggle('hover-bg-white-10', !isActive);
+        // Update icon color
+        var icon = a.querySelector('i');
+        if(icon){
+          icon.classList.toggle('text-white', isActive);
+          icon.classList.toggle('text-white-50', !isActive);
+        }
+        // Update aria-current
+        if(isActive){
+          a.setAttribute('aria-current', 'page');
+        } else {
+          a.removeAttribute('aria-current');
+        }
       });
     } catch(e){ /* silent */ }
   }
@@ -139,6 +165,8 @@
   document.addEventListener('htmx:afterSwap', onHtmxUpdate);
   document.addEventListener('htmx:afterOnLoad', onHtmxUpdate);
   document.addEventListener('htmx:historyRestore', onHtmxUpdate);
+  // Custom thesis navigation event
+  document.addEventListener('thesis:pageInit', onHtmxUpdate);
 
   // Public API
   window.ThesisSidebar = {

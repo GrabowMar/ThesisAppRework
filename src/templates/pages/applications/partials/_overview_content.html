@@ -266,14 +266,15 @@ function viewApplicationDetails(modelSlug, appNumber) {
     swap: 'innerHTML'
   });
   
-  const modal = new bootstrap.Modal(document.getElementById('applicationDetailsModal'));
+  var modal = new bootstrap.Modal(document.getElementById('applicationDetailsModal'));
   modal.show();
 }
 
 // ---- Container Action Tracking ----
-let currentContainerAction = null;
-let containerActionPollInterval = null;
-let containerOutputOffset = 0;
+// Use var for HTMX-safety (allows re-declaration on page re-navigation)
+var currentContainerAction = window._containerAction_current || null;
+var containerActionPollInterval = window._containerAction_poll || null;
+var containerOutputOffset = window._containerAction_offset || 0;
 
 function startContainerAction(modelSlug, appNumber, actionType, options = {}) {
   // Show modal

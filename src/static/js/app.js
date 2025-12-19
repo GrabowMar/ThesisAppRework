@@ -6,6 +6,108 @@
 window.ThesisApp = window.ThesisApp || {};
 
 // ============================================================================
+// Page Initialization Utilities - Handle HTMX Navigation
+// ============================================================================
+// Use these helpers to ensure page scripts run on both initial load AND
+// after HTMX navigation (hx-boost). Scripts using only DOMContentLoaded will
+// NOT run after HTMX swaps content.
+// ============================================================================
+
+/**
+ * Register a page initialization function that runs on:
+ * - Initial page load (DOMContentLoaded)
+ * - HTMX navigation (thesis:pageInit event)
+ * - Browser back/forward (htmx:historyRestore)
+ * 
+ * @param {Function} initFn - Initialization function to call
+ * @param {Object} options - Optional configuration
+ * @param {string} options.pageId - Only run if page contains element with this ID
+ * @param {string} options.selector - Only run if page contains elements matching this selector
+ * 
+ * @example
+ * // Always run on any page
+ * ThesisApp.onPageReady(function() {
+ *   console.log('Page loaded or navigated');
+ * });
+ * 
+ * @example
+ * // Only run on pages with #analysis-wizard element
+ * ThesisApp.onPageReady(initAnalysisWizard, { pageId: 'analysis-wizard' });
+ * 
+ * @example
+ * // Only run on pages with .models-table
+ * ThesisApp.onPageReady(initModelsTable, { selector: '.models-table' });
+ */
+ThesisApp.onPageReady = function(initFn, options) {
+  options = options || {};
+  
+  function shouldRun() {
+    if (options.pageId && !document.getElementById(options.pageId)) return false;
+    if (options.selector && !document.querySelector(options.selector)) return false;
+    return true;
+  }
+  
+  function safeRun() {
+    if (shouldRun()) {
+      try {
+        initFn();
+      } catch (e) {
+        console.error('[ThesisApp] Page init error:', e);
+      }
+    }
+  }
+  
+  // Run on initial load
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', safeRun);
+  } else {
+    safeRun();
+  }
+  
+  // Run on HTMX navigation
+  document.addEventListener('thesis:pageInit', safeRun);
+};
+
+/**
+ * One-time initialization that only runs once per page visit.
+ * Useful for event listeners that shouldn't be added multiple times.
+ * 
+ * @param {string} key - Unique identifier for this initialization
+ * @param {Function} initFn - Initialization function
+ */
+ThesisApp.initOnce = function(key, initFn) {
+  var initKey = '_thesis_init_' + key;
+  if (window[initKey]) return;
+  window[initKey] = true;
+  
+  try {
+    initFn();
+  } catch (e) {
+    console.error('[ThesisApp] initOnce error for ' + key + ':', e);
+    window[initKey] = false;
+  }
+};
+
+/**
+ * Reset one-time initialization flags (called on HTMX navigation)
+ * This allows initOnce to run again on new pages
+ */
+ThesisApp.resetInitFlags = function() {
+  Object.keys(window).forEach(function(key) {
+    if (key.startsWith('_thesis_init_')) {
+      delete window[key];
+    }
+  });
+};
+
+// Reset init flags on navigation so page-specific inits can run again
+document.addEventListener('thesis:pageInit', function() {
+  ThesisApp.resetInitFlags();
+});
+
+// ============================================================================
+
+// ============================================================================
 // HTMX Modal Utilities - Proper Bootstrap Modal Management
 // ============================================================================
 // Use these helpers for HTMX-loaded modals to ensure proper backdrop cleanup.

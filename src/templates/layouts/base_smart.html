@@ -1,0 +1,23 @@
+{#
+  Smart Base Layout - Automatically handles full page vs HTMX partial rendering
+  ==============================================================================
+  
+  This template automatically detects if the request is an HTMX boosted navigation
+  and renders either:
+  - Full page (extends base.html) for regular requests
+  - Partial content only (extends partial.html) for HTMX boost requests
+  
+  Page templates should extend this instead of base.html directly to get
+  automatic HTMX navigation support without needing to change anything.
+  
+  Usage in page templates:
+    {% extends "layouts/base_smart.html" %}
+    {% block content %}...{% endblock %}
+#}
+{% if is_htmx_boost %}
+  {# HTMX boost navigation - render only content for swap into #main-content #}
+  {% extends "layouts/partial.html" %}
+{% else %}
+  {# Normal request - render full page with layout #}
+  {% extends "layouts/base.html" %}
+{% endif %}

@@ -590,9 +590,15 @@ def create_app(config_name: str = 'default') -> Flask:
     # previously referencing it implicitly. This prevents UndefinedError in lean test mode.
     @app.context_processor  # type: ignore[misc]
     def inject_current_app():  # pragma: no cover - simple
-        from flask import current_app as _ca
+        from flask import current_app as _ca, request as _req
+        # Detect HTMX boost navigation requests
+        # hx-boost sends HX-Boosted header, not just HX-Request
+        is_htmx_boost = _req.headers.get('HX-Boosted', '').lower() == 'true'
+        is_htmx = _req.headers.get('HX-Request', '').lower() == 'true'
         return {
             'current_app': _ca,
+            'is_htmx': is_htmx,
+            'is_htmx_boost': is_htmx_boost,
             'FEATURES': {
                 'codegen': False,  # flag retained for templates to feature-gate UI elements
                 'batch_jobs': False,

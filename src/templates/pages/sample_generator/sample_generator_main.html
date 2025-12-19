@@ -1,5 +1,5 @@
 {# Sample Generator - V2 Wizard Interface #}
-{% extends 'layouts/base.html' %}
+{% extends 'layouts/base_smart.html' %}
 {% set page_title = 'Sample Generator' %}
 {% set page_icon = 'ti ti-code' %}
 {% set page_subtitle = 'Generate AI-powered applications with scaffolding templates' %}
@@ -14,3 +14,4 @@
 <script src="{{ url_for('static', filename='js/sample_generator_wizard.js') }}"></script>
 {# templates_manager.js is NOT needed for wizard - only for templates tab in main.html #}
 {% endblock %}
+

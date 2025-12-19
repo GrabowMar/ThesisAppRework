@@ -1,5 +1,5 @@
 {# Import Models migrated fully to pages/models #}
-{% extends 'layouts/base.html' %}
+{% extends 'layouts/base_smart.html' %}
 {% set page_title = 'Import Models' %}
 {% set page_icon = 'fa-solid fa-upload' %}
 {% set page_subtitle = 'Upload JSON export or OpenRouter payload to add/update models' %}
@@ -51,3 +51,4 @@
 async function importModels(){const input=document.getElementById('models-file');const out=document.getElementById('import-result');out.innerHTML='';if(!input.files||!input.files[0]){out.innerHTML='<div class="alert alert-warning">Choose a JSON file.</div>';return;}try{const text=await input.files[0].text();const json=JSON.parse(text);const res=await fetch('/api/models/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(json)});const data=await res.json();if(!res.ok||data.success===false){out.innerHTML=`<div class="alert alert-danger">Import failed: ${data.error||res.statusText}</div>`;}else{out.innerHTML=`<div class="alert alert-success">Imported. Created: ${data.created} Updated: ${data.updated}</div>`;}}catch(e){out.innerHTML=`<div class="alert alert-danger">Error: ${e}</div>`;}}
 </script>
 {% endblock %}
+

@@ -46,7 +46,7 @@
             <div class="spinner-border text-primary spinner-border-sm me-2" role="status"></div>
             <span class="small text-muted">Loading…</span>
           </div>
-          <div class="row gx-4 gy-4 align-items-start">
+          <div id="main-content" class="row gx-4 gy-4 align-items-start">
             <div class="col-12{% if has_right_sidebar %} col-lg-9 col-xl-9{% endif %}">
               {% block main %}{% block content %}{% endblock %}{% endblock %}
             </div>
@@ -75,6 +75,87 @@
   <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta19/dist/js/tabler.min.js"></script>
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
+  <script>
+  // HTMX Global Configuration for proper boost navigation
+  document.body.addEventListener('htmx:configRequest', function(evt) {
+    // Add header to identify HTMX requests for partial rendering
+    evt.detail.headers['X-HTMX-Request'] = 'true';
+  });
+  
+  // Configure boosted links to target main content area
+  htmx.config.defaultSwapStyle = 'innerHTML';
+  htmx.config.globalViewTransitions = true;
+  htmx.config.historyCacheSize = 10;
+  
+  // Override boost behavior to target #main-content
+  document.body.addEventListener('htmx:beforeRequest', function(evt) {
+    var elt = evt.detail.elt;
+    // Check if this is a boosted navigation link (has hx-boost but no explicit hx-target)
+    if (elt.hasAttribute('hx-boost') && !elt.hasAttribute('hx-target')) {
+      var mainContent = document.getElementById('main-content');
+      if (mainContent) {
+        // Set target to main-content for boosted nav links
+        evt.detail.target = mainContent;
+      }
+    }
+  });
+  
+  // Page reinitialization event - fires after HTMX navigation completes
+  document.body.addEventListener('htmx:afterSettle', function(evt) {
+    // Only fire for main content swaps (navigation) not small HTMX updates
+    var target = evt.detail.target;
+    if (target && (target.id === 'main-content' || target.closest('#main-content'))) {
+      // Update page title and active nav from partial response metadata
+      var meta = target.querySelector('#page-meta');
+      if (meta) {
+        var newTitle = meta.getAttribute('data-title');
+        if (newTitle) document.title = newTitle;
+        
+        var activePage = meta.getAttribute('data-active-page');
+        if (activePage) {
+          document.querySelectorAll('[data-nav-target]').forEach(function(el) {
+            var isActive = el.getAttribute('data-nav-target') === activePage;
+            el.classList.toggle('active', isActive);
+            el.classList.toggle('bg-primary', isActive);
+            el.classList.toggle('text-white', isActive);
+            el.classList.toggle('shadow-sm', isActive);
+            el.classList.toggle('hover-bg-white-10', !isActive);
+            if (isActive) {
+              el.setAttribute('aria-current', 'page');
+            } else {
+              el.removeAttribute('aria-current');
+            }
+          });
+        }
+        meta.remove(); // Clean up the template element
+      }
+      
+      // Dispatch custom event for page-specific scripts to listen to
+      document.dispatchEvent(new CustomEvent('thesis:pageInit', {
+        detail: { target: target, htmxEvent: evt }
+      }));
+      
+      // Re-run any inline scripts in the new content (for page-specific init)
+      var scripts = target.querySelectorAll('script[data-reinit]');
+      scripts.forEach(function(script) {
+        var newScript = document.createElement('script');
+        if (script.src) {
+          newScript.src = script.src;
+        } else {
+          newScript.textContent = script.textContent;
+        }
+        script.parentNode.replaceChild(newScript, script);
+      });
+    }
+  });
+  
+  // Handle browser back/forward buttons
+  document.body.addEventListener('htmx:historyRestore', function(evt) {
+    document.dispatchEvent(new CustomEvent('thesis:pageInit', {
+      detail: { target: document.getElementById('main-content'), historyRestore: true }
+    }));
+  });
+  </script>
   <script src="{{ url_for('static', filename='js/table-utils.js') }}"></script>
   <script src="{{ url_for('static', filename='js/sidebar.js') }}"></script>
   <script src="{{ url_for('static', filename='js/theme.js') }}"></script>

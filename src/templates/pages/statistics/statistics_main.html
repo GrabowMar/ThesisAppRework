@@ -1,5 +1,5 @@
 {# Statistics Dashboard - Shell template for client-side rendering #}
-{% extends 'layouts/base.html' %}
+{% extends 'layouts/base_smart.html' %}
 {% set page_title = page_title or 'Statistics Dashboard' %}
 {% set page_icon = page_icon or 'fa-solid fa-chart-line' %}
 
@@ -347,3 +347,4 @@
 {{ super() }}
 {% include 'pages/statistics/partials/_scripts.html' ignore missing %}
 {% endblock %}
+

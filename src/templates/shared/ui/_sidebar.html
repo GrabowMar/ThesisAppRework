@@ -131,6 +131,9 @@
       <a href="{{ url_for('main.dashboard') }}" 
          class="d-flex align-items-center text-white text-decoration-none brand-link gap-2"
          hx-boost="true"
+         hx-target="#main-content"
+         hx-swap="innerHTML show:window:top"
+         hx-push-url="true"
          aria-label="Go to Dashboard">
         <div class="bg-primary rounded-2 d-flex align-items-center justify-content-center text-white brand-icon-box">
           <i class="fa-solid fa-layer-group fa-sm"></i>
@@ -159,7 +162,10 @@
           <li class="nav-item">
             <a href="{{ item.url }}" 
                class="nav-link text-white-75 d-flex align-items-center py-2 px-3 rounded-2 transition-all {% if item.is_active %}active bg-primary text-white shadow-sm{% else %}hover-bg-white-10{% endif %}" 
-               hx-boost="true" 
+               hx-boost="true"
+               hx-target="#main-content"
+               hx-swap="innerHTML show:window:top"
+               hx-push-url="true"
                title="{{ item.title }}"
                data-nav-target="{{ item.nav_target }}"
                data-active="{{ 'true' if item.is_active else 'false' }}"

@@ -2,7 +2,7 @@
   Error Pages Handler (standardized layout usage)
   Now uses the base layout's content block directly (no extra page wrapper divs)
 #}
-{% extends 'layouts/base.html' %}
+{% extends 'layouts/base_smart.html' %}
 
 {% set page_title = (error_title or 'Error') %}
 
@@ -98,3 +98,4 @@
   {{ super() }}
   {# Error-specific scripts can be added here #}
 {% endblock %}
+

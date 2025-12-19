@@ -1,0 +1,22 @@
+{#
+  Partial Layout for HTMX Boost Navigation
+  ========================================
+  This template renders only the main content area (no header, sidebar, scripts)
+  for HTMX boosted navigation requests.
+  
+  Used when is_htmx_boost is True to return partial HTML that HTMX can swap
+  into #main-content without needing to reload the full page chrome.
+#}
+{# Pass page title to HTMX via HX-Title header extension workaround #}
+{% set has_right_sidebar = has_right_sidebar|default(false) %}
+<div class="col-12{% if has_right_sidebar %} col-lg-9 col-xl-9{% endif %}">
+  {% block main %}{% block content %}{% endblock %}{% endblock %}
+</div>
+{% if has_right_sidebar %}
+<div class="col-12 col-lg-3 col-xl-3">
+  {% block right_sidebar %}{% endblock %}
+</div>
+{% endif %}
+{# Include page scripts with data-reinit so they get re-executed after swap #}
+<template id="page-meta" data-title="{% block title %}Thesis Platform{% endblock %}" data-active-page="{{ active_page|default('') }}"></template>
+{% block scripts %}{% endblock %}
