@@ -1,0 +1,613 @@
+{% extends 'layouts/base.html' %}
+{% from 'shared/macros/detail_macros.html' import research_detail_header, research_metric_grid, research_section_nav, research_section, research_skeleton, research_empty_state, research_scroll_spy_script %}
+{% set page_title = 'Model Analysis: ' + model_slug %}
+{% set page_icon = 'fas fa-robot' %}
+
+{% block head_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/detail-pages.css') }}">
+<style>
+  @media print {
+    .btn, .navbar, .sidebar, footer, .no-print { display: none !important; }
+    .container-xl { max-width: 100% !important; margin: 0 !important; }
+    .card { break-inside: avoid; page-break-inside: avoid; }
+    .accordion-collapse { display: block !important; }
+  }
+  .severity-badge { min-width: 70px; text-align: center; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-xl research-detail-shell">
+    {# Research-style Header #}
+    {% set view = {
+        'icon': 'ti ti-robot',
+        'pretitle': 'Model Analysis Report',
+        'title': model_slug,
+        'badges': [
+            {'label': 'v' ~ timestamp[:10].replace('-', '.'), 'variant': 'badge bg-azure-lt'}
+        ],
+        'subtitle': '',
+        'actions': [
+            {'type': 'button', 'icon': 'ti ti-printer', 'label': 'Print', 'onclick': 'window.print()', 'classes': 'btn btn-primary', 'visible': true},
+            {'type': 'link', 'icon': 'ti ti-download', 'label': 'Export', 'href': url_for('api.reports_api.download_report', report_id=report_id) if report_id else '#', 'classes': 'btn btn-outline-primary', 'visible': report_id is defined and report_id}
+        ]
+    } %}
+    {% set inline_metrics = [
+        {'icon': 'ti ti-calendar', 'label': 'Generated', 'value': timestamp[:10]},
+        {'icon': 'ti ti-apps', 'label': 'Apps', 'value': apps_count ~ ' analyzed'},
+        {'icon': 'ti ti-list-check', 'label': 'Tasks', 'value': total_tasks|default(apps_count, true)},
+        {'icon': 'ti ti-tool', 'label': 'Tools', 'value': tools_statistics|length ~ ' executed'}
+    ] %}
+    {{ research_detail_header(view, inline_metrics) }}
+
+    {# Research Metric Grid - Key Summary Stats #}
+    {% set metrics = [
+        {'label': 'Total Findings', 'icon': 'ti ti-alert-triangle', 'value': aggregated_stats.total_findings, 'hint': 'Across ' ~ apps_count ~ ' apps', 'badge_icon': 'ti ti-list', 'badge_color': 'blue'},
+        {'label': 'Critical Issues', 'icon': 'ti ti-alert-octagon', 'value': aggregated_stats.findings_by_severity.get('critical', 0), 'tone': 'danger', 'hint': 'Immediate attention', 'badge_icon': 'ti ti-flame', 'badge_color': 'danger'},
+        {'label': 'High Severity', 'icon': 'ti ti-alert-circle', 'value': aggregated_stats.findings_by_severity.get('high', 0), 'tone': 'warning', 'hint': 'Important issues', 'badge_icon': 'ti ti-exclamation-mark', 'badge_color': 'warning'},
+        {'label': 'Medium/Low', 'icon': 'ti ti-info-circle', 'value': aggregated_stats.findings_by_severity.get('medium', 0) + aggregated_stats.findings_by_severity.get('low', 0), 'hint': 'Minor issues', 'badge_icon': 'ti ti-info-circle', 'badge_color': 'info'},
+        {'label': 'Avg/App', 'icon': 'ti ti-chart-line', 'value': "%.1f"|format(scientific_metrics.get('findings_distribution', {}).get('mean', 0)), 'hint': '± ' ~ ("%.1f"|format(scientific_metrics.get('findings_distribution', {}).get('std_dev', 0)) if scientific_metrics.get('findings_distribution', {}).get('std_dev') else 'N/A'), 'badge_icon': 'ti ti-chart-dots', 'badge_color': 'primary'},
+        {'label': 'Tools Run', 'icon': 'ti ti-tool', 'value': tools_statistics|length, 'hint': 'Analysis tools', 'badge_icon': 'ti ti-settings', 'badge_color': 'secondary'}
+    ] %}
+    {{ research_metric_grid(metrics) }}
+
+    {# Section Navigation #}
+    {% set sections = [
+        {'id': 'overview', 'icon': 'ti ti-chart-pie', 'label': 'Overview', 'description': 'Statistical summary'},
+        {'id': 'generation', 'icon': 'ti ti-cpu', 'label': 'Generation', 'description': 'Cost and performance'},
+        {'id': 'tools', 'icon': 'ti ti-tool', 'label': 'Tools', 'description': 'Tool performance'},
+        {'id': 'apps', 'icon': 'ti ti-apps', 'label': 'Applications', 'description': 'Per-app results'}
+    ] %}
+    {{ research_section_nav(sections) }}
+
+    <!-- Generation Metadata Summary -->
+    {% if generation_metadata and generation_metadata.get('available') %}
+    <div class="card mb-3">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="ti ti-cpu me-2"></i>Generation Context
+            </h3>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <div class="text-muted small mb-1">Total Generation Cost</div>
+                        <div class="h3 mb-0">${{ "%.4f"|format(generation_metadata.total_cost) }}</div>
+                        <div class="text-muted small">
+                            ~${{ "%.5f"|format(generation_metadata.avg_cost_per_generation) }}/generation
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <div class="text-muted small mb-1">Total Tokens Used</div>
+                        <div class="h3 mb-0">{{ "{:,}".format(generation_metadata.total_tokens) }}</div>
+                        <div class="text-muted small">
+                            ~{{ "{:,}".format(generation_metadata.avg_tokens_per_generation) }}/generation
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <div class="text-muted small mb-1">Generation Time</div>
+                        <div class="h3 mb-0">{{ "%.1f"|format(generation_metadata.total_generation_time_seconds) }}s</div>
+                        <div class="text-muted small">
+                            ~{{ generation_metadata.avg_generation_time_ms }}ms avg
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <div class="text-muted small mb-1">Code Generated</div>
+                        <div class="h3 mb-0">{{ "{:,}".format(generation_metadata.total_lines_generated) }} lines</div>
+                        <div class="text-muted small">
+                            ~{{ generation_metadata.avg_lines_per_generation }} lines/app
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% if generation_metadata.providers %}
+            <div class="mt-2">
+                <span class="text-muted small">Providers:</span>
+                {% for provider in generation_metadata.providers %}
+                <span class="badge bg-purple-lt ms-1">{{ provider }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# ====== SECTION: Overview (Statistical) ====== #}
+    <section id="section-overview" class="research-section" data-research-section="overview">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-chart-pie"></i><span>Statistical Analysis</span></h2>
+        </div>
+        
+        {% if scientific_metrics.get('findings_distribution') %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4 class="mb-3">Findings Distribution</h4>
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted">Mean (μ)</td>
+                                    <td class="text-end"><strong>{{ "%.2f"|format(scientific_metrics.findings_distribution.mean) }}</strong> findings/app</td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Median</td>
+                                    <td class="text-end"><strong>{{ scientific_metrics.findings_distribution.median }}</strong> findings/app</td>
+                                </tr>
+                                {% if scientific_metrics.findings_distribution.get('std_dev') %}
+                                <tr>
+                                    <td class="text-muted">Std Deviation (σ)</td>
+                                    <td class="text-end"><strong>{{ "%.2f"|format(scientific_metrics.findings_distribution.std_dev) }}</strong></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Coefficient of Variation</td>
+                                    <td class="text-end"><strong>{{ "%.1f"|format(scientific_metrics.findings_distribution.get('cv_percent', 0)) }}%</strong></td>
+                                </tr>
+                                {% endif %}
+                                <tr>
+                                    <td class="text-muted">Range</td>
+                                    <td class="text-end">
+                                        <strong>{{ scientific_metrics.findings_distribution.min }}</strong> - 
+                                        <strong>{{ scientific_metrics.findings_distribution.max }}</strong>
+                                        <span class="text-muted">(Δ{{ scientific_metrics.findings_distribution.range }})</span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h4 class="mb-3">Severity Breakdown</h4>
+                        {% if scientific_metrics.get('severity_distribution', {}).get('percentages') %}
+                        <table class="table table-sm">
+                            <tbody>
+                                {% for severity in ['critical', 'high', 'medium', 'low'] %}
+                                {% set count = scientific_metrics.severity_distribution.counts.get(severity, 0) %}
+                                {% set pct = scientific_metrics.severity_distribution.percentages.get(severity, 0) %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-{{ 'danger' if severity == 'critical' else 'warning' if severity == 'high' else 'info' if severity == 'medium' else 'secondary' }}">
+                                            {{ severity|title }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="progress flex-fill me-2" style="height: 20px;">
+                                                <div class="progress-bar bg-{{ 'danger' if severity == 'critical' else 'warning' if severity == 'high' else 'info' if severity == 'medium' else 'secondary' }}"
+                                                     style="width: {{ pct }}%">
+                                                </div>
+                                            </div>
+                                            <span class="text-muted small" style="min-width: 80px;">
+                                                {{ count }} ({{ "%.1f"|format(pct) }}%)
+                                            </span>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                {% if scientific_metrics.get('duration_statistics') %}
+                <hr class="my-3">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4 class="mb-3">Analysis Performance</h4>
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted">Average Duration</td>
+                                    <td class="text-end"><strong>{{ "%.1f"|format(scientific_metrics.duration_statistics.mean) }}s</strong></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Median Duration</td>
+                                    <td class="text-end"><strong>{{ "%.1f"|format(scientific_metrics.duration_statistics.median) }}s</strong></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Total Analysis Time</td>
+                                    <td class="text-end"><strong>{{ "%.1f"|format(scientific_metrics.duration_statistics.total) }}s</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <h4 class="mb-3">Tool Coverage</h4>
+                        {% if scientific_metrics.get('tool_coverage') %}
+                        <table class="table table-sm">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted">Unique Tools Used</td>
+                                    <td class="text-end"><strong>{{ scientific_metrics.tool_coverage.total_unique_tools }}</strong></td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Tools List</td>
+                                    <td class="text-end">
+                                        <div class="d-flex flex-wrap gap-1 justify-content-end">
+                                            {# Show ALL tools, no truncation #}
+                                            {% for tool in scientific_metrics.tool_coverage.tools_used %}
+                                            <span class="badge bg-secondary-lt">{{ tool }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </section>
+
+    {# ====== SECTION: Generation Context ====== #}
+    <section id="section-generation" class="research-section" data-research-section="generation">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-cpu"></i><span>Generation Context</span></h2>
+        </div>
+        
+        {% if generation_metadata and generation_metadata.get('available') %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Total Generation Cost</div>
+                            <div class="h3 mb-0">${{ "%.4f"|format(generation_metadata.total_cost) }}</div>
+                            <div class="text-muted small">
+                                ~${{ "%.5f"|format(generation_metadata.avg_cost_per_generation) }}/generation
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Total Tokens Used</div>
+                            <div class="h3 mb-0">{{ "{:,}".format(generation_metadata.total_tokens) }}</div>
+                            <div class="text-muted small">
+                                ~{{ "{:,}".format(generation_metadata.avg_tokens_per_generation) }}/generation
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Generation Time</div>
+                            <div class="h3 mb-0">{{ "%.1f"|format(generation_metadata.total_generation_time_seconds) }}s</div>
+                            <div class="text-muted small">
+                                ~{{ generation_metadata.avg_generation_time_ms }}ms avg
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Code Generated</div>
+                            <div class="h3 mb-0">{{ "{:,}".format(generation_metadata.total_lines_generated) }} lines</div>
+                            <div class="text-muted small">
+                                ~{{ generation_metadata.avg_lines_per_generation }} lines/app
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% if generation_metadata.providers %}
+                <div class="mt-2">
+                    <span class="text-muted small">Providers:</span>
+                    {% for provider in generation_metadata.providers %}
+                    <span class="badge bg-purple-lt ms-1">{{ provider }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        {{ research_empty_state('ti ti-cpu-off', 'No Generation Data', 'Generation metadata not available for this model.') }}
+        {% endif %}
+    </section>
+
+    {# ====== SECTION: Tool Performance ====== #}
+    <section id="section-tools" class="research-section" data-research-section="tools">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-tool"></i><span>Tool Performance & Effectiveness</span></h2>
+        </div>
+        
+        <div class="card mb-3">
+            <div class="card-header">
+                <span class="badge bg-secondary-lt">{{ tools_statistics|length }} tools executed</span>
+            </div>
+            <div class="card-body">
+                {# Use tool_categories from backend (ContainerToolRegistry) if available, else fallback #}
+                {% set effective_tool_categories = tool_categories if tool_categories else [
+                    ('Security Analysis', ['bandit', 'semgrep', 'safety', 'pip-audit', 'zap', 'nmap', 'npm-audit'], 'ti-shield-check', 'danger'),
+                    ('Code Quality', ['pylint', 'eslint', 'jshint', 'ruff', 'flake8', 'stylelint'], 'ti-code', 'info'),
+                    ('Type & Metrics', ['mypy', 'vulture', 'radon'], 'ti-chart-dots', 'purple'),
+                    ('Performance Testing', ['ab', 'aiohttp', 'locust', 'artillery', 'curl'], 'ti-gauge', 'success'),
+                    ('AI Analysis', ['requirements-checker', 'code-quality-analyzer', 'requirements-scanner'], 'ti-brain', 'azure')
+                ] %}
+            
+                {# Use all_known_tools from backend if available, otherwise build from categories #}
+                {% set effective_all_known_tools = all_known_tools if all_known_tools else [] %}
+                {% if not effective_all_known_tools %}
+                    {% set ns = namespace(all_known_tools=[]) %}
+                    {% for _, tools_list, _, _ in effective_tool_categories %}
+                        {% for tool in tools_list %}
+                            {% set ns.all_known_tools = ns.all_known_tools + [tool] %}
+                        {% endfor %}
+                    {% endfor %}
+                    {% set effective_all_known_tools = ns.all_known_tools %}
+                {% endif %}
+                
+                {# Render each category #}
+                {% for category_name, category_tools, icon, color in effective_tool_categories %}
+                {# Count tools in this category that exist in stats #}
+                {% set ns2 = namespace(count=0) %}
+                {% for tool in category_tools %}
+                    {% if tool in tools_statistics %}
+                        {% set ns2.count = ns2.count + 1 %}
+                    {% endif %}
+                {% endfor %}
+                
+                {% if ns2.count > 0 %}
+                <div class="mb-4">
+                    <h4 class="mb-3">
+                        <i class="{{ icon }} text-{{ color }} me-2"></i>
+                        {{ category_name }}
+                        <span class="badge bg-secondary-lt ms-2">{{ ns2.count }}</span>
+                    </h4>
+                    <div class="table-responsive">
+                        <table class="table table-vcenter table-sm">
+                            <thead>
+                                <tr>
+                                    <th style="width: 180px;">Tool</th>
+                                    <th style="width: 100px;">Executions</th>
+                                    <th style="width: 180px;">Success Rate</th>
+                                    <th style="width: 120px;">Findings</th>
+                                    <th style="width: 100px;">Findings/Run</th>
+                                    <th style="width: 100px;">Avg Duration</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for tool_name in category_tools %}
+                                {% if tool_name in tools_statistics %}
+                                {% set stats = tools_statistics[tool_name] %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ tool_name }}</strong>
+                                        {% if tool_name in ['bandit', 'semgrep', 'zap', 'snyk', 'detect-secrets'] %}
+                                            <span class="badge bg-danger-lt ms-1" title="Security Scanner">SEC</span>
+                                        {% elif tool_name in ['pylint', 'eslint', 'ruff', 'stylelint', 'jshint'] %}
+                                            <span class="badge bg-info-lt ms-1" title="Code Quality">QA</span>
+                                        {% elif tool_name in ['mypy'] %}
+                                            <span class="badge bg-purple-lt ms-1" title="Type Checker">TYPE</span>
+                                        {% elif tool_name in ['safety', 'pip-audit', 'npm-audit'] %}
+                                            <span class="badge bg-warning-lt ms-1" title="Dependency Scanner">DEP</span>
+                                        {% elif tool_name in ['vulture', 'radon'] %}
+                                            <span class="badge bg-secondary-lt ms-1" title="Code Metrics">METRIC</span>
+                                        {% elif tool_name in ['ab', 'aiohttp', 'locust', 'artillery'] %}
+                                            <span class="badge bg-success-lt ms-1" title="Load Testing">PERF</span>
+                                        {% elif tool_name in ['requirements-checker', 'code-quality-analyzer'] %}
+                                            <span class="badge bg-purple-lt ms-1" title="AI Analysis">AI</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-blue-lt">{{ stats.total_executions }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="progress" style="width: 80px; height: 16px;">
+                                                <div class="progress-bar {% if stats.success_rate >= 80 %}bg-success{% elif stats.success_rate >= 50 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                                     style="width: {{ stats.success_rate }}%">
+                                                </div>
+                                            </div>
+                                            <span class="text-muted small">{{ "%.0f"|format(stats.success_rate) }}%</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if stats.total_findings > 0 %}
+                                            <span class="badge bg-{{ 'danger' if stats.total_findings > 50 else 'warning' if stats.total_findings > 10 else 'secondary' }}">{{ stats.total_findings }}</span>
+                                        {% else %}
+                                            <span class="text-muted">0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-muted">
+                                        {{ "%.1f"|format(stats.get('findings_per_execution', 0)) }}
+                                    </td>
+                                    <td class="text-muted">
+                                        {{ "%.2f"|format(stats.average_duration) }}s
+                                    </td>
+                                    <td>
+                                        {% if stats.failed > 0 %}
+                                            <span class="badge bg-danger-lt">{{ stats.failed }} failed</span>
+                                        {% else %}
+                                            <span class="badge bg-success-lt">All passed</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+            
+                {# Uncategorized tools (catch-all for new tools) #}
+                {% set ns_other = namespace(count=0, tools=[]) %}
+                {% for tool_name in tools_statistics.keys() %}
+                    {% if tool_name not in effective_all_known_tools %}
+                        {% set ns_other.count = ns_other.count + 1 %}
+                        {% set ns_other.tools = ns_other.tools + [tool_name] %}
+                    {% endif %}
+                {% endfor %}
+            
+            {% if ns_other.count > 0 %}
+            <div class="mb-4">
+                <h4 class="mb-3">
+                    <i class="ti ti-puzzle text-secondary me-2"></i>
+                    Other Tools
+                    <span class="badge bg-secondary-lt ms-2">{{ ns_other.count }}</span>
+                </h4>
+                <div class="table-responsive">
+                    <table class="table table-vcenter table-sm">
+                        <thead>
+                            <tr>
+                                <th>Tool</th>
+                                <th>Executions</th>
+                                <th>Success Rate</th>
+                                <th>Findings</th>
+                                <th>Avg Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tool_name in ns_other.tools %}
+                            {% set stats = tools_statistics[tool_name] %}
+                            <tr>
+                                <td><strong>{{ tool_name }}</strong></td>
+                                <td><span class="badge bg-blue-lt">{{ stats.total_executions }}</span></td>
+                                <td>{{ "%.0f"|format(stats.success_rate) }}%</td>
+                                <td>{{ stats.total_findings }}</td>
+                                <td>{{ "%.2f"|format(stats.average_duration) }}s</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+            </div>
+        </div>
+    </section>
+
+    {# ====== SECTION: Per-App Analysis ====== #}
+    <section id="section-apps" class="research-section" data-research-section="apps">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-apps"></i><span>Application Analysis Results</span></h2>
+        </div>
+        
+        <div class="card">
+            <div class="card-body">
+                {% for app in apps %}
+            <div class="mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h4>
+                        {{ app.app_name or 'App ' + app.app_number|string }}
+                        <span class="badge bg-blue-lt">App #{{ app.app_number }}</span>
+                    </h4>
+                    <span class="text-muted">{{ app.completed_at[:10] if app.completed_at else 'N/A' }}</span>
+                </div>
+                
+                {% if app.app_description %}
+                <p class="text-muted">{{ app.app_description }}</p>
+                {% endif %}
+
+                <!-- App Stats -->
+                <div class="row mb-3">
+                    <div class="col-auto">
+                        <span class="badge bg-{{ 'danger' if app.severity_counts.get('critical', 0) > 0 else 'success' }}">
+                            {{ app.findings_count }} findings
+                        </span>
+                    </div>
+                    <div class="col-auto">
+                        <span class="text-muted">
+                            Critical: {{ app.severity_counts.get('critical', 0) }}, 
+                            High: {{ app.severity_counts.get('high', 0) }}, 
+                            Medium: {{ app.severity_counts.get('medium', 0) }}, 
+                            Low: {{ app.severity_counts.get('low', 0) }}
+                        </span>
+                    </div>
+                    <div class="col-auto ms-auto">
+                        <small class="text-muted">Duration: {{ "%.1f"|format(app.duration_seconds) }}s</small>
+                    </div>
+                </div>
+
+                <!-- Collapsible Findings -->
+                <div class="accordion" id="accordion-{{ loop.index }}">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" 
+                                    data-bs-toggle="collapse" 
+                                    data-bs-target="#collapse-{{ loop.index }}">
+                                View {{ app.findings|length }} Findings
+                            </button>
+                        </h2>
+                        <div id="collapse-{{ loop.index }}" class="accordion-collapse collapse" 
+                             data-bs-parent="#accordion-{{ loop.index }}">
+                            <div class="accordion-body">
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Severity</th>
+                                            <th>Tool</th>
+                                            <th>Message</th>
+                                            <th>Location</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for finding in app.findings[:50] %}
+                                        <tr>
+                                            <td>
+                                                <span class="badge bg-{{ 'danger' if finding.severity == 'critical' else 'warning' if finding.severity == 'high' else 'info' if finding.severity == 'medium' else 'secondary' }}">
+                                                    {{ finding.severity }}
+                                                </span>
+                                            </td>
+                                            <td><code>{{ finding.tool }}</code></td>
+                                            <td>{{ finding.message }}</td>
+                                            <td class="text-muted small">
+                                                {{ finding.file }}{% if finding.line %}:{{ finding.line }}{% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                        {% if app.findings|length > 50 %}
+                                        <tr>
+                                            <td colspan="4" class="text-center text-muted">
+                                                ... and {{ app.findings|length - 50 }} more findings
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <hr class="my-4">
+            {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    {# Report Footer #}
+    <div class="card mt-3">
+        <div class="card-body py-3">
+            <div class="row text-muted small">
+                <div class="col-md-4">
+                    <strong>Report ID:</strong> {{ report_id|default('N/A') }}<br>
+                    <strong>Model:</strong> {{ model_slug }}
+                </div>
+                <div class="col-md-4 text-center">
+                    <strong>Generated:</strong> {{ timestamp }}<br>
+                    <strong>Apps Analyzed:</strong> {{ apps_count }}
+                </div>
+                <div class="col-md-4 text-end">
+                    <strong>System:</strong> ThesisApp Analysis Platform<br>
+                    <strong>Report Type:</strong> Model Analysis
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# Scroll spy script for section navigation #}
+{{ research_scroll_spy_script() }}
+{% endblock %}

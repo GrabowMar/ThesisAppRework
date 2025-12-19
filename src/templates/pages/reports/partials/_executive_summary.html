@@ -1,0 +1,364 @@
+{# Executive Summary Report Template #}
+{% extends 'layouts/base.html' %}
+{% from 'shared/macros/detail_macros.html' import research_detail_header, research_metric_grid, research_section_nav, research_section, research_empty_state, research_scroll_spy_script %}
+
+{% set page_title = report.title %}
+{% set page_icon = 'fas fa-chart-pie' %}
+
+{% block head_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/detail-pages.css') }}">
+<style>
+  @media print {
+    .btn, .navbar, .sidebar, footer, .no-print { display: none !important; }
+    .container-xl { max-width: 100% !important; margin: 0 !important; }
+    .card { break-inside: avoid; page-break-inside: avoid; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="research-detail-shell">
+    {# ====== Research Header ====== #}
+    {% set view = {
+        'type': 'summary',
+        'name': page_title,
+        'model_slug': 'System Overview',
+        'back_url': url_for('reports.reports_index'),
+        'actions': [
+            {'url': 'javascript:window.print()', 'icon': 'ti-printer', 'label': 'Print', 'class': 'btn-primary'},
+            {'url': url_for('api.reports_api.download_report', report_id=report.report_id) if report.report_id else '#', 'icon': 'ti-download', 'label': 'Export', 'class': 'btn-outline-primary', 'attrs': 'download'}
+        ]
+    } %}
+    
+    {% set inline_metrics = [
+        {'icon': 'ti ti-calendar', 'value': data.timestamp[:10] if data.timestamp else 'N/A'}
+    ] %}
+    {% if data.date_range.start or data.date_range.end %}
+        {% set period = (data.date_range.start[:10] if data.date_range.start else 'Beginning') + ' to ' + (data.date_range.end[:10] if data.date_range.end else 'Now') %}
+        {% set inline_metrics = inline_metrics + [{'icon': 'ti ti-filter', 'value': period}] %}
+    {% endif %}
+    
+    {{ research_detail_header(view, inline_metrics) }}
+
+    {# ====== Summary Metrics Grid ====== #}
+    {% set metrics = [
+        {'label': 'Apps Generated', 'value': data.summary.total_apps_generated or 0, 'color': 'primary', 'icon': 'ti-apps', 'subtitle': 'AI-generated applications'},
+        {'label': 'Analyses Completed', 'value': data.summary.total_analyses_completed or 0, 'color': 'success', 'icon': 'ti-chart-line', 'subtitle': 'Successful analysis runs'},
+        {'label': 'Total Findings', 'value': data.summary.total_findings or 0, 'color': 'warning', 'icon': 'ti-bug', 'subtitle': 'Issues detected'},
+        {'label': 'AI Models Used', 'value': data.summary.total_models or 0, 'color': 'info', 'icon': 'ti-robot', 'subtitle': 'Different models'}
+    ] %}
+    {{ research_metric_grid(metrics) }}
+
+    {# ====== Section Navigation ====== #}
+    {% set sections = [
+        {'id': 'severity', 'label': 'Severity', 'icon': 'ti-alert-triangle'},
+        {'id': 'generation', 'label': 'Generation', 'icon': 'ti-code'},
+        {'id': 'models', 'label': 'Models', 'icon': 'ti-robot'},
+        {'id': 'insights', 'label': 'Insights', 'icon': 'ti-bulb'}
+    ] %}
+    {{ research_section_nav(sections) }}
+
+    {# ====== SECTION: Severity Distribution ====== #}
+    <section id="section-severity" class="research-section" data-research-section="severity">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-alert-triangle"></i><span>Severity Distribution</span></h2>
+        </div>
+        
+        {% if data.summary.severity_breakdown %}
+        {% set severity_data = data.summary.severity_breakdown %}
+        {% set total_findings = severity_data.get('critical', 0) + severity_data.get('high', 0) + severity_data.get('medium', 0) + severity_data.get('low', 0) + severity_data.get('info', 0) %}
+        <div class="card mb-3">
+            <div class="card-body">
+                {% if total_findings > 0 %}
+                <div class="progress mb-4" style="height: 32px;">
+                    <div class="progress-bar bg-danger" style="width: {{ (severity_data.get('critical', 0) / total_findings * 100) }}%" 
+                         title="Critical: {{ severity_data.get('critical', 0) }}">
+                        {% if severity_data.get('critical', 0) > 0 %}C: {{ severity_data.get('critical', 0) }}{% endif %}
+                    </div>
+                    <div class="progress-bar bg-warning" style="width: {{ (severity_data.get('high', 0) / total_findings * 100) }}%"
+                         title="High: {{ severity_data.get('high', 0) }}">
+                        {% if severity_data.get('high', 0) > 0 %}H: {{ severity_data.get('high', 0) }}{% endif %}
+                    </div>
+                    <div class="progress-bar bg-info" style="width: {{ (severity_data.get('medium', 0) / total_findings * 100) }}%"
+                         title="Medium: {{ severity_data.get('medium', 0) }}">
+                        {% if severity_data.get('medium', 0) > 0 %}M: {{ severity_data.get('medium', 0) }}{% endif %}
+                    </div>
+                    <div class="progress-bar bg-secondary" style="width: {{ (severity_data.get('low', 0) / total_findings * 100) }}%"
+                         title="Low: {{ severity_data.get('low', 0) }}">
+                        {% if severity_data.get('low', 0) > 0 %}L: {{ severity_data.get('low', 0) }}{% endif %}
+                    </div>
+                    <div class="progress-bar bg-light" style="width: {{ (severity_data.get('info', 0) / total_findings * 100) }}%"
+                         title="Info: {{ severity_data.get('info', 0) }}">
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="row g-3">
+                    <div class="col-6 col-lg">
+                        <div class="text-center p-3 rounded border border-danger bg-danger-lt">
+                            <div class="text-uppercase small fw-bold text-danger">Critical</div>
+                            <div class="h2 mb-0 text-danger">{{ severity_data.get('critical', 0) }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-lg">
+                        <div class="text-center p-3 rounded border border-warning bg-warning-lt">
+                            <div class="text-uppercase small fw-bold text-warning">High</div>
+                            <div class="h2 mb-0 text-warning">{{ severity_data.get('high', 0) }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-lg">
+                        <div class="text-center p-3 rounded border border-info bg-info-lt">
+                            <div class="text-uppercase small fw-bold text-info">Medium</div>
+                            <div class="h2 mb-0 text-info">{{ severity_data.get('medium', 0) }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-lg">
+                        <div class="text-center p-3 rounded border border-secondary bg-secondary-lt">
+                            <div class="text-uppercase small fw-bold text-secondary">Low</div>
+                            <div class="h2 mb-0 text-secondary">{{ severity_data.get('low', 0) }}</div>
+                        </div>
+                    </div>
+                    <div class="col-6 col-lg">
+                        <div class="text-center p-3 rounded border bg-light">
+                            <div class="text-uppercase small fw-bold text-muted">Info</div>
+                            <div class="h2 mb-0 text-muted">{{ severity_data.get('info', 0) }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        {{ research_empty_state('ti ti-chart-pie', 'No Severity Data', 'Severity distribution data not available.') }}
+        {% endif %}
+    </section>
+
+    {# ====== SECTION: Generation Summary ====== #}
+    <section id="section-generation" class="research-section" data-research-section="generation">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-code"></i><span>Generation Summary</span></h2>
+        </div>
+        
+        {% if data.generation_summary %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h4 class="mb-3"><i class="ti ti-apps text-primary me-2"></i>Application Generation</h4>
+                        <div class="row row-cards">
+                            <div class="col-4">
+                                <div class="card card-sm">
+                                    <div class="card-body text-center">
+                                        <div class="text-muted small">Total Apps</div>
+                                        <div class="h2 mb-0">{{ data.generation_summary.total_apps or 0 }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="card card-sm bg-success-lt">
+                                    <div class="card-body text-center">
+                                        <div class="text-success small">Successful</div>
+                                        <div class="h2 mb-0 text-success">{{ data.generation_summary.successful_apps or 0 }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="card card-sm bg-danger-lt">
+                                    <div class="card-body text-center">
+                                        <div class="text-danger small">Failed</div>
+                                        <div class="h2 mb-0 text-danger">{{ data.generation_summary.failed_apps or 0 }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h4 class="mb-3"><i class="ti ti-chart-line text-azure me-2"></i>Analysis Tasks</h4>
+                        <div class="row row-cards">
+                            <div class="col-4">
+                                <div class="card card-sm">
+                                    <div class="card-body text-center">
+                                        <div class="text-muted small">Total Tasks</div>
+                                        <div class="h2 mb-0">{{ data.summary.total_analyses_run or 0 }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="card card-sm bg-success-lt">
+                                    <div class="card-body text-center">
+                                        <div class="text-success small">Completed</div>
+                                        <div class="h2 mb-0 text-success">{{ data.summary.total_analyses_completed or 0 }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="card card-sm">
+                                    <div class="card-body text-center">
+                                        <div class="text-muted small">Rate</div>
+                                        <div class="h2 mb-0">
+                                            {% if data.summary.total_analyses_run and data.summary.total_analyses_run > 0 %}
+                                            {{ "%.0f"|format((data.summary.total_analyses_completed / data.summary.total_analyses_run) * 100) }}%
+                                            {% else %}
+                                            N/A
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        {{ research_empty_state('ti ti-code', 'No Generation Data', 'Generation summary data not available.') }}
+        {% endif %}
+    </section>
+
+    {# ====== SECTION: Model Statistics ====== #}
+    <section id="section-models" class="research-section" data-research-section="models">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-robot"></i><span>Model Usage Statistics</span></h2>
+        </div>
+        
+        {% if data.model_stats %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="card-title mb-0">
+                    <i class="ti ti-chart-bar text-purple me-2"></i>Provider Statistics
+                </h3>
+                <span class="badge bg-purple-lt">{{ data.model_stats|length }} providers</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-vcenter card-table">
+                    <thead>
+                        <tr>
+                            <th>Provider</th>
+                            <th style="width: 120px;">Models</th>
+                            <th style="width: 150px;">Apps Generated</th>
+                            <th style="width: 180px;">Success Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for provider, stats in data.model_stats.items() %}
+                        <tr>
+                            <td><strong>{{ provider }}</strong></td>
+                            <td><span class="badge bg-blue-lt">{{ stats.model_count or 0 }}</span></td>
+                            <td>{{ stats.apps_generated or 0 }}</td>
+                            <td>
+                                {% if stats.success_rate %}
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="progress" style="width: 80px; height: 16px;">
+                                        <div class="progress-bar {% if stats.success_rate >= 80 %}bg-success{% elif stats.success_rate >= 60 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                             style="width: {{ stats.success_rate }}%">
+                                        </div>
+                                    </div>
+                                    <span class="small">{{ "%.1f"|format(stats.success_rate) }}%</span>
+                                </div>
+                                {% else %}
+                                <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        {{ research_empty_state('ti ti-robot', 'No Model Data', 'Model usage statistics not available.') }}
+        {% endif %}
+    </section>
+
+    {# ====== SECTION: Key Insights ====== #}
+    <section id="section-insights" class="research-section" data-research-section="insights">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-bulb"></i><span>Key Insights & Recommendations</span></h2>
+        </div>
+        
+        <div class="card mb-3 border-info">
+            <div class="card-header bg-info-lt">
+                <h3 class="card-title text-info mb-0">
+                    <i class="ti ti-lightbulb me-2"></i>Analysis Insights
+                </h3>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <ul class="mb-0">
+                            {% if data.summary.severity_breakdown %}
+                                {% set critical = data.summary.severity_breakdown.get('critical', 0) %}
+                                {% set high = data.summary.severity_breakdown.get('high', 0) %}
+                                {% if critical > 0 %}
+                                <li class="mb-2">
+                                    <span class="badge bg-danger me-2">Critical</span>
+                                    <strong>{{ critical }} critical findings</strong> require immediate attention.
+                                </li>
+                                {% endif %}
+                                {% if high > 0 %}
+                                <li class="mb-2">
+                                    <span class="badge bg-warning me-2">High</span>
+                                    <strong>{{ high }} high-severity issues</strong> should be addressed soon.
+                                </li>
+                                {% endif %}
+                                {% if critical == 0 and high == 0 %}
+                                <li class="mb-2">
+                                    <span class="badge bg-success me-2">Good</span>
+                                    No critical or high-severity issues detected.
+                                </li>
+                                {% endif %}
+                            {% endif %}
+                            
+                            {% if data.summary.total_analyses_completed %}
+                            <li class="mb-2">
+                                <span class="badge bg-info me-2">Coverage</span>
+                                {{ data.summary.total_analyses_completed }} analyses completed across {{ data.summary.total_models or 0 }} AI models.
+                            </li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="alert alert-info mb-0">
+                            <div class="d-flex">
+                                <div class="me-3">
+                                    <i class="ti ti-info-circle icon alert-icon"></i>
+                                </div>
+                                <div>
+                                    <h4 class="alert-title">Recommendation</h4>
+                                    <div class="text-muted">
+                                        Regular analysis runs help maintain code quality and security standards.
+                                        Schedule comprehensive analyses periodically for best results.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {# ====== Report Footer ====== #}
+    <section id="section-footer" class="research-section">
+        <div class="card">
+            <div class="card-body py-3">
+                <div class="row text-muted small">
+                    <div class="col-md-4">
+                        <strong>Report ID:</strong> {{ report.report_id }}<br>
+                        <strong>Report Type:</strong> Executive Summary
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <strong>Generated:</strong> {{ data.timestamp }}<br>
+                        <strong>Period:</strong> {{ (data.date_range.start[:10] if data.date_range.start else 'All time') }} - {{ (data.date_range.end[:10] if data.date_range.end else 'Now') }}
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <strong>System:</strong> ThesisApp Analysis Platform<br>
+                        <strong>Models:</strong> {{ data.summary.total_models or 0 }}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+{{ research_scroll_spy_script() }}
+{% endblock %}

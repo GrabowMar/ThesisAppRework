@@ -1,0 +1,263 @@
+{# Model Comparison Report Template #}
+{% extends 'layouts/base.html' %}
+{% from 'shared/macros/detail_macros.html' import research_detail_header, research_metric_grid, research_section_nav, research_section, research_empty_state, research_scroll_spy_script %}
+
+{% set page_title = 'Model Comparison - App #' + data.app_number|string %}
+{% set page_icon = 'fas fa-robot' %}
+
+{% block head_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/detail-pages.css') }}">
+<style>
+  @media print {
+    .btn, .navbar, .sidebar, footer, .no-print { display: none !important; }
+    .container-xl { max-width: 100% !important; margin: 0 !important; }
+    .card { break-inside: avoid; page-break-inside: avoid; }
+    .accordion-collapse { display: block !important; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="research-detail-shell">
+    {# ====== Research Header ====== #}
+    {% set view = {
+        'type': 'comparison',
+        'name': report.title,
+        'model_slug': 'App #' + data.app_number|string,
+        'back_url': url_for('reports.reports_index'),
+        'actions': [
+            {'url': 'javascript:window.print()', 'icon': 'ti-printer', 'label': 'Print', 'class': 'btn-cyan'},
+            {'url': url_for('api.reports_api.download_report', report_id=report.report_id) if report.report_id else '#', 'icon': 'ti-download', 'label': 'Export', 'class': 'btn-outline-cyan', 'attrs': 'download'}
+        ]
+    } %}
+    
+    {% set inline_metrics = [
+        {'icon': 'ti ti-calendar', 'value': data.timestamp[:10] if data.timestamp else 'N/A'},
+        {'icon': 'ti ti-robot', 'value': data.models|length|string + ' model' + ('s' if data.models|length != 1 else '') + ' compared'},
+        {'icon': 'ti ti-apps', 'value': 'App #' + data.app_number|string}
+    ] %}
+    
+    {{ research_detail_header(view, inline_metrics) }}
+
+    {# ====== Summary Metrics Grid ====== #}
+    {% set metrics = [
+        {'label': 'Models Compared', 'value': data.aggregated.total_models if data.aggregated else data.models|length, 'color': 'primary', 'icon': 'ti-robot', 'subtitle': 'Different AI models analyzed'},
+        {'label': 'Avg Findings', 'value': "%.1f"|format(data.aggregated.avg_findings) if data.aggregated else 'N/A', 'color': 'info', 'icon': 'ti-chart-bar', 'subtitle': 'Average per model'},
+        {'label': 'Best Model', 'value': data.aggregated.best_model or 'N/A' if data.aggregated else 'N/A', 'color': 'success', 'icon': 'ti-trophy', 'subtitle': 'Fewest findings'},
+        {'label': 'Worst Model', 'value': data.aggregated.worst_model or 'N/A' if data.aggregated else 'N/A', 'color': 'danger', 'icon': 'ti-alert-triangle', 'subtitle': 'Most findings'}
+    ] %}
+    {{ research_metric_grid(metrics) }}
+
+    {# ====== Section Navigation ====== #}
+    {% set sections = [
+        {'id': 'summary', 'label': 'Summary', 'icon': 'ti-chart-pie'},
+        {'id': 'models', 'label': 'Models', 'icon': 'ti-robot'},
+        {'id': 'tools', 'label': 'Tools', 'icon': 'ti-tool'}
+    ] %}
+    {{ research_section_nav(sections) }}
+
+    {# ====== SECTION: Comparison Summary ====== #}
+    <section id="section-summary" class="research-section" data-research-section="summary">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-chart-pie"></i><span>Comparison Summary</span></h2>
+        </div>
+        
+        {% if data.aggregated %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Best Performer</div>
+                            <div class="h4 text-success">
+                                <i class="ti ti-trophy me-1"></i>
+                                {{ data.aggregated.best_model or 'N/A' }}
+                            </div>
+                            <div class="text-muted small">Fewest issues detected</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Most Issues</div>
+                            <div class="h4 text-warning">
+                                <i class="ti ti-alert-triangle me-1"></i>
+                                {{ data.aggregated.worst_model or 'N/A' }}
+                            </div>
+                            <div class="text-muted small">Most issues detected</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Average Findings</div>
+                            <div class="h4">{{ "%.1f"|format(data.aggregated.avg_findings) }}</div>
+                            <div class="text-muted small">Per model average</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Models Analyzed</div>
+                            <div class="h4">{{ data.aggregated.total_models }}</div>
+                            <div class="text-muted small">Total compared</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        {{ research_empty_state('ti ti-chart-pie', 'No Aggregated Data', 'Aggregated comparison data not available.') }}
+        {% endif %}
+    </section>
+
+    {# ====== SECTION: Model Details ====== #}
+    <section id="section-models" class="research-section" data-research-section="models">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-robot"></i><span>Model Details</span></h2>
+        </div>
+        
+        {% if data.models %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="card-title mb-0">
+                    <i class="ti ti-table text-cyan me-2"></i>Comparison Table
+                </h3>
+                <span class="badge bg-cyan-lt">{{ data.models|length }} models</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-vcenter card-table">
+                    <thead>
+                        <tr>
+                            <th>Model</th>
+                            <th>Task ID</th>
+                            <th style="width: 100px;">Total Findings</th>
+                            <th style="width: 80px;">Critical</th>
+                            <th style="width: 80px;">High</th>
+                            <th style="width: 80px;">Medium</th>
+                            <th style="width: 80px;">Low</th>
+                            <th>Completed At</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for model in data.models %}
+                        {% set severity = model.summary.severity_breakdown if model.summary else {} %}
+                        <tr class="{% if data.aggregated and model.model_slug == data.aggregated.best_model %}table-success{% elif data.aggregated and model.model_slug == data.aggregated.worst_model %}table-warning{% endif %}">
+                            <td>
+                                <strong>{{ model.model_slug }}</strong>
+                                {% if data.aggregated and model.model_slug == data.aggregated.best_model %}
+                                <span class="badge bg-success ms-2">
+                                    <i class="ti ti-trophy me-1"></i>Best
+                                </span>
+                                {% elif data.aggregated and model.model_slug == data.aggregated.worst_model %}
+                                <span class="badge bg-warning ms-2">
+                                    <i class="ti ti-alert-triangle me-1"></i>Most Issues
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted small">{{ model.task_id[:12] if model.task_id else 'N/A' }}...</td>
+                            <td><strong>{{ model.findings_count }}</strong></td>
+                            <td><span class="badge bg-danger">{{ severity.get('critical', 0) }}</span></td>
+                            <td><span class="badge bg-warning">{{ severity.get('high', 0) }}</span></td>
+                            <td><span class="badge bg-info">{{ severity.get('medium', 0) }}</span></td>
+                            <td><span class="badge bg-secondary">{{ severity.get('low', 0) }}</span></td>
+                            <td class="text-muted small">{{ model.completed_at[:19] if model.completed_at else 'N/A' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        {{ research_empty_state('ti ti-robot', 'No Models', 'No model data available for comparison.') }}
+        {% endif %}
+    </section>
+
+    {# ====== SECTION: Tool Comparison ====== #}
+    <section id="section-tools" class="research-section" data-research-section="tools">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-tool"></i><span>Tool Execution by Model</span></h2>
+        </div>
+        
+        {% set all_tools = [] %}
+        {% for model in data.models %}
+            {% if model.tools %}
+                {% for tool_name in model.tools.keys() %}
+                    {% if tool_name not in all_tools %}
+                        {% set _ = all_tools.append(tool_name) %}
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        {% endfor %}
+        
+        {% if all_tools %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="card-title mb-0">
+                    <i class="ti ti-tool text-azure me-2"></i>Tool Execution Matrix
+                </h3>
+                <span class="badge bg-azure-lt">{{ all_tools|length }} tools</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-vcenter card-table">
+                    <thead>
+                        <tr>
+                            <th>Tool</th>
+                            {% for model in data.models %}
+                            <th class="text-center">{{ model.model_slug }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tool_name in all_tools %}
+                        <tr>
+                            <td><code>{{ tool_name }}</code></td>
+                            {% for model in data.models %}
+                            <td class="text-center">
+                                {% if model.tools and tool_name in model.tools %}
+                                    {% set tool_data = model.tools[tool_name] %}
+                                    {% if tool_data.status == 'success' %}
+                                    <span class="badge bg-{{ 'warning' if tool_data.total_issues > 5 else 'success' if tool_data.total_issues == 0 else 'info' }}">
+                                        {{ tool_data.total_issues or 0 }}
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-danger">Failed</span>
+                                    {% endif %}
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        {{ research_empty_state('ti ti-tool-off', 'No Tool Data', 'Tool execution data not available.') }}
+        {% endif %}
+    </section>
+
+    {# ====== Report Footer ====== #}
+    <section id="section-footer" class="research-section">
+        <div class="card">
+            <div class="card-body py-3">
+                <div class="row text-muted small">
+                    <div class="col-md-4">
+                        <strong>Report ID:</strong> {{ report.report_id }}<br>
+                        <strong>App Number:</strong> {{ data.app_number }}
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <strong>Generated:</strong> {{ data.timestamp }}<br>
+                        <strong>Models:</strong> {{ data.models|length }}
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <strong>System:</strong> ThesisApp Analysis Platform<br>
+                        <strong>Report Type:</strong> Model Comparison
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+{{ research_scroll_spy_script() }}
+{% endblock %}

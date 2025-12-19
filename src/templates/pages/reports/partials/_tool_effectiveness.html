@@ -1,0 +1,314 @@
+{# Tool Effectiveness Report Template #}
+{% extends 'layouts/base.html' %}
+{% from 'shared/macros/detail_macros.html' import research_detail_header, research_metric_grid, research_section_nav, research_section, research_empty_state, research_scroll_spy_script %}
+
+{% set page_title = report.title %}
+{% set page_icon = 'fas fa-tools' %}
+
+{% block head_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/detail-pages.css') }}">
+<style>
+  @media print {
+    .btn, .navbar, .sidebar, footer, .no-print { display: none !important; }
+    .container-xl { max-width: 100% !important; margin: 0 !important; }
+    .card { break-inside: avoid; page-break-inside: avoid; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="research-detail-shell">
+    {# ====== Research Header ====== #}
+    {% set view = {
+        'type': 'effectiveness',
+        'name': page_title,
+        'model_slug': 'Tool Performance Metrics',
+        'back_url': url_for('reports.reports_index'),
+        'actions': [
+            {'url': 'javascript:window.print()', 'icon': 'ti-printer', 'label': 'Print', 'class': 'btn-orange'},
+            {'url': url_for('api.reports_api.download_report', report_id=report.report_id) if report.report_id else '#', 'icon': 'ti-download', 'label': 'Export', 'class': 'btn-outline-orange', 'attrs': 'download'}
+        ]
+    } %}
+    
+    {% set total_findings = namespace(value=0) %}
+    {% for tool, stats in data.tools.items() %}
+        {% set total_findings.value = total_findings.value + stats.total_findings %}
+    {% endfor %}
+    
+    {% set inline_metrics = [
+        {'icon': 'ti ti-calendar', 'value': data.timestamp[:10] if data.timestamp else 'N/A'},
+        {'icon': 'ti ti-tool', 'value': data.tools|length|string + ' tool' + ('s' if data.tools|length != 1 else '') + ' analyzed'},
+        {'icon': 'ti ti-list-check', 'value': data.total_tasks_analyzed|string + ' task' + ('s' if data.total_tasks_analyzed != 1 else '') + ' processed'}
+    ] %}
+    {% if data.date_range.start or data.date_range.end %}
+        {% set period = (data.date_range.start[:10] if data.date_range.start else 'Beginning') + ' to ' + (data.date_range.end[:10] if data.date_range.end else 'Now') %}
+        {% set inline_metrics = inline_metrics + [{'icon': 'ti ti-filter', 'value': period}] %}
+    {% endif %}
+    
+    {{ research_detail_header(view, inline_metrics) }}
+
+    {# ====== Summary Metrics Grid ====== #}
+    {% set metrics = [
+        {'label': 'Tools Analyzed', 'value': data.tools|length, 'color': 'primary', 'icon': 'ti-tool', 'subtitle': 'Unique analysis tools'},
+        {'label': 'Tasks Analyzed', 'value': data.total_tasks_analyzed, 'color': 'info', 'icon': 'ti-list-check', 'subtitle': 'Total task executions'},
+        {'label': 'Total Findings', 'value': total_findings.value, 'color': 'warning', 'icon': 'ti-bug', 'subtitle': 'Issues detected across all tools'},
+        {'label': 'Tool Coverage', 'value': "%.0f%%"|format((data.tools|length / 15 * 100) if data.tools|length <= 15 else 100), 'color': 'success', 'icon': 'ti-chart-pie', 'subtitle': 'Of available analysis tools'}
+    ] %}
+    {{ research_metric_grid(metrics) }}
+
+    {# ====== Section Navigation ====== #}
+    {% set sections = [
+        {'id': 'overview', 'label': 'Overview', 'icon': 'ti-chart-pie'},
+        {'id': 'statistics', 'label': 'Statistics', 'icon': 'ti-table'},
+        {'id': 'severity', 'label': 'Severity', 'icon': 'ti-alert-triangle'},
+        {'id': 'rankings', 'label': 'Rankings', 'icon': 'ti-trophy'}
+    ] %}
+    {{ research_section_nav(sections) }}
+
+    {# ====== SECTION: Overview ====== #}
+    <section id="section-overview" class="research-section" data-research-section="overview">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-chart-pie"></i><span>Overview</span></h2>
+        </div>
+        
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Tools Analyzed</div>
+                            <div class="h3 mb-0">{{ data.tools|length }}</div>
+                            <div class="text-muted small">Unique analysis tools</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Tasks Analyzed</div>
+                            <div class="h3 mb-0">{{ data.total_tasks_analyzed }}</div>
+                            <div class="text-muted small">Total task executions</div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Total Findings</div>
+                            <div class="h3 mb-0 text-warning">{{ total_findings.value }}</div>
+                            <div class="text-muted small">Issues detected</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {# ====== SECTION: Tool Statistics ====== #}
+    <section id="section-statistics" class="research-section" data-research-section="statistics">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-table"></i><span>Tool Performance Metrics</span></h2>
+        </div>
+        
+        {% if data.tools %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="card-title mb-0">
+                    <i class="ti ti-chart-bar text-orange me-2"></i>Performance Table
+                </h3>
+                <span class="badge bg-orange-lt">{{ data.tools|length }} tools</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-vcenter card-table">
+                    <thead>
+                        <tr>
+                            <th>Tool</th>
+                            <th style="width: 100px;">Total Runs</th>
+                            <th style="width: 150px;">Success Rate</th>
+                            <th style="width: 100px;">Total Findings</th>
+                            <th style="width: 100px;">Avg Findings/Run</th>
+                            <th style="width: 100px;">Avg Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tool_name, stats in data.tools.items()|sort(attribute='1.total_findings', reverse=True) %}
+                        <tr>
+                            <td><code class="fw-bold">{{ tool_name }}</code></td>
+                            <td><span class="badge bg-blue-lt">{{ stats.total_runs }}</span></td>
+                            <td>
+                                {% set rate = stats.success_rate %}
+                                <div class="d-flex align-items-center gap-2">
+                                    <div class="progress" style="width: 80px; height: 16px;">
+                                        <div class="progress-bar {% if rate >= 90 %}bg-success{% elif rate >= 70 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                             style="width: {{ rate }}%">
+                                        </div>
+                                    </div>
+                                    <span class="small">{{ "%.1f"|format(rate) }}%</span>
+                                </div>
+                            </td>
+                            <td><strong>{{ stats.total_findings }}</strong></td>
+                            <td class="text-muted">{{ "%.1f"|format(stats.avg_findings_per_run) }}</td>
+                            <td class="text-muted">{{ "%.2f"|format(stats.avg_duration) }}s</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        {{ research_empty_state('ti ti-tool', 'No Tool Data', 'Tool statistics data not available.') }}
+        {% endif %}
+    </section>
+
+    {# ====== SECTION: Severity Distribution ====== #}
+    <section id="section-severity" class="research-section" data-research-section="severity">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-alert-triangle"></i><span>Severity Distribution by Tool</span></h2>
+        </div>
+        
+        {% if data.tools %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="card-title mb-0">
+                    <i class="ti ti-chart-dots text-purple me-2"></i>Severity Breakdown
+                </h3>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-vcenter card-table">
+                    <thead>
+                        <tr>
+                            <th>Tool</th>
+                            <th style="width: 80px;">Critical</th>
+                            <th style="width: 80px;">High</th>
+                            <th style="width: 80px;">Medium</th>
+                            <th style="width: 80px;">Low</th>
+                            <th style="width: 80px;">Info</th>
+                            <th style="width: 200px;">Distribution</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tool_name, stats in data.tools.items()|sort %}
+                        {% set severity = stats.severity_breakdown %}
+                        {% set tool_total = severity.get('critical', 0) + severity.get('high', 0) + severity.get('medium', 0) + severity.get('low', 0) + severity.get('info', 0) %}
+                        <tr>
+                            <td><code class="fw-bold">{{ tool_name }}</code></td>
+                            <td><span class="badge bg-danger">{{ severity.get('critical', 0) }}</span></td>
+                            <td><span class="badge bg-warning">{{ severity.get('high', 0) }}</span></td>
+                            <td><span class="badge bg-info">{{ severity.get('medium', 0) }}</span></td>
+                            <td><span class="badge bg-secondary">{{ severity.get('low', 0) }}</span></td>
+                            <td><span class="badge bg-light text-dark">{{ severity.get('info', 0) }}</span></td>
+                            <td>
+                                {% if tool_total > 0 %}
+                                <div class="progress" style="height: 16px;">
+                                    <div class="progress-bar bg-danger" style="width: {{ (severity.get('critical', 0) / tool_total * 100) }}%"></div>
+                                    <div class="progress-bar bg-warning" style="width: {{ (severity.get('high', 0) / tool_total * 100) }}%"></div>
+                                    <div class="progress-bar bg-info" style="width: {{ (severity.get('medium', 0) / tool_total * 100) }}%"></div>
+                                    <div class="progress-bar bg-secondary" style="width: {{ (severity.get('low', 0) / tool_total * 100) }}%"></div>
+                                    <div class="progress-bar bg-light" style="width: {{ (severity.get('info', 0) / tool_total * 100) }}%"></div>
+                                </div>
+                                {% else %}
+                                <span class="text-muted small">No findings</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        {{ research_empty_state('ti ti-alert-triangle', 'No Severity Data', 'Severity distribution data not available.') }}
+        {% endif %}
+    </section>
+
+    {# ====== SECTION: Tool Rankings ====== #}
+    <section id="section-rankings" class="research-section" data-research-section="rankings">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-trophy"></i><span>Tool Rankings</span></h2>
+        </div>
+        
+        <div class="row row-cards mb-3">
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="ti ti-bug text-warning me-2"></i>Most Findings
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        {% if data.tools %}
+                        <ol class="mb-0">
+                            {% for tool_name, stats in data.tools.items()|sort(attribute='1.total_findings', reverse=True)|list[:5] %}
+                            <li class="mb-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <code class="fw-bold">{{ tool_name }}</code>
+                                        <span class="text-muted small ms-2">({{ "%.1f"|format(stats.avg_findings_per_run) }}/run)</span>
+                                    </div>
+                                    <span class="badge bg-{{ 'danger' if stats.total_findings > 100 else 'warning' if stats.total_findings > 50 else 'info' }}">
+                                        {{ stats.total_findings }}
+                                    </span>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ol>
+                        {% else %}
+                        <div class="text-muted">No data available</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h3 class="card-title">
+                            <i class="ti ti-circle-check text-success me-2"></i>Highest Success Rate
+                        </h3>
+                    </div>
+                    <div class="card-body">
+                        {% if data.tools %}
+                        <ol class="mb-0">
+                            {% for tool_name, stats in data.tools.items()|sort(attribute='1.success_rate', reverse=True)|list[:5] %}
+                            <li class="mb-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <code class="fw-bold">{{ tool_name }}</code>
+                                        <span class="text-muted small ms-2">({{ stats.successful_runs }}/{{ stats.total_runs }} runs)</span>
+                                    </div>
+                                    <span class="badge bg-{{ 'success' if stats.success_rate >= 90 else 'warning' if stats.success_rate >= 70 else 'danger' }}">
+                                        {{ "%.1f"|format(stats.success_rate) }}%
+                                    </span>
+                                </div>
+                            </li>
+                            {% endfor %}
+                        </ol>
+                        {% else %}
+                        <div class="text-muted">No data available</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {# ====== Report Footer ====== #}
+    <section id="section-footer" class="research-section">
+        <div class="card">
+            <div class="card-body py-3">
+                <div class="row text-muted small">
+                    <div class="col-md-4">
+                        <strong>Report ID:</strong> {{ report.report_id }}<br>
+                        <strong>Tools:</strong> {{ data.tools|length }}
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <strong>Generated:</strong> {{ data.timestamp }}<br>
+                        <strong>Tasks:</strong> {{ data.total_tasks_analyzed }}
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <strong>System:</strong> ThesisApp Analysis Platform<br>
+                        <strong>Report Type:</strong> Tool Effectiveness
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+{{ research_scroll_spy_script() }}
+{% endblock %}

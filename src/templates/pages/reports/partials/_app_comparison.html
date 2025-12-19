@@ -1,0 +1,521 @@
+{# Template/App Comparison Report - Cross-Model Analysis #}
+{% extends 'layouts/base.html' %}
+{% from 'shared/macros/detail_macros.html' import research_detail_header, research_metric_grid, research_section_nav, research_section, research_empty_state, research_scroll_spy_script %}
+
+{% set page_title = 'Template Comparison: ' + template_slug %}
+{% set page_icon = 'fas fa-code-compare' %}
+
+{% block head_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/detail-pages.css') }}">
+<style>
+  @media print {
+    .btn, .navbar, .sidebar, footer, .no-print { display: none !important; }
+    .container-xl { max-width: 100% !important; margin: 0 !important; }
+    .card { break-inside: avoid; page-break-inside: avoid; }
+    .accordion-collapse { display: block !important; }
+  }
+  .severity-badge { min-width: 70px; text-align: center; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="research-detail-shell">
+    {# ====== Research Header ====== #}
+    {% set view = {
+        'type': 'comparison',
+        'name': template_slug,
+        'model_slug': 'Cross-Model Comparison',
+        'back_url': url_for('reports.reports_index'),
+        'actions': [
+            {'url': 'javascript:window.print()', 'icon': 'ti-printer', 'label': 'Print', 'class': 'btn-purple'},
+            {'url': url_for('api.reports_api.download_report', report_id=report_id) if report_id else '#', 'icon': 'ti-download', 'label': 'Export', 'class': 'btn-outline-purple', 'attrs': 'download'}
+        ]
+    } %}
+    
+    {% set inline_metrics = [
+        {'icon': 'ti ti-calendar', 'value': timestamp[:10] if timestamp else 'N/A'},
+        {'icon': 'ti ti-robot', 'value': models_count|string + ' model' + ('s' if models_count != 1 else '') + ' compared'},
+        {'icon': 'ti ti-list-check', 'value': total_tasks|string + ' task' + ('s' if total_tasks != 1 else '') + ' analyzed'},
+        {'icon': 'ti ti-alert-triangle', 'value': (comparison.common_findings_count + comparison.unique_findings_count)|string + ' total findings'}
+    ] %}
+    
+    {{ research_detail_header(view, inline_metrics) }}
+
+    {# ====== Summary Metrics Grid ====== #}
+    {% set metrics = [
+        {'label': 'Models Compared', 'value': models_count, 'color': 'primary', 'icon': 'ti-robot', 'subtitle': 'Different AI models analyzed'},
+        {'label': 'Common Findings', 'value': comparison.common_findings_count, 'color': 'warning', 'icon': 'ti-link', 'subtitle': 'Found by multiple models'},
+        {'label': 'Unique Findings', 'value': comparison.unique_findings_count, 'color': 'info', 'icon': 'ti-fingerprint', 'subtitle': 'Model-specific issues'},
+        {'label': 'Best Performer', 'value': comparison.best_performing_model or 'N/A', 'color': 'success', 'icon': 'ti-trophy', 'subtitle': 'Fewest findings'}
+    ] %}
+    {{ research_metric_grid(metrics) }}
+
+    {# ====== Section Navigation ====== #}
+    {% set sections = [
+        {'id': 'insights', 'label': 'Insights', 'icon': 'ti-bulb'},
+        {'id': 'costs', 'label': 'Costs', 'icon': 'ti-currency-dollar'},
+        {'id': 'comparison', 'label': 'Comparison', 'icon': 'ti-table'},
+        {'id': 'common', 'label': 'Common', 'icon': 'ti-link'},
+        {'id': 'tools', 'label': 'Tools', 'icon': 'ti-tool'},
+        {'id': 'details', 'label': 'Details', 'icon': 'ti-list-details'}
+    ] %}
+    {{ research_section_nav(sections) }}
+    {# ====== SECTION: Research Insights ====== #}
+    <section id="section-insights" class="research-section" data-research-section="insights">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-bulb"></i><span>Research Insights</span></h2>
+        </div>
+        
+        <div class="card mb-3">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <div class="text-muted small mb-1">Best Performer (Fewest Issues)</div>
+                        <div class="h4 text-success">
+                            <i class="ti ti-trophy me-1"></i>
+                            {{ comparison.best_performing_model or 'N/A' }}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <div class="text-muted small mb-1">Most Issues Detected</div>
+                        <div class="h4 text-warning">
+                            <i class="ti ti-alert-triangle me-1"></i>
+                            {{ comparison.worst_performing_model or 'N/A' }}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <div class="text-muted small mb-1">Issue Consistency</div>
+                        <div class="h4">
+                            {% set total_findings = comparison.common_findings_count + comparison.unique_findings_count %}
+                            {% if total_findings > 0 %}
+                                {{ "%.1f"|format(comparison.common_findings_count / total_findings * 100) }}%
+                            {% else %}
+                                0%
+                            {% endif %}
+                        </div>
+                        <div class="text-muted small">Findings found by multiple models</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <div class="text-muted small mb-1">Tools Used</div>
+                        <div class="h4">{{ comparison.tool_usage|length }}</div>
+                        <div class="text-muted small">Unique analysis tools</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {# ====== SECTION: Generation Cost Comparison ====== #}
+    <section id="section-costs" class="research-section" data-research-section="costs">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-currency-dollar"></i><span>Generation Cost Comparison</span></h2>
+        </div>
+        
+        {% if generation_comparison and generation_comparison.get('available') %}
+        <div class="card mb-3">
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-3">
+                    <div class="text-muted small mb-1">Total Generation Cost</div>
+                    <div class="h3 mb-0">${{ "%.4f"|format(generation_comparison.total_cost) }}</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-muted small mb-1">Average Per Model</div>
+                    <div class="h3 mb-0">${{ "%.5f"|format(generation_comparison.avg_cost_per_model) }}</div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-muted small mb-1">Most Cost-Effective</div>
+                    <div class="h4 mb-0 text-success">
+                        <i class="ti ti-trending-down me-1"></i>
+                        {{ generation_comparison.cheapest_model or 'N/A' }}
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-muted small mb-1">Most Expensive</div>
+                    <div class="h4 mb-0 text-warning">
+                        <i class="ti ti-trending-up me-1"></i>
+                        {{ generation_comparison.most_expensive_model or 'N/A' }}
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead>
+                        <tr>
+                            <th>Model</th>
+                            <th>Generation Cost</th>
+                            <th>Tokens Used</th>
+                            <th>Lines Generated</th>
+                            <th>Provider</th>
+                            <th>Cost Efficiency</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for model in generation_comparison.get('models', []) %}
+                        <tr>
+                            <td>
+                                <strong>{{ model.model_slug }}</strong>
+                                {% if model.model_slug == generation_comparison.cheapest_model %}
+                                <span class="badge bg-success-lt ms-1">
+                                    <i class="ti ti-coin me-1"></i>Cheapest
+                                </span>
+                                {% elif model.model_slug == generation_comparison.most_expensive_model %}
+                                <span class="badge bg-warning-lt ms-1">
+                                    <i class="ti ti-coin-off me-1"></i>Most Expensive
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>${{ "%.5f"|format(model.total_cost) }}</td>
+                            <td>{{ "{:,}".format(model.total_tokens) }}</td>
+                            <td>{{ "{:,}".format(model.total_lines) }}</td>
+                            <td><span class="badge bg-purple-lt">{{ model.provider or 'Unknown' }}</span></td>
+                            <td class="text-muted small">
+                                {% if model.total_lines > 0 and model.total_cost > 0 %}
+                                    ${{ "%.6f"|format(model.total_cost / model.total_lines) }}/line
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        {{ research_empty_state('ti ti-currency-dollar-off', 'No Cost Data', 'Generation cost comparison data not available.') }}
+        {% endif %}
+    </section>
+
+    {# ====== SECTION: Side-by-Side Model Comparison ====== #}
+    <section id="section-comparison" class="research-section" data-research-section="comparison">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-table"></i><span>Side-by-Side Model Comparison</span></h2>
+        </div>
+        
+        <div class="card mb-3">
+        <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th style="width: 100px;">Total Findings</th>
+                        <th style="width: 80px;">Critical</th>
+                        <th style="width: 80px;">High</th>
+                        <th style="width: 80px;">Medium</th>
+                        <th style="width: 80px;">Low</th>
+                        <th style="width: 120px;">Tools Success</th>
+                        <th style="width: 100px;">Duration</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for model in models %}
+                    <tr class="{% if model.model_slug == comparison.best_performing_model %}table-success{% elif model.model_slug == comparison.worst_performing_model %}table-warning{% endif %}">
+                        <td>
+                            <strong>{{ model.model_slug }}</strong>
+                            {% if model.model_slug == comparison.best_performing_model %}
+                            <span class="badge bg-success ms-2">
+                                <i class="ti ti-trophy me-1"></i>Best
+                            </span>
+                            {% elif model.model_slug == comparison.worst_performing_model %}
+                            <span class="badge bg-warning ms-2">
+                                <i class="ti ti-alert-triangle me-1"></i>Most Issues
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td><strong>{{ model.findings_count }}</strong></td>
+                        <td><span class="badge bg-danger">{{ model.severity_counts.get('critical', 0) }}</span></td>
+                        <td><span class="badge bg-warning">{{ model.severity_counts.get('high', 0) }}</span></td>
+                        <td><span class="badge bg-info">{{ model.severity_counts.get('medium', 0) }}</span></td>
+                        <td><span class="badge bg-secondary">{{ model.severity_counts.get('low', 0) }}</span></td>
+                        <td>
+                            {% set total_tools = model.tools_successful + model.tools_failed %}
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress" style="width: 50px; height: 12px;">
+                                    <div class="progress-bar {% if model.tools_failed == 0 %}bg-success{% else %}bg-warning{% endif %}" 
+                                         style="width: {{ (model.tools_successful / total_tools * 100) if total_tools > 0 else 0 }}%">
+                                    </div>
+                                </div>
+                                <span class="small text-{% if model.tools_failed == 0 %}success{% else %}warning{% endif %}">
+                                    {{ model.tools_successful }}/{{ total_tools }}
+                                </span>
+                            </div>
+                        </td>
+                        <td class="text-muted">{{ "%.1f"|format(model.duration_seconds) }}s</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    </section>
+
+    {# ====== SECTION: Common Findings ====== #}
+    <section id="section-common" class="research-section" data-research-section="common">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-link"></i><span>Common Findings</span></h2>
+            <p class="text-muted mb-0">Issues consistently detected across different model implementations - indicates template-inherent issues</p>
+        </div>
+        
+        {% if comparison.common_findings %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="card-title mb-0">
+                    <i class="ti ti-link text-warning me-2"></i>Found by Multiple Models
+                </h3>
+                <span class="badge bg-warning-lt">{{ comparison.common_findings_count }} findings</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead>
+                        <tr>
+                            <th style="width: 100px;">Severity</th>
+                            <th>Message</th>
+                            <th style="width: 200px;">Location</th>
+                            <th style="width: 180px;">Found By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for finding in comparison.common_findings[:30] %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-{{ 'danger' if finding.severity == 'critical' else 'warning' if finding.severity == 'high' else 'info' if finding.severity == 'medium' else 'secondary' }}">
+                                    {{ finding.severity|title }}
+                                </span>
+                            </td>
+                            <td>{{ finding.message }}</td>
+                            <td class="text-muted small text-truncate" style="max-width: 200px;">
+                                {{ finding.file }}{% if finding.line %}:{{ finding.line }}{% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-blue-lt me-1">{{ finding.found_by_count }} models</span>
+                                {% set models_str = finding.found_by_models|join(', ') %}
+                                <span class="text-muted small d-none d-lg-inline">
+                                    {{ models_str|truncate(30, True, '...') }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if comparison.common_findings|length > 30 %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-2">
+                                <i class="ti ti-dots me-1"></i>
+                                {{ comparison.common_findings|length - 30 }} more common findings
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            </div>
+        {% else %}
+        {{ research_empty_state('ti ti-mood-smile', 'No Common Findings', 'No issues were found by multiple models - each model produced unique findings.') }}
+        {% endif %}
+    </section>
+
+    {# ====== SECTION: Tool Usage ====== #}
+    <section id="section-tools" class="research-section" data-research-section="tools">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-tool"></i><span>Tool Usage Across Models</span></h2>
+        </div>
+        
+        {% if comparison.tool_usage %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="card-title mb-0">
+                    <i class="ti ti-tool text-azure me-2"></i>Tool Execution Summary
+                </h3>
+                <span class="badge bg-azure-lt">{{ comparison.tool_usage|length }} tools</span>
+            </div>
+        <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+                <thead>
+                    <tr>
+                        <th>Tool</th>
+                        <th>Used By Models</th>
+                        <th style="width: 200px;">Success Rate</th>
+                        <th>Model Coverage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tool_name, usage in comparison.tool_usage.items()|sort(attribute='1.used_by_models|length', reverse=true) %}
+                    <tr>
+                        <td><code>{{ tool_name }}</code></td>
+                        <td>
+                            <span class="badge bg-blue">{{ usage.used_by_models|length }} model{{ 's' if usage.used_by_models|length != 1 else '' }}</span>
+                        </td>
+                        <td>
+                            {% set success_count = usage.success_rate_by_model.values()|select('eq', 1)|list|length %}
+                            {% set total_count = usage.success_rate_by_model|length %}
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress" style="width: 80px; height: 16px;">
+                                    <div class="progress-bar {% if success_count == total_count %}bg-success{% elif success_count > 0 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                         style="width: {{ (success_count / total_count * 100) if total_count > 0 else 0 }}%">
+                                    </div>
+                                </div>
+                                <span class="small">{{ success_count }}/{{ total_count }}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="text-muted small">
+                                {{ usage.used_by_models[:3]|join(', ') }}{% if usage.used_by_models|length > 3 %} +{{ usage.used_by_models|length - 3 }}{% endif %}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        </div>
+        {% else %}
+        {{ research_empty_state('ti ti-tool-off', 'No Tool Data', 'Tool usage data not available.') }}
+        {% endif %}
+    </section>
+
+    {# ====== SECTION: Detailed Model Results ====== #}
+    <section id="section-details" class="research-section" data-research-section="details">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-list-details"></i><span>Detailed Model Results</span></h2>
+        </div>
+        
+        <div class="card">
+            <div class="card-body">
+            {% for model in models %}
+            <div class="mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h4 class="mb-0">
+                            {{ model.model_slug }}
+                            {% if model.model_slug == comparison.best_performing_model %}
+                            <span class="badge bg-success ms-2">
+                                <i class="ti ti-trophy me-1"></i>Best Performer
+                            </span>
+                            {% elif model.model_slug == comparison.worst_performing_model %}
+                            <span class="badge bg-warning ms-2">
+                                <i class="ti ti-alert-triangle me-1"></i>Most Issues
+                            </span>
+                            {% endif %}
+                        </h4>
+                        <div class="text-muted small mt-1">
+                            App #{{ model.app_number }} | Task: {{ model.task_id[:8] if model.task_id else 'N/A' }}... | {{ model.completed_at[:10] if model.completed_at else 'N/A' }}
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge bg-{{ 'danger' if model.findings_count > 20 else 'warning' if model.findings_count > 10 else 'success' }} fs-6">
+                            {{ model.findings_count }} findings
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- Model Stats Row -->
+                <div class="row mb-3">
+                    <div class="col-auto">
+                        <span class="text-muted small">Severity:</span>
+                        <span class="badge bg-danger ms-1">{{ model.severity_counts.get('critical', 0) }} Critical</span>
+                        <span class="badge bg-warning ms-1">{{ model.severity_counts.get('high', 0) }} High</span>
+                        <span class="badge bg-info ms-1">{{ model.severity_counts.get('medium', 0) }} Medium</span>
+                        <span class="badge bg-secondary ms-1">{{ model.severity_counts.get('low', 0) }} Low</span>
+                    </div>
+                    <div class="col-auto ms-auto">
+                        <span class="text-muted small">Duration: {{ "%.1f"|format(model.duration_seconds) }}s</span>
+                    </div>
+                </div>
+
+                <!-- Collapsible Findings -->
+                <div class="accordion" id="accordion-{{ loop.index }}">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed" type="button" 
+                                    data-bs-toggle="collapse" 
+                                    data-bs-target="#collapse-{{ loop.index }}">
+                                <i class="ti ti-list me-2"></i>
+                                View {{ model.findings|length }} Findings
+                            </button>
+                        </h2>
+                        <div id="collapse-{{ loop.index }}" class="accordion-collapse collapse">
+                            <div class="accordion-body">
+                                {% if model.findings %}
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 100px;">Severity</th>
+                                                <th style="width: 120px;">Tool</th>
+                                                <th>Message</th>
+                                                <th style="width: 180px;">Location</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for finding in model.findings[:30] %}
+                                            <tr>
+                                                <td>
+                                                    <span class="badge bg-{{ 'danger' if finding.severity == 'critical' else 'warning' if finding.severity == 'high' else 'info' if finding.severity == 'medium' else 'secondary' }}">
+                                                        {{ finding.severity|title }}
+                                                    </span>
+                                                </td>
+                                                <td><code>{{ finding.tool }}</code></td>
+                                                <td>{{ finding.message }}</td>
+                                                <td class="text-muted small text-truncate" style="max-width: 180px;">
+                                                    {{ finding.file }}{% if finding.line %}:{{ finding.line }}{% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                            {% if model.findings|length > 30 %}
+                                            <tr>
+                                                <td colspan="4" class="text-center text-muted py-2">
+                                                    <i class="ti ti-dots me-1"></i>
+                                                    {{ model.findings|length - 30 }} more findings
+                                                </td>
+                                            </tr>
+                                            {% endif %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% else %}
+                                <div class="text-muted text-center py-3">
+                                    <i class="ti ti-mood-smile me-1"></i> No findings for this model
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% if not loop.last %}<hr class="my-4">{% endif %}
+            {% endfor %}
+            </div>
+        </div>
+    </section>
+
+    {# ====== Report Footer ====== #}
+    <section id="section-footer" class="research-section">
+        <div class="card">
+            <div class="card-body py-3">
+                <div class="row text-muted small">
+                    <div class="col-md-4">
+                        <strong>Report ID:</strong> {{ report_id|default('N/A') }}<br>
+                        <strong>Template:</strong> {{ template_slug }}
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <strong>Generated:</strong> {{ timestamp }}<br>
+                        <strong>Models Compared:</strong> {{ models_count }}
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <strong>System:</strong> ThesisApp Analysis Platform<br>
+                        <strong>Report Type:</strong> Template Comparison
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+{{ research_scroll_spy_script() }}
+{% endblock %}

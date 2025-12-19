@@ -1,0 +1,264 @@
+{# Modal fragment for HTMX-loaded report generation form #}
+<div class="modal modal-blur fade" id="report-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Generate New Report</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="report-form">
+          {# Report Type #}
+          <div class="mb-3">
+            <label for="report-type" class="form-label required">Report Type</label>
+            <select class="form-select" id="report-type" name="report_type" required>
+              <option value="">Select report type...</option>
+              <option value="model_analysis">Model Analysis - All analyses for one model</option>
+              <option value="app_analysis">Template Comparison - Compare models for same template</option>
+              <option value="tool_analysis">Tool Analysis - Tool performance across all analyses</option>
+            </select>
+            <div class="form-text">Choose what perspective you want to analyze</div>
+          </div>
+
+          {# Output Format #}
+          <div class="mb-3">
+            <label for="format" class="form-label required">Output Format</label>
+            <select class="form-select" id="format" name="format" required>
+              <option value="html">HTML (Interactive, best for viewing)</option>
+              <option value="json">JSON (Machine-readable, for automation)</option>
+            </select>
+          </div>
+
+          {# Dynamic Configuration Fields #}
+          <div id="config-fields">
+            <div class="alert alert-info">
+              <div class="d-flex">
+                <div>
+                  <i class="fa-solid fa-arrow-up me-2" aria-hidden="true"></i>
+                </div>
+                <div>
+                  Select a report type above to configure options
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {# Optional Title #}
+          <div class="mb-3">
+            <label for="title" class="form-label">Custom Title (Optional)</label>
+            <input type="text" class="form-control" id="title" name="title" placeholder="Leave blank for auto-generated title">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary ms-auto" id="submit-report-btn">
+          <i class="fa-solid fa-file-lines me-2"></i>Generate Report
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const modal = document.getElementById('report-modal');
+  const form = document.getElementById('report-form');
+  const reportTypeSelect = document.getElementById('report-type');
+  const configFields = document.getElementById('config-fields');
+  const submitBtn = document.getElementById('submit-report-btn');
+  
+  // Use server-provided data
+  const modelsCache = {{ models | tojson | safe }};
+  const appsCache = {{ apps_by_model | tojson | safe }};
+  const toolsCache = {{ tools | tojson | safe }};
+  const templatesCache = {{ templates | tojson | safe }};
+  
+  // Build model dropdown
+  function buildModelSelect(selectedValue = '') {
+    if (!Array.isArray(modelsCache) || modelsCache.length === 0) {
+      return '<option value="">No models available</option>';
+    }
+    
+    const options = modelsCache.map(m => {
+      const slug = m.canonical_slug || m.model_slug || m.slug;
+      const name = m.model_name || m.display_name || slug;
+      const selected = slug === selectedValue ? 'selected' : '';
+      return `<option value="${slug}" ${selected}>${name}</option>`;
+    }).join('');
+    return `<option value="">Select model...</option>${options}`;
+  }
+  
+  // Configuration templates for each report type
+  const configs = {
+    model_analysis: () => `
+      <div class="mb-3">
+        <label class="form-label required">Model</label>
+        <select class="form-select" name="model_slug" required>
+          ${buildModelSelect()}
+        </select>
+        <div class="form-text">View all analyses for this model across all apps</div>
+      </div>
+    `,
+    
+    app_analysis: () => `
+      <div class="mb-3">
+        <label class="form-label required">Template</label>
+        <select class="form-select" name="template_slug" required>
+          <option value="">Select template...</option>
+          ${templatesCache.map(t => {
+            const categoryLabel = t.category ? ` (${t.category})` : '';
+            return `<option value="${t.slug}">${t.name}${categoryLabel}</option>`;
+          }).join('')}
+        </select>
+        <div class="form-text">Compare all models' implementations of this template</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Filter by Models (Optional)</label>
+        <select class="form-select" name="filter_models" multiple size="5">
+          ${modelsCache.map(m => {
+            const slug = m.canonical_slug || m.model_slug || m.slug;
+            const name = m.model_name || m.display_name || slug;
+            return `<option value="${slug}">${name}</option>`;
+          }).join('')}
+        </select>
+        <div class="form-text">Leave empty to compare all models, or select specific ones</div>
+      </div>
+    `,
+    
+    tool_analysis: () => `
+      <div class="mb-3">
+        <label class="form-label">Specific Tool (Optional)</label>
+        <select class="form-select" name="tool_name">
+          <option value="">All tools (analyze everything)</option>
+          ${toolsCache.map(t => {
+            const containerLabel = t.container.replace('-', ' ').replace(/\\b\\w/g, c => c.toUpperCase());
+            return `<option value="${t.name}">${t.display_name} (${containerLabel})</option>`;
+          }).join('')}
+        </select>
+        <div class="form-text">Select a specific tool or leave blank to analyze all tools</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Filter by Model (Optional)</label>
+        <select class="form-select" name="filter_model">
+          <option value="">All models</option>
+          ${modelsCache.map(m => {
+            const slug = m.canonical_slug || m.model_slug || m.slug;
+            const name = m.model_name || m.display_name || slug;
+            return `<option value="${slug}">${name}</option>`;
+          }).join('')}
+        </select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Filter by App (Optional)</label>
+        <input type="number" class="form-control" name="filter_app" placeholder="e.g., 1" min="1" max="10">
+        <div class="form-text">Leave blank for global analysis</div>
+      </div>
+    `
+  };
+  
+  // Update config fields on type change
+  reportTypeSelect.addEventListener('change', function() {
+    const reportType = this.value;
+    
+    if (!reportType) {
+      configFields.innerHTML = '<div class="alert alert-info"><div class="d-flex"><div><i class="fa-solid fa-arrow-up me-2" aria-hidden="true"></i></div><div>Select a report type above to configure options</div></div></div>';
+      return;
+    }
+    
+    const configFn = configs[reportType];
+    if (configFn) {
+      configFields.innerHTML = configFn();
+    } else {
+      configFields.innerHTML = '';
+    }
+  });
+  
+  // Handle form submission
+  submitBtn.addEventListener('click', async function() {
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+    
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
+    
+    try {
+      const formData = new FormData(form);
+      const reportType = formData.get('report_type');
+      
+      const payload = {
+        report_type: reportType,
+        format: formData.get('format') || 'html',
+        title: formData.get('title') || null,
+        config: {}
+      };
+      
+      // Build config based on report type
+      if (reportType === 'model_analysis') {
+        payload.config.model_slug = formData.get('model_slug');
+      } else if (reportType === 'app_analysis') {
+        payload.config.template_slug = formData.get('template_slug');
+        
+        // Get selected filter models if any
+        const filterModels = Array.from(form.querySelectorAll('[name="filter_models"] option:checked'))
+          .map(opt => opt.value)
+          .filter(v => v);
+        if (filterModels.length > 0) {
+          payload.config.filter_models = filterModels;
+        }
+      } else if (reportType === 'tool_analysis') {
+        const toolName = formData.get('tool_name');
+        if (toolName) payload.config.tool_name = toolName;
+        
+        const filterModel = formData.get('filter_model');
+        if (filterModel) payload.config.filter_model = filterModel;
+        
+        const filterApp = formData.get('filter_app');
+        if (filterApp) payload.config.filter_app = parseInt(filterApp);
+      }
+      
+      const response = await fetch('/api/reports/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        if (window.showToast) {
+          window.showToast('Report generated successfully!', 'success');
+        }
+        // Bootstrap will clean up backdrop via hidden.bs.modal event
+        bsModal.hide();
+        // Reload page to show new report
+        setTimeout(() => window.location.reload(), 500);
+      } else {
+        throw new Error(result.error || 'Failed to generate report');
+      }
+      
+    } catch (error) {
+      console.error('Report generation error:', error);
+      if (window.showToast) {
+        window.showToast(error.message, 'error');
+      } else {
+        alert('Error: ' + error.message);
+      }
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="fa-solid fa-file-lines me-2"></i>Generate Report';
+    }
+  });
+  
+  // Initialize and show modal using Bootstrap API
+  const bsModal = new bootstrap.Modal(modal, { focus: true });
+  bsModal.show();
+  
+  // Proper cleanup on ANY modal close (click outside, Escape, buttons)
+  modal.addEventListener('hidden.bs.modal', () => {
+    bsModal.dispose();
+    modal.remove();
+  }, { once: true });
+})();
+</script>

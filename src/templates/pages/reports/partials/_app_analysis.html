@@ -1,0 +1,411 @@
+{# Single Application Analysis Report Template #}
+{% extends 'layouts/base.html' %}
+{% from 'shared/macros/detail_macros.html' import research_detail_header, research_metric_grid, research_section_nav, research_section, research_skeleton, research_empty_state, research_scroll_spy_script %}
+{% set page_title = 'App Analysis: ' + (data.model_slug or 'Unknown') + ' #' + (data.app_number|string or '?') %}
+{% set page_icon = 'fas fa-file-code' %}
+
+{% block head_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/detail-pages.css') }}">
+<style>
+  @media print {
+    .btn, .navbar, .sidebar, footer, .no-print { display: none !important; }
+    .container-xl { max-width: 100% !important; margin: 0 !important; }
+    .card { break-inside: avoid; page-break-inside: avoid; }
+    .accordion-collapse { display: block !important; }
+  }
+  .severity-badge { min-width: 70px; text-align: center; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-xl research-detail-shell">
+    {# Research-style Header #}
+    {% set view = {
+        'icon': 'ti ti-file-analytics',
+        'pretitle': 'Single App Analysis Report',
+        'title': (data.model_slug or 'Unknown Model') ~ ' / App #' ~ (data.app_number or '?'),
+        'badges': [
+            {'label': 'Task ' ~ (data.task_id[:8] if data.task_id else 'N/A') ~ '...', 'variant': 'badge bg-blue-lt'}
+        ],
+        'subtitle': '',
+        'actions': [
+            {'type': 'button', 'icon': 'ti ti-printer', 'label': 'Print', 'onclick': 'window.print()', 'classes': 'btn btn-azure', 'visible': true},
+            {'type': 'link', 'icon': 'ti ti-download', 'label': 'Export', 'href': url_for('api.reports_api.download_report', report_id=report_id) if report_id else '#', 'classes': 'btn btn-outline-azure', 'visible': report_id is defined and report_id}
+        ]
+    } %}
+    {% set inline_metrics = [
+        {'icon': 'ti ti-calendar', 'label': 'Date', 'value': (data.timestamp[:10] if data.timestamp else 'N/A')},
+        {'icon': 'ti ti-alert-triangle', 'label': 'Findings', 'value': (data.summary.total_findings or 0)},
+        {'icon': 'ti ti-tool', 'label': 'Tools', 'value': (data.tools|length if data.tools else 0) ~ ' executed'},
+        {'icon': 'ti ti-clock', 'label': 'Duration', 'value': ("%.1f"|format(data.metadata.duration_seconds) ~ 's' if data.metadata and data.metadata.duration_seconds else 'N/A')}
+    ] %}
+    {{ research_detail_header(view, inline_metrics) }}
+
+    {# Research Metric Grid - Key Summary Stats #}
+    {% set total_tools = data.tools|length if data.tools else 0 %}
+    {% set ns = namespace(successful=0) %}
+    {% if data.tools %}
+        {% for tool_name, tool_data in data.tools.items() %}
+            {% if tool_data.status in ['success', 'ok', 'completed', 'no_issues'] %}
+                {% set ns.successful = ns.successful + 1 %}
+            {% endif %}
+        {% endfor %}
+    {% endif %}
+    {% set severity_data = data.summary.severity_breakdown or data.summary.findings_by_severity or {} %}
+    
+    {% set metrics = [
+        {'label': 'Total Findings', 'icon': 'ti ti-alert-triangle', 'value': data.summary.total_findings or 0, 'tone': 'danger' if (data.summary.total_findings or 0) > 10 else 'warning' if (data.summary.total_findings or 0) > 0 else 'success', 'hint': 'Issues detected', 'badge_icon': 'ti ti-list', 'badge_color': 'blue'},
+        {'label': 'Critical', 'icon': 'ti ti-alert-octagon', 'value': severity_data.get('critical', 0), 'tone': 'danger', 'hint': 'Immediate attention', 'badge_icon': 'ti ti-flame', 'badge_color': 'danger'},
+        {'label': 'High', 'icon': 'ti ti-alert-circle', 'value': severity_data.get('high', 0), 'tone': 'warning', 'hint': 'Important issues', 'badge_icon': 'ti ti-exclamation-mark', 'badge_color': 'warning'},
+        {'label': 'Medium', 'icon': 'ti ti-info-circle', 'value': severity_data.get('medium', 0), 'hint': 'Minor issues', 'badge_icon': 'ti ti-info-circle', 'badge_color': 'info'},
+        {'label': 'Low', 'icon': 'ti ti-minus-circle', 'value': severity_data.get('low', 0), 'hint': 'Informational', 'badge_icon': 'ti ti-minus', 'badge_color': 'secondary'},
+        {'label': 'Tools Success', 'icon': 'ti ti-tool', 'value': ("%.0f"|format(ns.successful / total_tools * 100) ~ '%' if total_tools > 0 else 'N/A'), 'tone': 'success' if ns.successful == total_tools else 'warning', 'hint': ns.successful|string ~ '/' ~ total_tools|string ~ ' passed', 'badge_icon': 'ti ti-check', 'badge_color': 'success'}
+    ] %}
+    {{ research_metric_grid(metrics) }}
+
+    {# Section Navigation #}
+    {% set sections = [
+        {'id': 'context', 'icon': 'ti ti-info-circle', 'label': 'Context', 'description': 'Analysis metadata'},
+        {'id': 'severity', 'icon': 'ti ti-chart-bar', 'label': 'Severity', 'description': 'Distribution breakdown'},
+        {'id': 'tools', 'icon': 'ti ti-tool', 'label': 'Tools', 'description': 'Execution status'},
+        {'id': 'findings', 'icon': 'ti ti-list-details', 'label': 'Findings', 'description': 'Detailed issues'}
+    ] %}
+    {{ research_section_nav(sections) }}
+
+    {# ====== SECTION: Analysis Context ====== #}
+    <section id="section-context" class="research-section" data-research-section="context">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-info-circle"></i><span>Analysis Context</span></h2>
+        </div>
+        
+        {% if data.metadata %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="text-muted small mb-1">Analysis Duration</div>
+                        <div class="h4 mb-0">{{ "%.1f"|format(data.metadata.duration_seconds or 0) }}s</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted small mb-1">Analysis Type</div>
+                        <div class="h4 mb-0">{{ data.metadata.analysis_type|default('comprehensive')|title }}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted small mb-1">Task Status</div>
+                        <div class="h4 mb-0">
+                            <span class="badge bg-{{ 'success' if data.task_status in ['completed', 'success'] else 'warning' if data.task_status == 'partial_success' else 'danger' }}">
+                                {{ data.task_status|default('completed')|title }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-muted small mb-1">Services Used</div>
+                        <div class="h4 mb-0">
+                            {% if data.metadata.services_run %}
+                                {{ data.metadata.services_run|length }}
+                            {% else %}
+                                {{ data.tools|length if data.tools else 0 }}
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        {{ research_empty_state('ti ti-info-circle-off', 'No Metadata', 'Analysis metadata not available.') }}
+        {% endif %}
+    </section>
+
+    {# ====== SECTION: Severity Distribution ====== #}
+    <section id="section-severity" class="research-section" data-research-section="severity">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-chart-bar"></i><span>Severity Distribution</span></h2>
+        </div>
+        
+        {% set severity_data = data.summary.severity_breakdown or data.summary.findings_by_severity or {} %}
+        {% if severity_data %}
+        <div class="card mb-3">
+            <div class="card-body">
+                {% set total_findings = data.summary.total_findings or 1 %}
+                <table class="table table-sm">
+                    <tbody>
+                        {% for severity in ['critical', 'high', 'medium', 'low', 'info'] %}
+                        {% set count = severity_data.get(severity, 0) %}
+                        {% if count > 0 or severity in ['critical', 'high', 'medium', 'low'] %}
+                        <tr>
+                            <td style="width: 100px;">
+                                <span class="badge bg-{{ 'danger' if severity == 'critical' else 'warning' if severity == 'high' else 'info' if severity == 'medium' else 'secondary' if severity == 'low' else 'light' }}">
+                                    {{ severity|title }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="progress flex-fill me-3" style="height: 20px;">
+                                        <div class="progress-bar bg-{{ 'danger' if severity == 'critical' else 'warning' if severity == 'high' else 'info' if severity == 'medium' else 'secondary' if severity == 'low' else 'light' }}"
+                                             style="width: {{ (count / total_findings * 100)|int }}%">
+                                        </div>
+                                    </div>
+                                    <span class="text-muted" style="min-width: 80px;">
+                                        <strong>{{ count }}</strong> ({{ "%.1f"|format(count / total_findings * 100 if total_findings else 0) }}%)
+                                    </span>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        {{ research_empty_state('ti ti-chart-bar-off', 'No Severity Data', 'Severity breakdown not available.') }}
+        {% endif %}
+    </section>
+
+    {# ====== SECTION: Tools Execution Status ====== #}
+    <section id="section-tools" class="research-section" data-research-section="tools">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-tool"></i><span>Tools Execution Status</span></h2>
+        </div>
+        
+        {% if data.tools %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="card-title mb-0">
+                    <i class="ti ti-tool me-2"></i>Tools Execution Status
+                </h3>
+                <span class="badge bg-secondary-lt">{{ data.tools|length }} tools executed</span>
+            </div>
+            <div class="card-body">
+                {# Use tool_categories from backend if available, else use fallback #}
+                {% set effective_tool_categories = tool_categories if tool_categories else [
+                    ('Security Analysis', ['bandit', 'semgrep', 'safety', 'pip-audit', 'npm-audit', 'zap', 'nmap'], 'ti-shield-check', 'danger'),
+                    ('Code Quality', ['pylint', 'eslint', 'jshint', 'ruff', 'flake8', 'stylelint'], 'ti-code', 'info'),
+                    ('Type & Metrics', ['mypy', 'vulture', 'radon'], 'ti-chart-dots', 'purple'),
+                    ('Performance Testing', ['ab', 'aiohttp', 'locust', 'artillery', 'curl'], 'ti-gauge', 'success'),
+                    ('AI Analysis', ['requirements-checker', 'code-quality-analyzer', 'requirements-scanner'], 'ti-brain', 'azure')
+                ] %}
+                
+                {# Use all_known_tools from backend if available, else build from categories #}
+                {% set effective_known_tools = all_known_tools if all_known_tools else [] %}
+                {% if not effective_known_tools %}
+                    {% set ns_known = namespace(all_known=[]) %}
+                    {% for _, tools_list, _, _ in effective_tool_categories %}
+                        {% for tool in tools_list %}
+                            {% set ns_known.all_known = ns_known.all_known + [tool] %}
+                        {% endfor %}
+                    {% endfor %}
+                    {% set effective_known_tools = ns_known.all_known %}
+                {% endif %}
+            
+                {# Render each category #}
+                {% for category_name, category_tools, icon, color in effective_tool_categories %}
+                {% set ns_cat = namespace(tools_in_cat=[]) %}
+                {% for tool_name in data.tools.keys() %}
+                    {% if tool_name in category_tools %}
+                        {% set ns_cat.tools_in_cat = ns_cat.tools_in_cat + [tool_name] %}
+                    {% endif %}
+                {% endfor %}
+                
+                {% if ns_cat.tools_in_cat|length > 0 %}
+                <div class="mb-4">
+                    <h4 class="mb-3">
+                        <i class="{{ icon }} text-{{ color }} me-2"></i>{{ category_name }}
+                        <span class="badge bg-secondary-lt ms-2">{{ ns_cat.tools_in_cat|length }}</span>
+                    </h4>
+                    <div class="table-responsive">
+                        <table class="table table-vcenter table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Tool</th>
+                                    <th>Status</th>
+                                    <th>Issues Found</th>
+                                    <th>Duration</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for tool_name in ns_cat.tools_in_cat %}
+                                {% set tool_data = data.tools[tool_name] %}
+                                <tr>
+                                    <td><strong>{{ tool_name }}</strong></td>
+                                    <td>
+                                        {% if tool_data.status in ['success', 'ok', 'completed', 'no_issues'] %}
+                                        <span class="badge bg-success">
+                                            <i class="ti ti-check me-1"></i>Success
+                                        </span>
+                                        {% elif tool_data.status in ['failed', 'error'] %}
+                                        <span class="badge bg-danger">
+                                            <i class="ti ti-x me-1"></i>Error
+                                        </span>
+                                        {% elif tool_data.status == 'skipped' %}
+                                        <span class="badge bg-secondary">
+                                            <i class="ti ti-minus me-1"></i>Skipped
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ tool_data.status|default('unknown')|title }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set issue_count = tool_data.issue_count|default(tool_data.total_issues)|default(0) %}
+                                        {% if issue_count > 0 %}
+                                            <span class="badge bg-{{ 'danger' if issue_count > 20 else 'warning' if issue_count > 5 else 'info' }}">{{ issue_count }}</span>
+                                        {% else %}
+                                            <span class="text-success"><i class="ti ti-check"></i> 0</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-muted">{{ "%.2f"|format(tool_data.duration_seconds or 0) }}s</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+            
+                {# Other/uncategorized tools #}
+                {% set ns_other = namespace(tools=[]) %}
+                {% for tool_name in data.tools.keys() %}
+                    {% if tool_name not in effective_known_tools %}
+                        {% set ns_other.tools = ns_other.tools + [tool_name] %}
+                    {% endif %}
+                {% endfor %}
+            
+            {% if ns_other.tools|length > 0 %}
+            <div class="mb-4">
+                <h4 class="mb-3">
+                    <i class="ti ti-puzzle text-secondary me-2"></i>Other Tools
+                    <span class="badge bg-secondary-lt ms-2">{{ ns_other.tools|length }}</span>
+                </h4>
+                <div class="table-responsive">
+                    <table class="table table-vcenter table-sm">
+                        <thead>
+                            <tr>
+                                <th>Tool</th>
+                                <th>Status</th>
+                                <th>Issues Found</th>
+                                <th>Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for tool_name in ns_other.tools %}
+                            {% set tool_data = data.tools[tool_name] %}
+                            <tr>
+                                <td><strong>{{ tool_name }}</strong></td>
+                                <td>
+                                    {% if tool_data.status in ['success', 'ok', 'completed', 'no_issues'] %}
+                                    <span class="badge bg-success">Success</span>
+                                    {% else %}
+                                    <span class="badge bg-{{ 'danger' if tool_data.status in ['failed', 'error'] else 'secondary' }}">{{ tool_data.status|title }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ tool_data.total_issues|default(0) }}</td>
+                                <td class="text-muted">{{ "%.2f"|format(tool_data.duration_seconds or 0) }}s</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+            </div>
+        </div>
+        {% else %}
+        {{ research_empty_state('ti ti-tool-off', 'No Tool Data', 'Tool execution data not available.') }}
+        {% endif %}
+    </section>
+
+    {# ====== SECTION: Findings Detail ====== #}
+    <section id="section-findings" class="research-section" data-research-section="findings">
+        <div class="research-section-header">
+            <h2 class="research-section-title"><i class="ti ti-list-details"></i><span>Findings Detail</span></h2>
+        </div>
+        
+        {% if data.findings %}
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3 class="card-title mb-0">
+                    <i class="ti ti-list-details me-2"></i>All Findings
+                </h3>
+                <span class="badge bg-secondary-lt">{{ data.findings|length }} total findings</span>
+            </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                    <thead>
+                        <tr>
+                            <th style="width: 100px;">Severity</th>
+                            <th style="width: 120px;">Tool</th>
+                            <th>Message</th>
+                            <th style="width: 200px;">Location</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for finding in data.findings[:100] %}
+                        <tr>
+                            <td>
+                                <span class="badge bg-{{ 'danger' if finding.severity in ['critical', 'high'] else 'warning' if finding.severity == 'medium' else 'info' if finding.severity == 'low' else 'secondary' }}">
+                                    {{ finding.severity|default('unknown')|title }}
+                                </span>
+                            </td>
+                            <td><code>{{ finding.tool|default('unknown') }}</code></td>
+                            <td>
+                                {% if finding.message is mapping %}
+                                    {{ finding.message.title|default(finding.message.text|default('')) }}
+                                {% else %}
+                                    {{ finding.message|default(finding.description|default(finding.id|default(''))) }}
+                                {% endif %}
+                            </td>
+                            <td class="text-muted small text-truncate" style="max-width: 200px;">
+                                {% if finding.file is mapping %}
+                                    {{ finding.file.path|default('') }}{% if finding.file.line_start %}:{{ finding.file.line_start }}{% endif %}
+                                {% elif finding.file %}
+                                    {{ finding.file }}{% if finding.line %}:{{ finding.line }}{% endif %}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if data.findings|length > 100 %}
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-3">
+                                <i class="ti ti-dots me-2"></i>
+                                {{ data.findings|length - 100 }} more findings not shown in print view
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        {{ research_empty_state('ti ti-list-off', 'No Findings', 'No issues were detected in this analysis.') }}
+        {% endif %}
+    </section>
+
+    {# ====== Report Footer ====== #}
+    <section id="section-footer" class="research-section">
+        <div class="card">
+            <div class="card-body py-3">
+                <div class="row text-muted small">
+                    <div class="col-md-4">
+                        <strong>Report ID:</strong> {{ report_id|default('N/A') }}<br>
+                        <strong>Task ID:</strong> {{ data.task_id|default('N/A') }}
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <strong>Generated:</strong> {{ data.timestamp|default('N/A') }}<br>
+                        <strong>Model:</strong> {{ data.model_slug|default('Unknown') }}
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <strong>System:</strong> ThesisApp Analysis Platform<br>
+                        <strong>Format:</strong> HTML
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+{{ research_scroll_spy_script() }}
+{% endblock %}

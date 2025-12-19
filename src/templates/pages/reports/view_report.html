@@ -1,0 +1,183 @@
+{% extends 'layouts/base.html' %}
+{% set page_title = 'View Report - ' + report.title %}
+
+{% block head_styles %}
+<style>
+  @media print {
+    .btn, .navbar, .sidebar, footer, .no-print { display: none !important; }
+    .container-xl { max-width: 100% !important; margin: 0 !important; }
+    .card { break-inside: avoid; page-break-inside: avoid; }
+  }
+</style>
+{% endblock %}
+
+{% block title %}{{ page_title }}{% endblock %}
+
+{% block content %}
+<div class="container-xl">
+    <!-- Professional Header -->
+    <div class="page-header d-print-none mb-4">
+        <div class="card bg-secondary-lt border-0">
+            <div class="card-body py-4">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <span class="avatar avatar-lg bg-secondary text-white">
+                            <i class="ti ti-file-analytics fs-2"></i>
+                        </span>
+                    </div>
+                    <div class="col">
+                        <div class="d-flex align-items-center mb-1">
+                            <span class="badge bg-secondary me-2">Report Preview</span>
+                            <span class="badge bg-{{ 'primary' if report.report_type == 'model_analysis' else 'purple' if report.report_type == 'app_analysis' else 'green' }}-lt">
+                                {{ report.report_type.replace('_', ' ')|title }}
+                            </span>
+                        </div>
+                        <h1 class="page-title mb-1">{{ report.title }}</h1>
+                        <div class="text-muted d-flex flex-wrap gap-3 mt-2">
+                            <span><i class="ti ti-calendar me-1"></i>{{ report.created_at.strftime('%Y-%m-%d %H:%M') if report.created_at else 'N/A' }}</span>
+                            <span><i class="ti ti-file-type-html me-1"></i>{{ report.format|upper }} format</span>
+                            <span>
+                                <i class="ti ti-{{ 'circle-check text-success' if report.status == 'completed' else 'loader text-warning' if report.status == 'generating' else 'circle-x text-danger' }} me-1"></i>
+                                {{ report.status|title }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="col-auto d-flex gap-2">
+                        <a href="{{ url_for('api.reports_api.download_report', report_id=report.report_id) }}" class="btn btn-primary">
+                            <i class="ti ti-download me-2"></i>Download
+                        </a>
+                        <a href="{{ url_for('reports.reports_index') }}" class="btn btn-outline-secondary">
+                            <i class="ti ti-arrow-left me-2"></i>Back
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Details Card -->
+    <div class="card mb-3">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="ti ti-info-circle me-2"></i>Report Details
+            </h3>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <div class="text-muted small mb-1">Report ID</div>
+                        <div class="h4 mb-0"><code>{{ report.report_id }}</code></div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <div class="text-muted small mb-1">Report Type</div>
+                        <div class="h4 mb-0">
+                            <span class="badge bg-{{ 'primary' if report.report_type == 'model_analysis' else 'purple' if report.report_type == 'app_analysis' else 'green' }}">
+                                {{ report.report_type.replace('_', ' ')|title }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <div class="text-muted small mb-1">Output Format</div>
+                        <div class="h4 mb-0">{{ report.format|upper }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="mb-3">
+                        <div class="text-muted small mb-1">Status</div>
+                        <div class="h4 mb-0">
+                            <span class="badge bg-{{ 'success' if report.status == 'completed' else 'warning' if report.status in ['pending', 'generating'] else 'danger' }}">
+                                <i class="ti ti-{{ 'circle-check' if report.status == 'completed' else 'loader' if report.status == 'generating' else 'clock' if report.status == 'pending' else 'circle-x' }} me-1"></i>
+                                {{ report.status|title }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {% if report.description %}
+            <hr class="my-3">
+            <div class="row">
+                <div class="col-12">
+                    <div class="text-muted small mb-1">Description</div>
+                    <p class="mb-0">{{ report.description }}</p>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if report.get_summary %}
+            <hr class="my-3">
+            <div class="row">
+                <div class="col-12">
+                    <div class="text-muted small mb-2">Report Summary</div>
+                    {% set summary = report.get_summary() %}
+                    {% if summary %}
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for key, value in summary.items() if key != 'generated_at' %}
+                        <div class="card card-sm">
+                            <div class="card-body py-2 px-3">
+                                <span class="text-muted small">{{ key.replace('_', ' ')|title }}:</span>
+                                <strong class="ms-1">{{ value }}</strong>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Metadata Card -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="ti ti-clock me-2"></i>Timestamps
+            </h3>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="text-muted small mb-1">Created At</div>
+                    <div class="h5 mb-0">{{ report.created_at.strftime('%Y-%m-%d %H:%M:%S') if report.created_at else 'N/A' }}</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-muted small mb-1">Completed At</div>
+                    <div class="h5 mb-0">{{ report.completed_at.strftime('%Y-%m-%d %H:%M:%S') if report.completed_at else 'N/A' }}</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-muted small mb-1">Expires At</div>
+                    <div class="h5 mb-0">{{ report.expires_at.strftime('%Y-%m-%d') if report.expires_at else 'Never' }}</div>
+                </div>
+            </div>
+            
+            {% if report.file_path and report.file_size %}
+            <hr class="my-3">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="text-muted small mb-1">File Path</div>
+                    <code class="small">{{ report.file_path }}</code>
+                </div>
+                <div class="col-md-6">
+                    <div class="text-muted small mb-1">File Size</div>
+                    <div class="h5 mb-0">
+                        {% if report.file_size < 1024 %}
+                            {{ report.file_size }} bytes
+                        {% elif report.file_size < 1048576 %}
+                            {{ "%.1f"|format(report.file_size / 1024) }} KB
+                        {% else %}
+                            {{ "%.2f"|format(report.file_size / 1048576) }} MB
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
