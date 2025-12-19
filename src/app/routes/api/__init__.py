@@ -13,6 +13,7 @@ Refactored API routes organized by domain:
 - tasks_realtime: Real-time task updates
 - tool_registry: Tool registry and profiles
 - container_tools: Container management tools
+- statistics: Statistics dashboard API
 
 REMOVED:
 - sample_generation: OLD deprecated system (3700+ lines)
@@ -37,6 +38,7 @@ from .tool_registry import tool_registry_bp
 from .container_tools import container_tools_bp
 from .export import export_bp
 from .reports import reports_bp
+from .statistics import statistics_bp
 
 __all__ = [
     'api_bp',
@@ -51,5 +53,6 @@ __all__ = [
     'tool_registry_bp',
     'container_tools_bp',
     'export_bp',
-    'reports_bp'
+    'reports_bp',
+    'statistics_bp'
 ]

@@ -78,14 +78,8 @@ def _get_generation_service():
 
 def _get_report_service():
     """Get report generation service instance."""
-    from app.services.report_generation_service import ReportGenerationService
-    service_locator = ServiceLocator()
-    service = service_locator.get_report_service()
-    if service is None:
-        # Initialize a new instance if not available via locator
-        from flask import current_app
-        service = ReportGenerationService(current_app)
-    return service
+    from app.services.report_service import get_report_service
+    return get_report_service()
 
 
 def _build_status() -> Dict[str, Any]:

@@ -1,16 +1,349 @@
-{# Standard wrapper for Statistics pages. Clean layout without embedded headers. #}
+{# Statistics Dashboard - Shell template for client-side rendering #}
 {% extends 'layouts/base.html' %}
-{% set page_title = page_title or 'Statistics' %}
+{% set page_title = page_title or 'Statistics Dashboard' %}
 {% set page_icon = page_icon or 'fa-solid fa-chart-line' %}
+
 {% block content %}
-  {% if main_partial %}
-    {% include main_partial ignore missing %}
-  {% else %}
-    {% include 'pages/statistics/partials/_main.html' ignore missing %}
-  {% endif %}
+<div id="statisticsRoot">
+  {# Loading State #}
+  <div id="statisticsLoading" class="text-center py-5">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="text-muted mt-3">Loading statistics...</p>
+  </div>
+
+  {# Error State (hidden by default) #}
+  <div id="statisticsError" class="alert alert-danger d-none" role="alert">
+    <div class="d-flex align-items-center">
+      <i class="fa-solid fa-circle-exclamation fa-2x me-3"></i>
+      <div>
+        <h4 class="alert-title">Failed to load statistics</h4>
+        <p class="mb-2" id="statisticsErrorMessage">An error occurred while loading dashboard data.</p>
+        <button type="button" class="btn btn-danger btn-sm" onclick="StatsDashboard.load()">
+          <i class="fa-solid fa-rotate me-1"></i>Retry
+        </button>
+      </div>
+    </div>
+  </div>
+
+  {# Dashboard Content (hidden until loaded) #}
+  <div id="statisticsContent" class="d-none">
+    
+    {# System Health Banner #}
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card" id="healthBanner">
+          <div class="card-body py-3">
+            <div class="row align-items-center">
+              <div class="col-auto">
+                <span id="healthDot" class="status-dot status-dot-animated bg-secondary"></span>
+              </div>
+              <div class="col">
+                <div class="d-flex align-items-center flex-wrap">
+                  <span class="h4 mb-0 me-3">System Status: 
+                    <strong id="healthStatus" class="text-secondary">Loading</strong>
+                  </span>
+                  <span id="servicesUpBadge" class="badge bg-blue-lt me-2">-/- Services</span>
+                  <span id="queueBadge" class="badge bg-yellow-lt d-none">0 Queued</span>
+                </div>
+              </div>
+              <div class="col-auto">
+                <button type="button" class="btn btn-ghost-primary btn-sm me-2" onclick="StatsDashboard.refresh()" id="refreshBtn">
+                  <i class="fa-solid fa-rotate me-1"></i>Refresh
+                </button>
+                <span class="text-muted">Last: <span id="lastCheck">--</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Main KPI Cards Row #}
+    <div class="row row-deck row-cards mb-4">
+      {# Total Analyses Card #}
+      <div class="col-sm-6 col-lg-3">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center">
+              <div class="subheader">Total Analyses</div>
+              <div class="ms-auto lh-1">
+                <span class="text-green d-inline-flex align-items-center lh-1">
+                  <span id="kpiCompletedCount">0</span> completed
+                </span>
+              </div>
+            </div>
+            <div class="h1 mb-3" id="kpiTotalTasks">0</div>
+            <div class="d-flex mb-2">
+              <div>Success Rate</div>
+              <div class="ms-auto">
+                <span class="text-green" id="kpiSuccessRate">0%</span>
+              </div>
+            </div>
+            <div class="progress progress-sm">
+              <div id="kpiSuccessBar" class="progress-bar bg-green" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Apps Analyzed Card #}
+      <div class="col-sm-6 col-lg-3">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center">
+              <div class="subheader">Applications</div>
+              <div class="ms-auto lh-1">
+                <span class="text-blue d-inline-flex align-items-center lh-1">
+                  <span id="kpiUniqueModels">0</span> models
+                </span>
+              </div>
+            </div>
+            <div class="h1 mb-3" id="kpiUniqueApps">0</div>
+            <div class="d-flex mb-2">
+              <div>With Results</div>
+              <div class="ms-auto">
+                <span class="text-blue" id="kpiAppsWithResults">0</span>
+              </div>
+            </div>
+            <div class="progress progress-sm">
+              <div id="kpiAppsBar" class="progress-bar bg-blue" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Findings Card #}
+      <div class="col-sm-6 col-lg-3">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center">
+              <div class="subheader">Total Findings</div>
+              <div class="ms-auto lh-1" id="kpiCriticalIndicator">
+                <span class="text-green d-inline-flex align-items-center lh-1">No critical</span>
+              </div>
+            </div>
+            <div class="h1 mb-3" id="kpiTotalFindings">0</div>
+            <div class="d-flex mb-2">
+              <div>High Severity</div>
+              <div class="ms-auto">
+                <span class="text-orange" id="kpiHighSeverity">0</span>
+              </div>
+            </div>
+            <div class="progress progress-sm">
+              <div id="kpiCriticalBar" class="progress-bar bg-red" style="width: 0%"></div>
+              <div id="kpiHighBar" class="progress-bar bg-orange" style="width: 0%"></div>
+              <div id="kpiMediumBar" class="progress-bar bg-yellow" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# Avg Analysis Time Card #}
+      <div class="col-sm-6 col-lg-3">
+        <div class="card">
+          <div class="card-body">
+            <div class="d-flex align-items-center">
+              <div class="subheader">Avg Analysis Time</div>
+              <div class="ms-auto lh-1">
+                <span class="text-muted d-inline-flex align-items-center lh-1">per run</span>
+              </div>
+            </div>
+            <div class="h1 mb-3"><span id="kpiAvgDuration">0</span>s</div>
+            <div class="d-flex mb-2">
+              <div>Active Now</div>
+              <div class="ms-auto">
+                <span class="text-azure" id="kpiRunningCount">0</span>
+              </div>
+            </div>
+            <div class="progress progress-sm">
+              <div id="kpiRunningBar" class="progress-bar bg-azure" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Charts Row #}
+    <div class="row row-deck row-cards mb-4">
+      {# Trends Chart #}
+      <div class="col-lg-8">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Analysis Trends (Last 14 Days)</h3>
+          </div>
+          <div class="card-body">
+            <div id="trendsChart" style="height: 300px;"></div>
+          </div>
+        </div>
+      </div>
+
+      {# Severity Distribution #}
+      <div class="col-lg-4">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Severity Distribution</h3>
+          </div>
+          <div class="card-body">
+            <div id="severityChart" style="height: 300px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Model Comparison & Tool Effectiveness #}
+    <div class="row row-deck row-cards mb-4">
+      {# Model Comparison Table #}
+      <div class="col-lg-6">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Model Comparison</h3>
+            <div class="card-actions">
+              <a href="{{ url_for('reports.reports_index') }}" class="btn btn-sm btn-outline-primary">
+                Full Report →
+              </a>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th class="text-center">Apps</th>
+                  <th class="text-center">Analyses</th>
+                  <th class="text-center">Findings</th>
+                  <th class="text-center">Avg Score</th>
+                </tr>
+              </thead>
+              <tbody id="modelComparisonTable">
+                <tr>
+                  <td colspan="5" class="text-center text-muted">Loading...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {# Tool Effectiveness #}
+      <div class="col-lg-6">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Tool Effectiveness</h3>
+            <div class="card-actions">
+              <a href="{{ url_for('reports.reports_index') }}" class="btn btn-sm btn-outline-primary">
+                Full Report →
+              </a>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-vcenter card-table">
+              <thead>
+                <tr>
+                  <th>Tool</th>
+                  <th class="text-center">Runs</th>
+                  <th class="text-center">Findings</th>
+                  <th class="text-center">Avg/Run</th>
+                  <th class="text-center">Success</th>
+                </tr>
+              </thead>
+              <tbody id="toolEffectivenessTable">
+                <tr>
+                  <td colspan="5" class="text-center text-muted">Loading...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Recent Activity & Quick Stats #}
+    <div class="row row-deck row-cards">
+      {# Recent Activity #}
+      <div class="col-lg-8">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Recent Activity</h3>
+          </div>
+          <div class="list-group list-group-flush" id="activityFeed">
+            <div class="list-group-item text-center text-muted">Loading...</div>
+          </div>
+        </div>
+      </div>
+
+      {# Quick Stats Sidebar #}
+      <div class="col-lg-4">
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Quick Stats</h3>
+          </div>
+          <div class="card-body">
+            <div class="datagrid">
+              <div class="datagrid-item">
+                <div class="datagrid-title">Today's Analyses</div>
+                <div class="datagrid-content" id="quickTodayCount">0</div>
+              </div>
+              <div class="datagrid-item">
+                <div class="datagrid-title">This Week</div>
+                <div class="datagrid-content" id="quickWeekCount">0</div>
+              </div>
+              <div class="datagrid-item">
+                <div class="datagrid-title">Pending Tasks</div>
+                <div class="datagrid-content">
+                  <span class="badge bg-yellow-lt" id="quickPendingBadge">0</span>
+                </div>
+              </div>
+              <div class="datagrid-item">
+                <div class="datagrid-title">Failed (24h)</div>
+                <div class="datagrid-content">
+                  <span class="badge bg-green-lt" id="quickFailedBadge">0</span>
+                </div>
+              </div>
+              <div class="datagrid-item">
+                <div class="datagrid-title">Most Active Model</div>
+                <div class="datagrid-content text-truncate" style="max-width: 150px;" id="quickMostActiveModel">
+                  N/A
+                </div>
+              </div>
+              <div class="datagrid-item">
+                <div class="datagrid-title">Last Analysis</div>
+                <div class="datagrid-content" id="quickLastAnalysis">Never</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {# Storage Info #}
+        <div class="card mt-3">
+          <div class="card-header">
+            <h3 class="card-title">Storage</h3>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <div class="d-flex mb-1">
+                <div>Results Directory</div>
+                <div class="ms-auto"><span id="storageSizeMb">0</span> MB</div>
+              </div>
+              <div class="progress progress-sm">
+                <div id="storageBar" class="progress-bar bg-primary" style="width: 0%"></div>
+              </div>
+            </div>
+            <div class="d-flex align-items-center">
+              <div class="me-auto">
+                <span class="text-muted"><span id="storageFileCount">0</span> result files</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
-  {{ super() }}
-  {% include 'pages/statistics/partials/_scripts.html' ignore missing %}
+{{ super() }}
+{% include 'pages/statistics/partials/_scripts.html' ignore missing %}
 {% endblock %}

@@ -72,9 +72,9 @@ class ServiceLocator:
             UnifiedResultService = None  # type: ignore
 
         try:
-            from .report_generation_service import ReportGenerationService
+            from .report_service import ReportService
         except ImportError:  # pragma: no cover
-            ReportGenerationService = None  # type: ignore
+            ReportService = None  # type: ignore
 
 
         # Register available services
@@ -100,8 +100,8 @@ class ServiceLocator:
             cls.register('analysis_inspection_service', AnalysisInspectionService())
         if UnifiedResultService:
             cls.register('unified_result_service', UnifiedResultService())
-        if ReportGenerationService:
-            cls.register('report_service', ReportGenerationService(app))
+        if ReportService:
+            cls.register('report_service', ReportService())
         if HealthService:
             cls.register('health_service', HealthService())
 

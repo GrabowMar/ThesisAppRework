@@ -1,88 +1,209 @@
-{# Statistics Dashboard Scripts - ApexCharts and AJAX refresh #}
-
+{# Statistics Dashboard Scripts - Client-side rendering with ApexCharts #}
 <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.44.0/dist/apexcharts.min.js"></script>
 
 <script>
-// Chart instances
-let trendsChart = null;
-let severityChart = null;
-
-// Initialize dashboard on load
-function initStatsDashboard() {
-    initializeCharts();
-    updateLastCheckTime();
-}
-
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initStatsDashboard);
-} else {
-    initStatsDashboard();
-}
-
-// Sanitize numeric value for charts (handle None, undefined, NaN)
-function sanitizeNumber(val, defaultVal) {
-    defaultVal = typeof defaultVal === 'number' ? defaultVal : 0;
-    if (val === null || val === undefined || val === 'None') return defaultVal;
-    var num = Number(val);
-    return isFinite(num) ? num : defaultVal;
-}
-
-// Sanitize array of numbers
-function sanitizeNumberArray(arr) {
-    if (!Array.isArray(arr)) return [];
-    return arr.map(function(v) { return sanitizeNumber(v, 0); });
-}
-
-// Initialize ApexCharts
-function initializeCharts() {
-    // Raw data from Jinja (may contain None/null values)
-    var rawTrendsDates = {{ (trends.dates if trends and trends.dates else [])|tojson }};
-    var rawTrendsCompleted = {{ (trends.completed if trends and trends.completed else [])|tojson }};
-    var rawTrendsFailed = {{ (trends.failed if trends and trends.failed else [])|tojson }};
+/**
+ * Statistics Dashboard - Client-side rendering module
+ */
+const StatsDashboard = (function() {
+    'use strict';
     
-    var rawSeverityCritical = {{ (severity.critical if severity else 0)|tojson }};
-    var rawSeverityHigh = {{ (severity.high if severity else 0)|tojson }};
-    var rawSeverityMedium = {{ (severity.medium if severity else 0)|tojson }};
-    var rawSeverityLow = {{ (severity.low if severity else 0)|tojson }};
-    var rawSeverityInfo = {{ (severity.info if severity else 0)|tojson }};
+    // Chart instances
+    let trendsChart = null;
+    let severityChart = null;
     
-    // Sanitize all numeric data
-    var trendsDates = Array.isArray(rawTrendsDates) ? rawTrendsDates : [];
-    var trendsCompleted = sanitizeNumberArray(rawTrendsCompleted);
-    var trendsFailed = sanitizeNumberArray(rawTrendsFailed);
+    // API endpoint
+    const API_URL = '/api/statistics/dashboard';
     
-    var severityData = [
-        sanitizeNumber(rawSeverityCritical, 0),
-        sanitizeNumber(rawSeverityHigh, 0),
-        sanitizeNumber(rawSeverityMedium, 0),
-        sanitizeNumber(rawSeverityLow, 0),
-        sanitizeNumber(rawSeverityInfo, 0)
-    ];
-    var severityTotal = severityData.reduce(function(a, b) { return a + b; }, 0);
+    // Cached data
+    let currentData = null;
     
-    // Trends Chart - Line chart for analysis activity over time
-    var trendsEl = document.querySelector('#trendsChart');
-    if (trendsEl && trendsDates.length > 0) {
-        var trendsOptions = {
+    /**
+     * Initialize dashboard
+     */
+    function init() {
+        load();
+    }
+    
+    /**
+     * Load dashboard data from API
+     */
+    async function load() {
+        showLoading();
+        
+        try {
+            const response = await fetch(API_URL);
+            const result = await response.json();
+            
+            if (!result.success) {
+                throw new Error(result.error || result.message || 'Unknown error');
+            }
+            
+            currentData = result.data;
+            render(currentData);
+            showContent();
+            updateLastCheck();
+            
+        } catch (error) {
+            console.error('Failed to load statistics:', error);
+            showError(error.message);
+        }
+    }
+    
+    /**
+     * Refresh dashboard data
+     */
+    async function refresh() {
+        const btn = document.getElementById('refreshBtn');
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Refreshing...';
+        btn.disabled = true;
+        
+        try {
+            const response = await fetch(API_URL);
+            const result = await response.json();
+            
+            if (!result.success) {
+                throw new Error(result.error || result.message || 'Unknown error');
+            }
+            
+            currentData = result.data;
+            render(currentData);
+            updateLastCheck();
+            showToast('Dashboard refreshed', 'success');
+            
+        } catch (error) {
+            console.error('Failed to refresh statistics:', error);
+            showToast('Failed to refresh: ' + error.message, 'danger');
+        } finally {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }
+    }
+    
+    /**
+     * Render all dashboard sections
+     */
+    function render(data) {
+        renderHealth(data.health);
+        renderKPIs(data.overview, data.severity, data.filesystem);
+        renderCharts(data.trends, data.severity);
+        renderModelComparison(data.models);
+        renderToolEffectiveness(data.tools);
+        renderActivityFeed(data.activity);
+        renderQuickStats(data.quick, data.filesystem);
+    }
+    
+    /**
+     * Render health banner
+     */
+    function renderHealth(health) {
+        const status = health.overall_status || 'unknown';
+        const colorClass = status === 'healthy' ? 'success' : 
+                          status === 'degraded' ? 'warning' : 'danger';
+        
+        document.getElementById('healthDot').className = 
+            `status-dot status-dot-animated bg-${colorClass}`;
+        
+        const statusEl = document.getElementById('healthStatus');
+        statusEl.className = `text-${colorClass}`;
+        statusEl.textContent = capitalize(status);
+        
+        document.getElementById('servicesUpBadge').textContent = 
+            `${health.services_up || 0}/${health.services_total || 4} Services`;
+        
+        const queueBadge = document.getElementById('queueBadge');
+        if (health.queue_depth > 0) {
+            queueBadge.textContent = `${health.queue_depth} Queued`;
+            queueBadge.classList.remove('d-none');
+        } else {
+            queueBadge.classList.add('d-none');
+        }
+    }
+    
+    /**
+     * Render KPI cards
+     */
+    function renderKPIs(overview, severity, filesystem) {
+        // Total Analyses card
+        setText('kpiTotalTasks', overview.total_tasks || 0);
+        setText('kpiCompletedCount', overview.completed_count || 0);
+        setText('kpiSuccessRate', `${(overview.success_rate || 0).toFixed(1)}%`);
+        setWidth('kpiSuccessBar', overview.success_rate || 0);
+        
+        // Applications card
+        setText('kpiUniqueApps', overview.unique_apps || 0);
+        setText('kpiUniqueModels', overview.unique_models || 0);
+        setText('kpiAppsWithResults', filesystem.apps_with_results || 0);
+        const appsPercent = overview.unique_apps > 0 ? 
+            (filesystem.apps_with_results / overview.unique_apps * 100) : 0;
+        setWidth('kpiAppsBar', appsPercent);
+        
+        // Findings card
+        const totalFindings = severity.total || 0;
+        setText('kpiTotalFindings', totalFindings);
+        setText('kpiHighSeverity', severity.high || 0);
+        
+        const criticalIndicator = document.getElementById('kpiCriticalIndicator');
+        if (severity.critical > 0) {
+            criticalIndicator.innerHTML = 
+                `<span class="text-red d-inline-flex align-items-center lh-1">${severity.critical} critical</span>`;
+        } else {
+            criticalIndicator.innerHTML = 
+                `<span class="text-green d-inline-flex align-items-center lh-1">No critical</span>`;
+        }
+        
+        if (totalFindings > 0) {
+            setWidth('kpiCriticalBar', (severity.critical / totalFindings) * 100);
+            setWidth('kpiHighBar', (severity.high / totalFindings) * 100);
+            setWidth('kpiMediumBar', (severity.medium / totalFindings) * 100);
+        }
+        
+        // Avg Analysis Time card
+        setText('kpiAvgDuration', (overview.avg_duration_seconds || 0).toFixed(1));
+        setText('kpiRunningCount', overview.running_count || 0);
+        setWidth('kpiRunningBar', overview.running_count > 0 ? 100 : 0);
+    }
+    
+    /**
+     * Render ApexCharts
+     */
+    function renderCharts(trends, severity) {
+        renderTrendsChart(trends);
+        renderSeverityChart(severity);
+    }
+    
+    /**
+     * Render trends area chart
+     */
+    function renderTrendsChart(trends) {
+        const el = document.getElementById('trendsChart');
+        if (!el) return;
+        
+        const dates = trends.dates || [];
+        const completed = sanitizeNumberArray(trends.completed);
+        const failed = sanitizeNumberArray(trends.failed);
+        
+        if (dates.length === 0) {
+            el.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-muted">' +
+                '<span>No analysis trends data available</span></div>';
+            return;
+        }
+        
+        const options = {
             chart: {
                 type: 'area',
                 height: 300,
                 toolbar: { show: false },
                 animations: { enabled: true, easing: 'easeinout', speed: 500 }
             },
-            series: [{
-                name: 'Completed',
-                data: trendsCompleted
-            }, {
-                name: 'Failed',
-                data: trendsFailed
-            }],
+            series: [
+                { name: 'Completed', data: completed },
+                { name: 'Failed', data: failed }
+            ],
             xaxis: {
-                categories: trendsDates,
-                labels: {
-                    style: { colors: '#6c757d' },
-                    rotate: -45
-                }
+                categories: dates,
+                labels: { style: { colors: '#6c757d' }, rotate: -45 }
             },
             yaxis: {
                 labels: { style: { colors: '#6c757d' } },
@@ -101,26 +222,51 @@ function initializeCharts() {
             stroke: { curve: 'smooth', width: 2 },
             legend: { position: 'top', horizontalAlign: 'right' },
             tooltip: { theme: 'dark' },
-            grid: { borderColor: '#e9ecef', strokeDashArray: 3 },
-            noData: { text: 'No analysis data available' }
+            grid: { borderColor: '#e9ecef', strokeDashArray: 3 }
         };
-        trendsChart = new ApexCharts(trendsEl, trendsOptions);
-        trendsChart.render();
-    } else if (trendsEl) {
-        // Show placeholder when no data
-        trendsEl.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-muted"><span>No analysis trends data available</span></div>';
+        
+        if (trendsChart) {
+            trendsChart.updateOptions({ xaxis: { categories: dates } });
+            trendsChart.updateSeries([
+                { name: 'Completed', data: completed },
+                { name: 'Failed', data: failed }
+            ]);
+        } else {
+            trendsChart = new ApexCharts(el, options);
+            trendsChart.render();
+        }
     }
-
-    // Severity Distribution - Donut chart (only render if there's data)
-    var severityEl = document.querySelector('#severityChart');
-    if (severityEl && severityTotal > 0) {
-        var severityOptions = {
+    
+    /**
+     * Render severity donut chart
+     */
+    function renderSeverityChart(severity) {
+        const el = document.getElementById('severityChart');
+        if (!el) return;
+        
+        const data = [
+            sanitizeNumber(severity.critical),
+            sanitizeNumber(severity.high),
+            sanitizeNumber(severity.medium),
+            sanitizeNumber(severity.low),
+            sanitizeNumber(severity.info)
+        ];
+        const total = data.reduce((a, b) => a + b, 0);
+        
+        if (total === 0) {
+            el.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-muted flex-column">' +
+                '<i class="fa-solid fa-check-circle fa-2x mb-2 text-success"></i>' +
+                '<span>No findings to display</span></div>';
+            return;
+        }
+        
+        const options = {
             chart: {
                 type: 'donut',
                 height: 300,
                 animations: { enabled: true, easing: 'easeinout', speed: 500 }
             },
-            series: severityData,
+            series: data,
             labels: ['Critical', 'High', 'Medium', 'Low', 'Info'],
             colors: ['#d63939', '#f76707', '#f59f00', '#2fb344', '#206bc4'],
             legend: { position: 'bottom' },
@@ -133,192 +279,248 @@ function initializeCharts() {
                             total: {
                                 show: true,
                                 label: 'Total',
-                                formatter: function(w) {
-                                    return w.globals.seriesTotals.reduce(function(a, b) { return a + b; }, 0);
-                                }
+                                formatter: (w) => w.globals.seriesTotals.reduce((a, b) => a + b, 0)
                             }
                         }
                     }
                 }
             },
             tooltip: { theme: 'dark' },
-            dataLabels: { enabled: false },
-            noData: { text: 'No severity data' }
+            dataLabels: { enabled: false }
         };
-        severityChart = new ApexCharts(severityEl, severityOptions);
-        severityChart.render();
-    } else if (severityEl) {
-        // Show placeholder when no findings
-        severityEl.innerHTML = '<div class="d-flex align-items-center justify-content-center h-100 text-muted flex-column"><i class="fa-solid fa-check-circle fa-2x mb-2 text-success"></i><span>No findings to display</span></div>';
-    }
-}
-
-// Refresh dashboard data via AJAX
-async function refreshDashboard() {
-    const btn = document.getElementById('refreshBtn');
-    const originalHtml = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Loading...';
-    btn.disabled = true;
-
-    try {
-        // Fetch all data in parallel
-        const [overview, severity, health, trends, activity, quick, filesystem] = await Promise.all([
-            fetch('{{ url_for("stats.api_overview") }}').then(r => r.json()),
-            fetch('{{ url_for("stats.api_severity") }}').then(r => r.json()),
-            fetch('{{ url_for("stats.api_health") }}').then(r => r.json()),
-            fetch('{{ url_for("stats.api_trends") }}').then(r => r.json()),
-            fetch('{{ url_for("stats.api_activity") }}').then(r => r.json()),
-            fetch('{{ url_for("stats.api_quick") }}').then(r => r.json()),
-            fetch('{{ url_for("stats.api_filesystem") }}').then(r => r.json())
-        ]);
-
-        // Update KPI cards
-        updateKPICards(overview, severity, filesystem);
         
-        // Update health banner
-        updateHealthBanner(health);
-        
-        // Update charts
-        updateCharts(trends, severity);
-        
-        // Update quick stats
-        updateQuickStats(quick, filesystem);
-        
-        // Update activity feed
-        updateActivityFeed(activity);
-        
-        // Update timestamp
-        updateLastCheckTime();
-        
-        // Show success toast
-        showToast('Dashboard refreshed successfully', 'success');
-        
-    } catch (error) {
-        console.error('Error refreshing dashboard:', error);
-        showToast('Error refreshing dashboard', 'danger');
-    } finally {
-        btn.innerHTML = originalHtml;
-        btn.disabled = false;
-    }
-}
-
-// Update KPI cards with new data
-function updateKPICards(overview, severity, filesystem) {
-    // These would require DOM updates - for now, suggest page reload for full refresh
-    // In production, you'd update specific elements by ID
-}
-
-// Update health banner
-function updateHealthBanner(health) {
-    const banner = document.getElementById('healthBanner');
-    if (!banner) return;
-    
-    const statusDot = banner.querySelector('.status-dot');
-    const statusText = banner.querySelector('strong');
-    
-    const statusClass = health.overall_status === 'healthy' ? 'success' : 
-                       health.overall_status === 'degraded' ? 'warning' : 'danger';
-    
-    statusDot.className = `status-dot status-dot-animated bg-${statusClass}`;
-    statusText.className = `text-${statusClass}`;
-    statusText.textContent = health.overall_status.charAt(0).toUpperCase() + health.overall_status.slice(1);
-}
-
-// Update charts with new data
-function updateCharts(trends, severity) {
-    // Sanitize trends data
-    if (trendsChart && trends) {
-        var dates = Array.isArray(trends.dates) ? trends.dates : [];
-        var completed = sanitizeNumberArray(trends.completed);
-        var failed = sanitizeNumberArray(trends.failed);
-        
-        if (dates.length > 0) {
-            trendsChart.updateOptions({
-                xaxis: { categories: dates }
-            });
-            trendsChart.updateSeries([
-                { name: 'Completed', data: completed },
-                { name: 'Failed', data: failed }
-            ]);
+        if (severityChart) {
+            severityChart.updateSeries(data);
+        } else {
+            severityChart = new ApexCharts(el, options);
+            severityChart.render();
         }
     }
     
-    // Sanitize severity data
-    if (severityChart && severity) {
-        var severityData = [
-            sanitizeNumber(severity.critical, 0),
-            sanitizeNumber(severity.high, 0),
-            sanitizeNumber(severity.medium, 0),
-            sanitizeNumber(severity.low, 0),
-            sanitizeNumber(severity.info, 0)
-        ];
-        var total = severityData.reduce(function(a, b) { return a + b; }, 0);
+    /**
+     * Render model comparison table
+     */
+    function renderModelComparison(models) {
+        const tbody = document.getElementById('modelComparisonTable');
+        if (!tbody) return;
         
-        if (total > 0) {
-            severityChart.updateSeries(severityData);
+        if (!models || models.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No model data available</td></tr>';
+            return;
         }
-    }
-}
-
-// Update quick stats section
-function updateQuickStats(quick, filesystem) {
-    // Update individual stat elements if they exist
-}
-
-// Update activity feed
-function updateActivityFeed(activity) {
-    const feed = document.getElementById('activityFeed');
-    if (!feed || !activity || !activity.length) return;
-    
-    feed.innerHTML = activity.map(item => `
-        <div class="list-group-item">
-            <div class="row align-items-center">
-                <div class="col-auto">
-                    <span class="status-dot status-dot-animated bg-${getStatusColor(item.status)}"></span>
-                </div>
-                <div class="col text-truncate">
-                    <a href="/applications/${item.model}/${item.app}" class="text-reset d-block">
-                        ${item.model}/app${item.app}
-                    </a>
-                    <div class="d-block text-muted text-truncate mt-n1">
-                        ${item.analysis_type} analysis
+        
+        tbody.innerHTML = models.slice(0, 5).map(model => `
+            <tr>
+                <td>
+                    <div class="text-truncate" style="max-width: 150px;" title="${escapeHtml(model.model)}">
+                        ${escapeHtml(model.model)}
                     </div>
-                </div>
-                <div class="col-auto">
-                    <span class="badge bg-${getStatusColor(item.status)}-lt">
-                        ${item.status}
+                </td>
+                <td class="text-center">${model.app_count || 0}</td>
+                <td class="text-center">${model.analysis_count || 0}</td>
+                <td class="text-center">
+                    <span class="badge bg-${getFindingsBadgeColor(model.total_findings)}-lt">
+                        ${model.total_findings || 0}
                     </span>
-                </div>
-                <div class="col-auto text-muted">
-                    ${item.time_ago}
+                </td>
+                <td class="text-center">
+                    ${model.avg_score != null ? 
+                        `<span class="badge bg-${getScoreBadgeColor(model.avg_score)}-lt">${Math.round(model.avg_score)}</span>` : 
+                        '<span class="text-muted">-</span>'}
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    /**
+     * Render tool effectiveness table
+     */
+    function renderToolEffectiveness(tools) {
+        const tbody = document.getElementById('toolEffectivenessTable');
+        if (!tbody) return;
+        
+        if (!tools || tools.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No tool data available</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = tools.slice(0, 5).map(tool => `
+            <tr>
+                <td><span class="badge bg-azure-lt">${escapeHtml(tool.tool)}</span></td>
+                <td class="text-center">${tool.run_count || 0}</td>
+                <td class="text-center">${tool.total_findings || 0}</td>
+                <td class="text-center">${(tool.avg_findings || 0).toFixed(1)}</td>
+                <td class="text-center">
+                    <span class="text-${getSuccessRateColor(tool.success_rate)}">
+                        ${Math.round(tool.success_rate || 0)}%
+                    </span>
+                </td>
+            </tr>
+        `).join('');
+    }
+    
+    /**
+     * Render activity feed
+     */
+    function renderActivityFeed(activity) {
+        const feed = document.getElementById('activityFeed');
+        if (!feed) return;
+        
+        if (!activity || activity.length === 0) {
+            feed.innerHTML = '<div class="list-group-item text-center text-muted">No recent activity</div>';
+            return;
+        }
+        
+        feed.innerHTML = activity.map(item => `
+            <div class="list-group-item">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <span class="status-dot status-dot-animated bg-${getStatusColor(item.status)}"></span>
+                    </div>
+                    <div class="col text-truncate">
+                        <a href="/applications/${encodeURIComponent(item.model)}/${item.app}" class="text-reset d-block">
+                            ${escapeHtml(item.model)}/app${item.app}
+                        </a>
+                        <div class="d-block text-muted text-truncate mt-n1">
+                            ${escapeHtml(item.analysis_type || 'comprehensive')} analysis
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <span class="badge bg-${getStatusColor(item.status)}-lt">${item.status}</span>
+                    </div>
+                    <div class="col-auto text-muted">${item.time_ago}</div>
                 </div>
             </div>
-        </div>
-    `).join('');
-}
-
-// Get status color helper
-function getStatusColor(status) {
-    const colors = {
-        'COMPLETED': 'success',
-        'FAILED': 'danger',
-        'RUNNING': 'azure',
-        'PENDING': 'secondary'
-    };
-    return colors[status] || 'secondary';
-}
-
-// Update last check timestamp
-function updateLastCheckTime() {
-    const el = document.getElementById('lastCheck');
-    if (el) {
-        el.textContent = 'just now';
+        `).join('');
     }
-}
-
-// Toast notification helper
-function showToast(message, type = 'info') {
-    // Simple toast implementation - can be enhanced with Tabler's toast component
-    console.log(`[${type.toUpperCase()}] ${message}`);
-}
+    
+    /**
+     * Render quick stats sidebar
+     */
+    function renderQuickStats(quick, filesystem) {
+        setText('quickTodayCount', quick.today_count || 0);
+        setText('quickWeekCount', quick.week_count || 0);
+        setText('quickPendingBadge', quick.pending_count || 0);
+        
+        const failedBadge = document.getElementById('quickFailedBadge');
+        failedBadge.textContent = quick.failed_24h || 0;
+        failedBadge.className = `badge bg-${quick.failed_24h > 0 ? 'red' : 'green'}-lt`;
+        
+        setText('quickMostActiveModel', quick.most_active_model || 'N/A');
+        setText('quickLastAnalysis', quick.last_analysis_ago || 'Never');
+        
+        // Storage info
+        setText('storageSizeMb', filesystem.total_size_mb || 0);
+        setText('storageFileCount', filesystem.total_result_files || 0);
+        const storagePct = Math.min((filesystem.total_size_mb / 1000) * 100, 100);
+        setWidth('storageBar', storagePct);
+    }
+    
+    // === UI State Helpers ===
+    
+    function showLoading() {
+        document.getElementById('statisticsLoading').classList.remove('d-none');
+        document.getElementById('statisticsContent').classList.add('d-none');
+        document.getElementById('statisticsError').classList.add('d-none');
+    }
+    
+    function showContent() {
+        document.getElementById('statisticsLoading').classList.add('d-none');
+        document.getElementById('statisticsContent').classList.remove('d-none');
+        document.getElementById('statisticsError').classList.add('d-none');
+    }
+    
+    function showError(message) {
+        document.getElementById('statisticsLoading').classList.add('d-none');
+        document.getElementById('statisticsContent').classList.add('d-none');
+        document.getElementById('statisticsError').classList.remove('d-none');
+        document.getElementById('statisticsErrorMessage').textContent = message || 'An error occurred';
+    }
+    
+    function updateLastCheck() {
+        document.getElementById('lastCheck').textContent = 'just now';
+    }
+    
+    // === Utility Helpers ===
+    
+    function setText(id, value) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    }
+    
+    function setWidth(id, percent) {
+        const el = document.getElementById(id);
+        if (el) el.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+    }
+    
+    function sanitizeNumber(val) {
+        if (val === null || val === undefined || val === 'None') return 0;
+        const num = Number(val);
+        return isFinite(num) ? num : 0;
+    }
+    
+    function sanitizeNumberArray(arr) {
+        if (!Array.isArray(arr)) return [];
+        return arr.map(sanitizeNumber);
+    }
+    
+    function capitalize(str) {
+        return str ? str.charAt(0).toUpperCase() + str.slice(1) : '';
+    }
+    
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+    
+    function getStatusColor(status) {
+        const colors = {
+            'COMPLETED': 'success',
+            'FAILED': 'danger',
+            'RUNNING': 'azure',
+            'PENDING': 'secondary',
+            'PARTIAL_SUCCESS': 'warning'
+        };
+        return colors[status] || 'secondary';
+    }
+    
+    function getFindingsBadgeColor(count) {
+        if (count > 50) return 'red';
+        if (count > 20) return 'orange';
+        return 'green';
+    }
+    
+    function getScoreBadgeColor(score) {
+        if (score >= 80) return 'green';
+        if (score >= 60) return 'yellow';
+        return 'red';
+    }
+    
+    function getSuccessRateColor(rate) {
+        if (rate >= 90) return 'green';
+        if (rate >= 70) return 'yellow';
+        return 'red';
+    }
+    
+    function showToast(message, type = 'info') {
+        // Simple console log - can enhance with actual toast component
+        console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+    
+    // Initialize on DOM ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+    
+    // Public API
+    return {
+        load: load,
+        refresh: refresh,
+        getData: () => currentData
+    };
+})();
 </script>

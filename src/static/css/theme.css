@@ -305,6 +305,7 @@ body.sidebar-collapsed .navbar.navbar-expand-md {
 	min-height: 100vh;
 	padding-left: 1rem;
 	padding-right: 1rem;
+	padding-top: calc(var(--header-height) + 0.5rem);
 	transition: margin-left 0.3s ease;
 }
 
@@ -318,6 +319,7 @@ body.sidebar-collapsed .page-wrapper {
 		margin-left: 0; 
 		padding-left: 0.75rem;
 		padding-right: 0.75rem;
+		padding-top: calc(var(--header-height) + 0.5rem);
 		min-height: 100vh;
 	}
 	
@@ -489,7 +491,7 @@ body.sidebar-collapsed footer.footer {
 /* Page body container */
 .page-body-container {
 	padding: 0;
-	margin-top: 2rem;
+	margin-top: 0.5rem;
 	max-width: 100%;
 	width: 100%;
 }
@@ -983,4 +985,160 @@ body.sidebar-collapsed footer.footer {
 
 :root[data-bs-theme='dark'] .pipeline-metrics-grid .row > [class*="col-"]:hover {
 	background-color: rgba(255, 255, 255, 0.03);
+}
+
+/* ========================================
+   Statistics Dashboard Improvements
+   ======================================== */
+
+/* Fix: Ensure cards stack vertically in Quick Stats column */
+/* row-deck makes cards equal height which breaks multi-card columns */
+#statisticsContent .row-deck.row-cards:last-child > .col-lg-4 {
+	display: block;
+}
+
+#statisticsContent .row-deck.row-cards:last-child > .col-lg-4 > .card {
+	height: auto;
+}
+
+/* Datagrid items spacing - scoped to statistics only */
+#statisticsContent .datagrid {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 1rem;
+}
+
+#statisticsContent .datagrid-item {
+	padding: 0;
+}
+
+#statisticsContent .datagrid-title {
+	font-size: 0.6875rem;
+	font-weight: 600;
+	color: var(--color-text-muted);
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+	margin-bottom: 0.25rem;
+}
+
+#statisticsContent .datagrid-content {
+	font-size: 0.9375rem;
+	font-weight: 500;
+	color: var(--color-text);
+}
+
+/* Card table within statistics */
+#statisticsContent .card .table {
+	margin-bottom: 0;
+}
+
+#statisticsContent .card .table-responsive {
+	border-radius: 0 0 0.375rem 0.375rem;
+}
+
+#statisticsContent .card .table th,
+#statisticsContent .card .table td {
+	padding: 0.625rem 0.75rem;
+	font-size: 0.8125rem;
+}
+
+#statisticsContent .card .table th {
+	font-size: 0.6875rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--color-text-muted);
+	border-bottom: 2px solid var(--color-border);
+	background-color: var(--color-bg-alt);
+}
+
+/* Ensure card headers are properly aligned */
+#statisticsContent .card-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	padding: 0.75rem 1rem;
+	border-bottom: 1px solid var(--color-border);
+}
+
+#statisticsContent .card-header .card-title {
+	margin: 0;
+	font-size: 0.9375rem;
+	font-weight: 600;
+}
+
+#statisticsContent .card-header .card-actions {
+	margin-left: auto;
+}
+
+/* List group items in activity feed */
+#statisticsContent .list-group-item {
+	padding: 0.75rem 1rem;
+	border-color: var(--color-border);
+}
+
+#statisticsContent .list-group-item:first-child {
+	border-top: none;
+}
+
+/* KPI cards consistency */
+#statisticsContent .row-cards > [class*="col-"] > .card {
+	height: 100%;
+}
+
+#statisticsContent .row-cards .card-body {
+	padding: 1rem;
+}
+
+#statisticsContent .row-cards .subheader {
+	font-size: 0.6875rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--color-text-muted);
+}
+
+#statisticsContent .row-cards .h1 {
+	font-size: 1.75rem;
+	font-weight: 700;
+	margin-bottom: 0.75rem;
+}
+
+/* Storage card progress bar */
+#statisticsContent .progress {
+	height: 6px;
+	border-radius: 3px;
+}
+
+/* Model truncation in tables */
+#statisticsContent .text-truncate {
+	max-width: 150px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Responsive adjustments for statistics */
+@media (max-width: 991.98px) {
+	#statisticsContent .datagrid {
+		grid-template-columns: 1fr;
+	}
+	
+	#statisticsContent .row-cards .h1 {
+		font-size: 1.5rem;
+	}
+}
+
+@media (max-width: 575.98px) {
+	#statisticsContent .card-header {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+	
+	#statisticsContent .card-header .card-actions {
+		margin-left: 0;
+		margin-top: 0.5rem;
+	}
 }

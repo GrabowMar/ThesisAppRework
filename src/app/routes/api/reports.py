@@ -1,42 +1,34 @@
 """
-API Routes for Report Generation
+Reports API Routes (v2)
+=======================
 
-Handles report creation, retrieval, and download operations.
+Simplified API for report generation and retrieval.
+Reports store JSON data directly in database - no file I/O.
 """
 import logging
-from datetime import datetime
-from flask import Blueprint, request, jsonify, send_file, current_app, g
+from flask import Blueprint, request, jsonify
 from flask_login import current_user, login_user
-from pathlib import Path
 
 from ...extensions import db
 from ...models import Report, User
-from ...services.service_locator import ServiceLocator
-from ...services.service_base import NotFoundError, ValidationError, ServiceError
+from ...services.report_service import get_report_service
 
 logger = logging.getLogger(__name__)
 
-# Create blueprint (prefix is just '/reports' since it's nested under api_bp which adds '/api')
 reports_bp = Blueprint('reports_api', __name__, url_prefix='/reports')
 
 
 def _authenticate_request():
-    """
-    Authenticate request using either session or Bearer token.
-    Returns (user, error_response) tuple.
-    """
-    # Check for session authentication first
+    """Authenticate via session or Bearer token."""
     if current_user.is_authenticated:
         return current_user, None
     
-    # Check for Bearer token (for API endpoints)
     auth_header = request.headers.get('Authorization', '')
     if auth_header.startswith('Bearer '):
         token = auth_header[7:]
         try:
             user = User.verify_api_token(token)
             if user:
-                # Set user for this request context
                 login_user(user, remember=False)
                 return user, None
         except Exception as e:
@@ -45,17 +37,15 @@ def _authenticate_request():
     return None, None
 
 
-# Require authentication for all report API routes
 @reports_bp.before_request
 def require_authentication():
-    """Require authentication for all report API endpoints."""
+    """Require authentication for all endpoints."""
     user, _ = _authenticate_request()
-    
     if not user and not current_user.is_authenticated:
         return jsonify({
+            'success': False,
             'error': 'Authentication required',
-            'message': 'Please log in or provide a Bearer token',
-            'login_url': '/auth/login'
+            'message': 'Please log in or provide a Bearer token'
         }), 401
 
 
@@ -66,71 +56,58 @@ def generate_report():
     
     Request body:
     {
-        "report_type": "model_analysis|app_analysis|tool_analysis",
-        "format": "html|json",
+        "report_type": "model_analysis|template_comparison|tool_analysis",
         "config": {
             // For model_analysis:
             "model_slug": "openai_gpt-4",
-            "date_range": {"start": "2025-01-01", "end": "2025-12-31"}  // optional
+            "date_range": {"start": "2025-01-01", "end": "2025-12-31"}
             
-            // For app_analysis (template comparison):
+            // For template_comparison:
             "template_slug": "crud_todo_list",
-            "filter_models": ["model1", "model2"],  // optional
-            "date_range": {"start": "2025-01-01", "end": "2025-12-31"}  // optional
+            "filter_models": ["model1", "model2"]
             
             // For tool_analysis:
-            "tool_name": "bandit",  // optional (omit for all tools)
+            "tool_name": "bandit",  // optional
             "filter_model": "openai_gpt-4",  // optional
-            "filter_app": 1,  // optional
-            "date_range": {"start": "2025-01-01", "end": "2025-12-31"}  // optional
+            "filter_app": 1  // optional
         },
-        "title": "Custom Report Title",     // optional
-        "description": "Report description",// optional
-        "expires_in_days": 30               // optional, default 30
+        "title": "Custom title",  // optional
+        "description": "Description"  // optional
     }
     """
     try:
         data = request.get_json()
-        
         if not data:
             return jsonify({'success': False, 'error': 'Request body required'}), 400
         
-        # Validate required fields
         report_type = data.get('report_type')
-        format_type = data.get('format', 'html')
         config = data.get('config', {})
         
         if not report_type:
             return jsonify({'success': False, 'error': 'report_type required'}), 400
         
-        valid_types = ['model_analysis', 'app_analysis', 'tool_analysis']
+        # Map old 'app_analysis' to new 'template_comparison' for backwards compat
+        if report_type == 'app_analysis':
+            report_type = 'template_comparison'
+        
+        valid_types = ['model_analysis', 'template_comparison', 'tool_analysis']
         if report_type not in valid_types:
-            return jsonify({'success': False, 'error': f'report_type must be one of: {", ".join(valid_types)}'}), 400
+            return jsonify({
+                'success': False,
+                'error': f'report_type must be one of: {", ".join(valid_types)}'
+            }), 400
         
-        valid_formats = ['html', 'json']
-        if format_type not in valid_formats:
-            return jsonify({'success': False, 'error': f'format must be one of: {", ".join(valid_formats)}'}), 400
+        # Validate required config
+        if report_type == 'model_analysis' and not config.get('model_slug'):
+            return jsonify({'success': False, 'error': 'model_slug required'}), 400
+        if report_type == 'template_comparison' and not config.get('template_slug'):
+            return jsonify({'success': False, 'error': 'template_slug required'}), 400
         
-        # Validate config based on report type
-        if report_type == 'model_analysis':
-            if not config.get('model_slug'):
-                return jsonify({'success': False, 'error': 'model_slug required for model_analysis'}), 400
-        elif report_type == 'app_analysis':
-            if not config.get('template_slug'):
-                return jsonify({'success': False, 'error': 'template_slug required for app_analysis (template comparison)'}), 400
-        # tool_analysis is flexible - no required fields
-        
-        # Get service
-        service_locator = ServiceLocator()
-        report_service = service_locator.get_report_service()
-        
-        # Get current user
+        service = get_report_service()
         user_id = current_user.id if current_user.is_authenticated else None
         
-        # Generate report
-        report = report_service.generate_report(
+        report = service.generate_report(
             report_type=report_type,
-            format=format_type,
             config=config,
             title=data.get('title'),
             description=data.get('description'),
@@ -144,14 +121,9 @@ def generate_report():
             'message': 'Report generated successfully'
         }), 201
         
-    except ValidationError as e:
-        logger.warning(f"Validation error generating report: {e}")
+    except ValueError as e:
+        logger.warning(f"Validation error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 400
-    
-    except ServiceError as e:
-        logger.error(f"Service error generating report: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-    
     except Exception as e:
         logger.error(f"Error generating report: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'Internal server error'}), 500
@@ -159,39 +131,37 @@ def generate_report():
 
 @reports_bp.route('/<report_id>', methods=['GET'])
 def get_report(report_id: str):
-    """Get report details by ID."""
+    """
+    Get report by ID.
+    
+    Query params:
+        - include_data: If 'true', include full report data
+    """
     try:
-        service_locator = ServiceLocator()
-        report_service = service_locator.get_report_service()
-        
-        report = report_service.get_report(report_id)
+        service = get_report_service()
+        report = service.get_report(report_id)
         
         if not report:
             return jsonify({'success': False, 'error': 'Report not found'}), 404
         
+        include_data = request.args.get('include_data', 'false').lower() == 'true'
+        
         return jsonify({
             'success': True,
-            'report': report.to_dict()
+            'report': report.to_dict(include_data=include_data)
         })
         
     except Exception as e:
-        logger.error(f"Error getting report {report_id}: {e}", exc_info=True)
+        logger.error(f"Error getting report: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
-@reports_bp.route('/<report_id>/download', methods=['GET'])
-def download_report(report_id: str):
-    """
-    Download report file.
-    
-    Query params:
-        - inline: Set to 'true' to view in browser instead of download
-    """
+@reports_bp.route('/<report_id>/data', methods=['GET'])
+def get_report_data(report_id: str):
+    """Get full report data for client-side rendering."""
     try:
-        service_locator = ServiceLocator()
-        report_service = service_locator.get_report_service()
-        
-        report = report_service.get_report(report_id)
+        service = get_report_service()
+        report = service.get_report(report_id)
         
         if not report:
             return jsonify({'success': False, 'error': 'Report not found'}), 404
@@ -199,33 +169,25 @@ def download_report(report_id: str):
         if report.status != 'completed':
             return jsonify({
                 'success': False,
-                'error': f'Report not ready (status: {report.status})'
+                'error': f'Report not ready (status: {report.status})',
+                'status': report.status,
+                'progress': report.progress_percent
             }), 400
         
-        if not report.file_path:
-            return jsonify({'success': False, 'error': 'Report file not found'}), 404
+        data = report.get_report_data()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data available'}), 404
         
-        # Get absolute file path
-        file_path = report_service.reports_dir / report.file_path
-        
-        if not file_path.exists():
-            return jsonify({'success': False, 'error': 'Report file does not exist'}), 404
-        
-        # Determine if inline or attachment
-        inline = request.args.get('inline', 'false').lower() == 'true'
-        
-        # Get MIME type
-        mime_type = _get_mime_type(report.format)
-        
-        return send_file(
-            file_path,
-            mimetype=mime_type,
-            as_attachment=not inline,
-            download_name=file_path.name
-        )
+        return jsonify({
+            'success': True,
+            'report_id': report_id,
+            'report_type': report.report_type,
+            'title': report.title,
+            'data': data
+        })
         
     except Exception as e:
-        logger.error(f"Error downloading report {report_id}: {e}", exc_info=True)
+        logger.error(f"Error getting report data: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
@@ -235,26 +197,21 @@ def list_reports():
     List reports with optional filtering.
     
     Query params:
-        - report_type: Filter by report type
+        - report_type: Filter by type
         - status: Filter by status
         - limit: Max results (default 50)
-        - offset: Pagination offset (default 0)
+        - offset: Pagination offset
     """
     try:
-        service_locator = ServiceLocator()
-        report_service = service_locator.get_report_service()
+        service = get_report_service()
         
-        # Get query params
         report_type = request.args.get('report_type')
         status = request.args.get('status')
         limit = int(request.args.get('limit', 50))
         offset = int(request.args.get('offset', 0))
-        
-        # Get current user
         user_id = current_user.id if current_user.is_authenticated else None
         
-        # List reports
-        reports = report_service.list_reports(
+        reports = service.list_reports(
             report_type=report_type,
             status=status,
             user_id=user_id,
@@ -279,47 +236,38 @@ def list_reports():
 def delete_report(report_id: str):
     """Delete a report."""
     try:
-        service_locator = ServiceLocator()
-        report_service = service_locator.get_report_service()
+        service = get_report_service()
+        report = service.get_report(report_id)
         
-        # Check if report exists
-        report = report_service.get_report(report_id)
         if not report:
             return jsonify({'success': False, 'error': 'Report not found'}), 404
         
-        # Check ownership (if user is authenticated)
-        if current_user.is_authenticated and report.created_by and report.created_by != current_user.id:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+        # Check ownership
+        if current_user.is_authenticated and report.created_by:
+            if report.created_by != current_user.id and not getattr(current_user, 'is_admin', False):
+                return jsonify({'success': False, 'error': 'Unauthorized'}), 403
         
-        # Delete report
-        delete_file = request.args.get('delete_file', 'true').lower() == 'true'
-        report_service.delete_report(report_id, delete_file=delete_file)
+        service.delete_report(report_id)
         
         return jsonify({
             'success': True,
             'message': 'Report deleted successfully'
         })
         
-    except NotFoundError as e:
-        return jsonify({'success': False, 'error': str(e)}), 404
-    
     except Exception as e:
-        logger.error(f"Error deleting report {report_id}: {e}", exc_info=True)
+        logger.error(f"Error deleting report: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @reports_bp.route('/cleanup', methods=['POST'])
-def cleanup_expired_reports():
+def cleanup_expired():
     """Clean up expired reports (admin only)."""
     try:
-        # Check if user is admin
-        if not current_user.is_authenticated or not current_user.is_admin:
+        if not current_user.is_authenticated or not getattr(current_user, 'is_admin', False):
             return jsonify({'success': False, 'error': 'Admin access required'}), 403
         
-        service_locator = ServiceLocator()
-        report_service = service_locator.get_report_service()
-        
-        count = report_service.cleanup_expired_reports()
+        service = get_report_service()
+        count = service.cleanup_expired_reports()
         
         return jsonify({
             'success': True,
@@ -327,17 +275,83 @@ def cleanup_expired_reports():
         })
         
     except Exception as e:
-        logger.error(f"Error cleaning up expired reports: {e}", exc_info=True)
+        logger.error(f"Error cleaning up reports: {e}", exc_info=True)
         return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
-# Helper functions
-def _get_mime_type(format_type: str) -> str:
-    """Get MIME type for report format."""
-    mime_types = {
-        'pdf': 'application/pdf',
-        'html': 'text/html',
-        'excel': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'json': 'application/json'
-    }
-    return mime_types.get(format_type, 'application/octet-stream')
+# =============================================================================
+# Data endpoints for report generation UI
+# =============================================================================
+
+@reports_bp.route('/options', methods=['GET'])
+def get_report_options():
+    """
+    Get options for report generation form.
+    
+    Returns available models, templates, and tools for dropdown population.
+    """
+    try:
+        from ...models import ModelCapability, GeneratedApplication
+        from ...services.tool_registry_service import get_tool_registry_service
+        from ...services.generation import get_generation_service
+        
+        # Get models with generated apps
+        models = db.session.query(ModelCapability).join(
+            GeneratedApplication,
+            ModelCapability.canonical_slug == GeneratedApplication.model_slug
+        ).distinct().order_by(ModelCapability.provider, ModelCapability.model_name).all()
+        
+        models_data = [{
+            'slug': m.canonical_slug,
+            'name': m.model_name,
+            'provider': m.provider
+        } for m in models]
+        
+        # Get apps grouped by model
+        apps = GeneratedApplication.query.order_by(
+            GeneratedApplication.model_slug,
+            GeneratedApplication.app_number
+        ).all()
+        
+        apps_by_model = {}
+        for app in apps:
+            if app.model_slug not in apps_by_model:
+                apps_by_model[app.model_slug] = []
+            apps_by_model[app.model_slug].append({
+                'app_number': app.app_number,
+                'template_slug': app.template_slug,
+                'app_type': app.app_type
+            })
+        
+        # Get tools
+        tool_registry = get_tool_registry_service()
+        all_tools = tool_registry.get_all_tools()
+        tools_data = [{
+            'name': tool.name,
+            'display_name': tool.display_name,
+            'container': tool.container.value if hasattr(tool.container, 'value') else str(tool.container),
+            'available': tool.available
+        } for tool in all_tools.values()]
+        tools_data.sort(key=lambda t: (t['container'], t['display_name']))
+        
+        # Get templates
+        gen_service = get_generation_service()
+        templates_catalog = gen_service.get_template_catalog()
+        templates_data = [{
+            'slug': t.get('slug'),
+            'name': t.get('name'),
+            'category': t.get('category', 'general')
+        } for t in templates_catalog if t.get('slug') and t.get('name')]
+        templates_data.sort(key=lambda t: (t['category'], t['name']))
+        
+        return jsonify({
+            'success': True,
+            'models': models_data,
+            'apps_by_model': apps_by_model,
+            'tools': tools_data,
+            'templates': templates_data
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting report options: {e}", exc_info=True)
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500

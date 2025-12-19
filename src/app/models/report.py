@@ -1,5 +1,8 @@
 """
 Report database model for storing generated reports.
+
+v2: Reports store JSON data directly in database - no file I/O.
+Reports are rendered client-side using JavaScript.
 """
 import json
 from typing import Dict, Any, List, Optional
@@ -9,31 +12,33 @@ from ..utils.time import utc_now
 
 
 class Report(db.Model):
-    """Generated analysis reports in various formats."""
+    """Generated analysis reports stored as JSON in database."""
     __tablename__ = 'reports'
     
     # Identifiers
     id = db.Column(db.Integer, primary_key=True)
     report_id = db.Column(db.String(100), unique=True, nullable=False, index=True)
     
-    # Report configuration
-    report_type = db.Column(db.String(100), nullable=False, index=True)  # 'model_analysis', 'app_analysis', 'tool_analysis'
+    # Report configuration  
+    # Types: 'model_analysis', 'template_comparison', 'tool_analysis'
+    report_type = db.Column(db.String(100), nullable=False, index=True)
     title = db.Column(db.String(500), nullable=False)
     description = db.Column(db.Text)
     
     # Configuration (JSON) - stores parameters for regeneration
-    # model_analysis: {'model_slug': str, 'date_range': {start, end}}
-    # app_analysis (template comparison): {'template_slug': str, 'filter_models': [str], 'date_range': {start, end}}
-    # tool_analysis: {'tool_name': str (optional), 'filter_model': str (optional), 'filter_app': int (optional), 'date_range': {start, end}}
-    config = db.Column(db.Text, nullable=False)  # JSON: Configuration specific to report type
+    config = db.Column(db.Text, nullable=False, default='{}')
     
-    # Output configuration
-    format = db.Column(db.String(50), nullable=False)  # 'html', 'json' (pdf/excel removed)
-    file_path = db.Column(db.String(500))  # Relative path from reports directory
-    file_size = db.Column(db.Integer)  # File size in bytes
+    # Report data (JSON) - the actual report content
+    # Stored directly in DB for fast access - no file I/O needed
+    report_data = db.Column(db.Text)
+    
+    # Legacy fields (kept for migration compatibility)
+    format = db.Column(db.String(50), default='json')  # Always 'json' now
+    file_path = db.Column(db.String(500))  # Deprecated - kept for migration
+    file_size = db.Column(db.Integer)  # Deprecated - kept for migration
     
     # Status and processing
-    status = db.Column(db.String(50), default='pending', nullable=False, index=True)  # 'pending', 'generating', 'completed', 'failed'
+    status = db.Column(db.String(50), default='pending', nullable=False, index=True)
     error_message = db.Column(db.Text)
     progress_percent = db.Column(db.Integer, default=0)
     
@@ -41,10 +46,10 @@ class Report(db.Model):
     created_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), default=utc_now, nullable=False, index=True)
     completed_at = db.Column(db.DateTime(timezone=True))
-    expires_at = db.Column(db.DateTime(timezone=True))  # Optional expiration for cleanup
+    expires_at = db.Column(db.DateTime(timezone=True))
     
-    # Statistics and summary (denormalized for quick display)
-    summary = db.Column(db.Text)  # JSON: Quick stats about the report content
+    # Statistics and summary (denormalized for quick list display)
+    summary = db.Column(db.Text)
     
     # Relationships
     analysis_task_id = db.Column(db.Integer, db.ForeignKey('analysis_tasks.id'), nullable=True)
@@ -74,6 +79,19 @@ class Report(db.Model):
         """Set configuration from dictionary."""
         self.config = json.dumps(config_dict)
     
+    def get_report_data(self) -> Optional[Dict[str, Any]]:
+        """Get full report data as dictionary."""
+        if self.report_data:
+            try:
+                return json.loads(self.report_data)
+            except json.JSONDecodeError:
+                return None
+        return None
+    
+    def set_report_data(self, data: Dict[str, Any]) -> None:
+        """Set report data from dictionary."""
+        self.report_data = json.dumps(data, default=str)
+    
     def get_summary(self) -> Dict[str, Any]:
         """Get summary as dictionary."""
         if self.summary:
@@ -87,23 +105,15 @@ class Report(db.Model):
         """Set summary from dictionary."""
         self.summary = json.dumps(summary_dict)
     
-    def get_absolute_path(self, reports_dir: Path) -> Optional[Path]:
-        """Get absolute file path."""
-        if self.file_path:
-            return reports_dir / self.file_path
-        return None
-    
     def mark_generating(self) -> None:
         """Mark report as generating."""
         self.status = 'generating'
         self.progress_percent = 0
         self.error_message = None
     
-    def mark_completed(self, file_path: str, file_size: int) -> None:
+    def mark_completed(self) -> None:
         """Mark report as completed."""
         self.status = 'completed'
-        self.file_path = file_path
-        self.file_size = file_size
         self.completed_at = utc_now()
         self.progress_percent = 100
         self.error_message = None
@@ -126,39 +136,22 @@ class Report(db.Model):
             
             # Handle timezone-aware/naive comparison
             if expires.tzinfo is None:
-                # expires_at is naive, compare with naive now
                 from datetime import datetime
                 now = datetime.utcnow()
             elif now.tzinfo is None:
-                # now is naive but expires is aware - shouldn't happen with utc_now()
-                # but handle it anyway by making now aware
                 import pytz
                 now = pytz.utc.localize(now)
             
             return now > expires
         return False
     
-    def validate_config_for_type(self) -> bool:
+    def to_dict(self, include_data: bool = False) -> Dict[str, Any]:
         """
-        Validate that config matches the requirements for report_type.
+        Convert model to dictionary.
         
-        Returns:
-            True if valid, False otherwise
+        Args:
+            include_data: If True, include full report_data (can be large)
         """
-        config = self.get_config()
-        
-        if self.report_type == 'model_analysis':
-            return 'model_slug' in config
-        elif self.report_type == 'app_analysis':
-            return 'app_number' in config
-        elif self.report_type == 'tool_analysis':
-            # Tool analysis is flexible - all fields are optional
-            return True
-        
-        return False
-    
-    def to_dict(self, include_file_path: bool = False) -> Dict[str, Any]:
-        """Convert model to dictionary."""
         data = {
             'id': self.id,
             'report_id': self.report_id,
@@ -167,7 +160,6 @@ class Report(db.Model):
             'description': self.description,
             'config': self.get_config(),
             'format': self.format,
-            'file_size': self.file_size,
             'status': self.status,
             'error_message': self.error_message,
             'progress_percent': self.progress_percent,
@@ -176,13 +168,11 @@ class Report(db.Model):
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
             'expires_at': self.expires_at.isoformat() if self.expires_at else None,
             'summary': self.get_summary(),
-            'analysis_task_id': self.analysis_task_id,
-            'generated_app_id': self.generated_app_id,
             'is_expired': self.is_expired()
         }
         
-        if include_file_path:
-            data['file_path'] = self.file_path
+        if include_data:
+            data['data'] = self.get_report_data()
         
         return data
     

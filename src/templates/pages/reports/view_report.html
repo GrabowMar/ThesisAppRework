@@ -1,5 +1,7 @@
 {% extends 'layouts/base.html' %}
-{% set page_title = 'View Report - ' + report.title %}
+{% set active_page = 'reports' %}
+{% set page_title = report.title %}
+{% set page_icon = 'fa-solid fa-file-lines' %}
 
 {% block head_styles %}
 <style>
@@ -8,6 +10,27 @@
     .container-xl { max-width: 100% !important; margin: 0 !important; }
     .card { break-inside: avoid; page-break-inside: avoid; }
   }
+  
+  /* Report content styles */
+  .report-section { margin-bottom: 1.5rem; }
+  .severity-critical { color: #d63939; }
+  .severity-high { color: #f76707; }
+  .severity-medium { color: #f59f00; }
+  .severity-low { color: #2fb344; }
+  .severity-info { color: #0ea5e9; }
+  
+  .finding-card { border-left: 4px solid; margin-bottom: 0.5rem; }
+  .finding-card.critical { border-left-color: #d63939; }
+  .finding-card.high { border-left-color: #f76707; }
+  .finding-card.medium { border-left-color: #f59f00; }
+  .finding-card.low { border-left-color: #2fb344; }
+  
+  .tool-status-success { color: #2fb344; }
+  .tool-status-error { color: #d63939; }
+  .tool-status-no_issues { color: #206bc4; }
+  
+  .comparison-cell { text-align: center; }
+  .comparison-cell.winner { background-color: rgba(47, 179, 68, 0.1); }
 </style>
 {% endblock %}
 
@@ -15,169 +38,547 @@
 
 {% block content %}
 <div class="container-xl">
-    <!-- Professional Header -->
-    <div class="page-header d-print-none mb-4">
-        <div class="card bg-secondary-lt border-0">
-            <div class="card-body py-4">
-                <div class="row align-items-center">
-                    <div class="col-auto">
-                        <span class="avatar avatar-lg bg-secondary text-white">
-                            <i class="ti ti-file-analytics fs-2"></i>
-                        </span>
-                    </div>
-                    <div class="col">
-                        <div class="d-flex align-items-center mb-1">
-                            <span class="badge bg-secondary me-2">Report Preview</span>
-                            <span class="badge bg-{{ 'primary' if report.report_type == 'model_analysis' else 'purple' if report.report_type == 'app_analysis' else 'green' }}-lt">
-                                {{ report.report_type.replace('_', ' ')|title }}
-                            </span>
-                        </div>
-                        <h1 class="page-title mb-1">{{ report.title }}</h1>
-                        <div class="text-muted d-flex flex-wrap gap-3 mt-2">
-                            <span><i class="ti ti-calendar me-1"></i>{{ report.created_at.strftime('%Y-%m-%d %H:%M') if report.created_at else 'N/A' }}</span>
-                            <span><i class="ti ti-file-type-html me-1"></i>{{ report.format|upper }} format</span>
-                            <span>
-                                <i class="ti ti-{{ 'circle-check text-success' if report.status == 'completed' else 'loader text-warning' if report.status == 'generating' else 'circle-x text-danger' }} me-1"></i>
-                                {{ report.status|title }}
-                            </span>
-                        </div>
-                    </div>
-                    <div class="col-auto d-flex gap-2">
-                        <a href="{{ url_for('api.reports_api.download_report', report_id=report.report_id) }}" class="btn btn-primary">
-                            <i class="ti ti-download me-2"></i>Download
-                        </a>
-                        <a href="{{ url_for('reports.reports_index') }}" class="btn btn-outline-secondary">
-                            <i class="ti ti-arrow-left me-2"></i>Back
-                        </a>
-                    </div>
-                </div>
-            </div>
+  {# Header #}
+  <div class="page-header mb-4 no-print">
+    <div class="row align-items-center">
+      <div class="col-auto">
+        <a href="{{ url_for('reports.reports_index') }}" class="btn btn-ghost-secondary btn-icon">
+          <i class="fa-solid fa-arrow-left"></i>
+        </a>
+      </div>
+      <div class="col">
+        <div class="d-flex align-items-center gap-2 mb-1">
+          {% set type_badges = {
+            'model_analysis': ('bg-primary', 'Model Analysis'),
+            'template_comparison': ('bg-purple', 'Template Comparison'),
+            'tool_analysis': ('bg-green', 'Tool Analysis')
+          } %}
+          {% set badge_class, badge_text = type_badges.get(report.report_type, ('bg-secondary', report.report_type)) %}
+          <span class="badge {{ badge_class }}">{{ badge_text }}</span>
+          <span class="badge bg-success">Completed</span>
         </div>
+        <h1 class="page-title mb-0">{{ report.title }}</h1>
+        {% if report.description %}
+        <p class="text-muted mb-0 mt-1">{{ report.description }}</p>
+        {% endif %}
+      </div>
+      <div class="col-auto d-flex gap-2">
+        <button class="btn btn-ghost-primary" onclick="window.print()">
+          <i class="fa-solid fa-print me-2"></i>Print
+        </button>
+        <button class="btn btn-primary" onclick="downloadJSON()">
+          <i class="fa-solid fa-download me-2"></i>Download JSON
+        </button>
+      </div>
     </div>
-
-    <!-- Report Details Card -->
-    <div class="card mb-3">
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="ti ti-info-circle me-2"></i>Report Details
-            </h3>
+  </div>
+  
+  {# Loading state #}
+  <div id="loading-state" class="text-center py-5">
+    <div class="spinner-border text-primary mb-3" role="status"></div>
+    <p class="text-muted">Loading report data...</p>
+  </div>
+  
+  {# Error state #}
+  <div id="error-state" class="d-none">
+    <div class="alert alert-danger">
+      <div class="d-flex">
+        <i class="fa-solid fa-exclamation-triangle me-3 fa-2x"></i>
+        <div>
+          <h4 class="alert-title">Failed to load report</h4>
+          <p id="error-message" class="mb-0">An error occurred while loading the report data.</p>
         </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-3">
-                    <div class="mb-3">
-                        <div class="text-muted small mb-1">Report ID</div>
-                        <div class="h4 mb-0"><code>{{ report.report_id }}</code></div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="mb-3">
-                        <div class="text-muted small mb-1">Report Type</div>
-                        <div class="h4 mb-0">
-                            <span class="badge bg-{{ 'primary' if report.report_type == 'model_analysis' else 'purple' if report.report_type == 'app_analysis' else 'green' }}">
-                                {{ report.report_type.replace('_', ' ')|title }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="mb-3">
-                        <div class="text-muted small mb-1">Output Format</div>
-                        <div class="h4 mb-0">{{ report.format|upper }}</div>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="mb-3">
-                        <div class="text-muted small mb-1">Status</div>
-                        <div class="h4 mb-0">
-                            <span class="badge bg-{{ 'success' if report.status == 'completed' else 'warning' if report.status in ['pending', 'generating'] else 'danger' }}">
-                                <i class="ti ti-{{ 'circle-check' if report.status == 'completed' else 'loader' if report.status == 'generating' else 'clock' if report.status == 'pending' else 'circle-x' }} me-1"></i>
-                                {{ report.status|title }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            {% if report.description %}
-            <hr class="my-3">
-            <div class="row">
-                <div class="col-12">
-                    <div class="text-muted small mb-1">Description</div>
-                    <p class="mb-0">{{ report.description }}</p>
-                </div>
-            </div>
-            {% endif %}
-            
-            {% if report.get_summary %}
-            <hr class="my-3">
-            <div class="row">
-                <div class="col-12">
-                    <div class="text-muted small mb-2">Report Summary</div>
-                    {% set summary = report.get_summary() %}
-                    {% if summary %}
-                    <div class="d-flex flex-wrap gap-2">
-                        {% for key, value in summary.items() if key != 'generated_at' %}
-                        <div class="card card-sm">
-                            <div class="card-body py-2 px-3">
-                                <span class="text-muted small">{{ key.replace('_', ' ')|title }}:</span>
-                                <strong class="ms-1">{{ value }}</strong>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-            {% endif %}
-        </div>
+      </div>
     </div>
-
-    <!-- Metadata Card -->
-    <div class="card">
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="ti ti-clock me-2"></i>Timestamps
-            </h3>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-4">
-                    <div class="text-muted small mb-1">Created At</div>
-                    <div class="h5 mb-0">{{ report.created_at.strftime('%Y-%m-%d %H:%M:%S') if report.created_at else 'N/A' }}</div>
-                </div>
-                <div class="col-md-4">
-                    <div class="text-muted small mb-1">Completed At</div>
-                    <div class="h5 mb-0">{{ report.completed_at.strftime('%Y-%m-%d %H:%M:%S') if report.completed_at else 'N/A' }}</div>
-                </div>
-                <div class="col-md-4">
-                    <div class="text-muted small mb-1">Expires At</div>
-                    <div class="h5 mb-0">{{ report.expires_at.strftime('%Y-%m-%d') if report.expires_at else 'Never' }}</div>
-                </div>
-            </div>
-            
-            {% if report.file_path and report.file_size %}
-            <hr class="my-3">
-            <div class="row">
-                <div class="col-md-6">
-                    <div class="text-muted small mb-1">File Path</div>
-                    <code class="small">{{ report.file_path }}</code>
-                </div>
-                <div class="col-md-6">
-                    <div class="text-muted small mb-1">File Size</div>
-                    <div class="h5 mb-0">
-                        {% if report.file_size < 1024 %}
-                            {{ report.file_size }} bytes
-                        {% elif report.file_size < 1048576 %}
-                            {{ "%.1f"|format(report.file_size / 1024) }} KB
-                        {% else %}
-                            {{ "%.2f"|format(report.file_size / 1048576) }} MB
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-        </div>
-    </div>
+    <a href="{{ url_for('reports.reports_index') }}" class="btn btn-secondary">
+      <i class="fa-solid fa-arrow-left me-2"></i>Back to Reports
+    </a>
+  </div>
+  
+  {# Report content (populated by JavaScript) #}
+  <div id="report-content" class="d-none"></div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  const reportId = '{{ report_id }}';
+  const reportType = '{{ report.report_type }}';
+  const loadingState = document.getElementById('loading-state');
+  const errorState = document.getElementById('error-state');
+  const errorMessage = document.getElementById('error-message');
+  const reportContent = document.getElementById('report-content');
+  
+  let reportData = null;
+  
+  // Fetch report data
+  async function loadReport() {
+    try {
+      const response = await fetch(`/api/reports/${reportId}/data`);
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to load report');
+      }
+      
+      reportData = result.data;
+      loadingState.classList.add('d-none');
+      reportContent.classList.remove('d-none');
+      renderReport();
+      
+    } catch (e) {
+      console.error('Failed to load report:', e);
+      loadingState.classList.add('d-none');
+      errorMessage.textContent = e.message;
+      errorState.classList.remove('d-none');
+    }
+  }
+  
+  // Download JSON
+  window.downloadJSON = function() {
+    if (!reportData) return;
+    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `report_${reportId}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  
+  // Escape HTML
+  function h(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+  }
+  
+  // Format number with commas
+  function formatNumber(n) {
+    return (n || 0).toLocaleString();
+  }
+  
+  // Severity badge
+  function severityBadge(sev) {
+    const colors = {
+      critical: 'bg-danger',
+      high: 'bg-orange',
+      medium: 'bg-yellow text-dark',
+      low: 'bg-success',
+      info: 'bg-info'
+    };
+    return `<span class="badge ${colors[sev?.toLowerCase()] || 'bg-secondary'}">${h(sev || 'Unknown')}</span>`;
+  }
+  
+  // Render the report based on type
+  function renderReport() {
+    switch(reportType) {
+      case 'model_analysis':
+        renderModelAnalysis();
+        break;
+      case 'template_comparison':
+        renderTemplateComparison();
+        break;
+      case 'tool_analysis':
+        renderToolAnalysis();
+        break;
+      default:
+        renderGenericReport();
+    }
+  }
+  
+  // === Model Analysis Report ===
+  function renderModelAnalysis() {
+    const d = reportData;
+    const summary = d.summary || {};
+    const apps = d.apps || [];
+    const tools = d.tool_summary || {};
+    const findings = d.findings_breakdown || {};
+    
+    let html = `
+      <!-- Summary Cards -->
+      <div class="row row-deck row-cards mb-4">
+        <div class="col-sm-6 col-lg-3">
+          <div class="card">
+            <div class="card-body">
+              <div class="d-flex align-items-center">
+                <div class="subheader">Applications</div>
+              </div>
+              <div class="h1 mb-0">${formatNumber(summary.total_apps)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="card">
+            <div class="card-body">
+              <div class="d-flex align-items-center">
+                <div class="subheader">Analyses</div>
+              </div>
+              <div class="h1 mb-0">${formatNumber(summary.total_analyses)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="card">
+            <div class="card-body">
+              <div class="d-flex align-items-center">
+                <div class="subheader">Total Findings</div>
+              </div>
+              <div class="h1 mb-0">${formatNumber(summary.total_findings)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="card">
+            <div class="card-body">
+              <div class="d-flex align-items-center">
+                <div class="subheader">Avg Findings/App</div>
+              </div>
+              <div class="h1 mb-0">${(summary.avg_findings_per_app || 0).toFixed(1)}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Severity Breakdown -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fa-solid fa-chart-pie me-2"></i>Findings by Severity</h3>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            ${Object.entries(findings).map(([sev, count]) => `
+              <div class="col-sm-6 col-lg-2">
+                <div class="text-center p-3">
+                  <div class="h2 mb-0 severity-${sev.toLowerCase()}">${formatNumber(count)}</div>
+                  <div class="text-muted">${sev}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+      
+      <!-- Applications Table -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fa-solid fa-folder me-2"></i>Applications</h3>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-vcenter card-table">
+            <thead>
+              <tr>
+                <th>App</th>
+                <th>Template</th>
+                <th>Status</th>
+                <th>Findings</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${apps.map(app => `
+                <tr>
+                  <td><strong>App ${app.app_number}</strong></td>
+                  <td><span class="badge bg-blue-lt">${h(app.template_slug || 'N/A')}</span></td>
+                  <td>${app.has_analysis ? '<span class="badge bg-success">Analyzed</span>' : '<span class="badge bg-warning">Pending</span>'}</td>
+                  <td>${formatNumber(app.findings_count)}</td>
+                  <td>
+                    <span class="text-muted small">
+                      ${Object.entries(app.severity_breakdown || {}).map(([s, c]) => `${s}: ${c}`).join(', ') || 'No findings'}
+                    </span>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <!-- Tool Summary -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fa-solid fa-wrench me-2"></i>Tool Performance</h3>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-vcenter card-table">
+            <thead>
+              <tr>
+                <th>Tool</th>
+                <th>Runs</th>
+                <th>Success</th>
+                <th>Findings</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${Object.entries(tools).map(([name, tool]) => `
+                <tr>
+                  <td><strong>${h(tool.display_name || name)}</strong></td>
+                  <td>${formatNumber(tool.total_runs)}</td>
+                  <td>${tool.success_rate ? tool.success_rate.toFixed(0) + '%' : 'N/A'}</td>
+                  <td>${formatNumber(tool.total_findings)}</td>
+                  <td>
+                    <span class="tool-status-${tool.overall_status}">
+                      <i class="fa-solid fa-${tool.overall_status === 'success' ? 'check' : tool.overall_status === 'error' ? 'times' : 'minus'} me-1"></i>
+                      ${tool.overall_status || 'unknown'}
+                    </span>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    
+    reportContent.innerHTML = html;
+  }
+  
+  // === Template Comparison Report ===
+  function renderTemplateComparison() {
+    const d = reportData;
+    const summary = d.summary || {};
+    const models = d.models || [];
+    const rankings = d.rankings || {};
+    
+    let html = `
+      <!-- Summary -->
+      <div class="row row-deck row-cards mb-4">
+        <div class="col-sm-6 col-lg-3">
+          <div class="card">
+            <div class="card-body">
+              <div class="subheader">Template</div>
+              <div class="h3 mb-0">${h(summary.template_slug || 'N/A')}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="card">
+            <div class="card-body">
+              <div class="subheader">Models Compared</div>
+              <div class="h1 mb-0">${formatNumber(summary.models_compared)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="card">
+            <div class="card-body">
+              <div class="subheader">Total Analyses</div>
+              <div class="h1 mb-0">${formatNumber(summary.total_analyses)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="card">
+            <div class="card-body">
+              <div class="subheader">Best Model</div>
+              <div class="h4 mb-0">${h(rankings.best_overall?.model || 'N/A')}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Model Comparison Table -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fa-solid fa-scale-balanced me-2"></i>Model Comparison</h3>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-vcenter card-table">
+            <thead>
+              <tr>
+                <th>Model</th>
+                <th>Critical</th>
+                <th>High</th>
+                <th>Medium</th>
+                <th>Low</th>
+                <th>Total</th>
+                <th>Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${models.map(m => {
+                const sev = m.severity_breakdown || {};
+                const isWinner = rankings.best_overall?.model === m.model_slug;
+                return `
+                  <tr class="${isWinner ? 'table-success' : ''}">
+                    <td>
+                      <strong>${h(m.model_name || m.model_slug)}</strong>
+                      ${isWinner ? '<span class="badge bg-success ms-2">Best</span>' : ''}
+                    </td>
+                    <td class="severity-critical">${formatNumber(sev.critical || sev.CRITICAL || 0)}</td>
+                    <td class="severity-high">${formatNumber(sev.high || sev.HIGH || 0)}</td>
+                    <td class="severity-medium">${formatNumber(sev.medium || sev.MEDIUM || 0)}</td>
+                    <td class="severity-low">${formatNumber(sev.low || sev.LOW || 0)}</td>
+                    <td><strong>${formatNumber(m.total_findings)}</strong></td>
+                    <td>${m.score ? m.score.toFixed(1) : 'N/A'}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <!-- Rankings -->
+      ${Object.keys(rankings).length > 0 ? `
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><i class="fa-solid fa-trophy me-2"></i>Rankings</h3>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              ${rankings.by_severity ? Object.entries(rankings.by_severity).map(([sev, data]) => `
+                <div class="col-md-4 mb-3">
+                  <div class="card card-sm">
+                    <div class="card-body">
+                      <div class="text-muted mb-1">Fewest ${sev} Issues</div>
+                      <div class="h4 mb-0">${h(data?.model || 'N/A')}</div>
+                      <div class="text-muted small">${formatNumber(data?.count || 0)} findings</div>
+                    </div>
+                  </div>
+                </div>
+              `).join('') : ''}
+            </div>
+          </div>
+        </div>
+      ` : ''}
+    `;
+    
+    reportContent.innerHTML = html;
+  }
+  
+  // === Tool Analysis Report ===
+  function renderToolAnalysis() {
+    const d = reportData;
+    const summary = d.summary || {};
+    const tools = d.tools || [];
+    const categories = d.categories || {};
+    
+    let html = `
+      <!-- Summary -->
+      <div class="row row-deck row-cards mb-4">
+        <div class="col-sm-6 col-lg-3">
+          <div class="card">
+            <div class="card-body">
+              <div class="subheader">Tools Analyzed</div>
+              <div class="h1 mb-0">${formatNumber(summary.tools_analyzed)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="card">
+            <div class="card-body">
+              <div class="subheader">Total Runs</div>
+              <div class="h1 mb-0">${formatNumber(summary.total_runs)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="card">
+            <div class="card-body">
+              <div class="subheader">Total Findings</div>
+              <div class="h1 mb-0">${formatNumber(summary.total_findings)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+          <div class="card">
+            <div class="card-body">
+              <div class="subheader">Avg Success Rate</div>
+              <div class="h1 mb-0">${summary.avg_success_rate ? summary.avg_success_rate.toFixed(0) + '%' : 'N/A'}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Tools Table -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fa-solid fa-tools me-2"></i>Tool Performance</h3>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-vcenter card-table">
+            <thead>
+              <tr>
+                <th>Tool</th>
+                <th>Container</th>
+                <th>Total Runs</th>
+                <th>Success Rate</th>
+                <th>Findings</th>
+                <th>Avg/Run</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tools.map(t => `
+                <tr>
+                  <td><strong>${h(t.display_name || t.name)}</strong></td>
+                  <td><span class="badge bg-azure-lt">${h(t.container || 'unknown')}</span></td>
+                  <td>${formatNumber(t.total_runs)}</td>
+                  <td>
+                    <div class="d-flex align-items-center gap-2">
+                      <div class="progress flex-grow-1" style="height: 6px;">
+                        <div class="progress-bar ${t.success_rate >= 80 ? 'bg-success' : t.success_rate >= 50 ? 'bg-warning' : 'bg-danger'}" style="width: ${t.success_rate || 0}%"></div>
+                      </div>
+                      <span class="small">${t.success_rate ? t.success_rate.toFixed(0) + '%' : 'N/A'}</span>
+                    </div>
+                  </td>
+                  <td>${formatNumber(t.total_findings)}</td>
+                  <td>${(t.avg_findings || 0).toFixed(1)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <!-- Categories -->
+      ${Object.keys(categories).length > 0 ? `
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title"><i class="fa-solid fa-layer-group me-2"></i>By Container</h3>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              ${Object.entries(categories).map(([cat, data]) => `
+                <div class="col-md-4 mb-3">
+                  <div class="card card-sm">
+                    <div class="card-body">
+                      <h4 class="mb-2">${h(cat)}</h4>
+                      <div class="d-flex justify-content-between text-muted small">
+                        <span>Tools: ${formatNumber(data.tools_count)}</span>
+                        <span>Findings: ${formatNumber(data.total_findings)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      ` : ''}
+    `;
+    
+    reportContent.innerHTML = html;
+  }
+  
+  // === Generic Report ===
+  function renderGenericReport() {
+    reportContent.innerHTML = `
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Report Data</h3>
+        </div>
+        <div class="card-body">
+          <pre class="mb-0"><code>${h(JSON.stringify(reportData, null, 2))}</code></pre>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Load report on page load
+  loadReport();
+})();
+</script>
 {% endblock %}
