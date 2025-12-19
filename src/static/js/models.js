@@ -298,7 +298,7 @@ function persistUiState() {
   try { localStorage.setItem('models_ui_state', JSON.stringify({ perPage, source: currentSource })); } catch(e) {}
 }
 function setModelsSource(src) {
-  if (!src || (src !== 'db' && src !== 'openrouter' && src !== 'used')) return;
+  if (!src || (src !== 'db' && src !== 'used')) return;
   currentSource = src;
   currentPage = 1; // reset page
   updateSourceButtons();
@@ -308,16 +308,15 @@ function setModelsSource(src) {
 function updateSourceButtons() {
   const dbBtn = document.getElementById('src-db');
   const usedBtn = document.getElementById('src-used');
-  const orBtn = document.getElementById('src-openrouter');
-  if (dbBtn && orBtn) {
+  if (dbBtn) {
     dbBtn.classList.toggle('active', currentSource === 'db');
-    if (usedBtn) usedBtn.classList.toggle('active', currentSource === 'used');
-    orBtn.classList.toggle('active', currentSource === 'openrouter');
+  }
+  if (usedBtn) {
+    usedBtn.classList.toggle('active', currentSource === 'used');
   }
   const ind = document.getElementById('models-source-indicator');
   if (ind) {
-    ind.textContent = currentSource === 'openrouter' ? 'OpenRouter catalog'
-      : currentSource === 'used' ? 'Installed / used models'
+    ind.textContent = currentSource === 'used' ? 'Models used for generation'
       : 'All database models';
   }
 }
@@ -448,7 +447,7 @@ function loadModelsPaginated() {
   params.append('per_page', String(perPage));
   if (currentSource === 'used') {
     params.append('source', 'db');
-    params.append('installed_only', '1');
+    params.append('has_apps', '1');  // Filter by models with generated applications
   } else {
     params.append('source', currentSource);
   }
@@ -849,7 +848,7 @@ function viewModelDetails(slug) {
 }
 function refreshModels() { loadModelsPaginated(); }
 function syncFromOpenRouter() {
-  const btn = document.querySelector('button[onclick="syncFromOpenRouter()"]');
+  const btn = document.getElementById('btn-sync-openrouter');
   if (!btn) return;
   
   // Store original state
@@ -873,31 +872,35 @@ function syncFromOpenRouter() {
       return r.json();
     })
     .then(result => {
+      // Extract data from standardized API envelope
+      const data = result.data || result;
+      const upserted = data.upserted || 0;
+      const fetched = data.fetched || 0;
+      
       // Show success message
-      const message = `Successfully synced ${result.upserted || 0} models from OpenRouter`;
+      const message = `Successfully synced ${upserted} models from OpenRouter (${fetched} total fetched)`;
       
       // Create temporary success indicator
       btn.innerHTML = '<i class="fas fa-check text-success me-1"></i><span class="d-none d-md-inline">Synced!</span>';
       
-      // Show a brief success notification (you can customize this)
+      // Show a brief success notification
       if (window.bootstrap && window.bootstrap.Toast) {
-        // If Bootstrap toasts are available
+        const toastContainer = document.getElementById('toast-container') || document.body;
         const toastEl = document.createElement('div');
         toastEl.className = 'toast align-items-center text-bg-success border-0';
         toastEl.setAttribute('role', 'alert');
         toastEl.innerHTML = `
           <div class="d-flex">
-            <div class="toast-body">${message}</div>
+            <div class="toast-body"><i class="fas fa-check-circle me-2"></i>${message}</div>
             <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
           </div>
         `;
-        document.body.appendChild(toastEl);
-        const toast = new bootstrap.Toast(toastEl);
+        toastContainer.appendChild(toastEl);
+        const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
         toast.show();
         toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
       } else {
-        // Fallback to alert
-        alert(message);
+        console.log('[OpenRouter Sync]', message);
       }
       
       // Refresh the models table to show new data
@@ -915,8 +918,25 @@ function syncFromOpenRouter() {
       // Show error state
       btn.innerHTML = '<i class="fas fa-exclamation-triangle text-danger me-1"></i><span class="d-none d-md-inline">Error</span>';
       
-      // Show error message
-      alert(`Failed to sync from OpenRouter: ${err.message || 'Unknown error'}`);
+      // Show error notification
+      if (window.bootstrap && window.bootstrap.Toast) {
+        const toastContainer = document.getElementById('toast-container') || document.body;
+        const toastEl = document.createElement('div');
+        toastEl.className = 'toast align-items-center text-bg-danger border-0';
+        toastEl.setAttribute('role', 'alert');
+        toastEl.innerHTML = `
+          <div class="d-flex">
+            <div class="toast-body"><i class="fas fa-exclamation-circle me-2"></i>Sync failed: ${err.message || 'Unknown error'}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+          </div>
+        `;
+        toastContainer.appendChild(toastEl);
+        const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+        toast.show();
+        toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+      } else {
+        alert(`Failed to sync from OpenRouter: ${err.message || 'Unknown error'}`);
+      }
       
       // Reset button after a delay
       setTimeout(() => {

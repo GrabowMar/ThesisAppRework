@@ -44,9 +44,11 @@
 			</label>
 			<div class="btn-group btn-group-sm" role="group" aria-label="Model data source">
 				<button type="button" class="btn btn-outline-secondary active" id="src-db" onclick="setModelsSource('db')"><i class="fas fa-database me-1" aria-hidden="true"></i>All</button>
-				<button type="button" class="btn btn-outline-secondary" id="src-used" onclick="setModelsSource('used')" title="Locally installed / used"><i class="fas fa-tag me-1" aria-hidden="true"></i>Used</button>
-				<button type="button" class="btn btn-outline-secondary" id="src-openrouter" onclick="setModelsSource('openrouter')"><i class="fas fa-cloud me-1" aria-hidden="true"></i>OpenRouter</button>
+				<button type="button" class="btn btn-outline-secondary" id="src-used" onclick="setModelsSource('used')" title="Models used for app generation"><i class="fas fa-tag me-1" aria-hidden="true"></i>Used</button>
 			</div>
+			<button type="button" class="btn btn-sm btn-outline-info" id="btn-sync-openrouter" onclick="syncFromOpenRouter()" title="Refresh models from OpenRouter API">
+				<i class="fas fa-cloud-download-alt me-1" aria-hidden="true"></i><span class="d-none d-md-inline">Sync OpenRouter</span>
+			</button>
 			<span class="text-muted small" id="models-source-indicator"></span>
 			<div class="btn-list">
 				<button class="btn btn-sm btn-primary" onclick="compareSelectedModels()" title="Compare selected models" type="button" id="compare-models-btn" disabled><i class="fas fa-balance-scale me-1" aria-hidden="true"></i>Compare</button>

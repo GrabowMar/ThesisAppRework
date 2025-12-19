@@ -239,6 +239,18 @@ def api_models_paginated():
         installed_only = request.args.get('installed_only') == '1'
         free_models = request.args.get('free_models') == '1'
         
+        # Pre-compute models that have generated applications (for has_apps filter and display)
+        models_with_apps = set()
+        try:
+            from sqlalchemy import distinct
+            apps_query = GeneratedApplication.query.with_entities(
+                distinct(GeneratedApplication.model_slug)
+            ).all()
+            models_with_apps = {row[0] for row in apps_query if row[0]}
+            current_app.logger.info(f"[Models API] Found {len(models_with_apps)} models with generated apps")
+        except Exception as e:
+            current_app.logger.error(f"[Models API] Error querying apps: {e}")
+        
         # Advanced filters
         features = request.args.getlist('features')  # function_calling, vision, json_mode, streaming
         modalities = request.args.getlist('modalities')  # text, image, audio, video
@@ -337,11 +349,10 @@ def api_models_paginated():
             if installed_only and not getattr(m, 'installed', False):
                 continue
             
-            # Has applications filter
+            # Has applications filter - check if model has generated apps in DB
             if has_apps:
-                # Check if model has any applications in the database
-                # This would need to be implemented based on your schema
-                pass
+                if m.canonical_slug not in models_with_apps:
+                    continue
             
             # Feature filters
             if features:
@@ -464,6 +475,9 @@ def api_models_paginated():
             # Check for feature support
             supported_params = caps_raw.get('supported_parameters', []) if isinstance(caps_raw, dict) else []
             
+            # Check if model has generated applications
+            model_has_apps = m.canonical_slug in models_with_apps if models_with_apps else False
+            
             return {
                 'id': m.model_id,
                 'slug': m.canonical_slug,
@@ -482,6 +496,7 @@ def api_models_paginated():
                 'status': 'active',
                 'description': meta.get('openrouter_description') or meta.get('description') or None,
                 'installed': bool(getattr(m, 'installed', False)),
+                'has_applications': model_has_apps,  # Has generated apps in DB
                 # Feature flags for frontend
                 'supports_function_calling': 'tools' in supported_params or 'tool_choice' in supported_params,
                 'supports_vision': any('image' in str(mod).lower() for mod in arch.get('input_modalities', [])),
