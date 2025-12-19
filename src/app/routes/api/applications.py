@@ -626,8 +626,443 @@ def list_bulk_apps():
     # TODO: Move implementation from api.py
     return api_error("List bulk apps endpoint not yet migrated", 501)
 
+
+@applications_bp.route('/apps/bulk-status', methods=['POST'])
+def get_bulk_status():
+    """
+    Get status for multiple applications in a single request.
+    
+    This is much more efficient than individual status checks as it:
+    1. Uses a single Docker API call to get all container statuses
+    2. Matches containers to requested apps in memory
+    3. Returns cached data when fresh, only refreshing stale entries
+    
+    Request body:
+    {
+        "apps": [
+            {"model": "openai_gpt-4", "app_number": 1},
+            {"model": "anthropic_claude-3", "app_number": 2}
+        ],
+        "force_refresh": false  // Optional: force fresh Docker lookup
+    }
+    
+    Response:
+    {
+        "success": true,
+        "data": {
+            "statuses": {
+                "openai_gpt-4:1": {
+                    "status": "running",
+                    "containers": [...],
+                    "states": ["running", "running"],
+                    "docker_connected": true,
+                    "is_stale": false,
+                    ...
+                },
+                "anthropic_claude-3:2": {...}
+            },
+            "cache_stats": {
+                "total_entries": 10,
+                "fresh_entries": 8,
+                ...
+            }
+        }
+    }
+    """
+    from app.services.service_locator import ServiceLocator
+    
+    # Get request data
+    data = request.get_json()
+    if not data or 'apps' not in data:
+        return api_error("Missing 'apps' in request body", 400)
+    
+    apps_data = data.get('apps', [])
+    force_refresh = data.get('force_refresh', False)
+    
+    if not isinstance(apps_data, list):
+        return api_error("'apps' must be a list", 400)
+    
+    # Parse and validate apps list
+    apps_list = []
+    for item in apps_data:
+        if not isinstance(item, dict):
+            continue
+        model = item.get('model') or item.get('model_slug')
+        app_num = item.get('app_number') or item.get('app')
+        if model and app_num is not None:
+            try:
+                apps_list.append((str(model), int(app_num)))
+            except (ValueError, TypeError):
+                continue
+    
+    if not apps_list:
+        return api_error("No valid apps in request", 400)
+    
+    # Get status cache
+    status_cache = ServiceLocator.get_docker_status_cache()
+    if not status_cache:
+        return api_error("Status cache unavailable", 503)
+    
+    try:
+        # Get bulk status using the efficient cache method
+        statuses = status_cache.get_bulk_status_dict(apps_list, force_refresh=force_refresh)
+        cache_stats = status_cache.get_cache_stats()
+        
+        return api_success({
+            'statuses': statuses,
+            'cache_stats': cache_stats,
+            'apps_requested': len(apps_list),
+            'apps_returned': len(statuses)
+        }, message=f'Retrieved status for {len(statuses)} applications')
+        
+    except Exception as e:
+        current_app.logger.exception("Error in bulk status lookup: %s", e)
+        return api_error(f"Error retrieving bulk status: {e}", 500)
+
 @applications_bp.route('/apps/bulk/docker', methods=['POST'])
 def bulk_docker_operations():
     """Perform bulk Docker operations on applications."""
     # TODO: Move implementation from api.py
     return api_error("Bulk docker operations endpoint not yet migrated", 501)
+
+
+# =============================================================================
+# Container Action Tracking API (Async Operations with Progress)
+# =============================================================================
+
+@applications_bp.route('/app/<model_slug>/<int:app_number>/actions', methods=['GET'])
+def get_app_action_history(model_slug, app_number):
+    """Get container action history for an app.
+    
+    Query Parameters:
+        limit: int - Maximum number of actions to return (default: 20)
+        include_active: bool - Include pending/running actions (default: true)
+    
+    Returns list of past container actions with status and timing info.
+    """
+    from app.services.container_action_service import get_container_action_service
+    
+    try:
+        limit = request.args.get('limit', 20, type=int)
+        include_active = request.args.get('include_active', 'true').lower() == 'true'
+        
+        service = get_container_action_service()
+        actions = service.get_action_history(
+            model_slug=model_slug,
+            app_number=app_number,
+            limit=limit,
+            include_active=include_active,
+        )
+        
+        return api_success({
+            'actions': [a.to_summary_dict() for a in actions],
+            'model_slug': model_slug,
+            'app_number': app_number,
+            'count': len(actions),
+        }, message=f'Retrieved {len(actions)} actions')
+    except Exception as e:
+        return api_error(f'Error retrieving action history: {e}', status=500)
+
+
+@applications_bp.route('/app/<model_slug>/<int:app_number>/actions/active', methods=['GET'])
+def get_app_active_action(model_slug, app_number):
+    """Get currently active action for an app, if any.
+    
+    Returns the active action details or null if no action is in progress.
+    """
+    from app.services.container_action_service import get_container_action_service
+    
+    try:
+        service = get_container_action_service()
+        action = service.get_active_action(model_slug, app_number)
+        
+        if action and action.is_active:
+            return api_success({
+                'action': action.to_dict(),
+                'has_active_action': True,
+            }, message='Active action found')
+        else:
+            return api_success({
+                'action': None,
+                'has_active_action': False,
+            }, message='No active action')
+    except Exception as e:
+        return api_error(f'Error checking active action: {e}', status=500)
+
+
+@applications_bp.route('/app/<model_slug>/<int:app_number>/action/start', methods=['POST'])
+def start_app_container_async(model_slug, app_number):
+    """Start containers asynchronously with progress tracking.
+    
+    Returns immediately with action_id. Poll /container-actions/{action_id}
+    or subscribe to WebSocket events for progress updates.
+    
+    Request Body (optional):
+        triggered_by: str - User/system that triggered the action
+    
+    Returns:
+        action_id: str - Unique action identifier for tracking
+        action: dict - Initial action state
+    """
+    from app.services.container_action_service import get_container_action_service
+    from app.models.container_action import ContainerActionType
+    
+    try:
+        body = request.get_json(silent=True) or {}
+        triggered_by = body.get('triggered_by')
+        
+        service = get_container_action_service(current_app._get_current_object())
+        action, error = service.create_action(
+            action_type=ContainerActionType.START,
+            model_slug=model_slug,
+            app_number=app_number,
+            triggered_by=triggered_by,
+        )
+        
+        if error:
+            return api_error(error, status=409)  # Conflict - action in progress
+        
+        # Submit for async execution
+        service.execute_action_async(action.action_id)
+        
+        return api_success({
+            'action_id': action.action_id,
+            'action': action.to_dict(),
+        }, message=f'Start action queued for {model_slug}/app{app_number}')
+    except Exception as e:
+        return api_error(f'Error creating start action: {e}', status=500)
+
+
+@applications_bp.route('/app/<model_slug>/<int:app_number>/action/stop', methods=['POST'])
+def stop_app_container_async(model_slug, app_number):
+    """Stop containers asynchronously with progress tracking.
+    
+    Returns immediately with action_id for tracking progress.
+    """
+    from app.services.container_action_service import get_container_action_service
+    from app.models.container_action import ContainerActionType
+    
+    try:
+        body = request.get_json(silent=True) or {}
+        triggered_by = body.get('triggered_by')
+        
+        service = get_container_action_service(current_app._get_current_object())
+        action, error = service.create_action(
+            action_type=ContainerActionType.STOP,
+            model_slug=model_slug,
+            app_number=app_number,
+            triggered_by=triggered_by,
+        )
+        
+        if error:
+            return api_error(error, status=409)
+        
+        service.execute_action_async(action.action_id)
+        
+        return api_success({
+            'action_id': action.action_id,
+            'action': action.to_dict(),
+        }, message=f'Stop action queued for {model_slug}/app{app_number}')
+    except Exception as e:
+        return api_error(f'Error creating stop action: {e}', status=500)
+
+
+@applications_bp.route('/app/<model_slug>/<int:app_number>/action/restart', methods=['POST'])
+def restart_app_container_async(model_slug, app_number):
+    """Restart containers asynchronously with progress tracking.
+    
+    Returns immediately with action_id for tracking progress.
+    """
+    from app.services.container_action_service import get_container_action_service
+    from app.models.container_action import ContainerActionType
+    
+    try:
+        body = request.get_json(silent=True) or {}
+        triggered_by = body.get('triggered_by')
+        
+        service = get_container_action_service(current_app._get_current_object())
+        action, error = service.create_action(
+            action_type=ContainerActionType.RESTART,
+            model_slug=model_slug,
+            app_number=app_number,
+            triggered_by=triggered_by,
+        )
+        
+        if error:
+            return api_error(error, status=409)
+        
+        service.execute_action_async(action.action_id)
+        
+        return api_success({
+            'action_id': action.action_id,
+            'action': action.to_dict(),
+        }, message=f'Restart action queued for {model_slug}/app{app_number}')
+    except Exception as e:
+        return api_error(f'Error creating restart action: {e}', status=500)
+
+
+@applications_bp.route('/app/<model_slug>/<int:app_number>/action/build', methods=['POST'])
+def build_app_container_async(model_slug, app_number):
+    """Build containers asynchronously with real-time progress tracking.
+    
+    Returns immediately with action_id. Subscribe to WebSocket events
+    for real-time build progress (layer-by-layer updates).
+    
+    Request Body (optional):
+        triggered_by: str - User/system that triggered the action
+    """
+    from app.services.container_action_service import get_container_action_service
+    from app.models.container_action import ContainerActionType
+    
+    try:
+        body = request.get_json(silent=True) or {}
+        triggered_by = body.get('triggered_by')
+        
+        service = get_container_action_service(current_app._get_current_object())
+        action, error = service.create_action(
+            action_type=ContainerActionType.BUILD,
+            model_slug=model_slug,
+            app_number=app_number,
+            triggered_by=triggered_by,
+        )
+        
+        if error:
+            return api_error(error, status=409)
+        
+        service.execute_action_async(action.action_id)
+        
+        return api_success({
+            'action_id': action.action_id,
+            'action': action.to_dict(),
+        }, message=f'Build action queued for {model_slug}/app{app_number}')
+    except Exception as e:
+        return api_error(f'Error creating build action: {e}', status=500)
+
+
+@applications_bp.route('/container-actions/<action_id>', methods=['GET'])
+def get_container_action(action_id):
+    """Get details of a specific container action.
+    
+    Returns full action details including progress, output, and timing.
+    """
+    from app.services.container_action_service import get_container_action_service
+    
+    try:
+        service = get_container_action_service()
+        action = service.get_action(action_id)
+        
+        if not action:
+            return api_error(f'Action {action_id} not found', status=404)
+        
+        return api_success({
+            'action': action.to_dict(),
+        }, message='Action retrieved')
+    except Exception as e:
+        return api_error(f'Error retrieving action: {e}', status=500)
+
+
+@applications_bp.route('/container-actions/<action_id>/output', methods=['GET'])
+def get_container_action_output(action_id):
+    """Get output stream from a container action.
+    
+    Query Parameters:
+        offset: int - Character offset to start from (for streaming)
+    
+    Returns combined stdout/stderr output, useful for tailing logs.
+    """
+    from app.services.container_action_service import get_container_action_service
+    
+    try:
+        offset = request.args.get('offset', 0, type=int)
+        
+        service = get_container_action_service()
+        action = service.get_action(action_id)
+        
+        if not action:
+            return api_error(f'Action {action_id} not found', status=404)
+        
+        output = action.combined_output or ''
+        if offset > 0 and offset < len(output):
+            output = output[offset:]
+        elif offset >= len(output):
+            output = ''
+        
+        return api_success({
+            'action_id': action_id,
+            'output': output,
+            'total_length': len(action.combined_output or ''),
+            'offset': offset,
+            'status': action.status.value,
+            'progress': action.progress_percentage,
+        }, message='Output retrieved')
+    except Exception as e:
+        return api_error(f'Error retrieving action output: {e}', status=500)
+
+
+@applications_bp.route('/container-actions/<action_id>/cancel', methods=['POST'])
+def cancel_container_action(action_id):
+    """Cancel a pending or running container action.
+    
+    Note: This marks the action as cancelled but may not immediately
+    stop running Docker processes.
+    """
+    from app.services.container_action_service import get_container_action_service
+    
+    try:
+        body = request.get_json(silent=True) or {}
+        reason = body.get('reason', 'Cancelled by user')
+        
+        service = get_container_action_service()
+        success = service.cancel_action(action_id, reason)
+        
+        if success:
+            return api_success({
+                'action_id': action_id,
+                'cancelled': True,
+            }, message='Action cancelled')
+        else:
+            return api_error(f'Cannot cancel action {action_id} (not found or not active)', status=400)
+    except Exception as e:
+        return api_error(f'Error cancelling action: {e}', status=500)
+
+
+@applications_bp.route('/container-actions', methods=['GET'])
+def list_container_actions():
+    """List all container actions with optional filters.
+    
+    Query Parameters:
+        model: str - Filter by model slug
+        app_number: int - Filter by app number
+        status: str - Filter by status (pending, running, completed, failed, cancelled)
+        limit: int - Maximum results (default: 50)
+    """
+    from app.services.container_action_service import get_container_action_service
+    from app.models.container_action import ContainerAction, ContainerActionStatus
+    
+    try:
+        model = request.args.get('model')
+        app_number = request.args.get('app_number', type=int)
+        status = request.args.get('status')
+        limit = request.args.get('limit', 50, type=int)
+        
+        query = ContainerAction.query
+        
+        if model:
+            query = query.filter_by(target_model=model)
+        if app_number is not None:
+            query = query.filter_by(target_app_number=app_number)
+        if status:
+            try:
+                status_enum = ContainerActionStatus(status)
+                query = query.filter_by(status=status_enum)
+            except ValueError:
+                pass  # Invalid status, ignore filter
+        
+        actions = query.order_by(ContainerAction.created_at.desc()).limit(limit).all()
+        
+        return api_success({
+            'actions': [a.to_summary_dict() for a in actions],
+            'count': len(actions),
+        }, message=f'Retrieved {len(actions)} actions')
+    except Exception as e:
+        return api_error(f'Error listing actions: {e}', status=500)

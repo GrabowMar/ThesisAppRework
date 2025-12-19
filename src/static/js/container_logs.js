@@ -4,6 +4,10 @@
  * 
  * Handles real-time display of Docker operation logs in a modal window.
  * Provides visual feedback for build, start, stop, and other container operations.
+ * 
+ * Supports two modes:
+ * 1. Legacy sync mode: Single POST request, waits for completion
+ * 2. Async mode: Returns action_id immediately, polls/streams progress via WebSocket
  */
 
 (function() {
@@ -22,6 +26,16 @@ class ContainerLogsModal {
         this.logs = [];
         this.operationInProgress = false;
         this.abortController = null;
+        
+        // Async action tracking
+        this.currentActionId = null;
+        this.actionPollingInterval = null;
+        this.outputPollingInterval = null;
+        this.lastOutputOffset = 0;
+        this.useAsyncMode = true;  // Enable by default, fall back if needed
+        
+        // WebSocket for real-time updates (if SocketIO available)
+        this.socket = null;
         
         this.init();
     }
@@ -55,6 +69,85 @@ class ContainerLogsModal {
         this.modalCloseButton = document.getElementById('log-modal-close');
         
         this.bindEvents();
+        this.initWebSocket();
+    }
+    
+    /**
+     * Initialize WebSocket connection for real-time updates
+     */
+    initWebSocket() {
+        // Check if SocketIO is available
+        if (typeof io !== 'undefined') {
+            try {
+                this.socket = io();
+                
+                // Listen for container action events
+                this.socket.on('container.progress', (data) => this.handleProgressEvent(data));
+                this.socket.on('container.action_completed', (data) => this.handleCompletedEvent(data));
+                this.socket.on('container.action_failed', (data) => this.handleFailedEvent(data));
+                this.socket.on('container.action_cancelled', (data) => this.handleCancelledEvent(data));
+                
+                console.log('Container logs: WebSocket connected');
+            } catch (e) {
+                console.warn('Container logs: WebSocket initialization failed, using polling', e);
+                this.socket = null;
+            }
+        }
+    }
+    
+    /**
+     * Handle real-time progress event from WebSocket
+     */
+    handleProgressEvent(data) {
+        if (data.action_id !== this.currentActionId) return;
+        
+        // Update progress bar
+        this.updateProgressBar(data.progress);
+        
+        // Update status
+        if (data.step) {
+            this.updateStatus(data.step, `${Math.round(data.progress)}% complete`, 'info');
+        }
+    }
+    
+    /**
+     * Handle action completed event from WebSocket
+     */
+    handleCompletedEvent(data) {
+        if (data.action_id !== this.currentActionId) return;
+        
+        this.stopPolling();
+        this.updateProgressBar(100);
+        this.updateStatus('Completed Successfully', `Duration: ${data.duration_seconds?.toFixed(1)}s`, 'success');
+        this.appendLog('═══════════════════════════════════════════════', 'separator');
+        this.appendLog('✅ Operation completed successfully!', 'success');
+        this.finishOperation();
+    }
+    
+    /**
+     * Handle action failed event from WebSocket
+     */
+    handleFailedEvent(data) {
+        if (data.action_id !== this.currentActionId) return;
+        
+        this.stopPolling();
+        this.updateStatus('Failed', data.error || 'Operation failed', 'danger');
+        this.appendLog('═══════════════════════════════════════════════', 'separator');
+        this.appendLog(`❌ Operation failed: ${data.error || 'Unknown error'}`, 'error');
+        this.finishOperation();
+    }
+    
+    /**
+     * Handle action cancelled event from WebSocket
+     */
+    handleCancelledEvent(data) {
+        if (data.action_id !== this.currentActionId) return;
+        
+        this.stopPolling();
+        this.updateStatus('Cancelled', data.reason || 'Operation was cancelled', 'warning');
+        this.appendLog('═══════════════════════════════════════════════', 'separator');
+        this.appendLog('⚠️ Operation cancelled', 'warning');
+        this.finishOperation();
     }
 
     /**
@@ -102,15 +195,23 @@ class ContainerLogsModal {
 
     /**
      * Show the modal and start an operation
+     * @param {string} operationName - Display name for the operation
+     * @param {string} apiUrl - API endpoint URL
+     * @param {object} payload - Request payload
+     * @param {object} options - Additional options (useAsync: bool)
      */
-    async startOperation(operationName, apiUrl, payload = {}) {
+    async startOperation(operationName, apiUrl, payload = {}, options = {}) {
         this.reset();
         this.operationInProgress = true;
         this.startTime = Date.now();
         
+        // Determine if we should use async mode
+        const useAsync = options.useAsync !== undefined ? options.useAsync : this.useAsyncMode;
+        
         // Configure UI
         document.getElementById('log-operation-name').textContent = operationName;
         this.updateStatus('Starting...', `Initiating ${operationName.toLowerCase()}`);
+        this.showProgressBar();
         this.closeButton.disabled = true;
         this.cancelButton.style.display = 'inline-block';
         this.modalCloseButton.disabled = true;
@@ -125,8 +226,13 @@ class ContainerLogsModal {
         this.abortController = new AbortController();
         
         try {
-            // Make the API call with streaming
-            await this.executeOperation(apiUrl, payload);
+            if (useAsync) {
+                // Try async mode first
+                await this.executeOperationAsync(apiUrl, payload);
+            } else {
+                // Use legacy sync mode
+                await this.executeOperation(apiUrl, payload);
+            }
         } catch (error) {
             if (error.name === 'AbortError') {
                 this.appendLog('❌ Operation cancelled by user', 'error');
@@ -135,13 +241,219 @@ class ContainerLogsModal {
                 this.appendLog(`❌ Error: ${error.message}`, 'error');
                 this.updateStatus('Failed', error.message, 'danger');
             }
-        } finally {
-            this.operationInProgress = false;
-            this.closeButton.disabled = false;
-            this.cancelButton.style.display = 'none';
-            this.modalCloseButton.disabled = false;
-            this.stopTimer();
+            this.finishOperation();
         }
+    }
+    
+    /**
+     * Execute operation in async mode (returns immediately, tracks via action_id)
+     */
+    async executeOperationAsync(apiUrl, payload) {
+        // Convert sync URL to async URL (e.g., /start -> /action/start)
+        const asyncUrl = apiUrl.replace(/\/(start|stop|restart|build)$/, '/action/$1');
+        
+        this.appendLog(`🚀 Starting operation: ${asyncUrl}`, 'info');
+        this.appendLog('═══════════════════════════════════════════════', 'separator');
+        
+        try {
+            const response = await fetch(asyncUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: this.abortController.signal
+            });
+            
+            const result = await response.json();
+            
+            if (!response.ok || !result.success) {
+                // Check if it's a conflict (action already in progress)
+                if (response.status === 409) {
+                    this.appendLog(`⚠️ ${result.error || 'Action already in progress'}`, 'warning');
+                    this.updateStatus('Action in Progress', result.error, 'warning');
+                    this.finishOperation();
+                    return;
+                }
+                throw new Error(result.error || `HTTP ${response.status}`);
+            }
+            
+            // Store action ID and start tracking
+            this.currentActionId = result.action_id;
+            this.appendLog(`📋 Action ID: ${result.action_id}`, 'info');
+            this.appendLog(`📦 Action Type: ${result.action?.action_type || 'unknown'}`, 'info');
+            this.appendLog('─────────────────────────────────────────────', 'separator');
+            
+            // Start polling for status and output (WebSocket will also update)
+            this.startPolling();
+            
+        } catch (error) {
+            // If async endpoint doesn't exist, fall back to sync mode
+            if (error.message.includes('404') || error.message.includes('Not Found')) {
+                console.log('Async endpoint not found, falling back to sync mode');
+                this.appendLog('📡 Using synchronous mode...', 'info');
+                await this.executeOperation(apiUrl.replace('/action/', '/'), payload);
+            } else {
+                throw error;
+            }
+        }
+    }
+    
+    /**
+     * Start polling for action status and output
+     */
+    startPolling() {
+        if (!this.currentActionId) return;
+        
+        // Poll status every 1 second
+        this.actionPollingInterval = setInterval(() => this.pollActionStatus(), 1000);
+        
+        // Poll output every 500ms for near-real-time streaming
+        this.outputPollingInterval = setInterval(() => this.pollActionOutput(), 500);
+    }
+    
+    /**
+     * Stop polling
+     */
+    stopPolling() {
+        if (this.actionPollingInterval) {
+            clearInterval(this.actionPollingInterval);
+            this.actionPollingInterval = null;
+        }
+        if (this.outputPollingInterval) {
+            clearInterval(this.outputPollingInterval);
+            this.outputPollingInterval = null;
+        }
+    }
+    
+    /**
+     * Poll action status
+     */
+    async pollActionStatus() {
+        if (!this.currentActionId) return;
+        
+        try {
+            const response = await fetch(`/api/container-actions/${this.currentActionId}`);
+            if (!response.ok) return;
+            
+            const result = await response.json();
+            if (!result.success || !result.action) return;
+            
+            const action = result.action;
+            
+            // Update progress
+            this.updateProgressBar(action.progress_percentage);
+            
+            // Update status based on action status
+            if (action.status === 'running') {
+                this.updateStatus(
+                    action.current_step || 'Running...',
+                    `${Math.round(action.progress_percentage)}% complete`,
+                    'info'
+                );
+            } else if (action.status === 'completed') {
+                this.stopPolling();
+                this.updateProgressBar(100);
+                this.updateStatus('Completed Successfully', `Duration: ${action.duration_seconds?.toFixed(1)}s`, 'success');
+                this.appendLog('═══════════════════════════════════════════════', 'separator');
+                this.appendLog('✅ Operation completed successfully!', 'success');
+                this.finishOperation();
+            } else if (action.status === 'failed') {
+                this.stopPolling();
+                this.updateStatus('Failed', action.error_message || 'Operation failed', 'danger');
+                this.appendLog('═══════════════════════════════════════════════', 'separator');
+                this.appendLog(`❌ Operation failed: ${action.error_message || 'Unknown error'}`, 'error');
+                this.finishOperation();
+            } else if (action.status === 'cancelled') {
+                this.stopPolling();
+                this.updateStatus('Cancelled', 'Operation was cancelled', 'warning');
+                this.appendLog('═══════════════════════════════════════════════', 'separator');
+                this.appendLog('⚠️ Operation cancelled', 'warning');
+                this.finishOperation();
+            }
+        } catch (error) {
+            console.error('Error polling action status:', error);
+        }
+    }
+    
+    /**
+     * Poll action output for streaming logs
+     */
+    async pollActionOutput() {
+        if (!this.currentActionId) return;
+        
+        try {
+            const response = await fetch(
+                `/api/container-actions/${this.currentActionId}/output?offset=${this.lastOutputOffset}`
+            );
+            if (!response.ok) return;
+            
+            const result = await response.json();
+            if (!result.success) return;
+            
+            // Append new output
+            if (result.output && result.output.length > 0) {
+                // Split by lines and append each
+                const lines = result.output.split('\n');
+                for (const line of lines) {
+                    if (line.trim()) {
+                        // Determine line type based on content
+                        let type = 'output';
+                        if (line.includes('error') || line.includes('Error') || line.includes('ERROR')) {
+                            type = 'error';
+                        } else if (line.includes('warning') || line.includes('Warning') || line.includes('WARN')) {
+                            type = 'warning';
+                        } else if (line.startsWith('#') || line.startsWith('Step ')) {
+                            type = 'info';
+                        }
+                        this.appendLog(line, type);
+                    }
+                }
+                this.lastOutputOffset = result.total_length;
+            }
+        } catch (error) {
+            console.error('Error polling action output:', error);
+        }
+    }
+    
+    /**
+     * Update progress bar
+     */
+    updateProgressBar(percentage) {
+        if (this.progressBar) {
+            this.progressBar.style.width = `${percentage}%`;
+        }
+    }
+    
+    /**
+     * Show progress bar
+     */
+    showProgressBar() {
+        if (this.progressBarContainer) {
+            this.progressBarContainer.style.display = 'block';
+        }
+        this.updateProgressBar(0);
+    }
+    
+    /**
+     * Hide progress bar
+     */
+    hideProgressBar() {
+        if (this.progressBarContainer) {
+            this.progressBarContainer.style.display = 'none';
+        }
+    }
+    
+    /**
+     * Finish operation and reset UI state
+     */
+    finishOperation() {
+        this.operationInProgress = false;
+        this.closeButton.disabled = false;
+        this.cancelButton.style.display = 'none';
+        this.modalCloseButton.disabled = false;
+        this.stopTimer();
+        this.stopPolling();
+        this.currentActionId = null;
+        this.lastOutputOffset = 0;
     }
 
     /**
@@ -399,10 +711,30 @@ class ContainerLogsModal {
     /**
      * Cancel current operation
      */
-    cancelOperation() {
+    async cancelOperation() {
+        // If we have an action ID, cancel via API
+        if (this.currentActionId) {
+            try {
+                const response = await fetch(`/api/container-actions/${this.currentActionId}/cancel`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason: 'Cancelled by user' })
+                });
+                
+                if (response.ok) {
+                    this.appendLog('\n⚠️ Cancellation requested...', 'warning');
+                } else {
+                    // Action may have already completed
+                    this.appendLog('\n⚠️ Could not cancel (action may have already finished)', 'warning');
+                }
+            } catch (error) {
+                console.error('Error cancelling action:', error);
+            }
+        }
+        
+        // Also abort any pending fetch
         if (this.abortController) {
             this.abortController.abort();
-            this.appendLog('\n⚠️ Cancellation requested...', 'warning');
         }
     }
 
@@ -416,6 +748,9 @@ class ContainerLogsModal {
         }
         this.startTime = null;
         this.autoScroll = true;
+        this.currentActionId = null;
+        this.lastOutputOffset = 0;
+        this.stopPolling();
         if (this.elapsedTimeElement) {
             this.elapsedTimeElement.textContent = '0s';
         }
@@ -423,6 +758,7 @@ class ContainerLogsModal {
             this.lineCountElement.textContent = '0 lines';
         }
         this.updateStatus('Initializing...', '', 'info');
+        this.updateProgressBar(0);
     }
 
     /**

@@ -222,25 +222,32 @@ def dashboard_system_status():
     
     try:
         if level == 'comprehensive':
-            # Comprehensive system health (original /system-health-comprehensive logic)
-            from app.services.container_management_service import get_docker_manager
-            docker_mgr = get_docker_manager()
-            if not docker_mgr or not hasattr(docker_mgr, 'get_container_status'):
-                docker_mgr = None
+            # Comprehensive system health - use status cache for efficiency
+            from app.services.service_locator import ServiceLocator
+            from app.models import GeneratedApplication
             
-            # Get all container details
+            status_cache = ServiceLocator.get_docker_status_cache()
+            
+            # Get all container details using bulk status lookup
             containers_info = []
-            for model_slug in ['anthropic_claude-3.7-sonnet', 'openai_gpt-4', 'x-ai_grok-code-fast-1']:
-                for app_num in [1, 2, 3]:
+            
+            if status_cache:
+                # Get all apps from database and check their status via cache
+                apps = GeneratedApplication.query.limit(50).all()  # Reasonable limit
+                if apps:
+                    apps_list = [(app.model_slug, app.app_number) for app in apps]
                     try:
-                        status = docker_mgr.get_container_status(model_slug, app_num) if docker_mgr else None
-                        if status and isinstance(status, dict):
-                            containers_info.append({
-                                'model': model_slug,
-                                'app': app_num,
-                                'status': status.get('status'),
-                                'health': status.get('health', 'unknown')
-                            })
+                        bulk_status = status_cache.get_bulk_status_dict(apps_list)
+                        for app in apps:
+                            key = f"{app.model_slug}:{app.app_number}"
+                            status_data = bulk_status.get(key, {})
+                            if status_data:
+                                containers_info.append({
+                                    'model': app.model_slug,
+                                    'app': app.app_number,
+                                    'status': status_data.get('status', 'unknown'),
+                                    'health': 'healthy' if status_data.get('status') == 'running' else 'unknown'
+                                })
                     except Exception:
                         pass
             

@@ -537,6 +537,123 @@ class DockerStatusCache:
             project_name=self._get_project_name(model_slug, app_number)
         )
 
+    def get_single_status(
+        self,
+        model_slug: str,
+        app_number: int,
+        force_refresh: bool = False,
+        return_stale_on_error: bool = True
+    ) -> CacheEntry:
+        """
+        Convenience method to get status for a single application.
+        
+        This is a wrapper around get_status() that provides graceful degradation
+        when Docker is unavailable - it will return stale cached data rather than
+        failing completely.
+        
+        Args:
+            model_slug: The model identifier
+            app_number: The application number
+            force_refresh: Force a refresh even if cache is fresh
+            return_stale_on_error: If True, return stale cache on Docker errors
+            
+        Returns:
+            CacheEntry with status information
+        """
+        key = self._cache_key(model_slug, app_number)
+        
+        # First try normal get_status
+        try:
+            return self.get_status(model_slug, app_number, force_refresh)
+        except Exception as e:
+            logger.warning("Error in get_single_status for %s/app%s: %s", model_slug, app_number, e)
+            
+            # If we have stale cache and return_stale_on_error is True, return it
+            if return_stale_on_error:
+                with self._lock:
+                    entry = self._cache.get(key)
+                    if entry is not None:
+                        logger.info("Returning stale cache for %s/app%s due to error", model_slug, app_number)
+                        # Mark as stale in the entry for client awareness
+                        return CacheEntry(
+                            status=entry.status,
+                            containers=entry.containers,
+                            states=entry.states,
+                            compose_exists=entry.compose_exists,
+                            docker_connected=False,  # Mark as disconnected
+                            project_name=entry.project_name,
+                            updated_at=entry.updated_at,
+                            error=f"Docker unavailable, showing cached status: {e}"
+                        )
+            
+            # No cache available, return error entry
+            compose_exists = self._check_compose_exists(model_slug, app_number)
+            return CacheEntry(
+                status=self.STATUS_ERROR,
+                containers=[],
+                states=[],
+                compose_exists=compose_exists,
+                docker_connected=False,
+                project_name=self._get_project_name(model_slug, app_number),
+                error=str(e)
+            )
+
+    def get_bulk_status_dict(
+        self, 
+        apps: List[Tuple[str, int]], 
+        force_refresh: bool = False,
+        return_stale_on_error: bool = True
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Get status for multiple applications as a simple dictionary.
+        
+        This is a convenience method that returns a dict with string keys
+        for easier use in templates and API responses.
+        
+        Args:
+            apps: List of (model_slug, app_number) tuples
+            force_refresh: Force refresh even if cache entries are fresh
+            return_stale_on_error: If True, return stale cache on Docker errors
+            
+        Returns:
+            Dict mapping "model_slug:app_number" to status dict
+        """
+        results: Dict[str, Dict[str, Any]] = {}
+        
+        try:
+            entries = self.get_bulk_status(apps, force_refresh)
+            for (model_slug, app_number), entry in entries.items():
+                key = f"{model_slug}:{app_number}"
+                results[key] = entry.to_dict()
+        except Exception as e:
+            logger.error("Error in get_bulk_status_dict: %s", e)
+            
+            # Return stale entries if available
+            if return_stale_on_error:
+                with self._lock:
+                    for model_slug, app_number in apps:
+                        key = f"{model_slug}:{app_number}"
+                        cache_key = self._cache_key(model_slug, app_number)
+                        entry = self._cache.get(cache_key)
+                        if entry is not None:
+                            entry_dict = entry.to_dict()
+                            entry_dict['stale'] = True
+                            entry_dict['error'] = f"Docker unavailable: {e}"
+                            results[key] = entry_dict
+                        else:
+                            # No cache, return minimal error entry
+                            results[key] = {
+                                'status': self.STATUS_UNKNOWN,
+                                'containers': [],
+                                'states': [],
+                                'docker_connected': False,
+                                'is_stale': True,
+                                'stale': True,
+                                'error': f"Docker unavailable: {e}"
+                            }
+        
+        return results
+
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get statistics about the cache."""
         with self._lock:

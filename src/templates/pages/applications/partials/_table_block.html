@@ -335,36 +335,33 @@
 								</a>
 								{% endif %}
 								
-								{# Stop Button - shown when running #}
+								{# Stop Button - shown when running (async with progress) #}
 								<button class="btn btn-ghost-danger" 
-									hx-post="/api/app/{{ app.model_slug }}/{{ app.app_number }}/stop"
-									hx-trigger="click"
-									hx-swap="none"
-									hx-indicator=".htmx-indicator"
+									onclick="startContainerAction('{{ app.model_slug }}', {{ app.app_number }}, 'stop')"
 									title="Stop containers">
 									<i class="fas fa-stop"></i>
 								</button>
 							{% else %}
-								{# Start Button - shown when not running (auto-builds if needed) #}
+								{# Start Button - shown when not running (async with progress) #}
 								<button class="btn btn-ghost-success" 
-									hx-post="/api/app/{{ app.model_slug }}/{{ app.app_number }}/start"
-									hx-trigger="click"
-									hx-swap="none"
-									hx-indicator=".htmx-indicator"
+									onclick="startContainerAction('{{ app.model_slug }}', {{ app.app_number }}, 'start')"
 									title="Start containers (builds if needed)">
 									<i class="fas fa-play"></i>
 								</button>
 							{% endif %}
 							
-							{# Rebuild Button - always available #}
+							{# Build Button - async with progress modal #}
 							<button class="btn btn-ghost-warning" 
-								hx-post="/api/app/{{ app.model_slug }}/{{ app.app_number }}/build"
-								hx-trigger="click"
-								hx-swap="none"
-								hx-vals='{"no_cache": true, "start_after": false}'
-								hx-indicator=".htmx-indicator"
+								onclick="startContainerAction('{{ app.model_slug }}', {{ app.app_number }}, 'build', {no_cache: true})"
 								title="Rebuild containers (no cache)">
 								<i class="fas fa-sync"></i>
+							</button>
+							
+							{# History Button - view action history #}
+							<button class="btn btn-ghost-secondary" 
+								onclick="showActionHistory('{{ app.model_slug }}', {{ app.app_number }})"
+								title="View action history">
+								<i class="fas fa-history"></i>
 							</button>
 							{% endif %}{# end is_generation_failed check #}
 						</div>
@@ -460,86 +457,101 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
   }
 });
 
-// ---- Fixed Status Polling (Prevents false "Running" status) ----
+// ---- Bulk Status Polling (Efficient - Single API call for all apps) ----
 function pollApplicationStatuses() {
   const rows = Array.from(document.querySelectorAll('#applications-table-body tr[data-model][data-app]'));
   if (!rows.length) return;
   
-  // Only check uncertain statuses or stale ones
-  const batch = rows.slice(0, 15).filter(row => {
-    const statusBadge = row.querySelector('[data-role="status-badge"]');
-    if (!statusBadge) return false;
-    const statusText = statusBadge.textContent.trim().toLowerCase();
-    
-    // Always check uncertain statuses
-    if (statusText.includes('unknown') || statusText.includes('pending') || statusText.includes('not created')) {
-      return true;
-    }
-    
-    // Check fresh statuses less frequently (every 5th poll cycle)
-    if (!row.dataset.pollCount) row.dataset.pollCount = '0';
-    const pollCount = parseInt(row.dataset.pollCount) + 1;
-    row.dataset.pollCount = pollCount.toString();
-    
-    // Check every 5th cycle for definitive statuses (running/stopped)
-    return pollCount % 5 === 0;
-  });
-  
-  batch.forEach(row => {
+  // Build list of apps to check (limited to visible rows for performance)
+  const appsToCheck = [];
+  rows.slice(0, 50).forEach(row => {  // Limit to first 50 for very large tables
     const model = row.getAttribute('data-model');
     const app = row.getAttribute('data-app');
-    if (!model || !app) return;
+    if (model && app) {
+      appsToCheck.push({ model, app_number: parseInt(app, 10) });
+    }
+  });
+  
+  if (!appsToCheck.length) return;
+  
+  // Single bulk API call instead of N individual calls
+  fetch('/api/apps/bulk-status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ apps: appsToCheck })
+  })
+  .then(resp => resp.ok ? resp.json() : Promise.reject('API Error'))
+  .then(data => {
+    if (!data?.success || !data?.data?.statuses) return;
     
-    fetch(`/api/app/${model}/${app}/status`)
-      .then(resp => resp.ok ? resp.json() : Promise.reject('API Error'))
-      .then(data => {
-        if (!data?.success) return;
-        
-        const statusBadge = row.querySelector('[data-role="status-badge"]');
-        if (!statusBadge) return;
-        
-        const statusData = data.data || {};
-        
-        // Use Docker status from API response (which now updates DB)
-        const dockerStatus = statusData.docker_status || 'unknown';
-        const isRunning = statusData.running === true;
-        const hasContainers = statusData.states?.length > 0;
-        const composeExists = statusData.compose_file_exists === true;
-        
-        // Update status badge based on Docker status
-        let badgeClass = 'badge bg-muted-lt';
-        let badgeContent = '<i class="fas fa-question me-1"></i>Unknown';
-        
-        if (dockerStatus === 'running' && isRunning) {
-          badgeClass = 'badge bg-success-lt';
-          badgeContent = '<i class="fas fa-play me-1"></i>Running';
-        } else if (dockerStatus === 'stopped' && hasContainers) {
-          badgeClass = 'badge bg-secondary-lt';
-          badgeContent = '<i class="fas fa-stop me-1"></i>Stopped';
-        } else if (dockerStatus === 'not_created' && composeExists) {
-          badgeClass = 'badge bg-warning-lt';
-          badgeContent = '<i class="fas fa-plus me-1"></i>Not Created';
-        } else if (dockerStatus === 'no_compose') {
-          badgeClass = 'badge bg-danger-lt';
-          badgeContent = '<i class="fas fa-exclamation me-1"></i>No Compose';
-        }
-        
-        statusBadge.className = badgeClass;
-        statusBadge.innerHTML = badgeContent;
-        
-        // Add diagnostic tooltip with timing info
-        const tips = [];
-        if (!statusData.docker_connected) tips.push('Docker disconnected');
-        if (statusData.status_age_minutes !== null) {
-          tips.push(`Last checked: ${Math.round(statusData.status_age_minutes)}m ago`);
-        }
-        if (statusData.status_is_fresh) tips.push('Status is fresh');
-        if (statusData.states?.length) tips.push(`Containers: ${statusData.states.join(', ')}`);
-        if (tips.length) statusBadge.setAttribute('title', tips.join(' | '));
-      })
-      .catch(() => {
-        // Silently handle errors - don't spam console
-      });
+    const statuses = data.data.statuses;
+    
+    // Update each row with its status
+    rows.forEach(row => {
+      const model = row.getAttribute('data-model');
+      const app = row.getAttribute('data-app');
+      if (!model || !app) return;
+      
+      const key = `${model}:${app}`;
+      const statusData = statuses[key];
+      if (!statusData) return;
+      
+      const statusBadge = row.querySelector('[data-role="status-badge"]');
+      if (!statusBadge) return;
+      
+      // Use Docker status from bulk response
+      const dockerStatus = statusData.status || 'unknown';
+      const isRunning = dockerStatus === 'running';
+      const hasContainers = statusData.states?.length > 0;
+      const composeExists = statusData.compose_exists === true;
+      const isStale = statusData.is_stale || statusData.stale;
+      
+      // Update status badge based on Docker status
+      let badgeClass = 'badge bg-muted-lt';
+      let badgeContent = '<i class="fas fa-question me-1"></i>Unknown';
+      
+      if (dockerStatus === 'running' && isRunning) {
+        badgeClass = 'badge bg-success-lt';
+        badgeContent = '<i class="fas fa-play me-1"></i>Running';
+      } else if (dockerStatus === 'stopped' || (hasContainers && !isRunning)) {
+        badgeClass = 'badge bg-secondary-lt';
+        badgeContent = '<i class="fas fa-stop me-1"></i>Stopped';
+      } else if (dockerStatus === 'not_created' || (composeExists && !hasContainers)) {
+        badgeClass = 'badge bg-warning-lt';
+        badgeContent = '<i class="fas fa-plus me-1"></i>Not Created';
+      } else if (dockerStatus === 'no_compose') {
+        badgeClass = 'badge bg-danger-lt';
+        badgeContent = '<i class="fas fa-exclamation me-1"></i>No Compose';
+      } else if (dockerStatus === 'error') {
+        badgeClass = 'badge bg-danger-lt';
+        badgeContent = '<i class="fas fa-exclamation-circle me-1"></i>Error';
+      }
+      
+      // Add stale indicator if data is stale
+      if (isStale) {
+        badgeContent += ' <i class="fas fa-clock fa-xs text-muted" title="Status may be outdated"></i>';
+      }
+      
+      statusBadge.className = badgeClass;
+      statusBadge.innerHTML = badgeContent;
+      
+      // Add diagnostic tooltip
+      const tips = [];
+      if (!statusData.docker_connected) tips.push('Docker disconnected');
+      if (statusData.updated_at) {
+        const updatedAt = new Date(statusData.updated_at);
+        const ageMs = Date.now() - updatedAt.getTime();
+        const ageSec = Math.round(ageMs / 1000);
+        tips.push(`Updated: ${ageSec}s ago`);
+      }
+      if (statusData.states?.length) tips.push(`Containers: ${statusData.states.join(', ')}`);
+      if (statusData.error) tips.push(`Error: ${statusData.error}`);
+      if (tips.length) statusBadge.setAttribute('title', tips.join(' | '));
+    });
+  })
+  .catch(err => {
+    // Silently handle errors - don't spam console
+    console.debug('Bulk status poll failed:', err);
   });
 }
 
@@ -561,12 +573,13 @@ document.body.addEventListener('htmx:afterSwap', (e) => {
 });
 
 // Single interval for polling (only when page visible)
+// Using longer interval since bulk API is more efficient
 if (!window.__appsStatusInterval) {
   window.__appsStatusInterval = setInterval(() => {
     if (document.visibilityState === 'visible') {
       pollApplicationStatuses();
     }
-  }, 60000); // Check every 60 seconds instead of 45 (less aggressive since we use DB cache)
+  }, 45000); // Check every 45 seconds (cache is 30s, so this catches updates reasonably)
 }
 
 // ---- Application Management Functions (Consolidated) ----

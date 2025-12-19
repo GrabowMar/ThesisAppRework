@@ -40,6 +40,7 @@ from .user import User
 from .report import Report
 from .pipeline_settings import PipelineSettings
 from .pipeline import PipelineExecution, PipelineExecutionStatus
+from .container_action import ContainerAction, ContainerActionType, ContainerActionStatus
 
 from ..utils.time import utc_now
 
@@ -47,6 +48,7 @@ from ..utils.time import utc_now
 __all__ = [
     # Enums & Constants
     'AnalysisStatus', 'JobStatus', 'ContainerState', 'AnalysisType', 'JobPriority', 'SeverityLevel', 'GenerationMode',
+    'ContainerActionType', 'ContainerActionStatus',
     
     # DB instance
     'db',
@@ -67,6 +69,7 @@ __all__ = [
     'PipelineSettings',
     'PipelineExecution',
     'PipelineExecutionStatus',
+    'ContainerAction',
 
     # Utility function
     'utc_now'

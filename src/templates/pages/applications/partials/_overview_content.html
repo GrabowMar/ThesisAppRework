@@ -17,6 +17,74 @@
   </div>
 </div>
 
+<!-- Container Action Progress Modal -->
+<div class="modal modal-blur fade" id="containerActionModal" tabindex="-1" aria-labelledby="containerActionLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="containerActionLabel">
+          <i class="fas fa-cog fa-spin me-2" id="containerActionSpinner"></i>
+          <span id="containerActionTitle">Container Operation</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="containerActionInfo" class="mb-3">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="badge bg-primary" id="containerActionType">BUILD</span>
+            <span class="text-muted" id="containerActionTarget">openai_gpt-4 / App 1</span>
+            <span class="badge ms-auto" id="containerActionStatus">Running</span>
+          </div>
+          <div class="progress mb-2" style="height: 20px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" id="containerActionProgress" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+          </div>
+          <div class="text-muted small" id="containerActionStep">Initializing...</div>
+        </div>
+        <div class="card">
+          <div class="card-header d-flex align-items-center">
+            <span><i class="fas fa-terminal me-2"></i>Output</span>
+            <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="copyContainerActionOutput()" title="Copy output">
+              <i class="fas fa-copy"></i>
+            </button>
+          </div>
+          <div class="card-body p-0">
+            <pre id="containerActionOutput" class="bg-dark text-light p-3 mb-0" style="max-height: 300px; overflow-y: auto; font-size: 0.8rem;"></pre>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger" id="containerActionCancelBtn" onclick="cancelContainerAction()">
+          <i class="fas fa-times me-1"></i>Cancel
+        </button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Container Action History Modal -->
+<div class="modal modal-blur fade" id="containerHistoryModal" tabindex="-1" aria-labelledby="containerHistoryLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="containerHistoryLabel">
+          <i class="fas fa-history me-2"></i>Action History
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="containerHistoryContent">
+        <div class="text-center py-4">
+          <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+          <p class="text-muted mt-2">Loading history...</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Batch Operations Modal -->
 <div class="modal modal-blur fade" id="batchApplicationsModal" tabindex="-1" aria-labelledby="batchOperationsLabel" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
@@ -200,5 +268,298 @@ function viewApplicationDetails(modelSlug, appNumber) {
   
   const modal = new bootstrap.Modal(document.getElementById('applicationDetailsModal'));
   modal.show();
+}
+
+// ---- Container Action Tracking ----
+let currentContainerAction = null;
+let containerActionPollInterval = null;
+let containerOutputOffset = 0;
+
+function startContainerAction(modelSlug, appNumber, actionType, options = {}) {
+  // Show modal
+  const modal = new bootstrap.Modal(document.getElementById('containerActionModal'));
+  modal.show();
+  
+  // Reset state
+  currentContainerAction = null;
+  containerOutputOffset = 0;
+  
+  // Update UI
+  document.getElementById('containerActionTitle').textContent = `${actionType.charAt(0).toUpperCase() + actionType.slice(1)} Operation`;
+  document.getElementById('containerActionType').textContent = actionType.toUpperCase();
+  document.getElementById('containerActionTarget').textContent = `${modelSlug} / App ${appNumber}`;
+  document.getElementById('containerActionStatus').className = 'badge bg-info';
+  document.getElementById('containerActionStatus').textContent = 'Starting...';
+  document.getElementById('containerActionProgress').style.width = '0%';
+  document.getElementById('containerActionProgress').textContent = '0%';
+  document.getElementById('containerActionStep').textContent = 'Initializing...';
+  document.getElementById('containerActionOutput').textContent = '';
+  document.getElementById('containerActionSpinner').style.display = 'inline-block';
+  document.getElementById('containerActionCancelBtn').disabled = false;
+  
+  // Build request body
+  const body = {};
+  if (actionType === 'build') {
+    body.no_cache = options.no_cache || false;
+    body.start_after = options.start_after || false;
+  }
+  
+  // Start async action
+  fetch(`/api/app/${modelSlug}/${appNumber}/action/${actionType}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success && data.action_id) {
+      currentContainerAction = data.action_id;
+      document.getElementById('containerActionStatus').textContent = 'Running';
+      startContainerActionPolling();
+    } else {
+      document.getElementById('containerActionStatus').className = 'badge bg-danger';
+      document.getElementById('containerActionStatus').textContent = 'Failed';
+      document.getElementById('containerActionStep').textContent = data.error || 'Failed to start action';
+      document.getElementById('containerActionSpinner').style.display = 'none';
+    }
+  })
+  .catch(error => {
+    document.getElementById('containerActionStatus').className = 'badge bg-danger';
+    document.getElementById('containerActionStatus').textContent = 'Error';
+    document.getElementById('containerActionStep').textContent = error.message;
+    document.getElementById('containerActionSpinner').style.display = 'none';
+  });
+}
+
+function startContainerActionPolling() {
+  if (containerActionPollInterval) {
+    clearInterval(containerActionPollInterval);
+  }
+  
+  containerActionPollInterval = setInterval(() => {
+    if (!currentContainerAction) {
+      clearInterval(containerActionPollInterval);
+      return;
+    }
+    
+    // Poll status
+    fetch(`/api/container-actions/${currentContainerAction}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.action) {
+          updateContainerActionUI(data.action);
+        }
+      });
+    
+    // Poll output
+    fetch(`/api/container-actions/${currentContainerAction}/output?offset=${containerOutputOffset}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.output) {
+          const outputEl = document.getElementById('containerActionOutput');
+          outputEl.textContent += data.output;
+          outputEl.scrollTop = outputEl.scrollHeight;
+          containerOutputOffset = data.next_offset || (containerOutputOffset + data.output.length);
+        }
+      });
+  }, 1000);
+}
+
+function updateContainerActionUI(action) {
+  const progress = action.progress_percentage || 0;
+  const progressBar = document.getElementById('containerActionProgress');
+  progressBar.style.width = `${progress}%`;
+  progressBar.textContent = `${progress}%`;
+  
+  if (action.current_step) {
+    document.getElementById('containerActionStep').textContent = action.current_step;
+  }
+  
+  const statusBadge = document.getElementById('containerActionStatus');
+  
+  if (action.status === 'completed') {
+    statusBadge.className = 'badge bg-success';
+    statusBadge.textContent = 'Completed';
+    progressBar.classList.remove('progress-bar-animated');
+    progressBar.style.width = '100%';
+    progressBar.textContent = '100%';
+    document.getElementById('containerActionSpinner').style.display = 'none';
+    document.getElementById('containerActionCancelBtn').disabled = true;
+    stopContainerActionPolling();
+    // Refresh table after success
+    setTimeout(() => { if (typeof refreshApplications === 'function') refreshApplications(); }, 1000);
+  } else if (action.status === 'failed') {
+    statusBadge.className = 'badge bg-danger';
+    statusBadge.textContent = 'Failed';
+    progressBar.classList.remove('progress-bar-animated');
+    progressBar.classList.add('bg-danger');
+    document.getElementById('containerActionSpinner').style.display = 'none';
+    document.getElementById('containerActionCancelBtn').disabled = true;
+    if (action.error_message) {
+      document.getElementById('containerActionStep').textContent = action.error_message;
+    }
+    stopContainerActionPolling();
+  } else if (action.status === 'cancelled') {
+    statusBadge.className = 'badge bg-warning';
+    statusBadge.textContent = 'Cancelled';
+    progressBar.classList.remove('progress-bar-animated');
+    document.getElementById('containerActionSpinner').style.display = 'none';
+    document.getElementById('containerActionCancelBtn').disabled = true;
+    stopContainerActionPolling();
+  }
+}
+
+function stopContainerActionPolling() {
+  if (containerActionPollInterval) {
+    clearInterval(containerActionPollInterval);
+    containerActionPollInterval = null;
+  }
+}
+
+function cancelContainerAction() {
+  if (!currentContainerAction) return;
+  
+  fetch(`/api/container-actions/${currentContainerAction}/cancel`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        document.getElementById('containerActionStatus').className = 'badge bg-warning';
+        document.getElementById('containerActionStatus').textContent = 'Cancelling...';
+      }
+    });
+}
+
+function copyContainerActionOutput() {
+  const output = document.getElementById('containerActionOutput').textContent;
+  navigator.clipboard.writeText(output).then(() => {
+    showNotification('Output copied to clipboard', 'success');
+  });
+}
+
+// Action history
+function showActionHistory(modelSlug, appNumber) {
+  const modal = new bootstrap.Modal(document.getElementById('containerHistoryModal'));
+  modal.show();
+  
+  document.getElementById('containerHistoryContent').innerHTML = `
+    <div class="text-center py-4">
+      <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+      <p class="text-muted mt-2">Loading history...</p>
+    </div>
+  `;
+  
+  fetch(`/api/app/${modelSlug}/${appNumber}/actions?limit=20`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.success && data.actions) {
+        renderActionHistory(data.actions);
+      } else {
+        document.getElementById('containerHistoryContent').innerHTML = `
+          <div class="alert alert-warning">No action history found.</div>
+        `;
+      }
+    })
+    .catch(error => {
+      document.getElementById('containerHistoryContent').innerHTML = `
+        <div class="alert alert-danger">Failed to load history: ${error.message}</div>
+      `;
+    });
+}
+
+function renderActionHistory(actions) {
+  if (!actions.length) {
+    document.getElementById('containerHistoryContent').innerHTML = `
+      <div class="alert alert-info">No container actions recorded yet.</div>
+    `;
+    return;
+  }
+  
+  const rows = actions.map(action => {
+    const statusClass = {
+      'completed': 'bg-success',
+      'failed': 'bg-danger',
+      'running': 'bg-info',
+      'pending': 'bg-secondary',
+      'cancelled': 'bg-warning'
+    }[action.status] || 'bg-secondary';
+    
+    const typeIcon = {
+      'build': 'fa-hammer',
+      'start': 'fa-play',
+      'stop': 'fa-stop',
+      'restart': 'fa-sync'
+    }[action.action_type] || 'fa-cog';
+    
+    const duration = action.completed_at && action.started_at
+      ? Math.round((new Date(action.completed_at) - new Date(action.started_at)) / 1000) + 's'
+      : action.started_at ? 'In progress' : 'Pending';
+    
+    return `
+      <tr>
+        <td><i class="fas ${typeIcon} me-1"></i>${action.action_type.toUpperCase()}</td>
+        <td><span class="badge ${statusClass}">${action.status}</span></td>
+        <td>${action.progress_percentage || 0}%</td>
+        <td class="text-muted small">${new Date(action.created_at).toLocaleString()}</td>
+        <td>${duration}</td>
+        <td>
+          <button class="btn btn-sm btn-outline-secondary" onclick="viewActionDetails('${action.action_id}')" title="View details">
+            <i class="fas fa-eye"></i>
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  
+  document.getElementById('containerHistoryContent').innerHTML = `
+    <table class="table table-sm table-hover">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Progress</th>
+          <th>Started</th>
+          <th>Duration</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function viewActionDetails(actionId) {
+  // Close history modal, open action modal with details
+  const historyModal = bootstrap.Modal.getInstance(document.getElementById('containerHistoryModal'));
+  if (historyModal) historyModal.hide();
+  
+  currentContainerAction = actionId;
+  containerOutputOffset = 0;
+  
+  const modal = new bootstrap.Modal(document.getElementById('containerActionModal'));
+  modal.show();
+  
+  // Load action details
+  fetch(`/api/container-actions/${actionId}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.success && data.action) {
+        const action = data.action;
+        document.getElementById('containerActionTitle').textContent = `${action.action_type.toUpperCase()} Details`;
+        document.getElementById('containerActionType').textContent = action.action_type.toUpperCase();
+        document.getElementById('containerActionTarget').textContent = `${action.target_model} / App ${action.target_app_number}`;
+        document.getElementById('containerActionSpinner').style.display = action.status === 'running' ? 'inline-block' : 'none';
+        document.getElementById('containerActionCancelBtn').disabled = action.status !== 'running';
+        updateContainerActionUI(action);
+        
+        // Load full output
+        return fetch(`/api/container-actions/${actionId}/output?offset=0`);
+      }
+    })
+    .then(r => r ? r.json() : null)
+    .then(data => {
+      if (data && data.success) {
+        document.getElementById('containerActionOutput').textContent = data.output || '(no output)';
+      }
+    });
 }
 </script>

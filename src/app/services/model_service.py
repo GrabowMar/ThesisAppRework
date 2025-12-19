@@ -73,56 +73,26 @@ class ModelService:
         """Get all applications for a specific model with live Docker status detection."""
         apps = GeneratedApplication.query.filter_by(model_slug=canonical_slug).all()
         
-        # Apply live Docker status detection (same logic as build_applications_context)
+        # Apply live Docker status detection using the status cache (not direct Docker API)
         try:
             from .service_locator import ServiceLocator
-            docker_mgr = ServiceLocator.get_docker_manager()
+            status_cache = ServiceLocator.get_docker_status_cache()
             
-            if docker_mgr and getattr(docker_mgr, 'client', None):
-                # Get current Docker container states
-                running_projects = set()
-                any_projects = set()
+            if status_cache:
+                # Prepare list of (model_slug, app_number) tuples for bulk lookup
+                apps_list = [(app.model_slug, app.app_number) for app in apps]
                 
-                try:
-                    all_conts = docker_mgr.list_all_containers()  # type: ignore[attr-defined]
-                    for c in all_conts or []:
-                        labels = c.get('labels') or {}
-                        proj = labels.get('com.docker.compose.project')
-                        if not proj:
-                            continue
-                        any_projects.add(proj)
-                        # Use the proper container state field
-                        container_state = c.get('state', '').lower()
-                        if container_state == 'running':
-                            running_projects.add(proj)
-                except Exception:
-                    pass
+                # Use bulk status lookup (single Docker API call, cached)
+                bulk_status = status_cache.get_bulk_status(apps_list)
                 
-                # Update each app's container status based on Docker reality
-                def _project_name(model_slug: str, app_num: int) -> str:
-                    safe_model = (model_slug or '').replace('_', '-').replace('.', '-')
-                    return f"{safe_model}-app{app_num}"
-                
+                # Update each app's container status based on cache results
                 for app in apps:
-                    proj = _project_name(app.model_slug, app.app_number)
-                    db_status = app.container_status or app.generation_status or 'unknown'
+                    key = (app.model_slug, app.app_number)
+                    cache_entry = bulk_status.get(key)
                     
-                    # Determine live status with Docker evidence
-                    if proj in running_projects:
-                        # Docker shows it's running
-                        live_status = 'running'
-                    elif proj in any_projects:
-                        # Docker shows containers exist but not running
-                        live_status = 'stopped'
-                    else:
-                        # No Docker containers found
-                        if db_status == 'running':
-                            live_status = 'stopped'  # Container was running but Docker doesn't show it
-                        else:
-                            live_status = db_status
-                    
-                    # Update the app's status if it differs (without committing to DB)
-                    app.container_status = live_status
+                    if cache_entry:
+                        # Update the app's status (without committing to DB - cache handles persistence)
+                        app.container_status = cache_entry.status
         except Exception as e:
             # If Docker status detection fails, fall back to DB status
             self.logger.warning(f"Docker status detection failed for model {canonical_slug}: {e}")

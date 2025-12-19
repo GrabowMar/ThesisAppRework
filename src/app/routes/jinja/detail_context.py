@@ -591,18 +591,17 @@ def _collect_ports(model_slug: str, app_number: int, app: Optional[GeneratedAppl
     seen: set[int] = set()
     running = bool(app and (getattr(app, 'container_status', '') or '').lower() == 'running')
     
-    # Also check actual Docker container status if available
+    # Also check actual Docker container status using the cache (not direct Docker API)
     if not running and app:
         try:
             from app.services.service_locator import ServiceLocator
-            docker_manager = ServiceLocator.get('docker_manager')
-            if docker_manager:
-                container_name = f"{model_slug}-app{app_number}"
-                status = docker_manager.get_container_status(container_name)
-                running = status and status.get('State', {}).get('Running', False)
-                current_app.logger.info(f"Docker direct check for {container_name}: running={running}")
+            status_cache = ServiceLocator.get_docker_status_cache()
+            if status_cache:
+                cache_entry = status_cache.get_single_status(model_slug, app_number)
+                running = cache_entry.status == 'running'
+                current_app.logger.debug(f"Cache status check for {model_slug}/app{app_number}: running={running}")
         except Exception as err:
-            current_app.logger.debug(f"Failed to check Docker status directly: {err}")
+            current_app.logger.debug(f"Failed to check Docker status via cache: {err}")
     
     if ports_dict:
         for role, value in ports_dict.items():
