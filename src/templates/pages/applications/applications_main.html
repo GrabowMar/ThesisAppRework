@@ -8,9 +8,509 @@
 
 {% block content %}
   {% include 'pages/applications/partials/_overview_content.html' %}
+  
+  {# Include container logs modal for progress display #}
+  {% include 'pages/applications/partials/modals/_container_logs_modal.html' %}
 {% endblock %}
 
 {% block scripts %}
+{# Container operations script - simple and reliable #}
+<script>
+(function() {
+'use strict';
+
+// ============================================================================
+// Container Operation Modal Handler
+// ============================================================================
+
+class ContainerOperationModal {
+    constructor() {
+        this.modal = null;
+        this.bsModal = null;
+        this.currentActionId = null;
+        this.statusPoll = null;
+        this.outputPoll = null;
+        this.lastOutputOffset = 0;
+        this.startTime = null;
+        this.timerInterval = null;
+        
+        this.init();
+    }
+    
+    init() {
+        this.modal = document.getElementById('container-logs-modal');
+        if (!this.modal) {
+            console.error('Container logs modal not found');
+            return;
+        }
+        
+        this.bsModal = new bootstrap.Modal(this.modal, { backdrop: 'static', keyboard: false });
+        
+        // Bind cancel button
+        document.getElementById('log-cancel-btn')?.addEventListener('click', () => this.cancel());
+        document.getElementById('log-modal-close')?.addEventListener('click', (e) => {
+            if (this.currentActionId) {
+                e.preventDefault();
+                if (confirm('Operation in progress. Cancel it?')) {
+                    this.cancel();
+                }
+            }
+        });
+        
+        console.log('ContainerOperationModal initialized');
+    }
+    
+    async start(modelSlug, appNumber, action, options = {}) {
+        this.reset();
+        this.startTime = Date.now();
+        
+        // Update UI
+        document.getElementById('log-operation-name').textContent = 
+            `${action.charAt(0).toUpperCase() + action.slice(1)} - ${modelSlug} App ${appNumber}`;
+        this.setStatus('Starting...', `Initiating ${action}`, 'info');
+        this.showProgress(true);
+        
+        document.getElementById('log-cancel-btn').style.display = 'inline-block';
+        document.getElementById('log-close-btn').disabled = true;
+        
+        this.bsModal.show();
+        this.startTimer();
+        
+        this.appendLog(`🚀 Starting ${action} for ${modelSlug} App ${appNumber}`, 'info');
+        this.appendLog('═══════════════════════════════════════════════', 'dim');
+        
+        try {
+            // Call async action endpoint
+            const response = await fetch(`/api/app/${modelSlug}/${appNumber}/action/${action}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    no_cache: options.no_cache || false,
+                    start_after: options.start_after || false
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.status === 409) {
+                this.appendLog(`⚠️ ${data.error || 'Action already in progress'}`, 'warning');
+                this.setStatus('Conflict', data.error || 'Action in progress', 'warning');
+                this.finish();
+                return;
+            }
+            
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || data.message || `HTTP ${response.status}`);
+            }
+            
+            // API wraps response in data.data
+            const actionId = data.data?.action_id;
+            if (!actionId) {
+                throw new Error('No action_id in response');
+            }
+            
+            this.currentActionId = actionId;
+            this.appendLog(`📋 Action ID: ${actionId}`, 'info');
+            this.appendLog('─────────────────────────────────────────────', 'dim');
+            
+            // Start polling
+            this.startPolling();
+            
+        } catch (error) {
+            this.appendLog(`❌ Error: ${error.message}`, 'error');
+            this.setStatus('Failed', error.message, 'danger');
+            this.finish();
+        }
+    }
+    
+    startPolling() {
+        if (!this.currentActionId) return;
+        
+        // Status every 1s
+        this.statusPoll = setInterval(() => this.pollStatus(), 1000);
+        
+        // Output every 500ms
+        this.outputPoll = setInterval(() => this.pollOutput(), 500);
+        
+        // Immediate first poll
+        this.pollStatus();
+        this.pollOutput();
+    }
+    
+    stopPolling() {
+        if (this.statusPoll) { clearInterval(this.statusPoll); this.statusPoll = null; }
+        if (this.outputPoll) { clearInterval(this.outputPoll); this.outputPoll = null; }
+    }
+    
+    async pollStatus() {
+        if (!this.currentActionId) return;
+        
+        try {
+            const resp = await fetch(`/api/container-actions/${this.currentActionId}`);
+            if (!resp.ok) return;
+            
+            const json = await resp.json();
+            if (!json.success || !json.data?.action) return;
+            
+            const action = json.data.action;
+            
+            // Update progress bar
+            this.setProgress(action.progress_percentage || 0);
+            
+            if (action.status === 'running') {
+                this.setStatus(
+                    action.current_step || 'Running...',
+                    `${Math.round(action.progress_percentage || 0)}% complete`,
+                    'info'
+                );
+            } else if (action.status === 'completed') {
+                this.stopPolling();
+                this.setProgress(100);
+                this.setStatus('Completed', `Duration: ${action.duration_seconds?.toFixed(1)}s`, 'success');
+                this.appendLog('═══════════════════════════════════════════════', 'dim');
+                this.appendLog('✅ Operation completed successfully!', 'success');
+                this.finish();
+                this.refreshTable();
+            } else if (action.status === 'failed') {
+                this.stopPolling();
+                this.setStatus('Failed', action.error_message || 'Unknown error', 'danger');
+                this.appendLog('═══════════════════════════════════════════════', 'dim');
+                this.appendLog(`❌ Failed: ${action.error_message || 'Unknown error'}`, 'error');
+                this.finish();
+            } else if (action.status === 'cancelled') {
+                this.stopPolling();
+                this.setStatus('Cancelled', 'Operation cancelled', 'warning');
+                this.appendLog('═══════════════════════════════════════════════', 'dim');
+                this.appendLog('⚠️ Operation cancelled', 'warning');
+                this.finish();
+            }
+        } catch (e) {
+            console.debug('Status poll error:', e);
+        }
+    }
+    
+    async pollOutput() {
+        if (!this.currentActionId) return;
+        
+        try {
+            const resp = await fetch(`/api/container-actions/${this.currentActionId}/output?offset=${this.lastOutputOffset}`);
+            if (!resp.ok) return;
+            
+            const json = await resp.json();
+            if (!json.success || !json.data) return;
+            
+            const output = json.data.output;
+            if (output && output.length > 0) {
+                const lines = output.split('\n');
+                for (const line of lines) {
+                    if (line.trim()) {
+                        let type = 'output';
+                        const lower = line.toLowerCase();
+                        if (lower.includes('error') || lower.includes('failed')) type = 'error';
+                        else if (lower.includes('warning') || lower.includes('warn')) type = 'warning';
+                        else if (line.startsWith('#') || line.startsWith('Step ')) type = 'info';
+                        this.appendLog(line, type);
+                    }
+                }
+                this.lastOutputOffset = json.data.total_length || (this.lastOutputOffset + output.length);
+            }
+        } catch (e) {
+            console.debug('Output poll error:', e);
+        }
+    }
+    
+    async cancel() {
+        if (!this.currentActionId) return;
+        
+        try {
+            await fetch(`/api/container-actions/${this.currentActionId}/cancel`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            this.appendLog('⚠️ Cancellation requested...', 'warning');
+        } catch (e) {
+            console.error('Cancel error:', e);
+        }
+    }
+    
+    finish() {
+        this.stopPolling();
+        this.stopTimer();
+        document.getElementById('log-cancel-btn').style.display = 'none';
+        document.getElementById('log-close-btn').disabled = false;
+        this.currentActionId = null;
+    }
+    
+    reset() {
+        this.stopPolling();
+        this.stopTimer();
+        this.currentActionId = null;
+        this.lastOutputOffset = 0;
+        document.getElementById('log-output').innerHTML = '';
+        document.getElementById('log-line-count').textContent = '0 lines';
+        document.getElementById('log-elapsed-time').textContent = '0s';
+        this.setProgress(0);
+    }
+    
+    setStatus(text, detail, severity) {
+        document.getElementById('log-status-text').textContent = text;
+        document.getElementById('log-status-detail').textContent = detail || '';
+        
+        const banner = document.getElementById('log-status-banner');
+        const spinner = document.getElementById('log-spinner');
+        
+        const styles = {
+            info: { bg: 'rgba(32, 107, 196, 0.2)', border: 'rgba(32, 107, 196, 0.4)' },
+            success: { bg: 'rgba(47, 179, 68, 0.2)', border: 'rgba(47, 179, 68, 0.4)' },
+            danger: { bg: 'rgba(214, 57, 57, 0.2)', border: 'rgba(214, 57, 57, 0.4)' },
+            warning: { bg: 'rgba(247, 103, 7, 0.2)', border: 'rgba(247, 103, 7, 0.4)' }
+        };
+        const style = styles[severity] || styles.info;
+        
+        banner.style.background = style.bg;
+        banner.style.border = `1px solid ${style.border}`;
+        spinner.style.display = severity === 'info' ? 'inline-block' : 'none';
+    }
+    
+    setProgress(percent) {
+        document.getElementById('log-progress-bar').style.width = `${percent}%`;
+    }
+    
+    showProgress(show) {
+        document.getElementById('log-progress-bar-container').style.display = show ? 'block' : 'none';
+    }
+    
+    appendLog(text, type = 'output') {
+        const output = document.getElementById('log-output');
+        const div = document.createElement('div');
+        
+        const colors = {
+            error: 'text-danger',
+            success: 'text-success', 
+            warning: 'text-warning',
+            info: 'text-info',
+            dim: 'text-secondary',
+            output: 'text-white'
+        };
+        div.className = colors[type] || 'text-white';
+        div.textContent = text;
+        output.appendChild(div);
+        
+        // Auto-scroll
+        output.parentElement.scrollTop = output.parentElement.scrollHeight;
+        
+        // Update line count
+        document.getElementById('log-line-count').textContent = `${output.children.length} lines`;
+    }
+    
+    startTimer() {
+        this.timerInterval = setInterval(() => {
+            if (!this.startTime) return;
+            const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+            const m = Math.floor(elapsed / 60);
+            const s = elapsed % 60;
+            document.getElementById('log-elapsed-time').textContent = m > 0 ? `${m}m ${s}s` : `${s}s`;
+        }, 1000);
+    }
+    
+    stopTimer() {
+        if (this.timerInterval) { clearInterval(this.timerInterval); this.timerInterval = null; }
+    }
+    
+    refreshTable() {
+        setTimeout(() => {
+            if (typeof htmx !== 'undefined') {
+                htmx.trigger('body', 'refresh-applications-table');
+            }
+        }, 1000);
+    }
+}
+
+// Global instance
+window.containerModal = null;
+
+// Initialize
+function initContainerModal() {
+    if (!window.containerModal) {
+        window.containerModal = new ContainerOperationModal();
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initContainerModal);
+} else {
+    initContainerModal();
+}
+
+// ============================================================================
+// Global Action Functions (called from table buttons)
+// ============================================================================
+
+window.startContainerAction = function(modelSlug, appNumber, action, options = {}) {
+    initContainerModal();
+    if (window.containerModal) {
+        window.containerModal.start(modelSlug, appNumber, action, options);
+    } else {
+        console.error('Container modal not initialized');
+        alert('Error: Container modal not ready');
+    }
+};
+
+window.showActionHistory = function(modelSlug, appNumber) {
+    const modal = document.getElementById('containerHistoryModal');
+    if (!modal) return;
+    
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+    
+    document.getElementById('containerHistoryContent').innerHTML = `
+        <div class="text-center py-4">
+            <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+            <p class="text-muted mt-2">Loading history...</p>
+        </div>
+    `;
+    
+    fetch(`/api/app/${modelSlug}/${appNumber}/actions?limit=20`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.success && data.actions?.length) {
+                const rows = data.actions.map(a => {
+                    const sc = { completed: 'bg-success', failed: 'bg-danger', running: 'bg-info', cancelled: 'bg-warning' }[a.status] || 'bg-secondary';
+                    const icon = { build: 'fa-hammer', start: 'fa-play', stop: 'fa-stop', restart: 'fa-sync' }[a.action_type] || 'fa-cog';
+                    return `<tr>
+                        <td><i class="fas ${icon} me-1"></i>${a.action_type}</td>
+                        <td><span class="badge ${sc}">${a.status}</span></td>
+                        <td>${a.progress_percentage || 0}%</td>
+                        <td class="small text-muted">${new Date(a.created_at).toLocaleString()}</td>
+                    </tr>`;
+                }).join('');
+                document.getElementById('containerHistoryContent').innerHTML = `
+                    <table class="table table-sm"><thead><tr><th>Type</th><th>Status</th><th>Progress</th><th>Time</th></tr></thead>
+                    <tbody>${rows}</tbody></table>`;
+            } else {
+                document.getElementById('containerHistoryContent').innerHTML = `<div class="alert alert-info">No history found.</div>`;
+            }
+        })
+        .catch(e => {
+            document.getElementById('containerHistoryContent').innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
+        });
+};
+
+// Batch operations
+window.getSelectedApplications = function() {
+    return Array.from(document.querySelectorAll('.app-checkbox:checked')).map(cb => cb.value);
+};
+
+window.updateBatchSelectionCount = function() {
+    const el = document.getElementById('selected-applications-count');
+    if (el) el.textContent = window.getSelectedApplications().length;
+};
+
+window.batchOperation = async function(action) {
+    const selected = window.getSelectedApplications();
+    if (!selected.length) {
+        alert('Please select at least one application');
+        return;
+    }
+    
+    const apps = selected.map(v => {
+        const idx = v.lastIndexOf('-');
+        return { model: v.substring(0, idx), app: parseInt(v.substring(idx + 1)) };
+    });
+    
+    // Show progress in batch modal
+    document.getElementById('batchOperationsButtons').style.display = 'none';
+    document.getElementById('batchOperationsProgress').style.display = 'block';
+    document.getElementById('batchCancelBtn').style.display = 'inline-block';
+    document.getElementById('batchCloseBtn').disabled = true;
+    
+    const log = document.getElementById('batchProgressLog');
+    log.innerHTML = '';
+    
+    let completed = 0, failed = 0;
+    
+    for (let i = 0; i < apps.length; i++) {
+        const app = apps[i];
+        const label = `${app.model.split('_').pop()} #${app.app}`;
+        
+        document.getElementById('batchProgressLabel').textContent = `${action}: ${label}`;
+        document.getElementById('batchProgressCount').textContent = `${i + 1}/${apps.length}`;
+        document.getElementById('batchProgressBar').style.width = `${((i + 1) / apps.length) * 100}%`;
+        
+        const entry = document.createElement('div');
+        entry.className = 'text-muted';
+        entry.innerHTML = `<i class="fas fa-spinner fa-spin me-1"></i>${label}`;
+        log.appendChild(entry);
+        
+        try {
+            const apiAction = action === 'rebuild' ? 'build' : action;
+            const body = action === 'build' || action === 'rebuild' 
+                ? { no_cache: action === 'rebuild', start_after: true } 
+                : {};
+            
+            const resp = await fetch(`/api/app/${app.model}/${app.app}/${apiAction}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            
+            if (resp.ok) {
+                completed++;
+                entry.className = 'text-success';
+                entry.innerHTML = `<i class="fas fa-check me-1"></i>${label}`;
+            } else {
+                failed++;
+                entry.className = 'text-danger';
+                entry.innerHTML = `<i class="fas fa-times me-1"></i>${label}`;
+            }
+        } catch (e) {
+            failed++;
+            entry.className = 'text-danger';
+            entry.innerHTML = `<i class="fas fa-times me-1"></i>${label}: ${e.message}`;
+        }
+        
+        await new Promise(r => setTimeout(r, 100));
+    }
+    
+    // Done
+    document.getElementById('batchCancelBtn').style.display = 'none';
+    document.getElementById('batchCloseBtn').disabled = false;
+    document.getElementById('batchOperationResult').innerHTML = `
+        <div class="alert alert-${failed ? 'warning' : 'success'} py-2 mt-2 mb-0">
+            <i class="fas fa-${failed ? 'exclamation-triangle' : 'check-circle'} me-1"></i>
+            ${completed} completed${failed ? `, ${failed} failed` : ''}
+        </div>
+    `;
+    
+    // Refresh table
+    setTimeout(() => htmx.trigger('body', 'refresh-applications-table'), 500);
+};
+
+window.resetBatchUI = function() {
+    document.getElementById('batchOperationsButtons').style.display = 'block';
+    document.getElementById('batchOperationsProgress').style.display = 'none';
+    document.getElementById('batchOperationResult').innerHTML = '';
+    document.getElementById('batchCancelBtn').style.display = 'none';
+    document.getElementById('batchCloseBtn').disabled = false;
+};
+
+window.confirmBatchDelete = function() {
+    const count = window.getSelectedApplications().length;
+    if (confirm(`Delete ${count} application(s)? This cannot be undone.`)) {
+        window.batchOperation('delete');
+    }
+};
+
+window.cancelBatchOperation = function() {
+    // Simple cancel - just stop (batch ops are sync per-app)
+};
+
+// Reset batch modal on close
+document.getElementById('batchApplicationsModal')?.addEventListener('hidden.bs.modal', window.resetBatchUI);
+
+})();
+</script>
+
 <script>
 // Application filters - wrapped in IIFE to avoid global scope conflicts with models.js
 (function() {
@@ -247,6 +747,32 @@
     });
   }
 
+  /**
+   * Clear all filters (basic and advanced) and refresh table
+   */
+  function clearAllApplicationFilters() {
+    // Clear search
+    const searchInput = document.getElementById('application-search');
+    if (searchInput) searchInput.value = '';
+    
+    // Clear basic dropdowns
+    const modelFilter = document.getElementById('model-filter');
+    if (modelFilter) modelFilter.value = '';
+    const statusFilter = document.getElementById('status-filter');
+    if (statusFilter) statusFilter.value = '';
+    const templateFilter = document.getElementById('template-filter');
+    if (templateFilter) templateFilter.value = '';
+    
+    // Clear advanced filters
+    clearApplicationsAdvancedFilters();
+    
+    // Refresh table without any filters
+    htmx.ajax('GET', '/applications/table', {
+      target: '#applications-table-section',
+      swap: 'outerHTML'
+    });
+  }
+
   // Export functions to global scope for template event handlers
   window.debounceApplicationSearch = debounceApplicationSearch;
   window.clearApplicationSearch = clearApplicationSearch;
@@ -257,6 +783,7 @@
   window.updateApplicationsAdvancedFilters = updateApplicationsAdvancedFilters;
   window.applyApplicationsAdvancedFilters = applyApplicationsAdvancedFilters;
   window.clearApplicationsAdvancedFilters = clearApplicationsAdvancedFilters;
+  window.clearAllApplicationFilters = clearAllApplicationFilters;
 })();
 </script>
 {% endblock %}

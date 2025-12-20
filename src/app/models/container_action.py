@@ -155,7 +155,19 @@ class ContainerAction(db.Model):
     def duration_seconds(self) -> Optional[float]:
         """Calculate duration in seconds."""
         if self.started_at and self.completed_at:
-            return (self.completed_at - self.started_at).total_seconds()
+            # Handle timezone-naive vs timezone-aware datetime comparison
+            # SQLite may return naive datetimes even with timezone=True
+            from datetime import timezone
+            started = self.started_at
+            completed = self.completed_at
+            
+            # Normalize both to naive UTC for safe comparison
+            if started.tzinfo is not None:
+                started = started.replace(tzinfo=None)
+            if completed.tzinfo is not None:
+                completed = completed.replace(tzinfo=None)
+            
+            return (completed - started).total_seconds()
         return None
     
     @property

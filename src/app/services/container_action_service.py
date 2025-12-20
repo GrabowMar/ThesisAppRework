@@ -48,6 +48,39 @@ class ContainerActionService:
         """Initialize service with optional Flask app context."""
         self.app = app
         self._ensure_executor()
+        # Clean up stuck actions on startup
+        if app:
+            self._cleanup_stuck_actions(app)
+    
+    def _cleanup_stuck_actions(self, app) -> None:
+        """Clean up actions stuck in RUNNING or PENDING state from previous crashes."""
+        try:
+            with app.app_context():
+                # Find actions that are stuck (RUNNING or PENDING for too long)
+                stuck_threshold = utc_now() - timedelta(minutes=30)
+                
+                stuck_actions = ContainerAction.query.filter(
+                    ContainerAction.status.in_([ContainerActionStatus.RUNNING, ContainerActionStatus.PENDING]),
+                    ContainerAction.created_at < stuck_threshold
+                ).all()
+                
+                for action in stuck_actions:
+                    logger.warning(f"Cleaning up stuck action {action.action_id} (status: {action.status}, created: {action.created_at})")
+                    action.status = ContainerActionStatus.FAILED
+                    action.error_message = "Action was interrupted (server restart or timeout)"
+                    action.completed_at = utc_now()
+                
+                if stuck_actions:
+                    db.session.commit()
+                    logger.info(f"Cleaned up {len(stuck_actions)} stuck container actions")
+                    
+                # Also clean up the in-memory active actions dict
+                # Any action in DB that's RUNNING but was created before restart should be cleared
+                with self._active_lock:
+                    self._active_actions.clear()
+                    
+        except Exception as e:
+            logger.error(f"Error cleaning up stuck actions: {e}")
     
     @classmethod
     def _ensure_executor(cls) -> ThreadPoolExecutor:
@@ -189,8 +222,11 @@ class ContainerActionService:
             from .service_locator import ServiceLocator
             docker_mgr = ServiceLocator.get_docker_manager()
             
+            # Check if Docker manager is available
+            if not docker_mgr:
+                result = {'success': False, 'error': 'Docker manager not available. Is Docker running?'}
             # Execute based on action type
-            if action.action_type == ContainerActionType.BUILD:
+            elif action.action_type == ContainerActionType.BUILD:
                 result = self._execute_build(action, docker_mgr)
             elif action.action_type == ContainerActionType.START:
                 result = self._execute_start(action, docker_mgr)
@@ -323,8 +359,14 @@ class ContainerActionService:
         
         result = docker_mgr.start_containers(action.target_model, action.target_app_number)
         
+        # Improve error message if compose file not found
+        if not result.get('success'):
+            error = result.get('error', '')
+            if 'compose file not found' in error.lower() or 'not found' in error.lower():
+                result['error'] = 'App not built. Click Build first.'
+        
         action.update_progress(100 if result.get('success') else 50, 
-                              "Containers started" if result.get('success') else "Start failed")
+                              "Containers started" if result.get('success') else result.get('error', 'Start failed'))
         db.session.commit()
         self._emit_progress(action)
         
@@ -339,8 +381,14 @@ class ContainerActionService:
         
         result = docker_mgr.stop_containers(action.target_model, action.target_app_number)
         
+        # Improve error message if compose file not found
+        if not result.get('success'):
+            error = result.get('error', '')
+            if 'compose file not found' in error.lower() or 'not found' in error.lower():
+                result['error'] = 'App not built. Nothing to stop.'
+        
         action.update_progress(100 if result.get('success') else 50,
-                              "Containers stopped" if result.get('success') else "Stop failed")
+                              "Containers stopped" if result.get('success') else result.get('error', 'Stop failed'))
         db.session.commit()
         self._emit_progress(action)
         
@@ -355,8 +403,14 @@ class ContainerActionService:
         
         result = docker_mgr.restart_containers(action.target_model, action.target_app_number)
         
+        # Improve error message if compose file not found
+        if not result.get('success'):
+            error = result.get('error', '')
+            if 'compose file not found' in error.lower() or 'not found' in error.lower():
+                result['error'] = 'App not built. Click Build first.'
+        
         action.update_progress(100 if result.get('success') else 50,
-                              "Containers restarted" if result.get('success') else "Restart failed")
+                              "Containers restarted" if result.get('success') else result.get('error', 'Restart failed'))
         db.session.commit()
         self._emit_progress(action)
         

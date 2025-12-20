@@ -617,8 +617,25 @@ class ContainerLogsModal {
         if (this.statusDetailElement && detailText) {
             this.statusDetailElement.textContent = detailText;
         }
+        
+        // Dark-themed status colors (matches modal dark background)
         if (this.statusBanner) {
-            this.statusBanner.className = `alert alert-${severity} m-3 mb-0`;
+            const statusStyles = {
+                info: { bg: 'rgba(32, 107, 196, 0.2)', border: 'rgba(32, 107, 196, 0.4)', spinner: 'text-info' },
+                success: { bg: 'rgba(47, 179, 68, 0.2)', border: 'rgba(47, 179, 68, 0.4)', spinner: 'text-success' },
+                danger: { bg: 'rgba(214, 57, 57, 0.2)', border: 'rgba(214, 57, 57, 0.4)', spinner: 'text-danger' },
+                warning: { bg: 'rgba(247, 103, 7, 0.2)', border: 'rgba(247, 103, 7, 0.4)', spinner: 'text-warning' }
+            };
+            const style = statusStyles[severity] || statusStyles.info;
+            
+            this.statusBanner.className = 'rounded m-3 mb-0 p-3 d-flex align-items-center';
+            this.statusBanner.style.background = style.bg;
+            this.statusBanner.style.border = `1px solid ${style.border}`;
+            
+            // Update spinner color to match
+            if (this.spinnerElement) {
+                this.spinnerElement.className = `spinner-border spinner-border-sm me-3 ${style.spinner}`;
+            }
         }
 
         // Update spinner visibility
