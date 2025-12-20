@@ -286,7 +286,12 @@ def build_applications_context():
     def _passes_status(a: dict) -> bool:
         if not status_filters:
             return True
-        return (a.get('status') or '').lower() in status_filters
+        app_status = (a.get('status') or '').lower()
+        # Special handling for build_failed filter
+        if 'build_failed' in status_filters:
+            if a.get('is_container_unhealthy') or a.get('container_status', '').lower() == 'build_failed':
+                return True
+        return app_status in status_filters
     def _passes_template(a: dict) -> bool:
         return (not template_filter) or (a.get('template_slug') == template_filter)
     def _passes_ports(a: dict) -> bool:

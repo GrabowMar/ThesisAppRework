@@ -85,54 +85,65 @@
   </div>
 </div>
 
-<!-- Batch Operations Modal -->
+<!-- Batch Operations Modal - Compact Design -->
 <div class="modal modal-blur fade" id="batchApplicationsModal" tabindex="-1" aria-labelledby="batchOperationsLabel" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="batchOperationsLabel">
-          <i class="fas fa-layer-group me-2"></i>Batch Operations
+      <div class="modal-header py-2">
+        <h5 class="modal-title d-flex align-items-center gap-2" id="batchOperationsLabel">
+          <i class="fas fa-layer-group text-primary"></i>
+          <span>Batch Operations</span>
+          <span class="badge bg-primary" id="selected-applications-count">0</span>
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
-        <p class="text-muted mb-3">
-          Perform operations on <span id="selected-applications-count">0</span> selected applications.
-        </p>
-        <div class="row g-3">
-          <div class="col-md-6">
-            <h6>Container Operations</h6>
-            <div class="list-group">
-              <button class="list-group-item list-group-item-action" onclick="batchOperation('start')">
-                <i class="fas fa-play me-2 text-success"></i>Start All
+      <div class="modal-body py-2" id="batchOperationsBody">
+        <!-- Default: Operation buttons -->
+        <div id="batchOperationsButtons">
+          <div class="btn-group-vertical w-100 gap-1" role="group">
+            <div class="btn-group w-100" role="group">
+              <button class="btn btn-outline-success flex-fill" onclick="batchOperation('start')" title="Start all selected">
+                <i class="fas fa-play me-1"></i>Start
               </button>
-              <button class="list-group-item list-group-item-action" onclick="batchOperation('stop')">
-                <i class="fas fa-stop me-2 text-danger"></i>Stop All
+              <button class="btn btn-outline-danger flex-fill" onclick="batchOperation('stop')" title="Stop all selected">
+                <i class="fas fa-stop me-1"></i>Stop
               </button>
-              <button class="list-group-item list-group-item-action" onclick="batchOperation('restart')">
-                <i class="fas fa-rotate me-2 text-warning"></i>Restart All
+              <button class="btn btn-outline-warning flex-fill" onclick="batchOperation('restart')" title="Restart all selected">
+                <i class="fas fa-sync me-1"></i>Restart
               </button>
-              <button class="list-group-item list-group-item-action" onclick="batchOperation('build')">
-                <i class="fas fa-hammer me-2 text-primary"></i>Build All
+              <button class="btn btn-outline-primary flex-fill" onclick="batchOperation('build')" title="Build all selected">
+                <i class="fas fa-hammer me-1"></i>Build
               </button>
             </div>
-          </div>
-          <div class="col-md-6">
-            <h6>Export & Management</h6>
-            <div class="list-group">
-              <button class="list-group-item list-group-item-action" onclick="batchOperation('export')">
-                <i class="fas fa-download me-2 text-secondary"></i>Export Selected
+            <div class="btn-group w-100" role="group">
+              <button class="btn btn-outline-secondary flex-fill" onclick="batchOperation('export')" title="Export selected">
+                <i class="fas fa-download me-1"></i>Export
               </button>
-              <button class="list-group-item list-group-item-action text-danger" onclick="batchOperation('delete')">
-                <i class="fas fa-trash me-2"></i>Delete Selected
+              <button class="btn btn-outline-danger flex-fill" onclick="confirmBatchDelete()" title="Delete selected">
+                <i class="fas fa-trash me-1"></i>Delete
               </button>
             </div>
           </div>
         </div>
-        <div id="batchOperationResult" class="mt-3"></div>
+        <!-- Progress view (shown during operations) -->
+        <div id="batchOperationsProgress" style="display: none;">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="text-muted small" id="batchProgressLabel">Processing...</span>
+            <span class="badge bg-primary" id="batchProgressCount">0/0</span>
+          </div>
+          <div class="progress mb-2" style="height: 8px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" id="batchProgressBar" role="progressbar" style="width: 0%"></div>
+          </div>
+          <div class="small" style="max-height: 150px; overflow-y: auto;" id="batchProgressLog"></div>
+        </div>
+        <!-- Results (shown after completion) -->
+        <div id="batchOperationResult"></div>
       </div>
-      <div class="modal-footer">
-        <button type="button" class="btn" data-bs-dismiss="modal">Close</button>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm" data-bs-dismiss="modal" id="batchCloseBtn">Close</button>
+        <button type="button" class="btn btn-sm btn-danger" onclick="cancelBatchOperation()" id="batchCancelBtn" style="display: none;">
+          <i class="fas fa-times me-1"></i>Cancel
+        </button>
       </div>
     </div>
   </div>
@@ -193,63 +204,399 @@ function updateBatchSelectionCount() {
   if (element) element.textContent = count;
 }
 
-// Consolidated batch operation function
+// Batch operation state
+var batchOperationState = {
+  inProgress: false,
+  cancelled: false,
+  completed: 0,
+  failed: 0,
+  total: 0,
+  operation: '',
+  results: []
+};
+
+// Consolidated batch operation function with progress tracking
 function batchOperation(operation) {
   const selected = getSelectedApplications();
   if (selected.length === 0) {
-    alert('Please select at least one application.');
+    showBatchToast('Please select at least one application.', 'warning');
+    return;
+  }
+  
+  if (batchOperationState.inProgress) {
+    showBatchToast('A batch operation is already in progress.', 'warning');
     return;
   }
 
-  const resultDiv = document.getElementById('batchOperationResult');
-  if (resultDiv) {
-    resultDiv.innerHTML = `<div class="alert alert-info"><i class="fas fa-spinner fa-spin me-2"></i>Processing ${operation} for ${selected.length} applications...</div>`;
-  }
+  // Reset state
+  batchOperationState = {
+    inProgress: true,
+    cancelled: false,
+    completed: 0,
+    failed: 0,
+    total: selected.length,
+    operation: operation,
+    results: []
+  };
 
-  const promises = selected.map(appKey => {
-    // Split at last dash since model slugs can contain dashes (e.g., anthropic_claude-4.5-haiku-20251001-1)
-    const lastDashIndex = appKey.lastIndexOf('-');
-    const modelSlug = appKey.substring(0, lastDashIndex);
-    const appNumber = appKey.substring(lastDashIndex + 1);
+  // Show progress UI
+  document.getElementById('batchOperationsButtons').style.display = 'none';
+  document.getElementById('batchOperationsProgress').style.display = 'block';
+  document.getElementById('batchOperationResult').innerHTML = '';
+  document.getElementById('batchCancelBtn').style.display = 'inline-block';
+  document.getElementById('batchCloseBtn').disabled = true;
+  
+  updateBatchProgress(`Starting ${operation}...`, 0);
+  document.getElementById('batchProgressLog').innerHTML = '';
+
+  // Process sequentially for better UX
+  processBatchSequentially(selected, operation, 0);
+}
+
+async function processBatchSequentially(apps, operation, index) {
+  if (batchOperationState.cancelled || index >= apps.length) {
+    finishBatchOperation();
+    return;
+  }
+  
+  const appKey = apps[index];
+  const lastDashIndex = appKey.lastIndexOf('-');
+  const modelSlug = appKey.substring(0, lastDashIndex);
+  const appNumber = appKey.substring(lastDashIndex + 1);
+  const appLabel = `${modelSlug.split('_').pop()} #${appNumber}`;
+  
+  updateBatchProgress(`${operation}: ${appLabel}`, index);
+  addBatchLogEntry(`<i class="fas fa-spinner fa-spin me-1"></i>${appLabel}...`, 'text-muted');
+  
+  try {
+    let result = { ok: false, success: false };
     
     switch(operation) {
       case 'start':
       case 'stop':
       case 'restart':
       case 'build':
-        return fetch(`/api/app/${modelSlug}/${appNumber}/${operation}`, { method: 'POST' });
+        const response = await fetch(`/api/app/${modelSlug}/${appNumber}/${operation}`, { method: 'POST' });
+        const data = await response.json().catch(() => ({}));
+        result = { ok: response.ok && data.success !== false, error: data.error };
+        break;
       case 'export':
         window.open(`/applications/${modelSlug}/${appNumber}/export.csv`, '_blank');
-        return Promise.resolve({ ok: true });
+        result = { ok: true };
+        break;
       case 'delete':
-        return fetch(`/api/applications/${modelSlug}/${appNumber}`, { method: 'DELETE' });
-      default:
-        return Promise.reject(new Error(`Unknown operation: ${operation}`));
+        const delResp = await fetch(`/api/applications/${modelSlug}/${appNumber}`, { method: 'DELETE' });
+        result = { ok: delResp.ok };
+        break;
     }
-  });
+    
+    if (result.ok) {
+      batchOperationState.completed++;
+      updateBatchLogEntry(index, `<i class="fas fa-check text-success me-1"></i>${appLabel}`, 'text-success');
+    } else {
+      batchOperationState.failed++;
+      const errMsg = result.error ? `: ${result.error.substring(0, 30)}` : '';
+      updateBatchLogEntry(index, `<i class="fas fa-times text-danger me-1"></i>${appLabel}${errMsg}`, 'text-danger');
+    }
+    
+    batchOperationState.results.push({ appKey, success: result.ok, error: result.error });
+    
+  } catch (error) {
+    batchOperationState.failed++;
+    updateBatchLogEntry(index, `<i class="fas fa-times text-danger me-1"></i>${appLabel}: ${error.message}`, 'text-danger');
+    batchOperationState.results.push({ appKey, success: false, error: error.message });
+  }
+  
+  // Small delay between operations
+  setTimeout(() => processBatchSequentially(apps, operation, index + 1), 100);
+}
 
-  Promise.allSettled(promises).then(results => {
-    const successful = results.filter(r => r.status === 'fulfilled' && r.value.ok).length;
-    const failed = results.length - successful;
-    
-    let message = `Operation completed: ${successful} successful`;
-    if (failed > 0) message += `, ${failed} failed`;
-    
-    if (resultDiv) {
-      resultDiv.innerHTML = `<div class="alert alert-${failed > 0 ? 'warning' : 'success'}">${message}</div>`;
-    }
-    
-    // Refresh table if any operation succeeded
-    if (successful > 0) {
-      setTimeout(() => {
-        htmx.trigger('body', 'refresh-applications-table');
-      }, 1000);
-    }
-  }).catch(error => {
-    if (resultDiv) {
-      resultDiv.innerHTML = `<div class="alert alert-danger">Batch operation failed: ${error.message}</div>`;
-    }
+function updateBatchProgress(label, currentIndex) {
+  const total = batchOperationState.total;
+  const percent = total > 0 ? Math.round(((currentIndex + 1) / total) * 100) : 0;
+  
+  document.getElementById('batchProgressLabel').textContent = label;
+  document.getElementById('batchProgressCount').textContent = `${currentIndex + 1}/${total}`;
+  document.getElementById('batchProgressBar').style.width = `${percent}%`;
+}
+
+function addBatchLogEntry(html, className) {
+  const log = document.getElementById('batchProgressLog');
+  const entry = document.createElement('div');
+  entry.className = className || '';
+  entry.innerHTML = html;
+  entry.dataset.index = batchOperationState.completed + batchOperationState.failed;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+}
+
+function updateBatchLogEntry(index, html, className) {
+  const log = document.getElementById('batchProgressLog');
+  const entry = log.querySelector(`[data-index="${index}"]`);
+  if (entry) {
+    entry.className = className || '';
+    entry.innerHTML = html;
+  }
+}
+
+function finishBatchOperation() {
+  batchOperationState.inProgress = false;
+  
+  document.getElementById('batchCancelBtn').style.display = 'none';
+  document.getElementById('batchCloseBtn').disabled = false;
+  
+  const { completed, failed, cancelled, operation } = batchOperationState;
+  
+  let alertClass = 'success';
+  let icon = 'check-circle';
+  let message = `${operation} completed: ${completed} successful`;
+  
+  if (failed > 0) {
+    alertClass = 'warning';
+    icon = 'exclamation-triangle';
+    message += `, ${failed} failed`;
+  }
+  if (cancelled) {
+    alertClass = 'secondary';
+    icon = 'ban';
+    message = `${operation} cancelled: ${completed} completed, ${batchOperationState.total - completed} remaining`;
+  }
+  
+  document.getElementById('batchOperationResult').innerHTML = `
+    <div class="alert alert-${alertClass} py-2 mb-0 mt-2 d-flex align-items-center gap-2">
+      <i class="fas fa-${icon}"></i>
+      <span>${message}</span>
+      <button class="btn btn-sm btn-link ms-auto p-0" onclick="resetBatchUI()">
+        <i class="fas fa-redo"></i> New
+      </button>
+    </div>
+  `;
+  
+  // Refresh table
+  if (completed > 0) {
+    setTimeout(() => htmx.trigger('body', 'refresh-applications-table'), 500);
+  }
+}
+
+function cancelBatchOperation() {
+  batchOperationState.cancelled = true;
+  document.getElementById('batchProgressLabel').textContent = 'Cancelling...';
+}
+
+function confirmBatchDelete() {
+  const count = getSelectedApplications().length;
+  if (confirm(`Are you sure you want to delete ${count} application(s)? This cannot be undone.`)) {
+    batchOperation('delete');
+  }
+}
+
+function resetBatchUI() {
+  document.getElementById('batchOperationsButtons').style.display = 'block';
+  document.getElementById('batchOperationsProgress').style.display = 'none';
+  document.getElementById('batchOperationResult').innerHTML = '';
+  document.getElementById('batchCancelBtn').style.display = 'none';
+  document.getElementById('batchCloseBtn').disabled = false;
+}
+
+function showBatchToast(message, type = 'info') {
+  const resultDiv = document.getElementById('batchOperationResult');
+  if (resultDiv) {
+    resultDiv.innerHTML = `<div class="alert alert-${type} py-2 mb-0 mt-2"><i class="fas fa-info-circle me-1"></i>${message}</div>`;
+    setTimeout(() => { resultDiv.innerHTML = ''; }, 3000);
+  }
+}
+
+// Reset batch UI when modal is closed
+document.getElementById('batchApplicationsModal')?.addEventListener('hidden.bs.modal', resetBatchUI);
+
+// ---- Container Operations Tracker ----
+// Tracks all ongoing container operations (individual and batch)
+var containerOperationsTracker = {
+  operations: new Map(), // action_id -> operation info
+  element: null,
+  pollInterval: null
+};
+
+function initContainerTracker() {
+  if (containerOperationsTracker.element) return;
+  
+  const tracker = document.createElement('div');
+  tracker.id = 'container-ops-tracker';
+  tracker.className = 'position-fixed bottom-0 end-0 p-3';
+  tracker.style.cssText = 'z-index: 1090; max-width: 320px; pointer-events: none;';
+  tracker.innerHTML = `
+    <div id="container-ops-list" class="d-flex flex-column gap-2" style="pointer-events: auto;"></div>
+  `;
+  document.body.appendChild(tracker);
+  containerOperationsTracker.element = tracker;
+  
+  // Start global polling for active operations
+  if (!containerOperationsTracker.pollInterval) {
+    containerOperationsTracker.pollInterval = setInterval(pollAllContainerOperations, 1500);
+  }
+}
+
+function addContainerOperation(actionId, modelSlug, appNumber, actionType) {
+  initContainerTracker();
+  
+  const opKey = actionId;
+  const appLabel = `${modelSlug.split('_').pop()} #${appNumber}`;
+  
+  containerOperationsTracker.operations.set(opKey, {
+    actionId, modelSlug, appNumber, actionType, appLabel,
+    status: 'running', progress: 0, step: 'Starting...'
   });
+  
+  renderContainerOperations();
+}
+
+function renderContainerOperations() {
+  const list = document.getElementById('container-ops-list');
+  if (!list) return;
+  
+  const ops = Array.from(containerOperationsTracker.operations.values());
+  
+  if (ops.length === 0) {
+    list.innerHTML = '';
+    return;
+  }
+  
+  list.innerHTML = ops.map(op => {
+    const isRunning = op.status === 'running' || op.status === 'pending';
+    const isFailed = op.status === 'failed';
+    const isComplete = op.status === 'completed';
+    
+    let statusIcon = '<i class="fas fa-spinner fa-spin text-info"></i>';
+    let bgClass = 'bg-white';
+    let progressClass = 'bg-primary';
+    
+    if (isFailed) {
+      statusIcon = '<i class="fas fa-times-circle text-danger"></i>';
+      bgClass = 'bg-danger-lt';
+      progressClass = 'bg-danger';
+    } else if (isComplete) {
+      statusIcon = '<i class="fas fa-check-circle text-success"></i>';
+      bgClass = 'bg-success-lt';
+      progressClass = 'bg-success';
+    }
+    
+    return `
+      <div class="card shadow-sm ${bgClass}" data-op-id="${op.actionId}" style="font-size: 0.85rem;">
+        <div class="card-body p-2">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            ${statusIcon}
+            <span class="fw-medium text-truncate flex-grow-1" title="${op.modelSlug} App ${op.appNumber}">
+              ${op.actionType.toUpperCase()}: ${op.appLabel}
+            </span>
+            ${!isRunning ? `<button class="btn btn-sm p-0 border-0" onclick="dismissContainerOperation('${op.actionId}')" title="Dismiss"><i class="fas fa-times text-muted"></i></button>` : ''}
+          </div>
+          <div class="progress mb-1" style="height: 4px;">
+            <div class="progress-bar ${progressClass} ${isRunning ? 'progress-bar-striped progress-bar-animated' : ''}" style="width: ${op.progress}%"></div>
+          </div>
+          <div class="d-flex justify-content-between align-items-center">
+            <small class="text-muted text-truncate" style="max-width: 200px;" title="${op.step || ''}">${op.step || 'Processing...'}</small>
+            ${isFailed ? `<button class="btn btn-sm btn-link p-0 text-danger" onclick="showOperationDetails('${op.actionId}')" title="View error"><i class="fas fa-eye"></i></button>` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function pollAllContainerOperations() {
+  const ops = containerOperationsTracker.operations;
+  if (ops.size === 0) return;
+  
+  ops.forEach((op, actionId) => {
+    if (op.status !== 'running' && op.status !== 'pending') return;
+    
+    fetch(`/api/container-actions/${actionId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.success || !data.action) return;
+        
+        const action = data.action;
+        op.status = action.status;
+        op.progress = action.progress_percentage || 0;
+        op.step = action.current_step || action.error_message || '';
+        
+        // Update table row status
+        updateTableRowStatus(action);
+        
+        if (action.status === 'completed') {
+          op.progress = 100;
+          op.step = 'Completed';
+          showContainerToast(`${op.actionType} completed: ${op.appLabel}`, 'success', 3000);
+          setTimeout(() => refreshApplications?.(), 500);
+          // Auto-dismiss after 3 seconds
+          setTimeout(() => dismissContainerOperation(actionId), 3000);
+        } else if (action.status === 'failed') {
+          op.step = action.error_message || 'Failed';
+        }
+        
+        renderContainerOperations();
+      })
+      .catch(() => {});
+  });
+}
+
+function dismissContainerOperation(actionId) {
+  containerOperationsTracker.operations.delete(actionId);
+  renderContainerOperations();
+}
+
+function showOperationDetails(actionId) {
+  // Set up the modal with this action's details
+  currentContainerAction = actionId;
+  containerOutputOffset = 0;
+  containerActionModalShown = true;
+  
+  const modal = new bootstrap.Modal(document.getElementById('containerActionModal'));
+  modal.show();
+  
+  // Initialize modal with current state
+  fetch(`/api/container-actions/${actionId}`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.success && data.action) {
+        const action = data.action;
+        document.getElementById('containerActionTitle').textContent = `${action.action_type.charAt(0).toUpperCase() + action.action_type.slice(1)} Details`;
+        document.getElementById('containerActionType').textContent = action.action_type.toUpperCase();
+        document.getElementById('containerActionTarget').textContent = `${action.target_model} / App ${action.target_app_number}`;
+        document.getElementById('containerActionSpinner').style.display = action.status === 'running' ? 'inline-block' : 'none';
+        document.getElementById('containerActionCancelBtn').disabled = action.status !== 'running';
+        
+        // Update progress
+        const progressEl = document.getElementById('containerActionProgress');
+        progressEl.style.width = `${action.progress_percentage || 0}%`;
+        progressEl.textContent = `${action.progress_percentage || 0}%`;
+        
+        // Status badge
+        const statusBadge = document.getElementById('containerActionStatus');
+        if (action.status === 'completed') {
+          statusBadge.className = 'badge bg-success';
+          statusBadge.textContent = 'Completed';
+        } else if (action.status === 'failed') {
+          statusBadge.className = 'badge bg-danger';
+          statusBadge.textContent = 'Failed';
+          progressEl.classList.add('bg-danger');
+        } else {
+          statusBadge.className = 'badge bg-info';
+          statusBadge.textContent = 'Running';
+        }
+        
+        document.getElementById('containerActionStep').textContent = action.current_step || action.error_message || '';
+        
+        // Load full output
+        return fetch(`/api/container-actions/${actionId}/output?offset=0`);
+      }
+    })
+    .then(r => r ? r.json() : null)
+    .then(data => {
+      if (data && data.success) {
+        document.getElementById('containerActionOutput').textContent = data.output || '(no output)';
+      }
+    });
 }
 
 // Update selection count when checkboxes change
@@ -275,28 +622,21 @@ function viewApplicationDetails(modelSlug, appNumber) {
 var currentContainerAction = window._containerAction_current || null;
 var containerActionPollInterval = window._containerAction_poll || null;
 var containerOutputOffset = window._containerAction_offset || 0;
+var containerActionModalShown = false;
 
 function startContainerAction(modelSlug, appNumber, actionType, options = {}) {
-  // Show modal
-  const modal = new bootstrap.Modal(document.getElementById('containerActionModal'));
-  modal.show();
-  
-  // Reset state
+  // Reset modal state
   currentContainerAction = null;
   containerOutputOffset = 0;
+  containerActionModalShown = false;
   
-  // Update UI
-  document.getElementById('containerActionTitle').textContent = `${actionType.charAt(0).toUpperCase() + actionType.slice(1)} Operation`;
-  document.getElementById('containerActionType').textContent = actionType.toUpperCase();
-  document.getElementById('containerActionTarget').textContent = `${modelSlug} / App ${appNumber}`;
-  document.getElementById('containerActionStatus').className = 'badge bg-info';
-  document.getElementById('containerActionStatus').textContent = 'Starting...';
-  document.getElementById('containerActionProgress').style.width = '0%';
-  document.getElementById('containerActionProgress').textContent = '0%';
-  document.getElementById('containerActionStep').textContent = 'Initializing...';
-  document.getElementById('containerActionOutput').textContent = '';
-  document.getElementById('containerActionSpinner').style.display = 'inline-block';
-  document.getElementById('containerActionCancelBtn').disabled = false;
+  // Show inline status indicator first (non-intrusive)
+  const row = document.querySelector(`tr[data-model="${modelSlug}"][data-app="${appNumber}"]`);
+  const statusBadge = row?.querySelector('[data-role="status-badge"]');
+  if (statusBadge) {
+    statusBadge.className = 'badge bg-info-lt text-info';
+    statusBadge.innerHTML = `<i class="fas fa-spinner fa-spin fa-xs me-1"></i>${actionType}ing...`;
+  }
   
   // Build request body
   const body = {};
@@ -315,42 +655,74 @@ function startContainerAction(modelSlug, appNumber, actionType, options = {}) {
   .then(data => {
     if (data.success && data.action_id) {
       currentContainerAction = data.action_id;
-      document.getElementById('containerActionStatus').textContent = 'Running';
-      startContainerActionPolling();
+      // Add to tracker for progress display
+      addContainerOperation(data.action_id, modelSlug, appNumber, actionType);
     } else {
-      document.getElementById('containerActionStatus').className = 'badge bg-danger';
-      document.getElementById('containerActionStatus').textContent = 'Failed';
-      document.getElementById('containerActionStep').textContent = data.error || 'Failed to start action';
-      document.getElementById('containerActionSpinner').style.display = 'none';
+      // Show error toast
+      showContainerToast(data.error || `Failed to ${actionType}`, 'danger');
+      if (statusBadge) {
+        statusBadge.className = 'badge bg-danger-lt text-danger';
+        statusBadge.innerHTML = `<i class="fas fa-times fa-xs me-1"></i>Error`;
+      }
     }
   })
   .catch(error => {
-    document.getElementById('containerActionStatus').className = 'badge bg-danger';
-    document.getElementById('containerActionStatus').textContent = 'Error';
-    document.getElementById('containerActionStep').textContent = error.message;
-    document.getElementById('containerActionSpinner').style.display = 'none';
+    showContainerToast(`Error: ${error.message}`, 'danger');
+    if (statusBadge) {
+      statusBadge.className = 'badge bg-danger-lt text-danger';
+      statusBadge.innerHTML = `<i class="fas fa-times fa-xs me-1"></i>Error`;
+    }
   });
 }
 
-function startContainerActionPolling() {
-  if (containerActionPollInterval) {
-    clearInterval(containerActionPollInterval);
-  }
+// Show modal only when user explicitly requests it or for long operations
+function showContainerActionModal() {
+  if (containerActionModalShown) return;
+  containerActionModalShown = true;
   
-  containerActionPollInterval = setInterval(() => {
-    if (!currentContainerAction) {
-      clearInterval(containerActionPollInterval);
-      return;
-    }
-    
-    // Poll status
+  const modal = new bootstrap.Modal(document.getElementById('containerActionModal'));
+  modal.show();
+  
+  // Start output polling for modal
+  startModalOutputPolling();
+  
+  // Initialize modal with current state
+  if (currentContainerAction) {
     fetch(`/api/container-actions/${currentContainerAction}`)
       .then(r => r.json())
       .then(data => {
         if (data.success && data.action) {
-          updateContainerActionUI(data.action);
+          const action = data.action;
+          document.getElementById('containerActionTitle').textContent = `${action.action_type.charAt(0).toUpperCase() + action.action_type.slice(1)} Operation`;
+          document.getElementById('containerActionType').textContent = action.action_type.toUpperCase();
+          document.getElementById('containerActionTarget').textContent = `${action.target_model} / App ${action.target_app_number}`;
+          updateContainerActionUI(action);
         }
       });
+    
+    // Load full output
+    fetch(`/api/container-actions/${currentContainerAction}/output?offset=0`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          document.getElementById('containerActionOutput').textContent = data.output || '(no output yet)';
+          containerOutputOffset = data.next_offset || 0;
+        }
+      });
+  }
+}
+
+// Poll output while modal is shown
+var modalOutputPollInterval = null;
+
+function startModalOutputPolling() {
+  if (modalOutputPollInterval) clearInterval(modalOutputPollInterval);
+  
+  modalOutputPollInterval = setInterval(() => {
+    if (!containerActionModalShown || !currentContainerAction) {
+      clearInterval(modalOutputPollInterval);
+      return;
+    }
     
     // Poll output
     fetch(`/api/container-actions/${currentContainerAction}/output?offset=${containerOutputOffset}`)
@@ -358,56 +730,210 @@ function startContainerActionPolling() {
       .then(data => {
         if (data.success && data.output) {
           const outputEl = document.getElementById('containerActionOutput');
-          outputEl.textContent += data.output;
-          outputEl.scrollTop = outputEl.scrollHeight;
+          if (outputEl) {
+            outputEl.textContent += data.output;
+            outputEl.scrollTop = outputEl.scrollHeight;
+          }
           containerOutputOffset = data.next_offset || (containerOutputOffset + data.output.length);
         }
       });
-  }, 1000);
+    
+    // Also update modal UI
+    fetch(`/api/container-actions/${currentContainerAction}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.action) {
+          updateContainerActionUI(data.action);
+        }
+      });
+  }, 1500);
+}
+
+// Stop modal polling when modal closes
+document.getElementById('containerActionModal')?.addEventListener('hidden.bs.modal', () => {
+  containerActionModalShown = false;
+  if (modalOutputPollInterval) {
+    clearInterval(modalOutputPollInterval);
+    modalOutputPollInterval = null;
+  }
+});
+
+// Toast notification for container operations
+function showContainerToast(message, type = 'info', duration = 4000) {
+  // Create toast container if it doesn't exist
+  let container = document.getElementById('container-toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'container-toast-container';
+    container.className = 'position-fixed bottom-0 end-0 p-3';
+    container.style.zIndex = '1100';
+    document.body.appendChild(container);
+  }
+  
+  const toast = document.createElement('div');
+  toast.className = `toast align-items-center text-bg-${type} border-0 show`;
+  toast.setAttribute('role', 'alert');
+  toast.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body">${message}</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  `;
+  
+  container.appendChild(toast);
+  
+  // Auto-remove after duration
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+  
+  // Manual dismiss
+  toast.querySelector('.btn-close').addEventListener('click', () => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  });
+}
+
+function startContainerActionPolling() {
+  // Polling is now handled by the centralized tracker (pollAllContainerOperations)
+  // This function is kept for compatibility but is a no-op
+}
+
+// Update table row status based on action state
+function updateTableRowStatus(action) {
+  const row = document.querySelector(`tr[data-model="${action.target_model}"][data-app="${action.target_app_number}"]`);
+  if (!row) return;
+  
+  const statusBadge = row.querySelector('[data-role="status-badge"]');
+  if (!statusBadge) return;
+  
+  if (action.status === 'running') {
+    statusBadge.className = 'badge bg-info-lt text-info';
+    statusBadge.innerHTML = `<i class="fas fa-spinner fa-spin fa-xs me-1"></i>${action.action_type}ing...`;
+  } else if (action.status === 'completed') {
+    // Success - will be updated by table refresh
+    statusBadge.className = 'badge bg-success-lt text-success';
+    if (action.action_type === 'stop') {
+      statusBadge.innerHTML = '<i class="fas fa-stop fa-xs me-1"></i>Stopped';
+    } else {
+      statusBadge.innerHTML = '<i class="fas fa-play fa-xs me-1"></i>Running';
+    }
+  } else if (action.status === 'failed') {
+    // Failed - mark as build_failed
+    statusBadge.className = 'badge bg-orange text-white';
+    statusBadge.innerHTML = '<i class="fas fa-exclamation-triangle fa-xs me-1"></i>Build Failed';
+    row.classList.add('table-warning', 'opacity-85');
+  }
 }
 
 function updateContainerActionUI(action) {
-  const progress = action.progress_percentage || 0;
-  const progressBar = document.getElementById('containerActionProgress');
-  progressBar.style.width = `${progress}%`;
-  progressBar.textContent = `${progress}%`;
+  // Only update modal UI if it's shown
+  if (!containerActionModalShown) return;
   
-  if (action.current_step) {
-    document.getElementById('containerActionStep').textContent = action.current_step;
+  const progressEl = document.getElementById('containerActionProgress');
+  const statusBadge = document.getElementById('containerActionStatus');
+  const stepEl = document.getElementById('containerActionStep');
+  const spinnerEl = document.getElementById('containerActionSpinner');
+  const cancelBtn = document.getElementById('containerActionCancelBtn');
+  
+  if (progressEl) {
+    const progress = action.progress_percentage || 0;
+    progressEl.style.width = `${progress}%`;
+    progressEl.textContent = `${progress}%`;
   }
   
-  const statusBadge = document.getElementById('containerActionStatus');
+  if (stepEl && action.current_step) {
+    stepEl.textContent = action.current_step;
+  }
   
   if (action.status === 'completed') {
-    statusBadge.className = 'badge bg-success';
-    statusBadge.textContent = 'Completed';
-    progressBar.classList.remove('progress-bar-animated');
-    progressBar.style.width = '100%';
-    progressBar.textContent = '100%';
-    document.getElementById('containerActionSpinner').style.display = 'none';
-    document.getElementById('containerActionCancelBtn').disabled = true;
-    stopContainerActionPolling();
-    // Refresh table after success
-    setTimeout(() => { if (typeof refreshApplications === 'function') refreshApplications(); }, 1000);
-  } else if (action.status === 'failed') {
-    statusBadge.className = 'badge bg-danger';
-    statusBadge.textContent = 'Failed';
-    progressBar.classList.remove('progress-bar-animated');
-    progressBar.classList.add('bg-danger');
-    document.getElementById('containerActionSpinner').style.display = 'none';
-    document.getElementById('containerActionCancelBtn').disabled = true;
-    if (action.error_message) {
-      document.getElementById('containerActionStep').textContent = action.error_message;
+    if (statusBadge) {
+      statusBadge.className = 'badge bg-success';
+      statusBadge.textContent = 'Completed';
     }
-    stopContainerActionPolling();
+    if (progressEl) {
+      progressEl.classList.remove('progress-bar-animated');
+      progressEl.style.width = '100%';
+      progressEl.textContent = '100%';
+    }
+    if (spinnerEl) spinnerEl.style.display = 'none';
+    if (cancelBtn) cancelBtn.disabled = true;
+  } else if (action.status === 'failed') {
+    if (statusBadge) {
+      statusBadge.className = 'badge bg-danger';
+      statusBadge.textContent = 'Failed';
+    }
+    if (progressEl) {
+      progressEl.classList.remove('progress-bar-animated');
+      progressEl.classList.add('bg-danger');
+    }
+    if (spinnerEl) spinnerEl.style.display = 'none';
+    if (cancelBtn) cancelBtn.disabled = true;
+    if (stepEl && action.error_message) {
+      stepEl.textContent = action.error_message;
+    }
   } else if (action.status === 'cancelled') {
-    statusBadge.className = 'badge bg-warning';
-    statusBadge.textContent = 'Cancelled';
-    progressBar.classList.remove('progress-bar-animated');
-    document.getElementById('containerActionSpinner').style.display = 'none';
-    document.getElementById('containerActionCancelBtn').disabled = true;
-    stopContainerActionPolling();
+    if (statusBadge) {
+      statusBadge.className = 'badge bg-warning';
+      statusBadge.textContent = 'Cancelled';
+    }
+    if (progressEl) progressEl.classList.remove('progress-bar-animated');
+    if (spinnerEl) spinnerEl.style.display = 'none';
+    if (cancelBtn) cancelBtn.disabled = true;
+  } else if (action.status === 'running') {
+    if (statusBadge) {
+      statusBadge.className = 'badge bg-info';
+      statusBadge.textContent = 'Running';
+    }
+    if (spinnerEl) spinnerEl.style.display = 'inline-block';
+    if (cancelBtn) cancelBtn.disabled = false;
   }
+}
+
+// Special toast for build failures with "View Details" option
+function showContainerFailureToast(action) {
+  let container = document.getElementById('container-toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'container-toast-container';
+    container.className = 'position-fixed bottom-0 end-0 p-3';
+    container.style.zIndex = '1100';
+    document.body.appendChild(container);
+  }
+  
+  const errorMsg = action.error_message ? action.error_message.substring(0, 60) : 'Unknown error';
+  const toast = document.createElement('div');
+  toast.className = 'toast align-items-center border-0 show bg-danger text-white';
+  toast.setAttribute('role', 'alert');
+  toast.innerHTML = `
+    <div class="toast-body">
+      <div class="d-flex align-items-center gap-2">
+        <i class="fas fa-exclamation-triangle"></i>
+        <div class="flex-grow-1">
+          <strong>${action.action_type} failed</strong>
+          <div class="small opacity-75">${errorMsg}${action.error_message && action.error_message.length > 60 ? '...' : ''}</div>
+        </div>
+        <button class="btn btn-sm btn-outline-light" onclick="showContainerActionModal();this.closest('.toast').remove();" title="View full output">
+          <i class="fas fa-eye"></i>
+        </button>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
+      </div>
+    </div>
+  `;
+  
+  container.appendChild(toast);
+  
+  // Auto-remove after longer duration for errors
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 8000);
+  
+  toast.querySelector('.btn-close').addEventListener('click', () => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  });
 }
 
 function stopContainerActionPolling() {
