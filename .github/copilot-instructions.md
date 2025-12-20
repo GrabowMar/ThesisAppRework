@@ -82,9 +82,30 @@ Use this as your working map for coding in this repo. Keep answers specific to t
 - Wire a new API endpoint to create `AnalysisTask`s and dispatch via analyzer manager or the WS gateway. Follow patterns in `src/app/services/*` and existing routes.
 
 ## API tokens (automation)
+- **Quick access for Copilot**: Read token from `.env` file: `API_KEY_FOR_APP` variable contains a valid Bearer token
 - Generate a Bearer token via UI (User → API Access) or see `docs/API_AUTH_AND_METHODS.md` for alternatives.
 - Verify quickly: `GET /api/tokens/verify` with `Authorization: Bearer <token>`.
 - Use with `POST /api/analysis/run` to create an `AnalysisTask` and kick off analysis; results are written to `results/{model}/app{N}/task_{task}/` and visible in the UI.
+
+### Dynamic API Token for Copilot Automation
+When automating via API calls, use the token from `.env`:
+```bash
+# Token location: .env file, variable API_KEY_FOR_APP
+# Current token: DZHnCEy0b2rkWu6RI8wDMgSZ2NTSPNOLMVr7AU-HqcqgghDmLoZfN2XMYEz4FVsT
+
+# Example API calls:
+# Generate app:
+curl -X POST http://localhost:5000/api/gen/generate \
+  -H "Authorization: Bearer $API_KEY_FOR_APP" \
+  -H "Content-Type: application/json" \
+  -d '{"model_slug": "deepseek/deepseek-v3.2", "template_slug": "crud_todo_list"}'
+
+# Run analysis:
+curl -X POST http://localhost:5000/api/analysis/run \
+  -H "Authorization: Bearer $API_KEY_FOR_APP" \
+  -H "Content-Type: application/json" \
+  -d '{"model_slug": "deepseek_deepseek-v3.2", "app_number": 1, "analysis_type": "comprehensive"}'
+```
 
 ## API endpoints → services
 - `POST /api/analysis/run` → creates `AnalysisTask`, then analyzer integration dispatches to containers (static/dynamic/perf/ai) via `AnalyzerManager` or the WS gateway.
