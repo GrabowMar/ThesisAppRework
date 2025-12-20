@@ -1235,6 +1235,7 @@ function Invoke-Wipeout {
     Write-Host "  • Remove all generated apps (generated/)" -ForegroundColor Yellow
     Write-Host "  • Remove all analysis results (results/)" -ForegroundColor Yellow
     Write-Host "  • Remove all reports (reports/)" -ForegroundColor Yellow
+    Write-Host "  • Remove all Docker containers and images (except analyzer-related)" -ForegroundColor Yellow
     Write-Host "  • Create fresh admin user" -ForegroundColor Yellow
     Write-Host ""
     Write-Host "⚠️  THIS CANNOT BE UNDONE! ⚠️" -ForegroundColor Red -BackgroundColor Black
@@ -1255,7 +1256,140 @@ function Invoke-Wipeout {
     Stop-AllServices
     Start-Sleep -Seconds 2
     
-    # 2. Remove database
+    # 2. Remove non-analyzer Docker containers and images
+    Write-Status "Removing non-analyzer Docker containers..." "Info"
+    try {
+        # Define analyzer-related patterns to KEEP (everything else gets removed)
+        $analyzerKeepPatterns = @(
+            'analyzer-*',
+            'analyzer_*',
+            '*static-analyzer*',
+            '*dynamic-analyzer*',
+            '*performance-tester*',
+            '*ai-analyzer*',
+            '*gateway-*',
+            '*celery-worker*',
+            '*redis-*',
+            '*redis:*'
+        )
+        
+        # Get all containers (format: ID|Name|Image)
+        $allContainers = docker ps -a --format "{{.ID}}|{{.Names}}|{{.Image}}" 2>$null
+        
+        if ($allContainers) {
+            $removedCount = 0
+            
+            foreach ($container in $allContainers) {
+                if ([string]::IsNullOrWhiteSpace($container)) { continue }
+                
+                $parts = $container -split '\|'
+                if ($parts.Count -lt 3) { continue }
+                
+                $containerId = $parts[0].Trim()
+                $containerName = $parts[1].Trim()
+                $containerImage = $parts[2].Trim()
+                
+                # Check if this container should be KEPT (analyzer-related)
+                $shouldKeep = $false
+                foreach ($pattern in $analyzerKeepPatterns) {
+                    if ($containerName -like $pattern -or $containerImage -like $pattern) {
+                        $shouldKeep = $true
+                        break
+                    }
+                }
+                
+                if (-not $shouldKeep) {
+                    Write-Host "    • Removing container: $containerName" -ForegroundColor Gray
+                    docker stop $containerId 2>$null | Out-Null
+                    docker rm -f $containerId 2>$null | Out-Null
+                    $removedCount++
+                }
+            }
+            
+            if ($removedCount -gt 0) {
+                Write-Status "  Removed $removedCount container(s)" "Success"
+            } else {
+                Write-Status "  No non-analyzer containers to remove" "Info"
+            }
+        } else {
+            Write-Status "  No containers found" "Info"
+        }
+    } catch {
+        Write-Status "  Error removing containers: $_" "Warning"
+    }
+    
+    Write-Status "Removing non-analyzer Docker images..." "Info"
+    try {
+        # Define image patterns to KEEP
+        $imageKeepPatterns = @(
+            'analyzer-*',
+            'analyzer_*',
+            '*static-analyzer*',
+            '*dynamic-analyzer*',
+            '*performance-tester*',
+            '*ai-analyzer*',
+            '*gateway*',
+            '*celery*',
+            'redis:*',
+            'redis',
+            'python:3*',
+            'node:*'
+        )
+        
+        # Get all images (format: ID|Repository:Tag)
+        $allImages = docker images --format "{{.ID}}|{{.Repository}}:{{.Tag}}" 2>$null
+        
+        if ($allImages) {
+            $removedCount = 0
+            
+            foreach ($image in $allImages) {
+                if ([string]::IsNullOrWhiteSpace($image)) { continue }
+                
+                $parts = $image -split '\|'
+                if ($parts.Count -lt 2) { continue }
+                
+                $imageId = $parts[0].Trim()
+                $imageName = $parts[1].Trim()
+                
+                # Skip <none> images - they'll be cleaned by prune
+                if ($imageName -like '*<none>*') { continue }
+                
+                # Check if this image should be KEPT
+                $shouldKeep = $false
+                foreach ($pattern in $imageKeepPatterns) {
+                    if ($imageName -like $pattern) {
+                        $shouldKeep = $true
+                        break
+                    }
+                }
+                
+                if (-not $shouldKeep) {
+                    Write-Host "    • Removing image: $imageName" -ForegroundColor Gray
+                    docker rmi -f $imageId 2>$null | Out-Null
+                    $removedCount++
+                }
+            }
+            
+            if ($removedCount -gt 0) {
+                Write-Status "  Removed $removedCount image(s)" "Success"
+            } else {
+                Write-Status "  No non-analyzer images to remove" "Info"
+            }
+        } else {
+            Write-Status "  No images found" "Info"
+        }
+        
+        # Clean up dangling images and volumes
+        Write-Status "Cleaning up dangling resources..." "Info"
+        docker image prune -f 2>$null | Out-Null
+        docker volume prune -f 2>$null | Out-Null
+        Write-Status "  Dangling resources cleaned" "Success"
+        
+    } catch {
+        Write-Status "  Error removing images: $_" "Warning"
+    }
+    
+    # 3. Remove database
     $dbDir = Join-Path $Script:SRC_DIR "data"
     if (Test-Path $dbDir) {
         Write-Status "Removing database..." "Info"
@@ -1267,7 +1401,7 @@ function Invoke-Wipeout {
         }
     }
     
-    # 3. Remove generated apps
+    # 4. Remove generated apps
     $generatedDir = Join-Path $Script:ROOT_DIR "generated"
     if (Test-Path $generatedDir) {
         Write-Status "Removing generated apps..." "Info"
@@ -1279,7 +1413,7 @@ function Invoke-Wipeout {
         }
     }
     
-    # 4. Remove results
+    # 5. Remove results
     $resultsDir = Join-Path $Script:ROOT_DIR "results"
     if (Test-Path $resultsDir) {
         Write-Status "Removing analysis results..." "Info"
@@ -1292,7 +1426,7 @@ function Invoke-Wipeout {
         }
     }
 
-    # 5. Remove reports
+    # 6. Remove reports
     $reportsDir = Join-Path $Script:ROOT_DIR "reports"
     if (Test-Path $reportsDir) {
         Write-Status "Removing reports..." "Info"
@@ -1305,16 +1439,26 @@ function Invoke-Wipeout {
         }
     }
     
-    # 6. Remove logs
-    Write-Status "Removing logs..." "Info"
-    Get-ChildItem -Path $Script:LOGS_DIR -Filter "*.log" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
-    Get-ChildItem -Path $Script:LOGS_DIR -Filter "*.log.old" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    # 7. Remove ALL logs (same as Clean menu option)
+    Write-Status "Removing all logs..." "Info"
     
-    # 7. Remove PID files
+    # Remove all log files from logs directory
+    if (Test-Path $Script:LOGS_DIR) {
+        Get-ChildItem -Path $Script:LOGS_DIR -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+        Write-Status "  Application logs removed" "Success"
+    }
+    
+    # Also check for any stderr logs
+    $stderrLog = Join-Path $Script:LOGS_DIR "flask_stderr.log"
+    if (Test-Path $stderrLog) {
+        Remove-Item -Path $stderrLog -Force -ErrorAction SilentlyContinue
+    }
+    
+    # 8. Remove PID files
     Write-Status "Removing PID files..." "Info"
     Get-ChildItem -Path $Script:RUN_DIR -Filter "*.pid" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
     
-    # 8. Recreate database and admin user
+    # 9. Recreate database and admin user
     Write-Status "Initializing fresh database..." "Info"
     $createAdminScript = Join-Path $Script:ROOT_DIR "scripts\create_admin.py"
     
