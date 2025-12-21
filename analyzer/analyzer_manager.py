@@ -1321,14 +1321,32 @@ class AnalyzerManager:
             
             # Fallback: try to infer from directory structure
             if not template_slug:
-                app_path = self._find_app_path(model_slug, app_number)
-                if app_path:
-                    # App path structure: generated/apps/{model}/{template_slug}/app{N}
+                # Use _normalize_and_validate_app to find the app path
+                validation = self._normalize_and_validate_app(model_slug, app_number, include_failed=True)
+                if isinstance(validation, tuple):
+                    _, app_path = validation
+                    # Check path structure - could be:
+                    # - Flat: generated/apps/{model}/app{N}  (parent is model name)
+                    # - Template-based: generated/apps/{model}/{template_slug}/app{N}  (parent is template)
                     parts = Path(app_path).parts
-                    if len(parts) >= 2:
-                        # Check if parent looks like a template slug
+                    if len(parts) >= 3:
+                        # Get parent (potential template) and grandparent (potential model)
                         potential_template = parts[-2]
-                        if potential_template and not potential_template.startswith('app'):
+                        potential_model = parts[-3] if len(parts) >= 3 else None
+                        
+                        # Only use path-based template if parent is NOT the model name
+                        # (i.e., it's a template-based structure, not flat)
+                        if (potential_template and 
+                            not potential_template.startswith('app') and
+                            potential_template != potential_model and
+                            potential_model == 'apps'):
+                            # This is template-based structure: apps/{model}/{template}/app{N}
+                            # potential_model would be 'apps', and we need parts[-3] to be model
+                            pass  # Skip - this is flat structure
+                        elif (potential_template and 
+                              not potential_template.startswith('app') and
+                              potential_template != normalize_model_slug(model_slug)):
+                            # parent is different from model, so it's a template
                             template_slug = potential_template
                             logger.info(f"Inferred template_slug from path: {template_slug}")
             

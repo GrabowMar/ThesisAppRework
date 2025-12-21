@@ -1406,13 +1406,31 @@ class TaskExecutionService:
         tools: List[str],
         service_name: str
     ) -> Dict[str, Any]:
-        """Execute subtask via WebSocket to analyzer microservice."""
+        """Execute subtask via WebSocket to analyzer microservice.
+        
+        Returns a standardized result dict compatible with template expectations:
+        {
+            'status': 'success|error|partial',
+            'service_name': 'static-analyzer',
+            'subtask_id': 123,
+            'analysis': {...},   # Analysis results (template expects this)
+            'payload': {...},    # Alias for backward compatibility
+            'error': None
+        }
+        """
         with self._app.app_context():
             try:
                 # Get fresh subtask from DB
                 subtask = AnalysisTask.query.get(subtask_id)
                 if not subtask:
-                    return {'status': 'error', 'error': f'Subtask {subtask_id} not found'}
+                    return {
+                        'status': 'error',
+                        'error': f'Subtask {subtask_id} not found',
+                        'service_name': service_name,
+                        'subtask_id': subtask_id,
+                        'analysis': {},
+                        'payload': {}
+                    }
                 
                 # Check circuit breaker BEFORE marking as running
                 if not self._is_service_available(service_name):
@@ -1428,7 +1446,9 @@ class TaskExecutionService:
                         'status': 'skipped',
                         'error': f'Service {service_name} circuit breaker tripped',
                         'service_name': service_name,
-                        'subtask_id': subtask_id
+                        'subtask_id': subtask_id,
+                        'analysis': {},
+                        'payload': {}
                     }
                 
                 # Mark as running
@@ -1464,8 +1484,25 @@ class TaskExecutionService:
                 subtask.completed_at = datetime.now(timezone.utc)
                 subtask.progress_percentage = 100.0
                 
-                if result.get('payload'):
-                    subtask.set_result_summary(result['payload'])
+                # CRITICAL FIX: Extract analysis data from payload for template compatibility
+                # WebSocket returns {status, payload: {...}} but template expects {status, analysis: {...}}
+                raw_payload = result.get('payload', {})
+                
+                # Normalize to 'analysis' structure expected by templates
+                analysis_data = {}
+                if isinstance(raw_payload, dict):
+                    # Check if payload already has 'analysis' key (some services wrap this way)
+                    if isinstance(raw_payload.get('analysis'), dict):
+                        analysis_data = raw_payload['analysis']
+                    # Check if payload has 'results' (direct structure from analyzer)
+                    elif 'results' in raw_payload:
+                        analysis_data = raw_payload
+                    # Otherwise, payload IS the analysis data
+                    else:
+                        analysis_data = raw_payload
+                
+                if raw_payload:
+                    subtask.set_result_summary(raw_payload)
                 
                 if result.get('error'):
                     subtask.error_message = result['error']
@@ -1476,12 +1513,15 @@ class TaskExecutionService:
                     f"[SUBTASK] Completed subtask {subtask_id} for {service_name}: {result.get('status')}"
                 )
                 
+                # Return standardized format with BOTH 'analysis' and 'payload' keys
+                # 'analysis' is what templates expect, 'payload' is for backward compat
                 return {
                     'status': result.get('status', 'error'),
-                    'payload': result.get('payload', {}),
-                    'error': result.get('error'),
                     'service_name': service_name,
-                    'subtask_id': subtask_id
+                    'subtask_id': subtask_id,
+                    'analysis': analysis_data,      # Template-compatible key
+                    'payload': raw_payload,         # Backward compatibility
+                    'error': result.get('error')
                 }
                 
             except Exception as e:
@@ -1517,7 +1557,27 @@ class TaskExecutionService:
         futures: List[Future],
         subtask_info: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
-        """Wait for all subtasks to complete and aggregate results (replaces aggregate_subtask_results Celery task)."""
+        """Wait for all subtasks to complete and aggregate results.
+        
+        CRITICAL: This function must produce results in the same structure as individual
+        runs (via analyzer_manager) so that templates can render them identically.
+        
+        Expected output structure:
+        {
+            'services': {
+                'static-analyzer': {
+                    'status': 'success',
+                    'analysis': { 'results': {...}, 'tools_used': [...] },
+                    'payload': { ... }  # Alias for backward compat
+                },
+                ...
+            },
+            'tools': { 'bandit': {...}, 'eslint': {...} },  # Flat tool results
+            'findings': [...],
+            'summary': {...},
+            'metadata': {...}
+        }
+        """
         # Push Flask app context for this thread
         with self._app.app_context():
             try:
@@ -1533,10 +1593,20 @@ class TaskExecutionService:
                         self._log(f"[AGGREGATE] Subtask {idx+1}/{len(futures)} completed successfully")
                     except TimeoutError:
                         self._log(f"[AGGREGATE] Subtask {idx+1}/{len(futures)} timed out after 600s", level='error')
-                        results.append({'status': 'error', 'error': 'Subtask execution timeout (600s)'})
+                        results.append({
+                            'status': 'error',
+                            'error': 'Subtask execution timeout (600s)',
+                            'analysis': {},
+                            'payload': {}
+                        })
                     except Exception as e:
                         self._log(f"[AGGREGATE] Subtask {idx+1}/{len(futures)} raised exception: {e}", level='error', exc_info=True)
-                        results.append({'status': 'error', 'error': str(e)})
+                        results.append({
+                            'status': 'error',
+                            'error': str(e),
+                            'analysis': {},
+                            'payload': {}
+                        })
                 
                 self._log(f"[AGGREGATE] All {len(results)} subtasks completed for main task {main_task_id}")
                 
@@ -1547,37 +1617,96 @@ class TaskExecutionService:
                     return {'status': 'error', 'error': 'Main task not found'}
                 
                 # Aggregate results from subtasks
+                # CRITICAL FIX: Store services with 'analysis' key that templates expect
                 all_services = {}
                 all_findings = []
                 combined_tool_results = {}
                 any_failed = False
+                any_succeeded = False
                 
                 for result in results:
                     service_name = result.get('service_name', 'unknown')
-                    all_services[service_name] = result
+                    result_status = str(result.get('status', 'error')).lower()
                     
-                    if result.get('status') not in ('success', 'completed'):
+                    # Track success/failure for overall status
+                    if result_status in ('success', 'completed', 'ok', 'partial'):
+                        any_succeeded = True
+                    else:
                         any_failed = True
                     
-                    # Extract findings and tool results
-                    payload = result.get('payload', {})
-                    if isinstance(payload, dict):
-                        findings = payload.get('findings', [])
+                    # CRITICAL FIX: Store service data with 'analysis' key for template compatibility
+                    # Templates expect: services[name].analysis.results, not services[name].payload.results
+                    analysis_data = result.get('analysis', {})
+                    payload_data = result.get('payload', {})
+                    
+                    # If analysis is empty but payload has data, use payload
+                    if not analysis_data and payload_data:
+                        analysis_data = payload_data
+                    
+                    all_services[service_name] = {
+                        'status': result.get('status', 'error'),
+                        'service': service_name,
+                        'analysis': analysis_data,        # What templates expect
+                        'payload': payload_data,          # Backward compatibility
+                        'error': result.get('error')
+                    }
+                    
+                    # Extract findings from analysis
+                    if isinstance(analysis_data, dict):
+                        # Check for findings list
+                        findings = analysis_data.get('findings', [])
                         if isinstance(findings, list):
+                            for f in findings:
+                                if isinstance(f, dict):
+                                    f['service'] = service_name
                             all_findings.extend(findings)
                         
-                        tool_results = payload.get('tool_results', {})
+                        # Extract tool results from various locations
+                        # Location 1: analysis.tool_results (some services)
+                        tool_results = analysis_data.get('tool_results', {})
                         if isinstance(tool_results, dict):
-                            combined_tool_results.update(tool_results)
+                            for tool_name, tool_data in tool_results.items():
+                                if isinstance(tool_data, dict):
+                                    combined_tool_results[tool_name] = tool_data
+                        
+                        # Location 2: analysis.results (static analyzer: grouped by language)
+                        results_data = analysis_data.get('results', {})
+                        if isinstance(results_data, dict):
+                            for key, value in results_data.items():
+                                # Check if this is language-grouped (python, javascript, etc.)
+                                if isinstance(value, dict):
+                                    # Check if these are tool results
+                                    for maybe_tool, maybe_data in value.items():
+                                        if isinstance(maybe_data, dict):
+                                            # Skip if it's not a tool (has typical tool fields)
+                                            if any(k in maybe_data for k in ['status', 'issues', 'total_issues', 'findings']):
+                                                combined_tool_results[maybe_tool] = maybe_data
+                                                # Also extract issues/findings from tool data
+                                                tool_issues = maybe_data.get('issues', [])
+                                                if isinstance(tool_issues, list):
+                                                    for issue in tool_issues:
+                                                        if isinstance(issue, dict):
+                                                            issue['tool'] = maybe_tool
+                                                            issue['service'] = service_name
+                                                            all_findings.append(issue)
                 
-                # Build unified payload
+                # Determine overall status
+                if any_succeeded and not any_failed:
+                    overall_status = 'completed'
+                elif any_succeeded and any_failed:
+                    overall_status = 'partial'
+                else:
+                    overall_status = 'failed'
+                
+                # Build unified payload matching analyzer_manager's structure
                 unified_payload = {
                     'task': {'task_id': main_task_id},
                     'summary': {
                         'total_findings': len(all_findings),
                         'services_executed': len(all_services),
                         'tools_executed': len(combined_tool_results),
-                        'status': 'completed' if not any_failed else 'partial'
+                        'status': overall_status,
+                        'overall_status': overall_status
                     },
                     'services': all_services,
                     'tools': combined_tool_results,
@@ -1592,16 +1721,20 @@ class TaskExecutionService:
                     }
                 }
                 
-                # Update main task status and duration - COMMIT IMMEDIATELY to persist status
-                main_task.status = AnalysisStatus.COMPLETED if not any_failed else AnalysisStatus.FAILED
+                # Update main task status - use PARTIAL_SUCCESS for mixed results
+                if overall_status == 'completed':
+                    main_task.status = AnalysisStatus.COMPLETED
+                elif overall_status == 'partial':
+                    main_task.status = AnalysisStatus.PARTIAL_SUCCESS
+                else:
+                    main_task.status = AnalysisStatus.FAILED
+                    
                 main_task.completed_at = datetime.now(timezone.utc)
                 main_task.progress_percentage = 100.0
                 if main_task.started_at:
-                    # Ensure started_at is timezone-aware before subtraction to prevent
-                    # "can't subtract offset-naive and offset-aware datetimes" error
+                    # Ensure started_at is timezone-aware before subtraction
                     started_at = main_task.started_at
                     if started_at.tzinfo is None:
-                        # If somehow started_at is naive, make it aware (assume UTC)
                         started_at = started_at.replace(tzinfo=timezone.utc)
                     duration = (main_task.completed_at - started_at).total_seconds()
                     main_task.actual_duration = duration
@@ -1627,7 +1760,7 @@ class TaskExecutionService:
                     main_task.set_result_summary(unified_payload)
                     db.session.commit()
                 
-                self._log(f"[AGGREGATE] Main task {main_task_id} marked as completed")
+                self._log(f"[AGGREGATE] Main task {main_task_id} marked as {overall_status}")
                 
                 # Remove from active futures
                 with self._futures_lock:
@@ -1711,7 +1844,7 @@ class TaskExecutionService:
                     
                     # Check if result indicates connection failure (should retry)
                     if result.get('status') == 'error':
-                        error_msg = result.get('error', '')
+                        error_msg = str(result.get('error', '') or '')  # Ensure string even if None
                         is_connection_error = any(x in error_msg.lower() for x in [
                             'connect call failed', 'connection refused', 'errno 111',
                             'connection reset', 'no route to host', 'network unreachable'

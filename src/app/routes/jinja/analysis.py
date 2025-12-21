@@ -712,34 +712,42 @@ def analysis_result_detail(result_id: str):
         """Transform service data to template-expected format.
         
         Wraps everything in DescriptorDict for Jinja2 attribute access compatibility.
+        
+        Handles two formats:
+        1. New format (v3.0+): service_data.analysis.results
+        2. Legacy format: service_data.payload.results
         """
         transformed = {}
         for full_name, service_data in raw_services.items():
             short_name = SERVICE_NAME_MAP.get(full_name, full_name)
             if isinstance(service_data, dict):
-                payload = service_data.get('payload', {})
+                # CRITICAL FIX: Check 'analysis' first (new format), fallback to 'payload' (legacy)
+                # This ensures both pipeline results and individual runs work correctly
+                analysis_data = service_data.get('analysis', {})
+                if not analysis_data:
+                    analysis_data = service_data.get('payload', {})
                 
-                # AI analyzer has different structure: payload.tools instead of payload.results
+                # AI analyzer has different structure: tools instead of results
                 if full_name == 'ai-analyzer':
                     transformed[short_name] = DescriptorDict({
                         'status': service_data.get('status', 'unknown'),
                         'service': full_name,
                         'analysis': DescriptorDict({
-                            'tools': payload.get('tools', {}),
-                            'summary': payload.get('summary', {}),
-                            'metadata': payload.get('metadata', {}),
-                            'results': payload.get('results', {})  # Legacy fallback
+                            'tools': analysis_data.get('tools', {}),
+                            'summary': analysis_data.get('summary', {}),
+                            'metadata': analysis_data.get('metadata', {}),
+                            'results': analysis_data.get('results', {})  # Legacy fallback
                         })
                     })
                 else:
-                    # Static/Dynamic/Performance: payload.results structure
+                    # Static/Dynamic/Performance: results structure
                     transformed[short_name] = DescriptorDict({
                         'status': service_data.get('status', 'unknown'),
                         'service': full_name,
                         'analysis': DescriptorDict({
-                            'results': payload.get('results', {}),
-                            'tools_used': payload.get('tools_used', []),
-                            'tools': payload.get('results', {})  # Alias for compatibility
+                            'results': analysis_data.get('results', {}),
+                            'tools_used': analysis_data.get('tools_used', []),
+                            'tools': analysis_data.get('results', {})  # Alias for compatibility
                         })
                     })
         return DescriptorDict(transformed)

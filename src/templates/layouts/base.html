@@ -151,6 +151,20 @@
   
   // Handle browser back/forward buttons
   document.body.addEventListener('htmx:historyRestore', function(evt) {
+    // Re-trigger lazy-load elements that use hx-trigger="load"
+    // HTMX caches the DOM with loading skeletons, but "load" only fires on initial page load,
+    // not on history restore. This ensures content loads after back/forward navigation.
+    var lazyLoadEls = document.querySelectorAll('[hx-trigger*="load"], [data-hx-trigger*="load"]');
+    lazyLoadEls.forEach(function(el) {
+      // Only re-trigger if element has loading placeholder (skeleton) visible
+      // or if it doesn't have meaningful content yet
+      var hasPlaceholder = el.querySelector('.spinner-border, .placeholder, [class*="loading"]');
+      var isEmpty = el.children.length === 0 || (el.children.length === 1 && hasPlaceholder);
+      if (hasPlaceholder || isEmpty) {
+        htmx.trigger(el, 'load');
+      }
+    });
+    
     document.dispatchEvent(new CustomEvent('thesis:pageInit', {
       detail: { target: document.getElementById('main-content'), historyRestore: true }
     }));

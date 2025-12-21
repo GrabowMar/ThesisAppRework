@@ -345,11 +345,16 @@ class UnifiedResultService:
         
         # Extract and store individual findings as AnalysisResult records
         findings = payload.get('findings', [])
-        for finding in findings[:100]:  # Limit to 100 findings
+        for idx, finding in enumerate(findings[:100]):  # Limit to 100 findings
             if not isinstance(finding, dict):
                 continue
             
+            # Generate unique result_id for this finding
+            import uuid
+            result_id = f"{task_id}_{finding.get('tool', 'unknown')}_{idx}_{uuid.uuid4().hex[:8]}"
+            
             result = AnalysisResult(
+                result_id=result_id,
                 task_id=task_id,
                 tool_name=finding.get('tool', 'unknown'),
                 title=finding.get('message', 'No title')[:500],

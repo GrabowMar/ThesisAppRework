@@ -1,0 +1,703 @@
+{# Pipeline Progress Detail Modal #}
+<div class="modal fade" id="pipelineProgressModal" tabindex="-1" data-bs-backdrop="static">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div class="d-flex align-items-center gap-3">
+          <i class="fas fa-tasks text-primary fs-3"></i>
+          <div>
+            <h5 class="modal-title mb-0">Pipeline Progress</h5>
+            <small class="text-muted" id="progress-modal-pipeline-id">--</small>
+          </div>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+          <span class="badge fs-6" id="progress-modal-status-badge">--</span>
+          <span class="text-muted" id="progress-modal-elapsed">00:00</span>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+      </div>
+      
+      <div class="modal-body p-0">
+        {# Overall Progress Header #}
+        <div class="bg-light p-3 border-bottom">
+          <div class="row g-3 align-items-center">
+            <div class="col-md-8">
+              <div class="d-flex justify-content-between small mb-1">
+                <span class="fw-semibold">Overall Progress</span>
+                <span id="progress-modal-overall-pct">0%</span>
+              </div>
+              <div class="progress" style="height: 12px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+                     id="progress-modal-overall-bar" style="width: 0%"></div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="d-flex justify-content-around text-center">
+                <div>
+                  <div class="fs-4 fw-bold text-success" id="progress-modal-completed">0</div>
+                  <div class="text-muted small">Completed</div>
+                </div>
+                <div>
+                  <div class="fs-4 fw-bold text-primary" id="progress-modal-running">0</div>
+                  <div class="text-muted small">Running</div>
+                </div>
+                <div>
+                  <div class="fs-4 fw-bold text-danger" id="progress-modal-failed">0</div>
+                  <div class="text-muted small">Failed</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {# Stage Tabs #}
+        <ul class="nav nav-tabs px-3 pt-2" role="tablist">
+          <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-generation" type="button">
+              <i class="fas fa-code me-1"></i>Generation
+              <span class="badge bg-secondary-lt ms-1" id="tab-gen-count">0/0</span>
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-analysis" type="button">
+              <i class="fas fa-search-plus me-1"></i>Analysis
+              <span class="badge bg-secondary-lt ms-1" id="tab-analysis-count">0/0</span>
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-tasks" type="button">
+              <i class="fas fa-list-check me-1"></i>All Tasks
+              <span class="badge bg-secondary-lt ms-1" id="tab-tasks-count">0</span>
+            </button>
+          </li>
+        </ul>
+        
+        {# Tab Content #}
+        <div class="tab-content">
+          {# Generation Tab #}
+          <div class="tab-pane fade show active" id="tab-generation">
+            <div class="p-3">
+              {# Generation Stage Progress #}
+              <div class="card border mb-3">
+                <div class="card-body py-2">
+                  <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="avatar avatar-sm" id="gen-stage-icon">
+                        <i class="fas fa-code"></i>
+                      </span>
+                      <div>
+                        <div class="fw-semibold">Generation Stage</div>
+                        <small class="text-muted" id="gen-stage-status">Pending</small>
+                      </div>
+                    </div>
+                    <div class="text-end">
+                      <div class="fw-bold" id="gen-stage-count">0/0</div>
+                      <small class="text-muted">jobs</small>
+                    </div>
+                  </div>
+                  <div class="progress mt-2" style="height: 6px;">
+                    <div class="progress-bar bg-azure" id="gen-stage-progress" style="width: 0%"></div>
+                  </div>
+                </div>
+              </div>
+              
+              {# Generation Jobs List #}
+              <div class="list-group list-group-flush" id="gen-jobs-list" style="max-height: 400px; overflow-y: auto;">
+                <div class="text-center py-4 text-muted">
+                  <i class="fas fa-spinner fa-spin me-2"></i>Loading generation jobs...
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {# Analysis Tab #}
+          <div class="tab-pane fade" id="tab-analysis">
+            <div class="p-3">
+              {# Analysis Stage Progress #}
+              <div class="card border mb-3">
+                <div class="card-body py-2">
+                  <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="avatar avatar-sm" id="analysis-stage-icon">
+                        <i class="fas fa-search-plus"></i>
+                      </span>
+                      <div>
+                        <div class="fw-semibold">Analysis Stage</div>
+                        <small class="text-muted" id="analysis-stage-status">Pending</small>
+                      </div>
+                    </div>
+                    <div class="text-end">
+                      <div class="fw-bold" id="analysis-stage-count">0/0</div>
+                      <small class="text-muted">tasks</small>
+                    </div>
+                  </div>
+                  <div class="progress mt-2" style="height: 6px;">
+                    <div class="progress-bar bg-green" id="analysis-stage-progress" style="width: 0%"></div>
+                  </div>
+                </div>
+              </div>
+              
+              {# Analysis Tasks List #}
+              <div class="list-group list-group-flush" id="analysis-tasks-list" style="max-height: 400px; overflow-y: auto;">
+                <div class="text-center py-4 text-muted">
+                  <i class="fas fa-spinner fa-spin me-2"></i>Loading analysis tasks...
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {# All Tasks Tab #}
+          <div class="tab-pane fade" id="tab-tasks">
+            <div class="p-3">
+              {# Filter Bar #}
+              <div class="d-flex gap-2 mb-3">
+                <div class="btn-group btn-group-sm" role="group">
+                  <input type="radio" class="btn-check" name="task-filter" id="filter-all" value="all" checked>
+                  <label class="btn btn-outline-secondary" for="filter-all">All</label>
+                  
+                  <input type="radio" class="btn-check" name="task-filter" id="filter-running" value="running">
+                  <label class="btn btn-outline-primary" for="filter-running">
+                    <i class="fas fa-spinner fa-spin me-1"></i>Running
+                  </label>
+                  
+                  <input type="radio" class="btn-check" name="task-filter" id="filter-completed" value="completed">
+                  <label class="btn btn-outline-success" for="filter-completed">
+                    <i class="fas fa-check me-1"></i>Completed
+                  </label>
+                  
+                  <input type="radio" class="btn-check" name="task-filter" id="filter-failed" value="failed">
+                  <label class="btn btn-outline-danger" for="filter-failed">
+                    <i class="fas fa-times me-1"></i>Failed
+                  </label>
+                </div>
+              </div>
+              
+              {# Tasks Table #}
+              <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                <table class="table table-sm table-hover align-middle mb-0">
+                  <thead class="sticky-top bg-white">
+                    <tr>
+                      <th style="width: 40px;"></th>
+                      <th>Task</th>
+                      <th>Target</th>
+                      <th style="width: 100px;">Status</th>
+                      <th style="width: 80px;">Progress</th>
+                      <th style="width: 100px;">Duration</th>
+                      <th style="width: 60px;"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="all-tasks-table">
+                    <tr>
+                      <td colspan="7" class="text-center py-4 text-muted">
+                        <i class="fas fa-spinner fa-spin me-2"></i>Loading tasks...
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-footer justify-content-between">
+        <div>
+          <button type="button" class="btn btn-warning" id="modal-pause-btn" onclick="pausePipelineFromModal()">
+            <i class="fas fa-pause me-1"></i>Pause
+          </button>
+          <button type="button" class="btn btn-danger" id="modal-cancel-btn" onclick="cancelPipelineFromModal()">
+            <i class="fas fa-stop me-1"></i>Cancel
+          </button>
+        </div>
+        <div>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* Task status styling */
+  .task-status-pending { color: var(--tblr-secondary); }
+  .task-status-running { color: var(--tblr-primary); }
+  .task-status-completed { color: var(--tblr-success); }
+  .task-status-failed { color: var(--tblr-danger); }
+  .task-status-cancelled { color: var(--tblr-warning); }
+  
+  /* Stage icon styling */
+  .stage-pending { background: var(--tblr-secondary-lt) !important; }
+  .stage-running { background: var(--tblr-primary-lt) !important; }
+  .stage-completed { background: var(--tblr-success-lt) !important; }
+  .stage-failed { background: var(--tblr-danger-lt) !important; }
+  
+  /* Task row hover */
+  #all-tasks-table tr:hover {
+    background-color: var(--tblr-bg-surface-secondary);
+  }
+  
+  /* Progress mini bar */
+  .progress-mini {
+    height: 4px;
+    width: 60px;
+  }
+  
+  /* Job item card */
+  .job-item {
+    transition: all 0.2s ease;
+  }
+  .job-item:hover {
+    background-color: var(--tblr-bg-surface-secondary);
+  }
+  .job-item.job-running {
+    border-left: 3px solid var(--tblr-primary);
+  }
+  .job-item.job-completed {
+    border-left: 3px solid var(--tblr-success);
+  }
+  .job-item.job-failed {
+    border-left: 3px solid var(--tblr-danger);
+  }
+</style>
+
+<script>
+// Pipeline Progress Modal Controller
+const PipelineProgressModal = {
+  pipelineId: null,
+  pollInterval: null,
+  startTime: null,
+  elapsedInterval: null,
+  
+  /**
+   * Open modal and start tracking pipeline
+   */
+  open(pipelineId) {
+    this.pipelineId = pipelineId;
+    this.startTime = Date.now();
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('pipelineProgressModal'));
+    modal.show();
+    
+    // Start polling
+    this.startPolling();
+    this.startElapsedTimer();
+    
+    // Initial fetch
+    this.fetchDetailedStatus();
+  },
+  
+  /**
+   * Close modal and cleanup
+   */
+  close() {
+    this.stopPolling();
+    this.stopElapsedTimer();
+    this.pipelineId = null;
+  },
+  
+  /**
+   * Start polling for updates
+   */
+  startPolling() {
+    this.stopPolling();
+    this.pollInterval = setInterval(() => this.fetchDetailedStatus(), 2000);
+  },
+  
+  /**
+   * Stop polling
+   */
+  stopPolling() {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
+  },
+  
+  /**
+   * Start elapsed time counter
+   */
+  startElapsedTimer() {
+    this.stopElapsedTimer();
+    this.elapsedInterval = setInterval(() => this.updateElapsed(), 1000);
+  },
+  
+  /**
+   * Stop elapsed timer
+   */
+  stopElapsedTimer() {
+    if (this.elapsedInterval) {
+      clearInterval(this.elapsedInterval);
+      this.elapsedInterval = null;
+    }
+  },
+  
+  /**
+   * Update elapsed time display
+   */
+  updateElapsed() {
+    const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+    const mins = Math.floor(elapsed / 60);
+    const secs = elapsed % 60;
+    document.getElementById('progress-modal-elapsed').textContent = 
+      `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  },
+  
+  /**
+   * Fetch detailed status from server
+   */
+  async fetchDetailedStatus() {
+    if (!this.pipelineId) return;
+    
+    try {
+      const response = await fetch(`/automation/api/pipeline/${this.pipelineId}/detailed-status`, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch status');
+      
+      const result = await response.json();
+      if (result.success) {
+        this.updateUI(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching pipeline status:', error);
+    }
+  },
+  
+  /**
+   * Update all UI elements with new data
+   */
+  updateUI(data) {
+    // Pipeline ID and status
+    document.getElementById('progress-modal-pipeline-id').textContent = data.id || '--';
+    
+    const statusBadge = document.getElementById('progress-modal-status-badge');
+    const statusColors = {
+      'pending': 'bg-secondary',
+      'running': 'bg-primary',
+      'completed': 'bg-success',
+      'failed': 'bg-danger',
+      'cancelled': 'bg-warning'
+    };
+    statusBadge.className = `badge fs-6 ${statusColors[data.status] || 'bg-secondary'}`;
+    statusBadge.textContent = (data.status || 'unknown').charAt(0).toUpperCase() + (data.status || 'unknown').slice(1);
+    
+    // Overall progress
+    const overallPct = data.overall_progress || 0;
+    document.getElementById('progress-modal-overall-pct').textContent = `${Math.round(overallPct)}%`;
+    document.getElementById('progress-modal-overall-bar').style.width = `${overallPct}%`;
+    
+    // Summary counts
+    const taskSummary = data.task_summary || {};
+    document.getElementById('progress-modal-completed').textContent = taskSummary.completed || 0;
+    document.getElementById('progress-modal-running').textContent = taskSummary.running || 0;
+    document.getElementById('progress-modal-failed').textContent = taskSummary.failed || 0;
+    
+    // Update stages
+    this.updateGenerationStage(data.progress?.generation, data.generation_jobs);
+    this.updateAnalysisStage(data.progress?.analysis, data.analysis_tasks);
+    this.updateAllTasksTable(data.all_tasks);
+    
+    // Tab counts
+    const genProgress = data.progress?.generation || {};
+    const analysisProgress = data.progress?.analysis || {};
+    document.getElementById('tab-gen-count').textContent = 
+      `${(genProgress.completed || 0) + (genProgress.failed || 0)}/${genProgress.total || 0}`;
+    document.getElementById('tab-analysis-count').textContent = 
+      `${(analysisProgress.completed || 0) + (analysisProgress.failed || 0)}/${analysisProgress.total || 0}`;
+    document.getElementById('tab-tasks-count').textContent = (data.all_tasks || []).length;
+    
+    // Update control buttons based on status
+    const isPipelineActive = ['running', 'pending'].includes(data.status);
+    document.getElementById('modal-pause-btn').disabled = !isPipelineActive;
+    document.getElementById('modal-cancel-btn').disabled = !isPipelineActive;
+    
+    // Stop polling if complete
+    if (['completed', 'failed', 'cancelled'].includes(data.status)) {
+      this.stopPolling();
+      this.stopElapsedTimer();
+    }
+  },
+  
+  /**
+   * Update generation stage UI
+   */
+  updateGenerationStage(progress, jobs) {
+    if (!progress) return;
+    
+    const done = (progress.completed || 0) + (progress.failed || 0);
+    const total = progress.total || 0;
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    
+    // Stage header
+    document.getElementById('gen-stage-count').textContent = `${done}/${total}`;
+    document.getElementById('gen-stage-progress').style.width = `${pct}%`;
+    
+    const statusText = progress.status === 'completed' ? 'Completed' : 
+                       progress.status === 'running' ? 'Running...' : 'Pending';
+    document.getElementById('gen-stage-status').textContent = statusText;
+    
+    const icon = document.getElementById('gen-stage-icon');
+    icon.className = `avatar avatar-sm stage-${progress.status || 'pending'}`;
+    
+    // Jobs list
+    const listEl = document.getElementById('gen-jobs-list');
+    if (!jobs || jobs.length === 0) {
+      listEl.innerHTML = `
+        <div class="text-center py-4 text-muted">
+          <i class="fas fa-inbox fa-2x mb-2"></i>
+          <div>No generation jobs</div>
+        </div>`;
+      return;
+    }
+    
+    listEl.innerHTML = jobs.map((job, idx) => this.renderJobItem(job, idx, 'generation')).join('');
+  },
+  
+  /**
+   * Update analysis stage UI
+   */
+  updateAnalysisStage(progress, tasks) {
+    if (!progress) return;
+    
+    const done = (progress.completed || 0) + (progress.failed || 0);
+    const total = progress.total || 0;
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    
+    // Stage header
+    document.getElementById('analysis-stage-count').textContent = `${done}/${total}`;
+    document.getElementById('analysis-stage-progress').style.width = `${pct}%`;
+    
+    const statusText = progress.status === 'skipped' ? 'Skipped' :
+                       progress.status === 'completed' ? 'Completed' : 
+                       progress.status === 'running' ? 'Running...' : 'Pending';
+    document.getElementById('analysis-stage-status').textContent = statusText;
+    
+    const icon = document.getElementById('analysis-stage-icon');
+    icon.className = `avatar avatar-sm stage-${progress.status || 'pending'}`;
+    
+    // Tasks list
+    const listEl = document.getElementById('analysis-tasks-list');
+    if (!tasks || tasks.length === 0) {
+      listEl.innerHTML = `
+        <div class="text-center py-4 text-muted">
+          <i class="fas fa-inbox fa-2x mb-2"></i>
+          <div>No analysis tasks</div>
+        </div>`;
+      return;
+    }
+    
+    listEl.innerHTML = tasks.map((task, idx) => this.renderTaskItem(task, idx)).join('');
+  },
+  
+  /**
+   * Render a job item (generation)
+   */
+  renderJobItem(job, idx, stage) {
+    const statusClass = job.success ? 'job-completed' : (job.error ? 'job-failed' : 'job-pending');
+    const statusIcon = job.success ? 'fa-check text-success' : 
+                       (job.error ? 'fa-times text-danger' : 'fa-clock text-muted');
+    
+    return `
+      <div class="list-group-item job-item ${statusClass}">
+        <div class="d-flex align-items-center gap-3">
+          <span class="avatar avatar-sm bg-secondary-lt">
+            <i class="fas ${statusIcon}"></i>
+          </span>
+          <div class="flex-fill">
+            <div class="fw-semibold">${job.model_slug || 'Unknown model'}</div>
+            <small class="text-muted">${job.template_slug || job.app_number || '-'}</small>
+          </div>
+          ${job.app_number ? `<span class="badge bg-azure-lt">App #${job.app_number}</span>` : ''}
+          ${job.error ? `<span class="text-danger small" title="${job.error}"><i class="fas fa-exclamation-circle"></i></span>` : ''}
+        </div>
+      </div>`;
+  },
+  
+  /**
+   * Render a task item (analysis)
+   */
+  renderTaskItem(task, idx) {
+    const status = (task.status || 'pending').toLowerCase();
+    const statusIcons = {
+      'pending': 'fa-clock text-muted',
+      'running': 'fa-spinner fa-spin text-primary',
+      'completed': 'fa-check text-success',
+      'failed': 'fa-times text-danger',
+      'cancelled': 'fa-ban text-warning'
+    };
+    
+    const progressPct = task.progress_percentage || 0;
+    
+    return `
+      <div class="list-group-item job-item job-${status}">
+        <div class="d-flex align-items-center gap-3">
+          <span class="avatar avatar-sm bg-secondary-lt">
+            <i class="fas ${statusIcons[status] || 'fa-question'}"></i>
+          </span>
+          <div class="flex-fill">
+            <div class="fw-semibold">${task.target_model || 'Unknown'}</div>
+            <small class="text-muted">App #${task.target_app_number || '?'} • ${task.task_id?.slice(0, 12) || '--'}...</small>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            ${status === 'running' ? `
+              <div class="progress progress-mini">
+                <div class="progress-bar bg-primary" style="width: ${progressPct}%"></div>
+              </div>
+              <span class="small text-muted">${progressPct}%</span>
+            ` : ''}
+            <span class="badge bg-${status === 'completed' ? 'success' : status === 'failed' ? 'danger' : status === 'running' ? 'primary' : 'secondary'}-lt">
+              ${status.charAt(0).toUpperCase() + status.slice(1)}
+            </span>
+          </div>
+        </div>
+        ${task.error_message ? `
+          <div class="mt-2 small text-danger">
+            <i class="fas fa-exclamation-triangle me-1"></i>${task.error_message}
+          </div>
+        ` : ''}
+        ${task.service_name ? `
+          <div class="mt-1 small text-muted">
+            <i class="fas fa-cog me-1"></i>Service: ${task.service_name}
+          </div>
+        ` : ''}
+      </div>`;
+  },
+  
+  /**
+   * Update all tasks table
+   */
+  updateAllTasksTable(tasks) {
+    const tableEl = document.getElementById('all-tasks-table');
+    const filter = document.querySelector('input[name="task-filter"]:checked')?.value || 'all';
+    
+    if (!tasks || tasks.length === 0) {
+      tableEl.innerHTML = `
+        <tr>
+          <td colspan="7" class="text-center py-4 text-muted">
+            <i class="fas fa-inbox fa-2x mb-2"></i>
+            <div>No tasks yet</div>
+          </td>
+        </tr>`;
+      return;
+    }
+    
+    // Filter tasks
+    let filtered = tasks;
+    if (filter !== 'all') {
+      filtered = tasks.filter(t => {
+        const s = (t.status || '').toLowerCase();
+        if (filter === 'running') return s === 'running' || s === 'pending';
+        if (filter === 'completed') return s === 'completed';
+        if (filter === 'failed') return s === 'failed' || s === 'cancelled';
+        return true;
+      });
+    }
+    
+    if (filtered.length === 0) {
+      tableEl.innerHTML = `
+        <tr>
+          <td colspan="7" class="text-center py-4 text-muted">
+            No ${filter} tasks
+          </td>
+        </tr>`;
+      return;
+    }
+    
+    tableEl.innerHTML = filtered.map((task, idx) => {
+      const status = (task.status || 'pending').toLowerCase();
+      const statusIcons = {
+        'pending': '<i class="fas fa-clock text-muted"></i>',
+        'running': '<i class="fas fa-spinner fa-spin text-primary"></i>',
+        'completed': '<i class="fas fa-check-circle text-success"></i>',
+        'failed': '<i class="fas fa-times-circle text-danger"></i>',
+        'cancelled': '<i class="fas fa-ban text-warning"></i>',
+        'partial_success': '<i class="fas fa-exclamation-circle text-warning"></i>'
+      };
+      
+      const duration = task.actual_duration ? `${Math.round(task.actual_duration)}s` : '--';
+      const progressPct = task.progress_percentage || 0;
+      
+      return `
+        <tr>
+          <td>${statusIcons[status] || '<i class="fas fa-question text-muted"></i>'}</td>
+          <td>
+            <div class="fw-semibold">${task.task_name || task.task_id?.slice(0, 12) || '--'}</div>
+            <small class="text-muted">${task.task_id || '--'}</small>
+          </td>
+          <td>
+            <div>${task.target_model || '--'}</div>
+            <small class="text-muted">App #${task.target_app_number || '?'}</small>
+          </td>
+          <td>
+            <span class="badge bg-${status === 'completed' ? 'success' : status === 'failed' || status === 'cancelled' ? 'danger' : status === 'running' ? 'primary' : 'secondary'}-lt">
+              ${status === 'partial_success' ? 'Partial' : status.charAt(0).toUpperCase() + status.slice(1)}
+            </span>
+          </td>
+          <td>
+            <div class="progress progress-mini">
+              <div class="progress-bar bg-${status === 'completed' ? 'success' : status === 'failed' ? 'danger' : 'primary'}" 
+                   style="width: ${progressPct}%"></div>
+            </div>
+          </td>
+          <td class="text-muted small">${duration}</td>
+          <td>
+            ${status === 'completed' ? `
+              <a href="/analysis/results/${task.task_id}" class="btn btn-sm btn-ghost-success" title="View Results">
+                <i class="fas fa-eye"></i>
+              </a>
+            ` : ''}
+          </td>
+        </tr>`;
+    }).join('');
+  }
+};
+
+// Filter change handler
+document.querySelectorAll('input[name="task-filter"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    PipelineProgressModal.fetchDetailedStatus();
+  });
+});
+
+// Modal close event
+document.getElementById('pipelineProgressModal')?.addEventListener('hidden.bs.modal', () => {
+  PipelineProgressModal.close();
+});
+
+// Helper functions for control buttons
+function pausePipelineFromModal() {
+  // Pause not fully implemented - just show message
+  alert('Pause functionality is not yet implemented. Use Cancel to stop the pipeline.');
+}
+
+function cancelPipelineFromModal() {
+  if (!confirm('Are you sure you want to cancel this pipeline?')) return;
+  
+  const pipelineId = PipelineProgressModal.pipelineId;
+  if (!pipelineId) return;
+  
+  fetch(`/automation/api/pipeline/${pipelineId}/cancel`, {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      showNotification?.('Pipeline cancelled', 'success') || alert('Pipeline cancelled');
+      PipelineProgressModal.fetchDetailedStatus();
+    } else {
+      showNotification?.(data.error || 'Failed to cancel', 'error') || alert(data.error || 'Failed');
+    }
+  })
+  .catch(err => {
+    showNotification?.('Error cancelling pipeline', 'error') || alert('Error cancelling pipeline');
+  });
+}
+
+// Global function to open modal from anywhere
+function openPipelineProgressModal(pipelineId) {
+  PipelineProgressModal.open(pipelineId);
+}
+</script>

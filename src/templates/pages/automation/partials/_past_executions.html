@@ -125,9 +125,15 @@
 </style>
 
 <script>
-  // Helper function to view a running pipeline
-  // Note: These functions rely on AutomationWizard which is loaded in the scripts block
+  // Helper function to view a running pipeline - Opens detailed progress modal
   function viewPipeline(pipelineId) {
+    // Use the new detailed progress modal if available
+    if (typeof openPipelineProgressModal === 'function') {
+      openPipelineProgressModal(pipelineId);
+      return;
+    }
+    
+    // Fallback to old behavior
     // Wait for AutomationWizard to be available
     if (typeof window.AutomationWizard === 'undefined') {
       console.warn('AutomationWizard not ready, retrying...');

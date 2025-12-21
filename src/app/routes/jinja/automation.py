@@ -425,6 +425,146 @@ def api_pipeline_status(pipeline_id: str):
         }), 500
 
 
+@automation_bp.route('/api/pipeline/<pipeline_id>/detailed-status', methods=['GET'])
+def api_pipeline_detailed_status(pipeline_id: str):
+    """
+    Get detailed pipeline status including individual task statuses.
+    
+    Returns:
+        - Pipeline basic info (id, status, progress)
+        - Generation jobs with status
+        - Analysis tasks with detailed status from DB
+        - Task summary (completed, running, failed counts)
+    """
+    try:
+        from ..models import AnalysisTask, AnalysisStatus
+        
+        # Get pipeline from database
+        pipeline = PipelineExecution.get_by_id(pipeline_id, user_id=current_user.id)
+        
+        if not pipeline:
+            return jsonify({
+                'success': False,
+                'error': 'Pipeline not found',
+            }), 404
+        
+        # Get base pipeline data
+        base_data = pipeline.to_dict()
+        progress = pipeline.progress
+        config = pipeline.config
+        
+        # Build generation jobs list from progress results
+        gen_results = progress.get('generation', {}).get('results', [])
+        generation_jobs = []
+        for idx, result in enumerate(gen_results):
+            generation_jobs.append({
+                'index': idx,
+                'model_slug': result.get('model_slug'),
+                'template_slug': result.get('template_slug'),
+                'app_number': result.get('app_number') or result.get('app_num'),
+                'success': result.get('success', False),
+                'error': result.get('error'),
+            })
+        
+        # If using existing apps mode, build from config
+        gen_config = config.get('generation', {})
+        if gen_config.get('mode') == 'existing':
+            existing_apps = gen_config.get('existingApps', [])
+            generation_jobs = []
+            for idx, app_ref in enumerate(existing_apps):
+                if isinstance(app_ref, dict):
+                    generation_jobs.append({
+                        'index': idx,
+                        'model_slug': app_ref.get('model'),
+                        'app_number': app_ref.get('app'),
+                        'success': True,  # Existing apps always "generated"
+                    })
+                else:
+                    parts = app_ref.rsplit(':', 1)
+                    generation_jobs.append({
+                        'index': idx,
+                        'model_slug': parts[0] if len(parts) > 0 else app_ref,
+                        'app_number': int(parts[1]) if len(parts) > 1 else None,
+                        'success': True,
+                    })
+        
+        # Get analysis tasks from database
+        analysis_progress = progress.get('analysis', {})
+        task_ids = analysis_progress.get('task_ids', [])
+        
+        analysis_tasks = []
+        all_tasks = []
+        task_summary = {'completed': 0, 'running': 0, 'failed': 0, 'pending': 0}
+        
+        if task_ids:
+            # Filter out error/skipped markers and get real tasks
+            real_task_ids = [tid for tid in task_ids if not tid.startswith('skipped') and not tid.startswith('error:')]
+            
+            if real_task_ids:
+                tasks = AnalysisTask.query.filter(AnalysisTask.task_id.in_(real_task_ids)).all()
+                
+                for task in tasks:
+                    task_data = {
+                        'task_id': task.task_id,
+                        'task_name': task.task_name or task.task_id[:16],
+                        'target_model': task.target_model,
+                        'target_app_number': task.target_app_number,
+                        'status': task.status.value if hasattr(task.status, 'value') else str(task.status),
+                        'progress_percentage': task.progress_percentage or 0,
+                        'service_name': task.service_name,
+                        'error_message': task.error_message,
+                        'created_at': task.created_at.isoformat() if task.created_at else None,
+                        'started_at': task.started_at.isoformat() if task.started_at else None,
+                        'completed_at': task.completed_at.isoformat() if task.completed_at else None,
+                        'actual_duration': task.actual_duration,
+                    }
+                    analysis_tasks.append(task_data)
+                    all_tasks.append(task_data)
+                    
+                    # Count by status
+                    status_lower = task_data['status'].lower()
+                    if status_lower == 'completed' or status_lower == 'partial_success':
+                        task_summary['completed'] += 1
+                    elif status_lower == 'running':
+                        task_summary['running'] += 1
+                    elif status_lower in ('failed', 'cancelled'):
+                        task_summary['failed'] += 1
+                    else:
+                        task_summary['pending'] += 1
+            
+            # Add skipped/error markers
+            for tid in task_ids:
+                if tid.startswith('skipped') or tid.startswith('error:'):
+                    analysis_tasks.append({
+                        'task_id': tid,
+                        'task_name': tid,
+                        'status': 'skipped' if tid.startswith('skipped') else 'failed',
+                        'error_message': tid.replace('error:', '').replace('skipped:', ''),
+                    })
+                    task_summary['failed'] += 1
+        
+        # Build response
+        response_data = {
+            **base_data,
+            'generation_jobs': generation_jobs,
+            'analysis_tasks': analysis_tasks,
+            'all_tasks': all_tasks,
+            'task_summary': task_summary,
+        }
+        
+        return jsonify({
+            'success': True,
+            'data': response_data,
+        })
+        
+    except Exception as e:
+        current_app.logger.exception(f"Error getting detailed pipeline status: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+        }), 500
+
+
 @automation_bp.route('/api/pipeline/<pipeline_id>/execute-stage', methods=['POST'])
 def api_execute_stage(pipeline_id: str):
     """
