@@ -204,9 +204,12 @@ class AnalysisTaskService:
         main_task.is_main_task = True
         main_task.total_steps = len(tools_by_service)
         main_task.completed_steps = 0
-        main_task.status = AnalysisStatus.PENDING
+        # CRITICAL: Keep status as CREATED (not PENDING) until ALL subtasks are created
+        # This prevents TaskExecutionService from picking up the task before subtasks exist
+        main_task.status = AnalysisStatus.CREATED
         db.session.add(main_task)
-        db.session.commit()
+        # DO NOT COMMIT HERE - wait until all subtasks are created for atomic transaction
+        db.session.flush()  # Get the main_task.task_id without committing
 
         analyzer_config_id = main_task.analyzer_config_id
         pr_enum = main_task.priority
@@ -255,9 +258,12 @@ class AnalysisTaskService:
                 main_task.task_id,
             )
 
+        # NOW set main task to PENDING and commit ATOMICALLY with all subtasks
+        # This ensures TaskExecutionService never sees a main task without its subtasks
+        main_task.status = AnalysisStatus.PENDING
         db.session.commit()
         logger.info(
-            "Created main task %s with %s subtasks",
+            "Created main task %s with %s subtasks (atomic commit)",
             main_task.task_id,
             len(tools_by_service),
         )

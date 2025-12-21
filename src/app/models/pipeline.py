@@ -413,11 +413,31 @@ class PipelineExecution(db.Model):
                 
                 gen_result = gen_results[job_index]
                 
+                # Handle both 'app_number' and 'app_num' keys for compatibility
+                # The generation service may use either key depending on the code path
+                app_number = gen_result.get('app_number')
+                if app_number is None:
+                    app_number = gen_result.get('app_num')
+                if app_number is None:
+                    logger.warning(
+                        "[get_next_job] No app_number found in generation result for job %d: %s",
+                        job_index, gen_result
+                    )
+                    # Return failure if we can't determine app number
+                    return {
+                        'stage': 'analysis',
+                        'job_index': job_index,
+                        'model_slug': gen_result.get('model_slug'),
+                        'app_number': -1,
+                        'success': False,
+                        'error': 'Missing app_number in generation result',
+                    }
+                
                 return {
                     'stage': 'analysis',
                     'job_index': job_index,
                     'model_slug': gen_result.get('model_slug'),
-                    'app_number': gen_result.get('app_number'),
+                    'app_number': int(app_number),
                     'success': gen_result.get('success', False),
                 }
         

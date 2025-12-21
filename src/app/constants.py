@@ -30,7 +30,8 @@ class BaseEnum(str, Enum):
 
 class AnalysisStatus(BaseEnum):
     """Status enum for analyses and tests."""
-    PENDING = "pending"
+    CREATED = "created"  # Task created but not yet ready for execution (subtasks being created)
+    PENDING = "pending"  # Ready for execution, waiting in queue
     RUNNING = "running"
     COMPLETED = "completed"
     PARTIAL_SUCCESS = "partial_success"

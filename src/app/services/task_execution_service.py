@@ -573,13 +573,27 @@ class TaskExecutionService:
                         meta = task_db.get_metadata() if hasattr(task_db, 'get_metadata') else {}
                         custom_options = meta.get('custom_options', {})
                         is_unified = custom_options.get('unified_analysis', False)
-                        has_subtasks = task_db.is_main_task and hasattr(task_db, 'subtasks') and len(list(task_db.subtasks)) > 0
+                        
+                        # Re-query subtasks to ensure we have the latest state
+                        # This handles the case where subtasks were created in a separate transaction
+                        db.session.refresh(task_db)
+                        subtask_list = list(task_db.subtasks) if hasattr(task_db, 'subtasks') else []
+                        has_subtasks = task_db.is_main_task and len(subtask_list) > 0
+                        
+                        # Validate: If unified analysis is expected but no subtasks found, log error
+                        if is_unified and task_db.is_main_task and not has_subtasks:
+                            self._log(
+                                "[UNIFIED] WARNING: Task %s is marked unified but has 0 subtasks. "
+                                "This may indicate a race condition or task creation failure.",
+                                task_db.task_id, level='warning'
+                            )
+                            # Fall back to direct analysis for this edge case
                         
                         # Execute real analysis instead of simulation
                         try:
                             if is_unified and has_subtasks:
                                 # Unified analysis with subtasks - use parallel execution
-                                subtask_ids = [st.task_id for st in task_db.subtasks]
+                                subtask_ids = [st.task_id for st in subtask_list]
                                 self._log(
                                     "[UNIFIED] Task %s has %d subtasks, using parallel execution",
                                     task_db.task_id, len(subtask_ids)
