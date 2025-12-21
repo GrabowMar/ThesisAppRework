@@ -85,7 +85,16 @@
   // Configure boosted links to target main content area
   htmx.config.defaultSwapStyle = 'innerHTML';
   htmx.config.globalViewTransitions = true;
-  htmx.config.historyCacheSize = 10;
+  // Completely disable HTMX history handling - let browser handle back/forward naturally
+  // This prevents partial HTML content from being restored on back button
+  htmx.config.historyEnabled = false;
+  
+  // Force full page reload on browser back/forward since we disabled HTMX history
+  // This runs before HTMX can intercept, ensuring clean page loads
+  window.addEventListener('popstate', function(evt) {
+    // Let the browser do a full page load to the URL
+    window.location.reload();
+  });
   
   // Override boost behavior to target #main-content
   document.body.addEventListener('htmx:beforeRequest', function(evt) {
@@ -150,7 +159,20 @@
   });
   
   // Handle browser back/forward buttons
+  // With historyCacheSize=0 and refreshOnHistoryMiss=true, HTMX will do a full page reload
+  // This is a safety fallback in case any partial content sneaks through
   document.body.addEventListener('htmx:historyRestore', function(evt) {
+    // Check if we're seeing broken/partial content (missing essential page structure)
+    var hasPageWrapper = document.querySelector('.page-wrapper');
+    var hasSidebar = document.querySelector('.navbar-vertical');
+    
+    if (!hasPageWrapper || !hasSidebar) {
+      // Page structure is broken (partial content) - force full reload
+      console.warn('HTMX historyRestore: Detected partial content, forcing full reload');
+      window.location.reload();
+      return;
+    }
+    
     // Re-trigger lazy-load elements that use hx-trigger="load"
     // HTMX caches the DOM with loading skeletons, but "load" only fires on initial page load,
     // not on history restore. This ensures content loads after back/forward navigation.
