@@ -173,8 +173,13 @@ class PipelineExecution(db.Model):
             progress[stage].update(updates)
             self.progress = progress
     
-    def add_generation_result(self, result: Dict[str, Any]) -> None:
-        """Add a generation result to progress."""
+    def add_generation_result(self, result: Dict[str, Any]) -> bool:
+        """Add a generation result to progress.
+        
+        Returns:
+            True if this result caused a stage transition (generation -> analysis),
+            False otherwise. Caller should NOT call advance_job_index() when True.
+        """
         progress = self.progress
         progress['generation']['results'].append(result)
         
@@ -186,14 +191,20 @@ class PipelineExecution(db.Model):
         # Check if generation is complete
         total = progress['generation']['total']
         done = progress['generation']['completed'] + progress['generation']['failed']
+        stage_transitioned = False
         if done >= total:
             progress['generation']['status'] = 'completed'
             self.current_stage = 'analysis'
-            self.current_job_index = 0
+            self.current_job_index = 0  # Reset for analysis stage
+            stage_transitioned = True
+            logger.debug(
+                "[add_generation_result] Stage transition to analysis, reset job_index to 0"
+            )
         else:
             progress['generation']['status'] = 'running'
         
         self.progress = progress
+        return stage_transitioned
     
     def add_analysis_task_id(self, task_id: str, success: bool = True, created_only: bool = True) -> None:
         """Record an analysis task.

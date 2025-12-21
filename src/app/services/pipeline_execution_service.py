@@ -36,6 +36,9 @@ from app.services.service_locator import ServiceLocator
 
 logger = get_logger("pipeline_executor")
 
+# Thread safety lock for shared mutable state
+_pipeline_state_lock = threading.RLock()
+
 # Default parallelism limit for analysis tasks
 DEFAULT_MAX_CONCURRENT_TASKS = 3
 
@@ -197,8 +200,11 @@ class PipelineExecutionService:
         
         # Execute generation job
         if job['stage'] == 'generation':
-            self._execute_generation_job(pipeline, job)
-            pipeline.advance_job_index()
+            stage_transitioned = self._execute_generation_job(pipeline, job)
+            # Only advance job index if we didn't transition to a new stage
+            # Stage transition resets job_index to 0, advancing would skip job 0
+            if not stage_transitioned:
+                pipeline.advance_job_index()
             db.session.commit()
             self._emit_progress_update(pipeline)
     
@@ -219,12 +225,16 @@ class PipelineExecutionService:
         analysis_opts = config.get('analysis', {}).get('options', {})
         max_concurrent = progress.get('analysis', {}).get('max_concurrent', DEFAULT_MAX_CONCURRENT_TASKS)
         
-        # Initialize tracking for this pipeline
-        if pipeline_id not in self._in_flight_tasks:
-            self._in_flight_tasks[pipeline_id] = set()
+        # Initialize tracking for this pipeline (thread-safe)
+        with _pipeline_state_lock:
+            if pipeline_id not in self._in_flight_tasks:
+                self._in_flight_tasks[pipeline_id] = set()
         
         # STEP 1: Start containers if this is the first analysis job
-        if pipeline.current_job_index == 0 and pipeline_id not in self._containers_started_for:
+        with _pipeline_state_lock:
+            containers_already_started = pipeline_id in self._containers_started_for
+        
+        if pipeline.current_job_index == 0 and not containers_already_started:
             auto_start = analysis_opts.get('autoStartContainers', True)  # Default to True for pipelines
             if auto_start:
                 if not self._ensure_analyzers_healthy(pipeline):
@@ -237,7 +247,8 @@ class PipelineExecutionService:
                     pipeline.fail(error_msg)
                     db.session.commit()
                     return
-                self._containers_started_for.add(pipeline_id)
+                with _pipeline_state_lock:
+                    self._containers_started_for.add(pipeline_id)
             else:
                 # Auto-start disabled - check if containers are healthy anyway
                 if not self._check_analyzers_running():
@@ -254,8 +265,9 @@ class PipelineExecutionService:
         # STEP 2: Check completed in-flight tasks
         self._check_completed_analysis_tasks(pipeline)
         
-        # STEP 3: Submit new tasks up to parallelism limit
-        in_flight_count = len(self._in_flight_tasks.get(pipeline_id, set()))
+        # STEP 3: Submit new tasks up to parallelism limit (thread-safe read)
+        with _pipeline_state_lock:
+            in_flight_count = len(self._in_flight_tasks.get(pipeline_id, set()))
         
         while in_flight_count < max_concurrent:
             job = pipeline.get_next_job()
@@ -275,7 +287,8 @@ class PipelineExecutionService:
             # Submit analysis task
             task_id = self._submit_analysis_task(pipeline, job)
             if task_id and not task_id.startswith('error:') and not task_id.startswith('skipped'):
-                self._in_flight_tasks[pipeline_id].add(task_id)
+                with _pipeline_state_lock:
+                    self._in_flight_tasks[pipeline_id].add(task_id)
                 in_flight_count += 1
             
             pipeline.advance_job_index()
@@ -415,27 +428,18 @@ class PipelineExecutionService:
                 'container_management': container_management
             }
             
-            # Create task - use multi-service if multiple containers involved (MATCHING API!)
-            if len(tools_by_service) > 1:
-                custom_options['unified_analysis'] = True
-                task = AnalysisTaskService.create_main_task_with_subtasks(
-                    model_slug=model_slug,
-                    app_number=app_number,
-                    tools=valid_tool_names,
-                    priority='normal',
-                    custom_options=custom_options,
-                    task_name=f"pipeline:{model_slug}:{app_number}"
-                )
-            else:
-                custom_options['unified_analysis'] = False
-                task = AnalysisTaskService.create_task(
-                    model_slug=model_slug,
-                    app_number=app_number,
-                    tools=valid_tool_names,
-                    priority='normal',
-                    custom_options=custom_options
-                )
-            # ========== END MATCHING API BEHAVIOR ==========
+            # ALWAYS use unified analysis with subtasks (like custom wizard does)
+            # This ensures consistent task structure and UI display regardless of service count
+            custom_options['unified_analysis'] = True
+            task = AnalysisTaskService.create_main_task_with_subtasks(
+                model_slug=model_slug,
+                app_number=app_number,
+                tools=valid_tool_names,
+                priority='normal',
+                custom_options=custom_options,
+                task_name=f"pipeline:{model_slug}:{app_number}"
+            )
+            # ========== END MATCHING CUSTOM WIZARD BEHAVIOR ==========
             
             pipeline.add_analysis_task_id(task.task_id, success=True)
             
@@ -457,21 +461,26 @@ class PipelineExecutionService:
             return error_marker
     
     def _check_completed_analysis_tasks(self, pipeline: PipelineExecution):
-        """Check which in-flight tasks have completed and update tracking."""
+        """Check which in-flight tasks have completed and update tracking (thread-safe)."""
         pipeline_id = pipeline.pipeline_id
-        in_flight = self._in_flight_tasks.get(pipeline_id, set()).copy()
+        
+        # Thread-safe copy of in-flight tasks
+        with _pipeline_state_lock:
+            in_flight = self._in_flight_tasks.get(pipeline_id, set()).copy()
         
         for task_id in in_flight:
             task = AnalysisTask.query.filter_by(task_id=task_id).first()
             if not task:
                 # Task not found - remove from tracking
-                self._in_flight_tasks[pipeline_id].discard(task_id)
+                with _pipeline_state_lock:
+                    self._in_flight_tasks.get(pipeline_id, set()).discard(task_id)
                 continue
             
             if task.status in (AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS,
                               AnalysisStatus.FAILED, AnalysisStatus.CANCELLED):
                 # Task reached terminal state - remove from in-flight
-                self._in_flight_tasks[pipeline_id].discard(task_id)
+                with _pipeline_state_lock:
+                    self._in_flight_tasks.get(pipeline_id, set()).discard(task_id)
                 self._log(
                     "Task %s completed with status %s",
                     task_id, task.status.value if task.status else 'unknown'
@@ -502,9 +511,10 @@ class PipelineExecutionService:
             return False
     
     def _cleanup_pipeline_containers(self, pipeline_id: str):
-        """Stop containers if they were auto-started for this pipeline."""
-        if pipeline_id not in self._containers_started_for:
-            return
+        """Stop containers if they were auto-started for this pipeline (thread-safe)."""
+        with _pipeline_state_lock:
+            if pipeline_id not in self._containers_started_for:
+                return
         
         try:
             import sys
@@ -524,11 +534,12 @@ class PipelineExecutionService:
         except Exception as e:
             self._log("Error stopping containers: %s", e, level='warning')
         finally:
-            self._containers_started_for.discard(pipeline_id)
-            # Clean up in-flight tracking
-            self._in_flight_tasks.pop(pipeline_id, None)
-            # Clean up app containers tracking
-            self._app_containers_started.pop(pipeline_id, None)
+            with _pipeline_state_lock:
+                self._containers_started_for.discard(pipeline_id)
+                # Clean up in-flight tracking
+                self._in_flight_tasks.pop(pipeline_id, None)
+                # Clean up app containers tracking
+                self._app_containers_started.pop(pipeline_id, None)
     
     def _start_app_containers(
         self, 
@@ -559,10 +570,11 @@ class PipelineExecutionService:
             result = manager.start_containers(model_slug, app_number)
             
             if result.get('success'):
-                # Track that we started these containers
-                if pipeline_id not in self._app_containers_started:
-                    self._app_containers_started[pipeline_id] = set()
-                self._app_containers_started[pipeline_id].add((model_slug, app_number))
+                # Track that we started these containers (thread-safe)
+                with _pipeline_state_lock:
+                    if pipeline_id not in self._app_containers_started:
+                        self._app_containers_started[pipeline_id] = set()
+                    self._app_containers_started[pipeline_id].add((model_slug, app_number))
                 
                 self._log(
                     "Successfully started containers for %s app %d",
@@ -614,9 +626,10 @@ class PipelineExecutionService:
             result = manager.stop_containers(model_slug, app_number)
             
             if result.get('success'):
-                # Remove from tracking
-                if pipeline_id in self._app_containers_started:
-                    self._app_containers_started[pipeline_id].discard((model_slug, app_number))
+                # Remove from tracking (thread-safe)
+                with _pipeline_state_lock:
+                    if pipeline_id in self._app_containers_started:
+                        self._app_containers_started[pipeline_id].discard((model_slug, app_number))
                 
                 self._log(
                     "Successfully stopped containers for %s app %d",
@@ -645,7 +658,10 @@ class PipelineExecutionService:
         Called when pipeline analysis stage completes and stopAfterAnalysis is True.
         """
         pipeline_id = pipeline.pipeline_id
-        started_apps = self._app_containers_started.get(pipeline_id, set()).copy()
+        
+        # Thread-safe copy of started apps
+        with _pipeline_state_lock:
+            started_apps = self._app_containers_started.get(pipeline_id, set()).copy()
         
         if not started_apps:
             return
@@ -830,13 +846,17 @@ class PipelineExecutionService:
         )
         return True
     
-    def _execute_generation_job(self, pipeline: PipelineExecution, job: Dict[str, Any]):
+    def _execute_generation_job(self, pipeline: PipelineExecution, job: Dict[str, Any]) -> bool:
         """Execute a single generation job.
         
         Uses the same parameters as the Sample Generator API to ensure 100% parity:
         - generation_mode='guarded' (4-query mode)
         - app_num=None (let service handle atomic allocation)
         - All other standard parameters
+        
+        Returns:
+            True if this job caused a stage transition (generation complete -> analysis),
+            False otherwise. Caller should NOT advance job_index when True.
         """
         job_index = job.get('job_index', pipeline.current_job_index)
         model_slug = job['model_slug']
@@ -857,7 +877,7 @@ class PipelineExecutionService:
                 job_index, existing.get('model_slug'), existing.get('template_slug'),
                 existing.get('app_number', -1)
             )
-            return
+            return False  # No stage transition (job was skipped)
         
         # Check 2: Model+template combination (handles out-of-order edge cases)
         for existing_result in existing_results:
@@ -867,7 +887,7 @@ class PipelineExecutionService:
                     "Skipping duplicate generation for %s with template %s (already generated app %d)",
                     model_slug, template_slug, existing_result.get('app_number')
                 )
-                return  # Already generated this model+template combo
+                return False  # No stage transition (job was skipped)
         
         self._log(
             "Generating app for %s with template %s (job %d)",
@@ -927,12 +947,14 @@ class PipelineExecutionService:
                 'app_number': app_number,
                 'success': gen_result.get('success', True),
             }
-            pipeline.add_generation_result(result)
+            stage_transitioned = pipeline.add_generation_result(result)
             
             self._log(
-                "Generated %s app %d with template %s (job %d)",
-                model_slug, app_number, template_slug, job_index
+                "Generated %s app %d with template %s (job %d, stage_transitioned=%s)",
+                model_slug, app_number, template_slug, job_index, stage_transitioned
             )
+            
+            return stage_transitioned
             
         except Exception as e:
             self._log(
@@ -947,10 +969,11 @@ class PipelineExecutionService:
                 'success': False,
                 'error': str(e),
             }
-            pipeline.add_generation_result(result)
-        
-        # NOTE: Don't commit here - let _process_pipeline commit atomically
-        # with advance_job_index() to prevent duplicate jobs on restart
+            stage_transitioned = pipeline.add_generation_result(result)
+            
+            # NOTE: Don't commit here - let _process_pipeline commit atomically
+            # with advance_job_index() to prevent duplicate jobs on restart
+            return stage_transitioned
     
     def _ensure_analyzers_healthy(self, pipeline: PipelineExecution) -> bool:
         """Check and optionally start analyzer containers.
