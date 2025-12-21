@@ -412,28 +412,21 @@ def analysis_create():
                     options['selected_tools'] = list(tool_ids)
                     options['selected_tool_names'] = list(tool_names)
                     options['tools_by_service'] = {svc: list(ids) for svc, ids in tools_by_service_map.items()}
-                    use_subtasks = len(options['tools_by_service']) > 1
-                    options['unified_analysis'] = use_subtasks
+                    # Always use unified analysis with subtasks for consistent UI display
+                    options['unified_analysis'] = True
 
-                    if use_subtasks:
-                        # Service determines grouping internally from tool names
-                        task = AnalysisTaskService.create_main_task_with_subtasks(
-                            model_slug=mslug,
-                            app_number=anum,
-                            tools=tool_names,
-                            priority=priority_value,
-                            custom_options=options,
-                        )
-                        # Service returns number of subtasks implicitly
-                        subtask_total += use_subtasks  # Count will be updated by service
-                    else:
-                        task = AnalysisTaskService.create_task(
-                            model_slug=mslug,
-                            app_number=anum,
-                            tools=tool_names,
-                            priority=priority_value,
-                            custom_options=options,
-                        )
+                    # Always create main task with subtasks (even for single-service)
+                    # This ensures consistent subtask display in the UI
+                    task = AnalysisTaskService.create_main_task_with_subtasks(
+                        model_slug=mslug,
+                        app_number=anum,
+                        tools=tool_names,
+                        priority=priority_value,
+                        custom_options=options,
+                        task_name=f"custom:{mslug}:{anum}"
+                    )
+                    # Count subtasks from tools_by_service
+                    subtask_total += len(tools_by_service_map)
                     created.append(task)
                 return created, subtask_total
 

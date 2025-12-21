@@ -320,26 +320,17 @@ def run_analysis():
             'container_management': container_management
         }
         
-        # Create task - use multi-service if multiple containers involved
-        if len(tools_by_service) > 1:
-            custom_options['unified_analysis'] = True
-            task = AnalysisTaskService.create_main_task_with_subtasks(
-                model_slug=model_slug,
-                app_number=app_number,
-                tools=tool_names,
-                priority=priority,
-                custom_options=custom_options,
-                task_name=f"api:{model_slug}:{app_number}"
-            )
-        else:
-            custom_options['unified_analysis'] = False
-            task = AnalysisTaskService.create_task(
-                model_slug=model_slug,
-                app_number=app_number,
-                tools=tool_names,
-                priority=priority,
-                custom_options=custom_options
-            )
+        # Always create main task with subtasks for consistent UI display
+        # This ensures both single-service and multi-service analyses show subtasks
+        custom_options['unified_analysis'] = True
+        task = AnalysisTaskService.create_main_task_with_subtasks(
+            model_slug=model_slug,
+            app_number=app_number,
+            tools=tool_names,
+            priority=priority,
+            custom_options=custom_options,
+            task_name=f"api:{model_slug}:{app_number}"
+        )
         
         # Return task information
         return jsonify({

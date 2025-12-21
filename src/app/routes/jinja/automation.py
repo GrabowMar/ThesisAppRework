@@ -437,7 +437,8 @@ def api_pipeline_detailed_status(pipeline_id: str):
         - Task summary (completed, running, failed counts)
     """
     try:
-        from ..models import AnalysisTask, AnalysisStatus
+        # AnalysisTask already imported at module level from app.models
+        # AnalysisStatus already imported at module level from app.constants
         
         # Get pipeline from database
         pipeline = PipelineExecution.get_by_id(pipeline_id, user_id=current_user.id)

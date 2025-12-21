@@ -1939,11 +1939,16 @@ function proceedWithFormSubmission() {
           }
 
           // Add a bypass flag (safe for server to ignore) to indicate confirmation was shown
+          // First remove any existing bypass input to prevent duplicates
+          const existingBypass = form.querySelector('input[name="_bypass_confirmation"]');
+          if (existingBypass) existingBypass.remove();
+          
           const bypassInput = document.createElement('input');
           bypassInput.type = 'hidden';
           bypassInput.name = '_bypass_confirmation';
           bypassInput.value = '1';
           form.appendChild(bypassInput);
+          console.log('Added bypass confirmation input to form');
         } catch (serr) {
           console.warn('Error serializing form state before submit:', serr);
         }
@@ -2472,19 +2477,23 @@ function initAnalysisWizard() {
             }
             
             // Check if this is a bypass submission (after confirmation)
+            // Check if confirmation was already shown (bypass flag present)
             const bypassInput = form.querySelector('input[name="_bypass_confirmation"]');
+            console.log('Checking for bypass input:', bypassInput);
+            console.log('All form inputs:', Array.from(form.elements).map(el => el.name).filter(n => n));
             if (bypassInput) {
-        // Clear persisted selections to avoid locking tools after a run
-        try {
-          sessionStorage.removeItem('analysis_selected_model');
-          sessionStorage.removeItem('analysis_selected_app');
-          sessionStorage.removeItem('analysis_selected_tools');
-          sessionStorage.removeItem('analysis_selected_model_batch');
-          sessionStorage.removeItem('analysis_selected_app_batch');
-        } catch (e) { /* no-op */ }
+                console.log('Bypass confirmation flag found - allowing form submission');
+                // Clear persisted selections to avoid locking tools after a run
+                try {
+                    sessionStorage.removeItem('analysis_selected_model');
+                    sessionStorage.removeItem('analysis_selected_app');
+                    sessionStorage.removeItem('analysis_selected_tools');
+                    sessionStorage.removeItem('analysis_selected_model_batch');
+                    sessionStorage.removeItem('analysis_selected_app_batch');
+                } catch (e) { /* no-op */ }
 
-        // Remove the bypass input to prevent it from being submitted
-                bypassInput.remove();
+                // Do NOT remove the bypass input - let it be submitted
+                // The server will just ignore this hidden field
                 // Allow form to submit without showing confirmation again
                 const launchBtn = document.getElementById('launch-btn');
                 const loadingBtn = document.getElementById('launch-btn-loading');

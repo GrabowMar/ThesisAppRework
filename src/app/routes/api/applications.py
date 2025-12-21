@@ -554,47 +554,22 @@ def analyze_application(model_slug, app_number):
             if not tools_by_service:
                 return api_error("No valid tools found", 400)
             
-            # Multi-service or single-service
-            multiple_services = len(tools_by_service) > 1
-            
-            if multiple_services:
-                task = AnalysisTaskService.create_main_task_with_subtasks(
-                    model_slug=model_slug,
-                    app_number=app_number,
-                    tools=tool_names,
-                    priority=priority,
-                    custom_options={
-                        'selected_tools': tool_ids,
-                        'selected_tool_names': tool_names,
-                        'tools_by_service': tools_by_service,
-                        'unified_analysis': True,
-                        'source': 'api'
-                    },
-                    task_name=f"api:{model_slug}:{app_number}"
-                )
-            else:
-                service_to_engine = {
-                    'static-analyzer': 'security',
-                    'dynamic-analyzer': 'dynamic',
-                    'performance-tester': 'performance',
-                    'ai-analyzer': 'ai',
-                }
-                only_service = next(iter(tools_by_service.keys()))
-                engine_name = service_to_engine.get(only_service, analysis_type)
-                
-                task = AnalysisTaskService.create_task(
-                    model_slug=model_slug,
-                    app_number=app_number,
-                    tools=tool_names,
-                    priority=priority,
-                    custom_options={
-                        'selected_tools': tool_ids,
-                        'selected_tool_names': tool_names,
-                        'tools_by_service': tools_by_service,
-                        'unified_analysis': False,
-                        'source': 'api'
-                    }
-                )
+            # Always create main task with subtasks for consistent UI display
+            # This ensures both single-service and multi-service analyses show subtasks
+            task = AnalysisTaskService.create_main_task_with_subtasks(
+                model_slug=model_slug,
+                app_number=app_number,
+                tools=tool_names,
+                priority=priority,
+                custom_options={
+                    'selected_tools': tool_ids,
+                    'selected_tool_names': tool_names,
+                    'tools_by_service': tools_by_service,
+                    'unified_analysis': True,
+                    'source': 'api'
+                },
+                task_name=f"api:{model_slug}:{app_number}"
+            )
         else:
             # No tools specified - create simple task
             task = AnalysisTaskService.create_task(
