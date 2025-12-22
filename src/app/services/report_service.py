@@ -308,9 +308,69 @@ class ReportService:
             stats['total_runs'] = stats['executions']
             stats['overall_status'] = 'success' if stats['success_rate'] >= 50 else 'error'
         
+        # Get model capability info if available (using correct attribute names)
+        model_info = {}
+        try:
+            capability = ModelCapability.query.filter(
+                (ModelCapability.canonical_slug == model_slug) |
+                (ModelCapability.canonical_slug == normalized_slug)
+            ).first()
+            if capability:
+                model_info = {
+                    'model_name': capability.model_name,
+                    'provider': capability.provider,
+                    'context_window': capability.context_window,
+                    'max_output_tokens': capability.max_output_tokens,
+                    'supports_function_calling': capability.supports_function_calling,
+                    'supports_vision': capability.supports_vision,
+                    'supports_streaming': capability.supports_streaming,
+                    'supports_json_mode': capability.supports_json_mode,
+                    'is_free': capability.is_free,
+                    'input_price_per_token': capability.input_price_per_token,
+                    'output_price_per_token': capability.output_price_per_token,
+                }
+        except Exception as e:
+            logger.warning(f"Could not fetch model capability: {e}")
+        
+        # Calculate aggregate execution metrics
+        total_duration = sum(a.get('duration_seconds', 0) or 0 for a in apps_data)
+        total_queue_time = sum(a.get('queue_time_seconds', 0) or 0 for a in apps_data)
+        avg_duration = total_duration / len(apps_data) if apps_data else 0
+        
+        # Calculate generation statistics (using correct field names from _process_task_for_report)
+        generation_stats = {
+            'total_apps': len(apps_data),
+            'successful_generations': sum(1 for a in apps_data if a.get('generation_status') in ('completed', 'COMPLETED')),
+            'failed_generations': sum(1 for a in apps_data if a.get('generation_failed')),
+            'total_scripted_fixes': sum(a.get('automatic_fixes', 0) or 0 for a in apps_data),
+            'total_llm_fixes': sum(a.get('llm_fixes', 0) or 0 for a in apps_data),
+            'total_manual_fixes': sum(a.get('manual_fixes', 0) or 0 for a in apps_data),
+            'apps_with_fixes': sum(1 for a in apps_data if a.get('total_fixes', 0) > 0),
+        }
+        
+        # Calculate analysis statistics
+        analysis_stats = {
+            'completed_analyses': sum(1 for a in apps_data if a.get('task_status') == 'completed'),
+            'partial_analyses': sum(1 for a in apps_data if a.get('task_status') == 'partial_success'),
+            'failed_analyses': sum(1 for a in apps_data if a.get('task_status') in ('failed', 'cancelled')),
+            'total_retries': sum(a.get('retry_count', 0) or 0 for a in apps_data),
+        }
+        
+        # Framework distribution
+        backend_frameworks = {}
+        frontend_frameworks = {}
+        for a in apps_data:
+            bf = a.get('backend_framework')
+            ff = a.get('frontend_framework')
+            if bf:
+                backend_frameworks[bf] = backend_frameworks.get(bf, 0) + 1
+            if ff:
+                frontend_frameworks[ff] = frontend_frameworks.get(ff, 0) + 1
+        
         return {
             'report_type': 'model_analysis',
             'model_slug': model_slug,
+            'model_info': model_info,
             'generated_at': utc_now().isoformat(),
             'date_range': date_range,
             'apps': apps_data,
@@ -318,19 +378,36 @@ class ReportService:
             'total_tasks': len(tasks),
             # Summary with all fields the template expects
             'summary': {
-                'total_apps': len(apps_data),  # Template expects this
-                'total_analyses': len(tasks),   # Template expects this
+                'total_apps': len(apps_data),
+                'total_analyses': len(tasks),
                 'total_findings': len(all_findings),
                 'severity_breakdown': severity_counts,
-                'avg_findings_per_app': len(all_findings) / len(apps_data) if apps_data else 0
+                'avg_findings_per_app': len(all_findings) / len(apps_data) if apps_data else 0,
+                # Extended metrics
+                'avg_duration_seconds': avg_duration,
+                'total_duration_seconds': total_duration,
+                'total_queue_time_seconds': total_queue_time,
             },
             # Duplicate severity data for template compatibility
             'findings_breakdown': severity_counts,
             'scientific_metrics': scientific_metrics,
             # Provide both field names for compatibility
             'tools_statistics': tools_stats,
-            'tool_summary': tools_stats,  # Template expects this name
-            'findings': all_findings[:500]  # Limit findings in response
+            'tool_summary': tools_stats,
+            'findings': all_findings[:500],
+            # Extended data sections
+            'generation_stats': generation_stats,
+            'analysis_stats': analysis_stats,
+            'execution_metrics': {
+                'total_duration_seconds': total_duration,
+                'avg_duration_seconds': avg_duration,
+                'total_queue_time_seconds': total_queue_time,
+                'avg_queue_time_seconds': total_queue_time / len(apps_data) if apps_data else 0,
+            },
+            'framework_distribution': {
+                'backend': backend_frameworks,
+                'frontend': frontend_frameworks,
+            },
         }
     
     def _generate_template_comparison(self, config: Dict[str, Any], report: Report) -> Dict[str, Any]:
@@ -579,89 +656,189 @@ class ReportService:
         model_slug: str,
         app_number: int
     ) -> Dict[str, Any]:
-        """Process a single task into report entry format."""
-        # Check for failed/cancelled tasks
-        if task.status in (AnalysisStatus.FAILED, AnalysisStatus.CANCELLED):
-            return {
-                'app_number': app_number,
-                'model_slug': model_slug,
-                'task_id': task.task_id,
-                'status': 'failed',
-                'has_analysis': False,  # Template expects this boolean
-                'error_message': task.error_message or 'Analysis failed or was cancelled',
-                'completed_at': task.completed_at.isoformat() if task.completed_at else None,
-                'findings_count': 0,
-                'severity_counts': {},
-                'severity_breakdown': {},  # Template expects this alias
-                'tools': {},
-                'findings': []
-            }
-        
-        # Load full results
-        result = self.unified_service.load_analysis_results(task.task_id)
-        
-        if not result or not result.raw_data:
-            return {
-                'app_number': app_number,
-                'model_slug': model_slug,
-                'task_id': task.task_id,
-                'status': 'no_results',
-                'has_analysis': False,  # Template expects this boolean
-                'error_message': 'No analysis results available',
-                'completed_at': task.completed_at.isoformat() if task.completed_at else None,
-                'findings_count': 0,
-                'severity_counts': {},
-                'severity_breakdown': {},  # Template expects this alias
-                'tools': {},
-                'findings': []
-            }
-        
-        raw = result.raw_data
-        results_wrapper = raw.get('results', {})
-        summary = raw.get('summary') or results_wrapper.get('summary') or {}
-        
-        # Extract findings
-        findings = raw.get('findings') or results_wrapper.get('findings') or []
-        
-        # Get severity counts from summary, or compute from findings
-        severity_counts = summary.get('severity_breakdown') or summary.get('findings_by_severity')
-        if not severity_counts and findings:
-            # Compute severity counts from actual findings
-            severity_counts = self._count_severities(findings)
-        severity_counts = severity_counts or {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}
-        
-        # Extract tools
-        tools = raw.get('tools') or results_wrapper.get('tools') or {}
-        if not tools:
-            tools = self._extract_tools_from_services(raw.get('services', {}))
-        
-        # Calculate duration
-        duration = 0.0
-        if task.completed_at and task.created_at:
-            duration = (task.completed_at - task.created_at).total_seconds()
-        
-        # Get app metadata
+        """Process a single task into report entry format with comprehensive data."""
+        # Get app metadata first - needed for all cases
         app = GeneratedApplication.query.filter_by(
             model_slug=model_slug,
             app_number=app_number
         ).first()
         
-        return {
+        # Try alternate slug if not found
+        if not app:
+            for variant in generate_slug_variants(model_slug):
+                app = GeneratedApplication.query.filter_by(
+                    model_slug=variant,
+                    app_number=app_number
+                ).first()
+                if app:
+                    break
+        
+        # Calculate duration from task timestamps
+        duration = task.actual_duration or 0.0
+        if not duration and task.completed_at and task.started_at:
+            duration = (task.completed_at - task.started_at).total_seconds()
+        
+        # Calculate queue time
+        queue_time = task.queue_time or 0.0
+        if not queue_time and task.started_at and task.created_at:
+            queue_time = (task.started_at - task.created_at).total_seconds()
+        
+        # Map task status to display status
+        status_map = {
+            AnalysisStatus.COMPLETED: 'completed',
+            AnalysisStatus.PARTIAL_SUCCESS: 'partial',
+            AnalysisStatus.FAILED: 'failed',
+            AnalysisStatus.CANCELLED: 'cancelled',
+            AnalysisStatus.RUNNING: 'running',
+            AnalysisStatus.PENDING: 'pending'
+        }
+        display_status = status_map.get(task.status, str(task.status.value) if task.status else 'unknown')
+        
+        # Determine has_analysis based on task status, not result availability
+        has_analysis = task.status in (
+            AnalysisStatus.COMPLETED, 
+            AnalysisStatus.PARTIAL_SUCCESS
+        )
+        
+        # Build base entry with all task/app data from DB
+        base_entry = {
             'app_number': app_number,
             'model_slug': model_slug,
             'task_id': task.task_id,
-            'status': 'completed',
-            'has_analysis': True,  # Template expects this boolean
+            'status': display_status,
+            'task_status': task.status.value if task.status else 'unknown',  # Raw status for JS
+            'has_analysis': has_analysis,
+            'error_message': task.error_message,
             'completed_at': task.completed_at.isoformat() if task.completed_at else None,
+            'started_at': task.started_at.isoformat() if task.started_at else None,
+            'created_at': task.created_at.isoformat() if task.created_at else None,
             'duration_seconds': duration,
+            'queue_time_seconds': queue_time,
+            'retry_count': task.retry_count or 0,
+            # App metadata
             'app_type': app.app_type if app else None,
             'template_slug': app.template_slug if app else None,
-            'findings_count': len(findings),
-            'severity_counts': severity_counts,
-            'severity_breakdown': severity_counts,  # Template expects this alias
-            'tools': tools,
-            'findings': findings[:100]  # Limit per app
+            'provider': app.provider if app else None,
+            'backend_framework': app.backend_framework if app else None,
+            'frontend_framework': app.frontend_framework if app else None,
+            'generation_status': app.generation_status.value if app and app.generation_status else None,
+            'generation_mode': app.generation_mode.value if app and hasattr(app, 'generation_mode') and app.generation_mode else None,
+            'container_status': app.container_status if app else None,
+            # Generation fix counters (correct attribute names from model)
+            'generation_failed': app.is_generation_failed if app else False,
+            'failure_stage': app.failure_stage if app else None,
+            'generation_attempts': getattr(app, 'generation_attempts', 1) if app else 1,
+            'retry_fixes': getattr(app, 'retry_fixes', 0) if app else 0,
+            'automatic_fixes': getattr(app, 'automatic_fixes', 0) if app else 0,
+            'llm_fixes': getattr(app, 'llm_fixes', 0) if app else 0,
+            'manual_fixes': getattr(app, 'manual_fixes', 0) if app else 0,
         }
+        
+        # Get severity from DB as fallback (always available)
+        db_severity = task.get_severity_breakdown() or {}
+        db_issues_count = task.issues_found or 0
+        
+        # Try to load full results for detailed findings
+        result = self.unified_service.load_analysis_results(task.task_id)
+        
+        # Initialize with DB fallback values
+        severity_counts = db_severity or {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}
+        findings_count = db_issues_count
+        findings = []
+        tools = {}
+        subtasks_data = []
+        
+        if result and result.raw_data:
+            # Have full results - extract detailed data
+            raw = result.raw_data
+            results_wrapper = raw.get('results', {})
+            summary = raw.get('summary') or results_wrapper.get('summary') or {}
+            
+            # Extract findings
+            findings = raw.get('findings') or results_wrapper.get('findings') or []
+            
+            # Get severity counts from results, fallback to DB, or compute from findings
+            result_severity = summary.get('severity_breakdown') or summary.get('findings_by_severity')
+            if result_severity:
+                severity_counts = result_severity
+            elif findings:
+                severity_counts = self._count_severities(findings)
+            elif db_severity:
+                severity_counts = db_severity
+            
+            # Update findings count
+            if findings:
+                findings_count = len(findings)
+            elif db_issues_count:
+                findings_count = db_issues_count
+            
+            # Extract tools
+            tools = raw.get('tools') or results_wrapper.get('tools') or {}
+            if not tools:
+                tools = self._extract_tools_from_services(raw.get('services', {}))
+            
+            # Extract services for subtask breakdown
+            services = raw.get('services', {})
+            for svc_name, svc_data in services.items():
+                if isinstance(svc_data, dict):
+                    subtasks_data.append({
+                        'service': svc_name,
+                        'status': svc_data.get('status', 'unknown'),
+                        'tools_count': len(svc_data.get('analysis', {}).get('results', {})) if isinstance(svc_data.get('analysis'), dict) else 0,
+                        'duration': svc_data.get('metadata', {}).get('duration_seconds') if isinstance(svc_data.get('metadata'), dict) else None
+                    })
+        else:
+            # No result file - use DB data as-is
+            # Try to get result_summary from task for tool data
+            task_summary = task.get_result_summary()
+            if task_summary:
+                # Extract what we can from DB result_summary
+                if 'tools' in task_summary:
+                    tools = task_summary['tools']
+                if 'findings' in task_summary:
+                    findings = task_summary['findings'][:50]  # Limit
+                    findings_count = len(task_summary.get('findings', []))
+                if 'summary' in task_summary:
+                    sum_data = task_summary['summary']
+                    if 'severity_breakdown' in sum_data:
+                        severity_counts = sum_data['severity_breakdown']
+        
+        # Ensure severity_counts has all required keys
+        for key in ['critical', 'high', 'medium', 'low', 'info']:
+            if key not in severity_counts:
+                severity_counts[key] = 0
+        
+        # Get subtask info from DB if we have a main task
+        if task.is_main_task:
+            db_subtasks = task.get_all_subtasks()
+            for st in db_subtasks:
+                if not any(s['service'] == st.service_name for s in subtasks_data):
+                    subtasks_data.append({
+                        'service': st.service_name,
+                        'status': st.status.value if st.status else 'unknown',
+                        'task_id': st.task_id,
+                        'issues_found': st.issues_found or 0,
+                        'duration': st.actual_duration
+                    })
+        
+        # Merge all data
+        base_entry.update({
+            'findings_count': findings_count,
+            'severity_counts': severity_counts,
+            'severity_breakdown': severity_counts,  # Alias for template
+            'tools': tools,
+            'findings': findings[:50],  # Limit per app
+            'subtasks': subtasks_data,
+            'has_subtasks': len(subtasks_data) > 0,
+            # Calculated metrics (using correct attribute names from model)
+            'total_fixes': (
+                (getattr(app, 'automatic_fixes', 0) or 0) +
+                (getattr(app, 'llm_fixes', 0) or 0) +
+                (getattr(app, 'manual_fixes', 0) or 0)
+            ) if app else 0
+        })
+        
+        return base_entry
     
     def _extract_tools_from_services(self, services: Dict[str, Any]) -> Dict[str, Any]:
         """Extract flat tool map from nested services structure."""

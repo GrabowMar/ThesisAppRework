@@ -31,6 +31,33 @@
   
   .comparison-cell { text-align: center; }
   .comparison-cell.winner { background-color: rgba(47, 179, 68, 0.1); }
+  
+  /* Status badge colors */
+  .status-completed { background-color: #2fb344 !important; }
+  .status-partial { background-color: #f59f00 !important; color: #000 !important; }
+  .status-failed { background-color: #d63939 !important; }
+  .status-cancelled { background-color: #626976 !important; }
+  .status-running { background-color: #206bc4 !important; }
+  .status-pending { background-color: #868e96 !important; }
+  
+  /* Metric card hover */
+  .metric-card { transition: transform 0.2s; }
+  .metric-card:hover { transform: translateY(-2px); }
+  
+  /* Chart container */
+  .chart-container { position: relative; height: 250px; }
+  
+  /* Finding details */
+  .finding-item { border-left: 3px solid; padding-left: 12px; margin-bottom: 8px; }
+  .finding-item.severity-critical { border-color: #d63939; }
+  .finding-item.severity-high { border-color: #f76707; }
+  .finding-item.severity-medium { border-color: #f59f00; }
+  .finding-item.severity-low { border-color: #2fb344; }
+  .finding-item.severity-info { border-color: #0ea5e9; }
+  
+  /* Collapsible sections */
+  .section-collapse { cursor: pointer; }
+  .section-collapse:hover { background-color: rgba(0,0,0,0.02); }
 </style>
 {% endblock %}
 
@@ -101,6 +128,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
 (function() {
   const reportId = '{{ report_id }}';
@@ -111,6 +139,8 @@
   const reportContent = document.getElementById('report-content');
   
   let reportData = null;
+  let severityChart = null;
+  let toolsChart = null;
   
   // Fetch report data
   async function loadReport() {
@@ -159,6 +189,15 @@
     return (n || 0).toLocaleString();
   }
   
+  // Format duration
+  function formatDuration(seconds) {
+    if (!seconds) return 'N/A';
+    if (seconds < 60) return `${seconds.toFixed(1)}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.round(seconds % 60);
+    return `${mins}m ${secs}s`;
+  }
+  
   // Severity badge
   function severityBadge(sev) {
     const colors = {
@@ -169,6 +208,21 @@
       info: 'bg-info'
     };
     return `<span class="badge ${colors[sev?.toLowerCase()] || 'bg-secondary'}">${h(sev || 'Unknown')}</span>`;
+  }
+  
+  // Task status badge with proper colors
+  function statusBadge(status, taskStatus) {
+    const statusMap = {
+      'completed': { class: 'status-completed', icon: 'check', text: 'Completed' },
+      'partial': { class: 'status-partial', icon: 'exclamation', text: 'Partial' },
+      'partial_success': { class: 'status-partial', icon: 'exclamation', text: 'Partial' },
+      'failed': { class: 'status-failed', icon: 'times', text: 'Failed' },
+      'cancelled': { class: 'status-cancelled', icon: 'ban', text: 'Cancelled' },
+      'running': { class: 'status-running', icon: 'spinner fa-spin', text: 'Running' },
+      'pending': { class: 'status-pending', icon: 'clock', text: 'Pending' },
+    };
+    const s = statusMap[status?.toLowerCase()] || statusMap[taskStatus?.toLowerCase()] || { class: 'bg-secondary', icon: 'question', text: status || 'Unknown' };
+    return `<span class="badge ${s.class}"><i class="fa-solid fa-${s.icon} me-1"></i>${s.text}</span>`;
   }
   
   // Render the report based on type
@@ -188,151 +242,423 @@
     }
   }
   
-  // === Model Analysis Report ===
+  // === Model Analysis Report (Comprehensive) ===
   function renderModelAnalysis() {
     const d = reportData;
     const summary = d.summary || {};
     const apps = d.apps || [];
     const tools = d.tool_summary || {};
     const findings = d.findings_breakdown || {};
+    const genStats = d.generation_stats || {};
+    const analysisStats = d.analysis_stats || {};
+    const execMetrics = d.execution_metrics || {};
+    const frameworks = d.framework_distribution || {};
+    const modelInfo = d.model_info || {};
     
     let html = `
-      <!-- Summary Cards -->
+      <!-- Model Info Banner (if available) -->
+      ${Object.keys(modelInfo).length > 0 ? `
+      <div class="alert alert-info mb-4">
+        <div class="d-flex align-items-center">
+          <i class="fa-solid fa-robot fa-2x me-3"></i>
+          <div>
+            <h4 class="mb-1">${h(modelInfo.model_name || d.model_slug)}</h4>
+            <div class="text-muted">
+              Provider: <strong>${h(modelInfo.provider || 'Unknown')}</strong>
+              ${modelInfo.context_window ? ` | Context: <strong>${formatNumber(modelInfo.context_window)}</strong> tokens` : ''}
+              ${modelInfo.supports_vision ? ' | <span class="badge bg-purple-lt">Vision</span>' : ''}
+              ${modelInfo.supports_function_calling ? ' | <span class="badge bg-info-lt">Function Calling</span>' : ''}
+              ${modelInfo.is_free ? ' | <span class="badge bg-success-lt">Free</span>' : ''}
+            </div>
+          </div>
+        </div>
+      </div>
+      ` : ''}
+      
+      <!-- Summary Cards Row 1 -->
       <div class="row row-deck row-cards mb-4">
         <div class="col-sm-6 col-lg-3">
-          <div class="card">
+          <div class="card metric-card">
             <div class="card-body">
               <div class="d-flex align-items-center">
-                <div class="subheader">Applications</div>
+                <div class="subheader text-muted">Applications</div>
               </div>
               <div class="h1 mb-0">${formatNumber(summary.total_apps)}</div>
+              <div class="text-muted small">${genStats.successful_generations || 0} successful generations</div>
             </div>
           </div>
         </div>
         <div class="col-sm-6 col-lg-3">
-          <div class="card">
+          <div class="card metric-card">
             <div class="card-body">
               <div class="d-flex align-items-center">
-                <div class="subheader">Analyses</div>
+                <div class="subheader text-muted">Analyses</div>
               </div>
               <div class="h1 mb-0">${formatNumber(summary.total_analyses)}</div>
+              <div class="text-muted small">${analysisStats.completed_analyses || 0} completed, ${analysisStats.failed_analyses || 0} failed</div>
             </div>
           </div>
         </div>
         <div class="col-sm-6 col-lg-3">
-          <div class="card">
+          <div class="card metric-card">
             <div class="card-body">
               <div class="d-flex align-items-center">
-                <div class="subheader">Total Findings</div>
+                <div class="subheader text-muted">Total Findings</div>
               </div>
               <div class="h1 mb-0">${formatNumber(summary.total_findings)}</div>
+              <div class="text-muted small">Across all tools</div>
             </div>
           </div>
         </div>
         <div class="col-sm-6 col-lg-3">
-          <div class="card">
+          <div class="card metric-card">
             <div class="card-body">
               <div class="d-flex align-items-center">
-                <div class="subheader">Avg Findings/App</div>
+                <div class="subheader text-muted">Avg Findings/App</div>
               </div>
               <div class="h1 mb-0">${(summary.avg_findings_per_app || 0).toFixed(1)}</div>
+              <div class="text-muted small">Avg duration: ${formatDuration(execMetrics.avg_duration_seconds)}</div>
             </div>
           </div>
         </div>
       </div>
       
-      <!-- Severity Breakdown -->
-      <div class="card mb-4">
-        <div class="card-header">
-          <h3 class="card-title"><i class="fa-solid fa-chart-pie me-2"></i>Findings by Severity</h3>
+      <!-- Severity Breakdown with Chart -->
+      <div class="row row-deck row-cards mb-4">
+        <div class="col-lg-8">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fa-solid fa-chart-pie me-2"></i>Findings by Severity</h3>
+            </div>
+            <div class="card-body">
+              <div class="row align-items-center">
+                <div class="col-md-6">
+                  <div class="chart-container">
+                    <canvas id="severity-chart"></canvas>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="row g-3">
+                    ${Object.entries(findings).map(([sev, count]) => `
+                      <div class="col-6">
+                        <div class="d-flex align-items-center">
+                          <span class="badge bg-${sev === 'critical' ? 'danger' : sev === 'high' ? 'orange' : sev === 'medium' ? 'yellow text-dark' : sev === 'low' ? 'success' : 'info'} me-2" style="width: 12px; height: 12px; padding: 0;"></span>
+                          <div>
+                            <div class="h3 mb-0">${formatNumber(count)}</div>
+                            <div class="text-muted small text-capitalize">${sev}</div>
+                          </div>
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="card-body">
-          <div class="row">
-            ${Object.entries(findings).map(([sev, count]) => `
-              <div class="col-sm-6 col-lg-2">
-                <div class="text-center p-3">
-                  <div class="h2 mb-0 severity-${sev.toLowerCase()}">${formatNumber(count)}</div>
-                  <div class="text-muted">${sev}</div>
+        <div class="col-lg-4">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fa-solid fa-clock me-2"></i>Execution Metrics</h3>
+            </div>
+            <div class="card-body">
+              <div class="mb-3">
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="text-muted">Total Duration</span>
+                  <strong>${formatDuration(execMetrics.total_duration_seconds)}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="text-muted">Avg Duration</span>
+                  <strong>${formatDuration(execMetrics.avg_duration_seconds)}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-1">
+                  <span class="text-muted">Total Queue Time</span>
+                  <strong>${formatDuration(execMetrics.total_queue_time_seconds)}</strong>
+                </div>
+                <div class="d-flex justify-content-between">
+                  <span class="text-muted">Total Retries</span>
+                  <strong>${formatNumber(analysisStats.total_retries)}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Generation & Framework Stats -->
+      <div class="row row-deck row-cards mb-4">
+        <div class="col-lg-6">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fa-solid fa-hammer me-2"></i>Generation Statistics</h3>
+            </div>
+            <div class="card-body">
+              <div class="row g-3">
+                <div class="col-6 col-md-4">
+                  <div class="text-center">
+                    <div class="h2 mb-0 text-success">${formatNumber(genStats.successful_generations)}</div>
+                    <div class="text-muted small">Successful</div>
+                  </div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="text-center">
+                    <div class="h2 mb-0 text-danger">${formatNumber(genStats.failed_generations)}</div>
+                    <div class="text-muted small">Failed</div>
+                  </div>
+                </div>
+                <div class="col-6 col-md-4">
+                  <div class="text-center">
+                    <div class="h2 mb-0 text-info">${formatNumber(genStats.apps_with_fixes)}</div>
+                    <div class="text-muted small">With Fixes</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="text-center">
+                    <div class="h4 mb-0">${formatNumber(genStats.total_scripted_fixes)}</div>
+                    <div class="text-muted small">Script Fixes</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="text-center">
+                    <div class="h4 mb-0">${formatNumber(genStats.total_llm_fixes)}</div>
+                    <div class="text-muted small">LLM Fixes</div>
+                  </div>
+                </div>
+                <div class="col-4">
+                  <div class="text-center">
+                    <div class="h4 mb-0">${formatNumber(genStats.total_manual_fixes)}</div>
+                    <div class="text-muted small">Manual Fixes</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fa-solid fa-layer-group me-2"></i>Framework Distribution</h3>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-6">
+                  <h5 class="text-muted mb-2">Backend</h5>
+                  ${Object.entries(frameworks.backend || {}).length > 0 ? 
+                    Object.entries(frameworks.backend).map(([fw, count]) => `
+                      <div class="d-flex justify-content-between mb-1">
+                        <span>${h(fw)}</span>
+                        <strong>${count}</strong>
+                      </div>
+                    `).join('') : '<span class="text-muted">No data</span>'}
+                </div>
+                <div class="col-6">
+                  <h5 class="text-muted mb-2">Frontend</h5>
+                  ${Object.entries(frameworks.frontend || {}).length > 0 ? 
+                    Object.entries(frameworks.frontend).map(([fw, count]) => `
+                      <div class="d-flex justify-content-between mb-1">
+                        <span>${h(fw)}</span>
+                        <strong>${count}</strong>
+                      </div>
+                    `).join('') : '<span class="text-muted">No data</span>'}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Applications Table (Expanded) -->
+      <div class="card mb-4">
+        <div class="card-header section-collapse" data-bs-toggle="collapse" data-bs-target="#apps-section">
+          <h3 class="card-title"><i class="fa-solid fa-folder me-2"></i>Applications <span class="badge bg-secondary ms-2">${apps.length}</span></h3>
+          <div class="card-actions">
+            <i class="fa-solid fa-chevron-down"></i>
+          </div>
+        </div>
+        <div class="collapse show" id="apps-section">
+          <div class="table-responsive">
+            <table class="table table-vcenter card-table table-hover">
+              <thead>
+                <tr>
+                  <th>App</th>
+                  <th>Template</th>
+                  <th>Frameworks</th>
+                  <th>Status</th>
+                  <th>Findings</th>
+                  <th>Severity Breakdown</th>
+                  <th>Duration</th>
+                  <th>Fixes</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${apps.map(app => `
+                  <tr>
+                    <td>
+                      <strong>App ${app.app_number}</strong>
+                      <div class="text-muted small">${h(app.task_id || '')}</div>
+                    </td>
+                    <td><span class="badge bg-blue-lt">${h(app.template_slug || 'N/A')}</span></td>
+                    <td>
+                      ${app.backend_framework ? `<span class="badge bg-purple-lt me-1">${h(app.backend_framework)}</span>` : ''}
+                      ${app.frontend_framework ? `<span class="badge bg-cyan-lt">${h(app.frontend_framework)}</span>` : ''}
+                      ${!app.backend_framework && !app.frontend_framework ? '<span class="text-muted">—</span>' : ''}
+                    </td>
+                    <td>${statusBadge(app.status, app.task_status)}</td>
+                    <td><strong>${formatNumber(app.findings_count)}</strong></td>
+                    <td>
+                      <div class="d-flex gap-1 flex-wrap">
+                        ${Object.entries(app.severity_breakdown || {}).filter(([s, c]) => c > 0).map(([s, c]) => `
+                          <span class="badge bg-${s === 'critical' ? 'danger' : s === 'high' ? 'orange' : s === 'medium' ? 'yellow text-dark' : s === 'low' ? 'success' : 'info'}">${s}: ${c}</span>
+                        `).join('') || '<span class="text-muted">No findings</span>'}
+                      </div>
+                    </td>
+                    <td>${formatDuration(app.duration_seconds)}</td>
+                    <td>
+                      ${app.total_fixes > 0 ? `<span class="badge bg-info-lt">${app.total_fixes} fixes</span>` : '<span class="text-muted">—</span>'}
+                    </td>
+                  </tr>
+                  ${app.subtasks && app.subtasks.length > 0 ? `
+                  <tr class="bg-light">
+                    <td colspan="8" class="py-2">
+                      <div class="ms-4">
+                        <small class="text-muted">Subtasks: </small>
+                        ${app.subtasks.map(st => `
+                          <span class="badge ${st.status === 'success' ? 'bg-success-lt' : st.status === 'error' ? 'bg-danger-lt' : 'bg-secondary-lt'} me-1">
+                            ${h(st.service)} ${st.issues_found ? `(${st.issues_found})` : ''}
+                          </span>
+                        `).join('')}
+                      </div>
+                    </td>
+                  </tr>
+                  ` : ''}
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Tool Performance (Enhanced) -->
+      <div class="card mb-4">
+        <div class="card-header section-collapse" data-bs-toggle="collapse" data-bs-target="#tools-section">
+          <h3 class="card-title"><i class="fa-solid fa-wrench me-2"></i>Tool Performance <span class="badge bg-secondary ms-2">${Object.keys(tools).length}</span></h3>
+          <div class="card-actions">
+            <i class="fa-solid fa-chevron-down"></i>
+          </div>
+        </div>
+        <div class="collapse show" id="tools-section">
+          <div class="table-responsive">
+            <table class="table table-vcenter card-table table-hover">
+              <thead>
+                <tr>
+                  <th>Tool</th>
+                  <th>Runs</th>
+                  <th>Success Rate</th>
+                  <th>Total Findings</th>
+                  <th>Avg/Run</th>
+                  <th>Avg Duration</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${Object.entries(tools).map(([name, tool]) => `
+                  <tr>
+                    <td><strong>${h(tool.display_name || name)}</strong></td>
+                    <td>${formatNumber(tool.total_runs || tool.executions)}</td>
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        <div class="progress flex-grow-1" style="height: 6px; min-width: 60px;">
+                          <div class="progress-bar ${(tool.success_rate || 0) >= 80 ? 'bg-success' : (tool.success_rate || 0) >= 50 ? 'bg-warning' : 'bg-danger'}" style="width: ${tool.success_rate || 0}%"></div>
+                        </div>
+                        <span class="small">${tool.success_rate ? tool.success_rate.toFixed(0) + '%' : 'N/A'}</span>
+                      </div>
+                    </td>
+                    <td>${formatNumber(tool.total_findings)}</td>
+                    <td>${(tool.findings_per_run || 0).toFixed(1)}</td>
+                    <td>${formatDuration(tool.avg_duration)}</td>
+                    <td>
+                      <span class="tool-status-${tool.overall_status}">
+                        <i class="fa-solid fa-${tool.overall_status === 'success' ? 'check-circle' : tool.overall_status === 'error' ? 'times-circle' : 'minus-circle'} me-1"></i>
+                        ${tool.overall_status || 'unknown'}
+                      </span>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Sample Findings (Collapsible) -->
+      ${(d.findings || []).length > 0 ? `
+      <div class="card">
+        <div class="card-header section-collapse" data-bs-toggle="collapse" data-bs-target="#findings-section">
+          <h3 class="card-title"><i class="fa-solid fa-bug me-2"></i>Sample Findings <span class="badge bg-secondary ms-2">${Math.min(50, d.findings.length)} of ${d.findings.length}</span></h3>
+          <div class="card-actions">
+            <i class="fa-solid fa-chevron-down"></i>
+          </div>
+        </div>
+        <div class="collapse" id="findings-section">
+          <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+            ${d.findings.slice(0, 50).map(f => `
+              <div class="finding-item severity-${(f.severity || 'info').toLowerCase()} mb-2">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <strong>${h(f.message || f.title || 'Finding')}</strong>
+                    ${f.tool ? `<span class="badge bg-secondary-lt ms-2">${h(f.tool)}</span>` : ''}
+                  </div>
+                  ${severityBadge(f.severity)}
+                </div>
+                <div class="text-muted small mt-1">
+                  ${f.file ? `<i class="fa-solid fa-file me-1"></i>${h(f.file)}${f.line ? `:${f.line}` : ''}` : ''}
+                  ${f.rule_id ? ` | Rule: ${h(f.rule_id)}` : ''}
                 </div>
               </div>
             `).join('')}
           </div>
         </div>
       </div>
-      
-      <!-- Applications Table -->
-      <div class="card mb-4">
-        <div class="card-header">
-          <h3 class="card-title"><i class="fa-solid fa-folder me-2"></i>Applications</h3>
-        </div>
-        <div class="table-responsive">
-          <table class="table table-vcenter card-table">
-            <thead>
-              <tr>
-                <th>App</th>
-                <th>Template</th>
-                <th>Status</th>
-                <th>Findings</th>
-                <th>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${apps.map(app => `
-                <tr>
-                  <td><strong>App ${app.app_number}</strong></td>
-                  <td><span class="badge bg-blue-lt">${h(app.template_slug || 'N/A')}</span></td>
-                  <td>${app.has_analysis ? '<span class="badge bg-success">Analyzed</span>' : '<span class="badge bg-warning">Pending</span>'}</td>
-                  <td>${formatNumber(app.findings_count)}</td>
-                  <td>
-                    <span class="text-muted small">
-                      ${Object.entries(app.severity_breakdown || {}).map(([s, c]) => `${s}: ${c}`).join(', ') || 'No findings'}
-                    </span>
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      
-      <!-- Tool Summary -->
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title"><i class="fa-solid fa-wrench me-2"></i>Tool Performance</h3>
-        </div>
-        <div class="table-responsive">
-          <table class="table table-vcenter card-table">
-            <thead>
-              <tr>
-                <th>Tool</th>
-                <th>Runs</th>
-                <th>Success</th>
-                <th>Findings</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${Object.entries(tools).map(([name, tool]) => `
-                <tr>
-                  <td><strong>${h(tool.display_name || name)}</strong></td>
-                  <td>${formatNumber(tool.total_runs)}</td>
-                  <td>${tool.success_rate ? tool.success_rate.toFixed(0) + '%' : 'N/A'}</td>
-                  <td>${formatNumber(tool.total_findings)}</td>
-                  <td>
-                    <span class="tool-status-${tool.overall_status}">
-                      <i class="fa-solid fa-${tool.overall_status === 'success' ? 'check' : tool.overall_status === 'error' ? 'times' : 'minus'} me-1"></i>
-                      ${tool.overall_status || 'unknown'}
-                    </span>
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      ` : ''}
     `;
     
     reportContent.innerHTML = html;
+    
+    // Initialize severity chart
+    setTimeout(() => {
+      const ctx = document.getElementById('severity-chart');
+      if (ctx && Object.keys(findings).length > 0) {
+        const severityColors = {
+          critical: '#d63939',
+          high: '#f76707',
+          medium: '#f59f00',
+          low: '#2fb344',
+          info: '#0ea5e9'
+        };
+        
+        severityChart = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: Object.keys(findings).map(s => s.charAt(0).toUpperCase() + s.slice(1)),
+            datasets: [{
+              data: Object.values(findings),
+              backgroundColor: Object.keys(findings).map(s => severityColors[s] || '#868e96'),
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false
+              }
+            },
+            cutout: '60%'
+          }
+        });
+      }
+    }, 100);
   }
   
   // === Template Comparison Report ===
