@@ -328,13 +328,14 @@
 							
 							{# Container Control Buttons #}
 							{% if app.container_status == 'running' %}
-								{# Visit App Button - shown when running with ports #}
+								{# Visit App Button - shown when running with ports (use frontend port) #}
 								{% if app.ports %}
-								<a href="http://localhost:{{ app.ports[0].host_port }}" 
+								{% set frontend_port = app.ports[1].host_port if app.ports|length > 1 else app.ports[0].host_port %}
+								<a href="http://localhost:{{ frontend_port }}" 
 									target="_blank" 
 									rel="noopener" 
 									class="btn btn-ghost-success" 
-									title="Visit application (port {{ app.ports[0].host_port }})">
+									title="Visit application (port {{ frontend_port }})">
 									<i class="fas fa-external-link-alt"></i>
 								</a>
 								{% endif %}

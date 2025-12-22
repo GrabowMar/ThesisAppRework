@@ -21,9 +21,9 @@
             {% set app_metadata = app.get_metadata() %}
             {% set ports = app.get_ports() %}
             <tr class="app-row app-card" 
-                data-app="{{ app.app_number }}" 
+                data-app="{{ app.app_number }}"
+                data-model-slug="{{ model_slug or app.model_slug or '' }}"
                 style="cursor: pointer;"
-                onclick="selectApp('{{ app.app_number }}', {})"
                 role="button"
                 tabindex="0"
                 _="on keypress[key=='Enter'] click()">
@@ -77,8 +77,9 @@
               </td>
               <td class="text-end">
                 <button type="button" 
-                        class="btn btn-sm btn-ghost-primary" 
-                        onclick="event.stopPropagation(); selectApp('{{ app.app_number }}', {})"
+                        class="btn btn-sm btn-ghost-primary select-app-btn"
+                        data-select-app="{{ app.app_number }}"
+                        data-select-model="{{ model_slug or app.model_slug or '' }}"
                         title="Select application #{{ app.app_number }}">
                   <i class="fa-solid fa-check me-1"></i>Select
                 </button>

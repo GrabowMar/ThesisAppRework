@@ -575,39 +575,12 @@
 
         <div class="card card-sm mb-3">
           <div class="card-header py-2">
-            <div class="d-flex align-items-center justify-content-between">
-              <h6 class="card-title mb-0">
-                <i class="fa-solid fa-list-check me-2 text-primary"></i>Selections
-              </h6>
-              <div class="dropdown">
-                <button class="btn btn-sm btn-ghost-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"
-                        title="Change selection modes">
-                  Modes
-                </button>
-                <div class="dropdown-menu dropdown-menu-end p-3">
-                  <div class="mb-3">
-                    <div class="fw-semibold text-muted small mb-2">Model Selection</div>
-                    <div class="btn-group btn-group-sm w-100" role="group" aria-label="Model selection mode">
-                      <input type="radio" class="btn-check" name="model-mode" id="model-mode-single" checked>
-                      <label class="btn btn-outline-primary" for="model-mode-single" _="on click call setModelSelectionMode('single')">Single</label>
-                      <input type="radio" class="btn-check" name="model-mode" id="model-mode-batch">
-                      <label class="btn btn-outline-primary" for="model-mode-batch" _="on click call setModelSelectionMode('batch')">Batch</label>
-                    </div>
-                  </div>
-                  <div>
-                    <div class="fw-semibold text-muted small mb-2">App Selection</div>
-                    <div class="btn-group btn-group-sm w-100" role="group" aria-label="App selection mode">
-                      <input type="radio" class="btn-check" name="app-mode" id="app-mode-single" checked>
-                      <label class="btn btn-outline-primary" for="app-mode-single" _="on click call setAppSelectionMode('single')">Single</label>
-                      <input type="radio" class="btn-check" name="app-mode" id="app-mode-batch">
-                      <label class="btn btn-outline-primary" for="app-mode-batch" _="on click call setAppSelectionMode('batch')">Batch</label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <h6 class="card-title mb-0">
+              <i class="fa-solid fa-list-check me-2 text-primary"></i>Selections
+            </h6>
           </div>
           <div class="card-body p-2">
+            <!-- Models Section -->
             <div class="mb-3">
               <div class="d-flex align-items-center justify-content-between mb-2">
                 <span class="small text-muted fw-medium">Models</span>
@@ -616,8 +589,20 @@
                   <span class="badge bg-secondary-lt" id="sidebar-model-count">0</span>
                 </div>
               </div>
-              <ul class="list-unstyled mb-2 small" id="sidebar-model-list"></ul>
+              <!-- Model Selection Mode Toggle - Inline -->
+              <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="Model selection mode">
+                <input type="radio" class="btn-check" name="model-mode" id="model-mode-single" checked onchange="if(this.checked && window.setModelSelectionMode) window.setModelSelectionMode('single')">
+                <label class="btn btn-outline-secondary" for="model-mode-single">
+                  <i class="fa-solid fa-user me-1"></i>Single
+                </label>
+                <input type="radio" class="btn-check" name="model-mode" id="model-mode-batch" onchange="if(this.checked && window.setModelSelectionMode) window.setModelSelectionMode('batch')">
+                <label class="btn btn-outline-secondary" for="model-mode-batch">
+                  <i class="fa-solid fa-users me-1"></i>Batch
+                </label>
+              </div>
+              <ul class="list-unstyled mb-0 small" id="sidebar-model-list"></ul>
             </div>
+            <!-- Apps Section -->
             <div class="border-top pt-3">
               <div class="d-flex align-items-center justify-content-between mb-2">
                 <span class="small text-muted fw-medium">Applications</span>
@@ -625,6 +610,17 @@
                   <button type="button" class="btn btn-link p-0 small text-danger d-none" id="clear-apps-btn" aria-label="Clear all apps">clear</button>
                   <span class="badge bg-secondary-lt" id="sidebar-app-count">0</span>
                 </div>
+              </div>
+              <!-- App Selection Mode Toggle - Inline -->
+              <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="App selection mode">
+                <input type="radio" class="btn-check" name="app-mode" id="app-mode-single" checked onchange="if(this.checked && window.setAppSelectionMode) window.setAppSelectionMode('single')">
+                <label class="btn btn-outline-secondary" for="app-mode-single">
+                  <i class="fa-solid fa-window-maximize me-1"></i>Single
+                </label>
+                <input type="radio" class="btn-check" name="app-mode" id="app-mode-batch" onchange="if(this.checked && window.setAppSelectionMode) window.setAppSelectionMode('batch')">
+                <label class="btn btn-outline-secondary" for="app-mode-batch">
+                  <i class="fa-solid fa-layer-group me-1"></i>Batch
+                </label>
               </div>
               <ul class="list-unstyled mb-0 small" id="sidebar-app-list"></ul>
             </div>
@@ -921,8 +917,9 @@ function setModelSelectionMode(mode) {
   const singleBtn = document.getElementById('model-mode-single');
   const batchBtn = document.getElementById('model-mode-batch');
   if (singleBtn && batchBtn) {
-    singleBtn.classList.toggle('active', mode === 'single');
-    batchBtn.classList.toggle('active', mode === 'batch');
+    // For Bootstrap btn-check, set the checked property
+    singleBtn.checked = (mode === 'single');
+    batchBtn.checked = (mode === 'batch');
   }
   // Reset selections when switching modes to avoid ambiguity
   if (mode === 'single') {
@@ -944,13 +941,16 @@ function setModelSelectionMode(mode) {
 
 // Application selection mode handling
 function setAppSelectionMode(mode) {
+  console.log('[setAppSelectionMode] Called with mode:', mode, 'Current mode:', appSelectionMode);
   if (mode !== 'single' && mode !== 'batch') return;
   appSelectionMode = mode;
+  console.log('[setAppSelectionMode] Mode set to:', appSelectionMode);
   const singleBtn = document.getElementById('app-mode-single');
   const batchBtn = document.getElementById('app-mode-batch');
   if (singleBtn && batchBtn) {
-    singleBtn.classList.toggle('active', mode === 'single');
-    batchBtn.classList.toggle('active', mode === 'batch');
+    // For Bootstrap btn-check, set the checked property
+    singleBtn.checked = (mode === 'single');
+    batchBtn.checked = (mode === 'batch');
   }
   if (mode === 'single') {
     if (selectedApps.length) {
@@ -997,7 +997,7 @@ function refreshModelSelectionsUI() {
       </li>`).join('');
     countEl.textContent = selectedModels.length;
   }
-  if (clearBtn) clearBtn.style.display = selectedModels.length > 0 ? 'inline' : 'none';
+  if (clearBtn) clearBtn.classList.toggle('d-none', selectedModels.length === 0);
 
   // Update batch aggregate section if on step 2
   if (currentStep === 2) {
@@ -1123,6 +1123,7 @@ function loadApplicationsForModel(model) {
       swap: 'innerHTML'
     }).then(() => {
       cacheAppsFromContainer(model.slug, listContainer);
+      refreshAppSelectionsUI(); // Update visual state for any previously selected apps
       if (currentStep === 2) refreshBatchApplicationsAggregate();
     }).catch((error) => {
       console.error('Error loading applications via htmx:', error);
@@ -1140,6 +1141,7 @@ function loadApplicationsForModel(model) {
       .then(html => {
         listContainer.innerHTML = html;
         cacheAppsFromContainer(model.slug, listContainer);
+        refreshAppSelectionsUI(); // Update visual state for any previously selected apps
         if (currentStep === 2) refreshBatchApplicationsAggregate();
       })
       .catch(error => {
@@ -1240,8 +1242,10 @@ function updatePerModelAppCounts() {
 // Application selection (single or batch)
 function selectApp(appNumber, appInfo, modelSlug) {
   const slug = modelSlug || (selectedModel && selectedModel.slug) || 'unknown';
+  console.log('[selectApp] Called with appNumber:', appNumber, 'modelSlug:', slug, 'appSelectionMode:', appSelectionMode);
 
   if (appSelectionMode === 'single') {
+    console.log('[selectApp] Single mode - setting selectedApp');
     selectedApp = { number: appNumber, info: appInfo, modelSlug: slug };
     selectedApps = [selectedApp];
     try { sessionStorage.setItem('analysis_selected_app', JSON.stringify(selectedApp)); } catch (e) {}
@@ -1249,15 +1253,19 @@ function selectApp(appNumber, appInfo, modelSlug) {
     const input = document.getElementById('input-app-number');
     if (input) input.value = String(appNumber);
   } else {
+    console.log('[selectApp] Batch mode - toggling app in selectedApps. Current count:', selectedApps.length);
     const idx = selectedApps.findIndex(a => String(a.number) === String(appNumber) && a.modelSlug === slug);
     if (idx >= 0) {
+      console.log('[selectApp] Removing app at index:', idx);
       selectedApps.splice(idx, 1);
     } else {
+      console.log('[selectApp] Adding app to batch');
       selectedApps.push({ number: appNumber, info: appInfo, modelSlug: slug });
     }
     selectedApp = selectedApps[0] || null;
     try { sessionStorage.setItem('analysis_selected_app_batch', JSON.stringify(selectedApps)); } catch (e) {}
   }
+  console.log('[selectApp] After update - selectedApps:', selectedApps.length, 'items');
 
   refreshAppSelectionsUI();
   updateNavigationButtons();
@@ -1271,7 +1279,25 @@ function refreshAppSelectionsUI() {
       ? (selectedApp && String(selectedApp.number) === String(number) && selectedApp.modelSlug === modelSlug)
       : selectedApps.some(a => String(a.number) === String(number) && a.modelSlug === modelSlug);
     card.classList.toggle('selected', !!isSelected);
-    card.classList.toggle('border-success', !!isSelected);
+    // For cards use border, for table rows use bg class
+    if (card.tagName === 'TR') {
+      card.classList.toggle('table-success', !!isSelected);
+    } else {
+      card.classList.toggle('border-success', !!isSelected);
+    }
+    // Update the Select button text/style if present
+    const selectBtn = card.querySelector('.select-app-btn');
+    if (selectBtn) {
+      if (isSelected) {
+        selectBtn.classList.remove('btn-ghost-primary');
+        selectBtn.classList.add('btn-success');
+        selectBtn.innerHTML = '<i class="fa-solid fa-check-double me-1"></i>Selected';
+      } else {
+        selectBtn.classList.remove('btn-success');
+        selectBtn.classList.add('btn-ghost-primary');
+        selectBtn.innerHTML = '<i class="fa-solid fa-check me-1"></i>Select';
+      }
+    }
   });
   const list = document.getElementById('sidebar-app-list');
   const countEl = document.getElementById('sidebar-app-count');
@@ -1285,7 +1311,7 @@ function refreshAppSelectionsUI() {
       </li>`).join('');
     countEl.textContent = selectedApps.length;
   }
-  if (clearBtn) clearBtn.style.display = selectedApps.length > 0 ? 'inline' : 'none';
+  if (clearBtn) clearBtn.classList.toggle('d-none', selectedApps.length === 0);
 
   // Update batch aggregate section if on step 2
   if (currentStep === 2) {
@@ -2568,18 +2594,34 @@ function initAnalysisWizard() {
 
   // Delegated click for dynamically loaded application cards & clear buttons
   document.addEventListener('click', (e) => {
-    const appCard = e.target.closest('.app-card[data-app]');
-    if (appCard) {
+    // Handle Select button click (new data attribute approach)
+    const selectAppBtn = e.target.closest('button[data-select-app]');
+    if (selectAppBtn) {
+      e.stopPropagation();
+      const num = selectAppBtn.getAttribute('data-select-app');
+      const mSlug = selectAppBtn.getAttribute('data-select-model') || (selectedModel && selectedModel.slug) || 'unknown';
+      if (num) {
+        selectApp(num, {}, mSlug);
+      }
+      return;
+    }
+
+    // Handle app card/row click
+    const appCard = e.target.closest('.app-card[data-app], .app-row[data-app]');
+    if (appCard && !e.target.closest('button')) {
       const num = appCard.getAttribute('data-app');
       if (!num) return;
       const mSlug = appCard.getAttribute('data-model-slug') || (selectedModel && selectedModel.slug) || 'unknown';
       selectApp(num, {}, mSlug);
+      return;
     }
+
     const modelCard = e.target.closest('.model-card[data-model-slug]');
     if (modelCard && modelCard.dataset.modelSlug) {
       const slug = modelCard.dataset.modelSlug;
       const name = modelCard.dataset.modelName || slug;
       selectModel(slug, name);
+      return;
     }
 
     // Remove model from sidebar list
@@ -2661,6 +2703,8 @@ window.toggleTool = typeof toggleTool !== 'undefined' ? toggleTool : function(){
 window.toggleToolCategory = typeof toggleToolCategory !== 'undefined' ? toggleToolCategory : function(){};
 window.toggleAllTools = typeof toggleAllTools !== 'undefined' ? toggleAllTools : function(){};
 window.startAnalysis = typeof startAnalysis !== 'undefined' ? startAnalysis : function(){};
+window.setModelSelectionMode = setModelSelectionMode;
+window.setAppSelectionMode = setAppSelectionMode;
 window.initAnalysisWizard = initAnalysisWizard;
 
 if (document.readyState === 'loading') {
@@ -2678,5 +2722,19 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
 
 })();
   </script>
+  <style>
+    /* Visual feedback for selected rows in batch mode */
+    tr.app-row.selected {
+      box-shadow: inset 3px 0 0 var(--tblr-success);
+    }
+    tr.app-row.selected td:first-child {
+      border-left: 3px solid var(--tblr-success);
+    }
+    /* Mode toggle buttons - compact */
+    .card-body .btn-group-sm .btn {
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+    }
+  </style>
 {% endblock %}
 
