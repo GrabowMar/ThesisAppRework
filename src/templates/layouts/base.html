@@ -1,4 +1,16 @@
-{# Unified Base Layout: self-contained (no longer extends main.html) #}
+{# 
+  Base Layout - Full page structure with HTMX SPA navigation
+  ==========================================================
+  
+  Architecture:
+  - Pages extend base_smart.html (NOT this file directly)
+  - base_smart.html returns partial.html for HTMX requests, this file for full loads
+  - Sidebar links use hx-boost to swap #main-content without full page reload
+  
+  HTMX Strategy (simple & robust):
+  - refreshOnHistoryMiss=true: Full reload on back button if page not in HTMX cache
+  - No complex workarounds - let the browser handle edge cases with full reloads
+#}
 <!doctype html>
 <html lang="en">
 <head>
@@ -6,46 +18,59 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
   <title>{% block title %}Thesis Platform{% endblock %}</title>
+  
+  {# Theme initialization - runs before CSS loads to prevent flash #}
   <script>
   (function(){
     try {
       var stored = localStorage.getItem('app_theme');
-      var prefers = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-      var t = stored || (prefers ? 'dark':'light');
-      document.documentElement.setAttribute('data-bs-theme', t);
-      document.documentElement.setAttribute('data-theme', t);
-      if(localStorage.getItem('sidebarPref')==='collapsed'){
+      var prefers = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var theme = stored || (prefers ? 'dark' : 'light');
+      document.documentElement.setAttribute('data-bs-theme', theme);
+      document.documentElement.setAttribute('data-theme', theme);
+      if (localStorage.getItem('sidebarPref') === 'collapsed') {
         document.documentElement.classList.add('sidebar-init');
-        document.body && document.body.classList.add('sidebar-collapsed');
       }
-    } catch(_){}
+    } catch(e) {}
   })();
   </script>
+
+  {# Stylesheets #}
   <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="preconnect" href="https://rsms.me">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta19/dist/css/tabler.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons@2.47.0/iconfont/tabler-icons.min.css">
   <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/tables.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/detail-pages.css') }}">
   {% block head_styles %}{% endblock %}
 </head>
+
 <body id="app-body">
   <div class="page">
+    {# Sidebar Navigation #}
     {% include 'shared/ui/_sidebar.html' %}
     <div class="sidebar-backdrop d-lg-none" id="sidebar-backdrop" aria-hidden="true"></div>
+    
+    {# Header #}
     {% include 'shared/ui/_header.html' %}
-    {% set has_right_sidebar = has_right_sidebar|default(false) %}
+    
+    {# Main Page Wrapper #}
+    {% set has_right_sidebar = has_right_sidebar | default(false) %}
     <div class="page-wrapper{% if has_right_sidebar %} has-right-sidebar{% endif %}{% if active_page %} page-{{ active_page }}{% endif %}">
       <div class="page-body py-3">
         <div class="container-xl page-body-container">
+          
+          {# Loading Indicator (shown during HTMX requests) #}
           <div id="global-spinner" class="htmx-indicator text-center mb-3" aria-live="polite">
             <div class="spinner-border text-primary spinner-border-sm me-2" role="status"></div>
             <span class="small text-muted">Loading…</span>
           </div>
+          
+          {# Main Content - HTMX swap target #}
           <div id="main-content" class="row gx-4 gy-4 align-items-start">
             <div class="col-12{% if has_right_sidebar %} col-lg-9 col-xl-9{% endif %}">
               {% block main %}{% block content %}{% endblock %}{% endblock %}
@@ -56,230 +81,245 @@
             </div>
             {% endif %}
           </div>
+          
         </div>
       </div>
     </div>
   </div>
 
+  {# Footer #}
   {% include 'shared/ui/_footer.html' %}
 
-  <!-- Modals / global components -->
+  {# Search Modal #}
   <div class="modal modal-blur fade" id="search-modal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-sm modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Search</h5><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><input type="text" class="form-control" placeholder="Search..." autofocus></div></div></div>
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Search</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="text" class="form-control" placeholder="Search..." autofocus>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <!-- Dynamic modal region for HTMX content -->
+  {# Modal Region for HTMX-loaded modals #}
   <div id="modal-region"></div>
 
-  <!-- JS -->
+  {# ================================================================== #}
+  {#                      JavaScript Section                            #}
+  {# ================================================================== #}
+
+  {# Core Dependencies #}
   <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta19/dist/js/tabler.min.js"></script>
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   <script src="https://unpkg.com/hyperscript.org@0.9.12"></script>
+
+  {# HTMX Configuration - Keep it simple! #}
   <script>
-  // HTMX Global Configuration for proper boost navigation
-  document.body.addEventListener('htmx:configRequest', function(evt) {
-    // Add header to identify HTMX requests for partial rendering
-    evt.detail.headers['X-HTMX-Request'] = 'true';
-  });
-  
-  // Configure boosted links to target main content area
-  htmx.config.defaultSwapStyle = 'innerHTML';
-  htmx.config.globalViewTransitions = true;
-  // Completely disable HTMX history handling - let browser handle back/forward naturally
-  // This prevents partial HTML content from being restored on back button
-  htmx.config.historyEnabled = false;
-  
-  // Force full page reload on browser back/forward since we disabled HTMX history
-  // This runs before HTMX can intercept, ensuring clean page loads
-  window.addEventListener('popstate', function(evt) {
-    // Let the browser do a full page load to the URL
-    window.location.reload();
-  });
-  
-  // Override boost behavior to target #main-content
-  document.body.addEventListener('htmx:beforeRequest', function(evt) {
-    var elt = evt.detail.elt;
-    // Check if this is a boosted navigation link (has hx-boost but no explicit hx-target)
-    if (elt.hasAttribute('hx-boost') && !elt.hasAttribute('hx-target')) {
-      var mainContent = document.getElementById('main-content');
-      if (mainContent) {
-        // Set target to main-content for boosted nav links
-        evt.detail.target = mainContent;
-      }
-    }
-  });
-  
-  // Page reinitialization event - fires after HTMX navigation completes
-  document.body.addEventListener('htmx:afterSettle', function(evt) {
-    // Only fire for main content swaps (navigation) not small HTMX updates
-    var target = evt.detail.target;
-    if (target && (target.id === 'main-content' || target.closest('#main-content'))) {
-      // Update page title and active nav from partial response metadata
+  (function() {
+    'use strict';
+    
+    // ========================================
+    // HTMX Configuration
+    // ========================================
+    htmx.config.refreshOnHistoryMiss = true;   // Full reload if not in HTMX cache
+    htmx.config.historyCacheSize = 0;          // Don't cache pages in HTMX
+    htmx.config.defaultSwapStyle = 'innerHTML';
+    
+    // ========================================
+    // Navigation: Update title & active state
+    // ========================================
+    document.body.addEventListener('htmx:afterSettle', function(evt) {
+      var target = evt.detail.target;
+      
+      // Only handle main-content swaps (navigation)
+      if (!target || target.id !== 'main-content') return;
+      
+      // Look for page metadata in response
       var meta = target.querySelector('#page-meta');
       if (meta) {
-        var newTitle = meta.getAttribute('data-title');
-        if (newTitle) document.title = newTitle;
+        // Update document title
+        var title = meta.getAttribute('data-title');
+        if (title) document.title = title;
         
+        // Update active navigation
         var activePage = meta.getAttribute('data-active-page');
-        if (activePage) {
-          document.querySelectorAll('[data-nav-target]').forEach(function(el) {
-            var isActive = el.getAttribute('data-nav-target') === activePage;
-            el.classList.toggle('active', isActive);
-            el.classList.toggle('bg-primary', isActive);
-            el.classList.toggle('text-white', isActive);
-            el.classList.toggle('shadow-sm', isActive);
-            el.classList.toggle('hover-bg-white-10', !isActive);
-            if (isActive) {
-              el.setAttribute('aria-current', 'page');
-            } else {
-              el.removeAttribute('aria-current');
-            }
-          });
-        }
-        meta.remove(); // Clean up the template element
+        if (activePage) updateActiveNav(activePage);
+        
+        // Remove metadata element
+        meta.remove();
       }
       
-      // Dispatch custom event for page-specific scripts to listen to
+      // Scroll to top on navigation
+      window.scrollTo(0, 0);
+      
+      // Fire custom event for page scripts
       document.dispatchEvent(new CustomEvent('thesis:pageInit', {
-        detail: { target: target, htmxEvent: evt }
+        detail: { target: target }
       }));
-      
-      // Re-run any inline scripts in the new content (for page-specific init)
-      var scripts = target.querySelectorAll('script[data-reinit]');
-      scripts.forEach(function(script) {
-        var newScript = document.createElement('script');
-        if (script.src) {
-          newScript.src = script.src;
-        } else {
-          newScript.textContent = script.textContent;
-        }
-        script.parentNode.replaceChild(newScript, script);
-      });
-    }
-  });
-  
-  // Handle browser back/forward buttons
-  // With historyCacheSize=0 and refreshOnHistoryMiss=true, HTMX will do a full page reload
-  // This is a safety fallback in case any partial content sneaks through
-  document.body.addEventListener('htmx:historyRestore', function(evt) {
-    // Check if we're seeing broken/partial content (missing essential page structure)
-    var hasPageWrapper = document.querySelector('.page-wrapper');
-    var hasSidebar = document.querySelector('.navbar-vertical');
-    
-    if (!hasPageWrapper || !hasSidebar) {
-      // Page structure is broken (partial content) - force full reload
-      console.warn('HTMX historyRestore: Detected partial content, forcing full reload');
-      window.location.reload();
-      return;
-    }
-    
-    // Re-trigger lazy-load elements that use hx-trigger="load"
-    // HTMX caches the DOM with loading skeletons, but "load" only fires on initial page load,
-    // not on history restore. This ensures content loads after back/forward navigation.
-    var lazyLoadEls = document.querySelectorAll('[hx-trigger*="load"], [data-hx-trigger*="load"]');
-    lazyLoadEls.forEach(function(el) {
-      // Only re-trigger if element has loading placeholder (skeleton) visible
-      // or if it doesn't have meaningful content yet
-      var hasPlaceholder = el.querySelector('.spinner-border, .placeholder, [class*="loading"]');
-      var isEmpty = el.children.length === 0 || (el.children.length === 1 && hasPlaceholder);
-      if (hasPlaceholder || isEmpty) {
-        htmx.trigger(el, 'load');
-      }
     });
     
-    document.dispatchEvent(new CustomEvent('thesis:pageInit', {
-      detail: { target: document.getElementById('main-content'), historyRestore: true }
-    }));
-  });
+    // ========================================
+    // Partial Content Detection & Recovery
+    // ========================================
+    // If page appears to be partial HTML (missing sidebar), force reload
+    function isPartialPage() {
+      return !document.getElementById('sidebar') || !document.querySelector('.page');
+    }
+    
+    // Check on history restore - if partial content detected, reload
+    document.body.addEventListener('htmx:historyRestore', function(evt) {
+      // Small delay to let DOM settle
+      setTimeout(function() {
+        if (isPartialPage()) {
+          window.location.reload();
+        }
+      }, 50);
+    });
+    
+    // Also check on initial load in case browser served cached partial
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() {
+        if (isPartialPage()) {
+          window.location.reload();
+        }
+      });
+    } else if (isPartialPage()) {
+      window.location.reload();
+    }
+    
+    // ========================================
+    // Helper: Update Navigation Highlight
+    // ========================================
+    function updateActiveNav(activePage) {
+      document.querySelectorAll('[data-nav-target]').forEach(function(el) {
+        var isActive = el.getAttribute('data-nav-target') === activePage;
+        
+        el.classList.toggle('active', isActive);
+        el.classList.toggle('bg-primary', isActive);
+        el.classList.toggle('text-white', isActive);
+        el.classList.toggle('shadow-sm', isActive);
+        el.classList.toggle('hover-bg-white-10', !isActive);
+        
+        if (isActive) {
+          el.setAttribute('aria-current', 'page');
+        } else {
+          el.removeAttribute('aria-current');
+        }
+      });
+    }
+    
+    // Expose for use elsewhere
+    window.updateActiveNav = updateActiveNav;
+    
+  })();
   </script>
+
+  {# Application Scripts #}
   <script src="{{ url_for('static', filename='js/table-utils.js') }}"></script>
   <script src="{{ url_for('static', filename='js/sidebar.js') }}"></script>
   <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+
+  {# Initial Active Nav + Error Handling + Toasts #}
   <script>
-  // Highlight active nav via data-nav-target matching active_page, fallback to path heuristic
-  (function(){
-    try {
-  var active = '{{ active_page|default("") }}';
-      if(!active){
-        var p = window.location.pathname;
-        if(p.startsWith('/applications')) active='applications';
-        else if(p.startsWith('/models')) active='models';
-        else if(p.startsWith('/analysis')) active='analysis';
-        else if(p.startsWith('/reports')) active='reports';
-        else if(p.startsWith('/statistics')) active='statistics';
-        else active='dashboard';
+  (function() {
+    'use strict';
+    
+    // ========================================
+    // Set Initial Active Navigation
+    // ========================================
+    var activePage = '{{ active_page | default("") }}';
+    if (!activePage) {
+      // Fallback: detect from URL
+      var path = window.location.pathname;
+      if (path.startsWith('/applications')) activePage = 'applications';
+      else if (path.startsWith('/models')) activePage = 'models';
+      else if (path.startsWith('/analysis')) activePage = 'analysis';
+      else if (path.startsWith('/reports')) activePage = 'reports';
+      else if (path.startsWith('/statistics')) activePage = 'statistics';
+      else if (path.startsWith('/automation')) activePage = 'automation';
+      else if (path.startsWith('/rankings')) activePage = 'rankings';
+      else if (path.startsWith('/docs')) activePage = 'docs';
+      else activePage = 'dashboard';
+    }
+    
+    document.querySelectorAll('[data-nav-target]').forEach(function(el) {
+      el.classList.toggle('active', el.getAttribute('data-nav-target') === activePage);
+    });
+    
+    // ========================================
+    // HTMX Error Handler
+    // ========================================
+    document.body.addEventListener('htmx:responseError', function(evt) {
+      var xhr = evt.detail.xhr;
+      var msg = 'Operation failed';
+      
+      try {
+        var json = JSON.parse(xhr.responseText);
+        msg = json.message || json.error || msg;
+      } catch(e) {
+        if (xhr.status === 404) msg = 'Page not found';
+        else if (xhr.status === 500) msg = 'Server error';
       }
-      document.querySelectorAll('[data-nav-target]')
-        .forEach(el=> el.classList.toggle('active', el.getAttribute('data-nav-target')===active));
-    } catch(_) {}
+      
+      showToast(msg, 'error');
+    });
+    
+    // ========================================
+    // Toast Notifications
+    // ========================================
+    function showToast(message, type) {
+      if (!message) return;
+      
+      type = type || 'info';
+      var bg = type === 'error' ? 'bg-danger' : type === 'success' ? 'bg-success' : 'bg-info';
+      var icon = type === 'error' ? 'fa-circle-exclamation' : 
+                 type === 'success' ? 'fa-circle-check' : 'fa-circle-info';
+      
+      // Get or create container
+      var container = document.getElementById('toast-container');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toast-container';
+        container.className = 'position-fixed top-0 end-0 p-3';
+        container.style.zIndex = '9999';
+        document.body.appendChild(container);
+      }
+      
+      // Create toast
+      var toast = document.createElement('div');
+      toast.className = 'alert ' + bg + ' text-white d-flex align-items-center mb-2';
+      toast.style.cssText = 'box-shadow:0 4px 12px rgba(0,0,0,.15);animation:toastSlideIn .3s ease';
+      toast.innerHTML = '<i class="fas ' + icon + ' me-2"></i><span>' + message + '</span>';
+      container.appendChild(toast);
+      
+      // Auto-remove
+      setTimeout(function() {
+        toast.style.animation = 'toastSlideOut .3s ease forwards';
+        setTimeout(function() { toast.remove(); }, 300);
+      }, 4000);
+    }
+    
+    // Toast animations
+    if (!document.getElementById('toast-anim')) {
+      var style = document.createElement('style');
+      style.id = 'toast-anim';
+      style.textContent = 
+        '@keyframes toastSlideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}' +
+        '@keyframes toastSlideOut{from{transform:translateX(0);opacity:1}to{transform:translateX(100%);opacity:0}}';
+      document.head.appendChild(style);
+    }
+    
+    window.showToast = showToast;
+    
   })();
-
-  // Global HTMX error handler - show user-friendly notifications
-  document.body.addEventListener('htmx:responseError', function(evt) {
-    var detail = evt.detail;
-    var xhr = detail.xhr;
-    var status = xhr.status;
-    var message = 'Operation failed';
-    
-    // Try to parse error response
-    try {
-      var json = JSON.parse(xhr.responseText);
-      message = json.message || json.error || message;
-    } catch(e) {
-      // Fallback to status-based messages
-      if (status === 400) message = 'Invalid request';
-      else if (status === 404) message = 'Resource not found';
-      else if (status === 500) message = 'Server error - please try again';
-    }
-    
-    showToast(message, 'error');
-    console.error('HTMX Error:', status, message, evt);
-  });
-
-  // Toast notification system
-  function showToast(message, type) {
-    if (!message) return;
-    type = type || 'info';
-    var bgClass = type === 'error' ? 'bg-danger' : type === 'success' ? 'bg-success' : 'bg-info';
-    var icon = type === 'error' ? 'fa-circle-exclamation' : type === 'success' ? 'fa-circle-check' : 'fa-circle-info';
-    
-    var container = document.getElementById('toast-container');
-    if (!container) {
-      container = document.createElement('div');
-      container.id = 'toast-container';
-      container.className = 'position-fixed top-0 end-0 p-3';
-      container.style.zIndex = '9999';
-      container.setAttribute('aria-live', 'polite');
-      container.setAttribute('aria-atomic', 'true');
-      document.body.appendChild(container);
-    }
-    
-    var toast = document.createElement('div');
-    toast.className = 'alert ' + bgClass + ' text-white d-flex align-items-center mb-2';
-    toast.style.cssText = 'box-shadow:0 4px 12px rgba(0,0,0,0.15);animation:slideIn 0.3s ease;';
-    toast.setAttribute('role', 'alert');
-    toast.innerHTML = '<i class="fas ' + icon + ' me-2" aria-hidden="true"></i><span>' + message + '</span>';
-    
-    container.appendChild(toast);
-    
-    setTimeout(function() {
-      toast.style.animation = 'slideOut 0.3s ease';
-      setTimeout(function() { toast.remove(); }, 300);
-    }, 4000);
-  }
-
-  // Simple CSS animations for toasts
-  if (!document.getElementById('toast-styles')) {
-    var style = document.createElement('style');
-    style.id = 'toast-styles';
-    style.textContent = '@keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } } @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(400px); opacity: 0; } }';
-    document.head.appendChild(style);
-  }
-
-  // Expose globally for manual use
-  window.showToast = showToast;
   </script>
+
+  {# Page-specific scripts #}
   {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -566,6 +566,16 @@ def create_app(config_name: str = 'default') -> Flask:
                 )
             except Exception as _log_err:  # pragma: no cover
                 logger.debug(f"Request logging failed: {_log_err}")
+            
+            # CRITICAL: Prevent browser from caching HTMX partial responses
+            # This fixes the back button showing raw partial HTML
+            if request.headers.get('HX-Boosted') or request.headers.get('HX-Request'):
+                resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+                resp.headers['Pragma'] = 'no-cache'
+                resp.headers['Expires'] = '0'
+                # Vary header tells browser to cache separately based on these headers
+                resp.headers['Vary'] = 'HX-Request, HX-Boosted'
+            
             return resp
     except Exception as _mw_err:  # pragma: no cover
         logger.warning(f"Request logging middleware not active: {_mw_err}")
