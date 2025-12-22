@@ -20,13 +20,12 @@
           {% for app in applications %}
             {% set app_metadata = app.get_metadata() %}
             {% set ports = app.get_ports() %}
-            <tr class="app-row app-card" 
+            <tr class="app-row" 
                 data-app="{{ app.app_number }}"
                 data-model-slug="{{ model_slug or app.model_slug or '' }}"
                 style="cursor: pointer;"
                 role="button"
-                tabindex="0"
-                _="on keypress[key=='Enter'] click()">
+                tabindex="0">
               <td class="text-muted"><i class="fa-solid fa-window-maximize"></i></td>
               <td class="fw-semibold text-nowrap">#{{ app.app_number }}</td>
               <td>

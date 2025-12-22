@@ -2593,51 +2593,82 @@ function initAnalysisWizard() {
     }
 
   // Delegated click for dynamically loaded application cards & clear buttons
-  document.addEventListener('click', (e) => {
-    // Handle Select button click (new data attribute approach)
-    const selectAppBtn = e.target.closest('button[data-select-app]');
-    if (selectAppBtn) {
-      e.stopPropagation();
-      const num = selectAppBtn.getAttribute('data-select-app');
-      const mSlug = selectAppBtn.getAttribute('data-select-model') || (selectedModel && selectedModel.slug) || 'unknown';
-      if (num) {
-        selectApp(num, {}, mSlug);
+  // Use a flag to prevent multiple registrations
+  if (!window._analysisClickHandlerRegistered) {
+    window._analysisClickHandlerRegistered = true;
+    
+    // Debounce helper to prevent double-fires
+    let lastClickTime = 0;
+    let lastClickTarget = null;
+    
+    document.addEventListener('click', (e) => {
+      // Debounce: ignore clicks within 100ms on same element type
+      const now = Date.now();
+      const targetKey = e.target.closest('[data-app], [data-select-app], [data-model-slug]');
+      if (targetKey && targetKey === lastClickTarget && (now - lastClickTime) < 100) {
+        console.log('[Click] Debounced duplicate click');
+        return;
       }
-      return;
-    }
-
-    // Handle app card/row click
-    const appCard = e.target.closest('.app-card[data-app], .app-row[data-app]');
-    if (appCard && !e.target.closest('button')) {
-      const num = appCard.getAttribute('data-app');
-      if (!num) return;
-      const mSlug = appCard.getAttribute('data-model-slug') || (selectedModel && selectedModel.slug) || 'unknown';
-      selectApp(num, {}, mSlug);
-      return;
-    }
-
-    const modelCard = e.target.closest('.model-card[data-model-slug]');
-    if (modelCard && modelCard.dataset.modelSlug) {
-      const slug = modelCard.dataset.modelSlug;
-      const name = modelCard.dataset.modelName || slug;
-      selectModel(slug, name);
-      return;
-    }
-
-    // Remove model from sidebar list
-    const removeModelBtn = e.target.closest('button[data-remove-model]');
-    if (removeModelBtn) {
-      const slug = removeModelBtn.getAttribute('data-remove-model');
-      if (slug) {
-        selectedModels = selectedModels.filter(m => m.slug !== slug);
-        if (selectedModel && selectedModel.slug === slug) {
-          selectedModel = selectedModels[0] || null;
+      lastClickTime = now;
+      lastClickTarget = targetKey;
+      
+      // Handle Select button click (new data attribute approach)
+      const selectAppBtn = e.target.closest('button[data-select-app]');
+      if (selectAppBtn) {
+        e.stopPropagation();
+        e.preventDefault();
+        const num = selectAppBtn.getAttribute('data-select-app');
+        const mSlug = selectAppBtn.getAttribute('data-select-model') || (selectedModel && selectedModel.slug) || 'unknown';
+        if (num) {
+          selectApp(num, {}, mSlug);
         }
-        refreshModelSelectionsUI();
-        updateNavigationButtons();
+        return;
       }
-      return; // stop further handling
-    }
+
+      // Handle app card/row click (use .app-row only to avoid double-matching)
+      const appRow = e.target.closest('tr.app-row[data-app]');
+      if (appRow && !e.target.closest('button')) {
+        e.stopPropagation();
+        const num = appRow.getAttribute('data-app');
+        if (!num) return;
+        const mSlug = appRow.getAttribute('data-model-slug') || (selectedModel && selectedModel.slug) || 'unknown';
+        selectApp(num, {}, mSlug);
+        return;
+      }
+      
+      // Handle legacy app-card (div-based, not tr)
+      const appCard = e.target.closest('div.app-card[data-app]');
+      if (appCard && !e.target.closest('button')) {
+        e.stopPropagation();
+        const num = appCard.getAttribute('data-app');
+        if (!num) return;
+        const mSlug = appCard.getAttribute('data-model-slug') || (selectedModel && selectedModel.slug) || 'unknown';
+        selectApp(num, {}, mSlug);
+        return;
+      }
+
+      const modelCard = e.target.closest('.model-card[data-model-slug]');
+      if (modelCard && modelCard.dataset.modelSlug) {
+        const slug = modelCard.dataset.modelSlug;
+        const name = modelCard.dataset.modelName || slug;
+        selectModel(slug, name);
+        return;
+      }
+
+      // Remove model from sidebar list
+      const removeModelBtn = e.target.closest('button[data-remove-model]');
+      if (removeModelBtn) {
+        const slug = removeModelBtn.getAttribute('data-remove-model');
+        if (slug) {
+          selectedModels = selectedModels.filter(m => m.slug !== slug);
+          if (selectedModel && selectedModel.slug === slug) {
+            selectedModel = selectedModels[0] || null;
+          }
+          refreshModelSelectionsUI();
+          updateNavigationButtons();
+        }
+        return; // stop further handling
+      }
 
     // Remove application from sidebar list
     const removeAppBtn = e.target.closest('button[data-remove-app]');
@@ -2655,6 +2686,7 @@ function initAnalysisWizard() {
       return;
     }
   });
+  } // end of if (!window._analysisClickHandlerRegistered)
 
   // Batch aggregated search filter
   var batchSearch = document.getElementById('batch-app-search');

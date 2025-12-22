@@ -84,6 +84,18 @@ sequenceDiagram
 |----------|---------|---------|
 | `TASK_POLL_INTERVAL` | Polling interval (seconds) | 10 (prod), 2 (test) |
 | `TASK_TIMEOUT` | Overall task timeout (seconds) | 1800 (30 min) |
+| `PREFLIGHT_MAX_RETRIES` | Max retries for service unavailability | 3 |
+| `TRANSIENT_FAILURE_MAX_RETRIES` | Max auto-recovery attempts for failed tasks | 3 |
+
+### Automatic Retry Behavior (December 2025)
+
+The TaskExecutionService implements robust retry mechanisms:
+
+1. **Pre-flight Check Retries**: When analyzer services are unavailable, tasks are automatically rescheduled with exponential backoff (30s, 60s, 120s) up to `PREFLIGHT_MAX_RETRIES` times.
+
+2. **Transient Failure Recovery**: Tasks that failed due to service unavailability are automatically recovered when services become available (checked every 5 minutes).
+
+3. **Stuck Task Recovery**: Tasks stuck in RUNNING state for >15 minutes are reset to PENDING for retry (up to 3 retries).
 
 ### Debugging
 

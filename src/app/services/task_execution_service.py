@@ -499,6 +499,135 @@ class TaskExecutionService:
             db.session.commit()
             self._log("[RECOVERY] Recovered %d stuck task(s)", recovered_count)
         
+        # THIRD: Recover FAILED tasks due to transient service unavailability
+        # These tasks failed quickly (<5 min) with pre-flight errors and may be retryable
+        failed_retry_count = self._recover_failed_transient_tasks()
+        
+        return recovered_count + failed_retry_count
+    
+    def _recover_failed_transient_tasks(self) -> int:
+        """Recover FAILED tasks that failed due to transient service unavailability.
+        
+        Only retries tasks that:
+        1. Failed recently (within last 30 minutes)
+        2. Have error message indicating service unavailability
+        3. Have retry count < 3
+        4. Have all required services now available
+        
+        Returns:
+            Number of tasks recovered
+        """
+        from datetime import timedelta
+        import socket
+        
+        SERVICE_PORTS = {
+            'static-analyzer': 2001,
+            'dynamic-analyzer': 2002,
+            'performance-tester': 2003,
+            'ai-analyzer': 2004
+        }
+        
+        # Find recently failed main tasks with service unavailability errors
+        recent_threshold = timedelta(minutes=30)
+        cutoff_time = datetime.now(timezone.utc) - recent_threshold
+        
+        failed_tasks = AnalysisTask.query.filter(
+            AnalysisTask.status == AnalysisStatus.FAILED,
+            AnalysisTask.is_main_task == True,  # noqa: E712
+            AnalysisTask.completed_at != None,  # noqa: E711
+            AnalysisTask.completed_at > cutoff_time
+        ).all()
+        
+        if not failed_tasks:
+            return 0
+        
+        # Quick check: are services available now?
+        services_available = {}
+        for service_name, port in SERVICE_PORTS.items():
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(2.0)
+                result = sock.connect_ex(('127.0.0.1', port))
+                sock.close()
+                services_available[service_name] = (result == 0)
+            except:
+                services_available[service_name] = False
+        
+        # If no services are available, skip recovery
+        if not any(services_available.values()):
+            return 0
+        
+        recovered_count = 0
+        transient_error_patterns = [
+            'Pre-flight check failed',
+            'not accessible',
+            'Connection refused',
+            'service unavailable',
+            'analyzer services are not accessible'
+        ]
+        
+        for task in failed_tasks:
+            # Check if error message indicates transient failure
+            error_msg = task.error_message or ''
+            is_transient = any(pattern.lower() in error_msg.lower() for pattern in transient_error_patterns)
+            
+            if not is_transient:
+                continue
+            
+            # Check retry count
+            meta = task.get_metadata() if hasattr(task, 'get_metadata') else {}
+            retry_count = meta.get('transient_retry_count', 0)
+            max_retries = int(os.environ.get('TRANSIENT_FAILURE_MAX_RETRIES', '3'))
+            
+            if retry_count >= max_retries:
+                continue
+            
+            # Check if required services are now available
+            subtasks = list(task.subtasks) if hasattr(task, 'subtasks') else []
+            required_services = set(st.service_name for st in subtasks if st.service_name)
+            
+            all_services_available = all(
+                services_available.get(svc, False) for svc in required_services
+            )
+            
+            if not all_services_available:
+                continue
+            
+            # All checks passed - recover this task
+            self._log(
+                "[RECOVERY] Recovering failed task %s due to transient error (services now available, retry %d/%d)",
+                task.task_id, retry_count + 1, max_retries, level='info'
+            )
+            
+            # Reset main task to PENDING
+            task.status = AnalysisStatus.PENDING
+            task.started_at = None
+            task.completed_at = None
+            task.progress_percentage = 0.0
+            task.error_message = None
+            
+            # Reset all subtasks to PENDING
+            for subtask in subtasks:
+                subtask.status = AnalysisStatus.PENDING
+                subtask.started_at = None
+                subtask.completed_at = None
+                subtask.progress_percentage = 0.0
+                subtask.error_message = None
+            
+            # Update retry count in metadata
+            if hasattr(task, 'set_metadata'):
+                updated_meta = dict(meta)
+                updated_meta['transient_retry_count'] = retry_count + 1
+                updated_meta['last_transient_recovery'] = datetime.now(timezone.utc).isoformat()
+                updated_meta['original_failure_reason'] = error_msg[:200]  # Keep first 200 chars
+                task.set_metadata(updated_meta)
+            
+            recovered_count += 1
+        
+        if recovered_count > 0:
+            db.session.commit()
+            self._log("[RECOVERY] Recovered %d failed task(s) due to transient errors", recovered_count)
+        
         return recovered_count
 
     # --- Internal helpers -------------------------------------------------
@@ -607,6 +736,18 @@ class TaskExecutionService:
                             if result.get('status') == 'running':
                                 self._log(f"Task {task_db.task_id} delegated to Celery workers, will poll for completion")
                                 # Don't mark as completed yet - let polling handle it
+                                continue
+                            
+                            # Handle retry_scheduled status (pre-flight check failed but will retry)
+                            if result.get('status') == 'retry_scheduled':
+                                retry_count = result.get('retry_count', 1)
+                                retry_delay = result.get('retry_delay', 30)
+                                self._log(
+                                    f"Task {task_db.task_id} scheduled for retry (attempt {retry_count}), "
+                                    f"will retry in {retry_delay}s"
+                                )
+                                # Task has been reset to PENDING - skip further processing
+                                # Next poll cycle will pick it up again
                                 continue
                             
                             # Engine returns 'completed' on success, 'partial' for mixed results, or 'failed'/'error' otherwise
@@ -1237,23 +1378,91 @@ class TaskExecutionService:
         if required_services:
             inaccessible_services = self._preflight_check_services(required_services)
             if inaccessible_services:
-                # Some services are not accessible - fail early with clear error
+                # Some services are not accessible - check if we should retry
                 error_msg = (
                     f"Pre-flight check failed: The following analyzer services are not accessible: "
                     f"{', '.join(inaccessible_services)}. "
                     f"Ensure Docker containers are running and healthy. "
                     f"Run 'python analyzer/analyzer_manager.py status' to check."
                 )
-                self._log(error_msg, level='error')
                 
-                # Mark all subtasks as failed
-                for subtask in subtasks:
-                    subtask.status = AnalysisStatus.FAILED
-                    subtask.error_message = error_msg
-                    subtask.completed_at = datetime.now(timezone.utc)
-                db.session.commit()
+                # Check retry count for main task - allow up to 3 automatic retries
+                meta = main_task.get_metadata() if hasattr(main_task, 'get_metadata') else {}
+                retry_count = meta.get('preflight_retry_count', 0)
+                max_retries = int(os.environ.get('PREFLIGHT_MAX_RETRIES', '3'))
                 
-                raise RuntimeError(error_msg)
+                if retry_count < max_retries:
+                    # Schedule for retry - reset main task and subtasks to PENDING
+                    retry_delay = 30 * (2 ** retry_count)  # Exponential backoff: 30s, 60s, 120s
+                    self._log(
+                        f"[PREFLIGHT] Services unavailable (attempt {retry_count + 1}/{max_retries}), "
+                        f"scheduling retry in {retry_delay}s for task {main_task_id}",
+                        level='warning'
+                    )
+                    
+                    # Update retry count in metadata
+                    if hasattr(main_task, 'set_metadata'):
+                        updated_meta = dict(meta)
+                        updated_meta['preflight_retry_count'] = retry_count + 1
+                        updated_meta['last_preflight_failure'] = datetime.now(timezone.utc).isoformat()
+                        updated_meta['last_preflight_error'] = error_msg
+                        updated_meta['scheduled_retry_at'] = (
+                            datetime.now(timezone.utc) + 
+                            __import__('datetime').timedelta(seconds=retry_delay)
+                        ).isoformat()
+                        main_task.set_metadata(updated_meta)
+                    
+                    # Reset main task to PENDING for retry
+                    main_task.status = AnalysisStatus.PENDING
+                    main_task.started_at = None
+                    main_task.progress_percentage = 0.0
+                    
+                    # Reset subtasks to PENDING (not FAILED)
+                    for subtask in subtasks:
+                        subtask.status = AnalysisStatus.PENDING
+                        subtask.started_at = None
+                        subtask.progress_percentage = 0.0
+                    
+                    db.session.commit()
+                    
+                    # Use a non-blocking sleep to avoid holding up the executor
+                    # The task will be picked up again on the next poll cycle after the delay
+                    self._log(
+                        f"[PREFLIGHT] Task {main_task_id} reset to PENDING (retry {retry_count + 1}/{max_retries})"
+                    )
+                    
+                    # Return a special status to indicate retry scheduled
+                    return {
+                        'status': 'retry_scheduled',
+                        'retry_count': retry_count + 1,
+                        'retry_delay': retry_delay,
+                        'error': error_msg,
+                        'payload': {
+                            'message': f'Pre-flight check failed, retry scheduled (attempt {retry_count + 1}/{max_retries})',
+                            'inaccessible_services': list(inaccessible_services),
+                            'retry_in_seconds': retry_delay
+                        }
+                    }
+                else:
+                    # Max retries exceeded - mark as permanently failed
+                    self._log(
+                        f"[PREFLIGHT] Max retries ({max_retries}) exceeded for task {main_task_id}, marking as FAILED",
+                        level='error'
+                    )
+                    self._log(error_msg, level='error')
+                    
+                    # Mark all subtasks as failed with detailed error
+                    final_error = (
+                        f"{error_msg} "
+                        f"(failed after {max_retries} retry attempts)"
+                    )
+                    for subtask in subtasks:
+                        subtask.status = AnalysisStatus.FAILED
+                        subtask.error_message = final_error
+                        subtask.completed_at = datetime.now(timezone.utc)
+                    db.session.commit()
+                    
+                    raise RuntimeError(final_error)
             
             self._log(
                 f"[PREFLIGHT] All {len(required_services)} analyzer services verified accessible: "

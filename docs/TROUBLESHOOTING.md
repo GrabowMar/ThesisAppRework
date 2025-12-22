@@ -139,6 +139,8 @@ docker restart static-analyzer
 
 **Cause:** System performs TCP port checks and WebSocket handshake before analysis.
 
+**Automatic Recovery (December 2025):** Tasks that fail pre-flight checks are now automatically retried up to 3 times with exponential backoff (30s, 60s, 120s). If services become available within this window, the task will succeed without manual intervention.
+
 **Diagnosis:**
 ```bash
 # Check which services are down
@@ -152,7 +154,7 @@ Test-NetConnection -ComputerName localhost -Port 2003
 Test-NetConnection -ComputerName localhost -Port 2004
 ```
 
-**Solution:**
+**Manual Solution (if auto-retry exhausted):**
 ```bash
 # Start all services
 python analyzer/analyzer_manager.py start
@@ -162,6 +164,17 @@ Start-Sleep 5
 
 # Verify
 python analyzer/analyzer_manager.py health
+
+# Re-run the failed analysis from the UI
+```
+
+**Configuration:**
+```env
+# Maximum pre-flight retry attempts (default: 3)
+PREFLIGHT_MAX_RETRIES=3
+
+# Maximum transient failure recovery attempts (default: 3)  
+TRANSIENT_FAILURE_MAX_RETRIES=3
 ```
 
 ### Analysis Timeout

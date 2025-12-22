@@ -342,13 +342,90 @@ Focus on whether the functionality described in the requirement is actually impl
         
         return result
     
+    async def _get_auth_token(self, base_url: str, admin_username: str = "admin", admin_password: str = "admin2025") -> Optional[str]:
+        """
+        Attempt to get an authentication token by logging in.
+        Tries to register first if login fails (for fresh apps).
+        
+        Returns JWT token or None if auth not available.
+        """
+        auth_endpoints = [
+            "/api/auth/login",
+            "/api/login",
+            "/auth/login",
+            "/login"
+        ]
+        register_endpoints = [
+            "/api/auth/register",
+            "/api/register",
+            "/auth/register",
+            "/register"
+        ]
+        
+        async with aiohttp.ClientSession() as session:
+            # Try to register admin user first (in case it's a fresh app)
+            for register_path in register_endpoints:
+                try:
+                    async with session.post(
+                        f"{base_url}{register_path}",
+                        json={"username": admin_username, "password": admin_password, "email": f"{admin_username}@test.local"},
+                        timeout=aiohttp.ClientTimeout(total=5)
+                    ) as response:
+                        if response.status in [200, 201]:
+                            self.log.info(f"Registered test admin user via {register_path}")
+                            break
+                        elif response.status == 409:  # Already exists
+                            self.log.debug(f"Admin user already exists")
+                            break
+                except Exception:
+                    continue
+            
+            # Try to login and get token
+            for login_path in auth_endpoints:
+                try:
+                    async with session.post(
+                        f"{base_url}{login_path}",
+                        json={"username": admin_username, "password": admin_password},
+                        timeout=aiohttp.ClientTimeout(total=5)
+                    ) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            # Common token field names
+                            token = data.get('token') or data.get('access_token') or data.get('jwt')
+                            if token:
+                                self.log.info(f"Got auth token via {login_path}")
+                                return token
+                except Exception:
+                    continue
+        
+        return None
+
+    async def _read_app_env(self, app_path: Path) -> Dict[str, str]:
+        """Read .env file from application directory."""
+        env_vars = {}
+        env_file = app_path / ".env"
+        
+        if env_file.exists():
+            try:
+                with open(env_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            key, value = line.split('=', 1)
+                            env_vars[key.strip()] = value.strip()
+            except Exception as e:
+                self.log.warning(f"Could not read .env file: {e}")
+        
+        return env_vars
+
     async def check_requirements_with_curl(self, model_slug: str, app_number: int, backend_port: int, frontend_port: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        NEW TOOL: Check functional requirements with curl endpoint testing + Gemini Flash analysis.
+        Check functional requirements with endpoint testing + AI analysis.
         
         Analyzes:
-        1. Control endpoints (/health, /api/status) via curl
-        2. Functional requirements via Gemini Flash code analysis
+        1. ALL api_endpoints from requirements (not just health)
+        2. ALL admin_api_endpoints from requirements (with auth)
+        3. Functional requirements via AI code analysis
         
         Scans only backend/ and frontend/ directories for efficiency.
         """
@@ -364,6 +441,19 @@ Focus on whether the functionality described in the requirement is actually impl
             
             self.log.info(f"Requirements checker for {model_slug} app {app_number}")
             await self.send_progress('starting', f"Starting requirements checker for {model_slug} app {app_number}", analysis_id=analysis_id)
+            
+            # Auto-detect ports from app's .env file
+            app_env = await self._read_app_env(app_path)
+            if app_env.get('BACKEND_PORT'):
+                backend_port = int(app_env['BACKEND_PORT'])
+                self.log.info(f"Using BACKEND_PORT from .env: {backend_port}")
+            if app_env.get('FRONTEND_PORT'):
+                frontend_port = int(app_env['FRONTEND_PORT'])
+                self.log.info(f"Using FRONTEND_PORT from .env: {frontend_port}")
+            
+            # Get admin credentials from .env or use defaults
+            admin_username = app_env.get('ADMIN_USERNAME', 'admin')
+            admin_password = app_env.get('ADMIN_PASSWORD', 'admin2025')
             
             # Load requirements template
             template_slug = config.get('template_slug', 'crud_todo_list') if config else 'crud_todo_list'
@@ -381,64 +471,123 @@ Focus on whether the functionality described in the requirement is actually impl
             # Support current requirement template structure:
             # - backend_requirements: list of functional requirements (strings)
             # - frontend_requirements: list of UI/UX requirements (strings)
-            # - api_endpoints: list of endpoint definitions (objects with method, path, description, request, response)
+            # - api_endpoints: list of endpoint definitions (ALL endpoints, not just health)
+            # - admin_api_endpoints: list of admin endpoint definitions (require auth)
             # - data_model: object with name, fields, related
             functional_requirements = template_data.get('backend_requirements', [])
             
-            # Extract control endpoints from api_endpoints - health check and status endpoints
+            # Extract ALL api_endpoints from requirements (not just health/status)
             api_endpoints = template_data.get('api_endpoints', [])
             control_endpoints = [
                 {
                     'path': ep.get('path', '/'),
                     'method': ep.get('method', 'GET'),
                     'expected_status': 200,
-                    'description': ep.get('description', 'API endpoint')
+                    'description': ep.get('description', 'API endpoint'),
+                    'request_body': ep.get('request'),
+                    'requires_auth': False
                 }
                 for ep in api_endpoints
-                if ep.get('path', '').lower() in ['/api/health', '/health', '/api/status', '/status']
             ]
             
-            # If no health endpoints defined, add a default health check
-            if not control_endpoints:
-                control_endpoints = [
+            # Extract ALL admin_api_endpoints (these require authentication)
+            admin_api_endpoints = template_data.get('admin_api_endpoints', [])
+            admin_endpoints = [
+                {
+                    'path': ep.get('path', '/').replace(':id', '1'),  # Replace :id with test ID
+                    'method': ep.get('method', 'GET'),
+                    'expected_status': 200,
+                    'description': ep.get('description', 'Admin API endpoint'),
+                    'request_body': ep.get('request'),
+                    'requires_auth': True
+                }
+                for ep in admin_api_endpoints
+            ]
+            
+            # Combine all endpoints
+            all_endpoints = control_endpoints + admin_endpoints
+            
+            # If no endpoints defined at all, add a default health check
+            if not all_endpoints:
+                all_endpoints = [
                     {
                         'path': '/api/health',
                         'method': 'GET',
                         'expected_status': 200,
-                        'description': 'Health check endpoint'
+                        'description': 'Health check endpoint',
+                        'requires_auth': False
                     }
                 ]
             
-            if not functional_requirements and not control_endpoints:
+            if not functional_requirements and not all_endpoints:
                 return {
                     'status': 'warning',
-                    'message': 'No functional requirements or control endpoints found in template',
+                    'message': 'No functional requirements or API endpoints found in template',
                     'tool_name': 'requirements-checker'
                 }
             
-            await self.send_progress('testing_endpoints', f"Testing {len(control_endpoints)} control endpoints", analysis_id=analysis_id)
+            await self.send_progress('testing_endpoints', f"Testing {len(all_endpoints)} API endpoints ({len(control_endpoints)} public, {len(admin_endpoints)} admin)", analysis_id=analysis_id)
             
-            # Test control endpoints
+            base_url = f"http://localhost:{backend_port}"
+            
+            # Get auth token for admin endpoints
+            auth_token = None
+            if admin_endpoints:
+                await self.send_progress('authenticating', "Getting authentication token for admin endpoints", analysis_id=analysis_id)
+                auth_token = await self._get_auth_token(base_url, admin_username, admin_password)
+                if auth_token:
+                    self.log.info("Successfully obtained auth token for admin endpoint testing")
+                else:
+                    self.log.warning("Could not obtain auth token - admin endpoints will be tested without auth")
+            
+            # Test all endpoints
             endpoint_results = []
-            for endpoint in control_endpoints:
+            for i, endpoint in enumerate(all_endpoints, 1):
                 path = endpoint.get('path', '/')
                 method = endpoint.get('method', 'GET')
                 expected_status = endpoint.get('expected_status', 200)
-                description = endpoint.get('description', 'Control endpoint')
+                description = endpoint.get('description', 'API endpoint')
+                requires_auth = endpoint.get('requires_auth', False)
+                request_body = endpoint.get('request_body')
                 
-                # Determine base URL (try backend first, then frontend)
-                base_url = f"http://localhost:{backend_port}"
+                await self.send_progress('testing_endpoint', f"Testing endpoint {i}/{len(all_endpoints)}: {method} {path}", analysis_id=analysis_id)
+                
                 try:
+                    headers = {'Content-Type': 'application/json'}
+                    if requires_auth and auth_token:
+                        headers['Authorization'] = f'Bearer {auth_token}'
+                    
                     async with aiohttp.ClientSession() as session:
-                        async with session.request(method, f"{base_url}{path}", timeout=aiohttp.ClientTimeout(total=5)) as response:
-                            passed = (response.status == expected_status or response.status == 200)  # Flexible: any 200 OK passes
+                        kwargs = {
+                            'timeout': aiohttp.ClientTimeout(total=10),
+                            'headers': headers
+                        }
+                        
+                        # Add request body for POST/PUT/PATCH methods
+                        if method.upper() in ['POST', 'PUT', 'PATCH'] and request_body:
+                            kwargs['json'] = request_body
+                        
+                        async with session.request(method, f"{base_url}{path}", **kwargs) as response:
+                            # Flexible pass criteria:
+                            # - Expected status matches, OR
+                            # - Any 2xx status (success), OR
+                            # - 401/403 for auth endpoints without token (indicates endpoint exists)
+                            actual_status = response.status
+                            passed = (
+                                actual_status == expected_status or
+                                (200 <= actual_status < 300) or
+                                (requires_auth and not auth_token and actual_status in [401, 403])
+                            )
+                            
                             endpoint_results.append({
                                 'endpoint': path,
                                 'method': method,
                                 'expected_status': expected_status,
-                                'actual_status': response.status,
+                                'actual_status': actual_status,
                                 'passed': passed,
                                 'description': description,
+                                'requires_auth': requires_auth,
+                                'auth_used': requires_auth and auth_token is not None,
                                 'base_url': base_url
                             })
                 except Exception as e:
@@ -450,6 +599,7 @@ Focus on whether the functionality described in the requirement is actually impl
                         'passed': False,
                         'error': str(e),
                         'description': description,
+                        'requires_auth': requires_auth,
                         'base_url': base_url
                     })
             
@@ -482,18 +632,24 @@ Focus on whether the functionality described in the requirement is actually impl
                     'evidence': result.backend_analysis or result.frontend_analysis or {}
                 })
             
-            # Calculate compliance
+            # Calculate compliance with breakdown
             total_functional = len(functional_results)
             met_functional = sum(1 for r in functional_results if r['met'])
             total_endpoints = len(endpoint_results)
             passed_endpoints = sum(1 for e in endpoint_results if e['passed'])
+            
+            # Separate public and admin endpoint counts
+            public_endpoints = [e for e in endpoint_results if not e.get('requires_auth', False)]
+            admin_endpoint_results = [e for e in endpoint_results if e.get('requires_auth', False)]
+            passed_public = sum(1 for e in public_endpoints if e['passed'])
+            passed_admin = sum(1 for e in admin_endpoint_results if e['passed'])
             
             overall_compliance = (
                 (met_functional + passed_endpoints) / (total_functional + total_endpoints) * 100
                 if (total_functional + total_endpoints) > 0 else 0
             )
             
-            await self.send_progress('completed', f"Requirements check completed: {met_functional}/{total_functional} functional, {passed_endpoints}/{total_endpoints} endpoints", analysis_id=analysis_id)
+            await self.send_progress('completed', f"Requirements check completed: {met_functional}/{total_functional} functional, {passed_endpoints}/{total_endpoints} endpoints ({passed_public} public, {passed_admin} admin)", analysis_id=analysis_id)
             
             return {
                 'status': 'success',
@@ -505,6 +661,9 @@ Focus on whether the functionality described in the requirement is actually impl
                     'template_slug': template_slug,
                     'template_name': template_data.get('name', template_slug),
                     'template_category': template_data.get('category', 'Unknown'),
+                    'backend_port': backend_port,
+                    'frontend_port': frontend_port,
+                    'auth_token_obtained': auth_token is not None,
                     'analysis_time': datetime.now().isoformat()
                 },
                 'results': {
@@ -513,15 +672,20 @@ Focus on whether the functionality described in the requirement is actually impl
                     'summary': {
                         'total_functional_requirements': total_functional,
                         'functional_requirements_met': met_functional,
-                        'total_control_endpoints': total_endpoints,
-                        'control_endpoints_passed': passed_endpoints,
+                        'total_api_endpoints': total_endpoints,
+                        'api_endpoints_passed': passed_endpoints,
+                        'public_endpoints_total': len(public_endpoints),
+                        'public_endpoints_passed': passed_public,
+                        'admin_endpoints_total': len(admin_endpoint_results),
+                        'admin_endpoints_passed': passed_admin,
                         'compliance_percentage': overall_compliance
                     }
                 },
                 'template_info': {
                     'description': template_data.get('description', ''),
                     'data_model': template_data.get('data_model', {}),
-                    'api_endpoints_count': len(api_endpoints)
+                    'api_endpoints_count': len(api_endpoints),
+                    'admin_api_endpoints_count': len(admin_api_endpoints)
                 }
             }
             
@@ -822,7 +986,11 @@ Provide concrete evidence from the code to support your assessment."""
                 'total_stylistic': 0,
                 'stylistic_met': 0,
                 'total_endpoints': 0,
-                'endpoints_passed': 0
+                'endpoints_passed': 0,
+                'public_endpoints_total': 0,
+                'public_endpoints_passed': 0,
+                'admin_endpoints_total': 0,
+                'admin_endpoints_passed': 0
             }
         }
         
@@ -842,8 +1010,13 @@ Provide concrete evidence from the code to support your assessment."""
                 
                 summary['requirements_summary']['total_functional'] = tool_summary.get('total_functional_requirements', 0)
                 summary['requirements_summary']['functional_met'] = tool_summary.get('functional_requirements_met', 0)
-                summary['requirements_summary']['total_endpoints'] = tool_summary.get('total_control_endpoints', 0)
-                summary['requirements_summary']['endpoints_passed'] = tool_summary.get('control_endpoints_passed', 0)
+                # Support both old and new field names for backwards compatibility
+                summary['requirements_summary']['total_endpoints'] = tool_summary.get('total_api_endpoints', tool_summary.get('total_control_endpoints', 0))
+                summary['requirements_summary']['endpoints_passed'] = tool_summary.get('api_endpoints_passed', tool_summary.get('control_endpoints_passed', 0))
+                summary['requirements_summary']['public_endpoints_total'] = tool_summary.get('public_endpoints_total', 0)
+                summary['requirements_summary']['public_endpoints_passed'] = tool_summary.get('public_endpoints_passed', 0)
+                summary['requirements_summary']['admin_endpoints_total'] = tool_summary.get('admin_endpoints_total', 0)
+                summary['requirements_summary']['admin_endpoints_passed'] = tool_summary.get('admin_endpoints_passed', 0)
                 
                 if tool_summary.get('compliance_percentage') is not None:
                     compliance_values.append(tool_summary['compliance_percentage'])

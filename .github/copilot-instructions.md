@@ -306,6 +306,9 @@ with app.app_context(): get_maintenance_service()._run_maintenance()"
 - **Clear error messages**: If services are down, error clearly states which services are inaccessible and how to fix
 - **Circuit breaker**: After 3 consecutive failures to a service, that service is put in 5-minute cooldown
 - **Recovery**: Services automatically become available again after cooldown expires or on first success
+- **Automatic task retry**: Tasks that fail pre-flight checks are automatically rescheduled (up to 3 retries with 30s/60s/120s delays)
+- **Transient failure recovery**: Failed tasks due to service unavailability are auto-recovered when services become available (checked every 5 min)
+- **Configuration**: `PREFLIGHT_MAX_RETRIES` and `TRANSIENT_FAILURE_MAX_RETRIES` env vars control retry limits (default: 3)
 
 ### Container Rebuild Strategies
 - **Fast incremental** (`./start.ps1 -Mode Rebuild`): 
