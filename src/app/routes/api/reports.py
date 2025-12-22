@@ -294,18 +294,49 @@ def get_report_options():
         from ...models import ModelCapability, GeneratedApplication
         from ...services.tool_registry_service import get_tool_registry_service
         from ...services.generation import get_generation_service
+        from ...utils.slug_utils import normalize_model_slug
         
-        # Get models with generated apps
-        models = db.session.query(ModelCapability).join(
-            GeneratedApplication,
-            ModelCapability.canonical_slug == GeneratedApplication.model_slug
-        ).distinct().order_by(ModelCapability.provider, ModelCapability.model_name).all()
+        # Get all unique model slugs from generated apps (most reliable source)
+        app_model_slugs = db.session.query(
+            GeneratedApplication.model_slug
+        ).distinct().all()
+        app_model_slugs = [row[0] for row in app_model_slugs if row[0]]
         
-        models_data = [{
-            'slug': m.canonical_slug,
-            'name': m.model_name,
-            'provider': m.provider
-        } for m in models]
+        # Build models data - prioritize from apps, enrich with ModelCapability where available
+        models_data = []
+        seen_slugs = set()
+        
+        for slug in app_model_slugs:
+            if slug in seen_slugs:
+                continue
+            seen_slugs.add(slug)
+            
+            # Try to find matching capability for display name
+            normalized = normalize_model_slug(slug)
+            capability = ModelCapability.query.filter(
+                (ModelCapability.canonical_slug == slug) | 
+                (ModelCapability.canonical_slug == normalized)
+            ).first()
+            
+            if capability:
+                models_data.append({
+                    'slug': slug,
+                    'name': capability.model_name or slug,
+                    'provider': capability.provider or slug.split('_')[0] if '_' in slug else 'unknown'
+                })
+            else:
+                # Parse from slug
+                parts = slug.split('_', 1)
+                provider = parts[0] if parts else 'unknown'
+                model_name = parts[1] if len(parts) > 1 else slug
+                models_data.append({
+                    'slug': slug,
+                    'name': model_name.replace('-', ' ').title(),
+                    'provider': provider
+                })
+        
+        # Sort by provider then name
+        models_data.sort(key=lambda m: (m['provider'], m['name']))
         
         # Get apps grouped by model
         apps = GeneratedApplication.query.order_by(

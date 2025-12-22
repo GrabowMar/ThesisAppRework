@@ -22,6 +22,7 @@ from ..extensions import db
 from ..models import Report, AnalysisTask, GeneratedApplication, ModelCapability
 from ..constants import AnalysisStatus
 from ..utils.time import utc_now
+from ..utils.slug_utils import normalize_model_slug, generate_slug_variants
 from .unified_result_service import UnifiedResultService
 from .service_locator import ServiceLocator
 
@@ -212,9 +213,15 @@ class ReportService:
         model_slug = config['model_slug']
         date_range = config.get('date_range', {})
         
-        # Query completed tasks for this model
+        # Normalize and generate slug variants for matching
+        normalized_slug = normalize_model_slug(model_slug)
+        slug_variants = generate_slug_variants(model_slug)
+        
+        logger.info(f"Generating model report for {model_slug} (normalized: {normalized_slug}, variants: {slug_variants})")
+        
+        # Query completed tasks for this model using slug variants
         query = AnalysisTask.query.filter(
-            AnalysisTask.target_model == model_slug,
+            AnalysisTask.target_model.in_(slug_variants),
             AnalysisTask.status.in_([
                 AnalysisStatus.COMPLETED,
                 AnalysisStatus.PARTIAL_SUCCESS,
@@ -290,12 +297,16 @@ class ReportService:
         severity_counts = self._count_severities(all_findings)
         scientific_metrics = self._calculate_metrics(apps_data)
         
-        # Finalize tool stats
+        # Finalize tool stats with display-friendly fields
         for tool_name, stats in tools_stats.items():
             total = stats['executions']
             stats['success_rate'] = (stats['successful'] / total * 100) if total > 0 else 0
             stats['avg_duration'] = (stats['total_duration'] / stats['successful']) if stats['successful'] > 0 else 0
             stats['findings_per_run'] = (stats['total_findings'] / stats['successful']) if stats['successful'] > 0 else 0
+            # Add display-friendly fields for template
+            stats['display_name'] = tool_name.replace('_', ' ').title()
+            stats['total_runs'] = stats['executions']
+            stats['overall_status'] = 'success' if stats['success_rate'] >= 50 else 'error'
         
         return {
             'report_type': 'model_analysis',
@@ -305,13 +316,20 @@ class ReportService:
             'apps': apps_data,
             'apps_count': len(apps_data),
             'total_tasks': len(tasks),
+            # Summary with all fields the template expects
             'summary': {
+                'total_apps': len(apps_data),  # Template expects this
+                'total_analyses': len(tasks),   # Template expects this
                 'total_findings': len(all_findings),
                 'severity_breakdown': severity_counts,
                 'avg_findings_per_app': len(all_findings) / len(apps_data) if apps_data else 0
             },
+            # Duplicate severity data for template compatibility
+            'findings_breakdown': severity_counts,
             'scientific_metrics': scientific_metrics,
+            # Provide both field names for compatibility
             'tools_statistics': tools_stats,
+            'tool_summary': tools_stats,  # Template expects this name
             'findings': all_findings[:500]  # Limit findings in response
         }
     
@@ -569,10 +587,12 @@ class ReportService:
                 'model_slug': model_slug,
                 'task_id': task.task_id,
                 'status': 'failed',
+                'has_analysis': False,  # Template expects this boolean
                 'error_message': task.error_message or 'Analysis failed or was cancelled',
                 'completed_at': task.completed_at.isoformat() if task.completed_at else None,
                 'findings_count': 0,
                 'severity_counts': {},
+                'severity_breakdown': {},  # Template expects this alias
                 'tools': {},
                 'findings': []
             }
@@ -586,10 +606,12 @@ class ReportService:
                 'model_slug': model_slug,
                 'task_id': task.task_id,
                 'status': 'no_results',
+                'has_analysis': False,  # Template expects this boolean
                 'error_message': 'No analysis results available',
                 'completed_at': task.completed_at.isoformat() if task.completed_at else None,
                 'findings_count': 0,
                 'severity_counts': {},
+                'severity_breakdown': {},  # Template expects this alias
                 'tools': {},
                 'findings': []
             }
@@ -600,7 +622,13 @@ class ReportService:
         
         # Extract findings
         findings = raw.get('findings') or results_wrapper.get('findings') or []
-        severity_counts = summary.get('severity_breakdown') or summary.get('findings_by_severity', {})
+        
+        # Get severity counts from summary, or compute from findings
+        severity_counts = summary.get('severity_breakdown') or summary.get('findings_by_severity')
+        if not severity_counts and findings:
+            # Compute severity counts from actual findings
+            severity_counts = self._count_severities(findings)
+        severity_counts = severity_counts or {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'info': 0}
         
         # Extract tools
         tools = raw.get('tools') or results_wrapper.get('tools') or {}
@@ -623,12 +651,14 @@ class ReportService:
             'model_slug': model_slug,
             'task_id': task.task_id,
             'status': 'completed',
+            'has_analysis': True,  # Template expects this boolean
             'completed_at': task.completed_at.isoformat() if task.completed_at else None,
             'duration_seconds': duration,
             'app_type': app.app_type if app else None,
             'template_slug': app.template_slug if app else None,
             'findings_count': len(findings),
             'severity_counts': severity_counts,
+            'severity_breakdown': severity_counts,  # Template expects this alias
             'tools': tools,
             'findings': findings[:100]  # Limit per app
         }
