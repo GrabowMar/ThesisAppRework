@@ -61,7 +61,7 @@
     {# Main Page Wrapper #}
     {% set has_right_sidebar = has_right_sidebar | default(false) %}
     <div class="page-wrapper{% if has_right_sidebar %} has-right-sidebar{% endif %}{% if active_page %} page-{{ active_page }}{% endif %}">
-      <div class="page-body py-3">
+      <div class="page-body">
         <div class="container-xl page-body-container">
           
           {# Loading Indicator (shown during HTMX requests) #}
