@@ -667,78 +667,289 @@
     const summary = d.summary || {};
     const models = d.models || [];
     const rankings = d.rankings || {};
+    const comparison = d.comparison || {};
+    const frameworks = d.framework_distribution || {};
+    const findingsBreakdown = d.findings_breakdown || summary.severity_breakdown || {};
+    
+    // Calculate additional metrics
+    const totalFindings = summary.total_findings || 0;
+    const avgFindingsPerModel = models.length > 0 ? (totalFindings / models.length).toFixed(1) : 0;
+    const bestScore = rankings.best_overall?.score?.toFixed(1) || 'N/A';
+    const worstScore = rankings.worst_overall?.score?.toFixed(1) || 'N/A';
+    const scoreSpread = (rankings.worst_overall?.score && rankings.best_overall?.score) 
+      ? (rankings.worst_overall.score - rankings.best_overall.score).toFixed(1) 
+      : 'N/A';
     
     let html = `
-      <!-- Summary -->
-      <div class="row row-deck row-cards mb-4">
-        <div class="col-sm-6 col-lg-3">
-          <div class="card">
-            <div class="card-body">
-              <div class="subheader">Template</div>
-              <div class="h3 mb-0">${h(summary.template_slug || 'N/A')}</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-          <div class="card">
-            <div class="card-body">
-              <div class="subheader">Models Compared</div>
-              <div class="h1 mb-0">${formatNumber(summary.models_compared)}</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-          <div class="card">
-            <div class="card-body">
-              <div class="subheader">Total Analyses</div>
-              <div class="h1 mb-0">${formatNumber(summary.total_analyses)}</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-          <div class="card">
-            <div class="card-body">
-              <div class="subheader">Best Model</div>
-              <div class="h4 mb-0">${h(rankings.best_overall?.model || 'N/A')}</div>
+      <!-- Research Header -->
+      <div class="alert alert-info mb-4">
+        <div class="d-flex">
+          <div><i class="fa-solid fa-flask fa-2x me-3"></i></div>
+          <div>
+            <h4 class="alert-title">Template Comparison Analysis</h4>
+            <div class="text-secondary">
+              Comparing how <strong>${formatNumber(summary.models_compared || 0)} AI models</strong> implemented 
+              the <strong>${h(summary.template_slug || 'N/A')}</strong> template.
+              This analysis identifies patterns, common issues, and ranks models by code quality metrics.
             </div>
           </div>
         </div>
       </div>
       
-      <!-- Model Comparison Table -->
+      <!-- Key Metrics Summary -->
+      <div class="row row-deck row-cards mb-4">
+        <div class="col-6 col-lg-2">
+          <div class="card metric-card">
+            <div class="card-body text-center">
+              <div class="h1 mb-0 text-primary">${formatNumber(summary.models_compared || 0)}</div>
+              <div class="text-muted">Models Compared</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-2">
+          <div class="card metric-card">
+            <div class="card-body text-center">
+              <div class="h1 mb-0 text-info">${formatNumber(summary.total_analyses || 0)}</div>
+              <div class="text-muted">Total Analyses</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-2">
+          <div class="card metric-card">
+            <div class="card-body text-center">
+              <div class="h1 mb-0 text-warning">${formatNumber(totalFindings)}</div>
+              <div class="text-muted">Total Findings</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-2">
+          <div class="card metric-card">
+            <div class="card-body text-center">
+              <div class="h1 mb-0">${avgFindingsPerModel}</div>
+              <div class="text-muted">Avg per Model</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-2">
+          <div class="card metric-card">
+            <div class="card-body text-center">
+              <div class="h1 mb-0 text-success">${formatNumber(summary.common_issues_count || 0)}</div>
+              <div class="text-muted">Common Issues</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-2">
+          <div class="card metric-card">
+            <div class="card-body text-center">
+              <div class="h1 mb-0">${formatDuration(summary.avg_duration_seconds || 0)}</div>
+              <div class="text-muted">Avg Duration</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Severity Distribution Visual -->
+      <div class="row mb-4">
+        <div class="col-lg-8">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fa-solid fa-chart-bar me-2"></i>Severity Distribution Across All Models</h3>
+            </div>
+            <div class="card-body">
+              <div class="chart-container" id="severity-chart-container">
+                <canvas id="severityDistributionChart"></canvas>
+              </div>
+              <div class="row mt-4">
+                <div class="col">
+                  <div class="d-flex align-items-center">
+                    <span class="badge bg-danger me-2">&nbsp;</span>
+                    <span>Critical: <strong>${formatNumber(findingsBreakdown.critical || 0)}</strong></span>
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="d-flex align-items-center">
+                    <span class="badge bg-orange me-2">&nbsp;</span>
+                    <span>High: <strong>${formatNumber(findingsBreakdown.high || 0)}</strong></span>
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="d-flex align-items-center">
+                    <span class="badge bg-yellow me-2">&nbsp;</span>
+                    <span>Medium: <strong>${formatNumber(findingsBreakdown.medium || 0)}</strong></span>
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="d-flex align-items-center">
+                    <span class="badge bg-success me-2">&nbsp;</span>
+                    <span>Low: <strong>${formatNumber(findingsBreakdown.low || 0)}</strong></span>
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="d-flex align-items-center">
+                    <span class="badge bg-info me-2">&nbsp;</span>
+                    <span>Info: <strong>${formatNumber(findingsBreakdown.info || 0)}</strong></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="card h-100">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fa-solid fa-layer-group me-2"></i>Framework Distribution</h3>
+            </div>
+            <div class="card-body">
+              <h5 class="text-muted mb-2">Backend Frameworks</h5>
+              ${Object.entries(frameworks.backend || {}).length > 0 ? 
+                Object.entries(frameworks.backend).map(([fw, count]) => `
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge bg-purple-lt">${h(fw)}</span>
+                    <strong>${count} model${count > 1 ? 's' : ''}</strong>
+                  </div>
+                `).join('') : '<span class="text-muted">No data available</span>'}
+              
+              <hr class="my-3">
+              
+              <h5 class="text-muted mb-2">Frontend Frameworks</h5>
+              ${Object.entries(frameworks.frontend || {}).length > 0 ? 
+                Object.entries(frameworks.frontend).map(([fw, count]) => `
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge bg-cyan-lt">${h(fw)}</span>
+                    <strong>${count} model${count > 1 ? 's' : ''}</strong>
+                  </div>
+                `).join('') : '<span class="text-muted">No data available</span>'}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Rankings Section -->
+      ${rankings.best_overall || rankings.worst_overall ? `
+      <div class="row mb-4">
+        <div class="col-md-6">
+          <div class="card border-success">
+            <div class="card-status-top bg-success"></div>
+            <div class="card-header">
+              <h3 class="card-title"><i class="fa-solid fa-trophy text-success me-2"></i>Best Performing Model</h3>
+            </div>
+            <div class="card-body">
+              ${rankings.best_overall ? `
+                <div class="d-flex align-items-center mb-3">
+                  <div class="avatar avatar-lg bg-success-lt me-3">
+                    <i class="fa-solid fa-medal fa-lg text-success"></i>
+                  </div>
+                  <div>
+                    <h2 class="mb-0">${h(rankings.best_overall.model_name || rankings.best_overall.model)}</h2>
+                    <div class="text-muted">Lowest weighted score</div>
+                  </div>
+                </div>
+                <div class="row text-center">
+                  <div class="col-4">
+                    <div class="h3 mb-0">${rankings.best_overall.score?.toFixed(1) || 'N/A'}</div>
+                    <div class="text-muted small">Score</div>
+                  </div>
+                  <div class="col-4">
+                    <div class="h3 mb-0">${formatNumber(rankings.best_overall.total_findings || 0)}</div>
+                    <div class="text-muted small">Findings</div>
+                  </div>
+                  <div class="col-4">
+                    <div class="h3 mb-0">#1</div>
+                    <div class="text-muted small">Rank</div>
+                  </div>
+                </div>
+              ` : '<div class="text-muted">No data available</div>'}
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card border-danger">
+            <div class="card-status-top bg-danger"></div>
+            <div class="card-header">
+              <h3 class="card-title"><i class="fa-solid fa-triangle-exclamation text-danger me-2"></i>Needs Improvement</h3>
+            </div>
+            <div class="card-body">
+              ${rankings.worst_overall ? `
+                <div class="d-flex align-items-center mb-3">
+                  <div class="avatar avatar-lg bg-danger-lt me-3">
+                    <i class="fa-solid fa-exclamation-circle fa-lg text-danger"></i>
+                  </div>
+                  <div>
+                    <h2 class="mb-0">${h(rankings.worst_overall.model_name || rankings.worst_overall.model)}</h2>
+                    <div class="text-muted">Highest weighted score</div>
+                  </div>
+                </div>
+                <div class="row text-center">
+                  <div class="col-4">
+                    <div class="h3 mb-0">${rankings.worst_overall.score?.toFixed(1) || 'N/A'}</div>
+                    <div class="text-muted small">Score</div>
+                  </div>
+                  <div class="col-4">
+                    <div class="h3 mb-0">${formatNumber(rankings.worst_overall.total_findings || 0)}</div>
+                    <div class="text-muted small">Findings</div>
+                  </div>
+                  <div class="col-4">
+                    <div class="h3 mb-0">#${models.length || '?'}</div>
+                    <div class="text-muted small">Rank</div>
+                  </div>
+                </div>
+              ` : '<div class="text-muted">No data available</div>'}
+            </div>
+          </div>
+        </div>
+      </div>
+      ` : ''}
+      
+      <!-- Full Rankings Table -->
+      ${rankings.all_ranked && rankings.all_ranked.length > 0 ? `
       <div class="card mb-4">
         <div class="card-header">
-          <h3 class="card-title"><i class="fa-solid fa-scale-balanced me-2"></i>Model Comparison</h3>
+          <h3 class="card-title"><i class="fa-solid fa-ranking-star me-2"></i>Complete Model Rankings</h3>
+          <div class="card-subtitle">Ranked by weighted severity score (Critical×100 + High×10 + Medium×3 + Low×1)</div>
         </div>
         <div class="table-responsive">
-          <table class="table table-vcenter card-table">
+          <table class="table table-vcenter card-table table-hover">
             <thead>
               <tr>
+                <th style="width: 80px">Rank</th>
                 <th>Model</th>
-                <th>Critical</th>
-                <th>High</th>
-                <th>Medium</th>
-                <th>Low</th>
-                <th>Total</th>
-                <th>Score</th>
+                <th class="text-center">Critical</th>
+                <th class="text-center">High</th>
+                <th class="text-center">Medium</th>
+                <th class="text-center">Low</th>
+                <th class="text-center">Total Findings</th>
+                <th class="text-center">Score</th>
+                <th style="width: 150px">Visual</th>
               </tr>
             </thead>
             <tbody>
-              ${models.map(m => {
+              ${rankings.all_ranked.map((r, idx) => {
+                const m = models.find(m => m.model_slug === r.model) || {};
                 const sev = m.severity_breakdown || {};
-                const isWinner = rankings.best_overall?.model === m.model_slug;
+                const maxScore = rankings.worst_overall?.score || 1;
+                const scorePercent = maxScore > 0 ? ((r.score || 0) / maxScore * 100) : 0;
                 return `
-                  <tr class="${isWinner ? 'table-success' : ''}">
+                  <tr class="${idx === 0 ? 'table-success' : idx === rankings.all_ranked.length - 1 ? 'table-danger' : ''}">
                     <td>
-                      <strong>${h(m.model_name || m.model_slug)}</strong>
-                      ${isWinner ? '<span class="badge bg-success ms-2">Best</span>' : ''}
+                      <div class="d-flex align-items-center">
+                        ${idx === 0 ? '<i class="fa-solid fa-crown text-warning me-2"></i>' : ''}
+                        <span class="badge ${idx === 0 ? 'bg-success' : idx < 3 ? 'bg-primary' : 'bg-secondary'}">#${r.rank}</span>
+                      </div>
                     </td>
-                    <td class="severity-critical">${formatNumber(sev.critical || sev.CRITICAL || 0)}</td>
-                    <td class="severity-high">${formatNumber(sev.high || sev.HIGH || 0)}</td>
-                    <td class="severity-medium">${formatNumber(sev.medium || sev.MEDIUM || 0)}</td>
-                    <td class="severity-low">${formatNumber(sev.low || sev.LOW || 0)}</td>
-                    <td><strong>${formatNumber(m.total_findings)}</strong></td>
-                    <td>${m.score ? m.score.toFixed(1) : 'N/A'}</td>
+                    <td>
+                      <strong>${h(r.model_name || r.model)}</strong>
+                    </td>
+                    <td class="text-center severity-critical"><strong>${formatNumber(sev.critical || 0)}</strong></td>
+                    <td class="text-center severity-high"><strong>${formatNumber(sev.high || 0)}</strong></td>
+                    <td class="text-center severity-medium"><strong>${formatNumber(sev.medium || 0)}</strong></td>
+                    <td class="text-center severity-low"><strong>${formatNumber(sev.low || 0)}</strong></td>
+                    <td class="text-center"><strong>${formatNumber(r.total_findings || 0)}</strong></td>
+                    <td class="text-center"><strong>${r.score?.toFixed(1) || 'N/A'}</strong></td>
+                    <td>
+                      <div class="progress" style="height: 8px;">
+                        <div class="progress-bar ${idx === 0 ? 'bg-success' : scorePercent > 50 ? 'bg-danger' : 'bg-warning'}" style="width: ${scorePercent}%"></div>
+                      </div>
+                    </td>
                   </tr>
                 `;
               }).join('')}
@@ -746,33 +957,204 @@
           </table>
         </div>
       </div>
+      ` : ''}
       
-      <!-- Rankings -->
-      ${Object.keys(rankings).length > 0 ? `
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title"><i class="fa-solid fa-trophy me-2"></i>Rankings</h3>
-          </div>
-          <div class="card-body">
-            <div class="row">
-              ${rankings.by_severity ? Object.entries(rankings.by_severity).map(([sev, data]) => `
-                <div class="col-md-4 mb-3">
-                  <div class="card card-sm">
+      <!-- Per-Severity Best Models -->
+      ${rankings.by_severity && Object.keys(rankings.by_severity).length > 0 ? `
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fa-solid fa-award me-2"></i>Best Models by Severity Category</h3>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            ${Object.entries(rankings.by_severity).map(([sev, data]) => {
+              const sevColors = {
+                critical: { bg: 'danger', icon: 'skull-crossbones' },
+                high: { bg: 'orange', icon: 'exclamation-triangle' },
+                medium: { bg: 'yellow', icon: 'exclamation-circle' },
+                low: { bg: 'success', icon: 'info-circle' }
+              };
+              const c = sevColors[sev] || { bg: 'secondary', icon: 'question' };
+              return `
+                <div class="col-md-3 col-sm-6 mb-3">
+                  <div class="card card-sm border-${c.bg}">
+                    <div class="card-status-start bg-${c.bg}"></div>
                     <div class="card-body">
-                      <div class="text-muted mb-1">Fewest ${sev} Issues</div>
-                      <div class="h4 mb-0">${h(data?.model || 'N/A')}</div>
-                      <div class="text-muted small">${formatNumber(data?.count || 0)} findings</div>
+                      <div class="d-flex align-items-center mb-2">
+                        <i class="fa-solid fa-${c.icon} text-${c.bg} me-2"></i>
+                        <span class="text-uppercase text-muted small">Fewest ${sev}</span>
+                      </div>
+                      <h4 class="mb-1">${h(data?.model_name || data?.model || 'N/A')}</h4>
+                      <div class="text-muted">${formatNumber(data?.count || 0)} findings</div>
                     </div>
                   </div>
                 </div>
-              `).join('') : ''}
+              `;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+      ` : ''}
+      
+      <!-- Common Issues Section -->
+      ${comparison.common_issues && comparison.common_issues.length > 0 ? `
+      <div class="card mb-4">
+        <div class="card-header section-collapse" data-bs-toggle="collapse" data-bs-target="#common-issues-section">
+          <h3 class="card-title"><i class="fa-solid fa-link me-2"></i>Common Issues Across Models <span class="badge bg-warning ms-2">${comparison.common_issues.length}</span></h3>
+          <div class="card-actions">
+            <i class="fa-solid fa-chevron-down"></i>
+          </div>
+        </div>
+        <div class="collapse show" id="common-issues-section">
+          <div class="card-body">
+            <p class="text-muted mb-3">These issues were found across multiple models, indicating common patterns or template-inherent problems.</p>
+            <div class="list-group list-group-flush">
+              ${comparison.common_issues.slice(0, 20).map(issue => `
+                <div class="list-group-item finding-item severity-${(issue.severity || 'info').toLowerCase()}">
+                  <div class="d-flex w-100 justify-content-between align-items-start">
+                    <div>
+                      ${severityBadge(issue.severity)}
+                      <strong class="ms-2">${h(issue.rule_id || issue.tool || 'Unknown')}</strong>
+                    </div>
+                    <small class="text-muted">${h(issue.tool || '')}</small>
+                  </div>
+                  <p class="mb-1 mt-2">${h(issue.message || 'No description')}</p>
+                  ${issue.file ? `<small class="text-muted"><i class="fa-solid fa-file-code me-1"></i>${h(issue.file)}${issue.line ? ':' + issue.line : ''}</small>` : ''}
+                </div>
+              `).join('')}
+            </div>
+            ${comparison.common_issues.length > 20 ? `<div class="text-muted mt-3">Showing 20 of ${comparison.common_issues.length} common issues</div>` : ''}
+          </div>
+        </div>
+      </div>
+      ` : ''}
+      
+      <!-- Detailed Model Data -->
+      <div class="card mb-4">
+        <div class="card-header section-collapse" data-bs-toggle="collapse" data-bs-target="#models-detail-section">
+          <h3 class="card-title"><i class="fa-solid fa-robot me-2"></i>Detailed Model Analysis <span class="badge bg-secondary ms-2">${models.length}</span></h3>
+          <div class="card-actions">
+            <i class="fa-solid fa-chevron-down"></i>
+          </div>
+        </div>
+        <div class="collapse show" id="models-detail-section">
+          <div class="table-responsive">
+            <table class="table table-vcenter card-table table-hover">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Task Status</th>
+                  <th>Frameworks</th>
+                  <th class="text-center">Critical</th>
+                  <th class="text-center">High</th>
+                  <th class="text-center">Medium</th>
+                  <th class="text-center">Low</th>
+                  <th class="text-center">Total</th>
+                  <th class="text-center">Score</th>
+                  <th>Duration</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${models.map(m => {
+                  const sev = m.severity_breakdown || {};
+                  const isWinner = rankings.best_overall?.model === m.model_slug;
+                  const isWorst = rankings.worst_overall?.model === m.model_slug;
+                  return `
+                    <tr class="${isWinner ? 'table-success' : isWorst ? 'table-danger' : ''}">
+                      <td>
+                        <div class="d-flex align-items-center">
+                          ${isWinner ? '<i class="fa-solid fa-crown text-warning me-2"></i>' : ''}
+                          <div>
+                            <strong>${h(m.model_name || m.model_slug)}</strong>
+                            ${isWinner ? '<span class="badge bg-success ms-2">Best</span>' : ''}
+                            ${isWorst ? '<span class="badge bg-danger ms-2">Most Issues</span>' : ''}
+                            <div class="text-muted small">App #${m.app_number || '?'}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>${statusBadge(m.status, m.task_status)}</td>
+                      <td>
+                        ${m.backend_framework ? `<span class="badge bg-purple-lt me-1">${h(m.backend_framework)}</span>` : ''}
+                        ${m.frontend_framework ? `<span class="badge bg-cyan-lt">${h(m.frontend_framework)}</span>` : ''}
+                        ${!m.backend_framework && !m.frontend_framework ? '<span class="text-muted">—</span>' : ''}
+                      </td>
+                      <td class="text-center severity-critical"><strong>${formatNumber(sev.critical || 0)}</strong></td>
+                      <td class="text-center severity-high"><strong>${formatNumber(sev.high || 0)}</strong></td>
+                      <td class="text-center severity-medium"><strong>${formatNumber(sev.medium || 0)}</strong></td>
+                      <td class="text-center severity-low"><strong>${formatNumber(sev.low || 0)}</strong></td>
+                      <td class="text-center"><strong>${formatNumber(m.total_findings || m.findings_count || 0)}</strong></td>
+                      <td class="text-center"><strong>${m.score?.toFixed(1) || 'N/A'}</strong></td>
+                      <td>${formatDuration(m.duration_seconds)}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Research Notes -->
+      <div class="card border-info">
+        <div class="card-header bg-info-lt">
+          <h3 class="card-title"><i class="fa-solid fa-lightbulb me-2"></i>Research Insights</h3>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <h5>Key Findings</h5>
+              <ul class="mb-0">
+                <li><strong>Score Spread:</strong> ${scoreSpread} points between best and worst models</li>
+                <li><strong>Average Findings:</strong> ${avgFindingsPerModel} issues per model</li>
+                <li><strong>Common Issues:</strong> ${formatNumber(summary.common_issues_count || 0)} issues found across multiple models</li>
+                ${rankings.best_overall ? `<li><strong>Best Performer:</strong> ${h(rankings.best_overall.model_name || rankings.best_overall.model)} with ${formatNumber(rankings.best_overall.total_findings || 0)} total findings</li>` : ''}
+              </ul>
+            </div>
+            <div class="col-md-6">
+              <h5>Methodology</h5>
+              <ul class="mb-0">
+                <li><strong>Scoring Formula:</strong> Critical×100 + High×10 + Medium×3 + Low×1</li>
+                <li><strong>Lower scores indicate better code quality</strong></li>
+                <li>Analysis based on ${formatNumber(summary.total_analyses || 0)} task executions</li>
+                <li>Common issues identified by rule_id matching</li>
+              </ul>
             </div>
           </div>
         </div>
-      ` : ''}
+      </div>
     `;
     
     reportContent.innerHTML = html;
+    
+    // Initialize severity chart
+    setTimeout(() => {
+      const ctx = document.getElementById('severityDistributionChart');
+      if (ctx && typeof Chart !== 'undefined') {
+        new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Critical', 'High', 'Medium', 'Low', 'Info'],
+            datasets: [{
+              data: [
+                findingsBreakdown.critical || 0,
+                findingsBreakdown.high || 0,
+                findingsBreakdown.medium || 0,
+                findingsBreakdown.low || 0,
+                findingsBreakdown.info || 0
+              ],
+              backgroundColor: ['#d63939', '#f76707', '#f59f00', '#2fb344', '#0ea5e9']
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom' }
+            }
+          }
+        });
+      }
+    }, 100);
   }
   
   // === Tool Analysis Report ===
@@ -781,100 +1163,352 @@
     const summary = d.summary || {};
     const tools = d.tools || [];
     const categories = d.categories || {};
+    const topPerformers = d.top_performers || {};
+    const byModel = d.by_model || {};
+    const filter = d.filter || {};
+    const findingsBreakdown = d.findings_breakdown || summary.severity_breakdown || {};
+    const findings = d.findings || [];
+    
+    // Calculate additional metrics
+    const totalFindings = summary.total_findings || 0;
+    const avgFindingsPerRun = tools.length > 0 
+      ? (tools.reduce((acc, t) => acc + (t.total_findings || 0), 0) / summary.total_runs).toFixed(2) 
+      : 0;
+    const mostEffective = tools.length > 0 
+      ? tools.reduce((best, t) => (t.total_findings || 0) > (best.total_findings || 0) ? t : best, tools[0]) 
+      : null;
+    const mostReliable = tools.length > 0 
+      ? tools.reduce((best, t) => (t.success_rate || 0) > (best.success_rate || 0) ? t : best, tools[0]) 
+      : null;
+    
+    // Calculate category stats
+    const categoryStats = Object.entries(categories).map(([name, data]) => ({
+      name,
+      ...data,
+      avgFindings: data.total_runs > 0 ? (data.total_findings / data.total_runs).toFixed(1) : 0
+    }));
     
     let html = `
-      <!-- Summary -->
-      <div class="row row-deck row-cards mb-4">
-        <div class="col-sm-6 col-lg-3">
-          <div class="card">
-            <div class="card-body">
-              <div class="subheader">Tools Analyzed</div>
-              <div class="h1 mb-0">${formatNumber(summary.tools_analyzed)}</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-          <div class="card">
-            <div class="card-body">
-              <div class="subheader">Total Runs</div>
-              <div class="h1 mb-0">${formatNumber(summary.total_runs)}</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-          <div class="card">
-            <div class="card-body">
-              <div class="subheader">Total Findings</div>
-              <div class="h1 mb-0">${formatNumber(summary.total_findings)}</div>
-            </div>
-          </div>
-        </div>
-        <div class="col-sm-6 col-lg-3">
-          <div class="card">
-            <div class="card-body">
-              <div class="subheader">Avg Success Rate</div>
-              <div class="h1 mb-0">${summary.avg_success_rate ? summary.avg_success_rate.toFixed(0) + '%' : 'N/A'}</div>
+      <!-- Research Header -->
+      <div class="alert alert-success mb-4">
+        <div class="d-flex">
+          <div><i class="fa-solid fa-microscope fa-2x me-3"></i></div>
+          <div>
+            <h4 class="alert-title">Tool Effectiveness Analysis</h4>
+            <div class="text-secondary">
+              Analyzing <strong>${formatNumber(summary.tools_analyzed || 0)} analysis tools</strong> across 
+              <strong>${formatNumber(summary.total_runs || 0)} executions</strong>.
+              This report evaluates tool performance, detection rates, and reliability metrics.
+              ${filter.tool_name ? `<br>Filtered to: <strong>${h(filter.tool_name)}</strong>` : ''}
+              ${filter.model ? `<br>Model filter: <strong>${h(filter.model)}</strong>` : ''}
             </div>
           </div>
         </div>
       </div>
       
-      <!-- Tools Table -->
+      <!-- Key Metrics Summary -->
+      <div class="row row-deck row-cards mb-4">
+        <div class="col-6 col-lg-2">
+          <div class="card metric-card">
+            <div class="card-body text-center">
+              <div class="h1 mb-0 text-primary">${formatNumber(summary.tools_analyzed || 0)}</div>
+              <div class="text-muted">Tools Analyzed</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-2">
+          <div class="card metric-card">
+            <div class="card-body text-center">
+              <div class="h1 mb-0 text-info">${formatNumber(summary.total_runs || 0)}</div>
+              <div class="text-muted">Total Executions</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-2">
+          <div class="card metric-card">
+            <div class="card-body text-center">
+              <div class="h1 mb-0 text-warning">${formatNumber(totalFindings)}</div>
+              <div class="text-muted">Total Findings</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-2">
+          <div class="card metric-card">
+            <div class="card-body text-center">
+              <div class="h1 mb-0 ${(summary.avg_success_rate || 0) >= 90 ? 'text-success' : (summary.avg_success_rate || 0) >= 70 ? 'text-warning' : 'text-danger'}">${summary.avg_success_rate ? summary.avg_success_rate.toFixed(0) + '%' : 'N/A'}</div>
+              <div class="text-muted">Avg Success Rate</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-2">
+          <div class="card metric-card">
+            <div class="card-body text-center">
+              <div class="h1 mb-0">${avgFindingsPerRun}</div>
+              <div class="text-muted">Findings/Run</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-lg-2">
+          <div class="card metric-card">
+            <div class="card-body text-center">
+              <div class="h1 mb-0">${Object.keys(categories).length}</div>
+              <div class="text-muted">Tool Categories</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Severity Distribution -->
+      <div class="row mb-4">
+        <div class="col-lg-8">
+          <div class="card h-100">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fa-solid fa-chart-pie me-2"></i>Findings by Severity</h3>
+            </div>
+            <div class="card-body">
+              <div class="chart-container" id="tool-severity-chart-container">
+                <canvas id="toolSeverityChart"></canvas>
+              </div>
+              <div class="row mt-4">
+                <div class="col">
+                  <div class="d-flex align-items-center justify-content-center">
+                    <span class="badge bg-danger me-2">&nbsp;</span>
+                    <span>Critical: <strong>${formatNumber(findingsBreakdown.critical || 0)}</strong></span>
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="d-flex align-items-center justify-content-center">
+                    <span class="badge bg-orange me-2">&nbsp;</span>
+                    <span>High: <strong>${formatNumber(findingsBreakdown.high || 0)}</strong></span>
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="d-flex align-items-center justify-content-center">
+                    <span class="badge bg-yellow me-2">&nbsp;</span>
+                    <span>Medium: <strong>${formatNumber(findingsBreakdown.medium || 0)}</strong></span>
+                  </div>
+                </div>
+                <div class="col">
+                  <div class="d-flex align-items-center justify-content-center">
+                    <span class="badge bg-success me-2">&nbsp;</span>
+                    <span>Low: <strong>${formatNumber(findingsBreakdown.low || 0)}</strong></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="card h-100">
+            <div class="card-header">
+              <h3 class="card-title"><i class="fa-solid fa-trophy me-2"></i>Top Performers</h3>
+            </div>
+            <div class="card-body">
+              ${mostEffective ? `
+              <div class="mb-4">
+                <div class="text-muted small text-uppercase mb-1">Most Findings Detected</div>
+                <div class="d-flex align-items-center">
+                  <div class="avatar bg-warning-lt me-3">
+                    <i class="fa-solid fa-bug text-warning"></i>
+                  </div>
+                  <div>
+                    <h4 class="mb-0">${h(mostEffective.display_name || mostEffective.name)}</h4>
+                    <div class="text-muted">${formatNumber(mostEffective.total_findings || 0)} findings</div>
+                  </div>
+                </div>
+              </div>
+              ` : ''}
+              ${mostReliable ? `
+              <div class="mb-4">
+                <div class="text-muted small text-uppercase mb-1">Most Reliable</div>
+                <div class="d-flex align-items-center">
+                  <div class="avatar bg-success-lt me-3">
+                    <i class="fa-solid fa-check-circle text-success"></i>
+                  </div>
+                  <div>
+                    <h4 class="mb-0">${h(mostReliable.display_name || mostReliable.name)}</h4>
+                    <div class="text-muted">${mostReliable.success_rate?.toFixed(0) || 0}% success rate</div>
+                  </div>
+                </div>
+              </div>
+              ` : ''}
+              <div class="text-muted small text-uppercase mb-1">Tool Categories</div>
+              <div class="d-flex flex-wrap gap-1">
+                ${Object.keys(categories).map(cat => `
+                  <span class="badge bg-azure-lt">${h(cat)}</span>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Category Breakdown -->
+      ${Object.keys(categories).length > 0 ? `
       <div class="card mb-4">
         <div class="card-header">
-          <h3 class="card-title"><i class="fa-solid fa-tools me-2"></i>Tool Performance</h3>
+          <h3 class="card-title"><i class="fa-solid fa-layer-group me-2"></i>Analysis by Container/Category</h3>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            ${categoryStats.map(cat => {
+              const catColors = {
+                'static-analyzer': { bg: 'purple', icon: 'code' },
+                'dynamic-analyzer': { bg: 'orange', icon: 'shield-halved' },
+                'performance-tester': { bg: 'cyan', icon: 'gauge-high' },
+                'ai-analyzer': { bg: 'pink', icon: 'brain' }
+              };
+              const c = catColors[cat.name] || { bg: 'secondary', icon: 'tools' };
+              return `
+                <div class="col-md-6 col-lg-3 mb-3">
+                  <div class="card border-${c.bg} h-100">
+                    <div class="card-status-top bg-${c.bg}"></div>
+                    <div class="card-body">
+                      <div class="d-flex align-items-center mb-3">
+                        <div class="avatar bg-${c.bg}-lt me-3">
+                          <i class="fa-solid fa-${c.icon} text-${c.bg}"></i>
+                        </div>
+                        <h4 class="mb-0">${h(cat.name)}</h4>
+                      </div>
+                      <div class="row text-center">
+                        <div class="col-4">
+                          <div class="h4 mb-0">${formatNumber(cat.tools_count)}</div>
+                          <div class="text-muted small">Tools</div>
+                        </div>
+                        <div class="col-4">
+                          <div class="h4 mb-0">${formatNumber(cat.total_runs)}</div>
+                          <div class="text-muted small">Runs</div>
+                        </div>
+                        <div class="col-4">
+                          <div class="h4 mb-0">${formatNumber(cat.total_findings)}</div>
+                          <div class="text-muted small">Findings</div>
+                        </div>
+                      </div>
+                      <hr class="my-2">
+                      <div class="text-muted small">
+                        <strong>Avg per run:</strong> ${cat.avgFindings} findings
+                      </div>
+                      <div class="text-muted small mt-1">
+                        <strong>Tools:</strong> ${(cat.tools || []).slice(0, 3).join(', ')}${(cat.tools || []).length > 3 ? '...' : ''}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+      ` : ''}
+      
+      <!-- Detailed Tool Performance Table -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h3 class="card-title"><i class="fa-solid fa-table me-2"></i>Detailed Tool Performance</h3>
+          <div class="card-subtitle">Sorted by execution count (most active first)</div>
         </div>
         <div class="table-responsive">
-          <table class="table table-vcenter card-table">
+          <table class="table table-vcenter card-table table-hover">
             <thead>
               <tr>
                 <th>Tool</th>
-                <th>Container</th>
-                <th>Total Runs</th>
-                <th>Success Rate</th>
-                <th>Findings</th>
-                <th>Avg/Run</th>
+                <th>Category</th>
+                <th class="text-center">Executions</th>
+                <th class="text-center">Success Rate</th>
+                <th class="text-center">Total Findings</th>
+                <th class="text-center">Avg/Run</th>
+                <th class="text-center">Avg Duration</th>
+                <th>Severity Breakdown</th>
               </tr>
             </thead>
             <tbody>
-              ${tools.map(t => `
-                <tr>
-                  <td><strong>${h(t.display_name || t.name)}</strong></td>
-                  <td><span class="badge bg-azure-lt">${h(t.container || 'unknown')}</span></td>
-                  <td>${formatNumber(t.total_runs)}</td>
-                  <td>
-                    <div class="d-flex align-items-center gap-2">
-                      <div class="progress flex-grow-1" style="height: 6px;">
-                        <div class="progress-bar ${t.success_rate >= 80 ? 'bg-success' : t.success_rate >= 50 ? 'bg-warning' : 'bg-danger'}" style="width: ${t.success_rate || 0}%"></div>
+              ${tools.map((t, idx) => {
+                const sevBreak = t.findings_by_severity || {};
+                const isTop = idx < 3;
+                return `
+                  <tr>
+                    <td>
+                      <div class="d-flex align-items-center">
+                        ${isTop ? '<i class="fa-solid fa-star text-warning me-2"></i>' : ''}
+                        <div>
+                          <strong>${h(t.display_name || t.name || t.tool_name)}</strong>
+                          <div class="text-muted small">${h(t.tool_name || t.name)}</div>
+                        </div>
                       </div>
-                      <span class="small">${t.success_rate ? t.success_rate.toFixed(0) + '%' : 'N/A'}</span>
-                    </div>
-                  </td>
-                  <td>${formatNumber(t.total_findings)}</td>
-                  <td>${(t.avg_findings || 0).toFixed(1)}</td>
-                </tr>
-              `).join('')}
+                    </td>
+                    <td><span class="badge bg-azure-lt">${h(t.container || t.service || 'unknown')}</span></td>
+                    <td class="text-center"><strong>${formatNumber(t.total_runs || t.executions)}</strong></td>
+                    <td class="text-center">
+                      <div class="d-flex align-items-center justify-content-center gap-2">
+                        <div class="progress flex-grow-1" style="height: 6px; max-width: 80px;">
+                          <div class="progress-bar ${(t.success_rate || 0) >= 90 ? 'bg-success' : (t.success_rate || 0) >= 70 ? 'bg-warning' : 'bg-danger'}" style="width: ${t.success_rate || 0}%"></div>
+                        </div>
+                        <span class="small ${(t.success_rate || 0) >= 90 ? 'text-success' : (t.success_rate || 0) >= 70 ? 'text-warning' : 'text-danger'}">${t.success_rate ? t.success_rate.toFixed(0) + '%' : 'N/A'}</span>
+                      </div>
+                    </td>
+                    <td class="text-center"><strong>${formatNumber(t.total_findings)}</strong></td>
+                    <td class="text-center">${(t.avg_findings || t.findings_per_run || 0).toFixed(1)}</td>
+                    <td class="text-center">${t.avg_duration ? t.avg_duration.toFixed(1) + 's' : 'N/A'}</td>
+                    <td>
+                      <div class="d-flex gap-1 flex-wrap">
+                        ${(sevBreak.critical || 0) > 0 ? `<span class="badge bg-danger">${sevBreak.critical} crit</span>` : ''}
+                        ${(sevBreak.high || 0) > 0 ? `<span class="badge bg-orange">${sevBreak.high} high</span>` : ''}
+                        ${(sevBreak.medium || 0) > 0 ? `<span class="badge bg-yellow text-dark">${sevBreak.medium} med</span>` : ''}
+                        ${(sevBreak.low || 0) > 0 ? `<span class="badge bg-success">${sevBreak.low} low</span>` : ''}
+                        ${!sevBreak.critical && !sevBreak.high && !sevBreak.medium && !sevBreak.low ? '<span class="text-muted">—</span>' : ''}
+                      </div>
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
             </tbody>
           </table>
         </div>
       </div>
       
-      <!-- Categories -->
-      ${Object.keys(categories).length > 0 ? `
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title"><i class="fa-solid fa-layer-group me-2"></i>By Container</h3>
+      <!-- Per-Model Tool Usage -->
+      ${Object.keys(byModel).length > 0 ? `
+      <div class="card mb-4">
+        <div class="card-header section-collapse" data-bs-toggle="collapse" data-bs-target="#by-model-section">
+          <h3 class="card-title"><i class="fa-solid fa-robot me-2"></i>Tool Usage by Model <span class="badge bg-secondary ms-2">${Object.keys(byModel).length} models</span></h3>
+          <div class="card-actions">
+            <i class="fa-solid fa-chevron-down"></i>
           </div>
+        </div>
+        <div class="collapse" id="by-model-section">
           <div class="card-body">
-            <div class="row">
-              ${Object.entries(categories).map(([cat, data]) => `
-                <div class="col-md-4 mb-3">
-                  <div class="card card-sm">
-                    <div class="card-body">
-                      <h4 class="mb-2">${h(cat)}</h4>
-                      <div class="d-flex justify-content-between text-muted small">
-                        <span>Tools: ${formatNumber(data.tools_count)}</span>
-                        <span>Findings: ${formatNumber(data.total_findings)}</span>
+            <div class="accordion" id="modelAccordion">
+              ${Object.entries(byModel).map(([model, modelTools], idx) => `
+                <div class="accordion-item">
+                  <h2 class="accordion-header">
+                    <button class="accordion-button ${idx > 0 ? 'collapsed' : ''}" type="button" data-bs-toggle="collapse" data-bs-target="#model-${idx}">
+                      <strong>${h(model.replace('_', ' / ').replace('-', ' ').substring(0, 50))}</strong>
+                      <span class="badge bg-secondary ms-2">${Object.keys(modelTools).length} tools</span>
+                    </button>
+                  </h2>
+                  <div id="model-${idx}" class="accordion-collapse collapse ${idx === 0 ? 'show' : ''}" data-bs-parent="#modelAccordion">
+                    <div class="accordion-body">
+                      <div class="table-responsive">
+                        <table class="table table-sm table-borderless">
+                          <thead>
+                            <tr>
+                              <th>Tool</th>
+                              <th class="text-center">Executions</th>
+                              <th class="text-center">Successful</th>
+                              <th class="text-center">Findings</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            ${Object.entries(modelTools).map(([toolName, toolData]) => `
+                              <tr>
+                                <td>${h(toolName)}</td>
+                                <td class="text-center">${formatNumber(toolData.executions)}</td>
+                                <td class="text-center">${formatNumber(toolData.successful)}</td>
+                                <td class="text-center">${formatNumber(toolData.findings)}</td>
+                              </tr>
+                            `).join('')}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   </div>
@@ -883,10 +1517,113 @@
             </div>
           </div>
         </div>
+      </div>
       ` : ''}
+      
+      <!-- Sample Findings -->
+      ${findings.length > 0 ? `
+      <div class="card mb-4">
+        <div class="card-header section-collapse" data-bs-toggle="collapse" data-bs-target="#findings-section">
+          <h3 class="card-title"><i class="fa-solid fa-list me-2"></i>Sample Findings <span class="badge bg-secondary ms-2">${Math.min(findings.length, 25)} of ${findings.length}</span></h3>
+          <div class="card-actions">
+            <i class="fa-solid fa-chevron-down"></i>
+          </div>
+        </div>
+        <div class="collapse" id="findings-section">
+          <div class="card-body">
+            <div class="list-group list-group-flush">
+              ${findings.slice(0, 25).map(f => `
+                <div class="list-group-item finding-item severity-${(f.severity || 'info').toLowerCase()}">
+                  <div class="d-flex w-100 justify-content-between align-items-start">
+                    <div>
+                      ${severityBadge(f.severity)}
+                      <span class="badge bg-azure-lt ms-2">${h(f.tool || 'unknown')}</span>
+                      <strong class="ms-2">${h(f.rule_id || f.check_id || '')}</strong>
+                    </div>
+                  </div>
+                  <p class="mb-1 mt-2">${h(f.message || f.description || 'No description')}</p>
+                  ${f.file_path || f.file ? `<small class="text-muted"><i class="fa-solid fa-file-code me-1"></i>${h(f.file_path || f.file)}${f.line ? ':' + f.line : ''}</small>` : ''}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+      ` : ''}
+      
+      <!-- Research Summary -->
+      <div class="card border-success">
+        <div class="card-header bg-success-lt">
+          <h3 class="card-title"><i class="fa-solid fa-chart-line me-2"></i>Research Summary</h3>
+        </div>
+        <div class="card-body">
+          <div class="row">
+            <div class="col-md-6">
+              <h5>Tool Effectiveness Metrics</h5>
+              <ul class="mb-0">
+                <li><strong>Total Tools:</strong> ${formatNumber(summary.tools_analyzed || 0)} unique tools analyzed</li>
+                <li><strong>Total Executions:</strong> ${formatNumber(summary.total_runs || 0)} runs across all tools</li>
+                <li><strong>Average Success Rate:</strong> ${summary.avg_success_rate ? summary.avg_success_rate.toFixed(1) + '%' : 'N/A'}</li>
+                <li><strong>Findings per Run:</strong> ${avgFindingsPerRun} average</li>
+                ${mostEffective ? `<li><strong>Most Effective:</strong> ${h(mostEffective.display_name || mostEffective.name)} (${formatNumber(mostEffective.total_findings || 0)} findings)</li>` : ''}
+              </ul>
+            </div>
+            <div class="col-md-6">
+              <h5>Category Distribution</h5>
+              <ul class="mb-0">
+                ${categoryStats.map(cat => `
+                  <li><strong>${h(cat.name)}:</strong> ${formatNumber(cat.tools_count)} tools, ${formatNumber(cat.total_findings)} findings</li>
+                `).join('')}
+              </ul>
+              ${filter.tool_name || filter.model ? `
+                <hr>
+                <h5>Active Filters</h5>
+                <ul class="mb-0">
+                  ${filter.tool_name ? `<li>Tool: ${h(filter.tool_name)}</li>` : ''}
+                  ${filter.model ? `<li>Model: ${h(filter.model)}</li>` : ''}
+                </ul>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      </div>
     `;
     
     reportContent.innerHTML = html;
+    
+    // Initialize severity chart
+    setTimeout(() => {
+      const ctx = document.getElementById('toolSeverityChart');
+      if (ctx && typeof Chart !== 'undefined') {
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['Critical', 'High', 'Medium', 'Low', 'Info'],
+            datasets: [{
+              label: 'Findings',
+              data: [
+                findingsBreakdown.critical || 0,
+                findingsBreakdown.high || 0,
+                findingsBreakdown.medium || 0,
+                findingsBreakdown.low || 0,
+                findingsBreakdown.info || 0
+              ],
+              backgroundColor: ['#d63939', '#f76707', '#f59f00', '#2fb344', '#0ea5e9']
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              y: { beginAtZero: true }
+            }
+          }
+        });
+      }
+    }, 100);
   }
   
   // === Generic Report ===

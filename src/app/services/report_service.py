@@ -437,6 +437,7 @@ class ReportService:
         # Get latest completed analysis for each app
         models_data = []
         all_findings = []
+        total_analyses = 0
         
         for app in apps:
             # Get latest completed task for this app
@@ -453,12 +454,23 @@ class ReportService:
             if task:
                 entry = self._process_task_for_report(task, app.model_slug, app.app_number)
                 entry['template_slug'] = template_slug
+                # Add model display name
+                entry['model_name'] = app.model_slug.replace('_', ' / ').replace('-', ' ').title()
+                # Calculate total findings for this model
+                entry['total_findings'] = entry.get('findings_count', 0)
                 models_data.append(entry)
                 
                 if entry.get('findings'):
                     all_findings.extend(entry['findings'])
+                
+                # Count all analyses for this app
+                total_analyses += AnalysisTask.query.filter(
+                    AnalysisTask.target_model == app.model_slug,
+                    AnalysisTask.target_app_number == app.app_number,
+                    AnalysisTask.status.in_([AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS])
+                ).count()
         
-        report.update_progress(80)
+        report.update_progress(60)
         db.session.commit()
         
         # Calculate comparison metrics
@@ -467,6 +479,27 @@ class ReportService:
         # Find common vs unique issues
         common_issues, unique_issues = self._identify_common_issues(models_data)
         
+        # Calculate rankings
+        rankings = self._calculate_rankings(models_data)
+        
+        # Calculate execution metrics
+        total_duration = sum(m.get('duration_seconds', 0) or 0 for m in models_data)
+        avg_duration = total_duration / len(models_data) if models_data else 0
+        
+        # Framework distribution
+        backend_frameworks = {}
+        frontend_frameworks = {}
+        for m in models_data:
+            bf = m.get('backend_framework')
+            ff = m.get('frontend_framework')
+            if bf:
+                backend_frameworks[bf] = backend_frameworks.get(bf, 0) + 1
+            if ff:
+                frontend_frameworks[ff] = frontend_frameworks.get(ff, 0) + 1
+        
+        report.update_progress(80)
+        db.session.commit()
+        
         return {
             'report_type': 'template_comparison',
             'template_slug': template_slug,
@@ -474,16 +507,92 @@ class ReportService:
             'models': models_data,
             'models_count': len(models_data),
             'summary': {
+                'template_slug': template_slug,
+                'models_compared': len(models_data),
+                'total_analyses': total_analyses,
                 'total_findings': len(all_findings),
                 'severity_breakdown': severity_counts,
                 'common_issues_count': len(common_issues),
-                'unique_issues_count': len(unique_issues)
+                'unique_issues_count': sum(len(v) for v in unique_issues.values()) if isinstance(unique_issues, dict) else len(unique_issues),
+                'avg_duration_seconds': avg_duration,
             },
+            'findings_breakdown': severity_counts,
+            'rankings': rankings,
             'comparison': {
                 'common_issues': common_issues[:50],
                 'unique_by_model': unique_issues
             },
+            'framework_distribution': {
+                'backend': backend_frameworks,
+                'frontend': frontend_frameworks,
+            },
             'findings': all_findings[:500]
+        }
+    
+    def _calculate_rankings(self, models_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Calculate rankings for template comparison."""
+        if not models_data:
+            return {}
+        
+        # Score based on weighted severity (lower is better)
+        def calculate_score(m):
+            sev = m.get('severity_breakdown') or m.get('severity_counts') or {}
+            return (
+                (sev.get('critical', 0) or 0) * 100 +
+                (sev.get('high', 0) or 0) * 10 +
+                (sev.get('medium', 0) or 0) * 3 +
+                (sev.get('low', 0) or 0) * 1 +
+                (sev.get('info', 0) or 0) * 0.1
+            )
+        
+        # Add score to each model
+        for m in models_data:
+            m['score'] = calculate_score(m)
+        
+        # Sort by score (lower is better)
+        sorted_models = sorted(models_data, key=lambda x: x.get('score', float('inf')))
+        
+        best = sorted_models[0] if sorted_models else None
+        worst = sorted_models[-1] if sorted_models else None
+        
+        # Find best by each severity
+        by_severity = {}
+        for sev in ['critical', 'high', 'medium', 'low']:
+            sorted_by_sev = sorted(
+                models_data,
+                key=lambda x: (x.get('severity_breakdown') or {}).get(sev, 0) or (x.get('severity_counts') or {}).get(sev, 0)
+            )
+            if sorted_by_sev:
+                by_severity[sev] = {
+                    'model': sorted_by_sev[0].get('model_slug'),
+                    'model_name': sorted_by_sev[0].get('model_name', sorted_by_sev[0].get('model_slug')),
+                    'count': (sorted_by_sev[0].get('severity_breakdown') or {}).get(sev, 0) or (sorted_by_sev[0].get('severity_counts') or {}).get(sev, 0)
+                }
+        
+        return {
+            'best_overall': {
+                'model': best.get('model_slug') if best else None,
+                'model_name': best.get('model_name', best.get('model_slug')) if best else None,
+                'score': best.get('score') if best else None,
+                'total_findings': best.get('total_findings', 0) if best else 0,
+            } if best else None,
+            'worst_overall': {
+                'model': worst.get('model_slug') if worst else None,
+                'model_name': worst.get('model_name', worst.get('model_slug')) if worst else None,
+                'score': worst.get('score') if worst else None,
+                'total_findings': worst.get('total_findings', 0) if worst else 0,
+            } if worst else None,
+            'by_severity': by_severity,
+            'all_ranked': [
+                {
+                    'rank': i + 1,
+                    'model': m.get('model_slug'),
+                    'model_name': m.get('model_name', m.get('model_slug')),
+                    'score': m.get('score'),
+                    'total_findings': m.get('total_findings', 0),
+                }
+                for i, m in enumerate(sorted_models)
+            ]
         }
     
     def _generate_tool_report(self, config: Dict[str, Any], report: Report) -> Dict[str, Any]:
@@ -596,12 +705,42 @@ class ReportService:
             agg['success_rate'] = (agg['successful'] / total * 100) if total > 0 else 0
             agg['avg_duration'] = (agg['total_duration'] / agg['successful']) if agg['successful'] > 0 else 0
             agg['findings_per_run'] = (agg['total_findings'] / agg['successful']) if agg['successful'] > 0 else 0
+            # Add display-friendly fields
+            agg['display_name'] = t_name.replace('_', ' ').title()
+            agg['name'] = t_name
+            agg['total_runs'] = agg['executions']
+            agg['avg_findings'] = agg['findings_per_run']
+            agg['container'] = agg['service']
             tools_list.append(agg)
         
         # Sort by execution count
         tools_list.sort(key=lambda x: x['executions'], reverse=True)
         
         severity_counts = self._count_severities(all_findings)
+        
+        # Calculate aggregate stats
+        total_runs = sum(t['executions'] for t in tools_list)
+        avg_success = sum(t['success_rate'] for t in tools_list) / len(tools_list) if tools_list else 0
+        
+        # Group by service/container
+        categories = {}
+        for t in tools_list:
+            svc = t.get('service', 'unknown')
+            if svc not in categories:
+                categories[svc] = {
+                    'tools_count': 0,
+                    'total_findings': 0,
+                    'total_runs': 0,
+                    'tools': []
+                }
+            categories[svc]['tools_count'] += 1
+            categories[svc]['total_findings'] += t['total_findings']
+            categories[svc]['total_runs'] += t['executions']
+            categories[svc]['tools'].append(t['tool_name'])
+        
+        # Find top performers
+        top_by_findings = sorted(tools_list, key=lambda x: x['total_findings'], reverse=True)[:5]
+        top_by_success = sorted(tools_list, key=lambda x: x['success_rate'], reverse=True)[:5]
         
         return {
             'report_type': 'tool_analysis',
@@ -613,12 +752,27 @@ class ReportService:
             },
             'tools': tools_list,
             'tools_count': len(tools_list),
-            'total_executions': sum(t['executions'] for t in tools_list),
+            'total_executions': total_runs,
             'summary': {
+                'tools_analyzed': len(tools_list),
+                'total_runs': total_runs,
                 'total_findings': len(all_findings),
+                'avg_success_rate': avg_success,
                 'severity_breakdown': severity_counts
             },
+            'findings_breakdown': severity_counts,
+            'categories': categories,
             'by_model': tools_by_model,
+            'top_performers': {
+                'by_findings': [
+                    {'name': t['tool_name'], 'findings': t['total_findings'], 'runs': t['executions']}
+                    for t in top_by_findings
+                ],
+                'by_success_rate': [
+                    {'name': t['tool_name'], 'success_rate': t['success_rate'], 'runs': t['executions']}
+                    for t in top_by_success
+                ]
+            },
             'findings': all_findings[:500]
         }
     
