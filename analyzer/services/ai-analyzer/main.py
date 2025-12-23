@@ -655,7 +655,11 @@ Focus on whether the functionality described in the requirement is actually impl
             
             await self.send_progress('testing_endpoints', f"Testing {len(all_endpoints)} API endpoints ({len(control_endpoints)} public, {len(admin_endpoints)} admin)", analysis_id=analysis_id)
             
-            base_url = f"http://localhost:{backend_port}"
+            # Use host.docker.internal when running inside Docker container to reach host services
+            # localhost won't work from inside a container
+            host = os.getenv('TARGET_HOST', 'host.docker.internal')
+            base_url = f"http://{host}:{backend_port}"
+            self.log.info(f"Using base URL for endpoint testing: {base_url}")
             
             # Get auth token for admin endpoints
             auth_token = None
@@ -714,13 +718,18 @@ Focus on whether the functionality described in the requirement is actually impl
                                 'base_url': base_url
                             })
                 except Exception as e:
+                    error_msg = str(e)
+                    # Make connection errors more user-friendly
+                    if 'Cannot connect to host' in error_msg or 'Connection refused' in error_msg:
+                        error_msg = f"App not running at {base_url} - start the generated app containers first"
+                    
                     endpoint_results.append({
                         'endpoint': path,
                         'method': method,
                         'expected_status': expected_status,
                         'actual_status': None,
                         'passed': False,
-                        'error': str(e),
+                        'error': error_msg,
                         'description': description,
                         'requires_auth': requires_auth,
                         'base_url': base_url
