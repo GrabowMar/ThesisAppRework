@@ -390,22 +390,53 @@ class AiParser extends BaseParser {
         if (Object.keys(toolsMap).length > 0) {
             // New multi-tool format
             
-            // Parse requirements-checker results
-            const reqChecker = toolsMap['requirements-checker'] || {};
-            if (reqChecker.status === 'success' && reqChecker.results) {
-                const reqResults = reqChecker.results;
+            // Parse requirements-scanner results (supports both new name and legacy requirements-checker)
+            const reqScanner = toolsMap['requirements-scanner'] || toolsMap['requirements-checker'] || {};
+            if (reqScanner.status === 'success' && reqScanner.results) {
+                const reqResults = reqScanner.results;
                 
-                // Functional requirements
-                if (reqResults.functional_requirements) {
-                    reqResults.functional_requirements.forEach((req, idx) => {
+                // Backend requirements (new format) or functional requirements (legacy)
+                const backendReqs = reqResults.backend_requirements || reqResults.functional_requirements || [];
+                backendReqs.forEach((req, idx) => {
+                    flattened.push({
+                        id: `ai-backend-req-${idx}`,
+                        tool: 'requirements-scanner',
+                        severity: req.met ? 'success' : 'high',
+                        message: req.requirement,
+                        status: req.met ? 'Met' : 'Not Met',
+                        confidence: req.confidence,
+                        category: 'backend',
+                        raw: req
+                    });
+                });
+                
+                // Frontend requirements (new format)
+                if (reqResults.frontend_requirements) {
+                    reqResults.frontend_requirements.forEach((req, idx) => {
                         flattened.push({
-                            id: `ai-func-req-${idx}`,
-                            tool: 'requirements-checker',
+                            id: `ai-frontend-req-${idx}`,
+                            tool: 'requirements-scanner',
                             severity: req.met ? 'success' : 'high',
                             message: req.requirement,
                             status: req.met ? 'Met' : 'Not Met',
                             confidence: req.confidence,
-                            category: 'functional',
+                            category: 'frontend',
+                            raw: req
+                        });
+                    });
+                }
+                
+                // Admin requirements (new format)
+                if (reqResults.admin_requirements) {
+                    reqResults.admin_requirements.forEach((req, idx) => {
+                        flattened.push({
+                            id: `ai-admin-req-${idx}`,
+                            tool: 'requirements-scanner',
+                            severity: req.met ? 'success' : 'high',
+                            message: req.requirement,
+                            status: req.met ? 'Met' : 'Not Met',
+                            confidence: req.confidence,
+                            category: 'admin',
                             raw: req
                         });
                     });
@@ -416,7 +447,7 @@ class AiParser extends BaseParser {
                     reqResults.control_endpoint_tests.forEach((test, idx) => {
                         flattened.push({
                             id: `ai-control-${idx}`,
-                            tool: 'requirements-checker',
+                            tool: 'requirements-scanner',
                             severity: test.passed ? 'success' : 'high',
                             message: `${test.method || 'GET'} ${test.endpoint}`,
                             status: test.passed ? 'Passed' : 'Failed',
@@ -433,8 +464,25 @@ class AiParser extends BaseParser {
             if (qualityAnalyzer.status === 'success' && qualityAnalyzer.results) {
                 const qualityResults = qualityAnalyzer.results;
                 
-                // Stylistic requirements
-                if (qualityResults.stylistic_requirements) {
+                // New format: quality_metrics with scores
+                if (qualityResults.quality_metrics && qualityResults.quality_metrics.length > 0) {
+                    qualityResults.quality_metrics.forEach((metric, idx) => {
+                        flattened.push({
+                            id: `ai-quality-metric-${idx}`,
+                            tool: 'code-quality-analyzer',
+                            severity: metric.passed ? 'success' : (metric.score < 40 ? 'high' : 'medium'),
+                            message: metric.metric_name,
+                            status: metric.passed ? 'Passed' : `Score: ${metric.score}/100`,
+                            confidence: metric.confidence,
+                            category: 'quality_metric',
+                            score: metric.score,
+                            findings: metric.findings || [],
+                            recommendations: metric.recommendations || [],
+                            raw: metric
+                        });
+                    });
+                } else if (qualityResults.stylistic_requirements) {
+                    // Legacy format: stylistic requirements
                     qualityResults.stylistic_requirements.forEach((req, idx) => {
                         flattened.push({
                             id: `ai-style-req-${idx}`,
@@ -460,7 +508,7 @@ class AiParser extends BaseParser {
             results.functional_requirements.forEach((req, idx) => {
                 flattened.push({
                     id: `ai-req-${idx}`,
-                    tool: 'requirements-checker',
+                    tool: 'requirements-scanner',
                     severity: req.met ? 'success' : 'high',
                     message: req.requirement,
                     status: req.met ? 'Met' : 'Not Met',

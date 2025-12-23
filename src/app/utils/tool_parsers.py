@@ -448,21 +448,60 @@ def _extract_ai_findings(tool_name: str, results: Dict[str, Any]) -> List[Dict[s
     # Collect all checks from different categories
     all_checks = []
     
-    # 1. Functional Requirements
+    # 1. Backend Requirements (new format) or Functional Requirements (legacy)
+    backend = inner_results.get('backend_requirements', [])
+    if backend:
+        for item in backend:
+            item['_category'] = 'backend'
+        all_checks.extend(backend)
+    
+    # Legacy functional requirements
     functional = inner_results.get('functional_requirements', [])
     if functional:
         for item in functional:
             item['_category'] = 'functional'
         all_checks.extend(functional)
         
-    # 2. Stylistic Requirements
+    # 2. Frontend Requirements (new format)
+    frontend = inner_results.get('frontend_requirements', [])
+    if frontend:
+        for item in frontend:
+            item['_category'] = 'frontend'
+        all_checks.extend(frontend)
+        
+    # 3. Admin Requirements (new format)
+    admin = inner_results.get('admin_requirements', [])
+    if admin:
+        for item in admin:
+            item['_category'] = 'admin'
+        all_checks.extend(admin)
+        
+    # 4. Quality Metrics (new code quality format)
+    quality_metrics = inner_results.get('quality_metrics', [])
+    if quality_metrics:
+        for metric in quality_metrics:
+            if not metric.get('passed', True):
+                findings.append({
+                    'severity': 'HIGH' if metric.get('score', 0) < 40 else 'MEDIUM',
+                    'rule_id': f'ai-quality-{metric.get("metric_name", "unknown").replace(" ", "-").lower()}',
+                    'file': 'code_quality.txt',  # Virtual file
+                    'line': '-',
+                    'description': metric.get('metric_name', ''),
+                    'message': f'Code Quality Issue: {metric.get("metric_name", "Unknown")} (Score: {metric.get("score", 0)}/100)',
+                    'solution': ', '.join(metric.get('recommendations', [])) if metric.get('recommendations') else '',
+                    'confidence': metric.get('confidence', 'MEDIUM'),
+                    'score': metric.get('score'),
+                    'findings': metric.get('findings', [])
+                })
+        
+    # 5. Stylistic Requirements (legacy format)
     stylistic = inner_results.get('stylistic_requirements', [])
     if stylistic:
         for item in stylistic:
             item['_category'] = 'stylistic'
         all_checks.extend(stylistic)
         
-    # 3. Control Endpoint Tests
+    # 6. Control Endpoint Tests
     control = inner_results.get('control_endpoint_tests', [])
     if control:
         for item in control:
@@ -478,17 +517,19 @@ def _extract_ai_findings(tool_name: str, results: Dict[str, Any]) -> List[Dict[s
     
     for check in all_checks:
         result = check.get('result', {})
-        if not result.get('met', True):
+        # Handle both new format (met at top level) and old format (met in result dict)
+        is_met = check.get('met', result.get('met', True))
+        if not is_met:
             category = check.get('_category', 'general')
             findings.append({
-                'severity': normalize_severity(result.get('confidence', 'MEDIUM')),
+                'severity': normalize_severity(check.get('confidence', result.get('confidence', 'MEDIUM'))),
                 'rule_id': f'ai-{category}-requirement-not-met',
                 'file': 'requirements.txt', # Virtual file
                 'line': '-',
                 'description': check.get('requirement', ''),
                 'message': f'Unmet {category.title()} Requirement',
-                'solution': result.get('explanation', ''),
-                'confidence': result.get('confidence')
+                'solution': check.get('explanation', result.get('explanation', '')),
+                'confidence': check.get('confidence', result.get('confidence'))
             })
             
     return findings

@@ -858,8 +858,8 @@ class ContainerToolRegistry:
         
         self._tools["requirements-checker"] = ContainerTool(
             name="requirements-checker",
-            display_name="Functional Requirements Tester",
-            description="Tests functional requirements with curl endpoint validation and AI code analysis",
+            display_name="Requirements Scanner (Legacy)",
+            description="Scans backend, frontend, and admin requirements with curl endpoint validation and AI code analysis",
             container=AnalyzerContainer.AI,
             tags={"ai", "requirements", "functional", "testing", "endpoints"},
             supported_languages={"python", "javascript", "typescript"},
@@ -867,7 +867,19 @@ class ContainerToolRegistry:
             config_schema=checker_schema
         )
         
-        # Code Quality Analyzer (NEW) - Stylistic requirements analysis
+        # Requirements Scanner (new unified tool name)
+        self._tools["requirements-scanner"] = ContainerTool(
+            name="requirements-scanner",
+            display_name="Requirements Scanner",
+            description="Unified requirements scanner: validates backend API, frontend UI, and admin functionality with curl tests and AI code analysis",
+            container=AnalyzerContainer.AI,
+            tags={"ai", "requirements", "functional", "backend", "frontend", "admin", "testing", "endpoints"},
+            supported_languages={"python", "javascript", "typescript", "react"},
+            available=has_openrouter_key,
+            config_schema=checker_schema
+        )
+        
+        # Code Quality Analyzer - Measures actual code quality metrics
         quality_schema = ToolConfigSchema(
             parameters=[
                 ToolParameter("template_id", "integer", "Requirements template ID", 1,
@@ -894,10 +906,10 @@ class ContainerToolRegistry:
         
         self._tools["code-quality-analyzer"] = ContainerTool(
             name="code-quality-analyzer",
-            display_name="Stylistic Code Quality Analyzer",
-            description="AI-powered analysis of stylistic requirements (React hooks, error handling, accessibility)",
+            display_name="Code Quality Analyzer",
+            description="AI-powered code quality analysis measuring 8 metrics: error handling, type safety, code organization, documentation, anti-patterns, security practices, performance patterns, and testing readiness",
             container=AnalyzerContainer.AI,
-            tags={"ai", "quality", "stylistic", "patterns", "best-practices"},
+            tags={"ai", "quality", "metrics", "patterns", "best-practices", "code-quality"},
             supported_languages={"python", "javascript", "typescript", "react"},
             available=has_openrouter_key,
             config_schema=quality_schema

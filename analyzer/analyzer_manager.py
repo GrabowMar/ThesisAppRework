@@ -1383,7 +1383,7 @@ class AnalyzerManager:
             model_slug: Model identifier
             app_number: Application number
             ai_model: AI model to use (default: anthropic/claude-3-5-haiku)
-            tools: List of tools to run (default: ['requirements-checker', 'code-quality-analyzer'])
+            tools: List of tools to run (default: ['requirements-scanner', 'code-quality-analyzer'])
             template_slug: Template slug (optional, will query DB if not provided)
         
         Returns:
@@ -1440,9 +1440,9 @@ class AnalyzerManager:
             analysis_type='ai_analysis'
         )
         
-        # Default tools for template-based analysis - include both requirements and quality checkers
+        # Default tools for template-based analysis - include both requirements scanner and quality analyzer
         if tools is None:
-            tools = ['requirements-checker', 'code-quality-analyzer']  # Both AI analysis tools by default
+            tools = ['requirements-scanner', 'code-quality-analyzer']  # Both AI analysis tools by default
         
         message = {
             "type": "ai_analyze",
@@ -2403,7 +2403,7 @@ class AnalyzerManager:
         
         Supports both:
         - Legacy single-tool format: {analysis: {results: {functional_requirements: [...], ...}}}
-        - New multi-tool format: {analysis: {tools: {requirements-checker: {...}, code-quality-analyzer: {...}}, ...}}
+        - New multi-tool format: {analysis: {tools: {requirements-scanner: {...}, code-quality-analyzer: {...}}, ...}}
         """
         findings = []
         
@@ -2419,25 +2419,44 @@ class AnalyzerManager:
         if tools_map and isinstance(tools_map, dict):
             logger.debug(f"[AI-FINDINGS] Processing multi-tool format with {len(tools_map)} tools")
             
-            # Process requirements-checker results
-            req_checker = tools_map.get('requirements-checker', {})
-            if req_checker and req_checker.get('status') == 'success':
-                req_results = req_checker.get('results', {})
-                functional = req_results.get('functional_requirements', [])
-                for item in functional:
-                    findings.extend(self._convert_ai_check_to_finding(item, 'functional', 'requirements-checker'))
+            # Process requirements-scanner results (supports both new name and legacy requirements-checker)
+            req_scanner = tools_map.get('requirements-scanner', tools_map.get('requirements-checker', {}))
+            if req_scanner and req_scanner.get('status') == 'success':
+                req_results = req_scanner.get('results', {})
+                # Backend requirements (new format) or functional requirements (legacy)
+                backend = req_results.get('backend_requirements', req_results.get('functional_requirements', []))
+                for item in backend:
+                    findings.extend(self._convert_ai_check_to_finding(item, 'backend', 'requirements-scanner'))
+                
+                # Frontend requirements (new format)
+                frontend = req_results.get('frontend_requirements', [])
+                for item in frontend:
+                    findings.extend(self._convert_ai_check_to_finding(item, 'frontend', 'requirements-scanner'))
+                
+                # Admin requirements (new format)
+                admin = req_results.get('admin_requirements', [])
+                for item in admin:
+                    findings.extend(self._convert_ai_check_to_finding(item, 'admin', 'requirements-scanner'))
                 
                 control = req_results.get('control_endpoint_tests', [])
                 for item in control:
-                    findings.extend(self._convert_ai_check_to_finding(item, 'control', 'requirements-checker'))
+                    findings.extend(self._convert_ai_check_to_finding(item, 'control', 'requirements-scanner'))
             
-            # Process code-quality-analyzer results
+            # Process code-quality-analyzer results (supports both new quality_metrics and legacy stylistic_requirements)
             quality_analyzer = tools_map.get('code-quality-analyzer', {})
             if quality_analyzer and quality_analyzer.get('status') == 'success':
                 quality_results = quality_analyzer.get('results', {})
-                stylistic = quality_results.get('stylistic_requirements', [])
-                for item in stylistic:
-                    findings.extend(self._convert_ai_check_to_finding(item, 'stylistic', 'code-quality-analyzer'))
+                # New format: quality_metrics with scores
+                quality_metrics = quality_results.get('quality_metrics', [])
+                if quality_metrics:
+                    for metric in quality_metrics:
+                        if not metric.get('passed', True):
+                            findings.extend(self._convert_quality_metric_to_finding(metric, 'code-quality-analyzer'))
+                else:
+                    # Legacy format: stylistic_requirements
+                    stylistic = quality_results.get('stylistic_requirements', [])
+                    for item in stylistic:
+                        findings.extend(self._convert_ai_check_to_finding(item, 'stylistic', 'code-quality-analyzer'))
             
             if findings:
                 logger.info(f"[AI-FINDINGS] Extracted {len(findings)} findings from multi-tool AI analysis")
@@ -2566,6 +2585,65 @@ class AnalyzerManager:
             })
         
         return findings
+    
+    def _convert_quality_metric_to_finding(self, metric: Dict[str, Any], tool_name: str) -> List[Dict[str, Any]]:
+        """Convert a code quality metric to findings if failed.
+        
+        Args:
+            metric: Quality metric dict with 'metric_name', 'score', 'passed', 'confidence', 'findings', 'recommendations'
+            tool_name: Name of the tool that produced this metric
+            
+        Returns:
+            List of findings (empty if metric passed, findings list if failed)
+        """
+        result_findings = []
+        
+        if metric.get('passed', True):
+            return result_findings
+        
+        metric_name = metric.get('metric_name', 'Unknown Metric')
+        score = metric.get('score', 0)
+        confidence = metric.get('confidence', 'LOW')
+        if isinstance(confidence, str):
+            confidence = confidence.upper()
+        else:
+            confidence = 'LOW'
+        
+        # Map confidence to severity
+        if score < 40:
+            severity = 'high'
+        elif score < 60:
+            severity = 'medium'
+        else:
+            severity = 'low'
+        
+        findings_list = metric.get('findings', [])
+        recommendations = metric.get('recommendations', [])
+        
+        # Create one finding per issue in the metric's findings
+        for i, finding_text in enumerate(findings_list[:10]):  # Limit to first 10
+            result_findings.append({
+                'id': f"ai_quality_{metric_name.lower().replace(' ', '_')}_{uuid.uuid4().hex[:8]}",
+                'tool': tool_name,
+                'rule_id': f'ai_quality_{metric_name.lower().replace(" ", "_")}',
+                'severity': severity,
+                'category': 'code_quality',
+                'type': 'quality_metric_failure',
+                'file': {'path': 'ai_analysis_report'},
+                'message': {
+                    'title': f"Quality Issue: {metric_name}",
+                    'description': finding_text,
+                    'solution': recommendations[i] if i < len(recommendations) else f"Improve {metric_name} - current score: {score}/100"
+                },
+                'metadata': {
+                    'confidence': confidence,
+                    'metric_name': metric_name,
+                    'score': score,
+                    'weight': metric.get('weight', 1.0)
+                }
+            })
+        
+        return result_findings
     
     def _extract_security_findings(self, results: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Extract findings from security analysis results."""
@@ -3193,7 +3271,7 @@ class AnalyzerManager:
                         'error': tdata.get('error')
                     }
             
-            # Handle AI analyzer's multi-tool format: analysis.tools.{requirements-checker, code-quality-analyzer}
+            # Handle AI analyzer's multi-tool format: analysis.tools.{requirements-scanner, code-quality-analyzer}
             ai_tools_map = analysis.get('tools', {})
             if isinstance(ai_tools_map, dict) and service_name == 'ai':
                 for tname, tdata in ai_tools_map.items():
@@ -3206,25 +3284,49 @@ class AnalyzerManager:
                     
                     # Count unmet requirements as issues
                     total_issues = 0
-                    if tname == 'requirements-checker':
-                        total_req = tool_summary.get('total_functional_requirements', 0)
-                        met_req = tool_summary.get('functional_requirements_met', 0)
-                        total_issues = total_req - met_req if total_req > met_req else 0
+                    compliance_pct = tool_summary.get('compliance_percentage')
+                    
+                    if tname in ['requirements-scanner', 'requirements-checker']:
+                        # New format: backend/frontend/admin totals
+                        total_backend = tool_summary.get('backend_total', tool_summary.get('total_functional_requirements', 0))
+                        met_backend = tool_summary.get('backend_met', tool_summary.get('functional_requirements_met', 0))
+                        total_issues = (total_backend - met_backend) if total_backend > met_backend else 0
+                        
+                        # Add frontend unmet
+                        total_frontend = tool_summary.get('frontend_total', 0)
+                        met_frontend = tool_summary.get('frontend_met', 0)
+                        total_issues += (total_frontend - met_frontend) if total_frontend > met_frontend else 0
+                        
+                        # Add admin unmet
+                        total_admin = tool_summary.get('admin_total', 0)
+                        met_admin = tool_summary.get('admin_met', 0)
+                        total_issues += (total_admin - met_admin) if total_admin > met_admin else 0
+                        
                         # Add failed endpoints
-                        total_endpoints = tool_summary.get('total_control_endpoints', 0)
-                        passed_endpoints = tool_summary.get('control_endpoints_passed', 0)
+                        total_endpoints = tool_summary.get('total_api_endpoints', tool_summary.get('total_control_endpoints', 0))
+                        passed_endpoints = tool_summary.get('api_endpoints_passed', tool_summary.get('control_endpoints_passed', 0))
                         total_issues += (total_endpoints - passed_endpoints) if total_endpoints > passed_endpoints else 0
                     elif tname == 'code-quality-analyzer':
-                        total_stylistic = tool_summary.get('total_stylistic_requirements', 0)
-                        met_stylistic = tool_summary.get('stylistic_requirements_met', 0)
-                        total_issues = total_stylistic - met_stylistic if total_stylistic > met_stylistic else 0
+                        # New format: quality_metrics with aggregate score
+                        if 'aggregate_score' in tool_summary:
+                            # New format with quality metrics
+                            metrics_total = tool_summary.get('total_metrics', 0)
+                            metrics_passed = tool_summary.get('metrics_passed', 0)
+                            total_issues = (metrics_total - metrics_passed) if metrics_total > metrics_passed else 0
+                            total_issues += tool_summary.get('critical_issues_count', 0)
+                            compliance_pct = tool_summary.get('aggregate_score')
+                        else:
+                            # Legacy format: stylistic_requirements
+                            total_stylistic = tool_summary.get('total_stylistic_requirements', 0)
+                            met_stylistic = tool_summary.get('stylistic_requirements_met', 0)
+                            total_issues = total_stylistic - met_stylistic if total_stylistic > met_stylistic else 0
                     
                     tools[tname] = {
                         'status': tool_status,
                         'duration_seconds': None,  # AI analyzer doesn't track per-tool duration
                         'total_issues': total_issues,
                         'executed': tool_status in ['success', 'warning', 'partial_success'],
-                        'compliance_percentage': tool_summary.get('compliance_percentage'),
+                        'compliance_percentage': compliance_pct,
                         'error': tdata.get('error')
                     }
             

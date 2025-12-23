@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """
-AI Analyzer Service - Requirement-Based Code Analysis
-=====================================================
+AI Analyzer Service - Requirement-Based Code Analysis & Code Quality Metrics
+============================================================================
 
-AI-powered analyzer that checks if applications meet specific functional requirements
-using GPT4All or OpenRouter APIs. Based on gpt4all_analysis.py logic with static-analyzer structure.
+AI-powered analyzer that:
+1. Requirements Scanner - Checks backend, frontend, and admin requirements compliance
+2. Code Quality Analyzer - Measures actual code quality metrics (error handling, 
+   type annotations, documentation, anti-patterns, code organization)
+
+Uses GPT4All or OpenRouter APIs. Based on methodology from:
+- SoftwareQuality4AI (SQ4AI) framework concepts
+- ISO/IEC 25010 software quality characteristics
 """
 
 import asyncio
@@ -15,7 +21,7 @@ import sys
 from dataclasses import dataclass, asdict, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 
 # Add the analyzer directory to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -23,6 +29,110 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from analyzer.shared.service_base import BaseWSService
 from analyzer.shared.path_utils import resolve_app_source_path
 import aiohttp
+
+
+# =============================================================================
+# Code Quality Metrics Definitions (inspired by SQ4AI framework)
+# =============================================================================
+
+CODE_QUALITY_METRICS = {
+    "error_handling": {
+        "name": "Error Handling Coverage",
+        "description": "Proper try-catch blocks, error boundaries, and graceful error handling",
+        "weight": 1.5,  # Higher weight for critical metric
+        "checks": [
+            "try-catch blocks for async operations",
+            "Error boundaries in React components",
+            "API error response handling",
+            "User-friendly error messages",
+            "Logging of errors for debugging"
+        ]
+    },
+    "type_safety": {
+        "name": "Type Safety & Annotations",
+        "description": "Use of TypeScript/type hints, proper typing throughout codebase",
+        "weight": 1.2,
+        "checks": [
+            "Type annotations on function parameters",
+            "Return type annotations",
+            "Interface/type definitions for data structures",
+            "Avoidance of 'any' type",
+            "Proper null/undefined handling"
+        ]
+    },
+    "code_organization": {
+        "name": "Code Organization & Structure",
+        "description": "Clean file structure, separation of concerns, modular design",
+        "weight": 1.0,
+        "checks": [
+            "Logical file/folder structure",
+            "Separation of concerns (MVC/components)",
+            "Single responsibility principle",
+            "Reasonable file sizes",
+            "Clear naming conventions"
+        ]
+    },
+    "documentation": {
+        "name": "Documentation & Comments",
+        "description": "Code comments, docstrings, README, inline documentation",
+        "weight": 0.8,
+        "checks": [
+            "Function/method docstrings",
+            "Complex logic explanations",
+            "API endpoint documentation",
+            "README with setup instructions",
+            "Inline comments for non-obvious code"
+        ]
+    },
+    "anti_patterns": {
+        "name": "Anti-Pattern Detection",
+        "description": "Detection of code smells, bad practices, and security issues",
+        "weight": 1.5,  # Higher weight for critical metric
+        "checks": [
+            "No console.log in production code",
+            "No hardcoded secrets/credentials",
+            "No TODO/FIXME in critical paths",
+            "No unused imports/variables",
+            "No deeply nested callbacks (callback hell)"
+        ]
+    },
+    "security_practices": {
+        "name": "Security Best Practices",
+        "description": "Input validation, sanitization, secure coding patterns",
+        "weight": 1.3,
+        "checks": [
+            "Input validation on user data",
+            "SQL injection prevention (parameterized queries)",
+            "XSS prevention (output encoding)",
+            "CORS configuration",
+            "Authentication/authorization checks"
+        ]
+    },
+    "performance_patterns": {
+        "name": "Performance Patterns",
+        "description": "Efficient algorithms, caching, lazy loading, optimization",
+        "weight": 1.0,
+        "checks": [
+            "Efficient database queries (no N+1)",
+            "Proper use of async/await",
+            "Memoization where appropriate",
+            "Lazy loading of components/data",
+            "Avoiding unnecessary re-renders"
+        ]
+    },
+    "testing_readiness": {
+        "name": "Testing Readiness",
+        "description": "Code structured for testability, presence of tests",
+        "weight": 0.7,
+        "checks": [
+            "Dependency injection patterns",
+            "Pure functions where possible",
+            "Mockable external dependencies",
+            "Test files present",
+            "Testable component structure"
+        ]
+    }
+}
 
 
 @dataclass
@@ -34,6 +144,23 @@ class RequirementResult:
     error: Optional[str] = None
     frontend_analysis: Optional[Dict] = None
     backend_analysis: Optional[Dict] = None
+
+
+@dataclass
+class QualityMetricResult:
+    """Result of a code quality metric analysis."""
+    metric_id: str = ""
+    metric_name: str = ""
+    passed: bool = False
+    score: float = 0.0  # 0-100 scale
+    confidence: str = "LOW"
+    findings: List[str] = field(default_factory=list)
+    recommendations: List[str] = field(default_factory=list)
+    evidence: Dict[str, Any] = field(default_factory=dict)
+    weight: float = 1.0
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
 
 
 @dataclass
@@ -92,8 +219,8 @@ class AIAnalyzer(BaseWSService):
     def _detect_available_tools(self) -> List[str]:
         """Detect available AI analysis tools (template-based only)."""
         tools = [
-            "requirements-checker",      # Functional requirements + curl endpoint tests
-            "code-quality-analyzer"      # Stylistic requirements + code patterns
+            "requirements-scanner",      # Unified: Backend + Frontend + Admin requirements + endpoint tests
+            "code-quality-analyzer"      # True code quality metrics (error handling, types, anti-patterns, etc.)
         ]
         
         # Check GPT4All availability
@@ -418,16 +545,17 @@ Focus on whether the functionality described in the requirement is actually impl
         
         return env_vars
 
-    async def check_requirements_with_curl(self, model_slug: str, app_number: int, backend_port: int, frontend_port: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None) -> Dict[str, Any]:
+    async def scan_requirements(self, model_slug: str, app_number: int, backend_port: int, frontend_port: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        Check functional requirements with endpoint testing + AI analysis.
+        UNIFIED REQUIREMENTS SCANNER - Analyzes Backend + Frontend + Admin requirements.
         
         Analyzes:
-        1. ALL api_endpoints from requirements (not just health)
-        2. ALL admin_api_endpoints from requirements (with auth)
-        3. Functional requirements via AI code analysis
+        1. Backend requirements (functional/API) via AI code analysis
+        2. Frontend requirements (UI/UX) via AI code analysis  
+        3. Admin requirements (admin panel) via AI code analysis
+        4. API endpoints testing (public + admin with auth)
         
-        Scans only backend/ and frontend/ directories for efficiency.
+        Scans backend/ and frontend/ directories for code analysis.
         """
         try:
             # Find application path
@@ -436,11 +564,11 @@ Focus on whether the functionality described in the requirement is actually impl
                 return {
                     'status': 'error',
                     'error': f'Application path not found: {model_slug} app {app_number}',
-                    'tool_name': 'requirements-checker'
+                    'tool_name': 'requirements-scanner'
                 }
             
-            self.log.info(f"Requirements checker for {model_slug} app {app_number}")
-            await self.send_progress('starting', f"Starting requirements checker for {model_slug} app {app_number}", analysis_id=analysis_id)
+            self.log.info(f"Requirements scanner for {model_slug} app {app_number}")
+            await self.send_progress('starting', f"Starting unified requirements scanner for {model_slug} app {app_number}", analysis_id=analysis_id)
             
             # Auto-detect ports from app's .env file
             app_env = await self._read_app_env(app_path)
@@ -462,21 +590,18 @@ Focus on whether the functionality described in the requirement is actually impl
                 return {
                     'status': 'error',
                     'error': f'Requirements template {template_slug} not found',
-                    'tool_name': 'requirements-checker'
+                    'tool_name': 'requirements-scanner'
                 }
             
             with open(requirements_file, 'r', encoding='utf-8') as f:
                 template_data = json.load(f)
             
-            # Support current requirement template structure:
-            # - backend_requirements: list of functional requirements (strings)
-            # - frontend_requirements: list of UI/UX requirements (strings)
-            # - api_endpoints: list of endpoint definitions (ALL endpoints, not just health)
-            # - admin_api_endpoints: list of admin endpoint definitions (require auth)
-            # - data_model: object with name, fields, related
-            functional_requirements = template_data.get('backend_requirements', [])
+            # Extract ALL requirement types from template
+            backend_requirements = template_data.get('backend_requirements', [])
+            frontend_requirements = template_data.get('frontend_requirements', [])
+            admin_requirements = template_data.get('admin_requirements', [])
             
-            # Extract ALL api_endpoints from requirements (not just health/status)
+            # Extract ALL api_endpoints from requirements
             api_endpoints = template_data.get('api_endpoints', [])
             control_endpoints = [
                 {
@@ -519,11 +644,13 @@ Focus on whether the functionality described in the requirement is actually impl
                     }
                 ]
             
-            if not functional_requirements and not all_endpoints:
+            total_requirements = len(backend_requirements) + len(frontend_requirements) + len(admin_requirements)
+            
+            if total_requirements == 0 and not all_endpoints:
                 return {
                     'status': 'warning',
-                    'message': 'No functional requirements or API endpoints found in template',
-                    'tool_name': 'requirements-checker'
+                    'message': 'No requirements or API endpoints found in template',
+                    'tool_name': 'requirements-scanner'
                 }
             
             await self.send_progress('testing_endpoints', f"Testing {len(all_endpoints)} API endpoints ({len(control_endpoints)} public, {len(admin_endpoints)} admin)", analysis_id=analysis_id)
@@ -568,10 +695,6 @@ Focus on whether the functionality described in the requirement is actually impl
                             kwargs['json'] = request_body
                         
                         async with session.request(method, f"{base_url}{path}", **kwargs) as response:
-                            # Flexible pass criteria:
-                            # - Expected status matches, OR
-                            # - Any 2xx status (success), OR
-                            # - 401/403 for auth endpoints without token (indicates endpoint exists)
                             actual_status = response.status
                             passed = (
                                 actual_status == expected_status or
@@ -603,9 +726,7 @@ Focus on whether the functionality described in the requirement is actually impl
                         'base_url': base_url
                     })
             
-            await self.send_progress('analyzing_functional_requirements', f"Analyzing {len(functional_requirements)} functional requirements", analysis_id=analysis_id)
-            
-            # Read backend and frontend code only (efficient scope)
+            # Read backend and frontend code for AI analysis
             code_content = await self._read_app_code_focused(app_path, focus_dirs=['backend', 'frontend'])
             
             # Build template context for AI prompts
@@ -616,44 +737,97 @@ Focus on whether the functionality described in the requirement is actually impl
                 'data_model': template_data.get('data_model', {})
             }
             
-            # Analyze functional requirements with AI
-            functional_results = []
             gemini_model = config.get('gemini_model', 'anthropic/claude-3-5-haiku') if config else 'anthropic/claude-3-5-haiku'
             
-            for i, req in enumerate(functional_requirements, 1):
-                await self.send_progress('checking_requirement', f"Checking functional requirement {i}/{len(functional_requirements)}", analysis_id=analysis_id)
+            # ===== BACKEND REQUIREMENTS ANALYSIS =====
+            backend_results = []
+            if backend_requirements:
+                await self.send_progress('analyzing_backend', f"Analyzing {len(backend_requirements)} backend requirements", analysis_id=analysis_id)
                 
-                result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, template_context=template_context)
-                functional_results.append({
-                    'requirement': req,
-                    'met': result.met,
-                    'confidence': result.confidence,
-                    'explanation': result.explanation,
-                    'evidence': result.backend_analysis or result.frontend_analysis or {}
-                })
+                for i, req in enumerate(backend_requirements, 1):
+                    await self.send_progress('checking_requirement', f"Checking backend requirement {i}/{len(backend_requirements)}", analysis_id=analysis_id)
+                    
+                    result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, focus='backend', template_context=template_context)
+                    backend_results.append({
+                        'requirement': req,
+                        'met': result.met,
+                        'confidence': result.confidence,
+                        'explanation': result.explanation,
+                        'category': 'backend'
+                    })
             
-            # Calculate compliance with breakdown
-            total_functional = len(functional_results)
-            met_functional = sum(1 for r in functional_results if r['met'])
+            # ===== FRONTEND REQUIREMENTS ANALYSIS =====
+            frontend_results = []
+            if frontend_requirements:
+                await self.send_progress('analyzing_frontend', f"Analyzing {len(frontend_requirements)} frontend requirements", analysis_id=analysis_id)
+                
+                for i, req in enumerate(frontend_requirements, 1):
+                    await self.send_progress('checking_requirement', f"Checking frontend requirement {i}/{len(frontend_requirements)}", analysis_id=analysis_id)
+                    
+                    result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, focus='frontend', template_context=template_context)
+                    frontend_results.append({
+                        'requirement': req,
+                        'met': result.met,
+                        'confidence': result.confidence,
+                        'explanation': result.explanation,
+                        'category': 'frontend'
+                    })
+            
+            # ===== ADMIN REQUIREMENTS ANALYSIS =====
+            admin_results = []
+            if admin_requirements:
+                await self.send_progress('analyzing_admin', f"Analyzing {len(admin_requirements)} admin requirements", analysis_id=analysis_id)
+                
+                for i, req in enumerate(admin_requirements, 1):
+                    await self.send_progress('checking_requirement', f"Checking admin requirement {i}/{len(admin_requirements)}", analysis_id=analysis_id)
+                    
+                    result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, focus='admin', template_context=template_context)
+                    admin_results.append({
+                        'requirement': req,
+                        'met': result.met,
+                        'confidence': result.confidence,
+                        'explanation': result.explanation,
+                        'category': 'admin'
+                    })
+            
+            # Calculate compliance breakdown
+            met_backend = sum(1 for r in backend_results if r['met'])
+            met_frontend = sum(1 for r in frontend_results if r['met'])
+            met_admin = sum(1 for r in admin_results if r['met'])
+            
             total_endpoints = len(endpoint_results)
             passed_endpoints = sum(1 for e in endpoint_results if e['passed'])
             
-            # Separate public and admin endpoint counts
             public_endpoints = [e for e in endpoint_results if not e.get('requires_auth', False)]
             admin_endpoint_results = [e for e in endpoint_results if e.get('requires_auth', False)]
             passed_public = sum(1 for e in public_endpoints if e['passed'])
             passed_admin = sum(1 for e in admin_endpoint_results if e['passed'])
             
+            # Combine all requirements for overall compliance
+            total_reqs = len(backend_requirements) + len(frontend_requirements) + len(admin_requirements)
+            total_met = met_backend + met_frontend + met_admin
+            
             overall_compliance = (
-                (met_functional + passed_endpoints) / (total_functional + total_endpoints) * 100
-                if (total_functional + total_endpoints) > 0 else 0
+                (total_met + passed_endpoints) / (total_reqs + total_endpoints) * 100
+                if (total_reqs + total_endpoints) > 0 else 0
             )
             
-            await self.send_progress('completed', f"Requirements check completed: {met_functional}/{total_functional} functional, {passed_endpoints}/{total_endpoints} endpoints ({passed_public} public, {passed_admin} admin)", analysis_id=analysis_id)
+            # Functional compliance (backend + endpoints only, for backwards compatibility)
+            functional_total = len(backend_requirements) + total_endpoints
+            functional_met = met_backend + passed_endpoints
+            functional_compliance = (functional_met / functional_total * 100) if functional_total > 0 else 0
+            
+            await self.send_progress('completed', 
+                f"Requirements scan completed: Backend {met_backend}/{len(backend_requirements)}, "
+                f"Frontend {met_frontend}/{len(frontend_requirements)}, "
+                f"Admin {met_admin}/{len(admin_requirements)}, "
+                f"Endpoints {passed_endpoints}/{total_endpoints}", 
+                analysis_id=analysis_id
+            )
             
             return {
                 'status': 'success',
-                'tool_name': 'requirements-checker',
+                'tool_name': 'requirements-scanner',
                 'metadata': {
                     'model_slug': model_slug,
                     'app_number': app_number,
@@ -667,18 +841,45 @@ Focus on whether the functionality described in the requirement is actually impl
                     'analysis_time': datetime.now().isoformat()
                 },
                 'results': {
-                    'functional_requirements': functional_results,
+                    # Unified requirements by category
+                    'backend_requirements': backend_results,
+                    'frontend_requirements': frontend_results,
+                    'admin_requirements': admin_results,
+                    # Backwards compatibility: combined functional list
+                    'functional_requirements': backend_results,  # For UI compatibility
+                    # Endpoint test results
                     'control_endpoint_tests': endpoint_results,
                     'summary': {
-                        'total_functional_requirements': total_functional,
-                        'functional_requirements_met': met_functional,
+                        # Per-category breakdown
+                        'backend_total': len(backend_requirements),
+                        'backend_met': met_backend,
+                        'backend_compliance': (met_backend / len(backend_requirements) * 100) if backend_requirements else 0,
+                        
+                        'frontend_total': len(frontend_requirements),
+                        'frontend_met': met_frontend,
+                        'frontend_compliance': (met_frontend / len(frontend_requirements) * 100) if frontend_requirements else 0,
+                        
+                        'admin_total': len(admin_requirements),
+                        'admin_met': met_admin,
+                        'admin_compliance': (met_admin / len(admin_requirements) * 100) if admin_requirements else 0,
+                        
+                        # Endpoint breakdown
                         'total_api_endpoints': total_endpoints,
                         'api_endpoints_passed': passed_endpoints,
                         'public_endpoints_total': len(public_endpoints),
                         'public_endpoints_passed': passed_public,
                         'admin_endpoints_total': len(admin_endpoint_results),
                         'admin_endpoints_passed': passed_admin,
-                        'compliance_percentage': overall_compliance
+                        
+                        # Overall metrics
+                        'total_requirements': total_reqs,
+                        'requirements_met': total_met,
+                        'compliance_percentage': overall_compliance,
+                        
+                        # Backwards compatibility fields
+                        'total_functional_requirements': len(backend_requirements),
+                        'functional_requirements_met': met_backend,
+                        'functional_compliance': functional_compliance
                     }
                 },
                 'template_info': {
@@ -690,25 +891,36 @@ Focus on whether the functionality described in the requirement is actually impl
             }
             
         except Exception as e:
-            self.log.error(f"Requirements checker failed: {e}")
+            self.log.error(f"Requirements scanner failed: {e}")
             import traceback
             traceback.print_exc()
-            await self.send_progress('failed', f"Requirements checker failed: {e}", analysis_id=analysis_id)
+            await self.send_progress('failed', f"Requirements scanner failed: {e}", analysis_id=analysis_id)
             return {
                 'status': 'error',
                 'error': str(e),
-                'tool_name': 'requirements-checker'
+                'tool_name': 'requirements-scanner'
             }
+    
+    # Backwards compatibility alias
+    async def check_requirements_with_curl(self, model_slug: str, app_number: int, backend_port: int, frontend_port: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None) -> Dict[str, Any]:
+        """Backwards compatibility wrapper for scan_requirements."""
+        return await self.scan_requirements(model_slug, app_number, backend_port, frontend_port, config, analysis_id)
     
     async def analyze_code_quality(self, model_slug: str, app_number: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        NEW TOOL: Analyze code quality against stylistic requirements using Gemini Flash.
+        TRUE CODE QUALITY ANALYZER - Measures actual code quality metrics.
         
-        Analyzes:
-        - Stylistic requirements (React hooks, error handling, loading states, accessibility)
-        - Code patterns and quality indicators
+        Analyzes (inspired by SQ4AI framework and ISO/IEC 25010):
+        - Error handling coverage
+        - Type safety & annotations
+        - Code organization & structure
+        - Documentation & comments
+        - Anti-pattern detection (console.log, hardcoded secrets, TODOs)
+        - Security best practices
+        - Performance patterns
+        - Testing readiness
         
-        Scans only backend/ and frontend/ directories for efficiency.
+        Returns both individual metric pass/fail AND aggregate quality score.
         """
         try:
             # Find application path
@@ -723,70 +935,80 @@ Focus on whether the functionality described in the requirement is actually impl
             self.log.info(f"Code quality analysis for {model_slug} app {app_number}")
             await self.send_progress('starting', f"Starting code quality analysis for {model_slug} app {app_number}", analysis_id=analysis_id)
             
-            # Load requirements template
+            # Load template for context (optional)
             template_slug = config.get('template_slug', 'crud_todo_list') if config else 'crud_todo_list'
+            template_data = {}
             requirements_file = self._find_requirements_template(template_slug)
-            if not requirements_file:
-                return {
-                    'status': 'error',
-                    'error': f'Requirements template {template_slug} not found',
-                    'tool_name': 'code-quality-analyzer'
-                }
+            if requirements_file:
+                with open(requirements_file, 'r', encoding='utf-8') as f:
+                    template_data = json.load(f)
             
-            with open(requirements_file, 'r', encoding='utf-8') as f:
-                template_data = json.load(f)
+            await self.send_progress('reading_code', "Reading backend and frontend code", analysis_id=analysis_id)
             
-            # Support current requirement template structure:
-            # - frontend_requirements: list of UI/UX requirements (strings)
-            stylistic_requirements = template_data.get('frontend_requirements', [])
-            
-            if not stylistic_requirements:
-                return {
-                    'status': 'warning',
-                    'message': 'No stylistic requirements (frontend_requirements) found in template',
-                    'tool_name': 'code-quality-analyzer'
-                }
-            
-            await self.send_progress('reading_code', f"Reading backend and frontend code", analysis_id=analysis_id)
-            
-            # Read backend and frontend code only (efficient scope)
+            # Read code from backend and frontend
             full_scan = config.get('full_scan', False) if config else False
             if full_scan:
-                code_content = await self._read_app_code(app_path)  # Full scan
+                code_content = await self._read_app_code(app_path)
             else:
-                code_content = await self._read_app_code_focused(app_path, focus_dirs=['backend', 'frontend'])  # Focused scan
+                code_content = await self._read_app_code_focused(app_path, focus_dirs=['backend', 'frontend'])
             
-            # Build template context for AI prompts
+            # Detect project type
+            project_info = self._detect_project_type(code_content, app_path)
+            
             template_context = {
                 'name': template_data.get('name', template_slug),
                 'category': template_data.get('category', 'Unknown'),
-                'description': template_data.get('description', '')
+                'description': template_data.get('description', ''),
+                'project_type': project_info
             }
             
-            await self.send_progress('analyzing_stylistic_requirements', f"Analyzing {len(stylistic_requirements)} stylistic requirements", analysis_id=analysis_id)
-            
-            # Analyze stylistic requirements with AI
-            stylistic_results = []
             gemini_model = config.get('gemini_model', 'anthropic/claude-3-5-haiku') if config else 'anthropic/claude-3-5-haiku'
             
-            for i, req in enumerate(stylistic_requirements, 1):
-                await self.send_progress('checking_requirement', f"Checking stylistic requirement {i}/{len(stylistic_requirements)}", analysis_id=analysis_id)
+            await self.send_progress('analyzing_quality', f"Analyzing {len(CODE_QUALITY_METRICS)} quality metrics", analysis_id=analysis_id)
+            
+            # Analyze each quality metric
+            quality_results = []
+            total_weighted_score = 0.0
+            total_weight = 0.0
+            
+            for metric_id, metric_def in CODE_QUALITY_METRICS.items():
+                await self.send_progress('checking_metric', f"Analyzing: {metric_def['name']}", analysis_id=analysis_id)
                 
-                result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, focus='quality', template_context=template_context)
-                stylistic_results.append({
-                    'requirement': req,
-                    'met': result.met,
-                    'confidence': result.confidence,
-                    'explanation': result.explanation,
-                    'patterns_detected': result.frontend_analysis or result.backend_analysis or {}
-                })
+                result = await self._analyze_quality_metric(
+                    code_content, 
+                    metric_id, 
+                    metric_def, 
+                    gemini_model, 
+                    template_context
+                )
+                
+                quality_results.append(result.to_dict())
+                
+                # Accumulate weighted score
+                total_weighted_score += result.score * result.weight
+                total_weight += result.weight
             
-            # Calculate compliance
-            total_stylistic = len(stylistic_results)
-            met_stylistic = sum(1 for r in stylistic_results if r['met'])
-            compliance = (met_stylistic / total_stylistic * 100) if total_stylistic > 0 else 0
+            # Calculate aggregate score (0-100)
+            aggregate_score = (total_weighted_score / total_weight) if total_weight > 0 else 0
             
-            await self.send_progress('completed', f"Code quality analysis completed: {met_stylistic}/{total_stylistic} stylistic requirements met", analysis_id=analysis_id)
+            # Determine quality grade
+            quality_grade = self._calculate_quality_grade(aggregate_score)
+            
+            # Count passed/failed metrics
+            passed_metrics = sum(1 for r in quality_results if r['passed'])
+            failed_metrics = len(quality_results) - passed_metrics
+            
+            # Identify critical issues (failed metrics with high weight)
+            critical_issues = [
+                r for r in quality_results 
+                if not r['passed'] and r['weight'] >= 1.3
+            ]
+            
+            await self.send_progress('completed', 
+                f"Code quality analysis completed: {aggregate_score:.1f}/100 ({quality_grade}), "
+                f"{passed_metrics}/{len(quality_results)} metrics passed", 
+                analysis_id=analysis_id
+            )
             
             return {
                 'status': 'success',
@@ -798,20 +1020,51 @@ Focus on whether the functionality described in the requirement is actually impl
                     'template_slug': template_slug,
                     'template_name': template_data.get('name', template_slug),
                     'template_category': template_data.get('category', 'Unknown'),
+                    'project_info': project_info,
                     'full_scan': full_scan,
+                    'metrics_analyzed': len(CODE_QUALITY_METRICS),
                     'analysis_time': datetime.now().isoformat()
                 },
                 'results': {
-                    'stylistic_requirements': stylistic_results,
+                    'quality_metrics': quality_results,
                     'summary': {
-                        'total_stylistic_requirements': total_stylistic,
-                        'stylistic_requirements_met': met_stylistic,
-                        'compliance_percentage': compliance
+                        # Aggregate score and grade
+                        'aggregate_score': round(aggregate_score, 1),
+                        'quality_grade': quality_grade,
+                        'grade_description': self._get_grade_description(quality_grade),
+                        
+                        # Metric counts
+                        'total_metrics': len(quality_results),
+                        'metrics_passed': passed_metrics,
+                        'metrics_failed': failed_metrics,
+                        'compliance_percentage': (passed_metrics / len(quality_results) * 100) if quality_results else 0,
+                        
+                        # Critical issues
+                        'critical_issues_count': len(critical_issues),
+                        'critical_issues': [
+                            {
+                                'metric': ci['metric_name'],
+                                'findings': ci['findings'][:3]  # Top 3 findings
+                            }
+                            for ci in critical_issues
+                        ],
+                        
+                        # Score breakdown by category
+                        'score_breakdown': {
+                            r['metric_id']: {
+                                'score': r['score'],
+                                'passed': r['passed'],
+                                'weight': r['weight']
+                            }
+                            for r in quality_results
+                        },
+                        
+                        # Backwards compatibility
+                        'total_stylistic_requirements': len(quality_results),
+                        'stylistic_requirements_met': passed_metrics
                     }
                 },
-                'template_info': {
-                    'description': template_data.get('description', '')
-                }
+                'recommendations': self._generate_quality_recommendations(quality_results)
             }
             
         except Exception as e:
@@ -824,6 +1077,289 @@ Focus on whether the functionality described in the requirement is actually impl
                 'error': str(e),
                 'tool_name': 'code-quality-analyzer'
             }
+    
+    def _detect_project_type(self, code_content: str, app_path: Path) -> Dict[str, Any]:
+        """Detect project technologies and frameworks."""
+        project_info = {
+            'backend_framework': 'unknown',
+            'frontend_framework': 'unknown',
+            'languages': [],
+            'has_typescript': False,
+            'has_tests': False
+        }
+        
+        # Detect backend framework
+        if 'from flask import' in code_content or 'import flask' in code_content.lower():
+            project_info['backend_framework'] = 'Flask'
+        elif 'from fastapi import' in code_content:
+            project_info['backend_framework'] = 'FastAPI'
+        elif 'from django' in code_content:
+            project_info['backend_framework'] = 'Django'
+        elif 'express' in code_content.lower() and 'require' in code_content:
+            project_info['backend_framework'] = 'Express.js'
+        
+        # Detect frontend framework
+        if 'import React' in code_content or 'from "react"' in code_content:
+            project_info['frontend_framework'] = 'React'
+        elif 'createApp' in code_content and 'vue' in code_content.lower():
+            project_info['frontend_framework'] = 'Vue'
+        elif '@angular' in code_content:
+            project_info['frontend_framework'] = 'Angular'
+        
+        # Detect languages
+        if '.py' in code_content:
+            project_info['languages'].append('Python')
+        if '.js' in code_content or '.jsx' in code_content:
+            project_info['languages'].append('JavaScript')
+        if '.ts' in code_content or '.tsx' in code_content:
+            project_info['languages'].append('TypeScript')
+            project_info['has_typescript'] = True
+        
+        # Check for tests
+        test_patterns = ['test_', '_test.py', '.test.js', '.spec.ts', 'pytest', 'jest', 'unittest']
+        project_info['has_tests'] = any(p in code_content.lower() for p in test_patterns)
+        
+        return project_info
+    
+    async def _analyze_quality_metric(
+        self, 
+        code_content: str, 
+        metric_id: str, 
+        metric_def: Dict[str, Any],
+        model: str,
+        template_context: Dict[str, Any]
+    ) -> QualityMetricResult:
+        """Analyze a single code quality metric using AI."""
+        try:
+            if not self.openrouter_api_key:
+                return QualityMetricResult(
+                    metric_id=metric_id,
+                    metric_name=metric_def['name'],
+                    passed=False,
+                    score=0,
+                    confidence="LOW",
+                    findings=["OpenRouter API key not available"],
+                    weight=metric_def.get('weight', 1.0)
+                )
+            
+            # Build quality metric prompt
+            prompt = self._build_quality_metric_prompt(code_content, metric_id, metric_def, template_context)
+            
+            # Truncate if too long
+            max_length = 14000
+            if len(prompt) > max_length:
+                prompt = prompt[:max_length] + "\n[...code truncated...]"
+            
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    "Authorization": f"Bearer {self.openrouter_api_key}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {"role": "user", "content": prompt}
+                    ],
+                    "max_tokens": 1000,
+                    "temperature": 0.2
+                }
+                
+                async with session.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=45)
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        ai_response = data['choices'][0]['message']['content']
+                        return self._parse_quality_metric_response(ai_response, metric_id, metric_def)
+                    else:
+                        error_text = await response.text()
+                        self.log.warning(f"Quality metric API error: {response.status} - {error_text[:200]}")
+                        return QualityMetricResult(
+                            metric_id=metric_id,
+                            metric_name=metric_def['name'],
+                            passed=False,
+                            score=0,
+                            confidence="LOW",
+                            findings=[f"API error: {response.status}"],
+                            weight=metric_def.get('weight', 1.0)
+                        )
+                        
+        except Exception as e:
+            self.log.error(f"Quality metric analysis failed for {metric_id}: {e}")
+            return QualityMetricResult(
+                metric_id=metric_id,
+                metric_name=metric_def['name'],
+                passed=False,
+                score=0,
+                confidence="LOW",
+                findings=[f"Analysis error: {str(e)}"],
+                weight=metric_def.get('weight', 1.0)
+            )
+    
+    def _build_quality_metric_prompt(
+        self, 
+        code_content: str, 
+        metric_id: str, 
+        metric_def: Dict[str, Any],
+        template_context: Dict[str, Any]
+    ) -> str:
+        """Build prompt for analyzing a specific code quality metric."""
+        
+        checks_list = "\n".join(f"  - {check}" for check in metric_def.get('checks', []))
+        
+        project_info = template_context.get('project_type', {})
+        project_section = ""
+        if project_info:
+            project_section = f"""
+PROJECT CONTEXT:
+- Backend: {project_info.get('backend_framework', 'Unknown')}
+- Frontend: {project_info.get('frontend_framework', 'Unknown')}
+- TypeScript: {'Yes' if project_info.get('has_typescript') else 'No'}
+- Has Tests: {'Yes' if project_info.get('has_tests') else 'No'}
+"""
+        
+        return f"""Analyze the following web application code for this CODE QUALITY METRIC:
+
+METRIC: {metric_def['name']}
+DESCRIPTION: {metric_def['description']}
+
+SPECIFIC CHECKS TO EVALUATE:
+{checks_list}
+{project_section}
+CODE TO ANALYZE:
+{code_content}
+
+Provide your analysis in this EXACT format:
+
+SCORE: [0-100 numeric score based on how well the code meets this metric]
+PASSED: [YES if score >= 60, NO otherwise]
+CONFIDENCE: [HIGH/MEDIUM/LOW based on how confident you are in the assessment]
+
+FINDINGS:
+- [List specific issues found, one per line, starting with -]
+- [Be specific: mention file names, line patterns, or code snippets]
+- [If no issues, write "No significant issues found"]
+
+RECOMMENDATIONS:
+- [List actionable recommendations to improve this metric, one per line]
+- [Be specific and actionable]
+
+EVIDENCE:
+[Quote 1-3 specific code examples that support your assessment, good or bad]
+
+Focus on practical, real-world code quality concerns. Be specific about what you found in the code."""
+    
+    def _parse_quality_metric_response(
+        self, 
+        response: str, 
+        metric_id: str, 
+        metric_def: Dict[str, Any]
+    ) -> QualityMetricResult:
+        """Parse AI response for quality metric analysis."""
+        result = QualityMetricResult(
+            metric_id=metric_id,
+            metric_name=metric_def['name'],
+            weight=metric_def.get('weight', 1.0)
+        )
+        
+        try:
+            # Extract score
+            score_match = re.search(r'SCORE:\s*(\d+)', response, re.IGNORECASE)
+            if score_match:
+                result.score = min(100, max(0, int(score_match.group(1))))
+            
+            # Extract passed status
+            passed_match = re.search(r'PASSED:\s*(YES|NO)', response, re.IGNORECASE)
+            if passed_match:
+                result.passed = passed_match.group(1).upper() == 'YES'
+            else:
+                # Fallback: passed if score >= 60
+                result.passed = result.score >= 60
+            
+            # Extract confidence
+            confidence_match = re.search(r'CONFIDENCE:\s*(HIGH|MEDIUM|LOW)', response, re.IGNORECASE)
+            if confidence_match:
+                result.confidence = confidence_match.group(1).upper()
+            
+            # Extract findings
+            findings_match = re.search(r'FINDINGS:\s*\n((?:[-•]\s*.+\n?)+)', response, re.IGNORECASE)
+            if findings_match:
+                findings_text = findings_match.group(1)
+                result.findings = [
+                    line.strip().lstrip('-•').strip()
+                    for line in findings_text.split('\n')
+                    if line.strip() and line.strip().startswith(('-', '•'))
+                ]
+            
+            # Extract recommendations
+            recommendations_match = re.search(r'RECOMMENDATIONS:\s*\n((?:[-•]\s*.+\n?)+)', response, re.IGNORECASE)
+            if recommendations_match:
+                recommendations_text = recommendations_match.group(1)
+                result.recommendations = [
+                    line.strip().lstrip('-•').strip()
+                    for line in recommendations_text.split('\n')
+                    if line.strip() and line.strip().startswith(('-', '•'))
+                ]
+            
+            # Extract evidence
+            evidence_match = re.search(r'EVIDENCE:\s*\n(.+?)(?=\n\n|\Z)', response, re.IGNORECASE | re.DOTALL)
+            if evidence_match:
+                result.evidence = {'code_samples': evidence_match.group(1).strip()}
+                
+        except Exception as e:
+            self.log.error(f"Error parsing quality metric response: {e}")
+            result.findings.append(f"Parse error: {str(e)}")
+        
+        return result
+    
+    def _calculate_quality_grade(self, score: float) -> str:
+        """Calculate letter grade from numeric score."""
+        if score >= 90:
+            return 'A'
+        elif score >= 80:
+            return 'B'
+        elif score >= 70:
+            return 'C'
+        elif score >= 60:
+            return 'D'
+        else:
+            return 'F'
+    
+    def _get_grade_description(self, grade: str) -> str:
+        """Get description for a quality grade."""
+        descriptions = {
+            'A': 'Excellent - Production ready with high quality standards',
+            'B': 'Good - Minor improvements recommended',
+            'C': 'Acceptable - Several areas need attention',
+            'D': 'Below Standard - Significant improvements needed',
+            'F': 'Poor - Major quality issues, refactoring recommended'
+        }
+        return descriptions.get(grade, 'Unknown grade')
+    
+    def _generate_quality_recommendations(self, quality_results: List[Dict]) -> List[Dict[str, Any]]:
+        """Generate prioritized recommendations from quality results."""
+        recommendations = []
+        
+        # Sort by weight (priority) and failed status
+        sorted_results = sorted(
+            quality_results,
+            key=lambda x: (not x['passed'], -x['weight']),
+            reverse=False
+        )
+        
+        for result in sorted_results:
+            if not result['passed'] and result.get('recommendations'):
+                recommendations.append({
+                    'metric': result['metric_name'],
+                    'priority': 'HIGH' if result['weight'] >= 1.3 else 'MEDIUM' if result['weight'] >= 1.0 else 'LOW',
+                    'score': result['score'],
+                    'actions': result['recommendations'][:3]  # Top 3 recommendations
+                })
+        
+        return recommendations[:5]  # Return top 5 priority recommendations
     
     def _find_requirements_template(self, template_slug: str) -> Optional[Path]:
         """Find requirements template file by slug.
@@ -880,7 +1416,7 @@ Focus on whether the functionality described in the requirement is actually impl
         return code_content
     
     async def _analyze_requirement_with_gemini(self, code_content: str, requirement: str, model: str, focus: str = 'functional', template_context: Optional[Dict[str, Any]] = None) -> RequirementResult:
-        """Analyze requirement using Gemini Flash via OpenRouter."""
+        """Analyze requirement using AI via OpenRouter."""
         try:
             if not self.openrouter_api_key:
                 return RequirementResult(
@@ -890,10 +1426,15 @@ Focus on whether the functionality described in the requirement is actually impl
                     error="OPENROUTER_API_KEY not set"
                 )
             
-            # Build focused prompt
-            if focus == 'quality':
-                prompt = self._build_quality_analysis_prompt(code_content, requirement, template_context)
+            # Build focused prompt based on requirement type
+            if focus == 'backend':
+                prompt = self._build_backend_requirement_prompt(code_content, requirement, template_context)
+            elif focus == 'frontend':
+                prompt = self._build_frontend_requirement_prompt(code_content, requirement, template_context)
+            elif focus == 'admin':
+                prompt = self._build_admin_requirement_prompt(code_content, requirement, template_context)
             else:
+                # Default functional analysis
                 prompt = self._build_analysis_prompt(code_content, requirement, template_context)
             
             # Truncate code if too long
@@ -926,7 +1467,7 @@ Focus on whether the functionality described in the requirement is actually impl
                         return self._parse_ai_response(ai_response)
                     else:
                         error_text = await response.text()
-                        self.log.warning(f"Gemini API error: {response.status} - {error_text}")
+                        self.log.warning(f"AI API error: {response.status} - {error_text}")
                         return RequirementResult(
                             met=False,
                             confidence="LOW",
@@ -934,7 +1475,7 @@ Focus on whether the functionality described in the requirement is actually impl
                             error=error_text
                         )
         except Exception as e:
-            self.log.error(f"Gemini analysis failed: {e}")
+            self.log.error(f"AI analysis failed: {e}")
             return RequirementResult(
                 met=False,
                 confidence="LOW",
@@ -942,9 +1483,41 @@ Focus on whether the functionality described in the requirement is actually impl
                 error=str(e)
             )
     
-    def _build_quality_analysis_prompt(self, code_content: str, requirement: str, template_context: Optional[Dict[str, Any]] = None) -> str:
-        """Build quality-focused analysis prompt for stylistic requirements."""
-        # Add template context if provided
+    def _build_backend_requirement_prompt(self, code_content: str, requirement: str, template_context: Optional[Dict[str, Any]] = None) -> str:
+        """Build prompt for backend/API requirement analysis."""
+        context_section = ""
+        if template_context:
+            context_section = f"""
+APPLICATION CONTEXT:
+- Template: {template_context.get('name', 'Unknown')} ({template_context.get('category', 'Unknown')})
+- Description: {template_context.get('description', 'N/A')}
+- Data Model: {json.dumps(template_context.get('data_model', {}), indent=2) if template_context.get('data_model') else 'N/A'}
+
+"""
+        
+        return f"""Analyze the following web application BACKEND code to determine if it meets this BACKEND/API requirement:
+
+REQUIREMENT: {requirement}
+{context_section}
+CODE:
+{code_content}
+
+Focus on:
+- Backend Python code (Flask/FastAPI routes, models, database operations)
+- API endpoint implementations
+- Data model definitions and database schema
+- Business logic implementation
+- Server-side validation
+
+Please analyze the code and respond in this exact format:
+MET: [YES/NO]
+CONFIDENCE: [HIGH/MEDIUM/LOW]
+EXPLANATION: [Brief explanation with specific evidence from the backend code]
+
+Focus on whether the backend functionality described in the requirement is actually implemented."""
+    
+    def _build_frontend_requirement_prompt(self, code_content: str, requirement: str, template_context: Optional[Dict[str, Any]] = None) -> str:
+        """Build prompt for frontend/UI requirement analysis."""
         context_section = ""
         if template_context:
             context_section = f"""
@@ -954,7 +1527,7 @@ APPLICATION CONTEXT:
 
 """
         
-        return f"""Analyze the following web application code to determine if it meets this CODE QUALITY requirement:
+        return f"""Analyze the following web application FRONTEND code to determine if it meets this UI/UX requirement:
 
 REQUIREMENT: {requirement}
 {context_section}
@@ -962,17 +1535,55 @@ CODE:
 {code_content}
 
 Focus on:
-- Code patterns and best practices
-- Implementation quality and consistency
-- Presence of required patterns (e.g., React hooks, error handling, loading states)
-- Accessibility and user experience considerations
+- React/Vue/Angular components and JSX/TSX
+- UI elements (buttons, forms, inputs, lists, tables)
+- User interaction handlers (onClick, onChange, onSubmit)
+- Visual feedback (loading states, error messages, success indicators)
+- Accessibility features (aria labels, semantic HTML)
+- Responsive design patterns
 
-Respond in this exact format:
+Please analyze the code and respond in this exact format:
 MET: [YES/NO]
 CONFIDENCE: [HIGH/MEDIUM/LOW]
-EXPLANATION: [Detailed explanation with specific code examples or patterns found]
+EXPLANATION: [Brief explanation with specific UI elements or components found]
 
-Provide concrete evidence from the code to support your assessment."""
+Focus on whether the frontend/UI functionality described in the requirement is actually implemented."""
+    
+    def _build_admin_requirement_prompt(self, code_content: str, requirement: str, template_context: Optional[Dict[str, Any]] = None) -> str:
+        """Build prompt for admin panel requirement analysis."""
+        context_section = ""
+        if template_context:
+            context_section = f"""
+APPLICATION CONTEXT:
+- Template: {template_context.get('name', 'Unknown')} ({template_context.get('category', 'Unknown')})
+- Description: {template_context.get('description', 'N/A')}
+- Data Model: {json.dumps(template_context.get('data_model', {}), indent=2) if template_context.get('data_model') else 'N/A'}
+
+"""
+        
+        return f"""Analyze the following web application code to determine if it meets this ADMIN PANEL requirement:
+
+REQUIREMENT: {requirement}
+{context_section}
+CODE:
+{code_content}
+
+Focus on:
+- Admin dashboard components and pages
+- Statistics/metrics display
+- Data management tables (listing all items)
+- Bulk operations (select multiple, bulk delete)
+- Status toggle functionality (activate/deactivate)
+- Admin-specific API endpoints (/api/admin/*)
+- Search and filter functionality
+- Authentication/authorization for admin routes
+
+Please analyze the code and respond in this exact format:
+MET: [YES/NO]
+CONFIDENCE: [HIGH/MEDIUM/LOW]
+EXPLANATION: [Brief explanation with specific admin features or components found]
+
+Focus on whether the admin panel functionality described in the requirement is actually implemented."""
     
     def _calculate_aggregate_summary(self, tools_results: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate aggregate summary from multiple tool results."""
@@ -981,16 +1592,29 @@ Provide concrete evidence from the code to support your assessment."""
             'tools_successful': 0,
             'overall_compliance': 0.0,
             'requirements_summary': {
-                'total_functional': 0,
-                'functional_met': 0,
-                'total_stylistic': 0,
-                'stylistic_met': 0,
+                'total_backend': 0,
+                'backend_met': 0,
+                'total_frontend': 0,
+                'frontend_met': 0,
+                'total_admin': 0,
+                'admin_met': 0,
                 'total_endpoints': 0,
                 'endpoints_passed': 0,
                 'public_endpoints_total': 0,
                 'public_endpoints_passed': 0,
                 'admin_endpoints_total': 0,
-                'admin_endpoints_passed': 0
+                'admin_endpoints_passed': 0,
+                # Backwards compatibility
+                'total_functional': 0,
+                'functional_met': 0,
+                'total_stylistic': 0,
+                'stylistic_met': 0
+            },
+            'quality_summary': {
+                'aggregate_score': 0,
+                'quality_grade': 'N/A',
+                'metrics_passed': 0,
+                'metrics_total': 0
             }
         }
         
@@ -1003,14 +1627,20 @@ Provide concrete evidence from the code to support your assessment."""
             if result.get('status') == 'success':
                 summary['tools_successful'] += 1
             
-            # Extract from requirements-checker results
-            if tool_name == 'requirements-checker' and result.get('status') == 'success':
+            # Extract from requirements-scanner results (new unified tool)
+            if tool_name in ['requirements-scanner', 'requirements-checker'] and result.get('status') == 'success':
                 results_data = result.get('results', {})
                 tool_summary = results_data.get('summary', {})
                 
-                summary['requirements_summary']['total_functional'] = tool_summary.get('total_functional_requirements', 0)
-                summary['requirements_summary']['functional_met'] = tool_summary.get('functional_requirements_met', 0)
-                # Support both old and new field names for backwards compatibility
+                # New breakdown fields
+                summary['requirements_summary']['total_backend'] = tool_summary.get('backend_total', tool_summary.get('total_functional_requirements', 0))
+                summary['requirements_summary']['backend_met'] = tool_summary.get('backend_met', tool_summary.get('functional_requirements_met', 0))
+                summary['requirements_summary']['total_frontend'] = tool_summary.get('frontend_total', 0)
+                summary['requirements_summary']['frontend_met'] = tool_summary.get('frontend_met', 0)
+                summary['requirements_summary']['total_admin'] = tool_summary.get('admin_total', 0)
+                summary['requirements_summary']['admin_met'] = tool_summary.get('admin_met', 0)
+                
+                # Endpoint data
                 summary['requirements_summary']['total_endpoints'] = tool_summary.get('total_api_endpoints', tool_summary.get('total_control_endpoints', 0))
                 summary['requirements_summary']['endpoints_passed'] = tool_summary.get('api_endpoints_passed', tool_summary.get('control_endpoints_passed', 0))
                 summary['requirements_summary']['public_endpoints_total'] = tool_summary.get('public_endpoints_total', 0)
@@ -1018,16 +1648,27 @@ Provide concrete evidence from the code to support your assessment."""
                 summary['requirements_summary']['admin_endpoints_total'] = tool_summary.get('admin_endpoints_total', 0)
                 summary['requirements_summary']['admin_endpoints_passed'] = tool_summary.get('admin_endpoints_passed', 0)
                 
+                # Backwards compatibility
+                summary['requirements_summary']['total_functional'] = tool_summary.get('total_functional_requirements', summary['requirements_summary']['total_backend'])
+                summary['requirements_summary']['functional_met'] = tool_summary.get('functional_requirements_met', summary['requirements_summary']['backend_met'])
+                
                 if tool_summary.get('compliance_percentage') is not None:
                     compliance_values.append(tool_summary['compliance_percentage'])
             
-            # Extract from code-quality-analyzer results
+            # Extract from code-quality-analyzer results (new true quality metrics)
             elif tool_name == 'code-quality-analyzer' and result.get('status') == 'success':
                 results_data = result.get('results', {})
                 tool_summary = results_data.get('summary', {})
                 
-                summary['requirements_summary']['total_stylistic'] = tool_summary.get('total_stylistic_requirements', 0)
-                summary['requirements_summary']['stylistic_met'] = tool_summary.get('stylistic_requirements_met', 0)
+                # New quality metrics
+                summary['quality_summary']['aggregate_score'] = tool_summary.get('aggregate_score', 0)
+                summary['quality_summary']['quality_grade'] = tool_summary.get('quality_grade', 'N/A')
+                summary['quality_summary']['metrics_passed'] = tool_summary.get('metrics_passed', 0)
+                summary['quality_summary']['metrics_total'] = tool_summary.get('total_metrics', 0)
+                
+                # Backwards compatibility (stylistic = quality metrics)
+                summary['requirements_summary']['total_stylistic'] = tool_summary.get('total_metrics', tool_summary.get('total_stylistic_requirements', 0))
+                summary['requirements_summary']['stylistic_met'] = tool_summary.get('metrics_passed', tool_summary.get('stylistic_requirements_met', 0))
                 
                 if tool_summary.get('compliance_percentage') is not None:
                     compliance_values.append(tool_summary['compliance_percentage'])
@@ -1036,15 +1677,17 @@ Provide concrete evidence from the code to support your assessment."""
         if compliance_values:
             summary['overall_compliance'] = sum(compliance_values) / len(compliance_values)
         
-        # Calculate total requirements met ratio
+        # Calculate total requirements met ratio (requirements scanner only, not quality metrics)
         total_reqs = (
-            summary['requirements_summary']['total_functional'] +
-            summary['requirements_summary']['total_stylistic'] +
+            summary['requirements_summary']['total_backend'] +
+            summary['requirements_summary']['total_frontend'] +
+            summary['requirements_summary']['total_admin'] +
             summary['requirements_summary']['total_endpoints']
         )
         total_met = (
-            summary['requirements_summary']['functional_met'] +
-            summary['requirements_summary']['stylistic_met'] +
+            summary['requirements_summary']['backend_met'] +
+            summary['requirements_summary']['frontend_met'] +
+            summary['requirements_summary']['admin_met'] +
             summary['requirements_summary']['endpoints_passed']
         )
         
@@ -1066,8 +1709,16 @@ Provide concrete evidence from the code to support your assessment."""
                 app_number = message_data.get("app_number", 1)
                 config = message_data.get("config", None)
                 analysis_id = message_data.get("id")
-                # Tool selection normalized - default to both tools for comprehensive analysis
-                tools = list(self.extract_selected_tools(message_data) or ["requirements-checker", "code-quality-analyzer"])
+                # Tool selection - support both old and new names, default to both tools
+                requested_tools = list(self.extract_selected_tools(message_data) or ["requirements-scanner", "code-quality-analyzer"])
+                
+                # Map old tool names to new ones for backwards compatibility
+                tools = []
+                for tool in requested_tools:
+                    if tool == "requirements-checker":
+                        tools.append("requirements-scanner")
+                    else:
+                        tools.append(tool)
                 
                 # Validate template_slug is provided in config
                 if not config or not config.get('template_slug'):
@@ -1105,18 +1756,18 @@ Provide concrete evidence from the code to support your assessment."""
                 tools_run = 0
                 errors = []
                 
-                # Run requirements-checker if requested
-                if "requirements-checker" in tools:
+                # Run requirements-scanner if requested
+                if "requirements-scanner" in tools:
                     backend_port = config.get('backend_port', 5000) if config else 5000
                     frontend_port = config.get('frontend_port', 8000) if config else 8000
                     
-                    req_result = await self.check_requirements_with_curl(
+                    req_result = await self.scan_requirements(
                         model_slug, app_number, backend_port, frontend_port, config, analysis_id=analysis_id
                     )
-                    aggregated_results['tools']['requirements-checker'] = req_result
+                    aggregated_results['tools']['requirements-scanner'] = req_result
                     tools_run += 1
                     if req_result.get('status') == 'error':
-                        errors.append(f"requirements-checker: {req_result.get('error', 'Unknown error')}")
+                        errors.append(f"requirements-scanner: {req_result.get('error', 'Unknown error')}")
                 
                 # Run code-quality-analyzer if requested
                 if "code-quality-analyzer" in tools:
@@ -1166,6 +1817,7 @@ Provide concrete evidence from the code to support your assessment."""
                     "status": "healthy",
                     "available_tools": self._detect_available_tools(),
                     "requirements_system": "template-based",
+                    "quality_metrics": list(CODE_QUALITY_METRICS.keys()),
                     "timestamp": datetime.now().isoformat()
                 }
                 print(f"[ai-analyzer] Sending server_status response: {response}")
