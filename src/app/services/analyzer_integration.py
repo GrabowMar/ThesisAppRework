@@ -255,6 +255,18 @@ class AnalysisExecutor:
         # Get task configuration if available
         task_config = getattr(task, 'config', {}) or {}
         
+        # Fallback: Try to get config from task metadata (custom_options)
+        if not task_config.get('tools_config') and hasattr(task, 'get_metadata'):
+            metadata = task.get_metadata()
+            custom_options = metadata.get('custom_options', {})
+            # Check for tool_config (from UI) or tools_config (standard)
+            tools_config = custom_options.get('tool_config') or custom_options.get('tools_config')
+            if tools_config:
+                # Ensure task_config is a dict we can modify
+                if not isinstance(task_config, dict):
+                    task_config = {}
+                task_config['tools_config'] = tools_config
+        
         request = {
             'request_id': str(uuid.uuid4()),
             'task_id': task.task_id,

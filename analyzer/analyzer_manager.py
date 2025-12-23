@@ -1509,12 +1509,12 @@ class AnalyzerManager:
             logger.info(f"[ANALYZE] Tool filter applied: {tools}")
 
         # Run all analysis types including AI
-        # Pass tools parameter to static analysis; other services ignore it or use defaults
+        # Pass tools parameter to all analysis services so they can filter execution
         analysis_tasks = [
             ('static', self.run_static_analysis(model_slug, app_number, tools=tools)),
-            ('performance', self.run_performance_test(model_slug, app_number)),
-            ('dynamic', self.run_dynamic_analysis(model_slug, app_number)),
-            ('ai', self.run_ai_analysis(model_slug, app_number)),
+            ('performance', self.run_performance_test(model_slug, app_number, tools=tools)),
+            ('dynamic', self.run_dynamic_analysis(model_slug, app_number, tools=tools)),
+            ('ai', self.run_ai_analysis(model_slug, app_number, tools=tools)),
         ]
         
         results = {}

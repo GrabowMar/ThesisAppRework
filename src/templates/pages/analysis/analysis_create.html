@@ -1617,13 +1617,28 @@ function showToolConfig(toolName) {
     `;
     
     document.body.appendChild(configModal);
-    const modal = new bootstrap.Modal(configModal);
-    modal.show();
     
-    // Remove modal when hidden
-    configModal.addEventListener('hidden.bs.modal', () => {
-        document.body.removeChild(configModal);
-    });
+    try {
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            const modal = new bootstrap.Modal(configModal);
+            modal.show();
+            
+            // Remove modal when hidden
+            configModal.addEventListener('hidden.bs.modal', () => {
+                document.body.removeChild(configModal);
+            });
+        } else {
+            console.error('Bootstrap Modal not available');
+            alert('Configuration menu cannot be opened: Bootstrap is missing.');
+            document.body.removeChild(configModal);
+            return;
+        }
+    } catch (e) {
+        console.error('Error showing modal:', e);
+        alert('Error opening configuration menu.');
+        if (configModal.parentNode) document.body.removeChild(configModal);
+        return;
+    }
     
     // Load configuration form
     loadToolConfigForm(toolName, tool.config_schema);
@@ -1945,6 +1960,15 @@ function proceedWithFormSubmission() {
                 inp.value = toolId;
                 toolsInputsWrapper.appendChild(inp);
               });
+            }
+
+            // Tool Configurations
+            if (window.toolConfigurations && Object.keys(window.toolConfigurations).length > 0) {
+                const configInp = document.createElement('input');
+                configInp.type = 'hidden';
+                configInp.name = 'tool_config';
+                configInp.value = JSON.stringify(window.toolConfigurations);
+                toolsInputsWrapper.appendChild(configInp);
             }
           }
 

@@ -261,6 +261,7 @@ def analysis_create():
         model_slug = (form.get('model_slug') or '').strip()
         app_number_raw = form.get('app_number') or ''
         selected_tools = form.getlist('selected_tools[]')
+        tool_config_raw = form.get('tool_config')
         priority = (form.get('priority') or 'normal').strip()
         
         # Container management options (all opt-in, disabled by default)
@@ -458,6 +459,14 @@ def analysis_create():
             except Exception:
                 pass
 
+            # Parse tool configuration if present
+            tool_config = {}
+            if tool_config_raw:
+                try:
+                    tool_config = json.loads(tool_config_raw)
+                except Exception as e:
+                    current_app.logger.warning(f"Failed to parse tool_config: {e}")
+
             base_options: Dict[str, Any] = {
                 'selected_tools': tool_ids,
                 'selected_tool_names': tool_names,
@@ -465,6 +474,7 @@ def analysis_create():
                 'tools_by_service': tools_by_service,
                 'source': 'wizard_custom',
                 'analysis_type': 'custom',
+                'tool_config': tool_config,
                 # Container management options
                 'container_management': {
                     'start_before_analysis': container_auto_start,
