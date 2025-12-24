@@ -45,11 +45,12 @@ exclude_dirs:
 # Severity levels: LOW, MEDIUM, HIGH
 # Confidence levels: LOW, MEDIUM, HIGH
 
-# Minimum severity to report (LOW captures everything)
-severity: LOW
+# Minimum severity to report (low captures everything)
+# IMPORTANT: bandit requires lowercase values: low, medium, high
+severity: low
 
 # Minimum confidence to report
-confidence: MEDIUM
+confidence: medium
 
 # ============================================================================
 # OUTPUT SETTINGS

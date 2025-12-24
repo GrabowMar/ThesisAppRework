@@ -428,6 +428,161 @@ def _extract_static_findings(tool_name: str, results: Dict[str, Any]) -> List[Di
                         'solution': ''
                     })
 
+    # Ruff - fast Python linter
+    elif tool_name == 'ruff':
+        issues = tool_data.get('issues', [])
+        for issue in issues:
+            findings.append({
+                'severity': normalize_severity(issue.get('type', 'warning')),
+                'rule_id': issue.get('code', issue.get('rule')),
+                'file': issue.get('filename', issue.get('file', '')).replace('/app/sources/', ''),
+                'line': issue.get('line', issue.get('location', {}).get('row')),
+                'description': issue.get('message', ''),
+                'message': issue.get('code', issue.get('rule', '')),
+                'solution': issue.get('fix', {}).get('message', '') if isinstance(issue.get('fix'), dict) else ''
+            })
+
+    # MyPy - Python type checker
+    elif tool_name == 'mypy':
+        issues = tool_data.get('issues', [])
+        for issue in issues:
+            findings.append({
+                'severity': normalize_severity(issue.get('severity', 'error')),
+                'rule_id': issue.get('code', 'type-error'),
+                'file': issue.get('file', '').replace('/app/sources/', ''),
+                'line': issue.get('line'),
+                'description': issue.get('message', ''),
+                'message': issue.get('code', 'Type Error'),
+                'solution': ''
+            })
+
+    # Vulture - dead code detector
+    elif tool_name == 'vulture':
+        issues = tool_data.get('issues', [])
+        for issue in issues:
+            findings.append({
+                'severity': 'LOW',  # Dead code is typically low severity
+                'rule_id': 'unused-code',
+                'file': issue.get('filename', issue.get('file', '')).replace('/app/sources/', ''),
+                'line': issue.get('first_lineno', issue.get('line')),
+                'description': issue.get('message', f"Unused {issue.get('typ', 'code')}: {issue.get('name', '')}"),
+                'message': f"Unused {issue.get('typ', 'code')}",
+                'solution': 'Remove unused code or mark as intentionally unused',
+                'confidence': issue.get('confidence', 100)
+            })
+
+    # Radon - complexity analyzer
+    elif tool_name == 'radon':
+        # Radon produces complexity metrics
+        complexity_data = tool_data.get('complexity', tool_data.get('raw', {}))
+        if isinstance(complexity_data, dict):
+            for file_path, functions in complexity_data.items():
+                if isinstance(functions, list):
+                    for func in functions:
+                        complexity = func.get('complexity', 0)
+                        rank = func.get('rank', 'A')
+                        # Only report C, D, E, F ranks as issues
+                        if rank in ['C', 'D', 'E', 'F']:
+                            severity = 'HIGH' if rank in ['E', 'F'] else 'MEDIUM' if rank == 'D' else 'LOW'
+                            findings.append({
+                                'severity': severity,
+                                'rule_id': f'complexity-{rank}',
+                                'file': file_path.replace('/app/sources/', ''),
+                                'line': func.get('lineno'),
+                                'description': f"Function '{func.get('name')}' has complexity {complexity} (rank {rank})",
+                                'message': f"High Cyclomatic Complexity ({rank})",
+                                'solution': 'Refactor to reduce complexity',
+                                'complexity': complexity,
+                                'rank': rank
+                            })
+
+    # Safety - Python vulnerability scanner
+    elif tool_name == 'safety':
+        vulnerabilities = tool_data.get('vulnerabilities', tool_data.get('issues', []))
+        for vuln in vulnerabilities:
+            findings.append({
+                'severity': normalize_severity(vuln.get('severity', 'MEDIUM')),
+                'rule_id': vuln.get('vulnerability_id', vuln.get('id', 'CVE-UNKNOWN')),
+                'file': 'requirements.txt',
+                'line': '-',
+                'description': vuln.get('advisory', vuln.get('description', '')),
+                'message': f"Vulnerable package: {vuln.get('package_name', vuln.get('package', ''))} {vuln.get('vulnerable_versions', '')}",
+                'solution': f"Update to {vuln.get('analyzed_version', '')}",
+                'cve': vuln.get('CVE', vuln.get('cve', ''))
+            })
+
+    # Pip-audit - Python dependency auditor
+    elif tool_name in ('pip-audit', 'pip_audit'):
+        vulnerabilities = tool_data.get('vulnerabilities', tool_data.get('issues', []))
+        for vuln in vulnerabilities:
+            findings.append({
+                'severity': normalize_severity(vuln.get('severity', 'MEDIUM')),
+                'rule_id': vuln.get('id', vuln.get('vulnerability_id', 'VULN-UNKNOWN')),
+                'file': 'requirements.txt',
+                'line': '-',
+                'description': vuln.get('description', vuln.get('advisory', '')),
+                'message': f"Vulnerable: {vuln.get('name', vuln.get('package', ''))} {vuln.get('version', '')}",
+                'solution': f"Update to fixed version: {vuln.get('fix_versions', [])}",
+                'cve': vuln.get('aliases', [vuln.get('CVE', '')])[0] if vuln.get('aliases') else ''
+            })
+
+    # Detect-secrets - secret detection
+    elif tool_name in ('detect-secrets', 'detect_secrets'):
+        secrets = tool_data.get('results', tool_data.get('issues', []))
+        if isinstance(secrets, dict):
+            # Format: { "file.py": [{ "type": "...", "line_number": N }] }
+            for file_path, file_secrets in secrets.items():
+                if isinstance(file_secrets, list):
+                    for secret in file_secrets:
+                        findings.append({
+                            'severity': 'HIGH',
+                            'rule_id': secret.get('type', 'secret-detected'),
+                            'file': file_path.replace('/app/sources/', ''),
+                            'line': secret.get('line_number'),
+                            'description': f"Potential {secret.get('type', 'secret')} detected",
+                            'message': f"Secret: {secret.get('type', 'unknown type')}",
+                            'solution': 'Remove secret and use environment variables or secret management'
+                        })
+        elif isinstance(secrets, list):
+            for secret in secrets:
+                findings.append({
+                    'severity': 'HIGH',
+                    'rule_id': secret.get('type', 'secret-detected'),
+                    'file': secret.get('filename', secret.get('file', '')).replace('/app/sources/', ''),
+                    'line': secret.get('line_number', secret.get('line')),
+                    'description': f"Potential {secret.get('type', 'secret')} detected",
+                    'message': f"Secret: {secret.get('type', 'unknown type')}",
+                    'solution': 'Remove secret and use environment variables or secret management'
+                })
+
+    # NPM-audit - JavaScript dependency auditor
+    elif tool_name in ('npm-audit', 'npm_audit'):
+        advisories = tool_data.get('advisories', tool_data.get('vulnerabilities', tool_data.get('issues', {})))
+        if isinstance(advisories, dict):
+            for adv_id, advisory in advisories.items():
+                findings.append({
+                    'severity': normalize_severity(advisory.get('severity', 'moderate')),
+                    'rule_id': str(adv_id),
+                    'file': 'package.json',
+                    'line': '-',
+                    'description': advisory.get('overview', advisory.get('title', '')),
+                    'message': f"Vulnerable: {advisory.get('module_name', '')}",
+                    'solution': advisory.get('recommendation', f"Update {advisory.get('module_name', '')}"),
+                    'cwe': advisory.get('cwe', '')
+                })
+        elif isinstance(advisories, list):
+            for advisory in advisories:
+                findings.append({
+                    'severity': normalize_severity(advisory.get('severity', 'moderate')),
+                    'rule_id': advisory.get('id', 'NPM-VULN'),
+                    'file': 'package.json',
+                    'line': '-',
+                    'description': advisory.get('title', advisory.get('overview', '')),
+                    'message': f"Vulnerable: {advisory.get('name', advisory.get('module_name', ''))}",
+                    'solution': advisory.get('recommendation', ''),
+                    'cwe': advisory.get('cwe', '')
+                })
+
     return findings
 
 # =============================================================================

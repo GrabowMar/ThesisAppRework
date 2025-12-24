@@ -50,96 +50,139 @@
             </div>
           </div>
 
-          {# Metrics Section (Performance) #}
-          <div id="metrics-section" class="mb-4 d-none">
-            <h6 class="text-uppercase text-muted small fw-bold mb-2">Key Metrics</h6>
-            <div class="row g-3" id="metrics-container">
-              {# Populated dynamically #}
-            </div>
-          </div>
+          {# Tab Navigation for Issues/Raw Output #}
+          <ul class="nav nav-tabs mb-3" id="toolDetailTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="issues-tab" data-bs-toggle="tab" data-bs-target="#issues-panel" type="button" role="tab" aria-controls="issues-panel" aria-selected="true">
+                <i class="fa-solid fa-list me-1"></i> Parsed Issues
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="raw-tab" data-bs-toggle="tab" data-bs-target="#raw-panel" type="button" role="tab" aria-controls="raw-panel" aria-selected="false">
+                <i class="fa-solid fa-code me-1"></i> Raw Output
+              </button>
+            </li>
+          </ul>
 
-          {# Issues Table Section #}
-          <div id="issues-section">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h6 class="text-uppercase text-muted small fw-bold mb-0">Findings</h6>
-              <div class="d-flex gap-2">
-                <input type="text" class="form-control form-control-sm" id="issue-search" placeholder="Search findings..." style="width: 200px;">
-                <select class="form-select form-select-sm" id="severity-filter" style="width: 120px;">
-                  <option value="all">All Severities</option>
-                  <option value="critical">Critical</option>
-                  <option value="high">High</option>
-                  <option value="medium">Medium</option>
-                  <option value="low">Low</option>
-                  <option value="info">Info</option>
-                </select>
-              </div>
-            </div>
-            
-            <div class="table-responsive border rounded">
-              <table class="table table-sm table-vcenter table-hover mb-0" id="issues-table">
-                <thead class="bg-light">
-                  <tr>
-                    <th class="w-10">Severity</th>
-                    <th>Message</th>
-                    <th>Location</th>
-                    <th class="w-1">Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="issues-table-body">
+          <div class="tab-content" id="toolDetailTabContent">
+            {# Issues Tab Panel #}
+            <div class="tab-pane fade show active" id="issues-panel" role="tabpanel" aria-labelledby="issues-tab">
+              {# Metrics Section (Performance) #}
+              <div id="metrics-section" class="mb-4 d-none">
+                <h6 class="text-uppercase text-muted small fw-bold mb-2">Key Metrics</h6>
+                <div class="row g-3" id="metrics-container">
                   {# Populated dynamically #}
-                </tbody>
-              </table>
-            </div>
-            <div id="no-issues-message" class="empty py-5 d-none">
-              <div class="empty-icon">
-                <i class="fa-solid fa-check-circle fa-3x text-success"></i>
+                </div>
               </div>
-              <p class="empty-title h5">No issues found</p>
-              <p class="empty-subtitle text-muted">This tool completed without detecting any issues.</p>
-            </div>
-          </div>
 
-          {# Detail View (Hidden by default, shown when clicking an issue) #}
-          <div id="detail-view" class="d-none mt-3 border-top pt-3">
-            <button class="btn btn-sm btn-ghost-secondary mb-3" id="back-to-list-btn" type="button">
-              <i class="fa-solid fa-arrow-left me-1"></i> Back to List
-            </button>
-            
-            <h4 id="detail-title" class="mb-2"></h4>
-            <div class="mb-3">
-              <span id="detail-severity" class="badge bg-secondary"></span>
-              <span id="detail-location" class="text-muted ms-2 font-monospace small"></span>
-            </div>
-
-            <div class="card bg-light mb-3">
-              <div class="card-body">
-                <h6 class="card-title text-uppercase text-muted small fw-bold">Description</h6>
-                <p class="card-text" id="detail-description"></p>
-              </div>
-            </div>
-
-            <div id="detail-code-section" class="mb-3 d-none">
-              <h6 class="text-uppercase text-muted small fw-bold">Code / Context</h6>
-              <pre class="bg-dark text-light p-3 rounded"><code id="detail-code"></code></pre>
-            </div>
-
-            <div id="detail-remediation-section" class="mb-3 d-none">
-              <h6 class="text-uppercase text-muted small fw-bold text-success">Remediation</h6>
-              <div class="alert alert-success bg-success-lt text-dark border-success" id="detail-remediation"></div>
-            </div>
-
-            <div class="accordion accordion-flush" id="evidenceAccordion">
-              <div class="accordion-item">
-                <h2 class="accordion-header">
-                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#evidenceCollapse" aria-expanded="false" aria-controls="evidenceCollapse">
-                    <i class="fa-solid fa-code me-2"></i>Raw Evidence
-                  </button>
-                </h2>
-                <div id="evidenceCollapse" class="accordion-collapse collapse" data-bs-parent="#evidenceAccordion">
-                  <div class="accordion-body p-0">
-                    <pre class="small mb-0 overflow-auto" style="max-height: 300px;"><code id="detail-evidence"></code></pre>
+              {# Issues Table Section #}
+              <div id="issues-section">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h6 class="text-uppercase text-muted small fw-bold mb-0">Findings</h6>
+                  <div class="d-flex gap-2">
+                    <input type="text" class="form-control form-control-sm" id="issue-search" placeholder="Search findings..." style="width: 200px;">
+                    <select class="form-select form-select-sm" id="severity-filter" style="width: 120px;">
+                      <option value="all">All Severities</option>
+                      <option value="critical">Critical</option>
+                      <option value="high">High</option>
+                      <option value="medium">Medium</option>
+                      <option value="low">Low</option>
+                      <option value="info">Info</option>
+                    </select>
                   </div>
                 </div>
+                
+                <div class="table-responsive border rounded">
+                  <table class="table table-sm table-vcenter table-hover mb-0" id="issues-table">
+                    <thead class="bg-light">
+                      <tr>
+                        <th class="w-10">Severity</th>
+                        <th>Message</th>
+                        <th>Location</th>
+                        <th class="w-1">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="issues-table-body">
+                      {# Populated dynamically #}
+                    </tbody>
+                  </table>
+                </div>
+                <div id="no-issues-message" class="empty py-5 d-none">
+                  <div class="empty-icon">
+                    <i class="fa-solid fa-check-circle fa-3x text-success"></i>
+                  </div>
+                  <p class="empty-title h5">No issues found</p>
+                  <p class="empty-subtitle text-muted">This tool completed without detecting any issues.</p>
+                </div>
+              </div>
+
+              {# Detail View (Hidden by default, shown when clicking an issue) #}
+              <div id="detail-view" class="d-none mt-3 border-top pt-3">
+                <button class="btn btn-sm btn-ghost-secondary mb-3" id="back-to-list-btn" type="button">
+                  <i class="fa-solid fa-arrow-left me-1"></i> Back to List
+                </button>
+                
+                <h4 id="detail-title" class="mb-2"></h4>
+                <div class="mb-3">
+                  <span id="detail-severity" class="badge bg-secondary"></span>
+                  <span id="detail-location" class="text-muted ms-2 font-monospace small"></span>
+                </div>
+
+                <div class="card bg-light mb-3">
+                  <div class="card-body">
+                    <h6 class="card-title text-uppercase text-muted small fw-bold">Description</h6>
+                    <p class="card-text" id="detail-description"></p>
+                  </div>
+                </div>
+
+                <div id="detail-code-section" class="mb-3 d-none">
+                  <h6 class="text-uppercase text-muted small fw-bold">Code / Context</h6>
+                  <pre class="bg-dark text-light p-3 rounded"><code id="detail-code"></code></pre>
+                </div>
+
+                <div id="detail-remediation-section" class="mb-3 d-none">
+                  <h6 class="text-uppercase text-muted small fw-bold text-success">Remediation</h6>
+                  <div class="alert alert-success bg-success-lt text-dark border-success" id="detail-remediation"></div>
+                </div>
+
+                <div class="accordion accordion-flush" id="evidenceAccordion">
+                  <div class="accordion-item">
+                    <h2 class="accordion-header">
+                      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#evidenceCollapse" aria-expanded="false" aria-controls="evidenceCollapse">
+                        <i class="fa-solid fa-code me-2"></i>Raw Evidence
+                      </button>
+                    </h2>
+                    <div id="evidenceCollapse" class="accordion-collapse collapse" data-bs-parent="#evidenceAccordion">
+                      <div class="accordion-body p-0">
+                        <pre class="small mb-0 overflow-auto" style="max-height: 300px;"><code id="detail-evidence"></code></pre>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {# Raw Output Tab Panel #}
+            <div class="tab-pane fade" id="raw-panel" role="tabpanel" aria-labelledby="raw-tab">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="text-uppercase text-muted small fw-bold mb-0">
+                  <i class="fa-solid fa-file-code me-1"></i> Raw Tool Output
+                </h6>
+                <div class="btn-group">
+                  <button class="btn btn-sm btn-outline-primary" id="copy-raw-btn" type="button" title="Copy to clipboard">
+                    <i class="fa-solid fa-copy me-1"></i> Copy
+                  </button>
+                  <button class="btn btn-sm btn-outline-secondary" id="download-raw-btn" type="button" title="Download JSON">
+                    <i class="fa-solid fa-download me-1"></i> Download
+                  </button>
+                </div>
+              </div>
+              <div class="border rounded bg-dark p-2" style="max-height: 500px; overflow: auto;">
+                <pre class="text-light mb-0 small" style="white-space: pre-wrap; word-wrap: break-word;"><code id="raw-output-content">Loading...</code></pre>
+              </div>
+              <div class="mt-2 text-muted small">
+                <i class="fa-solid fa-info-circle me-1"></i>
+                This shows the complete raw output from the tool, including all metadata and unparsed results.
               </div>
             </div>
           </div>

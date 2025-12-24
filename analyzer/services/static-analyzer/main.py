@@ -71,8 +71,10 @@ class StaticAnalyzer(BaseWSService):
         try:
             # Use asyncio subprocess to avoid blocking the event loop
             # This allows WebSocket ping/pong to continue during long-running tools
+            # Provide DEVNULL as stdin to prevent EOF errors from tools expecting input
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
+                stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
@@ -310,13 +312,13 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 exclude_dirs = bandit_full_config.get('exclude_dirs', self.default_ignores)
                 skips = bandit_full_config.get('skips', ['B101'])
                 severity = bandit_full_config.get('severity', 'low')
-                confidence = bandit_full_config.get('confidence', 'low')
+                confidence = bandit_full_config.get('confidence', 'medium')
             else:
                 # Fallback to runtime config or defaults
                 exclude_dirs = bandit_config.get('exclude_dirs') or self.default_ignores
                 skips = bandit_config.get('skips', ['B101'])
                 severity = bandit_config.get('severity', 'low')
-                confidence = bandit_config.get('confidence', 'low')
+                confidence = bandit_config.get('confidence', 'medium')
             
             exclude_arg = ','.join(str(source_path / d) for d in exclude_dirs)
             # Use native SARIF format output
@@ -537,6 +539,8 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 break
 
         # Safety dependency vulnerability scanning
+        # NOTE: Using deprecated 'check' command as 'scan' requires interactive input
+        # The check command with -r and --output json works in non-interactive mode
         if (
             'safety' in self.available_tools
             and (selected_tools is None or 'safety' in selected_tools)
@@ -554,9 +558,46 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 }
             else:
                 try:
-                    cmd = ['safety', 'scan', '--output', 'json', '--file', str(requirements_file)]
-                    # Parser handles all output formatting
-                    results['safety'] = await self._run_tool(cmd, 'safety', config=safety_config, success_exit_codes=[0, 1, 64])
+                    # Use deprecated check command which works in non-interactive mode
+                    # Pipe empty input to avoid EOF errors
+                    cmd = ['safety', 'check', '-r', str(requirements_file), '--output', 'json']
+                    safety_result = await self._run_tool(cmd, 'safety', config=safety_config, success_exit_codes=[0, 1, 64], skip_parser=True)
+                    
+                    if safety_result.get('status') != 'error' and 'output' in safety_result:
+                        try:
+                            # Extract JSON from output (safety adds deprecation warnings before/after)
+                            output = safety_result.get('output', '')
+                            # Find the JSON block - it starts with '{' and ends with '}'
+                            json_start = output.find('{')
+                            json_end = output.rfind('}') + 1
+                            if json_start >= 0 and json_end > json_start:
+                                json_str = output[json_start:json_end]
+                                safety_data = json.loads(json_str)
+                                
+                                vulnerabilities = safety_data.get('vulnerabilities', [])
+                                affected_packages = safety_data.get('affected_packages', {})
+                                
+                                results['safety'] = {
+                                    'tool': 'safety',
+                                    'executed': True,
+                                    'status': 'success',
+                                    'vulnerabilities': vulnerabilities,
+                                    'affected_packages': affected_packages,
+                                    'scanned_packages': safety_data.get('scanned_packages', {}),
+                                    'total_issues': len(vulnerabilities),
+                                    'issue_count': len(vulnerabilities),
+                                    'format': 'json'
+                                }
+                                self.log.info(f"Safety found {len(vulnerabilities)} vulnerabilities in {len(affected_packages)} packages")
+                            else:
+                                self.log.warning("Could not find JSON in Safety output")
+                                results['safety'] = safety_result
+                        except json.JSONDecodeError as e:
+                            self.log.warning(f"Could not parse Safety JSON output: {e}")
+                            results['safety'] = safety_result
+                    else:
+                        results['safety'] = safety_result
+                        
                 except Exception as e:
                     self.log.warning(f"Safety scan failed: {e}")
                     results['safety'] = {
@@ -584,18 +625,35 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     if pip_audit_result.get('status') != 'error' and 'output' in pip_audit_result:
                         try:
                             audit_data = json.loads(pip_audit_result['output'])
-                            vulnerabilities = audit_data.get('vulnerabilities', [])
+                            # pip-audit returns 'dependencies' array with each package having 'vulns' array
+                            dependencies = audit_data.get('dependencies', [])
+                            
+                            # Extract all vulnerabilities from all packages
+                            all_vulnerabilities = []
+                            for dep in dependencies:
+                                pkg_name = dep.get('name', 'unknown')
+                                pkg_version = dep.get('version', 'unknown')
+                                for vuln in dep.get('vulns', []):
+                                    all_vulnerabilities.append({
+                                        'package': pkg_name,
+                                        'version': pkg_version,
+                                        'id': vuln.get('id', 'unknown'),
+                                        'description': vuln.get('description', ''),
+                                        'fix_versions': vuln.get('fix_versions', []),
+                                        'aliases': vuln.get('aliases', [])
+                                    })
                             
                             results['pip-audit'] = {
                                 'tool': 'pip-audit',
                                 'executed': True,
                                 'status': 'success',
-                                'vulnerabilities': vulnerabilities,
-                                'total_issues': len(vulnerabilities),
-                                'issue_count': len(vulnerabilities),
+                                'dependencies': dependencies,
+                                'vulnerabilities': all_vulnerabilities,
+                                'total_issues': len(all_vulnerabilities),
+                                'issue_count': len(all_vulnerabilities),
                                 'format': 'json'
                             }
-                            self.log.info(f"pip-audit found {len(vulnerabilities)} CVEs")
+                            self.log.info(f"pip-audit found {len(all_vulnerabilities)} CVEs")
                         except Exception as e:
                             self.log.warning(f"Could not parse pip-audit output: {e}")
                             results['pip-audit'] = pip_audit_result
@@ -636,12 +694,12 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
 
             # Vulture returns: 0=no issues, 1=dead code found, 3=syntax errors in checked files
             # All are valid outcomes for analysis purposes
-            # Note: Vulture outputs text, not JSON, so we parse it manually
-            vulture_result = await self._run_tool(cmd, 'vulture', success_exit_codes=[0, 1, 3])
+            # Note: Vulture outputs text, not JSON, so we parse it manually with skip_parser=True
+            vulture_result = await self._run_tool(cmd, 'vulture', success_exit_codes=[0, 1, 3], skip_parser=True)
 
             if vulture_result.get('status') == 'error':
                 results['vulture'] = vulture_result
-            elif vulture_result.get('status') == 'completed':
+            elif vulture_result.get('status') in ('success', 'completed', 'no_issues'):
                 # Vulture returned text output (expected behavior)
                 dead_code_findings = []
                 if 'output' in vulture_result:
@@ -676,11 +734,11 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     'config_used': vulture_config
                 }
         
-        # Ruff - Fast Python linter with SARIF support (replaces flake8)
+        # Ruff - Fast Python linter with SARIF support
         ruff_config = config.get('ruff', {}) if config else {}
         if (
             'ruff' in self.available_tools
-            and (selected_tools is None or 'ruff' in selected_tools or 'flake8' in (selected_tools or set()))
+            and (selected_tools is None or 'ruff' in selected_tools)
             and ruff_config.get('enabled', True)
             and python_files
         ):
@@ -728,11 +786,8 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 except Exception as e:
                     self.log.warning(f"Could not parse ruff SARIF output: {e}")
             results['ruff'] = result
-            # Also add as 'flake8' for backward compatibility
-            if 'flake8' in (selected_tools or set()):
-                results['flake8'] = result
         
-        # Radon complexity analysis
+        # Radon complexity analysis - cyclomatic complexity and maintainability index
         radon_config = config.get('radon', {}) if config else {}
         if (
             'radon' in self.available_tools
@@ -740,9 +795,24 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             and radon_config.get('enabled', True)
             and python_files
         ):
-            # Run Cyclomatic Complexity (cc) analysis
-            cmd = ['radon', 'cc', str(source_path), '--json', '--average']
-            results['radon'] = await self._run_tool(cmd, 'radon', config=radon_config, success_exit_codes=[0])
+            # Run Cyclomatic Complexity (cc) analysis with average and show all functions
+            # -s = show complexity, -a = show average
+            min_complexity = radon_config.get('min_complexity', 'B')  # B = medium complexity threshold
+            cmd = ['radon', 'cc', str(source_path), '--json', '--average', '--show-complexity', '-nc']
+            
+            # Exclude test directories
+            for ignore_dir in ['node_modules', 'venv', '.venv', '__pycache__', '.git']:
+                cmd.extend(['-e', f'*/{ignore_dir}/*'])
+            
+            result = await self._run_tool(cmd, 'radon', config=radon_config, success_exit_codes=[0])
+            
+            # Calculate total complexity issues (functions with complexity > C grade)
+            if result.get('status') in ('success', 'no_issues') and result.get('issues'):
+                complexity_issues = [i for i in result.get('issues', []) if i.get('rank', 'A') in ['D', 'E', 'F']]
+                result['total_issues'] = len(complexity_issues)
+                result['issue_count'] = len(complexity_issues)
+            
+            results['radon'] = result
 
         # Detect-Secrets scan
         secrets_config = config.get('detect-secrets', {}) if config else {}
@@ -761,7 +831,7 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
         # Use underscore prefix to signal this is internal metadata, not a tool result
         try:
             summary = {}
-            for name in ['bandit', 'pylint', 'semgrep', 'mypy', 'safety', 'vulture', 'ruff', 'flake8', 'radon', 'detect-secrets']:
+            for name in ['bandit', 'pylint', 'semgrep', 'mypy', 'safety', 'pip-audit', 'vulture', 'ruff', 'radon', 'detect-secrets']:
                 t = results.get(name)
                 if isinstance(t, dict):
                     try:
@@ -893,34 +963,95 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                 try:
                     self.log.info(f"Running npm audit on: {package_json.parent}")
                     # npm audit must be run in the directory containing package.json
-                    cmd = ['npm', 'audit', '--json']
                     
-                    # Change to package.json directory for npm audit
                     original_cwd = Path.cwd()
+                    temp_dir = None
                     try:
                         import os
-                        os.chdir(package_json.parent)
+                        import shutil
+                        import tempfile
                         
+                        # Check if package-lock.json exists in source
+                        lockfile_path = package_json.parent / 'package-lock.json'
+                        
+                        if lockfile_path.exists():
+                            # Lockfile exists, run audit directly
+                            os.chdir(package_json.parent)
+                            audit_dir = package_json.parent
+                        else:
+                            # No lockfile - copy package.json to temp dir and generate lockfile there
+                            # (source may be read-only mounted volume)
+                            self.log.info(f"No package-lock.json found, generating in temp directory...")
+                            temp_dir = tempfile.mkdtemp(prefix='npm_audit_')
+                            shutil.copy(package_json, Path(temp_dir) / 'package.json')
+                            os.chdir(temp_dir)
+                            
+                            try:
+                                gen_result = subprocess.run(
+                                    ['npm', 'i', '--package-lock-only'],
+                                    capture_output=True, text=True, timeout=120
+                                )
+                                if gen_result.returncode != 0:
+                                    self.log.warning(f"Failed to generate lockfile: {gen_result.stderr[:200]}")
+                                    results['npm-audit'] = {
+                                        'tool': 'npm-audit',
+                                        'executed': False,
+                                        'status': 'skipped',
+                                        'message': 'No package-lock.json and failed to generate one',
+                                        'error': gen_result.stderr[:500],
+                                        'total_issues': 0
+                                    }
+                                    continue
+                                self.log.info("Generated package-lock.json successfully")
+                            except Exception as e:
+                                self.log.warning(f"Failed to generate lockfile: {e}")
+                                results['npm-audit'] = {
+                                    'tool': 'npm-audit',
+                                    'executed': False,
+                                    'status': 'skipped',
+                                    'message': f'No package-lock.json and failed to generate: {str(e)}',
+                                    'total_issues': 0
+                                }
+                                continue
+                            audit_dir = Path(temp_dir)
+                        
+                        cmd = ['npm', 'audit', '--json']
                         npm_audit_result = await self._run_tool(cmd, 'npm-audit', config=npm_audit_config, success_exit_codes=[0, 1], skip_parser=True)
                         
                         if npm_audit_result.get('status') != 'error' and 'output' in npm_audit_result:
                             try:
                                 audit_data = json.loads(npm_audit_result['output'])
-                                vulnerabilities = audit_data.get('vulnerabilities', {})
                                 
-                                # Count total CVEs
-                                total_cves = sum(1 for v in vulnerabilities.values() if isinstance(v, dict))
-                                
-                                results['npm-audit'] = {
-                                    'tool': 'npm-audit',
-                                    'executed': True,
-                                    'status': 'success',
-                                    'vulnerabilities': vulnerabilities,
-                                    'total_issues': total_cves,
-                                    'issue_count': total_cves,
-                                    'format': 'json'
-                                }
-                                self.log.info(f"npm audit found {total_cves} CVEs")
+                                # Check for error response (e.g., ENOLOCK)
+                                if 'error' in audit_data:
+                                    error_info = audit_data['error']
+                                    error_code = error_info.get('code', 'UNKNOWN')
+                                    error_summary = error_info.get('summary', str(error_info))
+                                    self.log.warning(f"npm audit error: {error_code} - {error_summary}")
+                                    results['npm-audit'] = {
+                                        'tool': 'npm-audit',
+                                        'executed': True,
+                                        'status': 'error',
+                                        'error': f'{error_code}: {error_summary}',
+                                        'total_issues': 0
+                                    }
+                                else:
+                                    vulnerabilities = audit_data.get('vulnerabilities', {})
+                                    
+                                    # Count total CVEs
+                                    total_cves = sum(1 for v in vulnerabilities.values() if isinstance(v, dict))
+                                    
+                                    results['npm-audit'] = {
+                                        'tool': 'npm-audit',
+                                        'executed': True,
+                                        'status': 'success',
+                                        'vulnerabilities': vulnerabilities,
+                                        'total_issues': total_cves,
+                                        'issue_count': total_cves,
+                                        'format': 'json',
+                                        'source_dir': str(package_json.parent)
+                                    }
+                                    self.log.info(f"npm audit found {total_cves} CVEs")
                             except Exception as e:
                                 self.log.warning(f"Could not parse npm audit output: {e}")
                                 results['npm-audit'] = npm_audit_result
@@ -928,6 +1059,12 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                             results['npm-audit'] = npm_audit_result
                     finally:
                         os.chdir(original_cwd)
+                        # Clean up temp directory
+                        if temp_dir and Path(temp_dir).exists():
+                            try:
+                                shutil.rmtree(temp_dir)
+                            except Exception:
+                                pass
                         
                 except Exception as e:
                     self.log.warning(f"npm audit scan failed: {e}")
@@ -1016,10 +1153,18 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             and stylelint_cfg.get('enabled', True)
         ):
             # Create a basic stylelint config to avoid configuration errors
+            # Add Tailwind CSS compatible rules to avoid false positives for @tailwind directives
             import tempfile
             stylelint_config = {
                 "extends": "stylelint-config-standard",
-                "rules": {}
+                "rules": {
+                    "at-rule-no-unknown": [True, {
+                        "ignoreAtRules": ["tailwind", "apply", "layer", "config", "screen", "responsive", "variants"]
+                    }],
+                    "function-no-unknown": [True, {
+                        "ignoreFunctions": ["theme", "screen"]
+                    }]
+                }
             }
             
             with tempfile.NamedTemporaryFile(mode='w', suffix='.stylelintrc.json', delete=False) as f:
@@ -1032,23 +1177,117 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             else:
                 cmd.append(str(source_path / '**/*.css'))
 
-            stylelint_result = await self._run_tool(cmd, 'stylelint', success_exit_codes=[0, 1, 2, 78])  # 78 = config error
-            
-            os.unlink(config_file)
-
-            if stylelint_result.get('status') == 'error':
-                results['stylelint'] = stylelint_result
-            else:
-                stylelint_data = stylelint_result if isinstance(stylelint_result, list) else []
-                total_issues = sum(len(file_result.get('warnings', [])) if isinstance(file_result, dict) else 0 for file_result in stylelint_data)
+            # stylelint has unusual behavior - writes JSON to stderr when errors are found (exit code 2)
+            # Handle this separately from _run_tool
+            try:
+                self.log.info(f"Running stylelint on {len(css_files)} CSS files")
+                import time
+                start_time = time.time()
+                
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+                duration = time.time() - start_time
+                
+                stdout_text = stdout.decode('utf-8', errors='replace') if stdout else ''
+                stderr_text = stderr.decode('utf-8', errors='replace') if stderr else ''
+                
+                self.log.info(f"stylelint completed in {duration:.2f}s, exit={proc.returncode}, stdout={len(stdout_text)}B, stderr={len(stderr_text)}B")
+                
+                # stylelint writes to stderr when exit code is 2 (errors found)
+                # Try stdout first, fall back to stderr
+                output_text = stdout_text if stdout_text.strip() else stderr_text
+                
+                if proc.returncode in [0, 1, 2] and output_text.strip():
+                    try:
+                        stylelint_data = json.loads(output_text)
+                        if isinstance(stylelint_data, list):
+                            total_issues = sum(len(file_result.get('warnings', [])) if isinstance(file_result, dict) else 0 for file_result in stylelint_data)
+                            results['stylelint'] = {
+                                'tool': 'stylelint',
+                                'executed': True,
+                                'status': 'success',
+                                'results': stylelint_data,
+                                'total_issues': total_issues,
+                                'issue_count': total_issues,
+                                'duration': duration
+                            }
+                            self.log.info(f"stylelint found {total_issues} issues")
+                        else:
+                            results['stylelint'] = {
+                                'tool': 'stylelint',
+                                'executed': True,
+                                'status': 'success',
+                                'results': stylelint_data,
+                                'total_issues': 0,
+                                'issue_count': 0,
+                                'duration': duration
+                            }
+                    except json.JSONDecodeError as e:
+                        self.log.warning(f"Could not parse stylelint JSON output: {e}")
+                        results['stylelint'] = {
+                            'tool': 'stylelint',
+                            'executed': True,
+                            'status': 'error',
+                            'error': f'Failed to parse JSON output: {str(e)}',
+                            'raw_output': output_text[:500],
+                            'total_issues': 0
+                        }
+                elif proc.returncode == 78:
+                    # Config error
+                    results['stylelint'] = {
+                        'tool': 'stylelint',
+                        'executed': True,
+                        'status': 'error',
+                        'error': f'Configuration error: {stderr_text[:500]}',
+                        'total_issues': 0
+                    }
+                elif proc.returncode == 0 and not output_text.strip():
+                    # No issues found
+                    results['stylelint'] = {
+                        'tool': 'stylelint',
+                        'executed': True,
+                        'status': 'success',
+                        'results': [],
+                        'total_issues': 0,
+                        'issue_count': 0,
+                        'duration': duration
+                    }
+                else:
+                    results['stylelint'] = {
+                        'tool': 'stylelint',
+                        'executed': True,
+                        'status': 'error',
+                        'error': f'Exit code {proc.returncode}: {stderr_text[:500]}',
+                        'total_issues': 0
+                    }
+                    
+            except asyncio.TimeoutError:
+                self.log.warning("stylelint timed out")
                 results['stylelint'] = {
                     'tool': 'stylelint',
                     'executed': True,
-                    'status': 'success',
-                    'results': stylelint_data,
-                    'total_issues': total_issues,
-                    'issue_count': total_issues
+                    'status': 'error',
+                    'error': 'Timeout after 120 seconds',
+                    'total_issues': 0
                 }
+            except Exception as e:
+                self.log.warning(f"stylelint failed: {e}")
+                results['stylelint'] = {
+                    'tool': 'stylelint',
+                    'executed': True,
+                    'status': 'error',
+                    'error': str(e),
+                    'total_issues': 0
+                }
+            finally:
+                try:
+                    os.unlink(config_file)
+                except Exception:
+                    pass
         
         return results
     

@@ -12,6 +12,7 @@ class ToolDetailController {
         this.bsModal = null;
         this.currentParser = null;
         this.currentToolData = null;
+        this.currentToolName = null;
         this.currentFilter = 'all';
         this.currentSearch = '';
         
@@ -71,6 +72,17 @@ class ToolDetailController {
             });
         }
 
+        // Raw output copy/download buttons
+        const copyRawBtn = document.getElementById('copy-raw-btn');
+        if (copyRawBtn) {
+            copyRawBtn.addEventListener('click', () => this.copyRawOutput());
+        }
+
+        const downloadRawBtn = document.getElementById('download-raw-btn');
+        if (downloadRawBtn) {
+            downloadRawBtn.addEventListener('click', () => this.downloadRawOutput());
+        }
+
         // Reset modal on close
         this.modalElement.addEventListener('hidden.bs.modal', () => {
             this.resetModal();
@@ -82,6 +94,8 @@ class ToolDetailController {
             console.error('Analysis data not loaded.');
             return;
         }
+
+        this.currentToolName = toolName;
 
         // Get the correct parser
         this.currentParser = window.AnalysisParserFactory.getParser(serviceType, window.ANALYSIS_DATA);
@@ -121,6 +135,11 @@ class ToolDetailController {
                     const result = await response.json();
                     const detailedData = result.data || result;
 
+                    // Merge fetched data into currentToolData.raw
+                    if (detailedData) {
+                        this.currentToolData.raw = { ...this.currentToolData.raw, ...detailedData };
+                    }
+
                     if (detailedData.issues && detailedData.issues.length > 0) {
                         // If backend hydrated the issues, use them
                         // Normalize them to match the format expected by renderIssuesTable
@@ -128,7 +147,7 @@ class ToolDetailController {
                             id: `fetched-${toolName}-${idx}`,
                             tool: toolName,
                             severity: (issue.severity || issue.issue_severity || issue.level || 'info').toLowerCase(),
-                            message: issue.message || issue.issue_text || 'No description',
+                            message: issue.message || issue.issue_text || issue.description || 'No description',
                             file: issue.file || issue.path || issue.filename || issue.location?.file || 'unknown',
                             line: issue.line || issue.line_number || issue.location?.line || 0,
                             raw: issue
@@ -162,6 +181,7 @@ class ToolDetailController {
         document.getElementById('issues-table-body').innerHTML = '<tr><td colspan="4" class="text-center p-4"><div class="spinner-border text-primary" role="status"></div></td></tr>';
         document.getElementById('metrics-section').classList.add('d-none');
         document.getElementById('severity-summary-container').classList.add('d-none');
+        document.getElementById('raw-output-content').textContent = 'Loading...';
     }
 
 
@@ -186,9 +206,19 @@ class ToolDetailController {
         // 4. Issues Table
         this.renderIssuesTable(data.issues);
 
-        // 5. Reset Views
+        // 5. Raw Output Tab
+        this.renderRawOutput(data.raw);
+
+        // 6. Reset Views
         document.getElementById('detail-view').classList.add('d-none');
         document.getElementById('issues-section').classList.remove('d-none');
+        
+        // Switch to issues tab
+        const issuesTab = document.getElementById('issues-tab');
+        if (issuesTab) {
+            const tab = new bootstrap.Tab(issuesTab);
+            tab.show();
+        }
     }
 
     renderMetrics(metrics) {
@@ -279,6 +309,62 @@ class ToolDetailController {
         `).join('');
     }
 
+    renderRawOutput(rawData) {
+        const container = document.getElementById('raw-output-content');
+        if (!container) return;
+
+        if (!rawData || Object.keys(rawData).length === 0) {
+            container.textContent = '// No raw data available for this tool';
+            return;
+        }
+
+        try {
+            // Pretty print the JSON with syntax highlighting
+            const jsonString = JSON.stringify(rawData, null, 2);
+            container.textContent = jsonString;
+        } catch (e) {
+            container.textContent = `// Error formatting raw data: ${e.message}`;
+        }
+    }
+
+    copyRawOutput() {
+        const rawContent = document.getElementById('raw-output-content');
+        if (!rawContent) return;
+
+        navigator.clipboard.writeText(rawContent.textContent).then(() => {
+            // Show brief feedback
+            const btn = document.getElementById('copy-raw-btn');
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-check me-1"></i> Copied!';
+            btn.classList.add('btn-success');
+            btn.classList.remove('btn-outline-primary');
+            
+            setTimeout(() => {
+                btn.innerHTML = originalHtml;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-primary');
+            }, 2000);
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+        });
+    }
+
+    downloadRawOutput() {
+        if (!this.currentToolData || !this.currentToolData.raw) return;
+
+        const jsonString = JSON.stringify(this.currentToolData.raw, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${this.currentToolName || 'tool'}_raw_output.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
     showIssueDetail(issueId) {
         // Try to find it in currentToolData first (for fetched issues)
         const issue = this.currentToolData.issues.find(i => i.id === issueId);
@@ -290,10 +376,10 @@ class ToolDetailController {
                 title: issue.message,
                 subtitle: `${issue.tool} (Fetched)`,
                 severity: issue.severity,
-                description: issue.raw.description || issue.message,
+                description: issue.raw.description || issue.raw.issue_text || issue.message,
                 location: `${issue.file}:${issue.line}`,
                 code: issue.raw.code || issue.raw.context || null,
-                remediation: issue.raw.remediation || issue.raw.solution || null,
+                remediation: issue.raw.remediation || issue.raw.solution || issue.raw.fix || null,
                 evidence: issue.raw
             };
         } else {
@@ -342,12 +428,14 @@ class ToolDetailController {
     resetModal() {
         this.currentParser = null;
         this.currentToolData = null;
+        this.currentToolName = null;
         this.currentFilter = 'all';
         this.currentSearch = '';
         
         document.getElementById('issues-table-body').innerHTML = '';
         document.getElementById('issue-search').value = '';
         document.getElementById('severity-filter').value = 'all';
+        document.getElementById('raw-output-content').textContent = '';
         
         document.getElementById('detail-view').classList.add('d-none');
         document.getElementById('issues-section').classList.remove('d-none');

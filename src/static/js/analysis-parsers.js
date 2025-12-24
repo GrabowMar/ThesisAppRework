@@ -93,13 +93,24 @@ class StaticParser extends BaseParser {
         const results = this.data.analysis?.results || {};
 
         for (const [lang, tools] of Object.entries(results)) {
+            // Skip structure/metadata keys
+            if (lang === 'structure' || lang === '_metadata') continue;
+            
             for (const [toolName, toolData] of Object.entries(tools)) {
-                let issues = Array.isArray(toolData) ? toolData : (toolData.issues || []);
+                // Skip metadata keys
+                if (['tool_status', '_metadata', 'status', 'message', 'error'].includes(toolName)) continue;
+                
+                // Extract issues based on tool type
+                let issues = this.extractToolIssues(toolName, toolData);
+                
+                // If no issues extracted, try common patterns
+                if (issues.length === 0) {
+                    issues = Array.isArray(toolData) ? toolData : (toolData.issues || []);
+                }
                 
                 // If issues array is empty but SARIF data exists, extract from SARIF
                 if (issues.length === 0 && toolData.sarif && toolData.sarif.runs) {
                     issues = SarifParser.parse(toolData.sarif);
-                    // Add language to SARIF-extracted issues
                     issues = issues.map(issue => ({ ...issue, language: lang }));
                 }
                 
@@ -108,16 +119,243 @@ class StaticParser extends BaseParser {
                         id: `${toolName}-${index}`,
                         tool: toolName,
                         language: issue.language || lang,
-                        severity: this.normalizeSeverity(issue.severity || issue.level || issue.issue_severity),
+                        severity: this.normalizeSeverity(issue.severity || issue.level || issue.issue_severity || issue.type),
                         message: issue.message || issue.text || issue.description || issue.issue_text,
-                        file: issue.file || issue.path || issue.filename,
-                        line: issue.line || issue.start_line || issue.line_number,
+                        file: (issue.file || issue.path || issue.filename || '').replace('/app/sources/', ''),
+                        line: issue.line || issue.start_line || issue.line_number || issue.lineno,
                         raw: issue
                     });
                 });
             }
         }
         return flattened;
+    }
+
+    /**
+     * Extract issues from specific tool formats
+     */
+    extractToolIssues(toolName, toolData) {
+        const issues = [];
+        const t = toolName.toLowerCase();
+        
+        // Bandit - Python security scanner
+        if (t === 'bandit') {
+            (toolData.issues || []).forEach(issue => {
+                issues.push({
+                    severity: issue.issue_severity,
+                    message: issue.issue_text,
+                    file: issue.filename,
+                    line: issue.line_number,
+                    rule_id: issue.test_id,
+                    raw: issue
+                });
+            });
+        }
+        // Ruff - Fast Python linter
+        else if (t === 'ruff') {
+            (toolData.issues || []).forEach(issue => {
+                issues.push({
+                    severity: issue.type || 'warning',
+                    message: issue.message,
+                    file: issue.filename || issue.file,
+                    line: issue.line || issue.location?.row,
+                    rule_id: issue.code || issue.rule,
+                    raw: issue
+                });
+            });
+        }
+        // Pylint
+        else if (t === 'pylint') {
+            (toolData.issues || []).forEach(issue => {
+                issues.push({
+                    severity: issue.type,
+                    message: issue.message,
+                    file: issue.path,
+                    line: issue.line,
+                    rule_id: issue['message-id'] || issue.symbol,
+                    raw: issue
+                });
+            });
+        }
+        // MyPy - Python type checker
+        else if (t === 'mypy') {
+            (toolData.issues || []).forEach(issue => {
+                issues.push({
+                    severity: issue.severity || 'error',
+                    message: issue.message,
+                    file: issue.file,
+                    line: issue.line,
+                    rule_id: issue.code || 'type-error',
+                    raw: issue
+                });
+            });
+        }
+        // Vulture - Dead code detector
+        else if (t === 'vulture') {
+            (toolData.issues || []).forEach(issue => {
+                issues.push({
+                    severity: 'low',
+                    message: issue.message || `Unused ${issue.typ}: ${issue.name}`,
+                    file: issue.filename || issue.file,
+                    line: issue.first_lineno || issue.line,
+                    rule_id: 'unused-code',
+                    raw: issue
+                });
+            });
+        }
+        // Radon - Complexity analyzer
+        else if (t === 'radon') {
+            const complexity = toolData.complexity || toolData.raw || {};
+            if (typeof complexity === 'object') {
+                Object.entries(complexity).forEach(([filePath, functions]) => {
+                    if (Array.isArray(functions)) {
+                        functions.forEach(func => {
+                            const rank = func.rank || 'A';
+                            if (['C', 'D', 'E', 'F'].includes(rank)) {
+                                issues.push({
+                                    severity: rank === 'F' || rank === 'E' ? 'high' : rank === 'D' ? 'medium' : 'low',
+                                    message: `Function '${func.name}' has complexity ${func.complexity} (rank ${rank})`,
+                                    file: filePath,
+                                    line: func.lineno,
+                                    rule_id: `complexity-${rank}`,
+                                    raw: func
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+        }
+        // Safety - Python vulnerability scanner
+        else if (t === 'safety') {
+            (toolData.vulnerabilities || toolData.issues || []).forEach(vuln => {
+                issues.push({
+                    severity: vuln.severity || 'medium',
+                    message: `Vulnerable package: ${vuln.package_name || vuln.package} ${vuln.vulnerable_versions || ''}`,
+                    file: 'requirements.txt',
+                    line: '-',
+                    rule_id: vuln.vulnerability_id || vuln.id || vuln.CVE,
+                    raw: vuln
+                });
+            });
+        }
+        // Pip-audit
+        else if (t === 'pip-audit' || t === 'pip_audit') {
+            (toolData.vulnerabilities || toolData.issues || []).forEach(vuln => {
+                issues.push({
+                    severity: vuln.severity || 'medium',
+                    message: `Vulnerable: ${vuln.name || vuln.package} ${vuln.version || ''}`,
+                    file: 'requirements.txt',
+                    line: '-',
+                    rule_id: vuln.id || vuln.vulnerability_id,
+                    raw: vuln
+                });
+            });
+        }
+        // Detect-secrets
+        else if (t === 'detect-secrets' || t === 'detect_secrets') {
+            const secrets = toolData.results || toolData.issues || {};
+            if (typeof secrets === 'object' && !Array.isArray(secrets)) {
+                Object.entries(secrets).forEach(([filePath, fileSecrets]) => {
+                    if (Array.isArray(fileSecrets)) {
+                        fileSecrets.forEach(secret => {
+                            issues.push({
+                                severity: 'high',
+                                message: `Potential ${secret.type || 'secret'} detected`,
+                                file: filePath,
+                                line: secret.line_number,
+                                rule_id: secret.type || 'secret-detected',
+                                raw: secret
+                            });
+                        });
+                    }
+                });
+            } else if (Array.isArray(secrets)) {
+                secrets.forEach(secret => {
+                    issues.push({
+                        severity: 'high',
+                        message: `Potential ${secret.type || 'secret'} detected`,
+                        file: secret.filename || secret.file,
+                        line: secret.line_number || secret.line,
+                        rule_id: secret.type || 'secret-detected',
+                        raw: secret
+                    });
+                });
+            }
+        }
+        // ESLint
+        else if (t === 'eslint') {
+            (toolData.results || []).forEach(fileResult => {
+                (fileResult.messages || []).forEach(msg => {
+                    issues.push({
+                        severity: msg.severity === 2 ? 'high' : 'medium',
+                        message: msg.message,
+                        file: fileResult.filePath,
+                        line: msg.line,
+                        rule_id: msg.ruleId,
+                        raw: msg
+                    });
+                });
+            });
+        }
+        // Stylelint
+        else if (t === 'stylelint') {
+            (toolData.results || []).forEach(fileResult => {
+                (fileResult.warnings || []).forEach(warn => {
+                    issues.push({
+                        severity: warn.severity || 'warning',
+                        message: warn.text,
+                        file: fileResult.source,
+                        line: warn.line,
+                        rule_id: warn.rule,
+                        raw: warn
+                    });
+                });
+            });
+        }
+        // NPM-audit
+        else if (t === 'npm-audit' || t === 'npm_audit') {
+            const advisories = toolData.advisories || toolData.vulnerabilities || toolData.issues || {};
+            if (typeof advisories === 'object' && !Array.isArray(advisories)) {
+                Object.entries(advisories).forEach(([advId, advisory]) => {
+                    issues.push({
+                        severity: advisory.severity || 'moderate',
+                        message: `Vulnerable: ${advisory.module_name || ''} - ${advisory.title || advisory.overview || ''}`,
+                        file: 'package.json',
+                        line: '-',
+                        rule_id: advId,
+                        raw: advisory
+                    });
+                });
+            } else if (Array.isArray(advisories)) {
+                advisories.forEach(advisory => {
+                    issues.push({
+                        severity: advisory.severity || 'moderate',
+                        message: `Vulnerable: ${advisory.name || advisory.module_name || ''} - ${advisory.title || ''}`,
+                        file: 'package.json',
+                        line: '-',
+                        rule_id: advisory.id,
+                        raw: advisory
+                    });
+                });
+            }
+        }
+        // Semgrep
+        else if (t === 'semgrep') {
+            (toolData.results || []).forEach(res => {
+                const extra = res.extra || {};
+                issues.push({
+                    severity: extra.severity || 'warning',
+                    message: extra.message || res.check_id,
+                    file: res.path,
+                    line: res.start?.line,
+                    rule_id: res.check_id,
+                    raw: res
+                });
+            });
+        }
+        
+        return issues;
     }
 
     getToolData(toolName) {
@@ -130,6 +368,7 @@ class StaticParser extends BaseParser {
         for (const [lang, tools] of Object.entries(results)) {
             if (tools[toolName]) {
                 rawToolData = tools[toolName];
+                rawToolData._language = lang;
                 break;
             }
         }
@@ -147,7 +386,7 @@ class StaticParser extends BaseParser {
             issues: toolFindings,
             metrics: [],
             sarif_file: sarifFile,
-            raw: rawToolData
+            raw: rawToolData  // Include full raw data
         };
     }
 
