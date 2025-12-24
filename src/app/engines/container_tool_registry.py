@@ -794,89 +794,95 @@ class ContainerToolRegistry:
     
     def _register_ai_analyzer_tools(self) -> None:
         """Register tools from the ai-analyzer container."""
+        import os
+        has_openrouter_key = bool(os.getenv('OPENROUTER_API_KEY'))
         
-        # Requirements analyzer
-        requirements_schema = ToolConfigSchema(
+        # Requirements Scanner - AI-powered requirements validation
+        requirements_scanner_schema = ToolConfigSchema(
             parameters=[
-                ToolParameter("ai_model", "string", "AI model to use", "anthropic/claude-3-haiku",
-                            options=["anthropic/claude-3-haiku", "openai/gpt-4", "local/llama"]),
-                ToolParameter("temperature", "float", "AI model temperature", 0.1,
-                            min_value=0.0, max_value=1.0),
-                ToolParameter("max_tokens", "integer", "Maximum response tokens", 500,
-                            min_value=100, max_value=2000),
-                ToolParameter("confidence_threshold", "float", "Minimum confidence for results", 0.7,
-                            min_value=0.0, max_value=1.0),
-                ToolParameter("analysis_depth", "string", "Analysis depth level", "standard",
-                            options=["basic", "standard", "detailed"])
+                ToolParameter("template_id", "integer", "Requirements template ID", 1,
+                            min_value=1, max_value=100),
+                ToolParameter("gemini_model", "string", "AI model for analysis", "anthropic/claude-3-5-haiku",
+                            options=["anthropic/claude-3-5-haiku", "anthropic/claude-3-5-sonnet", 
+                                   "openai/gpt-4o-mini", "openai/gpt-4o"]),
+                ToolParameter("scan_mode", "string", "Analysis scope", "full",
+                            options=["backend_only", "frontend_only", "admin_only", "full"]),
+                ToolParameter("include_endpoint_tests", "boolean", "Also run curl endpoint tests", False)
             ],
-            documentation_url="https://docs.anthropic.com/"
+            examples={
+                "default": {
+                    "template_id": 1,
+                    "gemini_model": "anthropic/claude-3-5-haiku",
+                    "scan_mode": "full",
+                    "include_endpoint_tests": False
+                },
+                "high_quality": {
+                    "template_id": 1,
+                    "gemini_model": "anthropic/claude-3-5-sonnet",
+                    "scan_mode": "full",
+                    "include_endpoint_tests": False
+                },
+                "with_endpoints": {
+                    "template_id": 1,
+                    "gemini_model": "anthropic/claude-3-5-haiku",
+                    "scan_mode": "full",
+                    "include_endpoint_tests": True
+                }
+            },
+            documentation_url="https://github.com/GrabowMar/ThesisAppRework/blob/main/docs/features/ANALYSIS.md"
         )
         
         self._tools["requirements-scanner"] = ContainerTool(
             name="requirements-scanner",
-            display_name="AI Requirements Scanner",
-            description="AI-powered requirements analysis and validation",
+            display_name="Requirements Scanner",
+            description="AI-powered requirements validation: analyzes backend API, frontend UI, and admin functionality with code review",
             container=AnalyzerContainer.AI,
-            tags={"ai", "requirements", "analysis", "security"},
-            supported_languages={"documentation", "code"},
-            available=True,
-            config_schema=requirements_schema
+            tags={"ai", "requirements", "functional", "backend", "frontend", "admin", "code-analysis"},
+            supported_languages={"python", "javascript", "typescript", "react"},
+            available=has_openrouter_key,
+            config_schema=requirements_scanner_schema
         )
         
-        # Requirements Checker (NEW) - Functional requirements + endpoint testing
-        import os
-        has_openrouter_key = bool(os.getenv('OPENROUTER_API_KEY'))
-        
-        checker_schema = ToolConfigSchema(
+        # Curl Endpoint Tester - Pure HTTP endpoint validation (no AI required)
+        curl_tester_schema = ToolConfigSchema(
             parameters=[
-                ToolParameter("template_id", "integer", "Requirements template ID", 1,
+                ToolParameter("template_id", "integer", "Requirements template ID (defines endpoints)", 1,
                             min_value=1, max_value=100),
                 ToolParameter("backend_port", "integer", "Application backend port", 5000,
                             min_value=1024, max_value=65535),
                 ToolParameter("frontend_port", "integer", "Application frontend port", 8000,
                             min_value=1024, max_value=65535),
-                ToolParameter("gemini_model", "string", "AI model for analysis", "anthropic/claude-3-5-haiku",
-                            options=["anthropic/claude-3-5-haiku", "anthropic/claude-3-5-sonnet", 
-                                   "openai/gpt-4o-mini", "openai/gpt-4o"])
+                ToolParameter("test_admin_endpoints", "boolean", "Test admin endpoints with auth", True),
+                ToolParameter("timeout_seconds", "integer", "Request timeout in seconds", 10,
+                            min_value=1, max_value=60)
             ],
             examples={
                 "default": {
                     "template_id": 1,
                     "backend_port": 5000,
                     "frontend_port": 8000,
-                    "gemini_model": "anthropic/claude-3-5-haiku"
+                    "test_admin_endpoints": True,
+                    "timeout_seconds": 10
                 },
-                "high_quality": {
+                "quick": {
                     "template_id": 1,
                     "backend_port": 5000,
-                    "frontend_port": 8000,
-                    "gemini_model": "anthropic/claude-3-5-sonnet"
+                    "test_admin_endpoints": False,
+                    "timeout_seconds": 5
                 }
             },
             documentation_url="https://github.com/GrabowMar/ThesisAppRework/blob/main/docs/features/ANALYSIS.md"
         )
         
-        self._tools["requirements-checker"] = ContainerTool(
-            name="requirements-checker",
-            display_name="Requirements Scanner (Legacy)",
-            description="Scans backend, frontend, and admin requirements with curl endpoint validation and AI code analysis",
+        self._tools["curl-endpoint-tester"] = ContainerTool(
+            name="curl-endpoint-tester",
+            display_name="Curl Endpoint Tester",
+            description="HTTP endpoint validation: tests API endpoints with curl requests, checks response codes and availability (no AI required)",
             container=AnalyzerContainer.AI,
-            tags={"ai", "requirements", "functional", "testing", "endpoints"},
-            supported_languages={"python", "javascript", "typescript"},
-            available=has_openrouter_key,
-            config_schema=checker_schema
-        )
-        
-        # Requirements Scanner (new unified tool name)
-        self._tools["requirements-scanner"] = ContainerTool(
-            name="requirements-scanner",
-            display_name="Requirements Scanner",
-            description="Unified requirements scanner: validates backend API, frontend UI, and admin functionality with curl tests and AI code analysis",
-            container=AnalyzerContainer.AI,
-            tags={"ai", "requirements", "functional", "backend", "frontend", "admin", "testing", "endpoints"},
-            supported_languages={"python", "javascript", "typescript", "react"},
-            available=has_openrouter_key,
-            config_schema=checker_schema
+            tags={"testing", "endpoints", "curl", "http", "api", "functional"},
+            supported_languages={"web", "api"},
+            available=True,  # Always available - doesn't require AI API key
+            config_schema=curl_tester_schema
         )
         
         # Code Quality Analyzer - Measures actual code quality metrics

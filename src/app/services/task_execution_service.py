@@ -1541,15 +1541,20 @@ class TaskExecutionService:
         for subtask in subtasks:
             service_name = subtask.service_name
             
-            # Get tool names from subtask metadata
+            # Get tool names and tool_config from subtask metadata
             metadata = subtask.get_metadata() if hasattr(subtask, 'get_metadata') else {}
             custom_options = metadata.get('custom_options', {})
             tool_names = custom_options.get('tool_names', [])
+            # Extract per-tool configuration from UI (tool_config) or standard path (tools_config)
+            tool_config = custom_options.get('tool_config') or custom_options.get('tools_config') or {}
             
             if not tool_names:
                 continue
             
-            self._log(f"Queuing parallel subtask for {service_name} with tools: {tool_names}")
+            if tool_config:
+                self._log(f"Queuing parallel subtask for {service_name} with tools: {tool_names}, config keys: {list(tool_config.keys())}")
+            else:
+                self._log(f"Queuing parallel subtask for {service_name} with tools: {tool_names}")
             
             # Submit subtask to thread pool
             future = self.executor.submit(
@@ -1558,7 +1563,8 @@ class TaskExecutionService:
                 main_task.target_model,
                 main_task.target_app_number,
                 tool_names,
-                service_name
+                service_name,
+                tool_config
             )
             futures.append(future)
             subtask_info.append({
@@ -1613,9 +1619,18 @@ class TaskExecutionService:
         model_slug: str,
         app_number: int,
         tools: List[str],
-        service_name: str
+        service_name: str,
+        tool_config: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Execute subtask via WebSocket to analyzer microservice.
+        
+        Args:
+            subtask_id: Database ID of the subtask
+            model_slug: Model identifier
+            app_number: App number
+            tools: List of tool names to run
+            service_name: Analyzer service name (e.g., 'static-analyzer')
+            tool_config: Per-tool configuration from UI (e.g., {'bandit': {'severity_level': 'high'}})
         
         Returns a standardized result dict compatible with template expectations:
         {
@@ -1665,9 +1680,15 @@ class TaskExecutionService:
                 subtask.started_at = datetime.now(timezone.utc)
                 db.session.commit()
                 
-                self._log(
-                    f"[SUBTASK] Executing subtask {subtask_id} via WebSocket to {service_name} with tools {tools}"
-                )
+                if tool_config:
+                    self._log(
+                        f"[SUBTASK] Executing subtask {subtask_id} via WebSocket to {service_name} "
+                        f"with tools {tools} and config for: {list(tool_config.keys())}"
+                    )
+                else:
+                    self._log(
+                        f"[SUBTASK] Executing subtask {subtask_id} via WebSocket to {service_name} with tools {tools}"
+                    )
                 
                 # Execute via WebSocket to analyzer microservice
                 result = self._execute_via_websocket(
@@ -1675,7 +1696,8 @@ class TaskExecutionService:
                     model_slug=model_slug,
                     app_number=app_number,
                     tools=tools,
-                    timeout=600
+                    timeout=600,
+                    tool_config=tool_config
                 )
                 
                 # Update circuit breaker based on result
@@ -2008,9 +2030,20 @@ class TaskExecutionService:
         tools: List[str],
         timeout: int = 600,
         max_retries: int = 3,
-        retry_delay: float = 2.0
+        retry_delay: float = 2.0,
+        tool_config: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Execute analysis via WebSocket (synchronous wrapper for thread pool).
+        
+        Args:
+            service_name: Analyzer service name
+            model_slug: Target model identifier
+            app_number: Target app number
+            tools: List of tool names to run
+            timeout: Execution timeout in seconds
+            max_retries: Maximum retry attempts for transient failures
+            retry_delay: Base delay between retries (with exponential backoff)
+            tool_config: Per-tool configuration dict (e.g., {'bandit': {'severity_level': 'high'}})
         
         Includes retry logic with exponential backoff for transient connection failures.
         """
@@ -2047,7 +2080,8 @@ class TaskExecutionService:
                 try:
                     result = loop.run_until_complete(
                         self._websocket_request_async(
-                            service_name, port, model_slug, app_number, tools, timeout
+                            service_name, port, model_slug, app_number, tools, timeout,
+                            tool_config=tool_config
                         )
                     )
                     
@@ -2158,9 +2192,20 @@ class TaskExecutionService:
         model_slug: str,
         app_number: int,
         tools: List[str],
-        timeout: int
+        timeout: int,
+        tool_config: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Execute WebSocket request to analyzer service (async)."""
+        """Execute WebSocket request to analyzer service (async).
+        
+        Args:
+            service_name: Analyzer service name
+            port: Service port number
+            model_slug: Target model identifier
+            app_number: Target app number  
+            tools: List of tool names to run
+            timeout: Execution timeout in seconds
+            tool_config: Per-tool configuration dict (e.g., {'bandit': {'severity_level': 'high'}})
+        """
         import websockets
         from websockets.exceptions import ConnectionClosed
         import time
@@ -2215,6 +2260,16 @@ class TaskExecutionService:
             if service_name == 'performance-tester':
                 request_message['target_url'] = target_urls[0]
         
+        # Add per-tool configuration if provided
+        # Merge into 'config' key which analyzer services read via config.get('tool_name', {})
+        if tool_config and isinstance(tool_config, dict):
+            # Initialize config if not present
+            if 'config' not in request_message:
+                request_message['config'] = {}
+            # Merge tool-specific configs
+            request_message['config'].update(tool_config)
+            self._log(f"[WebSocket] Added tool config for {service_name}: {list(tool_config.keys())}")
+        
         # Add AI analyzer specific config (template_slug, ports)
         if service_name == 'ai-analyzer':
             try:
@@ -2222,7 +2277,10 @@ class TaskExecutionService:
                 analyzer_mgr = get_analyzer_wrapper().manager
                 ai_config = analyzer_mgr._resolve_ai_config(model_slug, app_number, tools)
                 if ai_config:
-                    request_message['config'] = ai_config
+                    # Merge AI config into existing config (preserve tool_config)
+                    if 'config' not in request_message:
+                        request_message['config'] = {}
+                    request_message['config'].update(ai_config)
                     self._log(f"[WebSocket] Added AI config for {service_name}: template={ai_config.get('template_slug')}")
             except Exception as e:
                 self._log(f"[WebSocket] Error resolving AI config: {e}", level='warning')

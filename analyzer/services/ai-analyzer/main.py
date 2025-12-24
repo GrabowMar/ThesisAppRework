@@ -196,9 +196,23 @@ class AIAnalyzer(BaseWSService):
             self.gpt4all_api_url = os.getenv('GPT4ALL_API_URL', 'http://localhost:4891/v1')
             self.gpt4all_timeout = int(os.getenv('GPT4ALL_TIMEOUT', '30'))
             
-            # Default models
-            self.default_openrouter_model = os.getenv('AI_MODEL', 'anthropic/claude-3.5-haiku')
+            # Default models - Gemini Flash is cheaper than Claude Haiku
+            # Available models: google/gemini-2.5-flash (cheap), anthropic/claude-3.5-haiku, openai/gpt-4o-mini
+            self.default_openrouter_model = os.getenv('AI_MODEL', 'google/gemini-2.5-flash')
             self.preferred_gpt4all_model = os.getenv('GPT4ALL_MODEL', 'Llama 3 8B Instruct')
+            
+            # Cost optimization settings (defaults are cheap mode)
+            # BATCH_MODE: true = batch all requirements in single API call (recommended)
+            #             false = individual API call per requirement (legacy, expensive)
+            self.batch_mode = os.getenv('AI_BATCH_MODE', 'true').lower() == 'true'
+            # Code truncation limit - lower = fewer tokens = cheaper
+            self.code_truncation_limit = int(os.getenv('AI_CODE_TRUNCATION_LIMIT', '4000'))
+            # Max tokens for responses - lower = cheaper
+            self.max_response_tokens = int(os.getenv('AI_MAX_RESPONSE_TOKENS', '300'))
+            # Batch max tokens - larger for batch mode since it contains multiple results
+            self.batch_max_response_tokens = int(os.getenv('AI_BATCH_MAX_TOKENS', '1500'))
+            # Enable/disable code quality analyzer tool (8 extra API calls when granular)
+            self.quality_analyzer_enabled = os.getenv('AI_QUALITY_ANALYZER_ENABLED', 'true').lower() == 'true'
             
             # GPT4All available models cache
             self.gpt4all_available_models = []
@@ -206,6 +220,7 @@ class AIAnalyzer(BaseWSService):
             self.gpt4all_is_available = False
             
             self.log.info("AI Analyzer initialized (template-based requirements system)")
+            self.log.info(f"Using model: {self.default_openrouter_model}, batch_mode={self.batch_mode}, code_limit={self.code_truncation_limit}")
             self.log.info("AIAnalyzer initialization complete")
             if not self.openrouter_api_key:
                 self.log.warning("OPENROUTER_API_KEY not set - OpenRouter analysis will be unavailable")
@@ -219,7 +234,8 @@ class AIAnalyzer(BaseWSService):
     def _detect_available_tools(self) -> List[str]:
         """Detect available AI analysis tools (template-based only)."""
         tools = [
-            "requirements-scanner",      # Unified: Backend + Frontend + Admin requirements + endpoint tests
+            "requirements-scanner",      # Unified: Backend + Frontend + Admin requirements + AI code analysis
+            "curl-endpoint-tester",      # HTTP endpoint validation with curl tests (no AI, just functional tests)
             "code-quality-analyzer"      # True code quality metrics (error handling, types, anti-patterns, etc.)
         ]
         
@@ -392,8 +408,8 @@ class AIAnalyzer(BaseWSService):
     
     def _build_analysis_prompt(self, code_content: str, requirement: str, template_context: Optional[Dict[str, Any]] = None) -> str:
         """Build analysis prompt for AI with optional template context."""
-        # Truncate code if too long
-        max_code_length = 8000
+        # Truncate code if too long (use configurable limit for cost control)
+        max_code_length = self.code_truncation_limit
         if len(code_content) > max_code_length:
             code_content = code_content[:max_code_length] + "\n[...truncated...]"
         
@@ -746,58 +762,93 @@ Focus on whether the functionality described in the requirement is actually impl
                 'data_model': template_data.get('data_model', {})
             }
             
-            gemini_model = config.get('gemini_model', 'anthropic/claude-3-5-haiku') if config else 'anthropic/claude-3-5-haiku'
+            # Get AI model from config or use default (Gemini Flash is cheaper)
+            gemini_model = config.get('gemini_model', self.default_openrouter_model) if config else self.default_openrouter_model
             
-            # ===== BACKEND REQUIREMENTS ANALYSIS =====
-            backend_results = []
-            if backend_requirements:
-                await self.send_progress('analyzing_backend', f"Analyzing {len(backend_requirements)} backend requirements", analysis_id=analysis_id)
-                
-                for i, req in enumerate(backend_requirements, 1):
-                    await self.send_progress('checking_requirement', f"Checking backend requirement {i}/{len(backend_requirements)}", analysis_id=analysis_id)
-                    
-                    result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, focus='backend', template_context=template_context)
-                    backend_results.append({
-                        'requirement': req,
-                        'met': result.met,
-                        'confidence': result.confidence,
-                        'explanation': result.explanation,
-                        'category': 'backend'
-                    })
+            # Get batch mode from config or use instance default
+            use_batch_mode = config.get('batch_mode', self.batch_mode) if config else self.batch_mode
             
-            # ===== FRONTEND REQUIREMENTS ANALYSIS =====
-            frontend_results = []
-            if frontend_requirements:
-                await self.send_progress('analyzing_frontend', f"Analyzing {len(frontend_requirements)} frontend requirements", analysis_id=analysis_id)
-                
-                for i, req in enumerate(frontend_requirements, 1):
-                    await self.send_progress('checking_requirement', f"Checking frontend requirement {i}/{len(frontend_requirements)}", analysis_id=analysis_id)
-                    
-                    result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, focus='frontend', template_context=template_context)
-                    frontend_results.append({
-                        'requirement': req,
-                        'met': result.met,
-                        'confidence': result.confidence,
-                        'explanation': result.explanation,
-                        'category': 'frontend'
-                    })
+            self.log.info(f"Requirements analysis using model={gemini_model}, batch_mode={use_batch_mode}")
             
-            # ===== ADMIN REQUIREMENTS ANALYSIS =====
-            admin_results = []
-            if admin_requirements:
-                await self.send_progress('analyzing_admin', f"Analyzing {len(admin_requirements)} admin requirements", analysis_id=analysis_id)
+            # ===== BATCH MODE: Single API call per category (CHEAP - default) =====
+            if use_batch_mode:
+                backend_results = []
+                frontend_results = []
+                admin_results = []
                 
-                for i, req in enumerate(admin_requirements, 1):
-                    await self.send_progress('checking_requirement', f"Checking admin requirement {i}/{len(admin_requirements)}", analysis_id=analysis_id)
+                # Batch analyze backend requirements (1 API call instead of N)
+                if backend_requirements:
+                    await self.send_progress('analyzing_backend', f"Batch analyzing {len(backend_requirements)} backend requirements", analysis_id=analysis_id)
+                    backend_results = await self._analyze_requirements_batch(
+                        code_content, backend_requirements, gemini_model, 'backend', template_context
+                    )
+                
+                # Batch analyze frontend requirements (1 API call instead of N)
+                if frontend_requirements:
+                    await self.send_progress('analyzing_frontend', f"Batch analyzing {len(frontend_requirements)} frontend requirements", analysis_id=analysis_id)
+                    frontend_results = await self._analyze_requirements_batch(
+                        code_content, frontend_requirements, gemini_model, 'frontend', template_context
+                    )
+                
+                # Batch analyze admin requirements (1 API call instead of N)
+                if admin_requirements:
+                    await self.send_progress('analyzing_admin', f"Batch analyzing {len(admin_requirements)} admin requirements", analysis_id=analysis_id)
+                    admin_results = await self._analyze_requirements_batch(
+                        code_content, admin_requirements, gemini_model, 'admin', template_context
+                    )
+            
+            # ===== GRANULAR MODE: Individual API call per requirement (EXPENSIVE - legacy) =====
+            else:
+                # ===== BACKEND REQUIREMENTS ANALYSIS =====
+                backend_results = []
+                if backend_requirements:
+                    await self.send_progress('analyzing_backend', f"Analyzing {len(backend_requirements)} backend requirements (granular mode)", analysis_id=analysis_id)
                     
-                    result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, focus='admin', template_context=template_context)
-                    admin_results.append({
-                        'requirement': req,
-                        'met': result.met,
-                        'confidence': result.confidence,
-                        'explanation': result.explanation,
-                        'category': 'admin'
-                    })
+                    for i, req in enumerate(backend_requirements, 1):
+                        await self.send_progress('checking_requirement', f"Checking backend requirement {i}/{len(backend_requirements)}", analysis_id=analysis_id)
+                        
+                        result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, focus='backend', template_context=template_context)
+                        backend_results.append({
+                            'requirement': req,
+                            'met': result.met,
+                            'confidence': result.confidence,
+                            'explanation': result.explanation,
+                            'category': 'backend'
+                        })
+                
+                # ===== FRONTEND REQUIREMENTS ANALYSIS =====
+                frontend_results = []
+                if frontend_requirements:
+                    await self.send_progress('analyzing_frontend', f"Analyzing {len(frontend_requirements)} frontend requirements (granular mode)", analysis_id=analysis_id)
+                    
+                    for i, req in enumerate(frontend_requirements, 1):
+                        await self.send_progress('checking_requirement', f"Checking frontend requirement {i}/{len(frontend_requirements)}", analysis_id=analysis_id)
+                        
+                        result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, focus='frontend', template_context=template_context)
+                        frontend_results.append({
+                            'requirement': req,
+                            'met': result.met,
+                            'confidence': result.confidence,
+                            'explanation': result.explanation,
+                            'category': 'frontend'
+                        })
+                
+                # ===== ADMIN REQUIREMENTS ANALYSIS =====
+                admin_results = []
+                if admin_requirements:
+                    await self.send_progress('analyzing_admin', f"Analyzing {len(admin_requirements)} admin requirements (granular mode)", analysis_id=analysis_id)
+                    
+                    for i, req in enumerate(admin_requirements, 1):
+                        await self.send_progress('checking_requirement', f"Checking admin requirement {i}/{len(admin_requirements)}", analysis_id=analysis_id)
+                        
+                        result = await self._analyze_requirement_with_gemini(code_content, req, gemini_model, focus='admin', template_context=template_context)
+                        admin_results.append({
+                            'requirement': req,
+                            'met': result.met,
+                            'confidence': result.confidence,
+                            'explanation': result.explanation,
+                            'category': 'admin'
+                        })
             
             # Calculate compliance breakdown
             met_backend = sum(1 for r in backend_results if r['met'])
@@ -834,6 +885,9 @@ Focus on whether the functionality described in the requirement is actually impl
                 analysis_id=analysis_id
             )
             
+            # Calculate API calls made
+            api_calls_made = 3 if use_batch_mode else (len(backend_requirements) + len(frontend_requirements) + len(admin_requirements))
+            
             return {
                 'status': 'success',
                 'tool_name': 'requirements-scanner',
@@ -841,6 +895,8 @@ Focus on whether the functionality described in the requirement is actually impl
                     'model_slug': model_slug,
                     'app_number': app_number,
                     'ai_model_used': gemini_model,
+                    'batch_mode': use_batch_mode,
+                    'api_calls_made': api_calls_made,
                     'template_slug': template_slug,
                     'template_name': template_data.get('name', template_slug),
                     'template_category': template_data.get('category', 'Unknown'),
@@ -915,6 +971,134 @@ Focus on whether the functionality described in the requirement is actually impl
         """Backwards compatibility wrapper for scan_requirements."""
         return await self.scan_requirements(model_slug, app_number, backend_port, frontend_port, config, analysis_id)
     
+    async def test_endpoints_only(self, model_slug: str, app_number: int, backend_port: int, frontend_port: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        CURL ENDPOINT TESTER - Pure HTTP endpoint validation without AI analysis.
+        
+        Tests:
+        - Backend API endpoints (GET, POST, PUT, DELETE)
+        - Frontend routes accessibility
+        - Admin endpoints with authentication
+        - Response codes and basic validation
+        
+        This is a lightweight tool that doesn't require AI/LLM - just functional HTTP tests.
+        """
+        try:
+            self.log.info(f"Starting curl endpoint testing for {model_slug} app {app_number}")
+            await self.send_progress('starting', f"Starting endpoint tests for {model_slug} app {app_number}", analysis_id=analysis_id)
+            
+            # Find application and load template
+            app_path = self._resolve_app_path(model_slug, app_number)
+            if not app_path or not app_path.exists():
+                return {
+                    'status': 'error',
+                    'error': f'Application path not found: {model_slug} app {app_number}',
+                    'tool_name': 'curl-endpoint-tester'
+                }
+            
+            # Load template for endpoints
+            template_slug = config.get('template_slug', 'crud_todo_list') if config else 'crud_todo_list'
+            requirements_file = self._find_requirements_template(template_slug)
+            if not requirements_file:
+                return {
+                    'status': 'error',
+                    'error': f'Requirements template not found: {template_slug}',
+                    'tool_name': 'curl-endpoint-tester'
+                }
+            
+            with open(requirements_file, 'r', encoding='utf-8') as f:
+                template_data = json.load(f)
+            
+            # Extract endpoints from template
+            control_endpoints = template_data.get('control', {}).get('endpoints', [])
+            admin_endpoints = template_data.get('admin', {}).get('endpoints', [])
+            all_endpoints = control_endpoints + admin_endpoints
+            
+            if not all_endpoints:
+                return {
+                    'status': 'success',
+                    'message': 'No endpoints defined in template',
+                    'endpoint_tests': {'passed': 0, 'failed': 0, 'total': 0, 'results': []},
+                    'tool_name': 'curl-endpoint-tester'
+                }
+            
+            await self.send_progress('testing_endpoints', f"Testing {len(all_endpoints)} API endpoints ({len(control_endpoints)} public, {len(admin_endpoints)} admin)", analysis_id=analysis_id)
+            
+            # Build base URL
+            base_url = f"http://host.docker.internal:{backend_port}"
+            self.log.info(f"Using base URL for endpoint testing: {base_url}")
+            
+            # Try to get auth token for admin endpoints
+            auth_token = None
+            if admin_endpoints:
+                auth_token = await self._get_auth_token(base_url)
+                if auth_token:
+                    self.log.info("Successfully obtained auth token for admin endpoint testing")
+                else:
+                    self.log.warning("Could not obtain auth token - admin endpoints will be tested without auth")
+            
+            # Test all endpoints
+            endpoint_results = []
+            passed = 0
+            failed = 0
+            
+            for i, endpoint in enumerate(all_endpoints, 1):
+                method = endpoint.get('method', 'GET').upper()
+                path = endpoint.get('path', '/')
+                is_admin = endpoint in admin_endpoints
+                
+                await self.send_progress('testing_endpoint', f"Testing endpoint {i}/{len(all_endpoints)}: {method} {path}", analysis_id=analysis_id)
+                
+                result = await self._test_single_endpoint(
+                    base_url, method, path, 
+                    auth_token=auth_token if is_admin else None,
+                    expected_status=endpoint.get('expected_status', [200, 201])
+                )
+                
+                result['is_admin'] = is_admin
+                result['endpoint_name'] = endpoint.get('name', path)
+                endpoint_results.append(result)
+                
+                if result.get('passed'):
+                    passed += 1
+                else:
+                    failed += 1
+            
+            # Calculate pass rate
+            total = len(endpoint_results)
+            pass_rate = (passed / total * 100) if total > 0 else 0
+            
+            await self.send_progress('completed', f"Endpoint testing complete: {passed}/{total} passed ({pass_rate:.1f}%)", analysis_id=analysis_id)
+            
+            return {
+                'status': 'success',
+                'tool_name': 'curl-endpoint-tester',
+                'endpoint_tests': {
+                    'passed': passed,
+                    'failed': failed,
+                    'total': total,
+                    'pass_rate': pass_rate,
+                    'results': endpoint_results
+                },
+                'summary': {
+                    'public_endpoints_tested': len(control_endpoints),
+                    'admin_endpoints_tested': len(admin_endpoints),
+                    'auth_token_obtained': auth_token is not None,
+                    'base_url': base_url
+                }
+            }
+            
+        except Exception as e:
+            self.log.error(f"Curl endpoint testing failed: {e}")
+            import traceback
+            traceback.print_exc()
+            await self.send_progress('failed', f"Endpoint testing failed: {e}", analysis_id=analysis_id)
+            return {
+                'status': 'error',
+                'error': str(e),
+                'tool_name': 'curl-endpoint-tester'
+            }
+
     async def analyze_code_quality(self, model_slug: str, app_number: int, config: Optional[Dict[str, Any]] = None, analysis_id: Optional[str] = None) -> Dict[str, Any]:
         """
         TRUE CODE QUALITY ANALYZER - Measures actual code quality metrics.
@@ -971,31 +1155,51 @@ Focus on whether the functionality described in the requirement is actually impl
                 'project_type': project_info
             }
             
-            gemini_model = config.get('gemini_model', 'anthropic/claude-3-5-haiku') if config else 'anthropic/claude-3-5-haiku'
+            # Get AI model from config or use default
+            gemini_model = config.get('gemini_model', self.default_openrouter_model) if config else self.default_openrouter_model
             
-            await self.send_progress('analyzing_quality', f"Analyzing {len(CODE_QUALITY_METRICS)} quality metrics", analysis_id=analysis_id)
+            # Get batch mode from config or use instance default
+            use_batch_mode = config.get('batch_mode', self.batch_mode) if config else self.batch_mode
             
-            # Analyze each quality metric
-            quality_results = []
-            total_weighted_score = 0.0
-            total_weight = 0.0
+            self.log.info(f"Quality analysis using model={gemini_model}, batch_mode={use_batch_mode}")
             
-            for metric_id, metric_def in CODE_QUALITY_METRICS.items():
-                await self.send_progress('checking_metric', f"Analyzing: {metric_def['name']}", analysis_id=analysis_id)
+            # ===== BATCH MODE: Single API call for all metrics (CHEAP - default) =====
+            if use_batch_mode:
+                await self.send_progress('analyzing_quality', f"Batch analyzing {len(CODE_QUALITY_METRICS)} quality metrics", analysis_id=analysis_id)
                 
-                result = await self._analyze_quality_metric(
-                    code_content, 
-                    metric_id, 
-                    metric_def, 
-                    gemini_model, 
-                    template_context
+                quality_results = await self._analyze_quality_metrics_batch(
+                    code_content, gemini_model, template_context
                 )
                 
-                quality_results.append(result.to_dict())
+                # Calculate weighted scores from batch results
+                total_weighted_score = sum(r['score'] * r['weight'] for r in quality_results)
+                total_weight = sum(r['weight'] for r in quality_results)
+            
+            # ===== GRANULAR MODE: Individual API call per metric (EXPENSIVE - legacy) =====
+            else:
+                await self.send_progress('analyzing_quality', f"Analyzing {len(CODE_QUALITY_METRICS)} quality metrics (granular mode)", analysis_id=analysis_id)
                 
-                # Accumulate weighted score
-                total_weighted_score += result.score * result.weight
-                total_weight += result.weight
+                # Analyze each quality metric
+                quality_results = []
+                total_weighted_score = 0.0
+                total_weight = 0.0
+                
+                for metric_id, metric_def in CODE_QUALITY_METRICS.items():
+                    await self.send_progress('checking_metric', f"Analyzing: {metric_def['name']}", analysis_id=analysis_id)
+                    
+                    result = await self._analyze_quality_metric(
+                        code_content, 
+                        metric_id, 
+                        metric_def, 
+                        gemini_model, 
+                        template_context
+                    )
+                    
+                    quality_results.append(result.to_dict())
+                    
+                    # Accumulate weighted score
+                    total_weighted_score += result.score * result.weight
+                    total_weight += result.weight
             
             # Calculate aggregate score (0-100)
             aggregate_score = (total_weighted_score / total_weight) if total_weight > 0 else 0
@@ -1019,6 +1223,9 @@ Focus on whether the functionality described in the requirement is actually impl
                 analysis_id=analysis_id
             )
             
+            # Calculate API calls made
+            api_calls_made = 1 if use_batch_mode else len(CODE_QUALITY_METRICS)
+            
             return {
                 'status': 'success',
                 'tool_name': 'code-quality-analyzer',
@@ -1026,6 +1233,8 @@ Focus on whether the functionality described in the requirement is actually impl
                     'model_slug': model_slug,
                     'app_number': app_number,
                     'ai_model_used': gemini_model,
+                    'batch_mode': use_batch_mode,
+                    'api_calls_made': api_calls_made,
                     'template_slug': template_slug,
                     'template_name': template_data.get('name', template_slug),
                     'template_category': template_data.get('category', 'Unknown'),
@@ -1130,6 +1339,204 @@ Focus on whether the functionality described in the requirement is actually impl
         
         return project_info
     
+    async def _analyze_quality_metrics_batch(
+        self,
+        code_content: str,
+        model: str,
+        template_context: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        Batch analyze ALL quality metrics in a SINGLE API call.
+        
+        This is ~87% cheaper than individual calls (1 call instead of 8).
+        
+        Returns:
+            List of quality metric results with scores
+        """
+        if not self.openrouter_api_key:
+            self.log.warning("OpenRouter API key not available for batch quality analysis")
+            return [
+                {
+                    'metric_id': metric_id,
+                    'metric_name': metric_def['name'],
+                    'passed': False,
+                    'score': 0,
+                    'confidence': 'LOW',
+                    'findings': ['OpenRouter API key not available'],
+                    'recommendations': [],
+                    'evidence': {},
+                    'weight': metric_def.get('weight', 1.0)
+                }
+                for metric_id, metric_def in CODE_QUALITY_METRICS.items()
+            ]
+        
+        try:
+            # Build batch prompt for all metrics
+            prompt = self._build_batch_quality_prompt(code_content, template_context)
+            
+            # Truncate if too long
+            max_length = self.code_truncation_limit * 2
+            if len(prompt) > max_length:
+                prompt = prompt[:max_length] + "\n[...truncated...]"
+            
+            self.log.info(f"Batch analyzing {len(CODE_QUALITY_METRICS)} quality metrics (prompt: {len(prompt)} chars)")
+            
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    "Authorization": f"Bearer {self.openrouter_api_key}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {"role": "user", "content": prompt}
+                    ],
+                    "max_tokens": self.batch_max_response_tokens,
+                    "temperature": 0.1
+                }
+                
+                async with session.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=90)  # Longer timeout for quality analysis
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        ai_response = data['choices'][0]['message']['content']
+                        self.log.debug(f"Batch quality response ({len(ai_response)} chars)")
+                        
+                        # Parse batch response
+                        results = self._parse_batch_quality_response(ai_response)
+                        self.log.info(f"Parsed {len(results)} quality metrics from batch response")
+                        return results
+                    else:
+                        error_text = await response.text()
+                        self.log.warning(f"Batch quality API error: {response.status} - {error_text[:200]}")
+                        # Return failed results
+                        return [
+                            {
+                                'metric_id': metric_id,
+                                'metric_name': metric_def['name'],
+                                'passed': False,
+                                'score': 0,
+                                'confidence': 'LOW',
+                                'findings': [f'API error: {response.status}'],
+                                'recommendations': [],
+                                'evidence': {},
+                                'weight': metric_def.get('weight', 1.0)
+                            }
+                            for metric_id, metric_def in CODE_QUALITY_METRICS.items()
+                        ]
+                        
+        except Exception as e:
+            self.log.error(f"Batch quality analysis failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return [
+                {
+                    'metric_id': metric_id,
+                    'metric_name': metric_def['name'],
+                    'passed': False,
+                    'score': 0,
+                    'confidence': 'LOW',
+                    'findings': [f'Analysis error: {str(e)}'],
+                    'recommendations': [],
+                    'evidence': {},
+                    'weight': metric_def.get('weight', 1.0)
+                }
+                for metric_id, metric_def in CODE_QUALITY_METRICS.items()
+            ]
+    
+    def _build_batch_quality_prompt(self, code_content: str, template_context: Dict[str, Any]) -> str:
+        """Build batch prompt for analyzing all quality metrics at once."""
+        
+        # Truncate code
+        if len(code_content) > self.code_truncation_limit:
+            code_content = code_content[:self.code_truncation_limit] + "\n[...truncated...]"
+        
+        # Build metrics list
+        metrics_list = []
+        for metric_id, metric_def in CODE_QUALITY_METRICS.items():
+            metrics_list.append(f"[{metric_id.upper()}] {metric_def['name']}: {metric_def['description']}")
+        
+        metrics_text = "\n".join(metrics_list)
+        
+        project_info = template_context.get('project_type', {})
+        
+        return f"""Analyze the following web application code for these CODE QUALITY METRICS.
+Rate each metric 0-100 and provide brief findings.
+
+PROJECT INFO:
+- Backend: {project_info.get('backend_framework', 'Unknown')}
+- Frontend: {project_info.get('frontend_framework', 'Unknown')}
+
+METRICS TO EVALUATE:
+{metrics_text}
+
+CODE:
+{code_content}
+
+Respond with EXACTLY this format for EACH metric (one per line):
+[ERROR_HANDLING] SCORE:XX | PASS:YES/NO | Brief finding
+[TYPE_SAFETY] SCORE:XX | PASS:YES/NO | Brief finding
+[CODE_ORGANIZATION] SCORE:XX | PASS:YES/NO | Brief finding
+[DOCUMENTATION] SCORE:XX | PASS:YES/NO | Brief finding
+[ANTI_PATTERNS] SCORE:XX | PASS:YES/NO | Brief finding
+[SECURITY_PRACTICES] SCORE:XX | PASS:YES/NO | Brief finding
+[PERFORMANCE_PATTERNS] SCORE:XX | PASS:YES/NO | Brief finding
+[TESTING_READINESS] SCORE:XX | PASS:YES/NO | Brief finding
+
+XX should be a number 0-100. PASS:YES if score >= 60."""
+    
+    def _parse_batch_quality_response(self, response: str) -> List[Dict[str, Any]]:
+        """Parse batch quality metrics response."""
+        results = []
+        
+        for metric_id, metric_def in CODE_QUALITY_METRICS.items():
+            # Try to find this metric in response
+            pattern = rf'\[{metric_id.upper()}\]\s*SCORE:\s*(\d+)\s*\|\s*PASS:\s*(YES|NO)\s*\|\s*(.+?)(?=\[|$)'
+            match = re.search(pattern, response, re.IGNORECASE | re.DOTALL)
+            
+            if match:
+                score = min(100, max(0, int(match.group(1))))
+                passed = match.group(2).upper() == 'YES'
+                finding = match.group(3).strip()
+                # Clean up finding
+                finding = ' '.join(finding.split())
+                confidence = 'HIGH' if score > 70 else 'MEDIUM' if score > 40 else 'LOW'
+            else:
+                # Try simpler pattern
+                simple_pattern = rf'{metric_id.upper()}[:\s]*(\d+)'
+                simple_match = re.search(simple_pattern, response, re.IGNORECASE)
+                
+                if simple_match:
+                    score = min(100, max(0, int(simple_match.group(1))))
+                    passed = score >= 60
+                    finding = f"Score {score}/100 (parsed from batch)"
+                    confidence = 'MEDIUM'
+                else:
+                    # Default to mid-range score if can't parse
+                    self.log.warning(f"Could not parse quality result for {metric_id}")
+                    score = 50
+                    passed = False
+                    finding = "Could not parse from batch response"
+                    confidence = 'LOW'
+            
+            results.append({
+                'metric_id': metric_id,
+                'metric_name': metric_def['name'],
+                'passed': passed,
+                'score': score,
+                'confidence': confidence,
+                'findings': [finding] if finding else [],
+                'recommendations': [],
+                'evidence': {},
+                'weight': metric_def.get('weight', 1.0)
+            })
+        
+        return results
+    
     async def _analyze_quality_metric(
         self, 
         code_content: str, 
@@ -1138,7 +1545,7 @@ Focus on whether the functionality described in the requirement is actually impl
         model: str,
         template_context: Dict[str, Any]
     ) -> QualityMetricResult:
-        """Analyze a single code quality metric using AI."""
+        """Analyze a single code quality metric using AI (legacy/granular mode)."""
         try:
             if not self.openrouter_api_key:
                 return QualityMetricResult(
@@ -1424,8 +1831,218 @@ Focus on practical, real-world code quality concerns. Be specific about what you
         
         return code_content
     
+    async def _analyze_requirements_batch(
+        self, 
+        code_content: str, 
+        requirements: List[str], 
+        model: str, 
+        focus: str, 
+        template_context: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Batch analyze multiple requirements in a SINGLE API call.
+        
+        This is ~80-90% cheaper than individual calls since:
+        - 1 API call instead of N calls
+        - Code content sent once instead of N times
+        - Reduces input token count dramatically
+        
+        Args:
+            code_content: The application code to analyze
+            requirements: List of requirements to check
+            model: OpenRouter model to use
+            focus: 'backend', 'frontend', or 'admin'
+            template_context: Optional template metadata
+            
+        Returns:
+            List of requirement results [{requirement, met, confidence, explanation, category}]
+        """
+        if not requirements:
+            return []
+            
+        if not self.openrouter_api_key:
+            self.log.warning("OpenRouter API key not available for batch analysis")
+            return [
+                {
+                    'requirement': req,
+                    'met': False,
+                    'confidence': 'LOW',
+                    'explanation': 'OpenRouter API key not available',
+                    'category': focus
+                }
+                for req in requirements
+            ]
+        
+        try:
+            # Build batch prompt
+            prompt = self._build_batch_requirements_prompt(code_content, requirements, focus, template_context)
+            
+            # Truncate if too long
+            max_length = self.code_truncation_limit * 2  # Allow more for batch
+            if len(prompt) > max_length:
+                prompt = prompt[:max_length] + "\n[...truncated...]"
+            
+            self.log.info(f"Batch analyzing {len(requirements)} {focus} requirements (prompt: {len(prompt)} chars)")
+            
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    "Authorization": f"Bearer {self.openrouter_api_key}",
+                    "Content-Type": "application/json"
+                }
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {"role": "user", "content": prompt}
+                    ],
+                    "max_tokens": self.batch_max_response_tokens,
+                    "temperature": 0.1  # Lower temperature for more consistent parsing
+                }
+                
+                async with session.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=60)  # Longer timeout for batch
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        ai_response = data['choices'][0]['message']['content']
+                        self.log.debug(f"Batch response ({len(ai_response)} chars): {ai_response[:200]}...")
+                        
+                        # Parse batch response
+                        results = self._parse_batch_requirements_response(ai_response, requirements, focus)
+                        self.log.info(f"Parsed {len(results)} results from batch response")
+                        return results
+                    else:
+                        error_text = await response.text()
+                        self.log.warning(f"Batch API error: {response.status} - {error_text[:200]}")
+                        # Return failed results for all requirements
+                        return [
+                            {
+                                'requirement': req,
+                                'met': False,
+                                'confidence': 'LOW',
+                                'explanation': f'API error: {response.status}',
+                                'category': focus
+                            }
+                            for req in requirements
+                        ]
+                        
+        except Exception as e:
+            self.log.error(f"Batch analysis failed: {e}")
+            import traceback
+            traceback.print_exc()
+            # Return failed results for all requirements
+            return [
+                {
+                    'requirement': req,
+                    'met': False,
+                    'confidence': 'LOW',
+                    'explanation': f'Analysis error: {str(e)}',
+                    'category': focus
+                }
+                for req in requirements
+            ]
+    
+    def _build_batch_requirements_prompt(
+        self, 
+        code_content: str, 
+        requirements: List[str], 
+        focus: str,
+        template_context: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Build a batch prompt for analyzing multiple requirements at once."""
+        
+        # Truncate code to configured limit
+        if len(code_content) > self.code_truncation_limit:
+            code_content = code_content[:self.code_truncation_limit] + "\n[...truncated...]"
+        
+        # Build context section
+        context_section = ""
+        if template_context:
+            context_section = f"""
+APPLICATION CONTEXT:
+- Template: {template_context.get('name', 'Unknown')} ({template_context.get('category', 'Unknown')})
+- Description: {template_context.get('description', 'N/A')}
+"""
+        
+        # Build numbered requirements list
+        requirements_list = "\n".join([f"[REQ{i+1}] {req}" for i, req in enumerate(requirements)])
+        
+        # Focus-specific guidance
+        focus_guidance = {
+            'backend': "Focus on: Backend Python code (Flask/FastAPI routes, models, database operations), API endpoints, data models, business logic, server-side validation.",
+            'frontend': "Focus on: React/Vue/Angular components, UI elements (buttons, forms, lists), user interactions, visual feedback, accessibility.",
+            'admin': "Focus on: Admin dashboard components, statistics/metrics display, data management tables, bulk operations, authentication for admin routes."
+        }
+        
+        return f"""Analyze the following web application code and determine if each requirement is MET or NOT MET.
+{context_section}
+{focus_guidance.get(focus, '')}
+
+REQUIREMENTS TO CHECK:
+{requirements_list}
+
+CODE:
+{code_content}
+
+Respond with EXACTLY this format for EACH requirement (one per line):
+[REQ1] MET:YES/NO | CONF:HIGH/MEDIUM/LOW | Brief explanation
+[REQ2] MET:YES/NO | CONF:HIGH/MEDIUM/LOW | Brief explanation
+...and so on for all {len(requirements)} requirements.
+
+Be concise but specific. Reference actual code elements when possible."""
+    
+    def _parse_batch_requirements_response(
+        self, 
+        response: str, 
+        requirements: List[str], 
+        focus: str
+    ) -> List[Dict[str, Any]]:
+        """Parse batch AI response into individual requirement results."""
+        results = []
+        
+        # Try to parse structured response
+        for i, req in enumerate(requirements):
+            req_num = i + 1
+            pattern = rf'\[REQ{req_num}\]\s*MET:\s*(YES|NO)\s*\|\s*CONF:\s*(HIGH|MEDIUM|LOW)\s*\|\s*(.+?)(?=\[REQ|\Z)'
+            match = re.search(pattern, response, re.IGNORECASE | re.DOTALL)
+            
+            if match:
+                met = match.group(1).upper() == 'YES'
+                confidence = match.group(2).upper()
+                explanation = match.group(3).strip()
+                # Clean up explanation (remove newlines, extra whitespace)
+                explanation = ' '.join(explanation.split())
+            else:
+                # Fallback: try simpler patterns
+                simple_pattern = rf'REQ{req_num}[:\s]*(YES|NO|MET|NOT\s*MET)'
+                simple_match = re.search(simple_pattern, response, re.IGNORECASE)
+                
+                if simple_match:
+                    result_text = simple_match.group(1).upper()
+                    met = result_text in ['YES', 'MET']
+                    confidence = 'MEDIUM'
+                    explanation = f"Parsed from batch response (REQ{req_num})"
+                else:
+                    # Last resort: assume not met if we can't parse
+                    self.log.warning(f"Could not parse result for REQ{req_num} from batch response")
+                    met = False
+                    confidence = 'LOW'
+                    explanation = 'Could not parse result from batch response'
+            
+            results.append({
+                'requirement': req,
+                'met': met,
+                'confidence': confidence,
+                'explanation': explanation,
+                'category': focus
+            })
+        
+        return results
+    
     async def _analyze_requirement_with_gemini(self, code_content: str, requirement: str, model: str, focus: str = 'functional', template_context: Optional[Dict[str, Any]] = None) -> RequirementResult:
-        """Analyze requirement using AI via OpenRouter."""
+        """Analyze requirement using AI via OpenRouter (single requirement - legacy/granular mode)."""
         try:
             if not self.openrouter_api_key:
                 return RequirementResult(
@@ -1446,8 +2063,8 @@ Focus on practical, real-world code quality concerns. Be specific about what you
                 # Default functional analysis
                 prompt = self._build_analysis_prompt(code_content, requirement, template_context)
             
-            # Truncate code if too long
-            max_code_length = 12000
+            # Truncate code if too long (use configurable limit)
+            max_code_length = self.code_truncation_limit * 2
             if len(prompt) > max_code_length:
                 prompt = prompt[:max_code_length] + "\n[...truncated...]"
             
@@ -1461,7 +2078,7 @@ Focus on practical, real-world code quality concerns. Be specific about what you
                     "messages": [
                         {"role": "user", "content": prompt}
                     ],
-                    "max_tokens": 800,
+                    "max_tokens": self.max_response_tokens,
                     "temperature": 0.2
                 }
                 async with session.post(
@@ -1778,6 +2395,19 @@ Focus on whether the admin panel functionality described in the requirement is a
                     if req_result.get('status') == 'error':
                         errors.append(f"requirements-scanner: {req_result.get('error', 'Unknown error')}")
                 
+                # Run curl-endpoint-tester if requested (endpoint testing without AI analysis)
+                if "curl-endpoint-tester" in tools:
+                    backend_port = config.get('backend_port', 5000) if config else 5000
+                    frontend_port = config.get('frontend_port', 8000) if config else 8000
+                    
+                    curl_result = await self.test_endpoints_only(
+                        model_slug, app_number, backend_port, frontend_port, config, analysis_id=analysis_id
+                    )
+                    aggregated_results['tools']['curl-endpoint-tester'] = curl_result
+                    tools_run += 1
+                    if curl_result.get('status') == 'error':
+                        errors.append(f"curl-endpoint-tester: {curl_result.get('error', 'Unknown error')}")
+                
                 # Run code-quality-analyzer if requested
                 if "code-quality-analyzer" in tools:
                     quality_result = await self.analyze_code_quality(
@@ -1827,6 +2457,26 @@ Focus on whether the admin panel functionality described in the requirement is a
                     "available_tools": self._detect_available_tools(),
                     "requirements_system": "template-based",
                     "quality_metrics": list(CODE_QUALITY_METRICS.keys()),
+                    "configuration": {
+                        "default_model": self.default_openrouter_model,
+                        "batch_mode": self.batch_mode,
+                        "code_truncation_limit": self.code_truncation_limit,
+                        "max_response_tokens": self.max_response_tokens,
+                        "batch_max_response_tokens": self.batch_max_response_tokens,
+                        "quality_analyzer_enabled": self.quality_analyzer_enabled,
+                        "configurable_via_env": [
+                            "AI_MODEL - Default model (google/gemini-2.5-flash, anthropic/claude-3.5-haiku, etc.)",
+                            "AI_BATCH_MODE - true/false (true = cheap batch mode, false = granular mode)",
+                            "AI_CODE_TRUNCATION_LIMIT - Max code chars per request (default: 4000)",
+                            "AI_MAX_RESPONSE_TOKENS - Max tokens per response (default: 300)",
+                            "AI_BATCH_MAX_TOKENS - Max tokens for batch responses (default: 1500)",
+                            "AI_QUALITY_ANALYZER_ENABLED - Enable code quality tool (default: true)"
+                        ],
+                        "configurable_via_request": [
+                            "config.gemini_model - Override model per request",
+                            "config.batch_mode - Override batch mode per request"
+                        ]
+                    },
                     "timestamp": datetime.now().isoformat()
                 }
                 print(f"[ai-analyzer] Sending server_status response: {response}")
@@ -1863,13 +2513,21 @@ async def main():
     """Main entry point for the AI analyzer service."""
     try:
         print("[ai-analyzer] Starting AI Analyzer Service...")
+        print("[ai-analyzer] ============================================")
+        print("[ai-analyzer] COST-OPTIMIZED MODE (Dec 2025)")
+        print("[ai-analyzer] - Default model: google/gemini-2.5-flash (cheaper than Haiku)")
+        print("[ai-analyzer] - Batch mode: ON (3-4 API calls instead of 20+)")
+        print("[ai-analyzer] - Code limit: 4000 chars (reduced tokens)")
+        print("[ai-analyzer] ============================================")
         
         # Log API key presence for visibility
         if not os.getenv('OPENROUTER_API_KEY'):
             print("[ai-analyzer] WARNING: OPENROUTER_API_KEY not set - OpenRouter analysis will be limited")
         
-        if not os.getenv('GPT4ALL_API_URL'):
-            print("[ai-analyzer] INFO: GPT4ALL_API_URL not set - using default http://localhost:4891/v1")
+        # Log configuration
+        print(f"[ai-analyzer] AI_MODEL={os.getenv('AI_MODEL', 'google/gemini-2.5-flash')} (env or default)")
+        print(f"[ai-analyzer] AI_BATCH_MODE={os.getenv('AI_BATCH_MODE', 'true')} (env or default)")
+        print(f"[ai-analyzer] AI_CODE_TRUNCATION_LIMIT={os.getenv('AI_CODE_TRUNCATION_LIMIT', '4000')} (env or default)")
         
         print("[ai-analyzer] Initializing service...")
         service = AIAnalyzer()
