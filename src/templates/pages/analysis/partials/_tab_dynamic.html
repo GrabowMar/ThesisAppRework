@@ -292,14 +292,19 @@
 
   {# Port Scan Card #}
   {% if port_results %}
+  {# Extract port scan values safely using bracket notation for dict access #}
+  {% set port_total_open = port_results.get('total_open', 0) if port_results.get is defined else port_results['total_open']|default(0) %}
+  {% set port_host = port_results.get('host', 'localhost') if port_results.get is defined else port_results['host']|default('localhost') %}
+  {% set port_open_ports = port_results.get('open_ports', []) if port_results.get is defined else port_results['open_ports']|default([]) %}
+  {% set port_scanned_ports = port_results.get('scanned_ports', []) if port_results.get is defined else port_results['scanned_ports']|default([]) %}
   <div class="card card-table-compact mb-3">
     <div class="card-header d-flex flex-wrap align-items-center gap-3 bg-secondary-lt">
       <h5 class="card-title d-flex align-items-center gap-2 mb-0">
         <i class="fa-solid fa-server text-secondary"></i>
         <span>Port Scan (Nmap)</span>
       </h5>
-      <span class="badge {% if port_results.total_open > 0 %}bg-info-lt text-info{% else %}bg-success-lt text-success{% endif %} ms-2">
-        {{ port_results.total_open|default(0) }} open port{{ 's' if port_results.total_open != 1 else '' }}
+      <span class="badge {% if port_total_open > 0 %}bg-info-lt text-info{% else %}bg-success-lt text-success{% endif %} ms-2">
+        {{ port_total_open }} open port{{ 's' if port_total_open != 1 else '' }}
       </span>
       <div class="card-actions ms-auto">
         <button class="btn btn-sm btn-ghost-secondary tool-detail-btn" 
@@ -314,22 +319,22 @@
       <div class="row g-3 mb-3">
         <div class="col-md-4">
           <div class="text-muted small">Host</div>
-          <code>{{ port_results.host|default('localhost') }}</code>
+          <code>{{ port_host }}</code>
         </div>
         <div class="col-md-4">
           <div class="text-muted small">Ports Scanned</div>
-          <span>{{ port_results.scanned_ports|length if port_results.scanned_ports else 0 }}</span>
+          <span>{{ port_scanned_ports|length }}</span>
         </div>
         <div class="col-md-4">
           <div class="text-muted small">Open Ports</div>
-          <span class="{% if port_results.total_open > 0 %}fw-bold text-info{% else %}text-success{% endif %}">{{ port_results.total_open|default(0) }}</span>
+          <span class="{% if port_total_open > 0 %}fw-bold text-info{% else %}text-success{% endif %}">{{ port_total_open }}</span>
         </div>
       </div>
       
-      {% if port_results.open_ports and port_results.open_ports|length > 0 %}
+      {% if port_open_ports and port_open_ports|length > 0 %}
         <h6 class="mb-2"><i class="fa-solid fa-door-open me-1"></i>Open Ports</h6>
         <div class="d-flex flex-wrap gap-2">
-          {% for port in port_results.open_ports %}
+          {% for port in port_open_ports %}
             <span class="badge bg-info-lt text-info">{{ port }}</span>
           {% endfor %}
         </div>
@@ -339,13 +344,13 @@
         </div>
       {% endif %}
       
-      {% if port_results.scanned_ports %}
+      {% if port_scanned_ports %}
         <details class="mt-3">
           <summary class="text-muted small" style="cursor: pointer;">
-            <i class="fa-solid fa-chevron-right me-1"></i>View scanned ports ({{ port_results.scanned_ports|length }})
+            <i class="fa-solid fa-chevron-right me-1"></i>View scanned ports ({{ port_scanned_ports|length }})
           </summary>
           <div class="mt-2 d-flex flex-wrap gap-1">
-            {% for port in port_results.scanned_ports %}
+            {% for port in port_scanned_ports %}
               <span class="badge bg-secondary-lt small">{{ port }}</span>
             {% endfor %}
           </div>

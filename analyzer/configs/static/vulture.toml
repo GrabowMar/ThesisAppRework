@@ -1,0 +1,122 @@
+# Vulture Configuration
+# Dead code detection for Python
+# Docs: https://vulture.readthedocs.io/
+
+# ============================================================================
+# CONFIDENCE SETTINGS
+# ============================================================================
+
+# Minimum confidence for reporting (percentage)
+# Lower = more findings but more false positives
+# Higher = fewer findings but more accurate
+# Recommended: 60-80% for generated code analysis
+min_confidence = 60
+
+# ============================================================================
+# EXCLUDE PATTERNS
+# ============================================================================
+# Paths to ignore during scanning
+
+exclude = [
+    "node_modules/",
+    ".git/",
+    ".venv/",
+    "venv/",
+    "__pycache__/",
+    ".mypy_cache/",
+    "dist/",
+    "build/",
+    ".eggs/",
+    "*.egg-info/",
+    "tests/",
+    "test/",
+    "*_test.py",
+    "test_*.py",
+    "conftest.py",
+    "migrations/",
+    "alembic/",
+    "docs/",
+]
+
+# ============================================================================
+# IGNORE PATTERNS
+# ============================================================================
+# Code patterns that should not be flagged as dead code
+
+# Common framework patterns that appear unused but are used via reflection/magic
+ignore_names = [
+    # Flask patterns
+    "before_request",
+    "after_request",
+    "teardown_request",
+    "errorhandler",
+    "route",
+    
+    # Django patterns
+    "ready",
+    "get_queryset",
+    "get_context_data",
+    "form_valid",
+    "form_invalid",
+    "dispatch",
+    
+    # SQLAlchemy patterns
+    "__tablename__",
+    "__table_args__",
+    "__mapper_args__",
+    
+    # Pytest patterns
+    "pytest_*",
+    "fixture",
+    "conftest",
+    
+    # Pydantic patterns
+    "model_config",
+    "model_validator",
+    "field_validator",
+    
+    # Magic methods
+    "__*__",
+    
+    # Common callback patterns
+    "*_callback",
+    "*_handler",
+    "on_*",
+    "handle_*",
+]
+
+# Ignore decorators that register functions
+ignore_decorators = [
+    "@app.route",
+    "@router.get",
+    "@router.post",
+    "@router.put",
+    "@router.delete",
+    "@celery.task",
+    "@pytest.fixture",
+    "@property",
+    "@staticmethod",
+    "@classmethod",
+    "@abstractmethod",
+    "@dataclass",
+]
+
+# ============================================================================
+# WHITELIST FILE
+# ============================================================================
+# Optional: Path to a whitelist file containing known false positives
+# whitelist = "vulture_whitelist.py"
+
+# ============================================================================
+# OUTPUT SETTINGS
+# ============================================================================
+
+# Sort output by confidence (descending)
+sort_by_confidence = true
+
+# ============================================================================
+# PRESETS
+# ============================================================================
+# Quick (high confidence only): vulture . --min-confidence 80
+# Standard (balanced): vulture . --min-confidence 60
+# Thorough (more findings): vulture . --min-confidence 40

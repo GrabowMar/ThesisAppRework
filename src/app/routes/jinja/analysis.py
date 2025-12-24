@@ -211,14 +211,30 @@ def analysis_tasks_table():
             'has_result': selected_result is not None,
         })
 
-    # Efficient counts
-    active_count = AnalysisTask.query.filter(
-        AnalysisTask.status.in_([AnalysisStatus.PENDING, AnalysisStatus.RUNNING])
-    ).count()
+    # Efficient counts - apply same filters to counts for consistency
+    # Base query for counts (apply model and app filters to show filtered counts)
+    def _build_count_query(statuses):
+        q = AnalysisTask.query.filter(AnalysisTask.status.in_(statuses))
+        if model_filter:
+            q = q.filter(AnalysisTask.target_model.ilike(f'%{model_filter}%'))
+        if app_filter is not None:
+            q = q.filter(AnalysisTask.target_app_number == app_filter)
+        return q.count()
     
-    completed_count = AnalysisTask.query.filter(
-        AnalysisTask.status.in_([AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS])
-    ).count()
+    active_count = _build_count_query([AnalysisStatus.PENDING, AnalysisStatus.RUNNING])
+    completed_count = _build_count_query([AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS])
+    
+    # Global counts (unfiltered) to show when filters are applied
+    has_filters = bool(model_filter or app_filter is not None or status_filter)
+    global_active = None
+    global_completed = None
+    if has_filters:
+        global_active = AnalysisTask.query.filter(
+            AnalysisTask.status.in_([AnalysisStatus.PENDING, AnalysisStatus.RUNNING])
+        ).count()
+        global_completed = AnalysisTask.query.filter(
+            AnalysisTask.status.in_([AnalysisStatus.COMPLETED, AnalysisStatus.PARTIAL_SUCCESS])
+        ).count()
 
     pagination = {
         'page': page,
@@ -226,6 +242,9 @@ def analysis_tasks_table():
         'total': total_tasks,
         'total_completed': completed_count,
         'active_count': active_count,
+        'global_active': global_active,
+        'global_completed': global_completed,
+        'has_filters': has_filters,
         'has_prev': pagination_obj.has_prev if pagination_obj else False,
         'has_next': pagination_obj.has_next if pagination_obj else False,
         'prev_num': pagination_obj.prev_num if pagination_obj else None,

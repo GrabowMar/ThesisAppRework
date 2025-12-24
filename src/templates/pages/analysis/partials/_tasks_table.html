@@ -17,18 +17,24 @@
         <span>Analysis Tasks</span>
       </h3>
       <div class="d-flex flex-wrap align-items-center gap-1 status-indicators ms-2">
-        <span class="badge bg-primary-lt text-primary d-inline-flex align-items-center gap-1" title="Total tasks">
+        <span class="badge bg-primary-lt text-primary d-inline-flex align-items-center gap-1" title="Total tasks{% if pagination and pagination.has_filters %} (filtered){% endif %}">
           <i class="fas fa-tasks fa-xs"></i>
           <span>{{ pagination.total if pagination else 0 }}</span>
         </span>
         {% if pagination and pagination.active_count > 0 %}
-        <span class="badge bg-warning-lt text-warning d-inline-flex align-items-center gap-1" title="Active tasks">
+        <span class="badge bg-warning-lt text-warning d-inline-flex align-items-center gap-1" title="Active tasks{% if pagination.has_filters %} (filtered){% endif %}">
           <i class="fas fa-spinner fa-pulse fa-xs"></i>
           <span>{{ pagination.active_count }} active</span>
         </span>
+        {% elif pagination and pagination.has_filters and pagination.global_active > 0 %}
+        {# Show hint that there are active tasks globally but filtered out #}
+        <span class="badge bg-secondary-lt text-muted d-inline-flex align-items-center gap-1" title="{{ pagination.global_active }} active tasks exist but are filtered out">
+          <i class="fas fa-filter fa-xs"></i>
+          <span>{{ pagination.global_active }} active (other apps)</span>
+        </span>
         {% endif %}
         {% if pagination and pagination.total_completed > 0 %}
-        <span class="badge bg-success-lt text-success d-inline-flex align-items-center gap-1" title="Completed tasks">
+        <span class="badge bg-success-lt text-success d-inline-flex align-items-center gap-1" title="Completed tasks{% if pagination.has_filters %} (filtered){% endif %}">
           <i class="fas fa-check-circle fa-xs"></i>
           <span>{{ pagination.total_completed }} done</span>
         </span>

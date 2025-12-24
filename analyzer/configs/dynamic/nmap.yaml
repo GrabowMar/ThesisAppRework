@@ -1,0 +1,188 @@
+# Nmap Configuration
+# Port and service scanner with vulnerability detection
+# Docs: https://nmap.org/book/man.html
+
+# ============================================================================
+# SCAN TYPES
+# ============================================================================
+scan_type:
+  # Default scan type
+  # Options: quick, standard, comprehensive, stealth
+  default: "standard"
+
+# ============================================================================
+# PORT SETTINGS
+# ============================================================================
+ports:
+  # Common web application ports
+  default:
+    - 80      # HTTP
+    - 443     # HTTPS
+    - 8080    # HTTP alternate
+    - 8443    # HTTPS alternate
+    - 3000    # Node.js/React dev
+    - 3001    # Common dev port
+    - 4000    # GraphQL common
+    - 5000    # Flask default
+    - 5001    # Flask alternate
+    - 8000    # Django/Python
+    - 8888    # Jupyter
+    - 9000    # PHP-FPM/Portainer
+  
+  # Extended port range for thorough scanning
+  extended:
+    - 21      # FTP
+    - 22      # SSH
+    - 23      # Telnet
+    - 25      # SMTP
+    - 53      # DNS
+    - 110     # POP3
+    - 143     # IMAP
+    - 445     # SMB
+    - 993     # IMAPS
+    - 995     # POP3S
+    - 1433    # MSSQL
+    - 1521    # Oracle
+    - 3306    # MySQL
+    - 5432    # PostgreSQL
+    - 6379    # Redis
+    - 27017   # MongoDB
+  
+  # Full range (use sparingly - slow)
+  full_range: "1-65535"
+
+# ============================================================================
+# SERVICE DETECTION
+# ============================================================================
+service_detection:
+  # Enable service/version detection (-sV)
+  enabled: true
+  
+  # Version detection intensity (0-9, higher = slower but more accurate)
+  intensity: 7
+  
+  # Probe rarity (skip rare probes for speed)
+  version_light: false
+
+# ============================================================================
+# SCRIPT SCANNING (NSE)
+# ============================================================================
+scripts:
+  # Enable NSE scripts
+  enabled: true
+  
+  # Default scripts to run
+  default:
+    - "vuln"                          # Vulnerability detection
+    - "http-headers"                  # HTTP header analysis
+    - "http-security-headers"         # Security header check
+    - "http-methods"                  # HTTP methods enumeration
+    - "http-title"                    # Page title extraction
+    - "ssl-cert"                      # SSL certificate info
+    - "ssl-enum-ciphers"              # SSL/TLS cipher enumeration
+  
+  # Security-focused scripts
+  security:
+    - "vuln"
+    - "http-csrf"
+    - "http-dombased-xss"
+    - "http-stored-xss"
+    - "http-sql-injection"
+    - "http-shellshock"
+    - "http-slowloris-check"
+    - "http-phpself-xss"
+    - "http-unsafe-output-escaping"
+  
+  # Safe scripts only (no exploitation)
+  safe_only: true
+
+# ============================================================================
+# TIMING AND PERFORMANCE
+# ============================================================================
+timing:
+  # Timing template (0=paranoid, 1=sneaky, 2=polite, 3=normal, 4=aggressive, 5=insane)
+  # Use T3 or T4 for quick CI scans
+  template: 4
+  
+  # Maximum retries
+  max_retries: 2
+  
+  # Host timeout (seconds)
+  host_timeout: 60
+  
+  # Scan delay (milliseconds between probes)
+  scan_delay: 0
+  
+  # Maximum scan time per host (seconds)
+  max_scan_time: 120
+
+# ============================================================================
+# OUTPUT SETTINGS
+# ============================================================================
+output:
+  # Output format (normal, xml, json, grepable)
+  format: "json"
+  
+  # Verbosity level (0-2)
+  verbosity: 1
+  
+  # Show open ports only
+  open_only: true
+  
+  # Include reason for port state
+  reason: true
+
+# ============================================================================
+# SCAN PRESETS
+# ============================================================================
+presets:
+  # Quick scan - Fast port check, minimal probes
+  quick:
+    ports: "80,443,8080,3000,5000,8000"
+    timing_template: 5
+    service_detection: false
+    scripts: []
+    
+  # Standard scan - Common ports with service detection
+  standard:
+    ports: "default"
+    timing_template: 4
+    service_detection: true
+    scripts:
+      - "http-headers"
+      - "http-security-headers"
+      - "http-title"
+    
+  # Comprehensive - Full analysis with vulnerability scripts
+  comprehensive:
+    ports: "default,extended"
+    timing_template: 3
+    service_detection: true
+    version_intensity: 9
+    scripts:
+      - "vuln"
+      - "http-headers"
+      - "http-security-headers"
+      - "http-methods"
+      - "ssl-cert"
+      - "ssl-enum-ciphers"
+    
+  # Stealth - Slow, evasive scanning
+  stealth:
+    ports: "80,443,8080"
+    timing_template: 1
+    scan_delay: 1000
+    service_detection: true
+    scripts: []
+
+# ============================================================================
+# HOST DISCOVERY
+# ============================================================================
+host_discovery:
+  # Skip host discovery (assume host is up) - faster for known targets
+  skip_discovery: true
+  
+  # Ping types (if discovery enabled)
+  ping_types:
+    - "tcp_syn"
+    - "tcp_ack"

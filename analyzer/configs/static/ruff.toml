@@ -1,0 +1,194 @@
+# Ruff Configuration
+# Extremely fast Python linter - replaces Flake8, isort, and more
+# Docs: https://docs.astral.sh/ruff/settings/
+
+# ============================================================================
+# TARGET SETTINGS
+# ============================================================================
+
+# Target Python version (minimum supported)
+target-version = "py310"
+
+# Maximum line length (Black-compatible)
+line-length = 100
+
+# ============================================================================
+# RULE SELECTION - Comprehensive linting
+# ============================================================================
+# Full list: https://docs.astral.sh/ruff/rules/
+
+[lint]
+select = [
+    # Pyflakes (F) - Runtime errors and issues
+    "F",
+    
+    # pycodestyle (E, W) - PEP 8 style
+    "E",
+    "W",
+    
+    # isort (I) - Import sorting
+    "I",
+    
+    # pep8-naming (N) - Naming conventions
+    "N",
+    
+    # flake8-bandit (S) - Security issues (CRITICAL)
+    "S",
+    
+    # flake8-bugbear (B) - Common bugs and design problems
+    "B",
+    
+    # flake8-builtins (A) - Shadowing built-in names
+    "A",
+    
+    # flake8-comprehensions (C4) - Better list/dict comprehensions
+    "C4",
+    
+    # mccabe (C90) - Cyclomatic complexity
+    "C90",
+    
+    # flake8-simplify (SIM) - Simplification suggestions
+    "SIM",
+    
+    # pyupgrade (UP) - Upgrade syntax to newer Python
+    "UP",
+    
+    # flake8-pytest-style (PT) - Pytest best practices
+    "PT",
+    
+    # Ruff-specific (RUF) - Additional Ruff rules
+    "RUF",
+    
+    # flake8-type-checking (TCH) - Type checking imports
+    "TCH",
+    
+    # flake8-unused-arguments (ARG) - Unused function arguments
+    "ARG",
+    
+    # flake8-use-pathlib (PTH) - Use pathlib instead of os.path
+    "PTH",
+    
+    # tryceratops (TRY) - Exception handling anti-patterns
+    "TRY",
+    
+    # flake8-return (RET) - Return statement issues
+    "RET",
+    
+    # flake8-logging-format (G) - Logging format issues
+    "G",
+    
+    # flake8-pie (PIE) - Misc lints
+    "PIE",
+    
+    # flake8-async (ASYNC) - Async/await issues
+    "ASYNC",
+    
+    # perflint (PERF) - Performance anti-patterns
+    "PERF",
+]
+
+# Rules to ignore (adjust based on project needs)
+ignore = [
+    # Allow assert statements (common in tests and generated code)
+    "S101",
+    
+    # Allow hardcoded passwords for detection (we want to find these!)
+    # "S105", "S106", "S107",  # Keep enabled for security scanning
+    
+    # Allow too complex functions (generated code may be verbose)
+    "C901",
+    
+    # Allow magic values (common in generated code)
+    # "PLR2004",  # Not enabled by default
+    
+    # Allow print statements (common in generated apps)
+    "T201",
+    
+    # Allow missing docstrings (generated code often lacks them)
+    "D100", "D101", "D102", "D103", "D104", "D105", "D107",
+    
+    # Line too long - handled by formatter
+    "E501",
+]
+
+# ============================================================================
+# PER-FILE IGNORES
+# ============================================================================
+
+[lint.per-file-ignores]
+# Tests can have unused imports, assertions, and fixtures
+"**/tests/**/*.py" = ["S101", "ARG", "F401"]
+"**/test_*.py" = ["S101", "ARG", "F401"]
+"**/*_test.py" = ["S101", "ARG", "F401"]
+"conftest.py" = ["F401", "ARG"]
+
+# Migrations and generated files
+"**/migrations/**/*.py" = ["E501", "RUF"]
+"**/alembic/**/*.py" = ["E501", "RUF"]
+
+# ============================================================================
+# COMPLEXITY LIMITS
+# ============================================================================
+
+[lint.mccabe]
+# Maximum cyclomatic complexity
+max-complexity = 15
+
+# ============================================================================
+# ISORT CONFIGURATION
+# ============================================================================
+
+[lint.isort]
+# Known first-party modules
+known-first-party = ["app", "src", "analyzer"]
+
+# Force single-line imports
+force-single-line = false
+
+# Lines between import sections
+lines-after-imports = 2
+
+# ============================================================================
+# FLAKE8-BANDIT CONFIGURATION (Security)
+# ============================================================================
+
+[lint.flake8-bandit]
+# Check calls like subprocess.call(shell=True)
+check-typed-exception = true
+
+# ============================================================================
+# EXCLUDE PATTERNS
+# ============================================================================
+
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "migrations",
+    "alembic",
+]
+
+# ============================================================================
+# PRESETS (Via command-line or env)
+# ============================================================================
+# Quick: --select=F,E,W,S
+# Standard: Default config above
+# Security-only: --select=S

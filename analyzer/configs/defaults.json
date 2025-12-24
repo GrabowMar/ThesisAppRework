@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "description": "Master defaults and tool registry for analyzer configuration",
+  
+  "tool_registry": {
+    "static": {
+      "bandit": {
+        "enabled": true,
+        "display_name": "Bandit Security Scanner",
+        "description": "Python security vulnerability scanner",
+        "config_file": "static/bandit.yaml",
+        "languages": ["python"],
+        "category": "security"
+      },
+      "semgrep": {
+        "enabled": true,
+        "display_name": "Semgrep SAST",
+        "description": "Multi-language static analysis with security rulesets",
+        "config_file": "static/semgrep.yaml",
+        "languages": ["python", "javascript", "typescript", "go", "java"],
+        "category": "security"
+      },
+      "mypy": {
+        "enabled": true,
+        "display_name": "MyPy Type Checker",
+        "description": "Static type checker for Python",
+        "config_file": "static/mypy.ini",
+        "languages": ["python"],
+        "category": "quality"
+      },
+      "ruff": {
+        "enabled": true,
+        "display_name": "Ruff Linter",
+        "description": "Extremely fast Python linter (replaces flake8, isort, etc.)",
+        "config_file": "static/ruff.toml",
+        "languages": ["python"],
+        "category": "quality"
+      },
+      "pylint": {
+        "enabled": true,
+        "display_name": "Pylint",
+        "description": "Python code quality and convention checker",
+        "config_file": "static/pylint.toml",
+        "languages": ["python"],
+        "category": "quality"
+      },
+      "vulture": {
+        "enabled": true,
+        "display_name": "Vulture Dead Code",
+        "description": "Python dead code detector",
+        "config_file": "static/vulture.toml",
+        "languages": ["python"],
+        "category": "quality"
+      },
+      "safety": {
+        "enabled": true,
+        "display_name": "Safety CVE Scanner",
+        "description": "Python dependency vulnerability scanner",
+        "languages": ["python"],
+        "category": "security"
+      },
+      "pip-audit": {
+        "enabled": true,
+        "display_name": "pip-audit CVE Scanner",
+        "description": "Python dependency vulnerability scanner (no auth required)",
+        "languages": ["python"],
+        "category": "security"
+      },
+      "eslint": {
+        "enabled": true,
+        "display_name": "ESLint",
+        "description": "JavaScript/TypeScript linter with security rules",
+        "config_file": "static/eslint.config.json",
+        "languages": ["javascript", "typescript", "jsx", "tsx"],
+        "category": "quality"
+      },
+      "npm-audit": {
+        "enabled": true,
+        "display_name": "npm audit",
+        "description": "Node.js dependency vulnerability scanner",
+        "languages": ["javascript", "typescript"],
+        "category": "security"
+      },
+      "stylelint": {
+        "enabled": true,
+        "display_name": "Stylelint",
+        "description": "CSS/SCSS linter",
+        "languages": ["css", "scss", "sass", "less"],
+        "category": "quality"
+      }
+    },
+    "dynamic": {
+      "zap": {
+        "enabled": true,
+        "display_name": "OWASP ZAP",
+        "description": "Web application security scanner",
+        "config_file": "dynamic/zap.yaml",
+        "category": "security"
+      },
+      "nmap": {
+        "enabled": true,
+        "display_name": "Nmap Scanner",
+        "description": "Port and service scanner with vulnerability detection",
+        "config_file": "dynamic/nmap.yaml",
+        "category": "security"
+      },
+      "curl": {
+        "enabled": true,
+        "display_name": "cURL Connectivity",
+        "description": "HTTP connectivity and security header checker",
+        "category": "connectivity"
+      }
+    },
+    "performance": {
+      "aiohttp": {
+        "enabled": true,
+        "display_name": "aiohttp Benchmark",
+        "description": "Async HTTP performance testing",
+        "config_file": "performance/aiohttp.yaml",
+        "category": "performance"
+      },
+      "ab": {
+        "enabled": true,
+        "display_name": "Apache Bench",
+        "description": "Simple HTTP load testing",
+        "config_file": "performance/load_test.yaml",
+        "category": "performance"
+      },
+      "locust": {
+        "enabled": true,
+        "display_name": "Locust Load Testing",
+        "description": "Programmable load testing",
+        "config_file": "performance/load_test.yaml",
+        "category": "performance"
+      }
+    }
+  },
+  
+  "global_defaults": {
+    "timeout_seconds": 300,
+    "max_file_size_mb": 10,
+    "ignore_patterns": [
+      "node_modules",
+      "dist",
+      "build",
+      ".next",
+      ".nuxt",
+      ".cache",
+      ".venv",
+      "venv",
+      "__pycache__",
+      ".git",
+      ".tox",
+      ".mypy_cache",
+      "coverage",
+      "site-packages"
+    ]
+  }
+}

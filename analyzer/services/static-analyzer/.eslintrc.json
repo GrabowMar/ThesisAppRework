@@ -14,7 +14,7 @@
       "jsx": true
     }
   },
-  "plugins": ["react", "security"],
+  "plugins": ["react", "security", "@typescript-eslint"],
   "rules": {
     "no-eval": "error",
     "no-implied-eval": "error",
@@ -22,6 +22,12 @@
     "no-unused-vars": "warn",
     "no-undef": "error",
     "no-use-before-define": "error",
+    "eqeqeq": ["error", "always"],
+    "no-var": "error",
+    "prefer-const": "warn",
+    "no-prototype-builtins": "error",
+    "no-new-func": "error",
+    "no-script-url": "error",
     "security/detect-eval-with-expression": "error",
     "security/detect-non-literal-regexp": "warn",
     "security/detect-unsafe-regex": "error",
@@ -37,6 +43,29 @@
     "react/no-danger": "error",
     "react/no-danger-with-children": "error"
   },
+  "overrides": [
+    {
+      "files": ["*.ts", "*.tsx"],
+      "parser": "@typescript-eslint/parser",
+      "parserOptions": {
+        "ecmaVersion": 2021,
+        "sourceType": "module",
+        "ecmaFeatures": {
+          "jsx": true
+        }
+      },
+      "extends": [
+        "plugin:@typescript-eslint/recommended"
+      ],
+      "rules": {
+        "no-unused-vars": "off",
+        "@typescript-eslint/no-unused-vars": "warn",
+        "@typescript-eslint/no-explicit-any": "warn",
+        "@typescript-eslint/explicit-function-return-type": "off",
+        "@typescript-eslint/no-non-null-assertion": "warn"
+      }
+    }
+  ],
   "settings": {
     "react": {
       "version": "detect"

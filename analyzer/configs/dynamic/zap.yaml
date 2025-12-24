@@ -1,0 +1,189 @@
+# OWASP ZAP Configuration
+# Web application security scanner
+# Docs: https://www.zaproxy.org/docs/
+
+# ============================================================================
+# SPIDER SETTINGS
+# ============================================================================
+spider:
+  # Maximum crawl depth (deeper = more thorough but slower)
+  max_depth: 10
+  
+  # Maximum children per node (0 = unlimited, ZAP default)
+  max_children: 0
+  
+  # Maximum duration for spider (seconds)
+  max_duration: 180
+  
+  # Thread count for spider (more = faster but more load)
+  thread_count: 5
+  
+  # Follow redirects during spidering
+  follow_redirects: true
+  
+  # Parse HTML comments for URLs
+  parse_comments: true
+  
+  # Parse robots.txt
+  parse_robots_txt: true
+  
+  # Parse sitemap.xml
+  parse_sitemap: true
+
+# ============================================================================
+# AJAX SPIDER SETTINGS (For JavaScript-heavy apps)
+# ============================================================================
+ajax_spider:
+  # Enable AJAX spider for JavaScript-rendered content
+  enabled: true
+  
+  # Browser to use (htmlunit, firefox, chrome)
+  browser: "htmlunit"
+  
+  # Maximum duration (seconds)
+  max_duration: 120
+  
+  # Maximum crawl depth
+  max_depth: 5
+  
+  # Number of browser instances
+  instances: 1
+
+# ============================================================================
+# PASSIVE SCAN SETTINGS
+# ============================================================================
+passive_scan:
+  # Wait time for passive scanner to process (seconds)
+  wait_time: 30
+  
+  # Scan all responses (including redirects)
+  scan_all_responses: true
+  
+  # Enable all passive scan rules
+  enable_all_rules: true
+
+# ============================================================================
+# ACTIVE SCAN SETTINGS (Penetration testing - use with caution)
+# ============================================================================
+active_scan:
+  # Enable active scanning (more intrusive)
+  enabled: false  # Disabled by default for safety
+  
+  # Maximum duration (seconds)
+  max_duration: 300
+  
+  # Delay between requests (milliseconds)
+  delay_in_ms: 50
+  
+  # Maximum scan threads
+  max_threads: 5
+  
+  # Scan policy (default, light, medium, heavy)
+  policy: "default"
+
+# ============================================================================
+# AUTHENTICATION (If target requires login)
+# ============================================================================
+authentication:
+  # Enable authentication
+  enabled: false
+  
+  # Authentication method (form, script, json, basic)
+  method: "form"
+  
+  # Login URL
+  login_url: ""
+  
+  # Username field name
+  username_field: "username"
+  
+  # Password field name
+  password_field: "password"
+  
+  # Logged-in indicator (regex)
+  logged_in_indicator: ""
+  
+  # Logged-out indicator (regex)
+  logged_out_indicator: ""
+
+# ============================================================================
+# ALERT THRESHOLDS
+# ============================================================================
+alerts:
+  # Risk levels to report (HIGH, MEDIUM, LOW, INFORMATIONAL)
+  min_risk: "LOW"
+  
+  # Confidence levels to report (HIGH, MEDIUM, LOW, FALSE_POSITIVE)
+  min_confidence: "LOW"
+  
+  # Maximum alerts per rule (0 = unlimited)
+  max_alerts_per_rule: 20
+
+# ============================================================================
+# SCAN PRESETS
+# ============================================================================
+presets:
+  # Quick scan - Passive only, minimal spider
+  quick:
+    spider:
+      max_depth: 3
+      max_duration: 60
+    ajax_spider:
+      enabled: false
+    passive_scan:
+      wait_time: 10
+    active_scan:
+      enabled: false
+  
+  # Baseline scan - Thorough spider + passive (recommended)
+  baseline:
+    spider:
+      max_depth: 10
+      max_duration: 180
+    ajax_spider:
+      enabled: true
+      max_duration: 60
+    passive_scan:
+      wait_time: 30
+    active_scan:
+      enabled: false
+  
+  # Full scan - Active scanning (penetration testing)
+  full:
+    spider:
+      max_depth: 10
+      max_duration: 300
+    ajax_spider:
+      enabled: true
+      max_duration: 120
+    passive_scan:
+      wait_time: 30
+    active_scan:
+      enabled: true
+      max_duration: 600
+
+# ============================================================================
+# API SETTINGS
+# ============================================================================
+api:
+  # ZAP API port
+  port: 8090
+  
+  # API key (auto-generated if not specified)
+  # key: "changeme-zap-api-key"
+
+# ============================================================================
+# EXCLUDE FROM SCAN
+# ============================================================================
+exclude:
+  # URL patterns to exclude from scanning
+  patterns:
+    - ".*\\.js$"
+    - ".*\\.css$"
+    - ".*\\.png$"
+    - ".*\\.jpg$"
+    - ".*\\.gif$"
+    - ".*\\.svg$"
+    - ".*\\.ico$"
+    - ".*\\.woff.*$"
+    - ".*/logout.*"

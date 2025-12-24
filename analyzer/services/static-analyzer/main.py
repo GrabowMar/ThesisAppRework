@@ -5,6 +5,8 @@ Static Analyzer Service - Comprehensive Code Quality Analysis
 
 Modular static analysis service with strict tool selection gating.
 Runs per-language analyzers and reports results with accurate tools_used.
+
+Configuration files are loaded from analyzer/configs/ folder.
 """
 
 import asyncio
@@ -22,6 +24,13 @@ from analyzer.shared.service_base import BaseWSService
 from analyzer.shared.tool_logger import ToolExecutionLogger
 from parsers import parse_tool_output
 from sarif_parsers import parse_tool_output_to_sarif, build_sarif_document, get_available_sarif_parsers
+
+# Import configuration loader
+try:
+    from analyzer.config_loader import get_config_loader, load_tool_config
+    CONFIG_LOADER_AVAILABLE = True
+except ImportError:
+    CONFIG_LOADER_AVAILABLE = False
 
 
 class StaticAnalyzer(BaseWSService):
@@ -294,16 +303,34 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             and (selected_tools is None or 'bandit' in selected_tools)
             and bandit_config.get('enabled', True)
         ):
-            # Build exclude list
-            exclude_dirs = bandit_config.get('exclude_dirs') or self.default_ignores
+            # Load enhanced configuration from configs/static/bandit.yaml
+            if CONFIG_LOADER_AVAILABLE:
+                loader = get_config_loader()
+                bandit_full_config = loader.load_config('bandit', 'static', bandit_config)
+                exclude_dirs = bandit_full_config.get('exclude_dirs', self.default_ignores)
+                skips = bandit_full_config.get('skips', ['B101'])
+                severity = bandit_full_config.get('severity', 'low')
+                confidence = bandit_full_config.get('confidence', 'low')
+            else:
+                # Fallback to runtime config or defaults
+                exclude_dirs = bandit_config.get('exclude_dirs') or self.default_ignores
+                skips = bandit_config.get('skips', ['B101'])
+                severity = bandit_config.get('severity', 'low')
+                confidence = bandit_config.get('confidence', 'low')
+            
             exclude_arg = ','.join(str(source_path / d) for d in exclude_dirs)
             # Use native SARIF format output
             cmd = ['bandit', '-r', str(source_path), '-x', exclude_arg, '-f', 'sarif', '-o', '/tmp/bandit_output.sarif']
             
-            if bandit_config.get('skips'):
-                cmd.extend(['--skip', ','.join(bandit_config['skips'])])
-            else:
-                cmd.extend(['--skip', 'B101'])
+            # Add severity and confidence filters
+            if severity and severity != 'all':
+                cmd.extend(['--severity-level', severity])
+            if confidence and confidence != 'all':
+                cmd.extend(['--confidence-level', confidence])
+            
+            # Add skips
+            if skips:
+                cmd.extend(['--skip', ','.join(skips)])
 
             # Run and read SARIF output
             result = await self._run_tool(cmd, 'bandit', config=bandit_config, success_exit_codes=[0, 1], skip_parser=True)
@@ -408,8 +435,28 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             and (selected_tools is None or 'semgrep' in selected_tools)
             and semgrep_config.get('enabled', True)
         ):
-            # Use SARIF format for better standardization
-            cmd = ['semgrep', 'scan', '--sarif', '--config=auto', str(source_path)]
+            # Load enhanced configuration from configs/static/semgrep.yaml
+            if CONFIG_LOADER_AVAILABLE:
+                loader = get_config_loader()
+                semgrep_full_config = loader.load_config('semgrep', 'static', semgrep_config)
+                rulesets = semgrep_full_config.get('rulesets', ['p/security-audit', 'p/python', 'p/javascript'])
+            else:
+                # Fallback: Enhanced default rulesets for comprehensive security scanning
+                rulesets = semgrep_config.get('rulesets', [
+                    'p/security-audit',    # Comprehensive security audit
+                    'p/secrets',           # Secret/credential detection  
+                    'p/owasp-top-ten',     # OWASP Top 10 vulnerabilities
+                    'p/python',            # Python best practices + security
+                    'p/javascript',        # JavaScript security
+                    'p/flask',             # Flask-specific security rules
+                    'p/react',             # React security patterns
+                ])
+            
+            # Build command with all rulesets
+            cmd = ['semgrep', 'scan', '--sarif']
+            for ruleset in rulesets:
+                cmd.extend(['--config', ruleset])
+            cmd.append(str(source_path))
             result = await self._run_tool(cmd, 'semgrep', config=semgrep_config, skip_parser=True)
             if result.get('status') != 'error' and 'output' in result:
                 try:
@@ -429,17 +476,44 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
                     self.log.warning(f"Could not parse semgrep SARIF output: {e}")
             results['semgrep'] = result
 
-        # Mypy type checking
+        # Mypy type checking with enhanced strict mode
         if (
             'mypy' in self.available_tools
             and (selected_tools is None or 'mypy' in selected_tools)
             and mypy_config.get('enabled', True)
             and python_files
         ):
-            # Use mypy with JSON output to stdout (newline-delimited JSON)
-            cmd = ['mypy', '--output', 'json', '--show-error-codes', '--no-error-summary', 
-                   '--ignore-missing-imports', '--no-incremental', '--cache-dir', '/tmp/mypy_cache']
-            max_files = mypy_config.get('max_files', 10)
+            # Load enhanced configuration from configs/static/mypy.ini
+            if CONFIG_LOADER_AVAILABLE:
+                loader = get_config_loader()
+                mypy_full_config = loader.load_config('mypy', 'static', mypy_config)
+                use_strict = mypy_full_config.get('strict', True)
+                warn_unused = mypy_full_config.get('warn_unused_ignores', True)
+                warn_redundant = mypy_full_config.get('warn_redundant_casts', True)
+                max_files = mypy_full_config.get('max_files', 20)
+            else:
+                use_strict = mypy_config.get('strict', False)
+                warn_unused = mypy_config.get('warn_unused_ignores', True)
+                warn_redundant = mypy_config.get('warn_redundant_casts', True)
+                max_files = mypy_config.get('max_files', 10)
+            
+            # Build command with enhanced type checking options
+            cmd = ['mypy', '--output', 'json', '--show-error-codes', '--no-error-summary',
+                   '--no-incremental', '--cache-dir', '/tmp/mypy_cache']
+            
+            # Add strict mode flags
+            if use_strict:
+                cmd.append('--strict')
+            
+            # Add warning flags
+            if warn_unused:
+                cmd.append('--warn-unused-ignores')
+            if warn_redundant:
+                cmd.append('--warn-redundant-casts')
+            
+            # Keep ignore-missing-imports for generated code compatibility
+            cmd.append('--ignore-missing-imports')
+            
             files_to_check = python_files[:max_files]
             cmd.extend([str(f) for f in files_to_check])
 
@@ -545,9 +619,20 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             and vulture_config.get('enabled', True)
             and python_files
         ):
+            # Load enhanced configuration from configs/static/vulture.toml
+            if CONFIG_LOADER_AVAILABLE:
+                loader = get_config_loader()
+                vulture_full_config = loader.load_config('vulture', 'static', vulture_config)
+                min_confidence = vulture_full_config.get('min_confidence', 80)
+                sort_by_size = vulture_full_config.get('sort_by_size', True)
+            else:
+                min_confidence = vulture_config.get('min_confidence', 80)
+                sort_by_size = vulture_config.get('sort_by_size', True)
+            
             cmd = ['vulture', str(source_path)]
-            if vulture_config.get('min_confidence'):
-                cmd.extend(['--min-confidence', str(vulture_config['min_confidence'])])
+            cmd.extend(['--min-confidence', str(min_confidence)])
+            if sort_by_size:
+                cmd.append('--sort-by-size')
 
             # Vulture returns: 0=no issues, 1=dead code found, 3=syntax errors in checked files
             # All are valid outcomes for analysis purposes
@@ -599,9 +684,32 @@ max-nested-blocks={config.get('max_nested_blocks', 5)}
             and ruff_config.get('enabled', True)
             and python_files
         ):
-            # Ruff supports SARIF output natively via --output-format=sarif
-            # Use /tmp for cache to avoid permission issues
-            cmd = ['ruff', 'check', '--output-format=sarif', '--cache-dir', '/tmp/ruff_cache', str(source_path)]
+            # Load enhanced configuration from configs/static/ruff.toml
+            if CONFIG_LOADER_AVAILABLE:
+                loader = get_config_loader()
+                ruff_full_config = loader.load_config('ruff', 'static', ruff_config)
+                select_rules = ruff_full_config.get('select', ['E', 'F', 'W', 'I', 'S', 'B', 'A', 'C90', 'UP', 'PT', 'RUF'])
+                line_length = ruff_full_config.get('line_length', 100)
+                target_version = ruff_full_config.get('target-version', 'py310')
+            else:
+                # Fallback defaults with security rules enabled
+                select_rules = ruff_config.get('select', ['E', 'F', 'W', 'I', 'S', 'B', 'A', 'C90', 'UP'])
+                line_length = ruff_config.get('line_length', 100)
+                target_version = ruff_config.get('target-version', 'py310')
+            
+            # Build command with enhanced rule selection
+            cmd = ['ruff', 'check', '--output-format=sarif', '--cache-dir', '/tmp/ruff_cache']
+            
+            # Add rule selection
+            if select_rules:
+                cmd.extend(['--select', ','.join(select_rules)])
+            
+            # Add line length and target version
+            cmd.extend(['--line-length', str(line_length)])
+            cmd.extend(['--target-version', target_version])
+            
+            cmd.append(str(source_path))
+            
             result = await self._run_tool(cmd, 'ruff', config=ruff_config, success_exit_codes=[0, 1], skip_parser=True)
             if result.get('status') != 'error' and 'output' in result:
                 try:

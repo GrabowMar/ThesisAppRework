@@ -19,17 +19,31 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
 
+# Try to import ConfigLoader for enhanced configuration
+try:
+    import sys
+    from pathlib import Path
+    # Add parent paths for config_loader
+    analyzer_root = Path(__file__).resolve().parent.parent.parent
+    if str(analyzer_root) not in sys.path:
+        sys.path.insert(0, str(analyzer_root))
+    from config_loader import get_config_loader, ConfigLoader
+    CONFIG_LOADER_AVAILABLE = True
+except ImportError:
+    CONFIG_LOADER_AVAILABLE = False
+
 
 class ZAPScanner:
     """OWASP ZAP security scanner wrapper."""
     
-    def __init__(self, zap_path: str = '/zap/ZAP_2.16.1', api_key: Optional[str] = None):
+    def __init__(self, zap_path: str = '/zap/ZAP_2.16.1', api_key: Optional[str] = None, config: Optional[Dict[str, Any]] = None):
         """
         Initialize ZAP scanner.
         
         Args:
             zap_path: Path to ZAP installation directory
             api_key: ZAP API key (auto-generated if None)
+            config: Optional runtime configuration overrides
         """
         self.zap_path = zap_path
         self.api_key = api_key or 'changeme-zap-api-key'
@@ -38,6 +52,52 @@ class ZAPScanner:
         self.zap = None
         # Use a dedicated home directory to avoid conflicts
         self.zap_home = '/tmp/zap_home'
+        
+        # Load configuration with ConfigLoader
+        self._load_config(config)
+    
+    def _load_config(self, runtime_config: Optional[Dict[str, Any]] = None):
+        """
+        Load ZAP configuration from config files with runtime overrides.
+        
+        Args:
+            runtime_config: Optional runtime configuration overrides from analysis wizard
+        """
+        if CONFIG_LOADER_AVAILABLE:
+            loader = get_config_loader()
+            self.config = loader.load_config('zap', 'dynamic', runtime_config)
+        else:
+            # Fallback defaults with enhanced settings
+            self.config = {
+                'spider': {
+                    'max_depth': 10,  # Enhanced from 5
+                    'thread_count': 5,
+                    'max_duration': 300,
+                    'max_children': 0,  # Unlimited
+                },
+                'passive_scan': {
+                    'wait_time': 30,  # Enhanced from 10
+                },
+                'active_scan': {
+                    'enabled': False,  # Off by default for safety
+                    'max_duration': 300,
+                },
+                'ajax_spider': {
+                    'enabled': True,  # Enable AJAX spider
+                    'max_duration': 60,
+                },
+                **(runtime_config or {})
+            }
+        
+        # Extract commonly used config values
+        spider_config = self.config.get('spider', {})
+        self.default_max_depth = spider_config.get('max_depth', 10)
+        self.default_thread_count = spider_config.get('thread_count', 5)
+        self.default_max_duration = spider_config.get('max_duration', 300)
+        self.passive_wait_time = self.config.get('passive_scan', {}).get('wait_time', 30)
+        self.ajax_spider_enabled = self.config.get('ajax_spider', {}).get('enabled', True)
+        
+        logger.info(f"ZAP config loaded: spider_depth={self.default_max_depth}, ajax_spider={self.ajax_spider_enabled}")
     
     def connect_to_zap(self, timeout: int = 10) -> bool:
         """
@@ -182,28 +242,32 @@ class ZAPScanner:
             if self.zap_process:
                 self.zap_process.kill()
     
-    def spider_scan(self, url: str, max_depth: int = 5, max_duration: int = 180, max_children: int = 0) -> Dict[str, Any]:
+    def spider_scan(self, url: str, max_depth: Optional[int] = None, max_duration: Optional[int] = None, max_children: int = 0) -> Dict[str, Any]:
         """
         Run ZAP spider scan on target URL with thorough coverage.
         
         Args:
             url: Target URL to spider
-            max_depth: Maximum spider depth (default: 5 for regular apps)
-            max_duration: Maximum scan duration in seconds (default: 180s = 3 minutes)
+            max_depth: Maximum spider depth (default from config: 10)
+            max_duration: Maximum scan duration in seconds (default from config: 300s)
             max_children: Maximum number of children to spider (0 = unlimited, ZAP default)
             
         Returns:
             Spider scan results
         """
         try:
-            logger.info(f"Starting comprehensive spider scan on {url} (max_depth={max_depth}, max_duration={max_duration}s)")
+            # Use config values as defaults
+            actual_max_depth = max_depth if max_depth is not None else self.default_max_depth
+            actual_max_duration = max_duration if max_duration is not None else self.default_max_duration
+            actual_thread_count = self.default_thread_count
             
-            # Configure spider for thorough scanning (ZAP default settings)
-            # Set thread count for faster scanning
-            self.zap.spider.set_option_max_depth(max_depth)
-            self.zap.spider.set_option_thread_count(5)  # Default ZAP threads
+            logger.info(f"Starting comprehensive spider scan on {url} (max_depth={actual_max_depth}, max_duration={actual_max_duration}s, threads={actual_thread_count})")
             
-            # Start the spider with ZAP defaults
+            # Configure spider for thorough scanning
+            self.zap.spider.set_option_max_depth(actual_max_depth)
+            self.zap.spider.set_option_thread_count(actual_thread_count)
+            
+            # Start the traditional spider
             # maxchildren=0 means no limit (ZAP default behavior)
             scan_id = self.zap.spider.scan(url, maxchildren=max_children, recurse=True, subtreeonly=False)
             logger.info(f"Spider scan started with ID: {scan_id}")
@@ -223,8 +287,8 @@ class ZAPScanner:
                 if progress >= 100:
                     break
                     
-                if elapsed > max_duration:
-                    logger.warning(f"Spider scan timeout after {max_duration}s (progress: {progress}%)")
+                if elapsed > actual_max_duration:
+                    logger.warning(f"Spider scan timeout after {actual_max_duration}s (progress: {progress}%)")
                     self.zap.spider.stop(scan_id)
                     break
                     
@@ -234,15 +298,36 @@ class ZAPScanner:
             urls_found = self.zap.spider.results(scan_id)
             elapsed_total = int(time.time() - start_time)
             
-            logger.info(f"Spider scan completed in {elapsed_total}s. Found {len(urls_found)} URLs")
+            logger.info(f"Traditional spider completed in {elapsed_total}s. Found {len(urls_found)} URLs")
+            
+            # Run AJAX spider if enabled (discovers JavaScript-rendered content)
+            ajax_urls = []
+            if self.ajax_spider_enabled:
+                ajax_result = self._run_ajax_spider(url)
+                if ajax_result.get('status') == 'success':
+                    ajax_urls = ajax_result.get('urls', [])
+                    logger.info(f"AJAX spider discovered {len(ajax_urls)} additional URLs")
+            
+            # Combine URLs from both spiders
+            all_urls = list(set(urls_found + ajax_urls))
+            
+            logger.info(f"Spider scan completed in {int(time.time() - start_time)}s. Total unique URLs: {len(all_urls)}")
             
             return {
                 'status': 'success',
                 'scan_id': scan_id,
-                'urls_found': len(urls_found),
-                'urls': urls_found,  # Include all URLs for comprehensive results
-                'duration': elapsed_total,
-                'max_depth': max_depth
+                'urls_found': len(all_urls),
+                'urls': all_urls,
+                'traditional_urls': len(urls_found),
+                'ajax_urls': len(ajax_urls),
+                'duration': int(time.time() - start_time),
+                'max_depth': actual_max_depth,
+                'config_used': {
+                    'max_depth': actual_max_depth,
+                    'max_duration': actual_max_duration,
+                    'thread_count': actual_thread_count,
+                    'ajax_spider_enabled': self.ajax_spider_enabled
+                }
             }
             
         except Exception as e:
@@ -250,6 +335,55 @@ class ZAPScanner:
             return {
                 'status': 'error',
                 'error': str(e)
+            }
+    
+    def _run_ajax_spider(self, url: str) -> Dict[str, Any]:
+        """
+        Run AJAX spider to discover JavaScript-rendered content.
+        
+        Args:
+            url: Target URL to spider
+            
+        Returns:
+            AJAX spider results
+        """
+        try:
+            ajax_config = self.config.get('ajax_spider', {})
+            ajax_max_duration = ajax_config.get('max_duration', 60)
+            
+            logger.info(f"Starting AJAX spider on {url} (max_duration={ajax_max_duration}s)")
+            
+            # Start AJAX spider
+            self.zap.ajaxSpider.scan(url)
+            
+            # Wait for completion with timeout
+            start_time = time.time()
+            while self.zap.ajaxSpider.status == 'running':
+                elapsed = int(time.time() - start_time)
+                if elapsed > ajax_max_duration:
+                    logger.warning(f"AJAX spider timeout after {ajax_max_duration}s")
+                    self.zap.ajaxSpider.stop()
+                    break
+                time.sleep(2)
+            
+            # Get results
+            results = self.zap.ajaxSpider.results()
+            urls = [r.get('requestHeader', '').split(' ')[1] for r in results if 'requestHeader' in r]
+            # Filter out empty strings and duplicates
+            urls = list(set(u for u in urls if u and u.startswith('http')))
+            
+            return {
+                'status': 'success',
+                'urls': urls,
+                'duration': int(time.time() - start_time)
+            }
+            
+        except Exception as e:
+            logger.warning(f"AJAX spider failed (non-critical): {e}")
+            return {
+                'status': 'error',
+                'error': str(e),
+                'urls': []
             }
     
     def active_scan(self, url: str, max_duration: int = 180) -> Dict[str, Any]:
@@ -376,19 +510,14 @@ class ZAPScanner:
             time.sleep(2)
             
             if scan_type == 'baseline':
-                # Thorough spider + Passive scan (default ZAP behavior for regular apps)
-                logger.info("Running comprehensive spider scan with ZAP defaults...")
-                spider_result = self.spider_scan(
-                    url, 
-                    max_depth=5,      # Deeper crawl for regular apps
-                    max_duration=180,  # 3 minutes for thorough coverage
-                    max_children=0     # Unlimited (ZAP default)
-                )
+                # Thorough spider + Passive scan using config values
+                logger.info(f"Running comprehensive spider scan (depth={self.default_max_depth}, duration={self.default_max_duration}s)...")
+                spider_result = self.spider_scan(url)  # Uses config defaults
                 
                 # Validate spider found URLs (indicates target was reachable and scannable)
                 urls_found = spider_result.get('urls_found', 0)
                 if spider_result.get('status') == 'success':
-                    logger.info(f"Spider discovered {urls_found} URLs")
+                    logger.info(f"Spider discovered {urls_found} URLs (traditional: {spider_result.get('traditional_urls', 0)}, AJAX: {spider_result.get('ajax_urls', 0)})")
                     if urls_found == 0:
                         logger.warning(f"Spider scan found 0 URLs for {url} - target may be unreachable or have no discoverable content")
                         return {
@@ -411,13 +540,14 @@ class ZAPScanner:
                     }
                 
                 # Wait for passive scanner to analyze all spidered URLs
-                logger.info("Waiting for passive scan analysis...")
-                time.sleep(10)  # Give passive scanner time to process all URLs
+                logger.info(f"Waiting for passive scan analysis (wait_time={self.passive_wait_time}s)...")
+                time.sleep(self.passive_wait_time)  # Use config value
                 
                 # Wait for passive scan queue to empty
                 records_remaining = int(self.zap.pscan.records_to_scan)
                 wait_count = 0
-                while records_remaining > 0 and wait_count < 30:  # Max 30 iterations (60s)
+                max_wait_iterations = max(30, self.passive_wait_time)  # At least 30 or match wait time
+                while records_remaining > 0 and wait_count < max_wait_iterations:
                     logger.debug(f"Passive scan: {records_remaining} records remaining")
                     time.sleep(2)
                     records_remaining = int(self.zap.pscan.records_to_scan)
@@ -436,7 +566,13 @@ class ZAPScanner:
                 'scan_type': scan_type,
                 'total_alerts': len(alerts),
                 'alerts': alerts,
-                'url': url
+                'url': url,
+                'config_used': {
+                    'max_depth': self.default_max_depth,
+                    'max_duration': self.default_max_duration,
+                    'passive_wait_time': self.passive_wait_time,
+                    'ajax_spider_enabled': self.ajax_spider_enabled
+                }
             }
             
         except Exception as e:

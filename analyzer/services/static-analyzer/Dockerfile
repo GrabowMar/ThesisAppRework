@@ -40,9 +40,11 @@ ENV NODE_PATH=/usr/lib/node_modules
 RUN useradd -u 1000 -m analyzer
 USER analyzer
 
-# Copy shared analyzer package and service code
+# Copy shared analyzer package, configs, and service code
 COPY --chown=analyzer:analyzer analyzer/__init__.py ./analyzer/__init__.py
 COPY --chown=analyzer:analyzer analyzer/shared ./analyzer/shared
+COPY --chown=analyzer:analyzer analyzer/config_loader.py ./analyzer/config_loader.py
+COPY --chown=analyzer:analyzer analyzer/configs ./analyzer/configs
 COPY --chown=analyzer:analyzer analyzer/services/static-analyzer/main.py .
 COPY --chown=analyzer:analyzer analyzer/services/static-analyzer/health_check.py .
 COPY --chown=analyzer:analyzer analyzer/services/static-analyzer/parsers.py .

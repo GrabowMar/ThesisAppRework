@@ -1,0 +1,162 @@
+# aiohttp Async HTTP Client Configuration
+# Settings for async performance testing
+
+# ============================================================================
+# REQUEST SETTINGS
+# ============================================================================
+request:
+  # Number of requests to perform
+  count: 20
+  
+  # Concurrent connections
+  concurrency: 3
+  
+  # Request timeout (seconds)
+  timeout: 30
+  
+  # HTTP method
+  method: "GET"
+  
+  # Follow redirects
+  follow_redirects: true
+  
+  # Maximum redirects
+  max_redirects: 10
+
+# ============================================================================
+# CONNECTION SETTINGS
+# ============================================================================
+connection:
+  # Total connection pool limit
+  limit: 10
+  
+  # Per-host connection limit
+  limit_per_host: 5
+  
+  # Enable TCP keep-alive
+  keepalive: true
+  
+  # Keep-alive timeout (seconds)
+  keepalive_timeout: 30
+  
+  # Enable TCP nodelay
+  tcp_nodelay: true
+  
+  # DNS cache TTL (seconds)
+  ttl_dns_cache: 300
+
+# ============================================================================
+# SSL SETTINGS
+# ============================================================================
+ssl:
+  # Verify SSL certificates
+  verify: false
+  
+  # Client certificate path (optional)
+  # cert: "/path/to/cert.pem"
+  
+  # Client key path (optional)
+  # key: "/path/to/key.pem"
+
+# ============================================================================
+# RETRY SETTINGS
+# ============================================================================
+retry:
+  # Enable automatic retries
+  enabled: true
+  
+  # Maximum retry attempts
+  max_attempts: 3
+  
+  # Retry delay (seconds)
+  delay: 1
+  
+  # Exponential backoff multiplier
+  backoff: 2
+  
+  # Status codes to retry
+  retry_codes:
+    - 500
+    - 502
+    - 503
+    - 504
+
+# ============================================================================
+# RATE LIMITING
+# ============================================================================
+rate_limit:
+  # Enable rate limiting
+  enabled: false
+  
+  # Requests per second limit
+  requests_per_second: 100
+  
+  # Burst size
+  burst: 10
+
+# ============================================================================
+# METRICS COLLECTION
+# ============================================================================
+metrics:
+  # Enable detailed metrics
+  enabled: true
+  
+  # Collect percentiles
+  percentiles:
+    - 50
+    - 75
+    - 90
+    - 95
+    - 99
+  
+  # Track connection pool stats
+  pool_stats: true
+  
+  # Track DNS resolution time
+  dns_timing: true
+
+# ============================================================================
+# OUTPUT
+# ============================================================================
+output:
+  # Output format (json, text, csv)
+  format: "json"
+  
+  # Include response bodies (for debugging)
+  include_body: false
+  
+  # Maximum body size to capture (bytes)
+  max_body_size: 1024
+  
+  # Verbose logging
+  verbose: false
+
+# ============================================================================
+# PRESETS
+# ============================================================================
+presets:
+  # Quick check - Minimal testing
+  quick:
+    request:
+      count: 10
+      concurrency: 2
+    connection:
+      limit: 5
+  
+  # Standard - Balanced testing
+  standard:
+    request:
+      count: 20
+      concurrency: 3
+    connection:
+      limit: 10
+  
+  # Stress - High load testing
+  stress:
+    request:
+      count: 100
+      concurrency: 20
+    connection:
+      limit: 50
+    rate_limit:
+      enabled: false

@@ -1,0 +1,125 @@
+# Semgrep Configuration
+# Multi-language static analysis with comprehensive security rulesets
+# Docs: https://semgrep.dev/docs/running-rules/
+
+# ============================================================================
+# RULESETS - Comprehensive security and quality rule selection
+# ============================================================================
+# Available rulesets: https://semgrep.dev/explore
+rulesets:
+  # Security-focused rulesets (primary)
+  - "p/security-audit"           # Comprehensive security audit rules
+  - "p/secrets"                  # Secret detection (API keys, tokens, etc.)
+  - "p/owasp-top-ten"           # OWASP Top 10 vulnerability detection
+  
+  # Language-specific rulesets
+  - "p/python"                   # Python best practices + security
+  - "p/javascript"               # JavaScript security and quality
+  - "p/typescript"               # TypeScript-specific rules
+  - "p/react"                    # React security patterns
+  - "p/nodejs"                   # Node.js security patterns
+  - "p/flask"                    # Flask-specific security (SQLi, XSS, etc.)
+  - "p/django"                   # Django security rules
+  - "p/jwt"                      # JWT security best practices
+  
+  # Additional quality rulesets
+  - "p/ci"                       # CI/CD security (GitHub Actions, etc.)
+  - "p/supply-chain"             # Supply chain security
+  - "p/command-injection"        # Command injection patterns
+  - "p/sql-injection"            # SQL injection detection
+  - "p/xss"                      # Cross-site scripting detection
+  - "p/insecure-transport"       # HTTP instead of HTTPS
+
+# ============================================================================
+# SEVERITY SETTINGS
+# ============================================================================
+severity:
+  # Minimum severity to report (INFO, WARNING, ERROR)
+  threshold: "INFO"
+  
+  # Treat warnings as errors (for CI/CD)
+  warnings_as_errors: false
+
+# ============================================================================
+# PERFORMANCE SETTINGS
+# ============================================================================
+performance:
+  # Maximum time per file (seconds)
+  timeout_per_file: 30
+  
+  # Maximum total scan time (seconds)
+  max_scan_time: 300
+  
+  # Number of parallel jobs (0 = auto-detect)
+  jobs: 0
+  
+  # Maximum target bytes (for CI performance)
+  max_target_bytes: 10000000  # 10MB
+
+# ============================================================================
+# EXCLUDE PATTERNS
+# ============================================================================
+exclude:
+  # Directories to skip
+  paths:
+    - "node_modules"
+    - "vendor"
+    - ".git"
+    - ".venv"
+    - "venv"
+    - "__pycache__"
+    - ".mypy_cache"
+    - "dist"
+    - "build"
+    - ".next"
+    - "coverage"
+    - "*.min.js"
+    - "*.min.css"
+    - "*.bundle.js"
+  
+  # File patterns to skip
+  patterns:
+    - "*.test.js"
+    - "*.spec.js"
+    - "*_test.py"
+    - "test_*.py"
+    - "conftest.py"
+
+# ============================================================================
+# OUTPUT SETTINGS
+# ============================================================================
+output:
+  # Output format (sarif, json, text, emacs, vim)
+  format: "sarif"
+  
+  # Include matched code snippets
+  include_code: true
+  
+  # Maximum findings per rule (0 = unlimited)
+  max_findings_per_rule: 50
+
+# ============================================================================
+# PRESETS (Quick configurations)
+# ============================================================================
+presets:
+  quick:
+    rulesets:
+      - "p/security-audit"
+      - "p/secrets"
+    severity_threshold: "WARNING"
+    max_scan_time: 60
+  
+  standard:
+    rulesets:
+      - "p/security-audit"
+      - "p/secrets"
+      - "p/owasp-top-ten"
+      - "p/python"
+      - "p/javascript"
+    severity_threshold: "INFO"
+    max_scan_time: 180
+  
+  comprehensive:
+    # Uses all rulesets defined above
+    severity_threshold: "INFO"
+    max_scan_time: 300

@@ -1,0 +1,113 @@
+# Bandit Configuration
+# Python security linter - finds common security issues
+# Docs: https://bandit.readthedocs.io/en/latest/config.html
+
+# ============================================================================
+# SKIP TESTS - Tests to exclude from scanning
+# ============================================================================
+# Common skips - adjust based on your security requirements
+skips:
+  # B101: Use of assert detected - often used in tests
+  - B101
+  # Note: We DO NOT skip the following security-critical tests:
+  # B102: exec_used
+  # B103: set_bad_file_permissions
+  # B104: hardcoded_bind_all_interfaces
+  # B105: hardcoded_password_string
+  # B106: hardcoded_password_funcarg
+  # B107: hardcoded_password_default
+
+# ============================================================================
+# EXCLUDE DIRECTORIES
+# ============================================================================
+exclude_dirs:
+  - node_modules
+  - .git
+  - .venv
+  - venv
+  - __pycache__
+  - .tox
+  - .mypy_cache
+  - dist
+  - build
+  - .eggs
+  - tests
+  - test
+  - "*_test.py"
+  - "test_*.py"
+  - conftest.py
+  - migrations
+  - alembic
+
+# ============================================================================
+# SEVERITY & CONFIDENCE FILTERS
+# ============================================================================
+# Severity levels: LOW, MEDIUM, HIGH
+# Confidence levels: LOW, MEDIUM, HIGH
+
+# Minimum severity to report (LOW captures everything)
+severity: LOW
+
+# Minimum confidence to report
+confidence: MEDIUM
+
+# ============================================================================
+# OUTPUT SETTINGS
+# ============================================================================
+# Format: sarif (for standardized output)
+format: sarif
+
+# Show line numbers
+show_lineno: true
+
+# ============================================================================
+# PLUGIN CONFIGURATION
+# ============================================================================
+
+# B201: flask_debug_true - Check Flask debug mode
+# Enabled by default
+
+# B301-B303: pickle usage
+# Enabled by default
+
+# B304-B305: ciphers
+# Enabled by default
+
+# B306: mktemp_q - Use of tempfile.mktemp
+# Enabled by default
+
+# B307: eval - Use of eval
+# Enabled by default
+
+# B308: mark_safe - Django mark_safe usage
+# Enabled by default
+
+# B309: httpsconnection - HTTPSConnection without cert verification
+# Enabled by default
+
+# B310-B313: URL open issues
+# Enabled by default
+
+# B314-B320: XML parsing issues
+# Enabled by default
+
+# B321: ftplib - FTP usage
+# Enabled by default
+
+# B323: ssl with no version
+# Enabled by default
+
+# B324-B325: hashlib insecure hashes
+# Enabled by default
+
+# ============================================================================
+# PRESETS
+# ============================================================================
+# Quick scan (high severity only):
+#   bandit -r . -ll -ii
+#
+# Standard scan (medium+ severity):
+#   bandit -r . -l -i
+#
+# Comprehensive scan (all findings):
+#   bandit -r . (uses this config)

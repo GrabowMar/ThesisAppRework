@@ -19,6 +19,19 @@ from analyzer.shared.tool_logger import ToolExecutionLogger
 from sarif_parsers import parse_tool_output_to_sarif, build_sarif_document
 from zap_scanner import ZAPScanner
 
+# Try to import ConfigLoader for enhanced configuration
+try:
+    import sys
+    from pathlib import Path
+    # Add parent paths for config_loader
+    analyzer_root = Path(__file__).resolve().parent.parent.parent
+    if str(analyzer_root) not in sys.path:
+        sys.path.insert(0, str(analyzer_root))
+    from config_loader import get_config_loader, ConfigLoader
+    CONFIG_LOADER_AVAILABLE = True
+except ImportError:
+    CONFIG_LOADER_AVAILABLE = False
+
 
 class DynamicAnalyzer(BaseWSService):
     """Dynamic web application security analyzer with OWASP ZAP integration."""
@@ -437,8 +450,8 @@ class DynamicAnalyzer(BaseWSService):
         except Exception as e:
             return {'status': 'error', 'error': str(e)}
     
-    async def port_scan(self, host: str, ports: List[int]) -> Dict[str, Any]:
-        """Perform basic port scanning."""
+    async def port_scan(self, host: str, ports: List[int], config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Perform port scanning with optional service detection and vulnerability scripts."""
         try:
             if 'nmap' not in self.available_tools:
                 # Fallback to basic connectivity test
@@ -446,13 +459,43 @@ class DynamicAnalyzer(BaseWSService):
             
             self.log.info(f"Port scanning {host}")
             
-            port_list = ','.join(map(str, ports))
-            cmd = ['nmap', '-p', port_list, '--open', '-T4', host]
+            # Load enhanced nmap configuration
+            nmap_config = config or {}
+            if CONFIG_LOADER_AVAILABLE:
+                loader = get_config_loader()
+                nmap_config = loader.load_config('nmap', 'dynamic', nmap_config)
+                service_detection = nmap_config.get('service_detection', True)
+                scripts = nmap_config.get('scripts', ['vuln', 'http-headers', 'http-security-headers'])
+                timing = nmap_config.get('timing', 4)
+                timeout_seconds = nmap_config.get('timeout_seconds', 120)
+            else:
+                # Fallback defaults with service detection enabled
+                service_detection = nmap_config.get('service_detection', True)
+                scripts = nmap_config.get('scripts', ['vuln', 'http-headers', 'http-security-headers'])
+                timing = nmap_config.get('timing', 4)
+                timeout_seconds = nmap_config.get('timeout_seconds', 120)
             
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            port_list = ','.join(map(str, ports))
+            cmd = ['nmap', '-p', port_list, '--open', f'-T{timing}']
+            
+            # Add service version detection
+            if service_detection:
+                cmd.append('-sV')
+            
+            # Add vulnerability scripts
+            if scripts:
+                script_arg = ','.join(scripts)
+                cmd.extend(['--script', script_arg])
+            
+            cmd.append(host)
+            
+            self.log.info(f"Running nmap command: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_seconds)
             
             if result.returncode == 0:
                 open_ports = []
+                service_info = {}
+                vulnerabilities = []
                 lines = result.stdout.split('\n')
                 
                 for line in lines:
@@ -462,16 +505,35 @@ class DynamicAnalyzer(BaseWSService):
                             port_info = parts[0]
                             port_num = port_info.split('/')[0]
                             try:
-                                open_ports.append(int(port_num))
+                                port_int = int(port_num)
+                                open_ports.append(port_int)
+                                # Extract service info if available
+                                if len(parts) >= 3:
+                                    service_info[port_int] = {
+                                        'service': parts[2] if len(parts) > 2 else 'unknown',
+                                        'version': ' '.join(parts[3:]) if len(parts) > 3 else ''
+                                    }
                             except ValueError:
                                 pass
+                    
+                    # Check for vulnerability findings from scripts
+                    if 'VULNERABLE' in line.upper() or 'CVE-' in line:
+                        vulnerabilities.append(line.strip())
                 
                 return {
                     'status': 'success',
                     'host': host,
                     'scanned_ports': ports,
                     'open_ports': open_ports,
-                    'total_open': len(open_ports)
+                    'total_open': len(open_ports),
+                    'service_info': service_info,
+                    'vulnerabilities': vulnerabilities,
+                    'raw_output': result.stdout[:4000],  # Include raw output for detailed analysis
+                    'config_used': {
+                        'service_detection': service_detection,
+                        'scripts': scripts,
+                        'timing': timing
+                    }
                 }
             else:
                 return {'status': 'error', 'error': result.stderr}

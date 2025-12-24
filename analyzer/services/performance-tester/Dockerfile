@@ -27,9 +27,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN useradd -u 1000 -m analyzer
 USER analyzer
 
-# Copy shared analyzer package and service code
+# Copy shared analyzer package, configs, and service code
 COPY --chown=analyzer:analyzer analyzer/__init__.py ./analyzer/__init__.py
 COPY --chown=analyzer:analyzer analyzer/shared ./analyzer/shared
+COPY --chown=analyzer:analyzer analyzer/config_loader.py ./analyzer/config_loader.py
+COPY --chown=analyzer:analyzer analyzer/configs ./analyzer/configs
 COPY --chown=analyzer:analyzer analyzer/services/performance-tester/requirements.txt .
 COPY --chown=analyzer:analyzer analyzer/services/performance-tester/main.py .
 COPY --chown=analyzer:analyzer analyzer/services/performance-tester/health_check.py .

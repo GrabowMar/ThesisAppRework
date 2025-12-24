@@ -1,0 +1,147 @@
+# Load Testing Configuration
+# Settings for Apache Bench (ab) and Locust
+# Quick CI-friendly defaults for fast feedback
+
+# ============================================================================
+# APACHE BENCH (ab) SETTINGS
+# ============================================================================
+ab:
+  # Number of requests to perform
+  # Low value for quick CI feedback
+  requests: 20
+  
+  # Number of concurrent requests
+  concurrency: 5
+  
+  # Timeout per request (seconds)
+  timeout: 30
+  
+  # Keep-alive (reuse connections)
+  keepalive: true
+  
+  # Content-Type for POST requests
+  content_type: "application/json"
+  
+  # Verbosity (1-4)
+  verbosity: 2
+
+# ============================================================================
+# LOCUST SETTINGS
+# ============================================================================
+locust:
+  # Number of users to simulate
+  users: 10
+  
+  # Spawn rate (users per second)
+  spawn_rate: 2
+  
+  # Test duration (seconds)
+  # Short duration for CI
+  run_time: 15
+  
+  # Headless mode (no web UI)
+  headless: true
+  
+  # Host (set dynamically)
+  # host: "http://localhost:5000"
+  
+  # Wait time between requests (seconds)
+  wait_time:
+    min: 1
+    max: 3
+  
+  # Stop on error percentage
+  stop_on_failure_percent: 50
+
+# ============================================================================
+# AIOHTTP SETTINGS
+# ============================================================================
+aiohttp:
+  # Number of requests
+  requests: 20
+  
+  # Concurrent connections
+  concurrency: 3
+  
+  # Timeout per request (seconds)
+  timeout: 30
+  
+  # Connection pool size
+  connector_limit: 10
+  
+  # Enable keep-alive
+  keepalive: true
+
+# ============================================================================
+# LOAD TEST PRESETS
+# ============================================================================
+presets:
+  # Quick CI scan - Minimal load for fast feedback
+  quick:
+    ab:
+      requests: 10
+      concurrency: 2
+    locust:
+      users: 5
+      run_time: 10
+    aiohttp:
+      requests: 10
+      concurrency: 2
+  
+  # Standard - Balanced load for regular testing
+  standard:
+    ab:
+      requests: 20
+      concurrency: 5
+    locust:
+      users: 10
+      run_time: 15
+    aiohttp:
+      requests: 20
+      concurrency: 3
+  
+  # Stress test - Higher load for stress testing
+  stress:
+    ab:
+      requests: 100
+      concurrency: 20
+    locust:
+      users: 50
+      run_time: 60
+    aiohttp:
+      requests: 100
+      concurrency: 10
+  
+  # Production-like - Realistic production load
+  production:
+    ab:
+      requests: 500
+      concurrency: 50
+    locust:
+      users: 100
+      run_time: 120
+      spawn_rate: 5
+    aiohttp:
+      requests: 200
+      concurrency: 20
+
+# ============================================================================
+# THRESHOLDS (Pass/Fail criteria)
+# ============================================================================
+thresholds:
+  # Response time thresholds (milliseconds)
+  response_time:
+    p50_max: 500     # 50th percentile
+    p95_max: 2000    # 95th percentile
+    p99_max: 5000    # 99th percentile
+  
+  # Error rate thresholds (percentage)
+  error_rate:
+    max: 5           # Maximum acceptable error rate
+  
+  # Requests per second minimum
+  rps:
+    min: 10          # Minimum RPS to pass
+  
+  # Enable threshold checking
+  enabled: true
